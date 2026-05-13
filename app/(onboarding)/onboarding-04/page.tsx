@@ -3,10 +3,10 @@ export const metadata = {
   description: 'Welcome to Dream Create',
 }
 
-import Link from 'next/link'
 import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
+import { completeOnboarding } from '../actions'
 
 export default function Onboarding04() {
   return (
@@ -35,7 +35,11 @@ export default function Onboarding04() {
                     <path className="text-green-700" d="M37.22 26.375a1 1 0 1 1 1.56 1.25l-8 10a1 1 0 0 1-1.487.082l-4-4a1 1 0 0 1 1.414-1.414l3.21 3.21 7.302-9.128Z" />
                   </svg>
                   <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-8">Welcome to Dream Create 🙌</h1>
-                  <Link className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white" href="/dashboards">Go To Dashboard -&gt;</Link>
+                  <form action={completeOnboarding}>
+                    <button type="submit" className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white">
+                      Go To Dashboard →
+                    </button>
+                  </form>
                 </div>
 
               </div>
