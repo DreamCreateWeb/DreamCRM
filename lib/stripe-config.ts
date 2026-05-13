@@ -1,80 +1,63 @@
-export type PlanId = 'starter' | 'professional' | 'enterprise'
-export type BillingInterval = 'month' | 'year'
+export type PlanId = 'basic' | 'pro' | 'premium'
 
 export interface Plan {
   id: PlanId
   name: string
-  monthlyPrice: number
-  annualPrice: number
+  price: number
   color: string
   features: string[]
-  priceIds: {
-    month: string
-    year: string
-  }
+  priceId: string
 }
 
 export const PLANS: Plan[] = [
   {
-    id: 'starter',
-    name: 'Starter',
-    monthlyPrice: 19,
-    annualPrice: 14,
+    id: 'basic',
+    name: 'Basic',
+    price: 99,
     color: 'green',
     features: [
-      'Dental website design & hosting',
-      'Patient intake forms',
-      'SSL & custom domain',
-      'Basic admin dashboard',
+      'Professional static landing page',
+      'Custom domain & SSL',
+      'Mobile-responsive design',
+      'HIPAA-safe hosting',
+      '3 design templates (Modern, Classic, Editorial)',
     ],
-    priceIds: {
-      month: process.env.STRIPE_PRICE_STARTER_MONTHLY ?? '',
-      year: process.env.STRIPE_PRICE_STARTER_ANNUAL ?? '',
-    },
+    priceId: process.env.STRIPE_PRICE_STARTER_MONTHLY ?? '',
   },
   {
-    id: 'professional',
-    name: 'Professional',
-    monthlyPrice: 39,
-    annualPrice: 34,
+    id: 'pro',
+    name: 'Pro',
+    price: 149,
     color: 'sky',
     features: [
-      'Everything in Starter',
+      'Everything in Basic',
+      'Admin portal (clinic dashboard)',
+      'Analytics & performance insights',
       'HIPAA-aligned database + AES-256 encryption',
-      'Online booking & scheduling',
+      '30-second front-desk content updates',
       'Clinic-specific templates',
-      '30-second front-desk updates',
     ],
-    priceIds: {
-      month: process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY ?? '',
-      year: process.env.STRIPE_PRICE_PROFESSIONAL_ANNUAL ?? '',
-    },
+    priceId: process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY ?? '',
   },
   {
-    id: 'enterprise',
-    name: 'Enterprise',
-    monthlyPrice: 79,
-    annualPrice: 74,
+    id: 'premium',
+    name: 'Premium',
+    price: 199,
     color: 'violet',
     features: [
-      'Everything in Professional',
-      'Multi-location management',
-      'BAA (Business Associate Agreement)',
-      'Audit logging & compliance reports',
-      'Priority support & SLA',
-      'Custom integrations',
+      'Everything in Pro',
+      'Patient portal',
+      'SEO optimization',
+      'Blog posts & content management',
+      'Online booking & scheduling',
+      'Priority support',
     ],
-    priceIds: {
-      month: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY ?? '',
-      year: process.env.STRIPE_PRICE_ENTERPRISE_ANNUAL ?? '',
-    },
+    priceId: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY ?? '',
   },
 ]
 
 export function getPlanByPriceId(priceId: string): Plan | undefined {
-  return PLANS.find(
-    (p) => p.priceIds.month === priceId || p.priceIds.year === priceId
-  )
+  return PLANS.find((p) => p.priceId === priceId)
 }
 
 export function getPlanById(id: PlanId): Plan | undefined {

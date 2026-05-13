@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
-import { PLANS, type PlanId, type BillingInterval } from '@/lib/stripe-config'
+import { PLANS, type PlanId } from '@/lib/stripe-config'
 
 export async function POST(req: NextRequest) {
   try {
-    const { planId, interval }: { planId: PlanId; interval: BillingInterval } =
-      await req.json()
+    const { planId }: { planId: PlanId } = await req.json()
 
     const plan = PLANS.find((p) => p.id === planId)
     if (!plan) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
     }
 
-    const priceId = plan.priceIds[interval]
-    if (!priceId) {
+    if (!plan.priceId) {
       return NextResponse.json(
-        { error: `Price ID not configured for ${planId} ${interval}` },
+        { error: `Price ID not configured for ${planId}` },
         { status: 400 }
       )
     }
@@ -26,14 +24,14 @@ export async function POST(req: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{ price: plan.priceId, quantity: 1 }],
       success_url: `${appUrl}/settings/billing?success=true`,
       cancel_url: `${appUrl}/settings/plans`,
       ...(customerId
         ? { customer: customerId }
         : { customer_email: 'contact@dreamcreateweb.com' }),
       subscription_data: {
-        metadata: { planId, interval },
+        metadata: { planId },
       },
     })
 
