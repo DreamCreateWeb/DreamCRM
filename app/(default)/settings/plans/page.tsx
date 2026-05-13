@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Plans Settings - Mosaic',
+  title: 'Plans Settings - Dream Create',
   description: 'Page description',
 }
 

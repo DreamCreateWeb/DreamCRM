@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Notifications Settings - Mosaic',
+  title: 'Notifications Settings - Dream Create',
   description: 'Page description',
 }
 

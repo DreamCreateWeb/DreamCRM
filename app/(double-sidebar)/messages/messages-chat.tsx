@@ -23,7 +23,7 @@ export default function MessagesChat() {
         <Image className="rounded-full mr-4" src={User01} width={40} height={40} alt="User 01" />
         <div>
           <div className="text-sm bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-100 p-3 rounded-lg rounded-tl-none mb-1">
-            Can anyone help? I have a question about Acme Professional
+            Can anyone help? I have a question about Enterprise Plan
           </div>
           <div className="flex items-center justify-between">
             <div className="text-xs text-gray-500 font-medium">2:40 PM</div>

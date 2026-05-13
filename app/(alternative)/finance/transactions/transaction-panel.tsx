@@ -117,7 +117,7 @@ export default function TransactionPanel() {
                   </div>
                   <div className="flex justify-between space-x-1">
                     <span className="italic">Emitter:</span>
-                    <span className="font-medium text-gray-700 dark:text-gray-100 text-right">Acme LTD UK</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-100 text-right">Dream Create Ltd</span>
                   </div>
                 </div>
               </div>

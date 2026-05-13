@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Dashboard - Mosaic',
+  title: 'Dashboard - Dream Create',
   description: 'Page description',
 }
 
@@ -45,11 +45,11 @@ export default function Dashboard() {
       {/* Cards */}
       <div className="grid grid-cols-12 gap-6">
 
-        {/* Line chart (Acme Plus) */}
+        {/* Line chart (Starter Plan) */}
         <DashboardCard01 />
-        {/* Line chart (Acme Advanced) */}
+        {/* Line chart (Professional Plan) */}
         <DashboardCard02 />
-        {/* Line chart (Acme Professional) */}
+        {/* Line chart (Enterprise Plan) */}
         <DashboardCard03 />
         {/* Bar chart (Direct vs Indirect) */}
         <DashboardCard04 />

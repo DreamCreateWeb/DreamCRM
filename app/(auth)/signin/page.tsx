@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Sign In - Mosaic',
-  description: 'Page description',
+  title: 'Sign In - Dream Create',
+  description: 'Sign in to your Dream Create dashboard',
 }
 
 import Link from 'next/link'
@@ -45,14 +45,14 @@ export default function SignIn() {
                 <div className="text-sm">
                   Don't you have an account? <Link className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="/signup">Sign Up</Link>
                 </div>
-                {/* Warning */}
+                {/* Info */}
                 <div className="mt-5">
-                  <div className="bg-yellow-500/20 text-yellow-700 px-3 py-2 rounded-lg">
+                  <div className="bg-violet-500/20 text-violet-700 dark:text-violet-400 px-3 py-2 rounded-lg">
                     <svg className="inline w-3 h-3 shrink-0 fill-current mr-2" viewBox="0 0 12 12">
-                      <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
+                      <path d="M6 0C2.7 0 0 2.7 0 6s2.7 6 6 6 6-2.7 6-6-2.7-6-6-6zm0 10c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H5V3h2v4z" />
                     </svg>
                     <span className="text-sm">
-                      To support you during the pandemic super pro features are free until March 31st.
+                      Infrastructure for modern dental clinics. HIPAA-aligned &amp; built for Arkansas practices.
                     </span>
                   </div>
                 </div>

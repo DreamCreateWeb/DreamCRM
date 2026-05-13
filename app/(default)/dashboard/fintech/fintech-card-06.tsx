@@ -39,7 +39,7 @@ export default function FintechCard06() {
                         <path d="M18 26a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-14a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z" />
                       </svg>
                     </div>
-                    <div className="font-medium text-gray-800 dark:text-gray-100">Acme LTD UK</div>
+                    <div className="font-medium text-gray-800 dark:text-gray-100">Dream Create Ltd</div>
                   </div>
                 </td>
                 <td className="p-2 whitespace-nowrap">

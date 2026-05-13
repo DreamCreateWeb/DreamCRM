@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Forum - Mosaic',
+  title: 'Forum - Dream Create',
   description: 'Page description',
 }
 

@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Transactions - Mosaic',
+  title: 'Transactions - Dream Create',
   description: 'Page description',
 }
 
@@ -62,7 +62,7 @@ function Transactions() {
     {
       id: 4,
       image: Image05,
-      name: 'Acme LTD UK',
+      name: 'Dream Create Ltd',
       date: '22/01/2024',
       status: 'Pending',
       amount: '+$2,179.36',

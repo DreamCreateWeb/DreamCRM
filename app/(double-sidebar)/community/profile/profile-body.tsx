@@ -155,7 +155,7 @@ export default function ProfileBody() {
                       <Image className="ml-1" src={Icon03} width={14} height={14} alt="Icon 03" />
                     </div>
                     <div className="truncate">
-                      <span className="text-sm font-medium text-gray-800 dark:text-gray-100">Acme Marketing</span>
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-100">Dream Create Marketing</span>
                     </div>
                   </div>
                   {/* Card content */}
@@ -186,7 +186,7 @@ export default function ProfileBody() {
                       <Image className="ml-1" src={Icon02} width={14} height={14} alt="Icon 02" />
                     </div>
                     <div className="truncate">
-                      <span className="text-sm font-medium text-gray-800 dark:text-gray-100">Acme Product</span>
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-100">Dream Create Product</span>
                     </div>
                   </div>
                   {/* Card content */}
@@ -346,7 +346,7 @@ export default function ProfileBody() {
               <div>4 April, 1987</div>
             </div>
             <div className="text-sm">
-              <h3 className="font-medium text-gray-800 dark:text-gray-100">Joined Acme</h3>
+              <h3 className="font-medium text-gray-800 dark:text-gray-100">Joined Dream Create</h3>
               <div>7 April, 2017</div>
             </div>
           </aside>

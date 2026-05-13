@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Kanban - Mosaic',
+  title: 'Kanban - Dream Create',
   description: 'Page description',
 }
 
@@ -24,7 +24,7 @@ export default function Kanban() {
 
         {/* Left: Title */}
         <div className="mb-4 sm:mb-0">
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Acme Inc. Tasks</h1>
+          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Dream Create Tasks</h1>
         </div>
 
         {/* Right: Actions */}

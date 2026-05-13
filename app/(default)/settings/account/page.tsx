@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Account Settings - Mosaic',
+  title: 'Account Settings - Dream Create',
   description: 'Page description',
 }
 

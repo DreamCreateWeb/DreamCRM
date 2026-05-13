@@ -1,7 +1,7 @@
 // This is just a demo page, look for the not-found.js file in the app directory. 
 
 export const metadata = {
-  title: 'Page Not Found - Mosaic',
+  title: 'Page Not Found - Dream Create',
   description: 'Page description',
 }
 

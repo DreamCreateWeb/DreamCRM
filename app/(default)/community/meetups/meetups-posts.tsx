@@ -326,7 +326,7 @@ export default function MeetupsPosts() {
           <div className="grow">
             <div className="text-sm font-semibold text-violet-500 uppercase mb-2">Mon 3 Jan, 2024</div>
             <Link className="inline-flex mb-2" href="/community/meetups/post">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">Acme Inc. London Meetup: Women in Tech Night</h3>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">Dream Create London Meetup: Women in Tech Night</h3>
             </Link>
             <div className="text-sm">
               Lorem ipsum is placeholder text commonly used in the graphic, print, and publishing industries for previewing layouts.

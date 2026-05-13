@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Calendar - Mosaic',
+  title: 'Calendar - Dream Create',
   description: 'Page description',
 }
 
@@ -200,7 +200,7 @@ export default function Calendar() {
               <li className="m-1">
                 <button className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-500 dark:text-gray-400">
                   <div className="w-1 h-3.5 bg-sky-500 shrink-0"></div>
-                  <span className="ml-1.5">Acme Inc.</span>
+                  <span className="ml-1.5">Dream Create</span>
                 </button>
               </li>
               <li className="m-1">

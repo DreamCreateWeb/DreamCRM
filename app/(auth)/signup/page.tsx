@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Sign Up - Mosaic',
-  description: 'Page description',
+  title: 'Sign Up - Dream Create',
+  description: 'Create your Dream Create account',
 }
 
 import Link from 'next/link'

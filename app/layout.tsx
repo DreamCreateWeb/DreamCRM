@@ -4,8 +4,8 @@ import Theme from './theme-provider'
 import AppProvider from './app-provider'
 
 export const metadata = {
-  title: 'DreamCRM',
-  description: 'DreamCRM Admin Dashboard',
+  title: 'Dream Create',
+  description: 'Infrastructure for modern dental clinics — HIPAA-aligned, built for Arkansas practices.',
 }
 
 export default function RootLayout({

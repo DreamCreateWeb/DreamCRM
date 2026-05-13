@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Tasks list - Mosaic',
+  title: 'Tasks list - Dream Create',
   description: 'Page description',
 }
 
@@ -20,7 +20,7 @@ export default function TasksList() {
 
           {/* Left: Title */}
           <div className="mb-4 sm:mb-0">
-            <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Acme Inc. Tasks</h1>
+            <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Dream Create Tasks</h1>
           </div>
 
           {/* Right: Actions */}

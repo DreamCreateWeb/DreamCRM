@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Job Post - Mosaic',
+  title: 'Job Post - Dream Create',
   description: 'Page description',
 }
 

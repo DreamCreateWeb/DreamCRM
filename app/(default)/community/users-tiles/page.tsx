@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Users Tabs - Mosaic',
+  title: 'Users Tabs - Dream Create',
   description: 'Page description',
 }
 
@@ -130,7 +130,7 @@ export default function UsersTabs() {
 
         {/* Left: Title */}
         <div className="mb-4 sm:mb-0">
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Acme Inc.</h1>
+          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Dream Create</h1>
         </div>
 
         {/* Right: Actions */}
