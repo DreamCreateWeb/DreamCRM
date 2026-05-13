@@ -1,27 +1,105 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { PLANS, type PlanId } from '@/lib/stripe-config'
+
+interface Subscription {
+  planId: PlanId | null
+  planName: string
+  interval: string
+  currentPeriodEnd: number
+  cancelAtPeriodEnd: boolean
+}
+
+const colorMap: Record<string, { dot: string; header: string; btn: string }> = {
+  green: {
+    dot: 'bg-green-500',
+    header: 'bg-green-500',
+    btn: 'border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300',
+  },
+  sky: {
+    dot: 'bg-sky-500',
+    header: 'bg-sky-500',
+    btn: 'bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white',
+  },
+  violet: {
+    dot: 'bg-violet-500',
+    header: 'bg-violet-500',
+    btn: 'bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white',
+  },
+}
 
 export default function PlansPanel() {
-
   const [annual, setAnnual] = useState<boolean>(true)
+  const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/billing/subscription')
+      .then((r) => r.json())
+      .then((data) => {
+        setSubscription(data.subscription)
+        if (data.subscription?.interval === 'month') setAnnual(false)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function handleSelectPlan(planId: PlanId) {
+    setCheckoutLoading(planId)
+    try {
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId, interval: annual ? 'year' : 'month' }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert(data.error ?? 'Something went wrong')
+      }
+    } catch {
+      alert('Could not connect to billing service')
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
+
+  const renewalDate = subscription?.currentPeriodEnd
+    ? new Date(subscription.currentPeriodEnd * 1000).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null
 
   return (
     <div className="grow">
-
-      {/* Panel body */}
       <div className="p-6 space-y-6">
 
-        {/* Plans */}
+        {/* Header */}
         <section>
           <div className="mb-8">
             <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Plans</h2>
-            <div className="text-sm">This workspace's Basic Plan is set to <strong className="font-medium">$34</strong> per month and will renew on <strong className="font-medium">July 9, 2024</strong>.</div>
+            {loading ? (
+              <div className="text-sm text-gray-400">Loading subscription…</div>
+            ) : subscription ? (
+              <div className="text-sm">
+                Your <strong className="font-medium">{subscription.planName} Plan</strong> renews on{' '}
+                <strong className="font-medium">{renewalDate}</strong>.
+                {subscription.cancelAtPeriodEnd && (
+                  <span className="ml-2 text-red-500">(Cancels at period end)</span>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm">You don't have an active subscription. Select a plan below to get started.</div>
+            )}
           </div>
 
-          {/* Pricing */}
+          {/* Billing interval toggle */}
           <div>
-            {/* Toggle switch */}
             <div className="flex items-center space-x-3 mb-6">
               <div className="text-sm text-gray-500 font-medium">Monthly</div>
               <div className="form-switch">
@@ -33,184 +111,82 @@ export default function PlansPanel() {
               </div>
               <div className="text-sm text-gray-500 font-medium">Annually <span className="text-green-500">(-20%)</span></div>
             </div>
-            {/* Pricing tabs */}
+
+            {/* Plan cards */}
             <div className="grid grid-cols-12 gap-6">
-              {/* Tab 1 */}
-              <div className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-sm rounded-b-lg">
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-green-500" aria-hidden="true"></div>
-                <div className="px-5 pt-5 pb-6 border-b border-gray-200 dark:border-gray-700/60">
-                  <header className="flex items-center mb-2">
-                    <div className="w-6 h-6 rounded-full shrink-0 bg-green-500 mr-3">
-                      <svg className="w-6 h-6 fill-current text-white" viewBox="0 0 24 24">
-                        <path d="M12 17a.833.833 0 01-.833-.833 3.333 3.333 0 00-3.334-3.334.833.833 0 110-1.666 3.333 3.333 0 003.334-3.334.833.833 0 111.666 0 3.333 3.333 0 003.334 3.334.833.833 0 110 1.666 3.333 3.333 0 00-3.334 3.334c0 .46-.373.833-.833.833z" />
-                      </svg>
+              {PLANS.map((plan) => {
+                const isCurrent = subscription?.planId === plan.id
+                const colors = colorMap[plan.color] ?? colorMap.violet
+                const price = annual ? plan.annualPrice : plan.monthlyPrice
+                const isLoading = checkoutLoading === plan.id
+
+                return (
+                  <div
+                    key={plan.id}
+                    className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-sm rounded-b-lg"
+                  >
+                    <div className={`absolute top-0 left-0 right-0 h-0.5 ${colors.header}`} aria-hidden="true" />
+                    <div className="px-5 pt-5 pb-6 border-b border-gray-200 dark:border-gray-700/60">
+                      <header className="flex items-center mb-2">
+                        <div className={`w-6 h-6 rounded-full shrink-0 ${colors.dot} mr-3`}>
+                          <svg className="w-6 h-6 fill-current text-white" viewBox="0 0 24 24">
+                            <path d="M12 17a.833.833 0 01-.833-.833 3.333 3.333 0 00-3.334-3.334.833.833 0 110-1.666 3.333 3.333 0 003.334-3.334.833.833 0 111.666 0 3.333 3.333 0 003.334 3.334.833.833 0 110 1.666 3.333 3.333 0 00-3.334 3.334c0 .46-.373.833-.833.833z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg text-gray-800 dark:text-gray-100 font-semibold">{plan.name}</h3>
+                      </header>
+                      <div className="text-gray-800 dark:text-gray-100 font-bold mb-4">
+                        <span className="text-2xl">$</span>
+                        <span className="text-3xl">{price}</span>
+                        <span className="text-gray-500 font-medium text-sm">/mo</span>
+                      </div>
+                      {isCurrent ? (
+                        <button
+                          className="btn w-full bg-gray-900 text-gray-100 disabled:border-gray-200 dark:disabled:border-gray-700 disabled:bg-white dark:disabled:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
+                          disabled
+                        >
+                          <svg className="w-3 h-3 shrink-0 fill-current mr-2" viewBox="0 0 12 12">
+                            <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
+                          </svg>
+                          <span>Current Plan</span>
+                        </button>
+                      ) : (
+                        <button
+                          className={`btn w-full ${colors.btn} disabled:opacity-60 disabled:cursor-not-allowed`}
+                          onClick={() => handleSelectPlan(plan.id)}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <span>Redirecting…</span>
+                          ) : subscription?.planId ? (
+                            PLANS.findIndex((p) => p.id === plan.id) <
+                            PLANS.findIndex((p) => p.id === subscription.planId) ? (
+                              'Downgrade'
+                            ) : (
+                              'Upgrade'
+                            )
+                          ) : (
+                            'Get Started'
+                          )}
+                        </button>
+                      )}
                     </div>
-                    <h3 className="text-lg text-gray-800 dark:text-gray-100 font-semibold">Basic</h3>
-                  </header>
-                  <div className="text-sm mb-2">Ideal for individuals that need a custom solution with custom tools.</div>
-                  {/* Price */}
-                  <div className="text-gray-800 dark:text-gray-100 font-bold mb-4">
-                    <span className="text-2xl">$</span><span className="text-3xl">{annual ? '14' : '19'}</span><span className="text-gray-500 font-medium text-sm">/mo</span>
-                  </div>
-                  {/* CTA */}
-                  <button className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 w-full">Downgrade</button>
-                </div>
-                <div className="px-5 pt-4 pb-5">
-                  <div className="text-xs text-gray-800 dark:text-gray-100 font-semibold uppercase mb-4">What's included</div>
-                  {/* List */}
-                  <ul>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Quis nostrud exercitation</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Quis nostrud exercitation</div>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              {/* Tab 2 */}
-              <div className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-sm rounded-b-lg">
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-sky-500" aria-hidden="true"></div>
-                <div className="px-5 pt-5 pb-6 border-b border-gray-200 dark:border-gray-700/60">
-                  <header className="flex items-center mb-2">
-                    <div className="w-6 h-6 rounded-full shrink-0 bg-sky-500 mr-3">
-                      <svg className="w-6 h-6 fill-current text-white" viewBox="0 0 24 24">
-                        <path d="M12 17a.833.833 0 01-.833-.833 3.333 3.333 0 00-3.334-3.334.833.833 0 110-1.666 3.333 3.333 0 003.334-3.334.833.833 0 111.666 0 3.333 3.333 0 003.334 3.334.833.833 0 110 1.666 3.333 3.333 0 00-3.334 3.334c0 .46-.373.833-.833.833z" />
-                      </svg>
+                    <div className="px-5 pt-4 pb-5">
+                      <div className="text-xs text-gray-800 dark:text-gray-100 font-semibold uppercase mb-4">What's included</div>
+                      <ul>
+                        {plan.features.map((feature) => (
+                          <li key={feature} className="flex items-center py-1">
+                            <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
+                              <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
+                            </svg>
+                            <div className="text-sm">{feature}</div>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <h3 className="text-lg text-gray-800 dark:text-gray-100 font-semibold">Standard</h3>
-                  </header>
-                  <div className="text-sm mb-2">Ideal for individuals that need a custom solution with custom tools.</div>
-                  {/* Price */}
-                  <div className="text-gray-800 dark:text-gray-100 font-bold mb-4">
-                    <span className="text-2xl">$</span><span className="text-3xl">{annual ? '34' : '39'}</span><span className="text-gray-500 font-medium text-sm">/mo</span>
                   </div>
-                  {/* CTA */}
-                  <button className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:border-gray-200 dark:disabled:border-gray-700 disabled:bg-white dark:disabled:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed" disabled>
-                    <svg className="w-3 h-3 shrink-0 fill-current mr-2" viewBox="0 0 12 12">
-                      <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                    </svg>
-                    <span>Current Plan</span>
-                  </button>
-                </div>
-                <div className="px-5 pt-4 pb-5">
-                  <div className="text-xs text-gray-800 dark:text-gray-100 font-semibold uppercase mb-4">What's included</div>
-                  {/* List */}
-                  <ul>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Quis nostrud exercitation</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Quis nostrud exercitation</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              {/* Tab 3 */}
-              <div className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-sm rounded-b-lg">
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-violet-500" aria-hidden="true"></div>
-                <div className="px-5 pt-5 pb-6 border-b border-gray-200 dark:border-gray-700/60">
-                  <header className="flex items-center mb-2">
-                    <div className="w-6 h-6 rounded-full shrink-0 bg-violet-500 mr-3">
-                      <svg className="w-6 h-6 fill-current text-white" viewBox="0 0 24 24">
-                        <path d="M12 17a.833.833 0 01-.833-.833 3.333 3.333 0 00-3.334-3.334.833.833 0 110-1.666 3.333 3.333 0 003.334-3.334.833.833 0 111.666 0 3.333 3.333 0 003.334 3.334.833.833 0 110 1.666 3.333 3.333 0 00-3.334 3.334c0 .46-.373.833-.833.833z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg text-gray-800 dark:text-gray-100 font-semibold">Plus</h3>
-                  </header>
-                  <div className="text-sm mb-2">Ideal for individuals that need a custom solution with custom tools.</div>
-                  {/* Price */}
-                  <div className="text-gray-800 dark:text-gray-100 font-bold mb-4">
-                    <span className="text-2xl">$</span><span className="text-3xl">{annual ? '74' : '79'}</span><span className="text-gray-500 font-medium text-sm">/mo</span>
-                  </div>
-                  {/* CTA */}
-                  <button className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white w-full">Upgrade</button>
-                </div>
-                <div className="px-5 pt-4 pb-5">
-                  <div className="text-xs text-gray-800 dark:text-gray-100 font-semibold uppercase mb-4">What's included</div>
-                  {/* List */}
-                  <ul>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Quis nostrud exercitation</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Quis nostrud exercitation</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Lorem ipsum dolor sit amet</div>
-                    </li>
-                    <li className="flex items-center py-1">
-                      <svg className="w-3 h-3 shrink-0 fill-current text-green-500 mr-2" viewBox="0 0 12 12">
-                        <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                      </svg>
-                      <div className="text-sm">Quis nostrud exercitation</div>
-                    </li>
-                  </ul>
-                </div>
-              </div>
+                )
+              })}
             </div>
           </div>
         </section>
@@ -218,8 +194,13 @@ export default function PlansPanel() {
         {/* Contact Sales */}
         <section>
           <div className="px-5 py-3 bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04] rounded-lg text-center xl:text-left xl:flex xl:flex-wrap xl:justify-between xl:items-center">
-            <div className="text-gray-800 dark:text-gray-100 font-semibold mb-2 xl:mb-0">Looking for different configurations?</div>
-            <button className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white">Contact Sales</button>
+            <div className="text-gray-800 dark:text-gray-100 font-semibold mb-2 xl:mb-0">Need a custom configuration for your clinic network?</div>
+            <a
+              href="mailto:contact@dreamcreateweb.com"
+              className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+            >
+              Contact Sales
+            </a>
           </div>
         </section>
 
@@ -230,44 +211,21 @@ export default function PlansPanel() {
           </div>
           <ul className="space-y-5">
             <li>
-              <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                What is the difference between the three versions?
-              </div>
-              <div className="text-sm">
-                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit.
-              </div>
+              <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">What's the difference between plans?</div>
+              <div className="text-sm">Starter covers your website and patient intake. Professional adds HIPAA-aligned infrastructure, online booking, and admin tools. Enterprise is built for multi-location practices with full compliance reporting and custom integrations.</div>
             </li>
             <li>
-              <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                Is there any difference between Basic and Plus licenses?
-              </div>
-              <div className="text-sm">
-                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-              </div>
+              <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">Is a BAA included?</div>
+              <div className="text-sm">A Business Associate Agreement (BAA) is included with every Enterprise plan at no extra cost, covering your HIPAA obligations for patient data handled through Dream Create.</div>
             </li>
             <li>
-              <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                Got more questions?
-              </div>
-              <div className="text-sm">
-                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum in voluptate velit esse cillum dolore eu fugiat <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">contact us</a>.
-              </div>
+              <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">Can I switch plans later?</div>
+              <div className="text-sm">Yes — you can upgrade or downgrade at any time. Upgrades take effect immediately; downgrades take effect at the end of your current billing period. <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="mailto:contact@dreamcreateweb.com">Contact us</a> with any questions.</div>
             </li>
           </ul>
         </section>
 
       </div>
-
-      {/* Panel footer */}
-      <footer>
-        <div className="flex flex-col px-6 py-5 border-t border-gray-200 dark:border-gray-700/60">
-          <div className="flex self-end">
-            <button className="btn dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300">Cancel</button>
-            <button className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3">Save Changes</button>
-          </div>
-        </div>
-      </footer>
-
     </div>
   )
 }
