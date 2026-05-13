@@ -34,10 +34,19 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return null
 
-  const activeOrgId = session.session.activeOrganizationId
+  // Better Auth stores activeOrganizationId on the session, but it's null on a
+  // freshly created session. Fall back to the user's first membership so a user
+  // who only belongs to one org never needs to switch manually.
+  let activeOrgId = session.session.activeOrganizationId
+
   if (!activeOrgId) {
-    // Logged in but no active org — caller should send them to onboarding
-    return null
+    const [firstMembership] = await db
+      .select()
+      .from(member)
+      .where(eq(member.userId, session.user.id))
+      .limit(1)
+    if (!firstMembership) return null
+    activeOrgId = firstMembership.organizationId
   }
 
   const [org] = await db
