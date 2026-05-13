@@ -52,9 +52,21 @@ export const auth = betterAuth({
     }),
   ],
 
-  trustedOrigins: [
-    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-  ],
+  // Trust any Vercel deployment URL for this project (production alias +
+  // every preview/unique URL) plus localhost. A function lets us pattern-match
+  // dynamic preview URLs that change every deploy.
+  trustedOrigins: (request?: Request) => {
+    const origin = request?.headers.get('origin') ?? ''
+    const fixed = [
+      process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+      'http://localhost:3000',
+      'https://dreamcrm-dreamcreatewebs-projects.vercel.app',
+    ]
+    if (/^https:\/\/dreamcrm-[a-z0-9]+-dreamcreatewebs-projects\.vercel\.app$/.test(origin)) {
+      fixed.push(origin)
+    }
+    return fixed
+  },
 })
 
 export type Auth = typeof auth

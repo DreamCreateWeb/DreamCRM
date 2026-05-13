@@ -37,7 +37,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   // Better Auth stores activeOrganizationId on the session, but it's null on a
   // freshly created session. Fall back to the user's first membership so a user
   // who only belongs to one org never needs to switch manually.
-  let activeOrgId = session.session.activeOrganizationId
+  let activeOrgId = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId
 
   if (!activeOrgId) {
     const [firstMembership] = await db

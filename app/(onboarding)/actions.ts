@@ -23,7 +23,7 @@ export async function completeOnboarding(formData?: FormData) {
     redirect('/signin')
   }
 
-  const orgId = session.session.activeOrganizationId
+  const orgId = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId
   if (!orgId) {
     // Shouldn't happen — sign-up creates an org. But if it does, send back.
     redirect('/signup')
