@@ -3,9 +3,11 @@ export const metadata = {
   description: 'Sign in to your Dream Create dashboard',
 }
 
+import { Suspense } from 'react'
 import Link from 'next/link'
 import AuthHeader from '../auth-header'
 import AuthImage from '../auth-image'
+import SignInForm from './signin-form'
 
 export default function SignIn() {
   return (
@@ -21,25 +23,9 @@ export default function SignIn() {
 
             <div className="max-w-sm mx-auto w-full px-4 py-8">
               <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">Welcome back!</h1>
-              {/* Form */}
-              <form>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="email">Email Address</label>
-                    <input id="email" className="form-input w-full" type="email" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="password">Password</label>
-                    <input id="password" className="form-input w-full" type="password" autoComplete="on" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-6">
-                  <div className="mr-1">
-                    <Link className="text-sm underline hover:no-underline" href="/reset-password">Forgot Password?</Link>
-                  </div>
-                  <Link className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3" href="/">Sign In</Link>
-                </div>
-              </form>
+              <Suspense fallback={<div className="text-sm text-gray-400">Loading…</div>}>
+                <SignInForm />
+              </Suspense>
               {/* Footer */}
               <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
                 <div className="text-sm">
