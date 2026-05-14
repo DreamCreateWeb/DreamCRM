@@ -34,6 +34,37 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   })
 }
 
+export interface InvitationEmailData {
+  inviterName: string
+  orgName: string
+  role: string
+  inviteUrl: string
+}
+
+export async function sendInvitationEmail(to: string, data: InvitationEmailData) {
+  const resend = getResend()
+  const roleLabel = data.role.charAt(0).toUpperCase() + data.role.slice(1)
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `${data.inviterName} invited you to join ${data.orgName} on DreamCRM`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="margin:0 0 16px;font-size:20px;color:#111">You're invited to join ${data.orgName}</h2>
+        <p style="margin:0 0 24px;color:#444;line-height:1.5">
+          <strong>${data.inviterName}</strong> has invited you to join <strong>${data.orgName}</strong> on DreamCRM as a <strong>${roleLabel}</strong>.
+        </p>
+        <a href="${data.inviteUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
+          Accept invitation
+        </a>
+        <p style="margin:24px 0 0;font-size:12px;color:#888">
+          This invitation will expire in 48 hours. If you weren't expecting this, you can safely ignore it.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendVerificationEmail(to: string, verifyUrl: string) {
   const resend = getResend()
   await resend.emails.send({

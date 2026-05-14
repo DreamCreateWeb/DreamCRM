@@ -3,7 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { organization } from 'better-auth/plugins'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema/auth'
-import { sendPasswordResetEmail, sendVerificationEmail } from '@/lib/email'
+import { sendInvitationEmail, sendPasswordResetEmail, sendVerificationEmail } from '@/lib/email'
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -59,6 +59,14 @@ export const auth = betterAuth({
       // helping multiple clinics, or a family helping multiple patients).
       allowUserToCreateOrganization: true,
       organizationLimit: 10,
+      async sendInvitationEmail(data) {
+        await sendInvitationEmail(data.invitation.email, {
+          inviterName: data.inviter.user.name,
+          orgName: data.organization.name,
+          role: data.invitation.role,
+          inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/accept-invite?token=${data.invitation.id}`,
+        })
+      },
     }),
   ],
 
