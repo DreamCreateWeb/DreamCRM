@@ -12,7 +12,7 @@ import { NextResponse, type NextRequest } from 'next/server'
  * Subdomain-based clinic sites will be added once we start onboarding clinics.
  */
 
-const PUBLIC_PATHS = ['/signin', '/signup', '/reset-password', '/api/auth']
+const PUBLIC_PATHS = ['/signin', '/signup', '/reset-password', '/verify-email', '/api/auth']
 const PUBLIC_PREFIXES = ['/_next', '/images', '/fonts', '/favicon', '/api/webhooks']
 
 function isPublicPath(pathname: string) {
