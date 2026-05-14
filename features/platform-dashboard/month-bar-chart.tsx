@@ -14,7 +14,7 @@ export interface MonthPoint { month: string; value: number }
 interface Props {
   data: MonthPoint[]
   color?: string
-  formatLabel?: (v: number) => string
+  format?: 'count' | 'money'
 }
 
 function fmtMonth(yyyyMm: string) {
@@ -22,18 +22,23 @@ function fmtMonth(yyyyMm: string) {
   return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
 }
 
-export default function MonthBarChart({ data, color = '#8b5cf6', formatLabel }: Props) {
+const FORMATTERS = {
+  count: (v: number) => String(Math.round(v)),
+  money: (v: number) => `$${Math.round(v).toLocaleString()}`,
+}
+
+export default function MonthBarChart({ data, color = '#8b5cf6', format = 'count' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const { theme } = useTheme()
   const dark = theme === 'dark'
+  const fmt = FORMATTERS[format]
 
   useEffect(() => {
     if (!canvasRef.current) return
     chartRef.current?.destroy()
 
     const { textColor, gridColor, tooltipBodyColor, tooltipBgColor, tooltipBorderColor } = chartColors
-    const fmt = formatLabel ?? String
 
     chartRef.current = new Chart(canvasRef.current, {
       type: 'bar',
@@ -86,7 +91,7 @@ export default function MonthBarChart({ data, color = '#8b5cf6', formatLabel }: 
       },
     })
     return () => { chartRef.current?.destroy(); chartRef.current = null }
-  }, [data, color, dark])
+  }, [data, color, dark, format])
 
   return (
     <div className="grow">

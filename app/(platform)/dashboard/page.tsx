@@ -75,7 +75,7 @@ export default async function Overview() {
           <MonthBarChart
             data={signups}
             color="#8b5cf6"
-            formatLabel={(v) => String(Math.round(v))}
+            format="count"
           />
         </div>
 

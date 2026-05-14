@@ -106,7 +106,7 @@ export default async function PlatformMetrics() {
         <MonthBarChart
           data={signups12}
           color="#8b5cf6"
-          formatLabel={(v) => String(Math.round(v))}
+          format="count"
         />
       </div>
 

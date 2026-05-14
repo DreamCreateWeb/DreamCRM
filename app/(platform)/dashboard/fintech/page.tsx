@@ -81,7 +81,7 @@ export default async function Revenue() {
         <MonthBarChart
           data={monthlyRevenue}
           color="#10b981"
-          formatLabel={(v) => `$${Math.round(v).toLocaleString()}`}
+          format="money"
         />
       </div>
 
