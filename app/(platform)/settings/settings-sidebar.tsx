@@ -8,6 +8,36 @@ export default function SettingsSidebar() {
     
   return (
     <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-auto px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60 min-w-[15rem] md:space-y-3">
+      {/* Clinic settings */}
+      <div>
+        <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">Clinic</div>
+        <ul className="flex flex-nowrap md:block mr-3 md:mr-0">
+          <li className="mr-0.5 md:mr-0 md:mb-0.5">
+            <Link href="/settings/clinic" className={`flex items-center px-2.5 py-2 rounded-lg whitespace-nowrap ${pathname.includes('/settings/clinic') && 'bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'}`}>
+              <svg className={`shrink-0 fill-current mr-2 ${pathname.includes('/settings/clinic') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'}`} width="16" height="16" viewBox="0 0 16 16">
+                <path d="M8 0a3 3 0 0 1 3 3v1h2a3 3 0 0 1 3 3v7a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3h2V3a3 3 0 0 1 3-3Zm5 6H3a1 1 0 0 0-1 1v7h12V7a1 1 0 0 0-1-1ZM8 2a1 1 0 0 0-1 1v1h2V3a1 1 0 0 0-1-1Zm0 6a1 1 0 0 1 1 1v1h1a1 1 0 1 1 0 2H9v1a1 1 0 1 1-2 0v-1H6a1 1 0 1 1 0-2h1V9a1 1 0 0 1 1-1Z" />
+              </svg>
+              <span className={`text-sm font-medium ${pathname.includes('/settings/clinic') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'}`}>Clinic Profile</span>
+            </Link>
+          </li>
+          <li className="mr-0.5 md:mr-0 md:mb-0.5">
+            <Link href="/settings/team" className={`flex items-center px-2.5 py-2 rounded-lg whitespace-nowrap ${pathname.includes('/settings/team') && 'bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'}`}>
+              <svg className={`shrink-0 fill-current mr-2 ${pathname.includes('/settings/team') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'}`} width="16" height="16" viewBox="0 0 16 16">
+                <path d="M5 4a3 3 0 1 1 6 0 3 3 0 0 1-6 0Zm3-1a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-7 9a5 5 0 0 1 10 0 1 1 0 1 1-2 0 3 3 0 0 0-6 0 1 1 0 1 1-2 0Zm12-9a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm-1 6a4 4 0 0 1 4 4 1 1 0 1 1-2 0 2 2 0 0 0-2-2 1 1 0 1 1 0-2Z" />
+              </svg>
+              <span className={`text-sm font-medium ${pathname.includes('/settings/team') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'}`}>Team</span>
+            </Link>
+          </li>
+          <li className="mr-0.5 md:mr-0 md:mb-0.5">
+            <Link href="/settings/locations" className={`flex items-center px-2.5 py-2 rounded-lg whitespace-nowrap ${pathname.includes('/settings/locations') && 'bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'}`}>
+              <svg className={`shrink-0 fill-current mr-2 ${pathname.includes('/settings/locations') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'}`} width="16" height="16" viewBox="0 0 16 16">
+                <path d="M8 0a5 5 0 0 1 5 5c0 3.5-5 11-5 11S3 8.5 3 5a5 5 0 0 1 5-5Zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+              </svg>
+              <span className={`text-sm font-medium ${pathname.includes('/settings/locations') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'}`}>Locations</span>
+            </Link>
+          </li>
+        </ul>
+      </div>
       {/* Group 1 */}
       <div>
         <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">Business settings</div>

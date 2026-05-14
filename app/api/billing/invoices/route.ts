@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
+import { getClinicBillingContext } from '@/lib/billing/context'
 
 export async function GET() {
   try {
-    const customerId = process.env.STRIPE_CUSTOMER_ID
-    if (!customerId) {
-      return NextResponse.json({ invoices: [] })
-    }
+    const ctx = await getClinicBillingContext()
+    if (!ctx) return NextResponse.json({ invoices: [] })
 
     const invoices = await stripe.invoices.list({
-      customer: customerId,
+      customer: ctx.customerId,
       limit: 24,
       expand: ['data.subscription'],
     })

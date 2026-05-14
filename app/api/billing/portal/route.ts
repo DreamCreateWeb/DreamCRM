@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
+import { getClinicBillingContext } from '@/lib/billing/context'
 
 export async function POST() {
   try {
-    const customerId = process.env.STRIPE_CUSTOMER_ID
-    if (!customerId) {
-      return NextResponse.json(
-        { error: 'No Stripe customer configured' },
-        { status: 400 }
-      )
+    const ctx = await getClinicBillingContext()
+    if (!ctx) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
     const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
+      customer: ctx.customerId,
       return_url: `${appUrl}/settings/billing`,
     })
 

@@ -1,24 +1,21 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { getPlanByPriceId } from '@/lib/stripe-config'
+import { getClinicBillingContext } from '@/lib/billing/context'
 
 export async function GET() {
   try {
-    const customerId = process.env.STRIPE_CUSTOMER_ID
-    if (!customerId) {
-      return NextResponse.json({ subscription: null })
-    }
+    const ctx = await getClinicBillingContext()
+    if (!ctx) return NextResponse.json({ subscription: null })
 
     const subscriptions = await stripe.subscriptions.list({
-      customer: customerId,
+      customer: ctx.customerId,
       status: 'active',
       limit: 1,
       expand: ['data.default_payment_method', 'data.items.data.price'],
     })
 
-    if (!subscriptions.data.length) {
-      return NextResponse.json({ subscription: null })
-    }
+    if (!subscriptions.data.length) return NextResponse.json({ subscription: null })
 
     const sub = subscriptions.data[0]
     const item = sub.items.data[0]
