@@ -91,12 +91,12 @@ export default async function SalesPipeline() {
             <table className="table-auto w-full text-sm dark:text-gray-300">
               <thead className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-t border-b border-gray-100 dark:border-gray-700/60">
                 <tr>
-                  <th className="px-5 py-3 text-left">Clinic</th>
-                  <th className="px-2 py-3 text-left">Owner</th>
-                  <th className="px-2 py-3 text-left">Stage</th>
-                  <th className="px-2 py-3 text-left">Plan</th>
-                  <th className="px-2 py-3 text-left">Value</th>
-                  <th className="px-2 py-3 text-left">Joined</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Clinic</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Owner</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Stage</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Plan</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Value</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Joined</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -109,22 +109,22 @@ export default async function SalesPipeline() {
                       : '—'
                     return (
                       <tr key={c.id}>
-                        <td className="px-5 py-3">
+                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                           <div className="font-medium text-gray-800 dark:text-gray-100">{c.name}</div>
                         </td>
-                        <td className="px-2 py-3">
+                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                           <div className="text-gray-800 dark:text-gray-100">{c.ownerName ?? '—'}</div>
                           <div className="text-xs text-gray-400">{c.ownerEmail ?? ''}</div>
                         </td>
-                        <td className="px-2 py-3">
+                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${s.bg} ${s.text}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
                             {stage_}
                           </span>
                         </td>
-                        <td className="px-2 py-3">{planBadge(c.planTier)}</td>
-                        <td className="px-2 py-3 font-medium text-gray-800 dark:text-gray-100 tabular-nums">{value}</td>
-                        <td className="px-2 py-3 text-gray-400 dark:text-gray-500">{fmtDate(c.createdAt)}</td>
+                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">{planBadge(c.planTier)}</td>
+                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap font-medium text-gray-800 dark:text-gray-100 tabular-nums">{value}</td>
+                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-gray-400 dark:text-gray-500">{fmtDate(c.createdAt)}</td>
                       </tr>
                     )
                   })

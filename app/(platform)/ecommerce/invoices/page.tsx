@@ -32,14 +32,13 @@ export default async function Subscriptions() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
 
-      {/* Header */}
       <div className="sm:flex sm:justify-between sm:items-center mb-5">
         <div className="mb-4 sm:mb-0">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">Subscriptions</h1>
         </div>
       </div>
 
-      {/* Status filter tabs (visual only — filtering would require client state) */}
+      {/* Status filter tabs */}
       <div className="mb-5">
         <ul className="flex flex-wrap -m-1">
           {[
@@ -62,46 +61,44 @@ export default async function Subscriptions() {
         </ul>
       </div>
 
-      {/* Table */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
         <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
           <h2 className="font-semibold text-gray-800 dark:text-gray-100">
             All Clinics <span className="text-gray-400 dark:text-gray-500 font-medium">{clinics.length}</span>
           </h2>
         </header>
-
         {clinics.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
             No clinics have signed up yet.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table-auto w-full text-sm dark:text-gray-300">
+            <table className="table-auto w-full dark:text-gray-300">
               <thead className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-t border-b border-gray-100 dark:border-gray-700/60">
                 <tr>
-                  <th className="px-5 py-3 text-left">Clinic</th>
-                  <th className="px-2 py-3 text-left">Owner</th>
-                  <th className="px-2 py-3 text-left">Plan</th>
-                  <th className="px-2 py-3 text-left">Stage</th>
-                  <th className="px-2 py-3 text-left">Joined</th>
-                  <th className="px-2 py-3 text-left">Stripe</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Clinic</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Owner</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Plan</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Stage</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Joined</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Stripe</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              <tbody className="text-sm divide-y divide-gray-100 dark:divide-gray-700/60">
                 {clinics.map(c => (
                   <tr key={c.id}>
-                    <td className="px-5 py-3">
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                       <div className="font-medium text-gray-800 dark:text-gray-100">{c.name}</div>
                       <div className="text-xs text-gray-400 font-mono">{c.id.slice(0, 8)}…</div>
                     </td>
-                    <td className="px-2 py-3">
-                      <div className="text-gray-800 dark:text-gray-100">{c.ownerName ?? '—'}</div>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{c.ownerName ?? '—'}</div>
                       <div className="text-xs text-gray-400">{c.ownerEmail ?? ''}</div>
                     </td>
-                    <td className="px-2 py-3">{planBadge(c.planTier)}</td>
-                    <td className="px-2 py-3">{statusBadge(c.subscriptionStatus)}</td>
-                    <td className="px-2 py-3 text-gray-400 dark:text-gray-500">{fmtDate(c.createdAt)}</td>
-                    <td className="px-2 py-3">
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">{planBadge(c.planTier)}</td>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">{statusBadge(c.subscriptionStatus)}</td>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-gray-400 dark:text-gray-500">{fmtDate(c.createdAt)}</td>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                       {c.stripeCustomerId ? (
                         <span className="text-xs font-mono text-gray-400 dark:text-gray-500" title={c.stripeCustomerId}>
                           {c.stripeCustomerId.slice(0, 14)}…

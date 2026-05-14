@@ -33,58 +33,62 @@ export default async function Overview() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
 
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">Overview</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Platform health at a glance</p>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-12 gap-6 mb-8">
-        <div className="col-span-12 sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Total Clinics</p>
-          <p className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">{clinicCount}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">all time</p>
-        </div>
-        <div className="col-span-12 sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Active Subscriptions</p>
-          <p className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">{activeSubs}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">active + trialing</p>
-        </div>
-        <div className="col-span-12 sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">MRR</p>
-          <p className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">{fmt$$(mrr)}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">monthly recurring revenue</p>
-        </div>
-        <div className="col-span-12 sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">New Clinics</p>
-          <p className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">{newClinics}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">last 30 days</p>
-        </div>
-      </div>
-
-      {/* Charts Row */}
       <div className="grid grid-cols-12 gap-6 mb-8">
 
-        {/* Signup Trend */}
-        <div className="col-span-12 xl:col-span-8 flex flex-col bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-          <div className="px-5 pt-5 pb-1">
+        {/* KPI strip + signup trend */}
+        <div className="flex flex-col col-span-full xl:col-span-8 bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+          <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
             <h2 className="font-semibold text-gray-800 dark:text-gray-100">Clinic Signups</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">New clinics per month, last 6 months</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">New clinics per month, last 6 months</p>
+          </header>
+          <div className="px-5 py-3">
+            <div className="flex flex-wrap max-sm:*:w-1/2">
+              <div className="flex items-center py-2">
+                <div className="mr-5">
+                  <div className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">{clinicCount}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Total Clinics</div>
+                </div>
+                <div className="hidden md:block w-px h-8 bg-gray-200 dark:bg-gray-700 mr-5" aria-hidden="true" />
+              </div>
+              <div className="flex items-center py-2">
+                <div className="mr-5">
+                  <div className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">{activeSubs}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Active Subscriptions</div>
+                </div>
+                <div className="hidden md:block w-px h-8 bg-gray-200 dark:bg-gray-700 mr-5" aria-hidden="true" />
+              </div>
+              <div className="flex items-center py-2">
+                <div className="mr-5">
+                  <div className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">{fmt$$(mrr)}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">MRR</div>
+                </div>
+                <div className="hidden md:block w-px h-8 bg-gray-200 dark:bg-gray-700 mr-5" aria-hidden="true" />
+              </div>
+              <div className="flex items-center py-2">
+                <div className="mr-5">
+                  <div className="flex items-center">
+                    <div className="text-3xl font-bold text-gray-800 dark:text-gray-100 tabular-nums mr-2">{newClinics}</div>
+                    <div className="text-sm font-medium text-emerald-700 px-1.5 bg-emerald-500/20 rounded-full">last 30d</div>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">New Clinics</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <MonthBarChart
-            data={signups}
-            color="#8b5cf6"
-            format="count"
-          />
+          <MonthBarChart data={signups} color="#8b5cf6" format="count" />
         </div>
 
         {/* Plan Distribution */}
-        <div className="col-span-12 xl:col-span-4 flex flex-col bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-          <div className="px-5 pt-5 pb-1">
+        <div className="flex flex-col col-span-full xl:col-span-4 bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+          <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
             <h2 className="font-semibold text-gray-800 dark:text-gray-100">Plan Distribution</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{planCounts.reduce((s, p) => s + p.count, 0)} clinic profiles</p>
-          </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{planCounts.reduce((s, p) => s + p.count, 0)} active clinic profiles</p>
+          </header>
           {planSlices.length > 0 ? (
             <PlanDoughnut slices={planSlices} />
           ) : (
@@ -104,34 +108,35 @@ export default async function Overview() {
             <span className="ml-2 text-gray-400 dark:text-gray-500 font-medium text-sm">{clinicCount}</span>
           </h2>
         </header>
-
         {recent.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
             No clinics yet — share your sign-up link to get your first client.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table-auto w-full text-sm dark:text-gray-300">
+            <table className="table-auto w-full dark:text-gray-300">
               <thead className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-t border-b border-gray-100 dark:border-gray-700/60">
                 <tr>
-                  <th className="px-5 py-3 whitespace-nowrap text-left">Clinic</th>
-                  <th className="px-2 py-3 whitespace-nowrap text-left">Owner</th>
-                  <th className="px-2 py-3 whitespace-nowrap text-left">Plan</th>
-                  <th className="px-2 py-3 whitespace-nowrap text-left">Status</th>
-                  <th className="px-2 py-3 whitespace-nowrap text-left">Joined</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Clinic</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Owner</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Plan</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Status</th>
+                  <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Joined</th>
                 </tr>
               </thead>
               <tbody className="text-sm divide-y divide-gray-100 dark:divide-gray-700/60">
                 {recent.map(c => (
                   <tr key={c.id}>
-                    <td className="px-5 py-3 font-medium text-gray-800 dark:text-gray-100">{c.name}</td>
-                    <td className="px-2 py-3">
-                      <div className="text-gray-800 dark:text-gray-100">{c.ownerName ?? '—'}</div>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{c.name}</div>
+                    </td>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{c.ownerName ?? '—'}</div>
                       <div className="text-xs text-gray-400">{c.ownerEmail ?? ''}</div>
                     </td>
-                    <td className="px-2 py-3">{planBadge(c.planTier)}</td>
-                    <td className="px-2 py-3">{statusBadge(c.subscriptionStatus)}</td>
-                    <td className="px-2 py-3 text-gray-400 dark:text-gray-500">{fmtDate(c.createdAt)}</td>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">{planBadge(c.planTier)}</td>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">{statusBadge(c.subscriptionStatus)}</td>
+                    <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-gray-400 dark:text-gray-500">{fmtDate(c.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
