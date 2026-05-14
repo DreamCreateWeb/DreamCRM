@@ -2,8 +2,9 @@ import { neon } from '@neondatabase/serverless'
 import { drizzle } from 'drizzle-orm/neon-http'
 import * as auth from './schema/auth'
 import * as platform from './schema/platform'
+import * as clinic from './schema/clinic'
 
-const schema = { ...auth, ...platform }
+const schema = { ...auth, ...platform, ...clinic }
 
 // Lazy connection so the module can be imported during build (when DATABASE_URL
 // may not be available) without crashing. The handler that actually queries the
