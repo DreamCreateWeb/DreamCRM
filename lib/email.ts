@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-const FROM = 'DreamCRM <noreply@dreamcreateweb.com>'
+const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
 
 function getResend() {
   const key = process.env.RESEND_API_KEY
