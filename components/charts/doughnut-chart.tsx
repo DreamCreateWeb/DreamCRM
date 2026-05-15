@@ -49,6 +49,22 @@ export default function DoughnutChart({
         plugins: {
           legend: {
             display: false,
+            labels: {
+              generateLabels: (chart) => {
+                if (!chart.data?.labels?.length || !chart.data?.datasets?.length) return []
+                const dataset = chart.data.datasets[0]
+                return (chart.data.labels as string[]).map((label, i) => ({
+                  text: String(label),
+                  fillStyle: Array.isArray(dataset.backgroundColor)
+                    ? (dataset.backgroundColor as string[])[i] ?? '#ccc'
+                    : '#ccc',
+                  strokeStyle: '#fff',
+                  lineWidth: 0,
+                  hidden: !chart.getDataVisibility(i),
+                  index: i,
+                }))
+              },
+            },
           },
           tooltip: {
             titleColor: darkMode ? tooltipTitleColor.dark : tooltipTitleColor.light,
