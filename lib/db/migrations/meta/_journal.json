@@ -15,6 +15,13 @@
       "when": 1778783367568,
       "tag": "0001_groovy_paibok",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778856714006,
+      "tag": "0002_tranquil_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

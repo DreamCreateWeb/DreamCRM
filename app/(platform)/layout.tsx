@@ -35,6 +35,19 @@ export default async function DashboardLayout({
       <TenantSidebar modules={modules} orgName={ctx.organizationName} badge={badge} />
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Header />
+        {ctx.isDemo && (
+          <div className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-amber-400 px-4 py-2 text-sm font-medium text-amber-900">
+            <span>
+              Demo mode — simulating <strong>{ctx.tenantType === 'patient' ? 'Patient' : 'Clinic'}</strong>: {ctx.organizationName}
+              {ctx.patientId && ` › Patient`}
+            </span>
+            <form action="/developer/clear" method="POST">
+              <button type="submit" className="rounded bg-amber-900/20 px-2.5 py-0.5 text-xs font-semibold hover:bg-amber-900/30">
+                Exit Demo
+              </button>
+            </form>
+          </div>
+        )}
         <main className="grow [&>*:first-child]:scroll-mt-16">
           {children}
         </main>

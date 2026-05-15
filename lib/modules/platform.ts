@@ -19,5 +19,6 @@ export const platformModules: ModuleRegistry = {
     { id: 'tasks',            path: '/tasks/kanban',        label: 'Tasks',            section: 'Pages', icon: 'check',    status: 'live' },
     { id: 'campaigns',        path: '/campaigns',           label: 'Marketing',        section: 'Pages', icon: 'megaphone',status: 'live' },
     { id: 'settings',         path: '/settings/account',    label: 'Settings',         section: 'Settings', icon: 'gear', status: 'live' },
+    { id: 'developer',        path: '/developer',           label: 'Developer',         section: 'Settings', icon: 'code', status: 'live' },
   ],
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { addPatient, deactivatePatient, reactivatePatient } from './actions'
+import { addPatient, deactivatePatient, reactivatePatient, invitePatientToPortal } from './actions'
 import type { Patient } from '@/lib/db/schema/clinic'
 
 interface Props {
@@ -30,6 +30,18 @@ export default function PatientsPanel({ patients: initialPatients, canEdit }: Pr
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [inviteStatus, setInviteStatus] = useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({})
+
+  async function handleInvite(patientId: string) {
+    setInviteStatus(s => ({ ...s, [patientId]: 'sending' }))
+    try {
+      await invitePatientToPortal(patientId)
+      setInviteStatus(s => ({ ...s, [patientId]: 'sent' }))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to send invite')
+      setInviteStatus(s => ({ ...s, [patientId]: 'error' }))
+    }
+  }
 
   const filtered = search.trim()
     ? patients.filter(p => {
@@ -174,6 +186,7 @@ export default function PatientsPanel({ patients: initialPatients, canEdit }: Pr
                   <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Contact</th>
                   <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Insurance</th>
                   <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Status</th>
+                  {canEdit && <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Portal</th>}
                   {canEdit && <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left">Actions</th>}
                 </tr>
               </thead>
@@ -198,6 +211,24 @@ export default function PatientsPanel({ patients: initialPatients, canEdit }: Pr
                     <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                       {activeBadge(p.isActive)}
                     </td>
+                    {canEdit && (
+                      <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
+                        {p.userId ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-400/20 text-emerald-700 dark:text-emerald-400">
+                            Linked
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleInvite(p.id)}
+                            disabled={inviteStatus[p.id] === 'sending' || inviteStatus[p.id] === 'sent' || !p.email}
+                            title={!p.email ? 'Add an email address first' : undefined}
+                            className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 disabled:opacity-40"
+                          >
+                            {inviteStatus[p.id] === 'sending' ? 'Sending…' : inviteStatus[p.id] === 'sent' ? 'Invited ✓' : 'Invite'}
+                          </button>
+                        )}
+                      </td>
+                    )}
                     {canEdit && (
                       <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                         {p.isActive === 1 ? (

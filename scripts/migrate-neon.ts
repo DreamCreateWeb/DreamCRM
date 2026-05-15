@@ -16,7 +16,7 @@ if (!url) {
 const sql = neon(url)
 
 async function run() {
-  const migrationPath = resolve(process.cwd(), 'lib/db/migrations/0001_groovy_paibok.sql')
+  const migrationPath = resolve(process.cwd(), 'lib/db/migrations/0002_tranquil_rumiko_fujikawa.sql')
   const raw = readFileSync(migrationPath, 'utf-8')
 
   const statements = raw

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { authClient } from '@/lib/auth/client'
+import { linkPatientRecord } from './link-patient'
 import AuthHeader from '../auth-header'
 import AuthImage from '../auth-image'
 
@@ -33,6 +34,8 @@ function AcceptInviteInner() {
         const name = (result.data as { invitation?: { organizationId?: string }; organization?: { name?: string } } | null)
           ?.organization?.name ?? ''
         setOrgName(name)
+        // Fire-and-forget: link patient record for portal users
+        linkPatientRecord().catch(() => {})
         setStatus('success')
       })
       .catch(() => {

@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth/server'
 import { db } from '@/lib/db'
 import { patient } from '@/lib/db/schema/clinic'
+import { organization } from '@/lib/db/schema/auth'
 
 async function requireOrgId(): Promise<string> {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -58,4 +59,36 @@ export async function reactivatePatient(patientId: string) {
     .set({ isActive: 1, updatedAt: new Date() })
     .where(and(eq(patient.id, patientId), eq(patient.organizationId, orgId)))
   revalidatePath('/ecommerce/customers')
+}
+
+export async function invitePatientToPortal(patientId: string) {
+  const reqHeaders = await headers()
+  const session = await auth.api.getSession({ headers: reqHeaders })
+  if (!session) throw new Error('Not authenticated')
+  const orgId = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId
+  if (!orgId) throw new Error('No active organization')
+
+  const [patientRow] = await db
+    .select()
+    .from(patient)
+    .where(and(eq(patient.id, patientId), eq(patient.organizationId, orgId)))
+    .limit(1)
+
+  if (!patientRow) throw new Error('Patient not found')
+  if (!patientRow.email) throw new Error('Patient has no email address — add one first.')
+  if (patientRow.userId) throw new Error('This patient is already linked to a portal account.')
+
+  const [org] = await db.select().from(organization).where(eq(organization.id, orgId)).limit(1)
+  if (!org) throw new Error('Organization not found')
+
+  // 'patient' is our custom role; cast to satisfy Better Auth's union type.
+  // The DB stores it as text so any string works at runtime.
+  await auth.api.createInvitation({
+    headers: reqHeaders,
+    body: {
+      email: patientRow.email,
+      role: 'patient' as 'member',
+      organizationId: orgId,
+    },
+  })
 }

@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, integer } from 'drizzle-orm/pg-core'
-import { organization } from './auth'
+import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 
 // Core patient record for a clinic tenant.
@@ -7,6 +7,8 @@ import { clinicLocation } from './platform'
 export const patient = pgTable('patient', {
   id: text('id').primaryKey(),
   organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  // Linked auth user — set when a patient accepts a portal invitation.
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
 
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),

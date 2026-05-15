@@ -37,6 +37,7 @@ const icons: Record<string, (p: IconProps) => React.ReactElement> = {
   plus:     (p) => <Icon className={p.className}><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" /></Icon>,
   folder:   (p) => <Icon className={p.className}><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18a2 2 0 002 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8z" /></Icon>,
   user:     (p) => <Icon className={p.className}><path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></Icon>,
+  code:     (p) => <Icon className={p.className}><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6z" /></Icon>,
 }
 
 export function NavIcon({ name, className }: { name?: string; className?: string }) {

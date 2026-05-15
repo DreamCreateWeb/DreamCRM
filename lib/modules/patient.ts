@@ -7,10 +7,10 @@ import type { ModuleRegistry } from './types'
 export const patientModules: ModuleRegistry = {
   tenantType: 'patient',
   modules: [
-    { id: 'home',           path: '/',              label: 'Home',           section: 'Pages', icon: 'home',    status: 'live' },
+    { id: 'home',           path: '/dashboard',     label: 'Home',           section: 'Pages', icon: 'home',    status: 'live' },
     { id: 'appointments',   path: '/appointments',  label: 'My Appointments',section: 'Pages', icon: 'cal',     status: 'live' },
-    { id: 'book',           path: '/book',          label: 'Book Visit',     section: 'Pages', icon: 'plus',    status: 'soon' },
-    { id: 'records',        path: '/records',       label: 'My Records',     section: 'Pages', icon: 'folder',  status: 'soon' },
+    { id: 'book',           path: '/book',          label: 'Book Visit',     section: 'Pages', icon: 'plus',    status: 'live' },
+    { id: 'records',        path: '/records',       label: 'My Records',     section: 'Pages', icon: 'folder',  status: 'live' },
     { id: 'messages',       path: '/messages',      label: 'Messages',       section: 'Pages', icon: 'chat',    status: 'live' },
     { id: 'invoices',       path: '/invoices',      label: 'Bills',          section: 'Pages', icon: 'receipt', status: 'live' },
     { id: 'profile',        path: '/profile',       label: 'My Profile',     section: 'Settings', icon: 'user', status: 'live' },
