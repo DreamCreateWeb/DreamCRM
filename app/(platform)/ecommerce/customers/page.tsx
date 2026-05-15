@@ -5,6 +5,7 @@ export const metadata = {
 import { redirect } from 'next/navigation'
 import { getTenantContext } from '@/lib/auth/context'
 import { getPatients } from '@/features/patients/queries'
+import { listClinics } from '@/features/clinics-list/queries'
 import ClinicsList from '@/features/clinics-list/clinics-list'
 import PatientsPanel from './patients-panel'
 
@@ -13,7 +14,8 @@ export default async function CustomersPage() {
   if (!ctx) redirect('/signin')
 
   if (ctx.tenantType === 'platform') {
-    return <ClinicsList />
+    const clinics = await listClinics()
+    return <ClinicsList clinics={clinics} />
   }
 
   if (ctx.tenantType === 'clinic') {
