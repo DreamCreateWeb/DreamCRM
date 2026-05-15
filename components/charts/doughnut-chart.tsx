@@ -71,7 +71,7 @@ export default function DoughnutChart({
         id: 'htmlLegend',
         afterUpdate(c, args, options) {
           const ul = legend.current
-          if (!ul) return
+          if (!ul || !c.data?.labels) return
           // Remove old legend items
           while (ul.firstChild) {
             ul.firstChild.remove()
