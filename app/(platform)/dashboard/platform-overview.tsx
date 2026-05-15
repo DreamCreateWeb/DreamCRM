@@ -5,6 +5,7 @@ import {
 import MonthBarChart from '@/features/platform-dashboard/month-bar-chart'
 import PlanDoughnut from '@/features/platform-dashboard/plan-doughnut'
 import { planBadge, statusBadge, fmt$$, fmtDate, PLAN_COLORS } from '@/features/platform-dashboard/badges'
+import ChartErrorBoundary from '@/components/ui/chart-error-boundary'
 
 export default async function PlatformOverview() {
   const [clinicCount, activeSubs, newClinics, mrr, planCounts, signups, recent] = await Promise.all([
@@ -75,7 +76,7 @@ export default async function PlatformOverview() {
               </div>
             </div>
           </div>
-          <MonthBarChart data={signups} color="#8b5cf6" format="count" />
+          <ChartErrorBoundary><MonthBarChart data={signups} color="#8b5cf6" format="count" /></ChartErrorBoundary>
         </div>
 
         {/* Plan Distribution */}
@@ -85,7 +86,7 @@ export default async function PlatformOverview() {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{planCounts.reduce((s, p) => s + p.count, 0)} active clinic profiles</p>
           </header>
           {planSlices.length > 0 ? (
-            <PlanDoughnut slices={planSlices} />
+            <ChartErrorBoundary><PlanDoughnut slices={planSlices} /></ChartErrorBoundary>
           ) : (
             <div className="grow flex items-center justify-center py-16 text-sm text-gray-400 dark:text-gray-500">
               No clinic profiles yet

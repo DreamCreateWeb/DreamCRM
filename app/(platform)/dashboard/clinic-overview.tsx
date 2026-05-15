@@ -4,6 +4,7 @@ import {
   getRecentPatients,
 } from '@/features/clinic-dashboard/queries'
 import MonthBarChart from '@/features/platform-dashboard/month-bar-chart'
+import ChartErrorBoundary from '@/components/ui/chart-error-boundary'
 
 interface Props {
   orgId: string
@@ -108,7 +109,7 @@ export default async function ClinicOverview({ orgId, orgName }: Props) {
               </div>
             </div>
           </div>
-          <MonthBarChart data={monthlyPatients} color="#8b5cf6" format="count" />
+          <ChartErrorBoundary><MonthBarChart data={monthlyPatients} color="#8b5cf6" format="count" /></ChartErrorBoundary>
         </div>
 
         {/* Appointments summary */}
