@@ -1,5 +1,6 @@
 'use server'
 
+import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireUser } from '@/lib/session'
 import {
@@ -15,6 +16,8 @@ import {
   upsertBilling,
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
+import { createCheckoutSession, createPortalSession } from '@/lib/services/billing'
+import type { BillingInterval, PlanId } from '@/lib/stripe-config'
 
 export async function saveAccount(input: unknown) {
   const user = await requireUser()
@@ -38,6 +41,29 @@ export async function changePlan(plan: string) {
   revalidatePath('/settings/plans')
   revalidatePath('/settings/billing')
   return row
+}
+
+export async function startStripeCheckout(planId: PlanId, interval: BillingInterval) {
+  const user = await requireUser()
+  const session = await createCheckoutSession({
+    userId: user.id,
+    email: user.email!,
+    name: user.name ?? null,
+    planId,
+    interval,
+  })
+  if (!session.url) throw new Error('Stripe did not return a checkout URL')
+  redirect(session.url)
+}
+
+export async function openBillingPortal() {
+  const user = await requireUser()
+  const portal = await createPortalSession({
+    userId: user.id,
+    email: user.email!,
+    name: user.name ?? null,
+  })
+  redirect(portal.url)
 }
 
 export async function saveNotificationPrefs(input: unknown) {

@@ -386,6 +386,11 @@ export const billingProfiles = pgTable('billing_profiles', {
   billingEmail: text('billing_email'),
   billingAddress: text('billing_address'),
   renewsAt: timestamp('renews_at', { withTimezone: true }),
+  // Stripe linkage — populated by checkout completion / subscription webhooks.
+  stripeCustomerId: text('stripe_customer_id').unique(),
+  stripeSubscriptionId: text('stripe_subscription_id').unique(),
+  stripePriceId: text('stripe_price_id'),
+  stripeStatus: text('stripe_status'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

@@ -12,7 +12,7 @@ export default function DropdownSwitch() {
   const options = [
     {
       id: 0,
-      channel: 'Acme Inc.',
+      channel: 'Dream Create',
       image: ChannelImage01
     },
     {

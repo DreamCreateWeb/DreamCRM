@@ -8,6 +8,13 @@
       "when": 1778878804396,
       "tag": "0000_supreme_shinko_yamashiro",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778883007731,
+      "tag": "0001_sour_luminals",
+      "breakpoints": true
     }
   ]
 }

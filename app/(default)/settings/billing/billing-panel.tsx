@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { formatMoney, formatShortDate } from '@/lib/utils'
-import { saveBilling } from '../actions'
+import { openBillingPortal, saveBilling } from '../actions'
 
 interface BillingInitial {
   plan: 'free' | 'pro' | 'team' | 'enterprise'
@@ -13,6 +13,7 @@ interface BillingInitial {
   billingEmail: string | null
   billingAddress: string | null
   renewsAt: string | null
+  hasStripeCustomer: boolean
 }
 
 interface PastInvoice {
@@ -66,6 +67,17 @@ export default function BillingPanel({
     })
   }
 
+  function handlePortal() {
+    setFeedback(null)
+    startTransition(async () => {
+      try {
+        await openBillingPortal()
+      } catch (err) {
+        setFeedback({ error: (err as Error).message })
+      }
+    })
+  }
+
   const planLabel = initial.plan[0].toUpperCase() + initial.plan.slice(1)
   const monthly = PLAN_PRICES[initial.plan]
 
@@ -73,25 +85,37 @@ export default function BillingPanel({
     <div className="grow">
       <form onSubmit={onSubmit}>
         <div className="p-6 space-y-6">
-          <div>
-            <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Billing & Invoices</h2>
-            <div className="text-sm">
-              Current plan: <strong className="font-medium">{planLabel}</strong>
-              {monthly > 0 ? (
-                <>
-                  {' '}— <strong className="font-medium">{formatMoney(monthly)}</strong> / month
-                </>
-              ) : (
-                ' — free tier'
-              )}
-              {initial.renewsAt ? (
-                <>
-                  {' '}· renews on{' '}
-                  <strong className="font-medium">{formatShortDate(initial.renewsAt)}</strong>
-                </>
-              ) : null}
-              .
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Billing & Invoices</h2>
+              <div className="text-sm">
+                Current plan: <strong className="font-medium">{planLabel}</strong>
+                {monthly > 0 ? (
+                  <>
+                    {' '}— <strong className="font-medium">{formatMoney(monthly)}</strong> / month
+                  </>
+                ) : (
+                  ' — free tier'
+                )}
+                {initial.renewsAt ? (
+                  <>
+                    {' '}· renews on{' '}
+                    <strong className="font-medium">{formatShortDate(initial.renewsAt)}</strong>
+                  </>
+                ) : null}
+                .
+              </div>
             </div>
+            {initial.hasStripeCustomer && (
+              <button
+                type="button"
+                onClick={handlePortal}
+                disabled={pending}
+                className="btn-sm border border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300 disabled:opacity-60"
+              >
+                Manage in Stripe →
+              </button>
+            )}
           </div>
 
           <section>

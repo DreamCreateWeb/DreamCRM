@@ -21,7 +21,7 @@ export default function FintechCard06() {
     datasets: [
       // Indigo line
       {
-        label: 'Mosaic Portfolio',
+        label: 'DreamCRM Portfolio',
         data: [
           1500, 2000, 1800, 1900, 1900, 2400, 2900, 2600, 3900, 2700,
           3500, 3200, 2900, 3500, 3600, 3400, 3900, 3600, 4100, 4100,

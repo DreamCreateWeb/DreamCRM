@@ -5,9 +5,11 @@ import { requireUser } from '@/lib/session'
 import { completeOnboarding } from '../actions'
 
 export const metadata = {
-  title: "You're all set - Mosaic",
+  title: "You're all set - DreamCRM",
   description: 'Onboarding complete',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function Onboarding04() {
   const user = await requireUser()

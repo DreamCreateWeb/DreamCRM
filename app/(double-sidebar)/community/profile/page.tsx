@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Profile - Mosaic',
+  title: 'Profile - DreamCRM',
   description: 'Page description',
 }
 

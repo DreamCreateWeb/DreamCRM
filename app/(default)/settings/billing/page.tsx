@@ -45,6 +45,7 @@ export default async function BillingSettings() {
               billingEmail: billing?.billingEmail ?? null,
               billingAddress: billing?.billingAddress ?? null,
               renewsAt: billing?.renewsAt ? billing.renewsAt.toISOString() : null,
+              hasStripeCustomer: !!billing?.stripeCustomerId,
             }}
             pastInvoices={paid.map((p) => ({
               id: p.id,
