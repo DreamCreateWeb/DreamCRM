@@ -46,7 +46,13 @@ export default function TransactionsTableItem({ transaction, onCheckboxChange, i
         <div className="flex items-center">
           <div className="w-9 h-9 shrink-0 mr-2 sm:mr-3">
             <button onClick={(e) => handleTransactionClick(e)} tabIndex={-1}>
-              <Image className="rounded-full" src={transaction.image} width={36} height={36} alt={transaction.name} />
+              {transaction.image ? (
+                <Image className="rounded-full" src={transaction.image} width={36} height={36} alt={transaction.name} />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-500">
+                  {transaction.name.slice(0, 1).toUpperCase()}
+                </div>
+              )}
             </button>
           </div>
           <div className="font-medium text-gray-800 dark:text-gray-100">

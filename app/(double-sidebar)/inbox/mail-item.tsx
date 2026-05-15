@@ -2,7 +2,14 @@
 
 import { useState } from 'react'
 import { Mail } from './inbox-body'
-import Image from 'next/image'
+
+function Avatar({ name }: { name: string }) {
+  return (
+    <div className="rounded-full shrink-0 mr-3 w-10 h-10 bg-violet-200 dark:bg-violet-500/30 flex items-center justify-center font-semibold text-violet-700 dark:text-violet-200">
+      {(name?.[0] ?? '?').toUpperCase()}
+    </div>
+  )
+}
 
 export default function MailItem({ mail }: { mail: Mail }) {
   const [open, setOpen] = useState<boolean>(mail.open)
@@ -12,7 +19,7 @@ export default function MailItem({ mail }: { mail: Mail }) {
       {/* Header */}
       <header className="flex items-start">
         {/* Avatar */}
-        <Image className="rounded-full shrink-0 mr-3" src={mail.image} width={40} height={40} alt={mail.name} />
+        <Avatar name={mail.name} />
         {/* Meta */}
         <div className="grow">
           <div className="sm:flex items-start justify-between mb-0.5">

@@ -1,428 +1,130 @@
-import Link from 'next/link'
-import Image from 'next/image'
-import UserAvatar from '@/public/images/user-40-02.jpg'
-import UserImage01 from '@/public/images/user-28-01.jpg'
-import UserImage02 from '@/public/images/user-28-02.jpg'
-import UserImage05 from '@/public/images/user-28-05.jpg'
-import UserImage09 from '@/public/images/user-28-09.jpg'
-import UserImage10 from '@/public/images/user-28-10.jpg'
+'use client'
 
-export default function ForumEntry() {
+import { useState, useTransition } from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { relativeTime } from '@/lib/utils'
+import { postReply } from '../../actions'
+
+interface Reply {
+  id: number
+  body: string
+  createdAt: Date
+  authorName: string | null
+  authorImage: string | null
+}
+
+interface ForumEntryProps {
+  thread: {
+    id: number
+    title: string
+    body: string
+    category: string
+    views: number
+    createdAt: Date
+    authorName: string | null
+    authorImage: string | null
+  }
+  replies: Reply[]
+}
+
+function Avatar({ name, image, size = 36 }: { name: string | null; image: string | null; size?: number }) {
+  if (image) {
+    return <Image className="rounded-full" src={image} width={size} height={size} alt={name ?? 'User'} unoptimized />
+  }
+  return (
+    <div
+      className="rounded-full bg-violet-200 dark:bg-violet-500/30 flex items-center justify-center text-xs font-semibold text-violet-700 dark:text-violet-200"
+      style={{ width: size, height: size }}
+    >
+      {(name?.[0] ?? '?').toUpperCase()}
+    </div>
+  )
+}
+
+export default function ForumEntry({ thread, replies }: ForumEntryProps) {
+  const [body, setBody] = useState('')
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!body.trim()) return
+    setError(null)
+    startTransition(async () => {
+      try {
+        await postReply({ threadId: thread.id, body })
+        setBody('')
+      } catch (err) {
+        setError((err as Error).message)
+      }
+    })
+  }
+
   return (
     <article className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5">
-      {/* Breadcrumbs */}
-      <div className="mb-2">
-        <ul className="inline-flex flex-wrap text-sm font-medium">
-          <li className="flex items-center">
-            <Link className="text-gray-500 dark:text-gray-400 hover:text-violet-500 dark:hover:text-violet-500" href="/community/forum">
-              Home
-            </Link>
-            <svg className="fill-current text-gray-400 dark:text-gray-500 mx-2" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z" />
-            </svg>
-          </li>
-          <li className="flex items-center">
-            <a className="text-gray-500 dark:text-gray-400 hover:text-violet-500 dark:hover:text-violet-500" href="#0">
-              Discussion
-            </a>
-          </li>
-        </ul>
-      </div>
-      {/* Header */}
-      <header className="pb-4">
-        {/* Title */}
-        <div className="flex items-start space-x-3 mb-3">
-          <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold">Besides Product Hunt, where else should I promote my new project? 🤔</h2>
-          {/* Upvote button */}
-          <div className="shrink-0">
-            <button className="text-xs font-semibold text-center h-12 w-12 border border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 rounded-lg flex flex-col justify-center items-center">
-              <svg className="inline-flex fill-gray-400 dark:fill-gray-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                <path d="m0 6 6-6 6 6z" />
-              </svg>
-              <div>44</div>
-            </button>
-          </div>
-        </div>
-        {/* Meta */}
-        <div className="flex flex-wrap text-sm">
-          <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-            <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-              katemerlu
-            </a>
-          </div>
-          <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-            <span className="text-gray-500">2h</span>
-          </div>
-          <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-            <span className="text-gray-500">17 Comments</span>
-          </div>
+      <header className="mb-4">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{thread.title}</h1>
+        <div className="flex items-center mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <Avatar name={thread.authorName} image={thread.authorImage} size={28} />
+          <span className="ml-2 font-medium text-violet-500">{thread.authorName ?? 'Anonymous'}</span>
+          <span className="mx-2">·</span>
+          <span>{relativeTime(thread.createdAt)}</span>
+          <span className="mx-2">·</span>
+          <span>{thread.views} views</span>
         </div>
       </header>
-      {/* Content */}
+      <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap mb-6">{thread.body}</div>
+
+      <hr className="my-6 border-t border-gray-100 dark:border-gray-700/60" />
+
+      <h2 className="font-semibold text-gray-800 dark:text-gray-100 mb-4">
+        Replies <span className="text-gray-400 dark:text-gray-500 font-medium">{replies.length}</span>
+      </h2>
+
       <div className="space-y-4 mb-6">
-        <p>Looking for new ideas to get users, receive feedback, and increase exposure! Besides PH, where else do you showcase your product?</p>
-        <p>Please advise 🙌</p>
+        {replies.length === 0 ? (
+          <div className="text-sm text-gray-500 dark:text-gray-400 italic">No replies yet — be the first.</div>
+        ) : (
+          replies.map((r) => (
+            <div key={r.id} className="flex space-x-3">
+              <Avatar name={r.authorName} image={r.authorImage} size={32} />
+              <div className="grow">
+                <div className="text-sm">
+                  <span className="font-medium text-gray-800 dark:text-gray-100">{r.authorName ?? 'Anonymous'}</span>
+                  <span className="ml-2 text-gray-500 dark:text-gray-400">{relativeTime(r.createdAt)}</span>
+                </div>
+                <div className="mt-1 text-sm whitespace-pre-wrap">{r.body}</div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
-      {/* Comment form */}
-      <div>
-        <div className="flex items-start space-x-3 mb-3">
-          <Image className="rounded-full shrink-0" src={UserAvatar} width={40} height={40} alt="User 02" />
-          <div className="grow">
-            <label htmlFor="comment" className="sr-only">
-              Write a comment…
-            </label>
-            <textarea
-              id="comment"
-              className="form-textarea w-full focus:border-gray-300"
-              rows={4}
-              placeholder="Write a comment…"
-              defaultValue={''}
-            />
-          </div>
-        </div>
-        <div className="text-right">
-          <button type="submit" className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white whitespace-nowrap">
-            Reply -&gt;
+
+      <form onSubmit={onSubmit} className="space-y-3">
+        <label className="sr-only" htmlFor="reply">Reply</label>
+        <textarea
+          id="reply"
+          className="form-textarea w-full"
+          rows={3}
+          placeholder="Write a reply…"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+        />
+        {error && <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{error}</div>}
+        <div className="flex items-center justify-between">
+          <Link href="/community/forum" className="text-sm text-violet-500 hover:text-violet-600">
+            ← Back to threads
+          </Link>
+          <button
+            type="submit"
+            disabled={pending || !body.trim()}
+            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60"
+          >
+            {pending ? 'Posting…' : 'Reply'}
           </button>
         </div>
-      </div>
-      {/* Comments */}
-      <div className="mt-4">
-        <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-4">Comments</h3>
-        <ul className="space-y-5">
-          {/* Comment */}
-          <li className="relative pl-9 space-y-5">
-            {/* Comment wrapper */}
-            <div className="flex items-start">
-              {/* Comment upvote */}
-              <div className="absolute top-0 left-0">
-                <button className="text-xs font-semibold text-left w-6 rounded-xs flex flex-col justify-center items-center text-gray-600 dark:text-gray-300 hover:text-violet-500 dark:hover:text-violet-500">
-                  <svg className="inline-flex fill-gray-400 dark:fill-gray-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                    <path d="m0 6 6-6 6 6z" />
-                  </svg>
-                  <div>44</div>
-                </button>
-              </div>
-              {/* Comment content */}
-              <div>
-                {/* Comment text */}
-                <div className="grow text-sm text-gray-800 dark:text-gray-100 space-y-2 mb-2">
-                  <p>
-                    We've also had the same question to be honest. And for Appy.com launch we decided to go with Twitter as a primary medium and then
-                    Product Hunt as the other one. And I have to say that it led to some great results as Twitter allows you to be super active and
-                    engage in many conversations.
-                  </p>
-                  <p>Also, users are there and everything is super active. So that will be my advice - invest time in Twitter</p>
-                </div>
-                {/* Comment footer */}
-                <div className="flex flex-wrap text-xs">
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="block mr-2" href="#0">
-                      <Image className="rounded-full" src={UserImage02} width={24} height={24} alt="User 02" />
-                    </a>
-                    <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                      ekuplu89
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Reply
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Share
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Nested comments */}
-            <ul className="space-y-5">
-              {/* Comment */}
-              <li className="relative pl-9 space-y-5">
-                {/* Comment wrapper */}
-                <div className="flex items-start">
-                  {/* Comment upvote */}
-                  <div className="absolute top-0 left-0">
-                    <button className="text-xs font-semibold text-left w-6 rounded-xs flex flex-col justify-center items-center text-gray-600 dark:text-gray-300 hover:text-violet-500 dark:hover:text-violet-500">
-                      <svg className="inline-flex fill-gray-400 dark:fill-gray-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                        <path d="m0 6 6-6 6 6z" />
-                      </svg>
-                      <div>2</div>
-                    </button>
-                  </div>
-                  {/* Comment content */}
-                  <div>
-                    {/* Comment text */}
-                    <div className="grow text-sm text-gray-800 dark:text-gray-100 space-y-2 mb-2">
-                      <p>
-                        That's great advice,{' '}
-                        <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                          @ekuplu89
-                        </a>{' '}
-                        👏
-                      </p>
-                    </div>
-                    {/* Comment footer */}
-                    <div className="flex flex-wrap text-xs">
-                      <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                        <a className="block mr-2" href="#0">
-                          <Image className="rounded-full" src={UserImage05} width={24} height={24} alt="User 05" />
-                        </a>
-                        <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                          ellielong
-                        </a>
-                      </div>
-                      <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                        <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                          Reply
-                        </a>
-                      </div>
-                      <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                        <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                          Share
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </li>
-            </ul>
-          </li>
-          {/* Comment */}
-          <li className="relative pl-9 space-y-5">
-            {/* Comment wrapper */}
-            <div className="flex items-start">
-              {/* Comment upvote */}
-              <div className="absolute top-0 left-0">
-                <button className="text-xs font-semibold text-left w-6 rounded-xs flex flex-col justify-center items-center text-gray-600 dark:text-gray-300">
-                  <svg className="inline-flex fill-violet-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                    <path d="m0 6 6-6 6 6z" />
-                  </svg>
-                  <div>27</div>
-                </button>
-              </div>
-              {/* Comment content */}
-              <div>
-                {/* Comment text */}
-                <div className="grow text-sm text-gray-800 dark:text-gray-100 space-y-2 mb-2">
-                  <p>
-                    If you are a SaaS product and are looking for early adopters, AppSumo seems to be a great place to list on. Most of the users
-                    there seem to be early-adopters. Life-time deals seem to be the norm there.
-                  </p>
-                </div>
-                {/* Comment footer */}
-                <div className="flex flex-wrap text-xs">
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="block mr-2" href="#0">
-                      <Image className="rounded-full" src={UserImage01} width={24} height={24} alt="User 01" />
-                    </a>
-                    <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                      markcuttik
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Reply
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Share
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </li>
-          {/* Comment */}
-          <li className="relative pl-9 space-y-5">
-            {/* Comment wrapper */}
-            <div className="flex items-start">
-              {/* Comment upvote */}
-              <div className="absolute top-0 left-0">
-                <button className="text-xs font-semibold text-left w-6 rounded-xs flex flex-col justify-center items-center text-gray-600 dark:text-gray-300 hover:text-violet-500 dark:hover:text-violet-500">
-                  <svg className="inline-flex fill-gray-400 dark:fill-gray-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                    <path d="m0 6 6-6 6 6z" />
-                  </svg>
-                  <div>24</div>
-                </button>
-              </div>
-              {/* Comment content */}
-              <div>
-                {/* Comment text */}
-                <div className="grow text-sm text-gray-800 dark:text-gray-100 space-y-2 mb-2">
-                  <p>
-                    Thank you very much for all the people who are posting other alternatives! I will launch my free product design course in
-                    February and I will make a notion template with all this information! :)
-                  </p>
-                </div>
-                {/* Comment footer */}
-                <div className="flex flex-wrap text-xs">
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="block mr-2" href="#0">
-                      <Image className="rounded-full" src={UserImage09} width={24} height={24} alt="User 09" />
-                    </a>
-                    <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                      davidp1
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Reply
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Share
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Nested comments */}
-            <ul className="space-y-5">
-              {/* Comment */}
-              <li className="relative pl-9 space-y-5">
-                {/* Comment wrapper */}
-                <div className="flex items-start">
-                  {/* Comment upvote */}
-                  <div className="absolute top-0 left-0">
-                    <button className="text-xs font-semibold text-left w-6 rounded-xs flex flex-col justify-center items-center text-gray-600 dark:text-gray-300 hover:text-violet-500 dark:hover:text-violet-500">
-                      <svg className="inline-flex fill-gray-400 dark:fill-gray-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                        <path d="m0 6 6-6 6 6z" />
-                      </svg>
-                      <div>2</div>
-                    </button>
-                  </div>
-                  {/* Comment content */}
-                  <div>
-                    {/* Comment text */}
-                    <div className="grow text-sm text-gray-800 dark:text-gray-100 space-y-2 mb-2">
-                      <p>That sounds like an excellent idea. I'd love to take a look when you're ready!</p>
-                    </div>
-                    {/* Comment footer */}
-                    <div className="flex flex-wrap text-xs">
-                      <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                        <a className="block mr-2" href="#0">
-                          <Image className="rounded-full" src={UserImage05} width={24} height={24} alt="User 05" />
-                        </a>
-                        <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                          ellielong
-                        </a>
-                      </div>
-                      <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                        <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                          Reply
-                        </a>
-                      </div>
-                      <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                        <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                          Share
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Nested comments */}
-                <ul className="space-y-5">
-                  {/* Comment */}
-                  <li className="relative pl-9 space-y-5">
-                    {/* Comment wrapper */}
-                    <div className="flex items-start">
-                      {/* Comment upvote */}
-                      <div className="absolute top-0 left-0">
-                        <button className="text-xs font-semibold text-left w-6 rounded-xs flex flex-col justify-center items-center text-gray-600 dark:text-gray-300 hover:text-violet-500 dark:hover:text-violet-500">
-                          <svg className="inline-flex fill-gray-400 dark:fill-gray-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                            <path d="m0 6 6-6 6 6z" />
-                          </svg>
-                          <div>1</div>
-                        </button>
-                      </div>
-                      {/* Comment content */}
-                      <div>
-                        {/* Comment text */}
-                        <div className="grow text-sm text-gray-800 dark:text-gray-100 space-y-2 mb-2">
-                          <p>Expect it! 👊</p>
-                        </div>
-                        {/* Comment footer */}
-                        <div className="flex flex-wrap text-xs">
-                          <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                            <a className="block mr-2" href="#0">
-                              <Image className="rounded-full" src={UserImage09} width={24} height={24} alt="User 09" />
-                            </a>
-                            <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                              davidp1
-                            </a>
-                          </div>
-                          <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                            <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                              Reply
-                            </a>
-                          </div>
-                          <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                            <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                              Share
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                </ul>
-              </li>
-            </ul>
-          </li>
-          {/* Comment */}
-          <li className="relative pl-9 space-y-5">
-            {/* Comment wrapper */}
-            <div className="flex items-start">
-              {/* Comment upvote */}
-              <div className="absolute top-0 left-0">
-                <button className="text-xs font-semibold text-left w-6 rounded-xs flex flex-col justify-center items-center text-gray-600 dark:text-gray-300 hover:text-violet-500 dark:hover:text-violet-500">
-                  <svg className="inline-flex fill-gray-400 dark:fill-gray-500 mt-1.5 mb-1.5" width="12" height="6" xmlns="http://www.w3.org/2000/svg">
-                    <path d="m0 6 6-6 6 6z" />
-                  </svg>
-                  <div>19</div>
-                </button>
-              </div>
-              {/* Comment content */}
-              <div>
-                {/* Comment text */}
-                <div className="grow text-sm text-gray-800 dark:text-gray-100 space-y-2 mb-2">
-                  <p>Social Media (channels based on your target audience), and Slack channels</p>
-                </div>
-                {/* Comment footer */}
-                <div className="flex flex-wrap text-xs">
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="block mr-2" href="#0">
-                      <Image className="rounded-full" src={UserImage10} width={24} height={24} alt="User 10" />
-                    </a>
-                    <a className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="#0">
-                      patrick2
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Reply
-                    </a>
-                  </div>
-                  <div className="flex items-center after:block after:content-['·'] last:after:content-[''] after:text-sm after:text-gray-400 dark:after:text-gray-600 after:px-2">
-                    <a className="font-medium text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" href="#0">
-                      Share
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </li>
-        </ul>
-        {/* View more link */}
-        <div className="text-center mt-5">
-          <button className="text-sm font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400">View More Comments</button>
-        </div>
-      </div>
+      </form>
     </article>
   )
 }
