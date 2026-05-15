@@ -2,16 +2,9 @@ import 'server-only'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
+import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/tasks'
 
-export const TASK_STATUSES = ['todo', 'in_progress', 'completed', 'note'] as const
-export type TaskStatus = (typeof TASK_STATUSES)[number]
-
-export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  todo: "To Do's",
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  note: 'Notes',
-}
+export { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus }
 
 export const TaskInput = z.object({
   title: z.string().min(1).max(200),

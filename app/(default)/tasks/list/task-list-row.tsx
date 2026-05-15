@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { likeTaskAction, moveTask, removeTasks } from '../actions'
-import type { TaskStatus } from '@/lib/services/tasks'
+import type { TaskStatus } from '@/lib/types/tasks'
 
 interface Props {
   task: {

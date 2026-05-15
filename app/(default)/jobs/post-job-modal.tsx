@@ -3,7 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { addJob } from './actions'
-import { JOB_TYPES } from '@/lib/services/jobs'
+import { JOB_TYPES } from '@/lib/types/jobs'
 
 export default function PostJobModal() {
   const [open, setOpen] = useState(false)

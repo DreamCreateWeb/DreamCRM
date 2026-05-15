@@ -3,7 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { addTask } from '../actions'
-import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/services/tasks'
+import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/tasks'
 
 interface AddTaskButtonProps {
   defaultStatus?: TaskStatus

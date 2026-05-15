@@ -2,9 +2,9 @@ import 'server-only'
 import { and, desc, eq, ilike, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
+import { CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/types/campaigns'
 
-export const CAMPAIGN_STATUSES = ['draft', 'scheduled', 'active', 'completed', 'paused'] as const
-export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number]
+export { CAMPAIGN_STATUSES, type CampaignStatus }
 
 export const CampaignInput = z.object({
   name: z.string().min(1).max(200),

@@ -2,25 +2,14 @@ import 'server-only'
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
+import {
+  CALENDAR_CATEGORIES,
+  CATEGORY_COLOR,
+  CATEGORY_LABEL,
+  type CalendarCategory,
+} from '@/lib/types/calendar'
 
-export const CALENDAR_CATEGORIES = ['work', 'personal', 'reservation', 'event', 'misc'] as const
-export type CalendarCategory = (typeof CALENDAR_CATEGORIES)[number]
-
-export const CATEGORY_COLOR: Record<CalendarCategory, string> = {
-  work: 'sky',
-  personal: 'green',
-  reservation: 'violet',
-  event: 'red',
-  misc: 'yellow',
-}
-
-export const CATEGORY_LABEL: Record<CalendarCategory, string> = {
-  work: 'Work',
-  personal: 'Life & Family',
-  reservation: 'Reservations',
-  event: 'Events',
-  misc: 'Misc',
-}
+export { CALENDAR_CATEGORIES, CATEGORY_COLOR, CATEGORY_LABEL, type CalendarCategory }
 
 export const CalendarEventInput = z.object({
   title: z.string().min(1).max(200),

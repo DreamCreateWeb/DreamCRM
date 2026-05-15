@@ -3,7 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { addCampaign } from './actions'
-import { CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/services/campaigns'
+import { CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/types/campaigns'
 
 export default function CreateCampaignModal() {
   const [open, setOpen] = useState(false)

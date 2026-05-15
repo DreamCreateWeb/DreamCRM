@@ -3,7 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { addCalendarEvent } from './actions'
-import { CALENDAR_CATEGORIES, CATEGORY_LABEL, type CalendarCategory } from '@/lib/services/calendar'
+import { CALENDAR_CATEGORIES, CATEGORY_LABEL, type CalendarCategory } from '@/lib/types/calendar'
 
 function nowLocalInput(offsetMinutes = 0) {
   const d = new Date(Date.now() + offsetMinutes * 60_000)

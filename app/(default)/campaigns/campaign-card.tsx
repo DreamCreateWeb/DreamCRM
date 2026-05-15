@@ -4,7 +4,7 @@ import { useTransition } from 'react'
 import Image from 'next/image'
 import { CampaignProperties } from './campaigns-properties'
 import { changeCampaignStatus, removeCampaign } from './actions'
-import { CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/services/campaigns'
+import { CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/types/campaigns'
 import { formatShortDate } from '@/lib/utils'
 
 export interface CampaignCardData {

@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { likeTaskAction, moveTask, removeTasks } from '../actions'
-import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/services/tasks'
+import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/tasks'
 
 export interface TaskCardData {
   id: number

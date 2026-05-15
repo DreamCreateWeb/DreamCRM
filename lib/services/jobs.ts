@@ -3,8 +3,9 @@ import { and, desc, eq, ilike, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { slugify } from '@/lib/utils'
+import { JOB_TYPES } from '@/lib/types/jobs'
 
-export const JOB_TYPES = ['full-time', 'part-time', 'contract', 'freelance', 'internship'] as const
+export { JOB_TYPES }
 
 export const JobInput = z.object({
   title: z.string().min(1).max(200),
