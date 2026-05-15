@@ -82,15 +82,20 @@ export async function createClinic(formData: FormData) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const inviteUrl = `${appUrl}/accept-invite?token=${inviteId}`
 
-  // Fire-and-forget — don't block on email send; log failure but don't throw
-  sendInvitationEmail(adminEmail, {
-    inviterName: session.user.name,
-    orgName: name,
-    role: 'Owner',
-    inviteUrl,
-  }).catch(err => console.error('[createClinic] email failed:', err))
+  let emailSent = true
+  try {
+    await sendInvitationEmail(adminEmail, {
+      inviterName: session.user.name,
+      orgName: name,
+      role: 'Owner',
+      inviteUrl,
+    })
+  } catch (err) {
+    console.error('[createClinic] email failed:', err)
+    emailSent = false
+  }
 
   revalidatePath('/ecommerce/customers')
 
-  return { orgId, slug, inviteUrl }
+  return { orgId, slug, inviteUrl, emailSent }
 }

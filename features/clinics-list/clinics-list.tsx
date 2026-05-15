@@ -30,7 +30,7 @@ export default function ClinicsList({ clinics: initialClinics }: Props) {
   const [showForm, setShowForm] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ clinicName: string; adminEmail: string; inviteUrl: string } | null>(null)
+  const [success, setSuccess] = useState<{ clinicName: string; adminEmail: string; inviteUrl: string; emailSent: boolean } | null>(null)
   const [slugDraft, setSlugDraft] = useState('')
   const [nameDraft, setNameDraft] = useState('')
 
@@ -49,7 +49,7 @@ export default function ClinicsList({ clinics: initialClinics }: Props) {
     startTransition(async () => {
       try {
         const result = await createClinic(fd)
-        setSuccess({ clinicName, adminEmail, inviteUrl: result.inviteUrl })
+        setSuccess({ clinicName, adminEmail, inviteUrl: result.inviteUrl, emailSent: result.emailSent })
         setShowForm(false)
         setNameDraft('')
         setSlugDraft('')
@@ -101,7 +101,10 @@ export default function ClinicsList({ clinics: initialClinics }: Props) {
               {success.clinicName} created successfully
             </p>
             <p className="text-emerald-700 dark:text-emerald-400 mt-0.5">
-              Invitation sent to <strong>{success.adminEmail}</strong>.
+              {success.emailSent
+                ? <>Invitation email sent to <strong>{success.adminEmail}</strong>.</>
+                : <><strong>Email failed to send</strong> — share the link below directly with {success.adminEmail}.</>
+              }
             </p>
             <p className="text-emerald-600 dark:text-emerald-500 mt-1 text-xs font-mono break-all">
               Invite link: {success.inviteUrl}
