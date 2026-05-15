@@ -65,6 +65,78 @@ export async function sendInvitationEmail(to: string, data: InvitationEmailData)
   })
 }
 
+export interface ContactRequestData {
+  clinicName: string
+  patientName: string
+  phone: string
+  email: string | null
+  preferredDate: string | null
+  message: string | null
+}
+
+export async function sendContactRequestEmail(to: string, data: ContactRequestData) {
+  const resend = getResend()
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `New appointment request from ${data.patientName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#111">New Appointment Request</h2>
+        <p style="margin:0 0 24px;font-size:13px;color:#888">via ${data.clinicName}'s website</p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr><td style="padding:8px 0;color:#555;width:140px">Name</td><td style="padding:8px 0;color:#111;font-weight:600">${data.patientName}</td></tr>
+          <tr><td style="padding:8px 0;color:#555">Phone</td><td style="padding:8px 0;color:#111">${data.phone}</td></tr>
+          ${data.email ? `<tr><td style="padding:8px 0;color:#555">Email</td><td style="padding:8px 0;color:#111">${data.email}</td></tr>` : ''}
+          ${data.preferredDate ? `<tr><td style="padding:8px 0;color:#555">Preferred Date</td><td style="padding:8px 0;color:#111">${data.preferredDate}</td></tr>` : ''}
+          ${data.message ? `<tr><td style="padding:8px 0;color:#555;vertical-align:top">Message</td><td style="padding:8px 0;color:#111">${data.message}</td></tr>` : ''}
+        </table>
+        <p style="margin:24px 0 0;font-size:12px;color:#888">
+          Sent from your DreamCRM clinic website.
+        </p>
+      </div>
+    `,
+  })
+}
+
+export interface BookingConfirmationData {
+  patientName: string
+  clinicName: string
+  clinicPhone: string | null
+  startTime: Date
+  appointmentType: string
+}
+
+export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData) {
+  const resend = getResend()
+  const typeLabel = data.appointmentType.replace('_', ' ').replace(/^\w/, c => c.toUpperCase())
+  const timeStr = data.startTime.toLocaleString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+    year: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Appointment confirmed at ${data.clinicName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Appointment Confirmed</h2>
+        <p style="margin:0 0 24px;color:#444;line-height:1.5">
+          Hi ${data.patientName}, your <strong>${typeLabel}</strong> appointment at
+          <strong>${data.clinicName}</strong> has been scheduled.
+        </p>
+        <div style="padding:16px 20px;background:#f9fafb;border-radius:8px;margin-bottom:24px">
+          <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
+          <p style="margin:0;font-size:14px;color:#555">${data.clinicName}${data.clinicPhone ? ` · ${data.clinicPhone}` : ''}</p>
+        </div>
+        <p style="margin:0;font-size:13px;color:#888">
+          We'll be in touch to confirm. If you need to reschedule, please call us directly.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendVerificationEmail(to: string, verifyUrl: string) {
   const resend = getResend()
   await resend.emails.send({
