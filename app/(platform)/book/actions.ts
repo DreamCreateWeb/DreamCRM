@@ -3,7 +3,7 @@
 import { db } from '@/lib/db'
 import { appointment } from '@/lib/db/schema/clinic'
 import { getTenantContext } from '@/lib/auth/context'
-import { nanoid } from 'nanoid'
+import { randomUUID } from 'crypto'
 
 export async function submitPatientBookingRequest(formData: FormData) {
   const ctx = await getTenantContext()
@@ -30,7 +30,7 @@ export async function submitPatientBookingRequest(formData: FormData) {
   }
 
   await db.insert(appointment).values({
-    id: nanoid(),
+    id: randomUUID(),
     organizationId: ctx.organizationId,
     patientId: ctx.patientId,
     title: typeLabel[type] ?? 'Appointment',
