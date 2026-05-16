@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function Onboarding04() {
   const user = await requireUser()
-  const greeting = user.companyName || user.name || 'there'
+  const greeting = user.name?.split(' ')[0] || 'there'
 
   return (
     <main className="bg-white dark:bg-gray-900">

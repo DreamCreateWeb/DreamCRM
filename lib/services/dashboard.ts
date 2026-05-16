@@ -36,9 +36,9 @@ export async function getDashboardKpis() {
     .where(sql`${schema.campaigns.status} in ('active', 'scheduled')`)
 
   const [newSignups] = await db
-    .select({ count: sql<number>`count(${schema.users.id})::int` })
-    .from(schema.users)
-    .where(gte(schema.users.createdAt, since30))
+    .select({ count: sql<number>`count(${schema.user.id})::int` })
+    .from(schema.user)
+    .where(gte(schema.user.createdAt, since30))
 
   const [mrr] = await db
     .select({

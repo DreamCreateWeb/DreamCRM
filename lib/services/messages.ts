@@ -53,11 +53,11 @@ export async function listMessages(conversationId: number, userId: string) {
       body: schema.messages.body,
       createdAt: schema.messages.createdAt,
       authorId: schema.messages.authorId,
-      authorName: schema.users.name,
-      authorImage: schema.users.image,
+      authorName: schema.user.name,
+      authorImage: schema.user.image,
     })
     .from(schema.messages)
-    .leftJoin(schema.users, eq(schema.messages.authorId, schema.users.id))
+    .leftJoin(schema.user, eq(schema.messages.authorId, schema.user.id))
     .where(eq(schema.messages.conversationId, conversationId))
     .orderBy(asc(schema.messages.createdAt))
 }

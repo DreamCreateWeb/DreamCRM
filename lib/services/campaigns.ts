@@ -28,12 +28,12 @@ export async function getCampaignMembers(campaignIds: number[]) {
   return db
     .select({
       campaignId: schema.campaignMembers.campaignId,
-      userId: schema.users.id,
-      name: schema.users.name,
-      image: schema.users.image,
+      userId: schema.user.id,
+      name: schema.user.name,
+      image: schema.user.image,
     })
     .from(schema.campaignMembers)
-    .innerJoin(schema.users, eq(schema.campaignMembers.userId, schema.users.id))
+    .innerJoin(schema.user, eq(schema.campaignMembers.userId, schema.user.id))
     .where(inArray(schema.campaignMembers.campaignId, campaignIds))
 }
 

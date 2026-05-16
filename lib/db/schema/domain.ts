@@ -14,70 +14,27 @@ import {
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core'
+import { user, organization } from './auth'
 
-// ---------- better-auth tables ----------
-// Schema matches better-auth v1.x default expectations.
+/**
+ * Domain (CRM-style) tables that the Mosaic-template pages render. Every
+ * tenant-scoped record carries `organization_id` so the same UI can serve
+ * either the platform org (Dream Create) or a clinic org (each customer
+ * clinic), with rows naturally segregated by `organization_id`.
+ *
+ * Tables that are intentionally platform-wide community (forum threads, feed
+ * posts, meetups, jobs, campaigns) do NOT carry `organization_id`; the app
+ * only renders them when the active org is the platform org.
+ */
 
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').notNull().default(false),
-  image: text('image'),
-  role: text('role').notNull().default('member'),
-  companyName: text('company_name'),
-  city: text('city'),
-  postalCode: text('postal_code'),
-  streetAddress: text('street_address'),
-  country: text('country'),
-  newsletter: boolean('newsletter').notNull().default(false),
-  onboardingStep: integer('onboarding_step').notNull().default(0),
-  onboardingComplete: boolean('onboarding_complete').notNull().default(false),
-  accountType: text('account_type'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
-
-export const sessions = pgTable('sessions', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: text('token').notNull().unique(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
-
-export const accounts = pgTable('accounts', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  accountId: text('account_id').notNull(),
-  providerId: text('provider_id').notNull(),
-  accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
-  idToken: text('id_token'),
-  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
-  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
-  scope: text('scope'),
-  password: text('password'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
-
-export const verifications = pgTable('verifications', {
-  id: text('id').primaryKey(),
-  identifier: text('identifier').notNull(),
-  value: text('value').notNull(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
-
-// ---------- CRM ----------
+// ---------- Customers (CRM lead-style, not patients) ----------
+// On the platform org this can be "prospects / external contacts". On a clinic
+// org, prefer the `patient` table (in lib/db/schema/clinic.ts) for clinical
+// records. The customers table is kept for non-clinical CRM use.
 export const customers = pgTable('customers', {
   id: serial('id').primaryKey(),
-  ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   email: text('email').notNull(),
   phone: text('phone'),
@@ -89,8 +46,10 @@ export const customers = pgTable('customers', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// ---------- Products / Orders / Invoices (multi-tenant ecom) ----------
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   description: text('description'),
@@ -115,6 +74,7 @@ export const orderStatusEnum = pgEnum('order_status', [
 
 export const orders = pgTable('orders', {
   id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   orderNumber: text('order_number').notNull().unique(),
   customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
   status: orderStatusEnum('status').notNull().default('pending'),
@@ -136,6 +96,7 @@ export const invoiceStatusEnum = pgEnum('invoice_status', [
 
 export const invoices = pgTable('invoices', {
   id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   invoiceNumber: text('invoice_number').notNull().unique(),
   customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
   status: invoiceStatusEnum('status').notNull().default('draft'),
@@ -152,7 +113,8 @@ export const invoices = pgTable('invoices', {
 export const cartItems = pgTable(
   'cart_items',
   {
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
     productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
     quantity: integer('quantity').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -160,7 +122,7 @@ export const cartItems = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.productId] })]
 )
 
-// ---------- Tasks / kanban ----------
+// ---------- Tasks (kanban / list) ----------
 export const taskStatusEnum = pgEnum('task_status', [
   'todo',
   'in_progress',
@@ -170,14 +132,15 @@ export const taskStatusEnum = pgEnum('task_status', [
 
 export const tasks = pgTable('tasks', {
   id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
   status: taskStatusEnum('status').notNull().default('todo'),
   priority: text('priority').notNull().default('medium'),
   position: integer('position').notNull().default(0),
   dueDate: timestamp('due_date', { withTimezone: true }),
-  assigneeId: text('assignee_id').references(() => users.id, { onDelete: 'set null' }),
-  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  assigneeId: text('assignee_id').references(() => user.id, { onDelete: 'set null' }),
+  createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   likes: integer('likes').notNull().default(0),
   comments: integer('comments').notNull().default(0),
   attachments: integer('attachments').notNull().default(0),
@@ -193,9 +156,10 @@ export const subtasks = pgTable('subtasks', {
   position: integer('position').notNull().default(0),
 })
 
-// ---------- Calendar ----------
+// ---------- Calendar (generic events; clinic appointments live in clinic.ts) ----------
 export const calendarEvents = pgTable('calendar_events', {
   id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
   location: text('location'),
@@ -203,11 +167,11 @@ export const calendarEvents = pgTable('calendar_events', {
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
   allDay: boolean('all_day').notNull().default(false),
   category: text('category').notNull().default('default'),
-  ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// ---------- Campaigns ----------
+// ---------- Campaigns (platform-wide marketing tool by default) ----------
 export const campaignStatusEnum = pgEnum('campaign_status', [
   'draft',
   'scheduled',
@@ -218,13 +182,14 @@ export const campaignStatusEnum = pgEnum('campaign_status', [
 
 export const campaigns = pgTable('campaigns', {
   id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   status: campaignStatusEnum('status').notNull().default('draft'),
   startDate: date('start_date'),
   endDate: date('end_date'),
   budgetCents: integer('budget_cents').notNull().default(0),
-  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -233,17 +198,17 @@ export const campaignMembers = pgTable(
   'campaign_members',
   {
     campaignId: integer('campaign_id').notNull().references(() => campaigns.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
     role: text('role').notNull().default('member'),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.campaignId, t.userId] })]
 )
 
-// ---------- Community ----------
+// ---------- Community (platform-wide; no org scoping) ----------
 export const forumThreads = pgTable('forum_threads', {
   id: serial('id').primaryKey(),
-  authorId: text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: text('author_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   body: text('body').notNull(),
   category: text('category').notNull().default('general'),
@@ -256,7 +221,7 @@ export const forumThreads = pgTable('forum_threads', {
 export const forumReplies = pgTable('forum_replies', {
   id: serial('id').primaryKey(),
   threadId: integer('thread_id').notNull().references(() => forumThreads.id, { onDelete: 'cascade' }),
-  authorId: text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: text('author_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   body: text('body').notNull(),
   parentId: integer('parent_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -264,7 +229,7 @@ export const forumReplies = pgTable('forum_replies', {
 
 export const feedPosts = pgTable('feed_posts', {
   id: serial('id').primaryKey(),
-  authorId: text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: text('author_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   body: text('body').notNull(),
   imageUrl: text('image_url'),
   likes: integer('likes').notNull().default(0),
@@ -280,7 +245,7 @@ export const meetups = pgTable('meetups', {
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
   imageUrl: text('image_url'),
-  hostId: text('host_id').references(() => users.id, { onDelete: 'set null' }),
+  hostId: text('host_id').references(() => user.id, { onDelete: 'set null' }),
   capacity: integer('capacity'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -289,14 +254,14 @@ export const meetupRsvps = pgTable(
   'meetup_rsvps',
   {
     meetupId: integer('meetup_id').notNull().references(() => meetups.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
     status: text('status').notNull().default('going'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.meetupId, t.userId] })]
 )
 
-// ---------- Jobs ----------
+// ---------- Jobs (platform-wide by default) ----------
 export const companies = pgTable('companies', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
@@ -319,14 +284,17 @@ export const jobs = pgTable('jobs', {
   remote: boolean('remote').notNull().default(false),
   salaryMinCents: integer('salary_min_cents'),
   salaryMaxCents: integer('salary_max_cents'),
-  postedById: text('posted_by_id').references(() => users.id, { onDelete: 'set null' }),
+  postedById: text('posted_by_id').references(() => user.id, { onDelete: 'set null' }),
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// ---------- Inbox / Messages ----------
+// ---------- Conversations / Messages (org-scoped) ----------
+// In a clinic org these are patient ↔ staff DMs. In the platform org these
+// are clinic-owner ↔ Dream Create staff DMs.
 export const conversations = pgTable('conversations', {
   id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   title: text('title'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -335,7 +303,7 @@ export const conversationMembers = pgTable(
   'conversation_members',
   {
     conversationId: integer('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
     lastReadAt: timestamp('last_read_at', { withTimezone: true }),
   },
   (t) => [primaryKey({ columns: [t.conversationId, t.userId] })]
@@ -344,11 +312,12 @@ export const conversationMembers = pgTable(
 export const messages = pgTable('messages', {
   id: serial('id').primaryKey(),
   conversationId: integer('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
-  authorId: text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: text('author_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   body: text('body').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// ---------- Inbox (per-user mailbox) ----------
 export const inboxFolderEnum = pgEnum('inbox_folder', [
   'inbox',
   'sent',
@@ -361,7 +330,8 @@ export const inboxFolderEnum = pgEnum('inbox_folder', [
 
 export const inboxMessages = pgTable('inbox_messages', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   fromName: text('from_name').notNull(),
   fromEmail: text('from_email').notNull(),
   toEmail: text('to_email').notNull(),
@@ -373,11 +343,15 @@ export const inboxMessages = pgTable('inbox_messages', {
   receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// ---------- Settings ----------
+// ---------- Per-user billing profile ----------
+// NOTE: For clinic orgs, the source of truth for subscription state is
+// `clinicProfile` (see lib/db/schema/platform.ts). This per-user table is
+// retained for backwards-compatibility with the single-tenant Plans UI and
+// will be reconciled into clinicProfile in a follow-up.
 export const billingPlanEnum = pgEnum('billing_plan', ['free', 'pro', 'team', 'enterprise'])
 
 export const billingProfiles = pgTable('billing_profiles', {
-  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
   plan: billingPlanEnum('plan').notNull().default('free'),
   cardLast4: text('card_last4'),
   cardBrand: text('card_brand'),
@@ -386,7 +360,6 @@ export const billingProfiles = pgTable('billing_profiles', {
   billingEmail: text('billing_email'),
   billingAddress: text('billing_address'),
   renewsAt: timestamp('renews_at', { withTimezone: true }),
-  // Stripe linkage — populated by checkout completion / subscription webhooks.
   stripeCustomerId: text('stripe_customer_id').unique(),
   stripeSubscriptionId: text('stripe_subscription_id').unique(),
   stripePriceId: text('stripe_price_id'),
@@ -394,8 +367,9 @@ export const billingProfiles = pgTable('billing_profiles', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// ---------- Notification prefs / connected apps (per-user) ----------
 export const notificationPrefs = pgTable('notification_prefs', {
-  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
   comments: boolean('comments').notNull().default(true),
   candidates: boolean('candidates').notNull().default(true),
   offers: boolean('offers').notNull().default(false),
@@ -408,7 +382,7 @@ export const notificationPrefs = pgTable('notification_prefs', {
 export const connectedApps = pgTable(
   'connected_apps',
   {
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
     appKey: text('app_key').notNull(),
     enabled: boolean('enabled').notNull().default(true),
     config: jsonb('config').notNull().default(sql`'{}'::jsonb`),
@@ -419,17 +393,17 @@ export const connectedApps = pgTable(
 
 export const feedback = pgTable('feedback', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
   category: text('category').notNull().default('general'),
   rating: integer('rating'),
   message: text('message').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// ---------- Fintech ----------
+// ---------- Fintech (per-user demo accounts) ----------
 export const accountsFinance = pgTable('finance_accounts', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   type: text('type').notNull().default('checking'),
   balanceCents: integer('balance_cents').notNull().default(0),
@@ -439,7 +413,7 @@ export const accountsFinance = pgTable('finance_accounts', {
 
 export const finCards = pgTable('finance_cards', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   brand: text('brand').notNull(),
   last4: varchar('last4', { length: 4 }).notNull(),
   expMonth: integer('exp_month').notNull(),
@@ -451,7 +425,7 @@ export const finCards = pgTable('finance_cards', {
 
 export const transactions = pgTable('transactions', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   accountId: integer('account_id').references(() => accountsFinance.id, { onDelete: 'set null' }),
   merchant: text('merchant').notNull(),
   category: text('category').notNull().default('other'),
@@ -461,21 +435,20 @@ export const transactions = pgTable('transactions', {
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// ---------- Analytics (lightweight time-series) ----------
+// ---------- Analytics ----------
 export const analyticsEvents = pgTable(
   'analytics_events',
   {
     id: serial('id').primaryKey(),
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
-    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
     properties: jsonb('properties').notNull().default(sql`'{}'::jsonb`),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('analytics_events_name_time_idx').on(t.name, t.occurredAt)]
 )
 
-export type User = typeof users.$inferSelect
-export type NewUser = typeof users.$inferInsert
 export type Customer = typeof customers.$inferSelect
 export type NewCustomer = typeof customers.$inferInsert
 export type Order = typeof orders.$inferSelect

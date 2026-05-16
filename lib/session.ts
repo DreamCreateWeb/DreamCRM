@@ -2,7 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { auth } from './auth'
+import { auth } from './auth/server'
 
 export const getServerSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() })
@@ -14,9 +14,6 @@ export async function requireUser() {
   return session.user
 }
 
-export async function requireRole(role: string | string[]) {
-  const user = await requireUser()
-  const roles = Array.isArray(role) ? role : [role]
-  if (!roles.includes(user.role ?? 'member')) redirect('/')
-  return user
-}
+// Tenant-aware helpers are re-exported from lib/auth/context.
+// `requireRole` here checks the user's role within their active org.
+export { getTenantContext, requireTenant, requireRole, type TenantContext } from './auth/context'

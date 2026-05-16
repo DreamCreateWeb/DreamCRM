@@ -26,12 +26,12 @@ export async function listThreads(sort: 'popular' | 'newest' | 'following' = 'ne
       views: schema.forumThreads.views,
       createdAt: schema.forumThreads.createdAt,
       authorId: schema.forumThreads.authorId,
-      authorName: schema.users.name,
-      authorImage: schema.users.image,
+      authorName: schema.user.name,
+      authorImage: schema.user.image,
       replyCount: sql<number>`(select count(*) from ${schema.forumReplies} fr where fr.thread_id = ${schema.forumThreads.id})::int`,
     })
     .from(schema.forumThreads)
-    .leftJoin(schema.users, eq(schema.forumThreads.authorId, schema.users.id))
+    .leftJoin(schema.user, eq(schema.forumThreads.authorId, schema.user.id))
     .orderBy(order)
     .limit(100)
 }
@@ -46,11 +46,11 @@ export async function getThread(id: number) {
       views: schema.forumThreads.views,
       createdAt: schema.forumThreads.createdAt,
       authorId: schema.forumThreads.authorId,
-      authorName: schema.users.name,
-      authorImage: schema.users.image,
+      authorName: schema.user.name,
+      authorImage: schema.user.image,
     })
     .from(schema.forumThreads)
-    .leftJoin(schema.users, eq(schema.forumThreads.authorId, schema.users.id))
+    .leftJoin(schema.user, eq(schema.forumThreads.authorId, schema.user.id))
     .where(eq(schema.forumThreads.id, id))
     .limit(1)
   if (!rows[0]) return null
@@ -65,11 +65,11 @@ export async function getThread(id: number) {
       parentId: schema.forumReplies.parentId,
       createdAt: schema.forumReplies.createdAt,
       authorId: schema.forumReplies.authorId,
-      authorName: schema.users.name,
-      authorImage: schema.users.image,
+      authorName: schema.user.name,
+      authorImage: schema.user.image,
     })
     .from(schema.forumReplies)
-    .leftJoin(schema.users, eq(schema.forumReplies.authorId, schema.users.id))
+    .leftJoin(schema.user, eq(schema.forumReplies.authorId, schema.user.id))
     .where(eq(schema.forumReplies.threadId, id))
     .orderBy(desc(schema.forumReplies.createdAt))
   return { thread: rows[0], replies }
@@ -109,11 +109,11 @@ export async function listFeedPosts() {
       comments: schema.feedPosts.comments,
       createdAt: schema.feedPosts.createdAt,
       authorId: schema.feedPosts.authorId,
-      authorName: schema.users.name,
-      authorImage: schema.users.image,
+      authorName: schema.user.name,
+      authorImage: schema.user.image,
     })
     .from(schema.feedPosts)
-    .leftJoin(schema.users, eq(schema.feedPosts.authorId, schema.users.id))
+    .leftJoin(schema.user, eq(schema.feedPosts.authorId, schema.user.id))
     .orderBy(desc(schema.feedPosts.createdAt))
     .limit(50)
 }
@@ -160,11 +160,11 @@ export async function listMeetups(opts: { upcomingOnly?: boolean } = {}) {
       imageUrl: schema.meetups.imageUrl,
       capacity: schema.meetups.capacity,
       hostId: schema.meetups.hostId,
-      hostName: schema.users.name,
+      hostName: schema.user.name,
       rsvpCount: sql<number>`(select count(*) from ${schema.meetupRsvps} r where r.meetup_id = ${schema.meetups.id})::int`,
     })
     .from(schema.meetups)
-    .leftJoin(schema.users, eq(schema.meetups.hostId, schema.users.id))
+    .leftJoin(schema.user, eq(schema.meetups.hostId, schema.user.id))
     .where(filters.length ? and(...filters) : undefined)
     .orderBy(desc(schema.meetups.startsAt))
     .limit(50)
@@ -213,20 +213,22 @@ export async function rsvpMeetup(meetupId: number, userId: string, status: 'goin
 }
 
 // ---------- Users directory ----------
+// Returns the basic user record; role/companyName/city/country are resolved
+// from member.role + clinicProfile in the multi-tenant routes (PR B).
 export async function listCommunityUsers(opts: { search?: string } = {}) {
   return db
     .select({
-      id: schema.users.id,
-      name: schema.users.name,
-      email: schema.users.email,
-      image: schema.users.image,
-      role: schema.users.role,
-      companyName: schema.users.companyName,
-      city: schema.users.city,
-      country: schema.users.country,
-      createdAt: schema.users.createdAt,
+      id: schema.user.id,
+      name: schema.user.name,
+      email: schema.user.email,
+      image: schema.user.image,
+      role: sql<string>`'member'`.as('role'),
+      companyName: sql<string | null>`null`.as('companyName'),
+      city: sql<string | null>`null`.as('city'),
+      country: sql<string | null>`null`.as('country'),
+      createdAt: schema.user.createdAt,
     })
-    .from(schema.users)
-    .orderBy(desc(schema.users.createdAt))
+    .from(schema.user)
+    .orderBy(desc(schema.user.createdAt))
     .limit(120)
 }
