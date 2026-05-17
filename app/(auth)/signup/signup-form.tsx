@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { signUp } from '@/lib/auth-client'
 
 const ROLES = ['Designer', 'Developer', 'Accountant', 'Marketer', 'Manager', 'Other']
+const SIGN_UP_TIMEOUT_MS = 25_000
 
 export default function SignUpForm() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState(ROLES[0])
@@ -20,20 +19,39 @@ export default function SignUpForm() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { error: signUpError } = await signUp.email({
-      email,
-      password,
-      name,
-      // additional custom fields registered in lib/auth.ts
-      ...({ newsletter, accountType: role } as Record<string, unknown>),
-    } as any)
-    setLoading(false)
-    if (signUpError) {
-      setError(signUpError.message ?? 'Unable to create account')
-      return
+
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), SIGN_UP_TIMEOUT_MS)
+
+    try {
+      const { error: signUpError } = await signUp.email(
+        {
+          email,
+          password,
+          name,
+          // additional custom fields registered in lib/auth/server.ts
+          ...({ newsletter, accountType: role } as Record<string, unknown>),
+        } as any,
+        { signal: abort.signal as any },
+      )
+      clearTimeout(timer)
+      if (signUpError) {
+        setError(signUpError.message ?? 'Unable to create account')
+        setLoading(false)
+        return
+      }
+      // Full reload so the new session cookie is picked up by middleware
+      // (otherwise the redirect back to /onboarding-01 may flap).
+      window.location.assign('/onboarding-01')
+    } catch (err) {
+      clearTimeout(timer)
+      const message =
+        (err as Error)?.name === 'AbortError'
+          ? 'Sign-up is taking longer than expected. Try again in a moment.'
+          : (err as Error)?.message ?? 'Unable to create account'
+      setError(message)
+      setLoading(false)
     }
-    router.push('/onboarding-01')
-    router.refresh()
   }
 
   return (

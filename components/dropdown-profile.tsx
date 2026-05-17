@@ -2,13 +2,11 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import { Menu, MenuButton, MenuItems, MenuItem, Transition } from '@headlessui/react'
 import UserAvatar from '@/public/images/user-avatar-32.png'
 import { useSession, signOut } from '@/lib/auth-client'
 
 export default function DropdownProfile({ align }: { align?: 'left' | 'right' }) {
-  const router = useRouter()
   const { data: session } = useSession()
   const user = session?.user
 
@@ -22,8 +20,9 @@ export default function DropdownProfile({ align }: { align?: 'left' | 'right' })
 
   async function handleSignOut() {
     await signOut()
-    router.push('/signin')
-    router.refresh()
+    // Full reload so the cleared session cookie is reflected on the next
+    // request — avoids middleware seeing the stale cookie and bouncing.
+    window.location.assign('/signin')
   }
 
   return (
