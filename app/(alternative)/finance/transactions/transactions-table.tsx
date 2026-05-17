@@ -6,7 +6,7 @@ import TransactionsTableItem from './transactions-table-item'
 
 export interface Transaction {
   id: number
-  image: StaticImageData
+  image: StaticImageData | string | null
   name: string
   date: string
   status: string

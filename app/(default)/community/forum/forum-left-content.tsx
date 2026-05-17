@@ -1,3 +1,5 @@
+import NewThreadModal from './new-thread-modal'
+
 export default function ForumLeftContent() {
   return (
     <div className="w-full md:w-[15rem] mb-8 md:mb-0">
@@ -11,7 +13,7 @@ export default function ForumLeftContent() {
 
             {/* Button */}
             <div className="xl:hidden mb-6">
-              <button className="btn md:w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white">Create Post</button>
+              <NewThreadModal />
             </div>
           </div>
 

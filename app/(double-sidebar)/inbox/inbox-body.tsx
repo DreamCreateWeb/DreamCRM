@@ -1,13 +1,13 @@
 'use client'
 
+import { useState, useTransition } from 'react'
 import { useFlyoutContext } from '@/app/flyout-context'
-import { StaticImageData } from 'next/image'
 import MailItem from './mail-item'
+import { sendMessage } from './actions'
 
 export interface Mail {
   id: number
   open: boolean
-  image: StaticImageData
   name: string
   email: string
   date: string
@@ -18,6 +18,28 @@ export interface Mail {
 
 export default function InboxBody({ mails }: { mails: Mail[]}) {
   const { flyoutOpen, setFlyoutOpen } = useFlyoutContext()
+  const [reply, setReply] = useState('')
+  const [pending, startTransition] = useTransition()
+  const [sendError, setSendError] = useState<string | null>(null)
+  const activeMail = mails[0]
+
+  function handleSend(e: React.FormEvent) {
+    e.preventDefault()
+    if (!reply.trim() || !activeMail) return
+    setSendError(null)
+    startTransition(async () => {
+      try {
+        await sendMessage({
+          toEmail: activeMail.email,
+          subject: `Re: message from ${activeMail.name}`,
+          body: reply,
+        })
+        setReply('')
+      } catch (err) {
+        setSendError((err as Error).message)
+      }
+    })
+  }
 
   return (
     <div
@@ -112,7 +134,7 @@ export default function InboxBody({ mails }: { mails: Mail[]}) {
             </svg>
           </button>
           {/* Message input */}
-          <form className="grow flex">
+          <form className="grow flex" onSubmit={handleSend}>
             <div className="grow mr-3">
               <label htmlFor="message-input" className="sr-only">
                 Type a message
@@ -121,13 +143,21 @@ export default function InboxBody({ mails }: { mails: Mail[]}) {
                 id="message-input"
                 className="form-input w-full bg-gray-100 dark:bg-gray-800 border-transparent dark:border-transparent focus:bg-white dark:focus:bg-gray-800 placeholder-gray-500"
                 type="text"
-                placeholder="Aa"
+                placeholder={activeMail ? `Reply to ${activeMail.name}…` : 'No conversation selected'}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                disabled={!activeMail || pending}
               />
             </div>
-            <button type="submit" className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white whitespace-nowrap">
-              Send -&gt;
+            <button
+              type="submit"
+              disabled={!activeMail || pending || !reply.trim()}
+              className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white whitespace-nowrap disabled:opacity-60"
+            >
+              {pending ? 'Sending…' : 'Send →'}
             </button>
           </form>
+          {sendError && <div className="absolute bottom-16 right-4 text-xs text-red-600 bg-red-50 dark:bg-red-500/10 px-2 py-1 rounded">{sendError}</div>}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import UserImage03 from '@/public/images/avatar-03.jpg'
 import UserImage04 from '@/public/images/avatar-04.jpg'
 import UserImage05 from '@/public/images/avatar-05.jpg'
 import UserImage06 from '@/public/images/avatar-06.jpg'
+import NewThreadModal from './new-thread-modal'
 
 export default function ForumRightContent() {
   return (
@@ -13,7 +14,7 @@ export default function ForumRightContent() {
         <div className="md:py-8">
           {/* Button */}
           <div className="mb-6">
-            <button className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white">Create Post</button>
+            <NewThreadModal />
           </div>
 
           {/* Blocks */}

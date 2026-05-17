@@ -83,7 +83,13 @@ export default function TransactionPanel() {
                 {/* Top */}
                 <div className="bg-white dark:bg-gray-800 rounded-t-xl px-5 pb-2.5 text-center">
                   <div className="mb-3 text-center">
-                    <Image className="inline-flex w-12 h-12 rounded-full -mt-6" src={transaction.image} width={48} height={48} alt="Transaction 04" />
+                    {transaction.image ? (
+                      <Image className="inline-flex w-12 h-12 rounded-full -mt-6" src={transaction.image} width={48} height={48} alt={transaction.name} />
+                    ) : (
+                      <div className="inline-flex w-12 h-12 rounded-full -mt-6 bg-gray-200 dark:bg-gray-700 items-center justify-center text-base font-semibold text-gray-600">
+                        {transaction.name.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
                   </div>
                   <div className={`text-2xl font-semibold mb-1 ${amountColor(transaction.amount)}`}>{transaction?.amount}</div>
                   <div className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-3">{transaction.name}</div>
