@@ -24,34 +24,39 @@ export default function SignInForm() {
     setError(null)
     setLoading(true)
 
-    // Race the sign-in call against an abort timer so a stuck request
-    // surfaces an error instead of spinning forever.
-    const abort = new AbortController()
-    const timer = setTimeout(() => abort.abort(), SIGN_IN_TIMEOUT_MS)
+    // Race the sign-in call against a wall-clock timeout so a stuck
+    // request surfaces an error instead of spinning forever. Use
+    // Promise.race rather than AbortController so we don't have to
+    // thread fetch internals through better-auth's option shape.
+    const timeout = new Promise<{ timedOut: true }>((resolve) =>
+      setTimeout(() => resolve({ timedOut: true }), SIGN_IN_TIMEOUT_MS),
+    )
 
     try {
-      const { error: authError } = await signIn.email(
-        { email, password },
-        { signal: abort.signal as any }
-      )
-      clearTimeout(timer)
+      const result = await Promise.race([
+        signIn.email({ email, password }).then((r) => ({ ...r, timedOut: false as const })),
+        timeout,
+      ])
+
+      if ('timedOut' in result && result.timedOut) {
+        setError('Sign-in is taking longer than expected. Check your connection and try again.')
+        setLoading(false)
+        return
+      }
+
+      const { error: authError } = result as { error?: { message?: string } | null }
       if (authError) {
         setError(authError.message ?? 'Unable to sign in')
         setLoading(false)
         return
       }
+
       // Full reload — guarantees the brand new session cookie is on the
       // next request so middleware doesn't redirect back to /signin.
-      // Also avoids the race between router.push and cookie flush.
       window.location.assign(redirectTo)
       // Don't unset loading; we're navigating away.
     } catch (err) {
-      clearTimeout(timer)
-      const message =
-        (err as Error)?.name === 'AbortError'
-          ? "Sign-in is taking longer than expected. Check your connection and try again."
-          : (err as Error)?.message ?? 'Unable to sign in'
-      setError(message)
+      setError((err as Error)?.message ?? 'Unable to sign in')
       setLoading(false)
     }
   }
