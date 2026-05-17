@@ -7,7 +7,6 @@ const PUBLIC_PATHS = [
   '/reset-password',
   '/api/auth',
   '/api/hello',
-  '/api/admin/bootstrap',
   '/api/webhooks',
 ]
 
