@@ -18,9 +18,9 @@ export const AccountInput = z.object({
 export async function updateAccount(userId: string, input: z.infer<typeof AccountInput>) {
   const data = AccountInput.parse(input)
   const [row] = await db
-    .update(schema.users)
+    .update(schema.user)
     .set({ ...data, updatedAt: new Date() })
-    .where(eq(schema.users.id, userId))
+    .where(eq(schema.user.id, userId))
     .returning()
   return row
 }

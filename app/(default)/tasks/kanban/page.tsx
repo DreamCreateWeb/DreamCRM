@@ -22,8 +22,8 @@ export default async function Kanban() {
   let nameById = new Map<string, string>([[me.id, me.name ?? me.email]])
   if (authorIds.length) {
     const users = await db
-      .select({ id: schema.users.id, name: schema.users.name })
-      .from(schema.users)
+      .select({ id: schema.user.id, name: schema.user.name })
+      .from(schema.user)
     for (const u of users) nameById.set(u.id, u.name)
   }
 

@@ -1,11 +1,23 @@
 'use server'
 
-import { eq } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
-import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { requireUser } from '@/lib/session'
+
+/**
+ * Onboarding actions — temporarily stubbed.
+ *
+ * The original implementation wrote onboarding fields (accountType,
+ * companyName, address, etc.) directly to the user row. With the new
+ * multi-tenant model, onboarding instead creates a clinic *organization*
+ * and a clinicProfile, then redirects to Stripe Checkout. That rewire
+ * lands in the next PR (multi-tenant routes + onboarding).
+ *
+ * For now these actions just route between steps so the UI keeps flowing.
+ * Step 2's "enable invoicing automation" toggle is captured as a per-user
+ * preference in connected_apps so we don't lose the user's intent.
+ */
 
 const Step1 = z.object({
   accountType: z.enum(['company', 'freelance', 'starting']),
@@ -25,28 +37,15 @@ const Step3 = z.object({
 })
 
 export async function saveOnboardingStep1(input: z.infer<typeof Step1>) {
-  const user = await requireUser()
-  const parsed = Step1.parse(input)
-  await db
-    .update(schema.users)
-    .set({ accountType: parsed.accountType, onboardingStep: 1, updatedAt: new Date() })
-    .where(eq(schema.users.id, user.id))
-  revalidatePath('/onboarding-02')
+  await requireUser()
+  Step1.parse(input)
+  // TODO(pr-b): persist accountType, prepare clinic org draft
   redirect('/onboarding-02')
 }
 
 export async function saveOnboardingStep2(input: z.infer<typeof Step2>) {
   const user = await requireUser()
   const parsed = Step2.parse(input)
-  // Persist orgType in role (free-form) for now; toggle stored in connected_apps as a preference.
-  await db
-    .update(schema.users)
-    .set({
-      onboardingStep: 2,
-      // store orgType in accountType suffix so we don't lose step-1 selection
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.users.id, user.id))
   await db
     .insert(schema.connectedApps)
     .values({
@@ -63,28 +62,14 @@ export async function saveOnboardingStep2(input: z.infer<typeof Step2>) {
 }
 
 export async function saveOnboardingStep3(input: z.infer<typeof Step3>) {
-  const user = await requireUser()
-  const parsed = Step3.parse(input)
-  await db
-    .update(schema.users)
-    .set({
-      companyName: parsed.companyName,
-      city: parsed.city,
-      postalCode: parsed.postalCode,
-      streetAddress: parsed.streetAddress,
-      country: parsed.country,
-      onboardingStep: 3,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.users.id, user.id))
+  await requireUser()
+  Step3.parse(input)
+  // TODO(pr-b): create organization row + clinicProfile from these fields
   redirect('/onboarding-04')
 }
 
 export async function completeOnboarding() {
-  const user = await requireUser()
-  await db
-    .update(schema.users)
-    .set({ onboardingStep: 4, onboardingComplete: true, updatedAt: new Date() })
-    .where(eq(schema.users.id, user.id))
+  await requireUser()
+  // TODO(pr-b): redirect to Stripe checkout after creating the clinic org
   redirect('/')
 }
