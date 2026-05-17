@@ -5,6 +5,7 @@ import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { saveOnboardingStep1 } from '../actions'
+import { saveOnboardingState } from '@/lib/onboarding/storage'
 
 type Choice = 'company' | 'freelance' | 'starting'
 
@@ -24,6 +25,7 @@ export default function Onboarding01() {
     setError(null)
     startTransition(async () => {
       try {
+        saveOnboardingState({ situation: choice })
         await saveOnboardingStep1({ accountType: choice })
       } catch (err) {
         setError((err as Error).message)
