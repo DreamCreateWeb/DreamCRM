@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   '/reset-password',
   '/api/auth',
   '/api/hello',
+  '/api/webhooks',
 ]
 
 const PUBLIC_PREFIXES = ['/_next', '/images', '/favicon', '/css']
