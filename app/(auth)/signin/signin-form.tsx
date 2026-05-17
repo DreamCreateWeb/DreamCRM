@@ -2,11 +2,15 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
 
+// If the sign-in fetch ever exceeds this, surface an error so the user
+// isn't stuck staring at "Signing In…". Cold DB cold start should be
+// well under 10s; 25 is generous.
+const SIGN_IN_TIMEOUT_MS = 25_000
+
 export default function SignInForm() {
-  const router = useRouter()
   const params = useSearchParams()
   const redirectTo = params.get('redirect') || '/'
 
@@ -19,14 +23,37 @@ export default function SignInForm() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { error: authError } = await signIn.email({ email, password, callbackURL: redirectTo })
-    setLoading(false)
-    if (authError) {
-      setError(authError.message ?? 'Unable to sign in')
-      return
+
+    // Race the sign-in call against an abort timer so a stuck request
+    // surfaces an error instead of spinning forever.
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), SIGN_IN_TIMEOUT_MS)
+
+    try {
+      const { error: authError } = await signIn.email(
+        { email, password },
+        { signal: abort.signal as any }
+      )
+      clearTimeout(timer)
+      if (authError) {
+        setError(authError.message ?? 'Unable to sign in')
+        setLoading(false)
+        return
+      }
+      // Full reload — guarantees the brand new session cookie is on the
+      // next request so middleware doesn't redirect back to /signin.
+      // Also avoids the race between router.push and cookie flush.
+      window.location.assign(redirectTo)
+      // Don't unset loading; we're navigating away.
+    } catch (err) {
+      clearTimeout(timer)
+      const message =
+        (err as Error)?.name === 'AbortError'
+          ? "Sign-in is taking longer than expected. Check your connection and try again."
+          : (err as Error)?.message ?? 'Unable to sign in'
+      setError(message)
+      setLoading(false)
     }
-    router.push(redirectTo)
-    router.refresh()
   }
 
   return (

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
@@ -10,7 +9,6 @@ import { clearOnboardingState, loadOnboardingState } from '@/lib/onboarding/stor
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 
 export default function Onboarding04() {
-  const router = useRouter()
   const [planId, setPlanId] = useState<PlanId>('pro')
   const [interval, setInterval] = useState<BillingInterval>('monthly')
   const [pending, startTransition] = useTransition()
@@ -39,7 +37,11 @@ export default function Onboarding04() {
         if (url) {
           window.location.href = url
         } else {
-          router.push('/')
+          // Full reload so the freshly-set session.activeOrganizationId is
+          // visible on the next request (tenant context resolution runs in
+          // the layout and won't pick up a server-action-mutated session
+          // through router.push alone).
+          window.location.assign('/')
         }
       } catch (err) {
         setError((err as Error).message)
