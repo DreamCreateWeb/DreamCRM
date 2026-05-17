@@ -20,21 +20,31 @@ export default function SignUpForm() {
     setError(null)
     setLoading(true)
 
-    const abort = new AbortController()
-    const timer = setTimeout(() => abort.abort(), SIGN_UP_TIMEOUT_MS)
+    const timeout = new Promise<{ timedOut: true }>((resolve) =>
+      setTimeout(() => resolve({ timedOut: true }), SIGN_UP_TIMEOUT_MS),
+    )
 
     try {
-      const { error: signUpError } = await signUp.email(
-        {
-          email,
-          password,
-          name,
-          // additional custom fields registered in lib/auth/server.ts
-          ...({ newsletter, accountType: role } as Record<string, unknown>),
-        } as any,
-        { signal: abort.signal as any },
-      )
-      clearTimeout(timer)
+      const result = await Promise.race([
+        signUp
+          .email({
+            email,
+            password,
+            name,
+            // additional custom fields registered in lib/auth/server.ts
+            ...({ newsletter, accountType: role } as Record<string, unknown>),
+          } as any)
+          .then((r) => ({ ...r, timedOut: false as const })),
+        timeout,
+      ])
+
+      if ('timedOut' in result && result.timedOut) {
+        setError('Sign-up is taking longer than expected. Try again in a moment.')
+        setLoading(false)
+        return
+      }
+
+      const { error: signUpError } = result as { error?: { message?: string } | null }
       if (signUpError) {
         setError(signUpError.message ?? 'Unable to create account')
         setLoading(false)
@@ -44,11 +54,7 @@ export default function SignUpForm() {
       // (otherwise the redirect back to /onboarding-01 may flap).
       window.location.assign('/onboarding-01')
     } catch (err) {
-      clearTimeout(timer)
-      const message =
-        (err as Error)?.name === 'AbortError'
-          ? 'Sign-up is taking longer than expected. Try again in a moment.'
-          : (err as Error)?.message ?? 'Unable to create account'
+      const message = (err as Error)?.message ?? 'Unable to create account'
       setError(message)
       setLoading(false)
     }
