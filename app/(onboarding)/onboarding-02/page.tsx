@@ -6,6 +6,7 @@ import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { saveOnboardingStep2 } from '../actions'
+import { saveOnboardingState } from '@/lib/onboarding/storage'
 
 export default function Onboarding02() {
   const [orgType, setOrgType] = useState<'individual' | 'organization'>('individual')
@@ -18,6 +19,7 @@ export default function Onboarding02() {
     setError(null)
     startTransition(async () => {
       try {
+        saveOnboardingState({ orgType, enableInvoicing: enableFeature })
         await saveOnboardingStep2({ orgType, enableFeature })
       } catch (err) {
         setError((err as Error).message)

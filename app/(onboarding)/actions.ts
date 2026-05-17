@@ -1,33 +1,20 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { auth } from '@/lib/auth/server'
 import { db, schema } from '@/lib/db'
-import { requireUser } from '@/lib/session'
+import { stripe } from '@/lib/stripe'
+import { PLANS, type BillingInterval } from '@/lib/stripe-config'
+import { slugify } from '@/lib/utils'
 
-/**
- * Onboarding actions — temporarily stubbed.
- *
- * The original implementation wrote onboarding fields (accountType,
- * companyName, address, etc.) directly to the user row. With the new
- * multi-tenant model, onboarding instead creates a clinic *organization*
- * and a clinicProfile, then redirects to Stripe Checkout. That rewire
- * lands in the next PR (multi-tenant routes + onboarding).
- *
- * For now these actions just route between steps so the UI keeps flowing.
- * Step 2's "enable invoicing automation" toggle is captured as a per-user
- * preference in connected_apps so we don't lose the user's intent.
- */
-
-const Step1 = z.object({
-  accountType: z.enum(['company', 'freelance', 'starting']),
-})
-
+const Step1 = z.object({ accountType: z.enum(['company', 'freelance', 'starting']) })
 const Step2 = z.object({
   orgType: z.enum(['individual', 'organization']),
   enableFeature: z.boolean(),
 })
-
 const Step3 = z.object({
   companyName: z.string().min(1).max(200),
   city: z.string().min(1).max(100),
@@ -36,40 +23,162 @@ const Step3 = z.object({
   country: z.string().min(1).max(100),
 })
 
+// Steps 1-3 just validate input and route forward; the form components persist
+// drafts to sessionStorage via lib/onboarding/storage.ts. The real DB writes
+// happen in submitOnboarding when the user picks a plan in step 4.
 export async function saveOnboardingStep1(input: z.infer<typeof Step1>) {
-  await requireUser()
   Step1.parse(input)
-  // TODO(pr-b): persist accountType, prepare clinic org draft
   redirect('/onboarding-02')
 }
-
 export async function saveOnboardingStep2(input: z.infer<typeof Step2>) {
-  const user = await requireUser()
-  const parsed = Step2.parse(input)
-  await db
-    .insert(schema.connectedApps)
-    .values({
-      userId: user.id,
-      appKey: 'onboarding.org_type',
-      enabled: parsed.enableFeature,
-      config: { orgType: parsed.orgType },
-    })
-    .onConflictDoUpdate({
-      target: [schema.connectedApps.userId, schema.connectedApps.appKey],
-      set: { enabled: parsed.enableFeature, config: { orgType: parsed.orgType } },
-    })
+  Step2.parse(input)
   redirect('/onboarding-03')
 }
-
 export async function saveOnboardingStep3(input: z.infer<typeof Step3>) {
-  await requireUser()
   Step3.parse(input)
-  // TODO(pr-b): create organization row + clinicProfile from these fields
   redirect('/onboarding-04')
 }
 
+const SubmitInput = z.object({
+  companyName: z.string().min(1).max(200).optional(),
+  city: z.string().max(100).optional(),
+  postalCode: z.string().max(20).optional(),
+  street: z.string().max(200).optional(),
+  country: z.string().max(100).optional(),
+  planId: z.enum(['basic', 'pro', 'premium']),
+  interval: z.enum(['monthly', 'annual']),
+})
+
+/**
+ * Final onboarding submit. Creates a clinic organization (or reuses the
+ * caller's existing one), seeds clinic_profile from the form, creates a
+ * Stripe customer + subscription Checkout session, returns the URL.
+ *
+ * Client should redirect to the returned URL. If Stripe isn't configured
+ * for the chosen plan, returns { url: null } and the caller can route
+ * straight to the dashboard.
+ */
+export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Promise<{ url: string | null }> {
+  const data = SubmitInput.parse(input)
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) redirect('/signin')
+
+  // Resolve (or create) the user's clinic org.
+  let orgId = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId
+  if (!orgId) {
+    const [existing] = await db
+      .select()
+      .from(schema.member)
+      .where(eq(schema.member.userId, session.user.id))
+      .limit(1)
+    orgId = existing?.organizationId ?? null
+  }
+
+  if (!orgId) {
+    const orgName = data.companyName?.trim() || `${session.user.name || 'My'} Clinic`
+    const baseSlug = slugify(orgName) || 'clinic'
+    let slug = baseSlug
+    let attempt = 0
+    while (
+      (await db.select().from(schema.organization).where(eq(schema.organization.slug, slug)).limit(1))[0]
+    ) {
+      attempt++
+      slug = `${baseSlug}-${attempt}`
+    }
+
+    const newOrgId = crypto.randomUUID()
+    await db.insert(schema.organization).values({
+      id: newOrgId,
+      name: orgName,
+      slug,
+      type: 'clinic',
+    })
+    await db.insert(schema.member).values({
+      id: crypto.randomUUID(),
+      organizationId: newOrgId,
+      userId: session.user.id,
+      role: 'owner',
+    })
+    await db
+      .update(schema.session)
+      .set({ activeOrganizationId: newOrgId })
+      .where(eq(schema.session.id, session.session.id))
+    orgId = newOrgId
+  }
+
+  const displayName = data.companyName?.trim() || session.user.name || 'My Clinic'
+
+  await db
+    .insert(schema.clinicProfile)
+    .values({
+      organizationId: orgId,
+      legalName: displayName,
+      displayName,
+      addressLine1: data.street?.trim() || null,
+      city: data.city?.trim() || null,
+      postalCode: data.postalCode?.trim() || null,
+      country: data.country?.trim() || 'US',
+      planTier: data.planId,
+    })
+    .onConflictDoUpdate({
+      target: schema.clinicProfile.organizationId,
+      set: {
+        legalName: displayName,
+        displayName,
+        addressLine1: data.street?.trim() || null,
+        city: data.city?.trim() || null,
+        postalCode: data.postalCode?.trim() || null,
+        country: data.country?.trim() || 'US',
+        planTier: data.planId,
+        updatedAt: new Date(),
+      },
+    })
+
+  const [profile] = await db
+    .select()
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, orgId))
+    .limit(1)
+
+  let customerId = profile?.stripeCustomerId
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: session.user.email,
+      name: displayName,
+      metadata: { organizationId: orgId },
+    })
+    customerId = customer.id
+    await db
+      .update(schema.clinicProfile)
+      .set({ stripeCustomerId: customerId, updatedAt: new Date() })
+      .where(eq(schema.clinicProfile.organizationId, orgId))
+  }
+
+  const plan = PLANS.find((p) => p.id === data.planId)
+  const priceId = plan?.priceIds[data.interval as BillingInterval]
+  if (!priceId) {
+    return { url: null }
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const checkout = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    customer: customerId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${appUrl}/onboarding-complete?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/onboarding-04`,
+    subscription_data: {
+      metadata: { organizationId: orgId, planId: data.planId, interval: data.interval, userId: session.user.id },
+    },
+    metadata: { organizationId: orgId, planId: data.planId, interval: data.interval, userId: session.user.id },
+  })
+
+  return { url: checkout.url }
+}
+
+// Back-compat: old completeOnboarding (called from current onboarding-04 page)
+// just routes to dashboard now; the real work moved to submitOnboarding,
+// which is invoked from the new plan-picker on onboarding-04.
 export async function completeOnboarding() {
-  await requireUser()
-  // TODO(pr-b): redirect to Stripe checkout after creating the clinic org
   redirect('/')
 }

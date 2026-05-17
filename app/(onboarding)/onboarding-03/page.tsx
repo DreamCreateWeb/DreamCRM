@@ -6,6 +6,7 @@ import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { saveOnboardingStep3 } from '../actions'
+import { saveOnboardingState } from '@/lib/onboarding/storage'
 
 const COUNTRIES = [
   'United States',
@@ -35,6 +36,13 @@ export default function Onboarding03() {
     setError(null)
     startTransition(async () => {
       try {
+        saveOnboardingState({
+          companyName,
+          city,
+          postalCode,
+          street: streetAddress,
+          country,
+        })
         await saveOnboardingStep3({ companyName, city, postalCode, streetAddress, country })
       } catch (err) {
         setError((err as Error).message)
