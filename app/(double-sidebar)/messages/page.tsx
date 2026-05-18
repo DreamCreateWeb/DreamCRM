@@ -10,6 +10,7 @@ import {
   listClinicContacts,
   listConversationsForUser,
   listMessages,
+  listTeamContacts,
   markConversationRead,
 } from '@/lib/services/messages'
 import { listCommunityUsers } from '@/lib/services/community'
@@ -28,7 +29,11 @@ export default async function Messages({ searchParams }: { searchParams: Promise
   const requestedId = params.c ? Number(params.c) : NaN
 
   if (ctx?.tenantType === 'platform') {
-    const [clientConvos, contacts] = await Promise.all([listClientConversations(user.id), listClinicContacts()])
+    const [clientConvos, clientContacts, teamContacts] = await Promise.all([
+      listClientConversations(user.id),
+      listClinicContacts(),
+      listTeamContacts(user.id),
+    ])
     const stats = computeClientMessagingStats(clientConvos)
 
     let activeId: number | null = null
@@ -64,7 +69,8 @@ export default async function Messages({ searchParams }: { searchParams: Promise
         <div className="relative flex h-full">
           <ClientMessagingSidebar
             conversations={clientConvos}
-            contacts={contacts}
+            clientContacts={clientContacts}
+            teamContacts={teamContacts}
             stats={stats}
             activeId={activeId}
           />

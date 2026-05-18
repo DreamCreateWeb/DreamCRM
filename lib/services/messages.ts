@@ -102,9 +102,12 @@ export async function postMessage(input: z.infer<typeof MessageInput>, userId: s
 
 // ---------- Client Messaging (platform-side, tenant-aware) ----------
 
+export type ConversationKind = 'client' | 'team' | 'other'
+
 export interface ClientConversation {
   id: number
   title: string | null
+  kind: ConversationKind
   clinicOrgId: string | null
   clinicName: string | null
   clinicSlug: string | null
@@ -209,9 +212,12 @@ export async function listClientConversations(userId: string): Promise<ClientCon
       }
     }
 
-    // Resolve which clinic each counterpart belongs to (owner/admin role).
+    // Resolve every membership for each counterpart so we can classify the
+    // conversation as 'client' (counterpart belongs to a clinic) or 'team'
+    // (counterpart is a member of a platform org).
     const counterpartIds = Array.from(new Set(Array.from(counterpartByConvo.values()).map((c) => c.userId)))
     const clinicByUser = new Map<string, { orgId: string; name: string; slug: string; role: string }>()
+    const platformByUser = new Map<string, { orgId: string; role: string }>()
     if (counterpartIds.length > 0) {
       const memberRows = await db
         .select({
@@ -224,15 +230,9 @@ export async function listClientConversations(userId: string): Promise<ClientCon
         })
         .from(schema.member)
         .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
-        .where(
-          and(
-            inArray(schema.member.userId, counterpartIds),
-            eq(schema.organization.type, 'clinic'),
-            inArray(schema.member.role, ['owner', 'admin']),
-          ),
-        )
+        .where(inArray(schema.member.userId, counterpartIds))
       for (const m of memberRows) {
-        if (!clinicByUser.has(m.userId)) {
+        if (m.orgType === 'clinic' && (m.role === 'owner' || m.role === 'admin') && !clinicByUser.has(m.userId)) {
           clinicByUser.set(m.userId, {
             orgId: m.organizationId,
             name: m.orgName,
@@ -240,20 +240,26 @@ export async function listClientConversations(userId: string): Promise<ClientCon
             role: m.role,
           })
         }
+        if (m.orgType === 'platform' && !platformByUser.has(m.userId)) {
+          platformByUser.set(m.userId, { orgId: m.organizationId, role: m.role })
+        }
       }
     }
 
     return convos.map((c) => {
       const counterpart = counterpartByConvo.get(c.id) ?? null
       const clinic = counterpart ? clinicByUser.get(counterpart.userId) : null
+      const team = counterpart ? platformByUser.get(counterpart.userId) : null
+      const kind: ConversationKind = clinic ? 'client' : team ? 'team' : 'other'
       return {
         id: c.id,
         title: c.title,
+        kind,
         clinicOrgId: clinic?.orgId ?? c.organizationId ?? null,
         clinicName: clinic?.name ?? null,
         clinicSlug: clinic?.slug ?? null,
         counterpartName: counterpart?.name ?? null,
-        counterpartRole: clinic?.role ?? null,
+        counterpartRole: clinic?.role ?? team?.role ?? null,
         lastMessage: c.lastMessage ?? null,
         lastAt: c.lastAt ?? null,
         unreadCount: Number(c.unreadCount ?? 0),
@@ -320,6 +326,116 @@ export async function listClinicContacts(): Promise<ClinicContact[]> {
       )
       .orderBy(asc(schema.organization.name), asc(schema.user.name))
     return rows as ClinicContact[]
+  } catch (err) {
+    if (isMissingSchemaError(err)) return []
+    throw err
+  }
+}
+
+/**
+ * Fellow members of the current user's platform org — used as the
+ * "Team" tab's contact list. Patients, clinic admins, and the current
+ * user are excluded.
+ */
+export async function listTeamContacts(currentUserId: string): Promise<ClinicContact[]> {
+  try {
+    // Find the platform org the current user belongs to (typically just one).
+    const platformOrgRows = await db
+      .select({ orgId: schema.member.organizationId, orgName: schema.organization.name })
+      .from(schema.member)
+      .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
+      .where(
+        and(
+          eq(schema.member.userId, currentUserId),
+          eq(schema.organization.type, 'platform'),
+        ),
+      )
+    if (platformOrgRows.length === 0) return []
+    const orgIds = platformOrgRows.map((r) => r.orgId)
+
+    const rows = await db
+      .select({
+        userId: schema.member.userId,
+        role: schema.member.role,
+        organizationId: schema.member.organizationId,
+        clinicName: schema.organization.name, // reusing field name; here it's the platform org name
+        name: schema.user.name,
+        email: schema.user.email,
+      })
+      .from(schema.member)
+      .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
+      .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+      .where(
+        and(
+          inArray(schema.member.organizationId, orgIds),
+          ne(schema.member.userId, currentUserId),
+        ),
+      )
+      .orderBy(asc(schema.user.name))
+    return rows as ClinicContact[]
+  } catch (err) {
+    if (isMissingSchemaError(err)) return []
+    throw err
+  }
+}
+
+export interface TeamMemberRow {
+  userId: string
+  name: string | null
+  email: string
+  role: string
+  joinedAt: Date
+}
+
+export async function listTeamMembers(organizationId: string): Promise<TeamMemberRow[]> {
+  try {
+    const rows = await db
+      .select({
+        userId: schema.member.userId,
+        role: schema.member.role,
+        joinedAt: schema.member.createdAt,
+        name: schema.user.name,
+        email: schema.user.email,
+      })
+      .from(schema.member)
+      .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+      .where(eq(schema.member.organizationId, organizationId))
+      .orderBy(asc(schema.user.name))
+    return rows as TeamMemberRow[]
+  } catch (err) {
+    if (isMissingSchemaError(err)) return []
+    throw err
+  }
+}
+
+export interface PendingInvitationRow {
+  id: string
+  email: string
+  role: string | null
+  expiresAt: Date
+  inviterName: string | null
+}
+
+export async function listPendingInvitations(organizationId: string): Promise<PendingInvitationRow[]> {
+  try {
+    const rows = await db
+      .select({
+        id: schema.invitation.id,
+        email: schema.invitation.email,
+        role: schema.invitation.role,
+        expiresAt: schema.invitation.expiresAt,
+        inviterName: schema.user.name,
+      })
+      .from(schema.invitation)
+      .leftJoin(schema.user, eq(schema.user.id, schema.invitation.inviterId))
+      .where(
+        and(
+          eq(schema.invitation.organizationId, organizationId),
+          eq(schema.invitation.status, 'pending'),
+        ),
+      )
+      .orderBy(desc(schema.invitation.expiresAt))
+    return rows as PendingInvitationRow[]
   } catch (err) {
     if (isMissingSchemaError(err)) return []
     throw err
