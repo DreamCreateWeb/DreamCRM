@@ -59,11 +59,15 @@ export async function GET(req: NextRequest) {
     return errorRedirect(req, (err as Error).message)
   }
 
-  // Fire-and-forget initial sync. If it fails the account stays in 'error'
-  // state and the user can retry from the settings page.
-  syncAccount(saved.accountId, ctx.organizationId, { limit: 30 }).catch((err) => {
+  // Run the initial sync inline. Fire-and-forget gets killed when the
+  // serverless function returns its redirect response. Adds ~1-3s of
+  // latency to the OAuth round-trip in exchange for the inbox being
+  // populated by the time the user lands on /inbox.
+  try {
+    await syncAccount(saved.accountId, ctx.organizationId, { limit: 50 })
+  } catch (err) {
     console.warn('[gmail.callback] initial sync failed', err)
-  })
+  }
 
   const url = new URL('/inbox/settings', req.url)
   url.searchParams.set('connected', saved.emailAddress)
