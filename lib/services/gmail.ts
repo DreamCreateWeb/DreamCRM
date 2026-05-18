@@ -425,6 +425,142 @@ export async function trashMessage(accessToken: string, providerMessageId: strin
   await gmailFetch(accessToken, `/users/me/messages/${providerMessageId}/trash`, { method: 'POST' })
 }
 
+// ---------- Inline image resolution (cid: → data: URL) ----------
+
+interface InlineImage {
+  contentId: string
+  attachmentId: string
+  mimeType: string
+}
+
+/**
+ * Walk a message payload tree and collect every image part that has both an
+ * attachmentId and a Content-ID header. These are inline images referenced
+ * via `<img src="cid:xxx">` in the HTML body — typical for signatures and
+ * embedded logos.
+ */
+function findInlineImages(part: GmailMessagePart | undefined): InlineImage[] {
+  const result: InlineImage[] = []
+  function walk(p: GmailMessagePart) {
+    if (p.body?.attachmentId && p.mimeType?.startsWith('image/')) {
+      const cidHeader = p.headers?.find((h) => h.name.toLowerCase() === 'content-id')
+      // Content-ID typically looks like `<abc123@mail.gmail.com>`; strip angle
+      // brackets to match how it appears inside cid: URIs.
+      const cid = cidHeader?.value.trim().replace(/^<|>$/g, '')
+      if (cid) {
+        result.push({ contentId: cid, attachmentId: p.body.attachmentId, mimeType: p.mimeType })
+      }
+    }
+    for (const sub of p.parts ?? []) walk(sub)
+  }
+  if (part) walk(part)
+  return result
+}
+
+interface GmailAttachmentResponse {
+  size: number
+  data: string // base64url
+}
+
+/**
+ * Fetch a single attachment payload from Gmail. Returns base64url-encoded data.
+ */
+async function fetchAttachmentData(
+  accessToken: string,
+  providerMessageId: string,
+  attachmentId: string,
+): Promise<string> {
+  const res = await gmailFetch(accessToken, `/users/me/messages/${providerMessageId}/attachments/${attachmentId}`)
+  const json = (await res.json()) as GmailAttachmentResponse
+  return json.data
+}
+
+/**
+ * For HTML bodies that reference inline images via `cid:` URIs, fetch each
+ * referenced attachment from Gmail and substitute a self-contained
+ * `data:image/...;base64,...` URL. Result: embedded logos and signature
+ * graphics render in the inbox iframe without needing any further server
+ * round-trip when the user opens the message.
+ *
+ * Skips fetches for cid references not present in the HTML, so a 12-image
+ * attachment list only costs one fetch per image actually used in the body.
+ *
+ * Best-effort: failures are logged and the cid reference is left intact
+ * (renders as a broken-image icon, same as before this function existed).
+ */
+export async function resolveInlineImages(
+  accessToken: string,
+  providerMessageId: string,
+  html: string | null,
+  payload: GmailMessagePart | undefined,
+): Promise<string | null> {
+  if (!html) return html
+  const images = findInlineImages(payload)
+  if (images.length === 0) return html
+
+  // Only fetch the ones the HTML actually references.
+  const referenced = images.filter((img) => html.includes(`cid:${img.contentId}`))
+  if (referenced.length === 0) return html
+
+  const fetches = await Promise.allSettled(
+    referenced.map((img) => fetchAttachmentData(accessToken, providerMessageId, img.attachmentId)),
+  )
+
+  let out = html
+  referenced.forEach((img, i) => {
+    const settled = fetches[i]
+    if (settled.status !== 'fulfilled') {
+      console.warn(`[gmail.inline] ${img.attachmentId} fetch failed:`, settled.reason)
+      return
+    }
+    // Gmail returns base64url-encoded; convert to standard base64 for the
+    // data: URI (browsers accept both but base64 is more conventional).
+    const base64 = settled.value.replace(/-/g, '+').replace(/_/g, '/')
+    const dataUrl = `data:${img.mimeType};base64,${base64}`
+    const cidPattern = new RegExp(`cid:${img.contentId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g')
+    out = out.replace(cidPattern, dataUrl)
+  })
+
+  return out
+}
+
+// ---------- Real (non-inline) attachments ----------
+
+export interface AttachmentSummary {
+  filename: string
+  mimeType: string
+  size: number
+  attachmentId: string
+}
+
+/**
+ * Walk a message payload and return all "real" attachments — parts that
+ * have a filename, are not inline (no matching cid: in body), have an
+ * attachmentId. For now we just expose the metadata; downloads happen via
+ * a separate proxy endpoint when the user clicks.
+ */
+export function findAttachments(part: GmailMessagePart | undefined): AttachmentSummary[] {
+  const result: AttachmentSummary[] = []
+  function walk(p: GmailMessagePart) {
+    if (p.body?.attachmentId && p.filename && p.filename.length > 0) {
+      // Exclude pure inline images already resolved above — those have a
+      // Content-ID header.
+      const hasCid = p.headers?.some((h) => h.name.toLowerCase() === 'content-id')
+      if (!hasCid) {
+        result.push({
+          filename: p.filename,
+          mimeType: p.mimeType ?? 'application/octet-stream',
+          size: p.body.size ?? 0,
+          attachmentId: p.body.attachmentId,
+        })
+      }
+    }
+    for (const sub of p.parts ?? []) walk(sub)
+  }
+  if (part) walk(part)
+  return result
+}
+
 // ---------- Push notifications: watch / stop / history ----------
 
 export interface WatchResponse {

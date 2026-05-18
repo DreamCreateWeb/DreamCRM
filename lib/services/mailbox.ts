@@ -10,6 +10,7 @@ import {
   markMessageRead,
   modifyLabels as gmailModifyLabels,
   parseGmailMessage,
+  resolveInlineImages,
   sendMessage as gmailSend,
   stopWatch,
   trashMessage as gmailTrash,
@@ -329,6 +330,10 @@ export async function syncAccount(
         const full = await getMessage(accessToken, item.id)
         const parsed = parseGmailMessage(full)
         const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
+        // Resolve cid: inline images (signature logos, embedded graphics)
+        // by fetching the attachments and inlining as data: URLs. Skipped
+        // for plain-text messages or messages with no inline refs.
+        const resolvedHtml = await resolveInlineImages(accessToken, item.id, parsed.bodyHtml, full.payload)
         await db.insert(schema.emailMessage).values({
           id: randomUUID(),
           accountId,
@@ -344,7 +349,7 @@ export async function syncAccount(
           subject: parsed.subject,
           snippet: parsed.snippet,
           bodyText: parsed.bodyText,
-          bodyHtml: parsed.bodyHtml,
+          bodyHtml: resolvedHtml,
           isRead: parsed.isRead,
           labels: parsed.labels,
           receivedAt: parsed.receivedAt,
@@ -578,6 +583,7 @@ async function ingestMessageById(
     if (!(full.labelIds ?? []).includes('INBOX')) return false
     const parsed = parseGmailMessage(full)
     const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
+    const resolvedHtml = await resolveInlineImages(accessToken, providerMessageId, parsed.bodyHtml, full.payload)
     await db.insert(schema.emailMessage).values({
       id: randomUUID(),
       accountId,
@@ -593,7 +599,7 @@ async function ingestMessageById(
       subject: parsed.subject,
       snippet: parsed.snippet,
       bodyText: parsed.bodyText,
-      bodyHtml: parsed.bodyHtml,
+      bodyHtml: resolvedHtml,
       isRead: parsed.isRead,
       labels: parsed.labels,
       receivedAt: parsed.receivedAt,
@@ -658,6 +664,63 @@ export async function addPatientFromEmail(opts: {
     )
 
   return { patientId, linkedMessages: 0 } // count omitted — would need a separate query
+}
+
+/**
+ * Backfill: find messages whose HTML body still contains `cid:` references
+ * (i.e. ingested before resolveInlineImages was wired in) and re-process
+ * them. Each re-process is one Gmail getMessage + N attachment fetches, so
+ * we cap aggressively to bound page-load latency. Self-terminates once the
+ * backlog is drained — subsequent runs return immediately since resolved
+ * HTML no longer contains `cid:`.
+ */
+export async function resolvePendingInlineImages(
+  organizationId: string,
+  opts: { limit?: number } = {},
+): Promise<{ resolved: number }> {
+  const limit = opts.limit ?? 10
+  const rows = await db
+    .select({
+      id: schema.emailMessage.id,
+      accountId: schema.emailMessage.accountId,
+      providerMessageId: schema.emailMessage.providerMessageId,
+    })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.organizationId, organizationId),
+        sql`${schema.emailMessage.bodyHtml} LIKE '%cid:%'`,
+      ),
+    )
+    .limit(limit)
+  if (rows.length === 0) return { resolved: 0 }
+  let resolved = 0
+  for (const row of rows) {
+    try {
+      const accessToken = await getAccessToken(row.accountId)
+      const full = await getMessage(accessToken, row.providerMessageId)
+      const parsed = parseGmailMessage(full)
+      const newHtml = await resolveInlineImages(accessToken, row.providerMessageId, parsed.bodyHtml, full.payload)
+      if (newHtml && !newHtml.includes('cid:')) {
+        // All cids resolved — write back.
+        await db
+          .update(schema.emailMessage)
+          .set({ bodyHtml: newHtml })
+          .where(eq(schema.emailMessage.id, row.id))
+        resolved++
+      } else if (newHtml && newHtml !== parsed.bodyHtml) {
+        // Partial resolution still beats none — save what we got.
+        await db
+          .update(schema.emailMessage)
+          .set({ bodyHtml: newHtml })
+          .where(eq(schema.emailMessage.id, row.id))
+        resolved++
+      }
+    } catch (err) {
+      console.warn(`[mailbox.inline-backfill] ${row.providerMessageId} failed:`, (err as Error).message)
+    }
+  }
+  return { resolved }
 }
 
 /**

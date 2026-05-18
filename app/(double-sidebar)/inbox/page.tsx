@@ -9,6 +9,7 @@ import {
   getMessageDetail,
   listMessagesForOrg,
   listOrgEmailAccounts,
+  resolvePendingInlineImages,
   syncAccount,
   type ListMessagesOpts,
 } from '@/lib/services/mailbox'
@@ -90,6 +91,13 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   // is pending (returns immediately).
   await classifyPendingIntents(ctx.organizationId, { limit: 50 }).catch((err) => {
     console.warn('[inbox.page] classify call failed:', (err as Error).message)
+  })
+
+  // Backfill inline images for messages ingested before resolveInlineImages
+  // was wired in. Bounded to 10 per load so it doesn't blow up page latency
+  // — self-terminates as the backlog drains.
+  await resolvePendingInlineImages(ctx.organizationId, { limit: 10 }).catch((err) => {
+    console.warn('[inbox.page] inline-image backfill failed:', (err as Error).message)
   })
 
   const listOpts: ListMessagesOpts = {

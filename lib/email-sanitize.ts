@@ -71,7 +71,12 @@ export function sanitizeEmailHtml(html: string): string {
         },
       }),
     },
-    // Strip CSS that could be used for clickjacking / phishing-style overlays.
+    // Allow common email-design CSS. We render inside a sandboxed iframe
+    // (see EmailIframe component), so the threat model for "hiding
+    // malicious content with CSS" is mostly contained — the more
+    // user-visible problem was newsletter preheader text breaking when we
+    // stripped `display:none`, since legitimate newsletters universally
+    // use that pattern to keep preheader copy out of the visible body.
     allowedStyles: {
       '*': {
         color: [/^.*$/],
@@ -84,7 +89,7 @@ export function sanitizeEmailHtml(html: string): string {
         'text-align': [/^.*$/],
         'text-decoration': [/^.*$/],
         'line-height': [/^.*$/],
-        'letter-spacing': [/^.*$/],
+        'letter-spacing': [/^(normal|0|0\w+|[1-9].*)$/i], // forbid negative values that collapse text
         'margin': [/^.*$/],
         'margin-top': [/^.*$/],
         'margin-right': [/^.*$/],
@@ -106,9 +111,13 @@ export function sanitizeEmailHtml(html: string): string {
         'height': [/^.*$/],
         'max-width': [/^.*$/],
         'min-width': [/^.*$/],
-        'display': [/^(?!none).*$/], // forbid display:none which is sometimes used for cloaking
+        'display': [/^.*$/], // allow display:none — newsletters need it for preheaders
+        'visibility': [/^.*$/],
         'vertical-align': [/^.*$/],
         'text-transform': [/^.*$/],
+        'overflow': [/^.*$/],
+        'max-height': [/^.*$/],
+        'mso-hide': [/^.*$/], // Outlook-specific hide directive
       },
     },
   })
