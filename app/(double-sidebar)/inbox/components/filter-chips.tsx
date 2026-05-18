@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { INTENT_COLORS } from './intent-badge'
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
    * meaningful in the marketing/automated tabs.
    */
   showIntents?: boolean
+  terminology: InboxTerminology
 }
 
 /**
@@ -35,6 +37,7 @@ export default function FilterChips({
   totalCount,
   unreadCount,
   showIntents = true,
+  terminology,
 }: Props) {
   const pathname = usePathname()
   const sp = useSearchParams()
@@ -73,7 +76,7 @@ export default function FilterChips({
           href={href({ view: starredOnly ? null : 'starred', patients: null })}
         />
         <Chip
-          label="Patients"
+          label={terminology.Contacts}
           active={patientsOnly}
           href={href({ patients: patientsOnly ? null : '1', view: null })}
         />

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
+import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { draftReplyAction, sendMailbox } from '../mailbox-actions'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   subject: string | null
   messageId: string
   textareaId?: string
+  terminology?: InboxTerminology
 }
 
 /**
@@ -19,7 +21,8 @@ interface Props {
  * textarea with a Sonnet-generated reply that incorporates patient
  * context (when the sender matches a patient).
  */
-export default function QuickReply({ accountId, toEmail, toName, subject, messageId, textareaId }: Props) {
+export default function QuickReply({ accountId, toEmail, toName, subject, messageId, textareaId, terminology }: Props) {
+  const contact = terminology?.contact ?? 'contact'
   const [body, setBody] = useState('')
   const [pending, startTransition] = useTransition()
   const [drafting, setDrafting] = useState(false)
@@ -97,7 +100,7 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
               ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 cursor-wait'
               : 'text-violet-700 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-500/10',
           )}
-          title="Draft a reply using AI (uses patient context when available)"
+          title={`Draft a reply using AI (uses ${contact} context when available)`}
         >
           {drafting ? (
             <>
@@ -130,7 +133,7 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
           }
         }}
         rows={2}
-        placeholder={drafting ? 'AI is drafting a reply with patient context…' : 'Write a reply, or click Draft with AI…'}
+        placeholder={drafting ? `AI is drafting a reply with ${contact} context…` : 'Write a reply, or click Draft with AI…'}
         className="w-full px-4 pt-2 pb-3 text-[14px] leading-relaxed text-stone-800 dark:text-stone-100 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none placeholder:text-stone-400 dark:placeholder:text-stone-500"
         style={{ minHeight: 64 }}
       />

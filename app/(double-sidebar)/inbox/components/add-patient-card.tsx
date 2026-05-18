@@ -3,23 +3,27 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { addPatientFromEmailAction } from '../mailbox-actions'
 
 interface Props {
   messageId: string
   fromEmail: string
   fromName: string | null
+  terminology: InboxTerminology
 }
 
 /**
  * Right-column card shown when the email sender doesn't match an existing
- * patient. Lets the user create a patient record in one click — useful for
- * front-desk admins who get inquiry emails from prospective patients.
+ * contact (patient for clinic tenants, client for the platform tenant).
+ * Lets the user create a record in one click — useful for front-desk admins
+ * who get inquiry emails from prospective patients, or for the platform
+ * tenant adding new clinic owners they're talking to.
  *
  * Splits the sender's display name into first/last on a best-effort basis;
  * leaves the rest of the record empty for them to fill in later.
  */
-export default function AddPatientCard({ messageId, fromEmail, fromName }: Props) {
+export default function AddPatientCard({ messageId, fromEmail, fromName, terminology }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +62,7 @@ export default function AddPatientCard({ messageId, fromEmail, fromName }: Props
         <div className="text-[12px] font-medium text-stone-700 dark:text-stone-200">Not in CRM yet</div>
       </div>
       <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3 leading-relaxed">
-        Add <span className="text-stone-700 dark:text-stone-300">{fromEmail}</span> as a patient so future emails from them link to a record.
+        Add <span className="text-stone-700 dark:text-stone-300">{fromEmail}</span> as a {terminology.contact} so future emails from them link to a record.
       </p>
 
       <div className="space-y-1.5">
@@ -82,7 +86,7 @@ export default function AddPatientCard({ messageId, fromEmail, fromName }: Props
           'disabled:opacity-50 disabled:cursor-not-allowed',
         )}
       >
-        {pending ? 'Adding…' : 'Add as patient'}
+        {pending ? 'Adding…' : `Add as ${terminology.contact}`}
       </button>
     </aside>
   )
