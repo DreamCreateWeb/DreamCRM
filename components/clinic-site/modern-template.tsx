@@ -1,4 +1,6 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
+import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import ContactForm from '@/app/site/[slug]/contact-form'
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
@@ -29,6 +31,11 @@ export default function ModernTemplate({ data, basePath }: Props) {
   const brand = profile.brandColor ?? '#6d28d9'
   const hours = profile.hours as HoursMap | null
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
+  const logoUrl = profile.logoUrl ?? null
+  const heroImageUrl = profile.heroImageUrl ?? null
+  const services: ClinicService[] =
+    (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
+  const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 antialiased">
@@ -37,12 +44,21 @@ export default function ModernTemplate({ data, basePath }: Props) {
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <a href={basePath} className="flex items-center gap-2.5 min-w-0">
-            <span
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-white text-sm font-bold shrink-0"
-              style={{ backgroundColor: brand }}
-            >
-              {name.charAt(0).toUpperCase()}
-            </span>
+            {logoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={logoUrl}
+                alt={name}
+                className="w-9 h-9 rounded-lg object-cover shrink-0"
+              />
+            ) : (
+              <span
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-white text-sm font-bold shrink-0"
+                style={{ backgroundColor: brand }}
+              >
+                {name.charAt(0).toUpperCase()}
+              </span>
+            )}
             <span className="font-bold text-gray-900 text-lg leading-tight truncate">{name}</span>
           </a>
           <div className="flex items-center gap-3">
@@ -80,10 +96,22 @@ export default function ModernTemplate({ data, basePath }: Props) {
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden py-24 sm:py-32">
-        <div
-          className="absolute inset-0 opacity-[0.06]"
-          style={{ backgroundColor: brand }}
-        />
+        {heroImageUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={heroImageUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-white via-white/85 to-white/30" />
+          </>
+        ) : (
+          <div
+            className="absolute inset-0 opacity-[0.06]"
+            style={{ backgroundColor: brand }}
+          />
+        )}
         <div
           className="absolute bottom-0 left-0 right-0 h-px"
           style={{ backgroundColor: brand, opacity: 0.15 }}
@@ -149,21 +177,68 @@ export default function ModernTemplate({ data, basePath }: Props) {
       {/* ── Services strip ─────────────────────────────────────────────── */}
       <section className="border-y border-gray-100 bg-gray-50/50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            {[
-              { icon: '🦷', label: 'Cleanings & Exams' },
-              { icon: '✨', label: 'Cosmetic Dentistry' },
-              { icon: '🔧', label: 'Restorations' },
-              { icon: '😌', label: 'Emergency Care' },
-            ].map(s => (
-              <div key={s.label} className="flex flex-col items-center gap-2 text-center">
-                <span className="text-3xl">{s.icon}</span>
-                <span className="text-sm font-medium text-gray-700">{s.label}</span>
+          <div
+            className={`grid gap-6 ${services.length >= 4 ? 'grid-cols-2 sm:grid-cols-4' : services.length === 3 ? 'grid-cols-3' : services.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}
+          >
+            {services.map((s) => (
+              <div key={s.id} className="flex flex-col items-center gap-2 text-center">
+                <span className="text-3xl">{s.icon ?? '✨'}</span>
+                <span className="text-sm font-medium text-gray-700">{s.name}</span>
+                {s.description && (
+                  <span className="text-xs text-gray-500 leading-relaxed">{s.description}</span>
+                )}
               </div>
             ))}
           </div>
         </div>
       </section>
+
+      {/* ── Staff / Meet the team ──────────────────────────────────────── */}
+      {staff.length > 0 && (
+        <section className="py-20 sm:py-24">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-12">
+              <p
+                className="text-sm font-semibold uppercase tracking-widest mb-3"
+                style={{ color: brand }}
+              >
+                Our Team
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+                Meet the people who care for you
+              </h2>
+            </div>
+            <div
+              className={`grid gap-8 ${staff.length >= 4 ? 'grid-cols-2 md:grid-cols-4' : staff.length === 3 ? 'md:grid-cols-3' : staff.length === 2 ? 'md:grid-cols-2 max-w-3xl mx-auto' : 'max-w-md mx-auto'}`}
+            >
+              {staff.map((s) => (
+                <div key={s.id} className="text-center">
+                  <div
+                    className="aspect-square w-full max-w-[16rem] mx-auto rounded-2xl overflow-hidden bg-gray-100 mb-4"
+                    style={!s.photoUrl ? { backgroundColor: brand, opacity: 0.12 } : undefined}
+                  >
+                    {s.photoUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={s.photoUrl} alt={s.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-5xl">
+                        👤
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">{s.name}</h3>
+                  {s.title && (
+                    <p className="text-sm font-medium mb-2" style={{ color: brand }}>
+                      {s.title}
+                    </p>
+                  )}
+                  {s.bio && <p className="text-sm text-gray-500 leading-relaxed">{s.bio}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── About ──────────────────────────────────────────────────────── */}
       {profile.about && (

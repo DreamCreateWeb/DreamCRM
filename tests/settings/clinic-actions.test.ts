@@ -134,4 +134,70 @@ describe('updateClinicProfile', () => {
     const set = (insertOp.values as { set: { hours: Record<string, { closed?: boolean }> } }).set
     expect(set.hours.sat.closed).toBe(true)
   })
+
+  it('persists logoUrl and heroImageUrl', async () => {
+    await updateClinicProfile(
+      form({
+        displayName: 'X',
+        logoUrl: 'https://blob/logo.png',
+        heroImageUrl: 'https://blob/hero.jpg',
+      }),
+    )
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as { set: { logoUrl: string; heroImageUrl: string } }).set
+    expect(set.logoUrl).toBe('https://blob/logo.png')
+    expect(set.heroImageUrl).toBe('https://blob/hero.jpg')
+  })
+
+  it('parses services JSON, drops items with missing name', async () => {
+    await updateClinicProfile(
+      form({
+        displayName: 'X',
+        services: JSON.stringify([
+          { id: 'a', name: 'Cleanings', icon: '🦷' },
+          { id: 'b', name: '', icon: '?' }, // dropped
+          { id: 'c', name: 'Whitening', description: 'Brighter' },
+        ]),
+      }),
+    )
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as { set: { services: Array<{ name: string }> } }).set
+    expect(set.services).toHaveLength(2)
+    expect(set.services.map((s) => s.name)).toEqual(['Cleanings', 'Whitening'])
+  })
+
+  it('stores null services for empty array', async () => {
+    await updateClinicProfile(form({ displayName: 'X', services: '[]' }))
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as { set: { services: unknown } }).set
+    expect(set.services).toBeNull()
+  })
+
+  it('stores null services for malformed JSON', async () => {
+    await updateClinicProfile(form({ displayName: 'X', services: 'not json' }))
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as { set: { services: unknown } }).set
+    expect(set.services).toBeNull()
+  })
+
+  it('parses staff JSON with optional fields', async () => {
+    await updateClinicProfile(
+      form({
+        displayName: 'X',
+        staff: JSON.stringify([
+          { id: 'a', name: 'Dr. Smith', title: 'Dentist', bio: '15 yrs', photoUrl: 'p1.jpg' },
+          { id: 'b', name: '  ', title: 'Skipped' }, // dropped (empty name)
+          { id: 'c', name: 'Dr. Lee' },
+        ]),
+      }),
+    )
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as {
+      set: { staff: Array<{ name: string; photoUrl: string | null }> }
+    }).set
+    expect(set.staff).toHaveLength(2)
+    expect(set.staff[0].name).toBe('Dr. Smith')
+    expect(set.staff[0].photoUrl).toBe('p1.jpg')
+    expect(set.staff[1].name).toBe('Dr. Lee')
+  })
 })

@@ -18,6 +18,15 @@ export const clinicProfile = pgTable('clinic_profile', {
   // Branding
   brandColor: text('brand_color'),
   template: text('template').default('modern'),
+  logoUrl: text('logo_url'),
+  heroImageUrl: text('hero_image_url'),
+
+  // Editable site content stored as JSON for the MVP — avoids the join
+  // overhead while we figure out which fields clinics actually customize.
+  // services: Array<{ id, name, description?, icon? }>
+  // staff:    Array<{ id, name, title?, bio?, photoUrl? }>
+  services: jsonb('services'),
+  staff: jsonb('staff'),
 
   // Contact
   phone: text('phone'),

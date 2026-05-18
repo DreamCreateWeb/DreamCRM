@@ -33,6 +33,10 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       subscriptionStatus: null,
+      logoUrl: null,
+      heroImageUrl: null,
+      services: null,
+      staff: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,
@@ -116,5 +120,108 @@ describe('ModernTemplate', () => {
     const year = new Date().getFullYear().toString()
     expect(screen.getByText(new RegExp(`© ${year}`))).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /DreamCreate/ })).toBeInTheDocument()
+  })
+
+  it('renders default services when none are configured', () => {
+    render(<ModernTemplate data={makeData({ services: null as never })} basePath="/site/test" />)
+    expect(screen.getByText('Cleanings & Exams')).toBeInTheDocument()
+    expect(screen.getByText('Cosmetic Dentistry')).toBeInTheDocument()
+  })
+
+  it('renders configured services with descriptions', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          services: [
+            { id: 's1', name: 'Teeth Whitening', description: 'Brighter in one visit', icon: '✨' },
+            { id: 's2', name: 'Implants', description: 'Permanent solutions', icon: '🦷' },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText('Teeth Whitening')).toBeInTheDocument()
+    expect(screen.getByText('Brighter in one visit')).toBeInTheDocument()
+    expect(screen.getByText('Implants')).toBeInTheDocument()
+  })
+
+  it('omits the staff section when no staff configured', () => {
+    render(<ModernTemplate data={makeData({ staff: null as never })} basePath="/site/test" />)
+    expect(screen.queryByText('Our Team')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Meet the people/)).not.toBeInTheDocument()
+  })
+
+  it('renders staff with names, titles, and bios', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          staff: [
+            {
+              id: 'p1',
+              name: 'Dr. Jane Smith',
+              title: 'Lead Dentist',
+              bio: '15 years of practice.',
+              photoUrl: null,
+            },
+            { id: 'p2', name: 'Dr. John Lee', title: 'Orthodontist' },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText('Dr. Jane Smith')).toBeInTheDocument()
+    expect(screen.getByText('Lead Dentist')).toBeInTheDocument()
+    expect(screen.getByText('15 years of practice.')).toBeInTheDocument()
+    expect(screen.getByText('Dr. John Lee')).toBeInTheDocument()
+  })
+
+  it('uses the staff photo when provided', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          staff: [
+            {
+              id: 'p1',
+              name: 'Dr. Jane',
+              photoUrl: 'https://example.com/jane.jpg',
+            },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    const img = screen.getByAltText('Dr. Jane') as HTMLImageElement
+    expect(img.src).toBe('https://example.com/jane.jpg')
+  })
+
+  it('uses the logo image in the header when provided', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ logoUrl: 'https://example.com/logo.png' })}
+        basePath="/site/test"
+      />,
+    )
+    const logo = screen.getByAltText('Test Dental') as HTMLImageElement
+    expect(logo.src).toBe('https://example.com/logo.png')
+  })
+
+  it('uses letter mark when no logo is set', () => {
+    render(<ModernTemplate data={makeData({ logoUrl: null })} basePath="/site/test" />)
+    // First letter of name appears as letter mark
+    const marks = screen.getAllByText('T')
+    expect(marks.length).toBeGreaterThan(0)
+  })
+
+  it('renders hero image when provided', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ heroImageUrl: 'https://example.com/hero.jpg' })}
+        basePath="/site/test"
+      />,
+    )
+    // alt="" — pick it up by src
+    const imgs = document.querySelectorAll('img')
+    const hero = Array.from(imgs).find((i) => i.src === 'https://example.com/hero.jpg')
+    expect(hero).toBeDefined()
   })
 })

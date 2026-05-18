@@ -6,11 +6,61 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
+import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
 
 export interface HoursEntry {
   open?: string | null
   close?: string | null
   closed?: boolean
+}
+
+function parseServices(raw: string | undefined): ClinicService[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: ClinicService[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const name = typeof obj.name === 'string' ? obj.name.trim() : ''
+      if (!name) continue
+      out.push({
+        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
+        name,
+        description: typeof obj.description === 'string' ? obj.description.trim() || null : null,
+        icon: typeof obj.icon === 'string' ? obj.icon.trim() || null : null,
+      })
+    }
+    return out.length ? out : null
+  } catch {
+    return null
+  }
+}
+
+function parseStaff(raw: string | undefined): ClinicStaff[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: ClinicStaff[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const name = typeof obj.name === 'string' ? obj.name.trim() : ''
+      if (!name) continue
+      out.push({
+        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
+        name,
+        title: typeof obj.title === 'string' ? obj.title.trim() || null : null,
+        bio: typeof obj.bio === 'string' ? obj.bio.trim() || null : null,
+        photoUrl: typeof obj.photoUrl === 'string' ? obj.photoUrl || null : null,
+      })
+    }
+    return out.length ? out : null
+  } catch {
+    return null
+  }
 }
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
@@ -67,48 +117,40 @@ export async function updateClinicProfile(formData: FormData) {
   const country = clean('country', formData, 'US')
   const brandColor = clean('brandColor', formData)
   const template = clean('template', formData, 'modern')
+  const logoUrl = clean('logoUrl', formData)
+  const heroImageUrl = clean('heroImageUrl', formData)
+  const services = parseServices(formData.get('services')?.toString())
+  const staff = parseStaff(formData.get('staff')?.toString())
   const hours = parseHours(formData)
+
+  const payload = {
+    displayName,
+    legalName,
+    tagline,
+    about,
+    phone,
+    email,
+    addressLine1,
+    addressLine2,
+    city,
+    state,
+    postalCode,
+    country,
+    brandColor,
+    template,
+    logoUrl,
+    heroImageUrl,
+    hours,
+    services,
+    staff,
+  }
 
   await db
     .insert(clinicProfile)
-    .values({
-      organizationId: orgId,
-      displayName,
-      legalName,
-      tagline,
-      about,
-      phone,
-      email,
-      addressLine1,
-      addressLine2,
-      city,
-      state,
-      postalCode,
-      country,
-      brandColor,
-      template,
-      hours,
-    })
+    .values({ organizationId: orgId, ...payload })
     .onConflictDoUpdate({
       target: clinicProfile.organizationId,
-      set: {
-        displayName,
-        legalName,
-        tagline,
-        about,
-        phone,
-        email,
-        addressLine1,
-        addressLine2,
-        city,
-        state,
-        postalCode,
-        country,
-        brandColor,
-        template,
-        hours,
-        updatedAt: new Date(),
-      },
+      set: { ...payload, updatedAt: new Date() },
     })
 
   if (displayName) {

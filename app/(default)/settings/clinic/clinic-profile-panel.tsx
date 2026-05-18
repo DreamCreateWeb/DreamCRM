@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { updateClinicProfile } from './actions'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
+import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
+import ImageUploader from '@/components/ui/image-uploader'
+import ServicesEditor from './services-editor'
+import StaffEditor from './staff-editor'
 
 interface Props {
   profile: ClinicProfile | null
@@ -27,6 +31,8 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const initialHours = (profile?.hours ?? {}) as Record<string, HoursEntry>
+  const initialServices = (profile?.services ?? null) as ClinicService[] | null
+  const initialStaff = (profile?.staff ?? null) as ClinicStaff[] | null
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -171,6 +177,22 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
                 <span className="text-xs text-gray-500 dark:text-gray-400">Used as the accent color across your clinic website.</span>
               </div>
             </div>
+            <ImageUploader
+              name="logoUrl"
+              defaultValue={profile?.logoUrl ?? null}
+              folder="clinic-logos"
+              label="Logo"
+              hint="Square logo, 256x256+. Replaces the letter mark in the site header."
+              previewClass="aspect-square w-32"
+            />
+            <ImageUploader
+              name="heroImageUrl"
+              defaultValue={profile?.heroImageUrl ?? null}
+              folder="clinic-hero"
+              label="Hero Image"
+              hint="Wide banner image shown behind your hero. 16:9 or wider. JPG/PNG, up to 5MB."
+              previewClass="aspect-[3/1]"
+            />
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="template">Website Template</label>
               <select id="template" name="template" className="form-select w-full" defaultValue={profile?.template ?? 'modern'}>
@@ -180,6 +202,22 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
               </select>
             </div>
           </div>
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Services</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            What you offer. Shown as a strip below the hero on your website.
+          </p>
+          <ServicesEditor name="services" defaultValue={initialServices} />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Staff</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Your team. Add headshots and bios — they appear in a Meet The Team section.
+          </p>
+          <StaffEditor name="staff" defaultValue={initialStaff} />
         </section>
 
         <div className="flex items-center gap-3 pt-2 border-t border-gray-200 dark:border-gray-700/60">
