@@ -15,6 +15,7 @@ import {
   trashMessage as gmailTrash,
   watchMailbox,
 } from './gmail'
+import { classifyBatch } from './ai-mailbox'
 import type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
 
 export type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
@@ -305,6 +306,11 @@ export async function syncAccount(
       .update(schema.emailAccount)
       .set({ syncStatus: 'ready', lastSyncAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.emailAccount.id, accountId))
+    // Best-effort: classify any messages still pending intent. Doesn't block
+    // sync success — classification errors are swallowed inside classifyBatch.
+    if (added > 0) {
+      classifyPendingIntents(organizationId, { limit: 50 }).catch(() => {})
+    }
     return { added }
   } catch (err) {
     await db
@@ -601,6 +607,48 @@ export async function addPatientFromEmail(opts: {
 }
 
 /**
+ * Classify pending (intent IS NULL) inbox messages for an org using the AI
+ * classifier in `ai-mailbox.ts`. Runs in parallel with bounded concurrency.
+ * Safe to invoke repeatedly — completed rows are skipped on the next call.
+ *
+ * Called automatically at the end of syncAccount() and processHistoryEvent()
+ * so newly-ingested messages get intent labels without needing a separate
+ * cron. Also callable as a backfill from the inbox settings page.
+ */
+export async function classifyPendingIntents(
+  organizationId: string,
+  opts: { limit?: number } = {},
+): Promise<{ classified: number }> {
+  if (!process.env.ANTHROPIC_API_KEY) return { classified: 0 }
+  const limit = opts.limit ?? 50
+  const rows = await db
+    .select({
+      id: schema.emailMessage.id,
+      fromEmail: schema.emailMessage.fromEmail,
+      subject: schema.emailMessage.subject,
+      bodyText: schema.emailMessage.bodyText,
+      snippet: schema.emailMessage.snippet,
+    })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.organizationId, organizationId),
+        isNull(schema.emailMessage.intent),
+      ),
+    )
+    .limit(limit)
+  if (rows.length === 0) return { classified: 0 }
+  const results = await classifyBatch(rows)
+  for (const [id, intent] of Array.from(results.entries())) {
+    await db
+      .update(schema.emailMessage)
+      .set({ intent })
+      .where(eq(schema.emailMessage.id, id))
+  }
+  return { classified: results.size }
+}
+
+/**
  * One-off backfill: scan all messages in an org that have a null patient_id
  * and try to match them to a patient by sender email. Runs in batches; safe
  * to invoke repeatedly. Returns the number of rows that got matched.
@@ -707,6 +755,11 @@ export async function processHistoryEvent(opts: {
     .update(schema.emailAccount)
     .set({ historyId: latestHistoryId, lastSyncAt: new Date(), updatedAt: new Date() })
     .where(eq(schema.emailAccount.id, account.id))
+
+  // Best-effort intent classification for any newly-ingested messages.
+  if (ingested > 0) {
+    await classifyPendingIntents(account.organizationId, { limit: 25 }).catch(() => {})
+  }
 
   return { ingested }
 }

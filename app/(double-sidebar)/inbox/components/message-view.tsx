@@ -224,6 +224,7 @@ export default function MessageView({ message, bodyHtml, patientContext, account
                   toEmail={msg.fromEmail}
                   toName={msg.fromName}
                   subject={msg.subject}
+                  messageId={msg.id}
                   textareaId="quick-reply-textarea"
                 />
               )}
