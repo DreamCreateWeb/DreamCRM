@@ -14,9 +14,6 @@ const PUBLIC_PATHS = [
   '/api/auth',
   '/api/hello',
   '/api/webhooks',
-  // Admin bootstrap route — bearer-token gated, used to run pending migrations.
-  // Push the route, curl it, then remove the route and the env var.
-  '/api/admin',
 ]
 
 const PUBLIC_PREFIXES = ['/_next', '/images', '/favicon', '/css', '/fonts']
