@@ -9,10 +9,17 @@ import DeleteInvoicesButton from './delete-invoices-button'
 import StatusFilters from './status-filters'
 import SubscriptionsPanel from './subscriptions-panel'
 import PlansPanel from './plans-panel'
+import SubscriptionsStats, { PlanMixCard } from './subscriptions-stats'
+import SubscriptionsAttention from './subscriptions-attention'
 import { invoiceCountsByStatus, listInvoices } from '@/lib/services/invoices'
 import { listCustomers } from '@/lib/services/customers'
 import { requireTenant } from '@/lib/auth/context'
-import { listAdminProducts, listAdminSubscriptions } from '@/lib/services/stripe-admin'
+import {
+  listAdminProducts,
+  listAdminSubscriptions,
+  pickAttentionSubscriptions,
+  summarizeSubscriptions,
+} from '@/lib/services/stripe-admin'
 import { formatShortDate } from '@/lib/utils'
 
 export const metadata = {
@@ -41,6 +48,9 @@ export default async function InvoicesOrSubscriptions({
       stripeError = (err as Error).message
     }
 
+    const stats = summarizeSubscriptions(subscriptions)
+    const attention = pickAttentionSubscriptions(subscriptions)
+
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <div className="sm:flex sm:justify-between sm:items-center mb-5">
@@ -60,9 +70,23 @@ export default async function InvoicesOrSubscriptions({
           </div>
         )}
 
-        <div className="space-y-6">
-          <SubscriptionsPanel subscriptions={subscriptions} products={products} />
-          <PlansPanel products={products} />
+        {!stripeError && (
+          <>
+            <SubscriptionsStats stats={stats} />
+            <SubscriptionsAttention attention={attention} />
+          </>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <SubscriptionsPanel subscriptions={subscriptions} products={products} />
+            <PlansPanel products={products} />
+          </div>
+          {!stripeError && (
+            <div className="space-y-6">
+              <PlanMixCard stats={stats} />
+            </div>
+          )}
         </div>
       </div>
     )
