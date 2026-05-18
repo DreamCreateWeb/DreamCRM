@@ -673,8 +673,11 @@ export async function addPatientFromEmail(opts: {
 export async function classifyPendingIntents(
   organizationId: string,
   opts: { limit?: number } = {},
-): Promise<{ classified: number }> {
-  if (!process.env.ANTHROPIC_API_KEY) return { classified: 0 }
+): Promise<{ classified: number; pending: number }> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('[mailbox.classify] ANTHROPIC_API_KEY not set — skipping')
+    return { classified: 0, pending: 0 }
+  }
   const limit = opts.limit ?? 50
   const rows = await db
     .select({
@@ -694,7 +697,9 @@ export async function classifyPendingIntents(
       ),
     )
     .limit(limit)
-  if (rows.length === 0) return { classified: 0 }
+  if (rows.length === 0) return { classified: 0, pending: 0 }
+  console.log(`[mailbox.classify] starting ${rows.length} messages`)
+  const start = Date.now()
   const results = await classifyBatch(rows)
   for (const [id, { category, intent }] of Array.from(results.entries())) {
     await db
@@ -702,7 +707,8 @@ export async function classifyPendingIntents(
       .set({ category, intent })
       .where(eq(schema.emailMessage.id, id))
   }
-  return { classified: results.size }
+  console.log(`[mailbox.classify] done: ${results.size}/${rows.length} in ${Date.now() - start}ms`)
+  return { classified: results.size, pending: rows.length - results.size }
 }
 
 /**
