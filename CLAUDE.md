@@ -121,16 +121,31 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (108+ tests) covering middleware, billing sync,
+- **Vitest test suite** (318 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
-  booking, profile updates, services/staff JSON parsing.
+  booking, profile updates, services/staff JSON parsing, Gmail webhook
+  auth gate.
+- **Gmail push notifications via Google Pub/Sub** — `users.watch()` is
+  registered when a mailbox is connected; Gmail publishes change events
+  to `projects/dreamcrm-496717/topics/gmail-watch`; the push subscription
+  POSTs to `/api/webhooks/gmail` (OIDC-verified); `processHistoryEvent`
+  diffs from the stored historyId via `users.history.list` and ingests
+  new messages. A daily Vercel cron at 04:00 UTC renews any watch that
+  expires within 36h (`/api/cron/gmail-watch-renew`). Existing polling
+  (auto-sync on page load + Refresh button) remains as a fallback path.
 
 ## What's NOT yet wired (priorities for next session)
-1. **DB migration 0001 must be applied to prod** — adds logo_url,
-   hero_image_url, services jsonb, staff jsonb to clinic_profile.
-   Push the /api/admin/bootstrap route (auth'd by a freshly-rotated
-   ADMIN_BOOTSTRAP_TOKEN env), curl it to run pending migrations, then
-   remove the route + env.
+1. **Migration 0004 + Gmail push env vars need applying to prod** —
+   bootstrap-apply `0004_lowly_microbe.sql` (adds `watch_expires_at`),
+   then set Vercel env vars:
+   `GMAIL_PUBSUB_TOPIC=projects/dreamcrm-496717/topics/gmail-watch`,
+   `GMAIL_PUBSUB_SA_EMAIL=dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`,
+   `CRON_SECRET=<random>`. Finally create the Pub/Sub push subscription
+   pointing at `https://dreamcreatestudio.com/api/webhooks/gmail` with
+   OIDC identity `dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`
+   (and grant Pub/Sub service agent `roles/iam.serviceAccountTokenCreator`
+   on that SA so it can mint the OIDC tokens). Setup helpers live in
+   `/tmp/gcp-*.mjs` (not committed; rerun from the SA JSON if needed).
 2. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard must be added
    to the Vercel project before clinic sites resolve in production.
 3. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL` envs

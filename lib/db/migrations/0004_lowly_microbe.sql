@@ -1,0 +1,1 @@
+ALTER TABLE "email_account" ADD COLUMN "watch_expires_at" timestamp with time zone;

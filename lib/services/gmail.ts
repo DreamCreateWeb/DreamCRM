@@ -399,3 +399,60 @@ export async function markMessageRead(accessToken: string, providerMessageId: st
     }),
   })
 }
+
+// ---------- Push notifications: watch / stop / history ----------
+
+export interface WatchResponse {
+  historyId: string
+  expiration: string // unix ms as a string
+}
+
+export async function watchMailbox(
+  accessToken: string,
+  topicName: string,
+): Promise<WatchResponse> {
+  const res = await gmailFetch(accessToken, '/users/me/watch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      topicName,
+      labelIds: ['INBOX'],
+      labelFilterBehavior: 'INCLUDE',
+    }),
+  })
+  return res.json() as Promise<WatchResponse>
+}
+
+export async function stopWatch(accessToken: string): Promise<void> {
+  await gmailFetch(accessToken, '/users/me/stop', { method: 'POST' })
+}
+
+export interface GmailHistoryRecord {
+  id: string
+  messages?: GmailMessageListItem[]
+  messagesAdded?: { message: GmailMessageListItem & { labelIds?: string[] } }[]
+  messagesDeleted?: { message: GmailMessageListItem }[]
+  labelsAdded?: { message: GmailMessageListItem; labelIds: string[] }[]
+  labelsRemoved?: { message: GmailMessageListItem; labelIds: string[] }[]
+}
+
+export interface HistoryListResponse {
+  history?: GmailHistoryRecord[]
+  nextPageToken?: string
+  historyId: string
+}
+
+export async function listHistory(
+  accessToken: string,
+  startHistoryId: string,
+  opts: { pageToken?: string } = {},
+): Promise<HistoryListResponse> {
+  const params = new URLSearchParams({
+    startHistoryId,
+    historyTypes: 'messageAdded',
+    labelId: 'INBOX',
+  })
+  if (opts.pageToken) params.set('pageToken', opts.pageToken)
+  const res = await gmailFetch(accessToken, `/users/me/history?${params.toString()}`)
+  return res.json() as Promise<HistoryListResponse>
+}
