@@ -1,6 +1,5 @@
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
-import { eq } from 'drizzle-orm'
 import { listTasks, TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/services/tasks'
 import TasksGroups from './tasks-groups'
 import TaskCard, { type TaskCardData } from './task-card'
@@ -14,12 +13,14 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function Kanban() {
-  const me = await requireUser()
-  const tasks = await listTasks()
+  const ctx = await requireTenant()
+  const tasks = await listTasks(ctx.organizationId)
 
-  // resolve assignee names (single query keyed by id)
+  // Resolve assignee names. Only fetch users that authored a task in this
+  // org's task list; seed with the current user so their own newly-created
+  // tasks always show an author label.
   const authorIds = Array.from(new Set(tasks.map((t) => t.createdBy).filter(Boolean) as string[]))
-  let nameById = new Map<string, string>([[me.id, me.name ?? me.email]])
+  const nameById = new Map<string, string>([[ctx.userId, ctx.userName ?? ctx.userEmail]])
   if (authorIds.length) {
     const users = await db
       .select({ id: schema.user.id, name: schema.user.name })

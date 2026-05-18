@@ -21,18 +21,30 @@ export const CalendarEventInput = z.object({
   category: z.enum(CALENDAR_CATEGORIES).default('work'),
 })
 
-export async function listCalendarEvents(opts: { from?: Date; to?: Date } = {}) {
-  const filters = []
+/**
+ * List events for the given organization within an optional time window.
+ * Every event is org-scoped; cross-tenant reads are impossible by design.
+ * Pre-migration-0007 there were legacy rows with `organization_id = NULL` —
+ * those are claimed for the platform org by the data migration.
+ */
+export async function listCalendarEvents(
+  organizationId: string,
+  opts: { from?: Date; to?: Date } = {},
+) {
+  const filters = [eq(schema.calendarEvents.organizationId, organizationId)]
   if (opts.from) filters.push(gte(schema.calendarEvents.endsAt, opts.from))
   if (opts.to) filters.push(lte(schema.calendarEvents.startsAt, opts.to))
   return db
     .select()
     .from(schema.calendarEvents)
-    .where(filters.length ? and(...filters) : undefined)
+    .where(and(...filters))
     .orderBy(desc(schema.calendarEvents.startsAt))
 }
 
-export async function createCalendarEvent(input: z.infer<typeof CalendarEventInput>, userId: string) {
+export async function createCalendarEvent(
+  input: z.infer<typeof CalendarEventInput>,
+  opts: { userId: string; organizationId: string },
+) {
   const data = CalendarEventInput.parse(input)
   const startsAt = new Date(data.startsAt)
   const endsAt = new Date(data.endsAt)
@@ -50,19 +62,36 @@ export async function createCalendarEvent(input: z.infer<typeof CalendarEventInp
       endsAt,
       allDay: data.allDay ?? false,
       category: data.category,
-      ownerId: userId,
+      ownerId: opts.userId,
+      organizationId: opts.organizationId,
     })
     .returning()
   return row
 }
 
-export async function deleteCalendarEvent(id: number) {
-  const rows = await db.delete(schema.calendarEvents).where(eq(schema.calendarEvents.id, id)).returning({ id: schema.calendarEvents.id })
+/**
+ * Delete one event — only succeeds when the event belongs to the given
+ * organization. Returns the number of rows deleted (0 if the id doesn't
+ * belong to this tenant — which prevents cross-tenant tampering).
+ */
+export async function deleteCalendarEvent(id: number, organizationId: string) {
+  const rows = await db
+    .delete(schema.calendarEvents)
+    .where(and(eq(schema.calendarEvents.id, id), eq(schema.calendarEvents.organizationId, organizationId)))
+    .returning({ id: schema.calendarEvents.id })
   return { deleted: rows.length }
 }
 
-export async function deleteCalendarEvents(ids: number[]) {
+export async function deleteCalendarEvents(ids: number[], organizationId: string) {
   if (!ids.length) return { deleted: 0 }
-  const rows = await db.delete(schema.calendarEvents).where(inArray(schema.calendarEvents.id, ids)).returning({ id: schema.calendarEvents.id })
+  const rows = await db
+    .delete(schema.calendarEvents)
+    .where(
+      and(
+        inArray(schema.calendarEvents.id, ids),
+        eq(schema.calendarEvents.organizationId, organizationId),
+      ),
+    )
+    .returning({ id: schema.calendarEvents.id })
   return { deleted: rows.length }
 }
