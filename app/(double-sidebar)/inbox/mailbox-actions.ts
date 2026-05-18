@@ -7,13 +7,17 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   addPatientFromEmail,
   archiveMessage as svcArchive,
+  classifyPendingIntents,
   disconnectAccount as svcDisconnect,
+  getMessageDetail,
   sendEmail,
   setMessageRead,
   setMessageStarred,
   syncAccount,
   trashMessage as svcTrash,
 } from '@/lib/services/mailbox'
+import { draftReply } from '@/lib/services/ai-mailbox'
+import { getInboxPatientContext } from '@/lib/services/patient-context'
 
 async function requireOrgUser() {
   const ctx = await requireTenant()
@@ -84,6 +88,41 @@ export async function addPatientFromEmailAction(input: unknown) {
     phone: data.phone ?? null,
     messageId: data.messageId,
   })
+  revalidatePath('/inbox')
+  return result
+}
+
+/**
+ * AI: draft a reply for the given message. Uses Claude Sonnet with adaptive
+ * thinking and folds in the matched patient's record so the draft references
+ * upcoming visits, history, etc. Returns the plain-text draft for the user
+ * to review + edit before sending.
+ */
+export async function draftReplyAction(messageId: string): Promise<{ draft: string | null }> {
+  const ctx = await requireOrgUser()
+  const message = await getMessageDetail(messageId, ctx.organizationId)
+  if (!message) return { draft: null }
+  const patientCtx = message.patientId
+    ? await getInboxPatientContext(message.patientId, ctx.organizationId)
+    : null
+  const draft = await draftReply({
+    patientContext: patientCtx,
+    originalSubject: message.subject,
+    originalBody: message.bodyText ?? message.snippet ?? '',
+    fromName: message.fromName,
+    fromEmail: message.fromEmail,
+  })
+  return { draft }
+}
+
+/**
+ * AI: backfill intents for any messages that haven't been classified yet.
+ * Exposed as an admin button on /inbox/settings; also runs automatically
+ * after every sync.
+ */
+export async function classifyPendingAction(): Promise<{ classified: number }> {
+  const ctx = await requireOrgUser()
+  const result = await classifyPendingIntents(ctx.organizationId, { limit: 200 })
   revalidatePath('/inbox')
   return result
 }
