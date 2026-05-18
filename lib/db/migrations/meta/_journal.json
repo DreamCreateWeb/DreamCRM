@@ -15,6 +15,13 @@
       "when": 1779091314852,
       "tag": "0001_loose_malcolm_colcord",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779110870816,
+      "tag": "0002_complete_captain_flint",
+      "breakpoints": true
     }
   ]
 }
