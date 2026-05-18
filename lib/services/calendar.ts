@@ -41,6 +41,39 @@ export async function listCalendarEvents(
     .orderBy(desc(schema.calendarEvents.startsAt))
 }
 
+export const CalendarEventUpdate = CalendarEventInput.partial()
+
+export async function updateCalendarEvent(
+  id: number,
+  input: z.infer<typeof CalendarEventUpdate>,
+  organizationId: string,
+) {
+  const data = CalendarEventUpdate.parse(input)
+  const patch: Record<string, unknown> = {}
+  if (data.title !== undefined) patch.title = data.title
+  if (data.description !== undefined) patch.description = data.description
+  if (data.location !== undefined) patch.location = data.location
+  if (data.allDay !== undefined) patch.allDay = data.allDay
+  if (data.category !== undefined) patch.category = data.category
+  if (data.startsAt !== undefined) {
+    const startsAt = new Date(data.startsAt)
+    if (Number.isNaN(startsAt.getTime())) throw new Error('Invalid event start')
+    patch.startsAt = startsAt
+  }
+  if (data.endsAt !== undefined) {
+    const endsAt = new Date(data.endsAt)
+    if (Number.isNaN(endsAt.getTime())) throw new Error('Invalid event end')
+    patch.endsAt = endsAt
+  }
+  if (Object.keys(patch).length === 0) return null
+  const [row] = await db
+    .update(schema.calendarEvents)
+    .set(patch)
+    .where(and(eq(schema.calendarEvents.id, id), eq(schema.calendarEvents.organizationId, organizationId)))
+    .returning()
+  return row ?? null
+}
+
 export async function createCalendarEvent(
   input: z.infer<typeof CalendarEventInput>,
   opts: { userId: string; organizationId: string },

@@ -1,33 +1,133 @@
 import 'server-only'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
-import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/tasks'
+import {
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+  TASK_STATUS_LABEL,
+  type TaskPriority,
+  type TaskStatus,
+} from '@/lib/types/tasks'
 
-export { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus }
+export { TASK_PRIORITIES, TASK_STATUSES, TASK_STATUS_LABEL, type TaskPriority, type TaskStatus }
 
 export const TaskInput = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional().nullable(),
   status: z.enum(TASK_STATUSES).default('todo'),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  priority: z.enum(TASK_PRIORITIES).default('medium'),
   assigneeId: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  tags: z.array(z.string().min(1).max(40)).max(20).optional(),
 })
 export const TaskUpdate = TaskInput.partial()
 
 /**
- * List tasks for the given organization. Every task is org-scoped;
- * cross-tenant reads are impossible by design. Pre-migration-0007 there
- * were legacy NULL-org rows — the data migration backfills them to the
- * platform org id.
+ * Built-in saved views the inbox-style filter bar exposes as quick chips.
+ * URL-driven (`?view=overdue`); each one is a server-side filter recipe that
+ * `listTasks` turns into a WHERE clause.
  */
-export async function listTasks(organizationId: string) {
+export type SavedView = 'all' | 'today' | 'this_week' | 'overdue' | 'mine' | 'completed'
+
+export interface TaskFilters {
+  view?: SavedView
+  search?: string
+  status?: TaskStatus[]
+  priority?: TaskPriority[]
+  tag?: string
+  assigneeId?: string | null
+  /** "Mine" view scope-fills assigneeId/createdBy from the caller. */
+  currentUserId?: string
+}
+
+/**
+ * List tasks for the given organization, optionally narrowed by saved-view
+ * + filter combination. Every task is org-scoped; cross-tenant reads are
+ * impossible by design.
+ */
+export async function listTasks(organizationId: string, filters: TaskFilters = {}) {
+  const conditions = [eq(schema.tasks.organizationId, organizationId)]
+
+  // Saved-view shortcuts compose with explicit filters.
+  if (filters.view === 'today') {
+    const start = startOfDay(new Date())
+    const end = endOfDay(new Date())
+    conditions.push(gte(schema.tasks.dueDate, start))
+    conditions.push(lte(schema.tasks.dueDate, end))
+  } else if (filters.view === 'this_week') {
+    const start = startOfDay(new Date())
+    const end = endOfDay(addDays(new Date(), 7))
+    conditions.push(gte(schema.tasks.dueDate, start))
+    conditions.push(lte(schema.tasks.dueDate, end))
+  } else if (filters.view === 'overdue') {
+    conditions.push(lte(schema.tasks.dueDate, new Date()))
+    // Don't show completed tasks as "overdue" — they're done.
+    conditions.push(sql`${schema.tasks.status} <> 'completed'`)
+  } else if (filters.view === 'completed') {
+    conditions.push(eq(schema.tasks.status, 'completed'))
+  } else if (filters.view === 'mine' && filters.currentUserId) {
+    conditions.push(
+      or(
+        eq(schema.tasks.assigneeId, filters.currentUserId),
+        eq(schema.tasks.createdBy, filters.currentUserId),
+      )!,
+    )
+  }
+
+  if (filters.search && filters.search.trim()) {
+    const q = `%${filters.search.trim().toLowerCase()}%`
+    conditions.push(
+      or(
+        sql`lower(${schema.tasks.title}) like ${q}`,
+        sql`lower(coalesce(${schema.tasks.description}, '')) like ${q}`,
+      )!,
+    )
+  }
+
+  if (filters.status && filters.status.length) {
+    conditions.push(inArray(schema.tasks.status, filters.status))
+  }
+  if (filters.priority && filters.priority.length) {
+    conditions.push(inArray(schema.tasks.priority, filters.priority))
+  }
+  if (filters.tag) {
+    // jsonb @> matches when the array contains the given element.
+    conditions.push(sql`${schema.tasks.tags} @> ${JSON.stringify([filters.tag])}::jsonb`)
+  }
+  if (filters.assigneeId !== undefined && filters.assigneeId !== null) {
+    conditions.push(eq(schema.tasks.assigneeId, filters.assigneeId))
+  }
+
   return db
     .select()
     .from(schema.tasks)
-    .where(eq(schema.tasks.organizationId, organizationId))
+    .where(and(...conditions))
     .orderBy(asc(schema.tasks.position), asc(schema.tasks.createdAt))
+}
+
+/**
+ * Distinct tag list for an org — drives the filter-bar tag chips.
+ */
+export async function listTagsForOrg(organizationId: string): Promise<string[]> {
+  const rows = await db.execute<{ tag: string }>(sql`
+    SELECT DISTINCT jsonb_array_elements_text(tags) AS tag
+    FROM tasks
+    WHERE organization_id = ${organizationId}
+    ORDER BY tag
+  `)
+  const list = Array.isArray(rows) ? rows : (rows as { rows?: { tag: string }[] }).rows ?? []
+  return list.map((r) => r.tag).filter(Boolean)
+}
+
+function startOfDay(d: Date): Date {
+  const r = new Date(d); r.setHours(0, 0, 0, 0); return r
+}
+function endOfDay(d: Date): Date {
+  const r = new Date(d); r.setHours(23, 59, 59, 999); return r
+}
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r
 }
 
 /**
@@ -72,6 +172,7 @@ export async function createTask(
       createdBy: opts.userId,
       organizationId: opts.organizationId,
       position: (maxPos ?? 0) + 1,
+      tags: data.tags ?? [],
     })
     .returning()
   return row
@@ -88,13 +189,19 @@ export async function updateTaskStatus(id: number, status: TaskStatus, organizat
 
 export async function updateTask(id: number, input: z.infer<typeof TaskUpdate>, organizationId: string) {
   const data = TaskUpdate.parse(input)
+  const patch: Record<string, unknown> = { updatedAt: new Date() }
+  if (data.title !== undefined) patch.title = data.title
+  if (data.description !== undefined) patch.description = data.description
+  if (data.status !== undefined) patch.status = data.status
+  if (data.priority !== undefined) patch.priority = data.priority
+  if (data.assigneeId !== undefined) patch.assigneeId = data.assigneeId
+  if (data.tags !== undefined) patch.tags = data.tags
+  if (data.dueDate !== undefined) {
+    patch.dueDate = data.dueDate ? new Date(data.dueDate) : null
+  }
   const [row] = await db
     .update(schema.tasks)
-    .set({
-      ...data,
-      dueDate: data.dueDate ? new Date(data.dueDate) : data.dueDate === null ? null : undefined,
-      updatedAt: new Date(),
-    })
+    .set(patch)
     .where(and(eq(schema.tasks.id, id), eq(schema.tasks.organizationId, organizationId)))
     .returning()
   return row

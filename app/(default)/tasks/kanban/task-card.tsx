@@ -1,8 +1,12 @@
 'use client'
 
+import Link from 'next/link'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
-import { likeTaskAction, moveTask, removeTasks } from '../actions'
+import { cn } from '@/lib/utils'
+import { moveTask } from '../actions'
 import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/tasks'
+import DueDateChip from '../_components/due-date-chip'
 
 export interface TaskCardData {
   id: number
@@ -10,90 +14,80 @@ export interface TaskCardData {
   status: TaskStatus
   description: string | null
   priority: string
-  likes: number
-  comments: number
-  attachments: number
+  dueDate: string | null
+  tags: string[]
   authorName: string | null
-  refNumber: string
 }
 
-export default function TaskCard({ task }: { task: TaskCardData }) {
-  const [pending, startTransition] = useTransition()
+const PRIORITY_DOT: Record<string, string> = {
+  high: 'bg-rose-500',
+  medium: 'bg-amber-500',
+  low: 'bg-stone-400',
+}
 
-  function handleStatusChange(status: string) {
-    startTransition(async () => {
-      await moveTask(task.id, status)
-    })
+/**
+ * Kanban card. Click the card body → opens the right detail drawer for
+ * full edit. The status dropdown short-circuits to a status change without
+ * opening the drawer — most-frequent action in kanban view stays cheap.
+ */
+export default function TaskCard({ task }: { task: TaskCardData }) {
+  const pathname = usePathname()
+  const sp = useSearchParams()
+  const [pending, startTransition] = useTransition()
+  const isDone = task.status === 'completed'
+
+  function handleStatusChange(status: string, e: React.ChangeEvent) {
+    e.stopPropagation()
+    startTransition(async () => { await moveTask(task.id, status) })
   }
-  function handleLike() {
-    startTransition(async () => {
-      await likeTaskAction(task.id)
-    })
-  }
-  function handleDelete() {
-    if (!confirm(`Delete task "${task.title}"?`)) return
-    startTransition(async () => {
-      await removeTasks([task.id])
-    })
-  }
+
+  const params = new URLSearchParams(sp.toString())
+  params.set('t', String(task.id))
+  const drawerHref = `${pathname}?${params.toString()}`
 
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4">
-      <div className="mb-3">
-        <h2 className="font-semibold text-gray-800 dark:text-gray-100 mb-1">{task.title}</h2>
-        {task.description && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{task.description}</p>
-        )}
-        <div className="text-sm mt-1">
-          {task.refNumber}
-          {task.authorName ? (
-            <>
-              {' '}created by <span className="font-medium text-gray-800 dark:text-gray-200">{task.authorName}</span>
-            </>
-          ) : null}
+    <Link
+      href={drawerHref}
+      scroll={false}
+      className="block bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700/60 p-3 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+    >
+      <div className="flex items-start gap-2 mb-2">
+        <span
+          className={cn('w-1.5 h-1.5 rounded-full mt-1.5 shrink-0', PRIORITY_DOT[task.priority] ?? 'bg-stone-300')}
+          title={`Priority: ${task.priority}`}
+        />
+        <div className="min-w-0 grow">
+          <h3 className={cn('font-medium text-[13px] leading-snug', isDone ? 'text-stone-400 dark:text-stone-500 line-through' : 'text-stone-900 dark:text-stone-100')}>
+            {task.title}
+          </h3>
+          {task.description && (
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1 line-clamp-2">{task.description}</p>
+          )}
         </div>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {task.tags.slice(0, 3).map((t) => (
+          <span
+            key={t}
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+          >
+            #{t}
+          </span>
+        ))}
+        {task.dueDate && <DueDateChip dueDate={task.dueDate} completed={isDone} size="xs" />}
         <select
-          className="text-xs form-select py-1 pr-7 pl-2"
+          className="ml-auto text-[10px] px-1 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 cursor-pointer hover:border-stone-300 dark:hover:border-stone-600"
           value={task.status}
           disabled={pending}
-          onChange={(e) => handleStatusChange(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => handleStatusChange(e.target.value, e)}
+          title="Change status"
         >
           {TASK_STATUSES.map((s) => (
             <option key={s} value={s}>{TASK_STATUS_LABEL[s]}</option>
           ))}
         </select>
-        <div className="flex items-center">
-          <button
-            onClick={handleLike}
-            disabled={pending}
-            className="flex items-center text-gray-400 dark:text-gray-500 hover:text-violet-500 ml-3 disabled:opacity-60"
-          >
-            <svg className="shrink-0 fill-current mr-1.5" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M14.682 2.318A4.485 4.485 0 0011.5 1 4.377 4.377 0 008 2.707 4.383 4.383 0 004.5 1a4.5 4.5 0 00-3.182 7.682L8 15l6.682-6.318a4.5 4.5 0 000-6.364zm-1.4 4.933L8 12.247l-5.285-5A2.5 2.5 0 014.5 3c1.437 0 2.312.681 3.5 2.625C9.187 3.681 10.062 3 11.5 3a2.5 2.5 0 011.785 4.251h-.003z" />
-            </svg>
-            <div className="text-sm text-gray-500 dark:text-gray-400">{task.likes}</div>
-          </button>
-          <div className="flex items-center text-gray-400 dark:text-gray-500 ml-3">
-            <svg className="shrink-0 fill-current mr-1.5" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M8 0C3.6 0 0 3.1 0 7s3.6 7 8 7h.6l5.4 2v-4.4c1.2-1.2 2-2.8 2-4.6 0-3.9-3.6-7-8-7z" />
-            </svg>
-            <div className="text-sm">{task.comments}</div>
-          </div>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={pending}
-            title="Delete task"
-            className="text-red-400 hover:text-red-500 ml-3 disabled:opacity-60"
-          >
-            <svg className="shrink-0 fill-current" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M5 7h6v6H5zM13 4h-3V2H6v2H3v1h10z" />
-            </svg>
-          </button>
-        </div>
       </div>
-    </div>
+    </Link>
   )
 }
