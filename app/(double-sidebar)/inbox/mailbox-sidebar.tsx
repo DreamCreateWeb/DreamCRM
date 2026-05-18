@@ -32,6 +32,18 @@ export default function MailboxSidebar({ accounts, activeAccountId, messages, ac
     }
   }
 
+  async function handleSyncAll() {
+    setSyncing('__all__')
+    setSyncError(null)
+    try {
+      await Promise.all(accounts.map((a) => syncMailbox(a.id)))
+    } catch (err) {
+      setSyncError((err as Error).message)
+    } finally {
+      setSyncing(null)
+    }
+  }
+
   return (
     <div
       id="messages-sidebar"
@@ -74,19 +86,23 @@ export default function MailboxSidebar({ accounts, activeAccountId, messages, ac
               + Add
             </Link>
           </div>
-          {activeAccountId && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <button
-                type="button"
-                onClick={() => handleSync(activeAccountId)}
-                disabled={syncing === activeAccountId}
-                className="hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-60"
-              >
-                {syncing === activeAccountId ? 'Syncing…' : '↻ Refresh'}
-              </button>
-              {syncError && <span className="text-red-600">{syncError}</span>}
-            </div>
-          )}
+          <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <button
+              type="button"
+              onClick={() => (activeAccountId ? handleSync(activeAccountId) : handleSyncAll())}
+              disabled={syncing !== null}
+              className="hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-60"
+            >
+              {syncing
+                ? 'Syncing…'
+                : activeAccountId
+                  ? '↻ Refresh this account'
+                  : accounts.length > 1
+                    ? `↻ Refresh all (${accounts.length})`
+                    : '↻ Refresh'}
+            </button>
+            {syncError && <span className="text-red-600">{syncError}</span>}
+          </div>
         </div>
         <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
           {messages.length === 0 ? (
