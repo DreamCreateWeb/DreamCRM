@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn, formatShortDate, formatTime } from '@/lib/utils'
 import type { EmailMessage } from '@/lib/services/mailbox'
-import type { InboxPatientContext } from '@/lib/services/patient-context'
+import type { InboxPatientContext } from '@/lib/types/patient-context'
 import {
   archiveMessageAction,
   markMessage,
@@ -46,16 +46,31 @@ export default function MessageView({ message, bodyHtml, patientContext, account
   if (!message) {
     return (
       <div className="grow flex flex-col items-center justify-center text-stone-400 dark:text-stone-500 px-8">
-        <svg className="w-14 h-14 mb-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <div className="text-sm">Select a message to read</div>
-        <div className="text-[11px] mt-2 tabular-nums tracking-wider opacity-70">
-          j / k to navigate · r to reply · e to archive
+        <div className="w-16 h-16 rounded-full bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center mb-4">
+          <svg className="w-7 h-7 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div className="text-sm font-medium text-stone-600 dark:text-stone-400">Nothing selected</div>
+        <div className="text-[12px] mt-1.5 text-stone-400 dark:text-stone-500">Pick a message from the list</div>
+        <div className="mt-6 flex items-center gap-2.5 text-[10px] text-stone-400 dark:text-stone-500 tabular-nums tracking-wider">
+          <Kbd>j</Kbd><Kbd>k</Kbd>
+          <span className="opacity-80">navigate</span>
+          <span className="opacity-30">·</span>
+          <Kbd>r</Kbd>
+          <span className="opacity-80">reply</span>
+          <span className="opacity-30">·</span>
+          <Kbd>e</Kbd>
+          <span className="opacity-80">archive</span>
         </div>
       </div>
     )
   }
+
+  // Capture the (now non-null) message into a const so its narrowed type
+  // survives into the closures below — TS doesn't carry narrowing into
+  // function declarations made after an early return.
+  const msg = message
 
   function nav(updates: Record<string, string | null>) {
     const params = new URLSearchParams(sp.toString())
@@ -66,10 +81,6 @@ export default function MessageView({ message, bodyHtml, patientContext, account
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
 
-  // Capture the (now non-null) message into a const so its narrowed type
-  // survives into the closures below — TS doesn't carry narrowing into
-  // function declarations made after an early return.
-  const msg = message
   function handleArchive() {
     startTransition(async () => {
       await archiveMessageAction(msg.id)
@@ -99,62 +110,71 @@ export default function MessageView({ message, bodyHtml, patientContext, account
 
   return (
     <div className="grow overflow-y-auto bg-stone-50/40 dark:bg-stone-900/20">
-      <div className="max-w-5xl mx-auto px-5 py-5">
-        {/* Action bar */}
-        <div className="flex items-center gap-1 mb-4">
-          <IconButton onClick={handleStar} title="Star (s)" active={message.isStarred} pending={pendingAction}>
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill={message.isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
+      <div className="max-w-5xl mx-auto px-5 pt-3 pb-8">
+        {/* Compact action toolbar */}
+        <div className="flex items-center gap-0.5 mb-3 -ml-1.5">
+          <IconButton onClick={handleStar} title={`${msg.isStarred ? 'Unstar' : 'Star'} (s)`} active={msg.isStarred} pending={pendingAction}>
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill={msg.isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
               <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" strokeLinejoin="round" />
             </svg>
           </IconButton>
           <IconButton onClick={handleArchive} title="Archive (e)" pending={pendingAction}>
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="4" width="18" height="4" rx="1" />
               <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
             </svg>
           </IconButton>
           <IconButton onClick={handleTrash} title="Trash (#)" pending={pendingAction}>
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M6 7l1 13a2 2 0 002 2h6a2 2 0 002-2l1-13" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </IconButton>
-          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
-          <IconButton onClick={handleToggleRead} title={message.isRead ? 'Mark unread (u)' : 'Mark read (u)'} pending={pendingAction}>
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              {message.isRead ? (
-                <path d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
+          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1.5" />
+          <IconButton onClick={handleToggleRead} title={`Mark ${msg.isRead ? 'unread' : 'read'} (u)`} pending={pendingAction}>
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              {msg.isRead ? (
+                <>
+                  <circle cx="12" cy="12" r="3.5" />
+                  <path d="M3 8l9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
+                </>
               ) : (
-                <circle cx="12" cy="12" r="4" fill="currentColor" />
+                <circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none" />
               )}
             </svg>
           </IconButton>
           <div className="ml-auto text-[11px] text-stone-400 dark:text-stone-500 tabular-nums tracking-wider">
-            {formatShortDate(message.receivedAt)} · {formatTime(message.receivedAt)}
+            {formatShortDate(msg.receivedAt)} · {formatTime(msg.receivedAt)}
           </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-5">
           {/* Main content */}
           <div className="min-w-0">
-            <div className="flex items-start gap-3 mb-4">
-              <h1 className="text-[22px] leading-tight font-semibold text-stone-900 dark:text-stone-100 tracking-tight">
-                {message.subject ?? '(no subject)'}
+            {/* Subject + intent */}
+            <div className="flex items-start gap-2.5 mb-3">
+              <h1 className="text-[20px] leading-snug font-semibold text-stone-900 dark:text-stone-100 tracking-tight">
+                {msg.subject ?? '(no subject)'}
               </h1>
-              <IntentBadge intent={message.intent} />
+              <div className="pt-1"><IntentBadge intent={msg.intent} /></div>
             </div>
 
-            <div className="flex items-start gap-3 mb-5 pb-4 border-b border-stone-200 dark:border-stone-700/40">
-              <Avatar name={message.fromName ?? message.fromEmail} />
-              <div className="min-w-0 grow text-sm">
-                <div className="font-medium text-stone-900 dark:text-stone-100 truncate">
-                  {message.fromName ?? message.fromEmail}
+            {/* Compact sender row */}
+            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-stone-200 dark:border-stone-700/40">
+              <Avatar name={msg.fromName ?? msg.fromEmail} />
+              <div className="min-w-0 grow text-[13px]">
+                <div className="flex items-baseline gap-1.5 min-w-0">
+                  <span className="font-medium text-stone-900 dark:text-stone-100 truncate">
+                    {msg.fromName ?? msg.fromEmail}
+                  </span>
+                  {msg.fromName && (
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                      &lt;{msg.fromEmail}&gt;
+                    </span>
+                  )}
                 </div>
-                {message.fromName && (
-                  <div className="text-[12px] text-stone-500 dark:text-stone-400 truncate">{message.fromEmail}</div>
-                )}
-                <div className="text-[12px] text-stone-500 dark:text-stone-400 mt-1 truncate">
-                  to {message.toEmails.join(', ')}
-                  {message.ccEmails.length > 0 && <> · cc {message.ccEmails.join(', ')}</>}
+                <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                  to {msg.toEmails.join(', ')}
+                  {msg.ccEmails.length > 0 && <> · cc {msg.ccEmails.join(', ')}</>}
                 </div>
               </div>
             </div>
@@ -166,27 +186,28 @@ export default function MessageView({ message, bodyHtml, patientContext, account
                 <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
               ) : (
                 <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-stone-700 dark:text-stone-200">
-                  {message.bodyText ?? '(empty body)'}
+                  {msg.bodyText ?? '(empty body)'}
                 </pre>
               )}
             </article>
 
-            {/* Quick reply */}
+            {/* Quick reply — always visible as a real textarea, not a button */}
             <div className="mt-6">
               {accountId && (
-                <QuickReplyAutoOpen
-                  signal={replyOpenSignal}
+                <QuickReply
+                  key={`reply-${msg.id}-${replyOpenSignal}`}
                   accountId={accountId}
-                  toEmail={message.fromEmail}
-                  toName={message.fromName}
-                  subject={message.subject}
+                  toEmail={msg.fromEmail}
+                  toName={msg.fromName}
+                  subject={msg.subject}
+                  alwaysOpen
                 />
               )}
             </div>
           </div>
 
           {/* Patient context sidebar */}
-          <div className="xl:sticky xl:top-5 xl:self-start">
+          <div className="xl:sticky xl:top-3 xl:self-start">
             {patientContext && <PatientCard ctx={patientContext} />}
           </div>
         </div>
@@ -214,10 +235,10 @@ function IconButton({
       disabled={pending}
       title={title}
       className={cn(
-        'p-1.5 rounded-md transition-colors',
+        'p-1.5 rounded-md transition-all',
         active
           ? 'text-amber-500 hover:text-amber-600 dark:text-amber-400'
-          : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800',
+          : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800',
         pending && 'opacity-50 cursor-wait',
       )}
     >
@@ -239,37 +260,16 @@ function Avatar({ name }: { name: string }) {
     'bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200',
   ]
   return (
-    <div className={cn('w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm shrink-0', colors[hue])}>
+    <div className={cn('w-9 h-9 rounded-full flex items-center justify-center font-semibold text-[13px] shrink-0', colors[hue])}>
       {initial}
     </div>
   )
 }
 
-// Re-mounts QuickReply with defaultOpen=true whenever the user hits 'R',
-// since the global key handler dispatches the inbox:quickreply event and
-// we bump `signal` in response. Without the remount the open state would
-// stay sticky across messages.
-function QuickReplyAutoOpen({
-  signal,
-  accountId,
-  toEmail,
-  toName,
-  subject,
-}: {
-  signal: number
-  accountId: string
-  toEmail: string
-  toName: string | null
-  subject: string | null
-}) {
+function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <QuickReply
-      key={`reply-${accountId}-${toEmail}-${signal}`}
-      accountId={accountId}
-      toEmail={toEmail}
-      toName={toName}
-      subject={subject}
-      defaultOpen={signal > 0}
-    />
+    <kbd className="px-1.5 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-mono text-[10px] shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
+      {children}
+    </kbd>
   )
 }

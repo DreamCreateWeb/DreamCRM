@@ -68,4 +68,14 @@ describe('sanitizeEmailHtml', () => {
     const out = sanitizeEmailHtml(html)
     expect(out).not.toContain('<iframe')
   })
+
+  it('strips <style> blocks so newsletter CSS cannot leak into the page', () => {
+    // Real newsletter emails ship CSS like this. Without stripping, the
+    // global `body` rule would resize the entire DreamCRM page.
+    const html = '<style>body { font-size: 32px; } a { color: red }</style><p>hi</p>'
+    const out = sanitizeEmailHtml(html)
+    expect(out).not.toContain('<style')
+    expect(out).not.toContain('font-size: 32px')
+    expect(out).toContain('<p>hi</p>')
+  })
 })

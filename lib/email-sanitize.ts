@@ -6,6 +6,14 @@ import sanitizeHtml from 'sanitize-html'
  * routinely include `<script>`, tracking pixels, inline event handlers, and
  * arbitrary remote stylesheets — all of which we strip before rendering.
  *
+ * IMPORTANT: we explicitly do NOT allow `<style>` blocks. Newsletter emails
+ * ship CSS with global selectors like `body { font-size: 16px }` that leak
+ * out of the email body and restyle the entire DreamCRM page. Inline
+ * `style="..."` attributes on individual elements are still allowed and
+ * cover ~95% of email styling fidelity. The "proper" fix for full fidelity
+ * would be sandboxing each email in an iframe; we'll do that if/when users
+ * complain that newsletters look broken.
+ *
  * What we keep:
  * - Standard text + layout tags (p, div, span, br, hr, headings, lists)
  * - Tables (email layouts often use them)
@@ -14,7 +22,7 @@ import sanitizeHtml from 'sanitize-html'
  * - Links (forced to target="_blank" + rel="noopener noreferrer")
  *
  * What we strip:
- * - <script>, <iframe>, <object>, <embed>, <form>
+ * - <script>, <iframe>, <object>, <embed>, <form>, <style>
  * - on* event handlers
  * - javascript: / vbscript: URLs
  * - Tracking pixels stay rendered but can't run JS
@@ -39,7 +47,6 @@ export function sanitizeEmailHtml(html: string): string {
       'caption',
       'col',
       'colgroup',
-      'style', // some emails ship a <style> block in the body — let it through but filtered below
     ]),
     allowedAttributes: {
       '*': ['style', 'class', 'id', 'align', 'width', 'height', 'bgcolor'],
