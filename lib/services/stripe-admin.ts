@@ -250,7 +250,7 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
     ])
   )
   for (const pid of productIds) {
-    const prices = await stripe.prices.list({ product: pid, limit: 50, active: undefined })
+    const prices = await stripe.prices.list({ product: pid, limit: 50, active: true })
     for (const pr of prices.data) {
       productMap.get(pid)?.prices.push({
         id: pr.id,
