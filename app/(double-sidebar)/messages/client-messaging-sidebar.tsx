@@ -10,27 +10,68 @@ import NewConversationButton from './new-conversation-button'
 
 interface Props {
   conversations: ClientConversation[]
-  contacts: ClinicContact[]
+  clientContacts: ClinicContact[]
+  teamContacts: ClinicContact[]
   stats: ClientMessagingStats
   activeId: number | null
 }
 
 type FilterMode = 'all' | 'unread' | 'stale'
+type Tab = 'clients' | 'team'
 
-export default function ClientMessagingSidebar({ conversations, contacts, stats, activeId }: Props) {
+export default function ClientMessagingSidebar({
+  conversations,
+  clientContacts,
+  teamContacts,
+  stats,
+  activeId,
+}: Props) {
   const { flyoutOpen, setFlyoutOpen } = useFlyoutContext()
   const [filter, setFilter] = useState<FilterMode>('all')
   const [search, setSearch] = useState('')
 
-  // Map clinic users into the picker shape the existing component expects.
-  const pickerUsers = useMemo(
-    () =>
-      contacts.map((c) => ({
-        id: c.userId,
-        name: c.name ? `${c.name} — ${c.clinicName}` : `${c.email} — ${c.clinicName}`,
-      })),
-    [contacts],
+  // Default to whichever tab contains the active conversation, then to
+  // clients. Memoized so toggling stays user-controlled.
+  const activeConvoKind = useMemo(
+    () => conversations.find((c) => c.id === activeId)?.kind ?? null,
+    [conversations, activeId],
   )
+  const [tab, setTab] = useState<Tab>(activeConvoKind === 'team' ? 'team' : 'clients')
+
+  // Counts per tab so the tab labels show the load at a glance.
+  const tabCounts = useMemo(() => {
+    let clients = 0
+    let team = 0
+    let clientUnread = 0
+    let teamUnread = 0
+    for (const c of conversations) {
+      if (c.kind === 'team') {
+        team++
+        teamUnread += c.unreadCount
+      } else {
+        // 'client' and 'other' both live under the Clients tab — 'other'
+        // covers edge cases (deleted users, etc.)
+        clients++
+        clientUnread += c.unreadCount
+      }
+    }
+    return { clients, team, clientUnread, teamUnread }
+  }, [conversations])
+
+  // Pick the right contact set + label formatter for the current tab.
+  const pickerUsers = useMemo(() => {
+    const source = tab === 'team' ? teamContacts : clientContacts
+    return source.map((c) => ({
+      id: c.userId,
+      name: c.name
+        ? tab === 'team'
+          ? c.name
+          : `${c.name} — ${c.clinicName}`
+        : tab === 'team'
+          ? c.email
+          : `${c.email} — ${c.clinicName}`,
+    }))
+  }, [tab, teamContacts, clientContacts])
 
   const now = Date.now()
   const STALE_MS = 3 * 24 * 60 * 60 * 1000
@@ -38,6 +79,9 @@ export default function ClientMessagingSidebar({ conversations, contacts, stats,
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return conversations.filter((c) => {
+      // Tab filter first
+      if (tab === 'team' && c.kind !== 'team') return false
+      if (tab === 'clients' && c.kind === 'team') return false
       if (filter === 'unread' && c.unreadCount === 0) return false
       if (filter === 'stale') {
         const lastMs = c.lastAt ? new Date(c.lastAt).getTime() : 0
@@ -52,10 +96,14 @@ export default function ClientMessagingSidebar({ conversations, contacts, stats,
       }
       return true
     })
-  }, [conversations, filter, search, now])
+  }, [conversations, tab, filter, search, now])
 
-  // Group by clinic so platform admin sees one logical bucket per client.
+  // Group by clinic for the Clients tab; for Team it's one flat bucket
+  // since every convo lives in the same Dream Create org.
   const grouped = useMemo(() => {
+    if (tab === 'team') {
+      return filtered.length > 0 ? [{ clinicName: 'Team', clinicOrgId: null, convos: filtered }] : []
+    }
     const buckets = new Map<string, { clinicName: string; clinicOrgId: string | null; convos: ClientConversation[] }>()
     for (const c of filtered) {
       const key = c.clinicOrgId ?? '__unassigned__'
@@ -64,13 +112,12 @@ export default function ClientMessagingSidebar({ conversations, contacts, stats,
       if (existing) existing.convos.push(c)
       else buckets.set(key, { clinicName: label, clinicOrgId: c.clinicOrgId, convos: [c] })
     }
-    // Sort buckets by most recent activity inside them
     return Array.from(buckets.values()).sort((a, b) => {
       const aMax = Math.max(0, ...a.convos.map((c) => (c.lastAt ? new Date(c.lastAt).getTime() : 0)))
       const bMax = Math.max(0, ...b.convos.map((c) => (c.lastAt ? new Date(c.lastAt).getTime() : 0)))
       return bMax - aMax
     })
-  }, [filtered])
+  }, [filtered, tab])
 
   return (
     <div
@@ -84,25 +131,50 @@ export default function ClientMessagingSidebar({ conversations, contacts, stats,
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60">
           <header className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-base font-semibold text-gray-800 dark:text-gray-100">Client Messaging</div>
+              <div className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                {tab === 'team' ? 'Team Messaging' : 'Client Messaging'}
+              </div>
               <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                Conversations with clinic owners &amp; admins
+                {tab === 'team'
+                  ? 'Conversations with your Dream Create teammates'
+                  : 'Conversations with clinic owners & admins'}
               </div>
             </div>
             <NewConversationButton users={pickerUsers} />
           </header>
+          {/* Tab strip — Clients / Team */}
+          <div className="grid grid-cols-2 gap-1 p-0.5 bg-gray-100 dark:bg-gray-700/60 rounded-lg mb-3">
+            <TabButton
+              label="Clients"
+              count={tabCounts.clients}
+              unread={tabCounts.clientUnread}
+              active={tab === 'clients'}
+              onClick={() => setTab('clients')}
+            />
+            <TabButton
+              label="Team"
+              count={tabCounts.team}
+              unread={tabCounts.teamUnread}
+              active={tab === 'team'}
+              onClick={() => setTab('team')}
+            />
+          </div>
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search clinic, name, or message…"
+            placeholder={tab === 'team' ? 'Search teammate or message…' : 'Search clinic, name, or message…'}
             aria-label="Search conversations"
             className="form-input text-sm py-1.5 w-full mb-2"
           />
           <div className="flex gap-1.5">
-            <FilterChip label={`All (${conversations.length})`} active={filter === 'all'} onClick={() => setFilter('all')} />
             <FilterChip
-              label={`Unread (${stats.unreadMessages > 0 ? conversations.filter((c) => c.unreadCount > 0).length : 0})`}
+              label={`All (${tab === 'team' ? tabCounts.team : tabCounts.clients})`}
+              active={filter === 'all'}
+              onClick={() => setFilter('all')}
+            />
+            <FilterChip
+              label={`Unread (${(tab === 'team' ? tabCounts.teamUnread : tabCounts.clientUnread) > 0 ? conversations.filter((c) => c.unreadCount > 0 && (tab === 'team' ? c.kind === 'team' : c.kind !== 'team')).length : 0})`}
               active={filter === 'unread'}
               onClick={() => setFilter('unread')}
             />
@@ -117,7 +189,9 @@ export default function ClientMessagingSidebar({ conversations, contacts, stats,
           {grouped.length === 0 ? (
             <div className="px-3 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
               {conversations.length === 0
-                ? 'No conversations yet. Start one with a clinic admin to begin.'
+                ? tab === 'team'
+                  ? 'No team conversations yet. Invite a teammate from /settings/team, then start a thread.'
+                  : 'No client conversations yet. Start one with a clinic admin to begin.'
                 : 'Nothing matches these filters.'}
             </div>
           ) : (
@@ -135,6 +209,39 @@ export default function ClientMessagingSidebar({ conversations, contacts, stats,
         </div>
       </div>
     </div>
+  )
+}
+
+function TabButton({
+  label,
+  count,
+  unread,
+  active,
+  onClick,
+}: {
+  label: string
+  count: number
+  unread: number
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative text-sm font-medium py-1.5 rounded-md transition-colors ${
+        active
+          ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 shadow-sm'
+          : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'
+      }`}
+    >
+      {label} <span className="text-gray-400 dark:text-gray-500 font-normal">({count})</span>
+      {unread > 0 && (
+        <span className="ml-1 inline-flex items-center justify-center text-[10px] font-bold bg-violet-500 text-white rounded-full px-1.5 align-middle">
+          {unread}
+        </span>
+      )}
+    </button>
   )
 }
 

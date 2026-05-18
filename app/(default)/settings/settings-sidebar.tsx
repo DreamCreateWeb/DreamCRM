@@ -14,6 +14,24 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
 
   return (
     <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-auto px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60 min-w-[15rem] md:space-y-3">
+      {tenantType === 'platform' && (
+        <div>
+          <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">Platform</div>
+          <ul className="flex flex-nowrap md:block mr-3 md:mr-0">
+            <li className="mr-0.5 md:mr-0 md:mb-0.5">
+              <Link
+                href="/settings/team"
+                className={`flex items-center px-2.5 py-2 rounded-lg whitespace-nowrap ${pathname.includes('/settings/team') && 'bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'}`}
+              >
+                <svg className={`shrink-0 fill-current mr-2 ${pathname.includes('/settings/team') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'}`} width="16" height="16" viewBox="0 0 16 16">
+                  <path d="M5 4a3 3 0 1 1 6 0 3 3 0 0 1-6 0Zm3 5a5 5 0 0 0-5 5 1 1 0 1 1-2 0 7 7 0 0 1 14 0 1 1 0 1 1-2 0 5 5 0 0 0-5-5Z" />
+                </svg>
+                <span className={`text-sm font-medium ${pathname.includes('/settings/team') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'}`}>Team</span>
+              </Link>
+            </li>
+          </ul>
+        </div>
+      )}
       {tenantType === 'clinic' && (
         <div>
           <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">Website</div>

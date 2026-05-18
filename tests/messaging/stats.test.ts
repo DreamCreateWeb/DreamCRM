@@ -7,6 +7,7 @@ function convo(overrides: Partial<ClientConversation> = {}): ClientConversation 
   return {
     id: overrides.id ?? 1,
     title: 'Convo',
+    kind: 'client',
     clinicOrgId: 'org_x',
     clinicName: 'X Clinic',
     clinicSlug: 'x',

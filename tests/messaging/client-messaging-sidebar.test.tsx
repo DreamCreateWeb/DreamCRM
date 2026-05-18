@@ -20,6 +20,7 @@ function convo(overrides: Partial<ClientConversation> = {}): ClientConversation 
   return {
     id: overrides.id ?? 1,
     title: null,
+    kind: 'client',
     clinicOrgId: 'org_acme',
     clinicName: 'Acme Dental',
     clinicSlug: 'acme',
@@ -44,12 +45,12 @@ describe('ClientMessagingSidebar', () => {
     renderWithProvider(
       <ClientMessagingSidebar
         conversations={[]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={STATS}
         activeId={null}
       />,
     )
-    expect(screen.getByText(/No conversations yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/No client conversations yet/i)).toBeInTheDocument()
   })
 
   it('groups conversations by clinic with the clinic name as the bucket label', () => {
@@ -59,7 +60,7 @@ describe('ClientMessagingSidebar', () => {
           convo({ id: 1, clinicOrgId: 'org_acme', clinicName: 'Acme Dental', counterpartName: 'Alice' }),
           convo({ id: 2, clinicOrgId: 'org_bright', clinicName: 'Bright Smiles', counterpartName: 'Bob' }),
         ]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={{ ...STATS, activeConversations: 2 }}
         activeId={null}
       />,
@@ -74,7 +75,7 @@ describe('ClientMessagingSidebar', () => {
     renderWithProvider(
       <ClientMessagingSidebar
         conversations={[convo({ clinicOrgId: 'org_acme', clinicName: 'Acme Dental' })]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={{ ...STATS, activeConversations: 1 }}
         activeId={null}
       />,
@@ -88,7 +89,7 @@ describe('ClientMessagingSidebar', () => {
     renderWithProvider(
       <ClientMessagingSidebar
         conversations={[convo({ counterpartName: 'Alice', unreadCount: 4 })]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={{ ...STATS, activeConversations: 1, unreadMessages: 4 }}
         activeId={null}
       />,
@@ -105,7 +106,7 @@ describe('ClientMessagingSidebar', () => {
           convo({ id: 1, counterpartName: 'Read One', unreadCount: 0 }),
           convo({ id: 2, counterpartName: 'Unread One', unreadCount: 2 }),
         ]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={{ ...STATS, activeConversations: 2, unreadMessages: 2 }}
         activeId={null}
       />,
@@ -123,7 +124,7 @@ describe('ClientMessagingSidebar', () => {
           convo({ id: 1, clinicName: 'Acme Dental', counterpartName: 'Alice', lastMessage: 'about logos' }),
           convo({ id: 2, clinicName: 'Bright Smiles', counterpartName: 'Bob', lastMessage: 'video shoot' }),
         ]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={{ ...STATS, activeConversations: 2 }}
         activeId={null}
       />,
@@ -139,7 +140,7 @@ describe('ClientMessagingSidebar', () => {
     renderWithProvider(
       <ClientMessagingSidebar
         conversations={[convo({ counterpartName: 'Alice' })]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={{ ...STATS, activeConversations: 1 }}
         activeId={null}
       />,
@@ -155,7 +156,7 @@ describe('ClientMessagingSidebar', () => {
           convo({ id: 1, counterpartName: 'Inactive' }),
           convo({ id: 2, counterpartName: 'Active' }),
         ]}
-        contacts={CONTACTS}
+        clientContacts={CONTACTS} teamContacts={CONTACTS}
         stats={{ ...STATS, activeConversations: 2 }}
         activeId={2}
       />,
@@ -164,5 +165,91 @@ describe('ClientMessagingSidebar', () => {
     expect(activeLink.className).toMatch(/bg-violet-500\/10/)
     const inactiveLink = screen.getByText('Inactive').closest('a')!
     expect(inactiveLink.className).not.toMatch(/bg-violet-500\/10/)
+  })
+
+  it('shows the Clients tab by default and hides team conversations', () => {
+    renderWithProvider(
+      <ClientMessagingSidebar
+        conversations={[
+          convo({ id: 1, kind: 'client', counterpartName: 'Acme Alice' }),
+          convo({ id: 2, kind: 'team', counterpartName: 'Teammate Tom', clinicOrgId: null, clinicName: null }),
+        ]}
+        clientContacts={CONTACTS}
+        teamContacts={CONTACTS}
+        stats={{ ...STATS, activeConversations: 2 }}
+        activeId={null}
+      />,
+    )
+    expect(screen.getByText('Acme Alice')).toBeInTheDocument()
+    expect(screen.queryByText('Teammate Tom')).not.toBeInTheDocument()
+  })
+
+  it('switches to the Team tab and shows only team conversations', async () => {
+    const user = userEvent.setup()
+    renderWithProvider(
+      <ClientMessagingSidebar
+        conversations={[
+          convo({ id: 1, kind: 'client', counterpartName: 'Acme Alice' }),
+          convo({ id: 2, kind: 'team', counterpartName: 'Teammate Tom', clinicOrgId: null, clinicName: null }),
+        ]}
+        clientContacts={CONTACTS}
+        teamContacts={CONTACTS}
+        stats={{ ...STATS, activeConversations: 2 }}
+        activeId={null}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: /^Team \(1\)/ }))
+    expect(screen.queryByText('Acme Alice')).not.toBeInTheDocument()
+    expect(screen.getByText('Teammate Tom')).toBeInTheDocument()
+  })
+
+  it('shows tab counts and per-tab unread badges', () => {
+    renderWithProvider(
+      <ClientMessagingSidebar
+        conversations={[
+          convo({ id: 1, kind: 'client', counterpartName: 'Alice', unreadCount: 2 }),
+          convo({ id: 2, kind: 'team', counterpartName: 'Tom', unreadCount: 5, clinicOrgId: null, clinicName: null }),
+        ]}
+        clientContacts={CONTACTS}
+        teamContacts={CONTACTS}
+        stats={{ ...STATS, activeConversations: 2, unreadMessages: 7 }}
+        activeId={null}
+      />,
+    )
+    // Tab labels include count
+    expect(screen.getByRole('button', { name: /^Clients \(1\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Team \(1\)/ })).toBeInTheDocument()
+  })
+
+  it('opens on the Team tab when the active conversation is a team thread', () => {
+    renderWithProvider(
+      <ClientMessagingSidebar
+        conversations={[
+          convo({ id: 1, kind: 'client', counterpartName: 'Acme Alice' }),
+          convo({ id: 2, kind: 'team', counterpartName: 'Teammate Tom', clinicOrgId: null, clinicName: null }),
+        ]}
+        clientContacts={CONTACTS}
+        teamContacts={CONTACTS}
+        stats={{ ...STATS, activeConversations: 2 }}
+        activeId={2}
+      />,
+    )
+    expect(screen.getByText('Teammate Tom')).toBeInTheDocument()
+    expect(screen.queryByText('Acme Alice')).not.toBeInTheDocument()
+  })
+
+  it('shows the team empty-state hint when there are no team conversations', async () => {
+    const user = userEvent.setup()
+    renderWithProvider(
+      <ClientMessagingSidebar
+        conversations={[]}
+        clientContacts={CONTACTS}
+        teamContacts={CONTACTS}
+        stats={STATS}
+        activeId={null}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: /^Team \(0\)/ }))
+    expect(screen.getByText(/Invite a teammate from \/settings\/team/i)).toBeInTheDocument()
   })
 })
