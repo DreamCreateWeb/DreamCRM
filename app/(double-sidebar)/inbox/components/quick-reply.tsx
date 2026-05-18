@@ -9,21 +9,14 @@ interface Props {
   toEmail: string
   toName: string | null
   subject: string | null
-  /**
-   * When true, the textarea is always rendered (auto-expanding rather than
-   * hidden behind a "click to compose" button). The MessageView passes this
-   * since a reply should always be one keystroke away once a message is
-   * open. The collapsed state is kept for future use (eg compose in a list
-   * view) but not used today.
-   */
-  alwaysOpen?: boolean
+  textareaId?: string
 }
 
 /**
  * Inline quick-reply. A single auto-growing textarea pinned below the
- * message. Press Cmd/Ctrl+Enter to send. Esc clears + blurs.
+ * message. Press Cmd/Ctrl+Enter to send. Esc blurs.
  */
-export default function QuickReply({ accountId, toEmail, toName, subject, alwaysOpen = false }: Props) {
+export default function QuickReply({ accountId, toEmail, toName, subject, textareaId }: Props) {
   const [body, setBody] = useState('')
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -68,6 +61,7 @@ export default function QuickReply({ accountId, toEmail, toName, subject, always
       </div>
       <textarea
         ref={taRef}
+        id={textareaId}
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {

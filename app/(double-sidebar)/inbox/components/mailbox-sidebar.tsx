@@ -9,7 +9,53 @@ import type { EmailAccountSummary, EmailMessageListItem } from '@/lib/services/m
 import ComposeButton from '../compose-button'
 import { syncMailbox } from '../mailbox-actions'
 import FilterChips from './filter-chips'
-import { IntentDot } from './intent-badge'
+import { INTENT_COLORS } from './intent-badge'
+
+/**
+ * Avatar with optional intent-color outline ring + unread dot in the corner.
+ * Replaces the old "colored stripe on the very left of the row" indicator
+ * since the stripe got crowded against the row's left padding. Keeps
+ * unread information visible without taking a separate column.
+ */
+function RowAvatar({
+  name,
+  unread,
+  intent,
+}: {
+  name: string
+  unread: boolean
+  intent: string | null
+}) {
+  const initial = (name?.[0] ?? '?').toUpperCase()
+  const hue = Math.abs(name.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 6
+  const colors = [
+    'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+    'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
+    'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+    'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+    'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+    'bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200',
+  ]
+  const ringColor = intent ? (INTENT_COLORS[intent] ?? INTENT_COLORS.other).dot : 'bg-transparent'
+  return (
+    <div className="relative shrink-0 mt-0.5">
+      <div
+        className={cn(
+          'w-8 h-8 rounded-full flex items-center justify-center font-semibold text-[12px]',
+          colors[hue],
+        )}
+      >
+        {initial}
+      </div>
+      {intent && (
+        <span className={cn('absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-stone-900', ringColor)} />
+      )}
+      {unread && !intent && (
+        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-stone-900" />
+      )}
+    </div>
+  )
+}
 
 interface Props {
   accounts: EmailAccountSummary[]
@@ -141,7 +187,7 @@ export default function MailboxSidebar({
         />
 
         {/* Message list */}
-        <ul className="divide-y divide-stone-100 dark:divide-stone-700/40">
+        <ul>
           {messages.length === 0 ? (
             <li className="px-4 py-12 text-center text-sm text-stone-500 dark:text-stone-400">
               No messages here yet.
@@ -153,28 +199,30 @@ export default function MailboxSidebar({
                 ? `${m.patientFirstName} ${m.patientLastName ?? ''}`.trim()
                 : null
               return (
-                <li key={m.id}>
+                <li key={m.id} className="relative">
+                  {/* Active selection: thin left bar (Linear style) */}
+                  {isActive && (
+                    <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-stone-900 dark:bg-stone-100" />
+                  )}
                   <Link
                     href={messageHref(m.id)}
                     onClick={() => setFlyoutOpen(false)}
                     className={cn(
-                      'flex gap-2.5 px-3 py-3 transition-colors group',
+                      'flex items-start gap-2.5 px-3.5 py-2.5 transition-colors border-b border-stone-100 dark:border-stone-700/30 last:border-b-0',
                       isActive
-                        ? 'bg-stone-100 dark:bg-stone-800/60'
+                        ? 'bg-stone-100/80 dark:bg-stone-800/60'
                         : m.isRead
                           ? 'hover:bg-stone-50 dark:hover:bg-stone-800/30'
-                          : 'bg-emerald-50/40 hover:bg-emerald-50/70 dark:bg-emerald-500/[0.05] dark:hover:bg-emerald-500/[0.08]',
+                          : 'hover:bg-stone-50 dark:hover:bg-stone-800/30',
                     )}
                   >
-                    <IntentDot intent={m.intent} />
+                    <RowAvatar name={m.fromName ?? m.fromEmail} unread={!m.isRead} intent={m.intent} />
                     <div className="min-w-0 grow">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        {!m.isRead && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        )}
+                      {/* Top row: sender · star · time */}
+                      <div className="flex items-baseline gap-1.5 mb-0.5">
                         <span
                           className={cn(
-                            'text-[13px] truncate',
+                            'text-[13px] truncate leading-tight',
                             m.isRead
                               ? 'text-stone-700 dark:text-stone-300'
                               : 'font-semibold text-stone-900 dark:text-stone-100',
@@ -183,35 +231,48 @@ export default function MailboxSidebar({
                           {m.fromName ?? m.fromEmail}
                         </span>
                         {m.isStarred && (
-                          <svg className="w-3 h-3 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                          <svg className="w-3 h-3 text-amber-500 shrink-0 self-center" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" />
                           </svg>
                         )}
-                        <span className="ml-auto text-[10px] text-stone-500 dark:text-stone-400 shrink-0 tabular-nums">
+                        <span className="ml-auto text-[10px] text-stone-400 dark:text-stone-500 shrink-0 tabular-nums whitespace-nowrap">
                           {relativeTime(m.receivedAt)}
                         </span>
                       </div>
+                      {/* Subject + inline snippet (Gmail-style "subject — preview") */}
                       <div
                         className={cn(
-                          'text-[12px] truncate mb-0.5',
-                          m.isRead ? 'text-stone-600 dark:text-stone-400' : 'font-medium text-stone-800 dark:text-stone-200',
+                          'text-[12px] truncate leading-snug',
+                          m.isRead
+                            ? 'text-stone-600 dark:text-stone-400'
+                            : 'text-stone-800 dark:text-stone-200',
                         )}
                       >
-                        {m.subject ?? '(no subject)'}
+                        <span className={cn(m.isRead ? '' : 'font-medium')}>
+                          {m.subject ?? '(no subject)'}
+                        </span>
+                        {m.snippet && (
+                          <span className="text-stone-400 dark:text-stone-500 font-normal">
+                            {' — '}
+                            {m.snippet}
+                          </span>
+                        )}
                       </div>
-                      {m.snippet && (
-                        <div className="text-[11px] text-stone-500 dark:text-stone-500 truncate">
-                          {m.snippet}
+                      {/* Bottom row: badges */}
+                      {(patientName || (accounts.length > 1 && m.accountEmail)) && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {patientName && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full bg-emerald-100/70 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 px-1.5 py-0.5">
+                              <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                              {patientName}
+                            </span>
+                          )}
+                          {accounts.length > 1 && m.accountEmail && (
+                            <span className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
+                              {m.accountEmail}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      {patientName && (
-                        <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium rounded-full bg-emerald-100/70 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 px-1.5 py-0.5">
-                          <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                          {patientName}
-                        </div>
-                      )}
-                      {accounts.length > 1 && m.accountEmail && (
-                        <div className="text-[10px] text-stone-400 mt-1 truncate">→ {m.accountEmail}</div>
                       )}
                     </div>
                   </Link>

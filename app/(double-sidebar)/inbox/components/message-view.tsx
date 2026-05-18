@@ -12,7 +12,9 @@ import {
   trashMessageAction,
 } from '../mailbox-actions'
 import PatientCard from './patient-card'
+import AddPatientCard from './add-patient-card'
 import QuickReply from './quick-reply'
+import EmailIframe from './email-iframe'
 import { IntentBadge } from './intent-badge'
 
 interface Props {
@@ -36,9 +38,15 @@ export default function MessageView({ message, bodyHtml, patientContext, account
     }
   }, [message])
 
-  // Listen for the R keyboard shortcut from the global handler.
+  // Scroll the reply input into view when the user hits R.
   useEffect(() => {
-    function onReply() { setReplyOpenSignal((n) => n + 1) }
+    function onReply() {
+      setReplyOpenSignal((n) => n + 1)
+      requestAnimationFrame(() => {
+        document.getElementById('quick-reply')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        document.getElementById('quick-reply-textarea')?.focus()
+      })
+    }
     window.addEventListener('inbox:quickreply', onReply)
     return () => window.removeEventListener('inbox:quickreply', onReply)
   }, [])
@@ -67,9 +75,9 @@ export default function MessageView({ message, bodyHtml, patientContext, account
     )
   }
 
-  // Capture the (now non-null) message into a const so its narrowed type
-  // survives into the closures below — TS doesn't carry narrowing into
-  // function declarations made after an early return.
+  // Capture the narrowed-non-null message into a const so closures keep its
+  // type — TS doesn't carry narrowing into function declarations made after
+  // an early return.
   const msg = message
 
   function nav(updates: Record<string, string | null>) {
@@ -81,6 +89,13 @@ export default function MessageView({ message, bodyHtml, patientContext, account
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
 
+  function handleReplyClick() {
+    setReplyOpenSignal((n) => n + 1)
+    requestAnimationFrame(() => {
+      document.getElementById('quick-reply')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      document.getElementById('quick-reply-textarea')?.focus()
+    })
+  }
   function handleArchive() {
     startTransition(async () => {
       await archiveMessageAction(msg.id)
@@ -110,28 +125,37 @@ export default function MessageView({ message, bodyHtml, patientContext, account
 
   return (
     <div className="grow overflow-y-auto bg-stone-50/40 dark:bg-stone-900/20">
-      <div className="max-w-5xl mx-auto px-5 pt-3 pb-8">
-        {/* Compact action toolbar */}
-        <div className="flex items-center gap-0.5 mb-3 -ml-1.5">
-          <IconButton onClick={handleStar} title={`${msg.isStarred ? 'Unstar' : 'Star'} (s)`} active={msg.isStarred} pending={pendingAction}>
-            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill={msg.isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
+      {/* Sticky toolbar — stays visible while scrolling long emails */}
+      <div className="sticky top-0 z-10 bg-white/85 dark:bg-stone-900/85 backdrop-blur border-b border-stone-200 dark:border-stone-700/60">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-1.5">
+          <ToolbarButton onClick={handleReplyClick} variant="primary" shortcut="R" pending={pendingAction}>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 17l-5-5 5-5M4 12h11a5 5 0 015 5v0" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Reply
+          </ToolbarButton>
+          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
+          <ToolbarButton onClick={handleStar} active={msg.isStarred} shortcut="S" pending={pendingAction}>
+            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill={msg.isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
               <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" strokeLinejoin="round" />
             </svg>
-          </IconButton>
-          <IconButton onClick={handleArchive} title="Archive (e)" pending={pendingAction}>
-            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            {msg.isStarred ? 'Starred' : 'Star'}
+          </ToolbarButton>
+          <ToolbarButton onClick={handleArchive} shortcut="E" pending={pendingAction}>
+            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="4" width="18" height="4" rx="1" />
               <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
             </svg>
-          </IconButton>
-          <IconButton onClick={handleTrash} title="Trash (#)" pending={pendingAction}>
-            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            Archive
+          </ToolbarButton>
+          <ToolbarButton onClick={handleTrash} shortcut="#" pending={pendingAction}>
+            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M6 7l1 13a2 2 0 002 2h6a2 2 0 002-2l1-13" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </IconButton>
-          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1.5" />
-          <IconButton onClick={handleToggleRead} title={`Mark ${msg.isRead ? 'unread' : 'read'} (u)`} pending={pendingAction}>
-            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            Trash
+          </ToolbarButton>
+          <ToolbarButton onClick={handleToggleRead} shortcut="U" pending={pendingAction}>
+            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               {msg.isRead ? (
                 <>
                   <circle cx="12" cy="12" r="3.5" />
@@ -141,12 +165,15 @@ export default function MessageView({ message, bodyHtml, patientContext, account
                 <circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none" />
               )}
             </svg>
-          </IconButton>
-          <div className="ml-auto text-[11px] text-stone-400 dark:text-stone-500 tabular-nums tracking-wider">
+            {msg.isRead ? 'Unread' : 'Read'}
+          </ToolbarButton>
+          <div className="ml-auto text-[11px] text-stone-500 dark:text-stone-400 tabular-nums tracking-wider hidden sm:block">
             {formatShortDate(msg.receivedAt)} · {formatTime(msg.receivedAt)}
           </div>
         </div>
+      </div>
 
+      <div className="max-w-5xl mx-auto px-5 pt-4 pb-8">
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-5">
           {/* Main content */}
           <div className="min-w-0">
@@ -179,20 +206,17 @@ export default function MessageView({ message, bodyHtml, patientContext, account
               </div>
             </div>
 
-            {/* Body */}
-            <article className="prose prose-stone prose-sm dark:prose-invert max-w-none prose-img:rounded-md prose-a:text-emerald-700 dark:prose-a:text-emerald-400 prose-headings:font-semibold">
-              {bodyHtml ? (
-                // Body comes pre-sanitized from the server (lib/email-sanitize.ts).
-                <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
-              ) : (
-                <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-stone-700 dark:text-stone-200">
-                  {msg.bodyText ?? '(empty body)'}
-                </pre>
-              )}
-            </article>
+            {/* Body — iframe-rendered for full CSS isolation */}
+            {bodyHtml ? (
+              <EmailIframe html={bodyHtml} />
+            ) : (
+              <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-stone-800 dark:text-stone-100">
+                {msg.bodyText ?? '(empty body)'}
+              </pre>
+            )}
 
-            {/* Quick reply — always visible as a real textarea, not a button */}
-            <div className="mt-6">
+            {/* Quick reply */}
+            <div id="quick-reply" className="mt-6 scroll-mt-20">
               {accountId && (
                 <QuickReply
                   key={`reply-${msg.id}-${replyOpenSignal}`}
@@ -200,15 +224,19 @@ export default function MessageView({ message, bodyHtml, patientContext, account
                   toEmail={msg.fromEmail}
                   toName={msg.fromName}
                   subject={msg.subject}
-                  alwaysOpen
+                  textareaId="quick-reply-textarea"
                 />
               )}
             </div>
           </div>
 
-          {/* Patient context sidebar */}
-          <div className="xl:sticky xl:top-3 xl:self-start">
-            {patientContext && <PatientCard ctx={patientContext} />}
+          {/* Right column — patient card or add-patient CTA */}
+          <div className="xl:sticky xl:top-16 xl:self-start">
+            {patientContext ? (
+              <PatientCard ctx={patientContext} />
+            ) : (
+              <AddPatientCard messageId={msg.id} fromEmail={msg.fromEmail} fromName={msg.fromName} />
+            )}
           </div>
         </div>
       </div>
@@ -216,29 +244,33 @@ export default function MessageView({ message, bodyHtml, patientContext, account
   )
 }
 
-function IconButton({
+function ToolbarButton({
   children,
   onClick,
-  title,
   active,
   pending,
+  variant = 'default',
+  shortcut,
 }: {
   children: React.ReactNode
   onClick: () => void
-  title: string
   active?: boolean
   pending?: boolean
+  variant?: 'default' | 'primary'
+  shortcut?: string
 }) {
   return (
     <button
       onClick={onClick}
       disabled={pending}
-      title={title}
+      title={shortcut ? `Shortcut: ${shortcut}` : undefined}
       className={cn(
-        'p-1.5 rounded-md transition-all',
-        active
-          ? 'text-amber-500 hover:text-amber-600 dark:text-amber-400'
-          : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800',
+        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors',
+        variant === 'primary'
+          ? 'bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white'
+          : active
+            ? 'text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10'
+            : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-300 dark:hover:text-stone-100 dark:hover:bg-stone-800',
         pending && 'opacity-50 cursor-wait',
       )}
     >
@@ -249,7 +281,6 @@ function IconButton({
 
 function Avatar({ name }: { name: string }) {
   const initial = (name?.[0] ?? '?').toUpperCase()
-  // Deterministic color hash so the same sender always gets the same hue.
   const hue = Math.abs(name.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 6
   const colors = [
     'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',

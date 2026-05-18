@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireTenant } from '@/lib/auth/context'
 import {
+  addPatientFromEmail,
   archiveMessage as svcArchive,
   disconnectAccount as svcDisconnect,
   sendEmail,
@@ -62,6 +63,29 @@ export async function trashMessageAction(messageId: string) {
   await svcTrash(messageId, ctx.organizationId)
   revalidatePath('/inbox')
   return { ok: true }
+}
+
+const AddPatientInput = z.object({
+  messageId: z.string().min(1),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  email: z.string().email(),
+  phone: z.string().nullable().optional(),
+})
+
+export async function addPatientFromEmailAction(input: unknown) {
+  const ctx = await requireOrgUser()
+  const data = AddPatientInput.parse(input)
+  const result = await addPatientFromEmail({
+    organizationId: ctx.organizationId,
+    fromEmail: data.email,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    phone: data.phone ?? null,
+    messageId: data.messageId,
+  })
+  revalidatePath('/inbox')
+  return result
 }
 
 const SendInput = z.object({
