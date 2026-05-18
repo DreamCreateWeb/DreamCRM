@@ -3,6 +3,7 @@ import { FlyoutProvider } from '@/app/flyout-context'
 import { requireTenant } from '@/lib/auth/context'
 import { gmailOAuthConfigured } from '@/lib/services/gmail'
 import {
+  classifyPendingIntents,
   countMessagesByCategory,
   countMessagesByIntent,
   getMessageDetail,
@@ -80,6 +81,14 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
     )
     accounts = await listOrgEmailAccounts(ctx.organizationId)
   }
+
+  // Always poke the classifier on page load — covers the case where a sync
+  // was skipped (recent lastSyncAt) but there's still a backlog of
+  // unclassified messages from a recent schema migration. Cheap when nothing
+  // is pending (returns immediately).
+  await classifyPendingIntents(ctx.organizationId, { limit: 50 }).catch((err) => {
+    console.warn('[inbox.page] classify call failed:', (err as Error).message)
+  })
 
   const listOpts: ListMessagesOpts = {
     accountId: activeAccountId ?? undefined,
