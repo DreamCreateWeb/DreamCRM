@@ -546,6 +546,61 @@ async function ingestMessageById(
 }
 
 /**
+ * Create a minimal patient record from an email sender and link the current
+ * + any other unmatched messages from that address to it. Used by the
+ * "Add as patient" right-column CTA in the inbox.
+ *
+ * Idempotent: if a patient with the same email already exists in the org,
+ * just links the messages without inserting a duplicate.
+ */
+export async function addPatientFromEmail(opts: {
+  organizationId: string
+  fromEmail: string
+  firstName: string
+  lastName: string
+  phone?: string | null
+  messageId: string // the message that triggered the create — make sure it ends up linked even if email backfill misses it
+}): Promise<{ patientId: string; linkedMessages: number }> {
+  const normalized = opts.fromEmail.trim().toLowerCase()
+  let patientId = await findPatientByEmail(opts.organizationId, normalized)
+  if (!patientId) {
+    patientId = randomUUID()
+    await db.insert(schema.patient).values({
+      id: patientId,
+      organizationId: opts.organizationId,
+      firstName: opts.firstName,
+      lastName: opts.lastName,
+      email: normalized,
+      phone: opts.phone ?? null,
+    })
+  }
+
+  // Link every existing message in this org from this sender to the patient
+  // (the explicit messageId is a belt-and-suspenders include in case the
+  // case-insensitive match misses some edge case).
+  await db
+    .update(schema.emailMessage)
+    .set({ patientId })
+    .where(
+      and(
+        eq(schema.emailMessage.organizationId, opts.organizationId),
+        sql`lower(${schema.emailMessage.fromEmail}) = ${normalized}`,
+      ),
+    )
+  await db
+    .update(schema.emailMessage)
+    .set({ patientId })
+    .where(
+      and(
+        eq(schema.emailMessage.id, opts.messageId),
+        eq(schema.emailMessage.organizationId, opts.organizationId),
+      ),
+    )
+
+  return { patientId, linkedMessages: 0 } // count omitted — would need a separate query
+}
+
+/**
  * One-off backfill: scan all messages in an org that have a null patient_id
  * and try to match them to a patient by sender email. Runs in batches; safe
  * to invoke repeatedly. Returns the number of rows that got matched.
