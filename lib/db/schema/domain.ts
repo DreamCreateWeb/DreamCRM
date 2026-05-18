@@ -144,6 +144,7 @@ export const tasks = pgTable('tasks', {
   likes: integer('likes').notNull().default(0),
   comments: integer('comments').notNull().default(0),
   attachments: integer('attachments').notNull().default(0),
+  tags: jsonb('tags').$type<string[]>().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

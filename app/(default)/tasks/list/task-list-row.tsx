@@ -1,92 +1,93 @@
 'use client'
 
+import Link from 'next/link'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
-import { likeTaskAction, moveTask, removeTasks } from '../actions'
+import { cn } from '@/lib/utils'
+import { moveTask } from '../actions'
 import type { TaskStatus } from '@/lib/types/tasks'
+import DueDateChip from '../_components/due-date-chip'
 
 interface Props {
   task: {
     id: number
     title: string
     status: TaskStatus
-    likes: number
-    comments: number
+    priority: string
+    dueDate: string | null
+    tags: string[]
   }
 }
 
+const PRIORITY_DOT: Record<string, string> = {
+  high: 'bg-rose-500',
+  medium: 'bg-amber-500',
+  low: 'bg-stone-400',
+}
+
+/**
+ * Single row in the task list view. Click anywhere → opens the right
+ * drawer for full edit. The checkbox short-circuits to a status toggle
+ * without opening the drawer (most-frequent action, deserves to be cheap).
+ */
 export default function TaskListRow({ task }: Props) {
+  const pathname = usePathname()
+  const sp = useSearchParams()
   const [pending, startTransition] = useTransition()
   const isDone = task.status === 'completed'
 
-  function toggleDone() {
+  function toggleDone(e: React.MouseEvent | React.ChangeEvent) {
+    e.stopPropagation()
     startTransition(async () => {
       await moveTask(task.id, isDone ? 'todo' : 'completed')
     })
   }
-  function handleLike() {
-    startTransition(async () => {
-      await likeTaskAction(task.id)
-    })
-  }
-  function handleDelete() {
-    if (!confirm(`Delete "${task.title}"?`)) return
-    startTransition(async () => {
-      await removeTasks([task.id])
-    })
-  }
+
+  const params = new URLSearchParams(sp.toString())
+  params.set('t', String(task.id))
+  const drawerHref = `${pathname}?${params.toString()}`
 
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4">
-      <div className="sm:flex sm:justify-between sm:items-start">
-        <div className="grow mt-0.5 mb-3 sm:mb-0 space-y-3">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              className="form-checkbox w-5 h-5 rounded-full peer"
-              checked={isDone}
-              disabled={pending}
-              onChange={toggleDone}
-            />
-            <span
-              className={`font-medium ml-2 ${
-                isDone
-                  ? 'text-gray-400 line-through'
-                  : 'text-gray-800 dark:text-gray-100'
-              }`}
-            >
-              {task.title}
-            </span>
-          </label>
-        </div>
-        <div className="flex items-center justify-end space-x-3">
-          <button
-            onClick={handleLike}
-            disabled={pending}
-            className="flex items-center text-gray-400 dark:text-gray-500 hover:text-violet-500 disabled:opacity-60"
+    <Link
+      href={drawerHref}
+      scroll={false}
+      className={cn(
+        'flex items-center gap-3 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700/60 px-3 py-2.5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors',
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={isDone}
+        disabled={pending}
+        onClick={(e) => e.stopPropagation()}
+        onChange={toggleDone}
+        className="accent-stone-900 dark:accent-stone-100 w-4 h-4 shrink-0"
+      />
+      <span
+        className={cn(
+          'text-[13px] grow truncate',
+          isDone
+            ? 'text-stone-400 dark:text-stone-500 line-through'
+            : 'text-stone-800 dark:text-stone-100',
+        )}
+      >
+        {task.title}
+      </span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {task.tags.slice(0, 2).map((t) => (
+          <span
+            key={t}
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
           >
-            <svg className="shrink-0 fill-current mr-1.5" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M14.682 2.318A4.485 4.485 0 0011.5 1 4.377 4.377 0 008 2.707 4.383 4.383 0 004.5 1a4.5 4.5 0 00-3.182 7.682L8 15l6.682-6.318a4.5 4.5 0 000-6.364z" />
-            </svg>
-            <div className="text-sm">{task.likes}</div>
-          </button>
-          <div className="flex items-center text-gray-400 dark:text-gray-500">
-            <svg className="shrink-0 fill-current mr-1.5" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M8 0C3.6 0 0 3.1 0 7s3.6 7 8 7h.6l5.4 2v-4.4c1.2-1.2 2-2.8 2-4.6 0-3.9-3.6-7-8-7z" />
-            </svg>
-            <div className="text-sm">{task.comments}</div>
-          </div>
-          <button
-            onClick={handleDelete}
-            disabled={pending}
-            className="text-red-400 hover:text-red-500 disabled:opacity-60"
-            title="Delete task"
-          >
-            <svg className="shrink-0 fill-current" width="16" height="16" viewBox="0 0 16 16">
-              <path d="M5 7h6v6H5zM13 4h-3V2H6v2H3v1h10z" />
-            </svg>
-          </button>
-        </div>
+            #{t}
+          </span>
+        ))}
+        <span
+          className={cn('w-1.5 h-1.5 rounded-full', PRIORITY_DOT[task.priority] ?? 'bg-stone-300')}
+          title={`Priority: ${task.priority}`}
+        />
+        {task.dueDate && <DueDateChip dueDate={task.dueDate} completed={isDone} />}
       </div>
-    </div>
+    </Link>
   )
 }

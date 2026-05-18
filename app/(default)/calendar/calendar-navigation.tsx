@@ -1,48 +1,100 @@
 'use client'
 
-import { useEffect } from 'react'
-import { CalendarProperties } from './calendar-properties'
+import {
+  useCalendarContext,
+  addDays,
+  startOfWeek,
+  isSameDay,
+  formatMonthYear,
+  formatWeekRange,
+  formatDayLabel,
+  type CalendarView,
+} from './calendar-context'
 
-export interface Event {
-  eventStart: Date
-  eventEnd: Date | null
-  eventName: string
-  eventColor: string
-}
+const VIEWS: { key: CalendarView; label: string }[] = [
+  { key: 'month', label: 'Month' },
+  { key: 'week', label: 'Week' },
+  { key: 'day', label: 'Day' },
+]
 
+/**
+ * Top bar for the calendar: shows the current period title (month name, week
+ * range, or full day label), Today button, prev/next chevrons, and the
+ * Month/Week/Day view switcher.
+ */
 export default function CalendarNavigation() {
+  const { view, setView, anchor, setAnchor, goToToday, today } = useCalendarContext()
 
-  const {
-    currentMonth,
-    setCurrentMonth,
-    renderDays,
-  } = CalendarProperties()  
+  function navigate(direction: -1 | 1) {
+    if (view === 'month') {
+      const next = new Date(anchor)
+      next.setMonth(anchor.getMonth() + direction)
+      setAnchor(next)
+    } else if (view === 'week') {
+      setAnchor(addDays(anchor, direction * 7))
+    } else {
+      setAnchor(addDays(anchor, direction))
+    }
+  }
+
+  const periodLabel =
+    view === 'month'
+      ? formatMonthYear(anchor)
+      : view === 'week'
+        ? formatWeekRange(startOfWeek(anchor))
+        : formatDayLabel(anchor)
+
+  const isOnToday = view === 'day' ? isSameDay(anchor, today) : false
 
   return (
-    <>
-      {/* Previous month button */}
+    <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-1 mr-2">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-1.5 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800 transition-colors"
+          title="Previous"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <div className="min-w-[10rem] text-center text-sm font-semibold text-stone-800 dark:text-stone-100">
+          {periodLabel}
+        </div>
+        <button
+          onClick={() => navigate(1)}
+          className="p-1.5 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800 transition-colors"
+          title="Next"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
       <button
-        className="btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300 disabled:border-gray-200 dark:disabled:border-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
-        disabled={currentMonth === 0}
-        onClick={() => { setCurrentMonth(currentMonth - 1); renderDays(); }}
+        onClick={goToToday}
+        disabled={isOnToday}
+        className="text-xs font-medium px-2.5 py-1 rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors disabled:opacity-50 disabled:cursor-default"
       >
-        <span className="sr-only">Previous month</span><wbr />
-        <svg className="fill-current text-gray-400 dark:text-gray-500" width="16" height="16" viewBox="0 0 16 16">
-          <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
-        </svg>
+        Today
       </button>
 
-      {/* Next month button */}
-      <button
-        className="btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300 disabled:border-gray-200 dark:disabled:border-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
-        disabled={currentMonth === 11}
-        onClick={() => { setCurrentMonth(currentMonth + 1); renderDays(); }}
-      >
-        <span className="sr-only">Next month</span><wbr />
-        <svg className="fill-current text-gray-400 dark:text-gray-500" width="16" height="16" viewBox="0 0 16 16">
-          <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z" />
-        </svg>
-      </button>    
-    </>
+      <div className="flex items-center rounded-md border border-stone-200 dark:border-stone-700 p-0.5 bg-white dark:bg-stone-900">
+        {VIEWS.map((v) => (
+          <button
+            key={v.key}
+            onClick={() => setView(v.key)}
+            className={
+              v.key === view
+                ? 'text-xs font-medium px-2.5 py-1 rounded bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
+                : 'text-xs font-medium px-2.5 py-1 rounded text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+            }
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

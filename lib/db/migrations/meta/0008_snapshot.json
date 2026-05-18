@@ -1,6 +1,6 @@
 {
-  "id": "5dffb441-e2c1-4719-9252-7605a7dbe279",
-  "prevId": "3155f593-d1e8-4531-a269-89d55dbef129",
+  "id": "b3574975-295b-4231-97ce-67e30dac443e",
+  "prevId": "5dffb441-e2c1-4719-9252-7605a7dbe279",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3358,6 +3358,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "created_at": {
           "name": "created_at",

@@ -57,6 +57,13 @@
       "when": 1779150000000,
       "tag": "0007_tenant_claim_legacy_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779143107873,
+      "tag": "0008_medical_mad_thinker",
+      "breakpoints": true
     }
   ]
 }
