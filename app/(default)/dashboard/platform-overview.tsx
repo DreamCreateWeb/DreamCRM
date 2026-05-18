@@ -1,215 +1,268 @@
 import Link from 'next/link'
-import { getProjectStats, getSubscriptionStats } from '@/lib/services/projects'
-import {
-  AGENCY_PROJECT_TYPE_LABELS,
-  AGENCY_PROJECT_STATUS_LABELS,
-  type AgencyProjectStatus,
-  type AgencyProjectType,
-} from '@/lib/db/schema/platform'
+import { getSubscriptionStats } from '@/lib/services/projects'
+import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
 
-const TYPE_ICONS: Record<AgencyProjectType, string> = {
-  website: '🌐',
-  ecommerce: '🛒',
-  intake_form: '📝',
-  videography: '🎥',
-  photography: '📸',
-  content: '✍️',
-  other: '📦',
+const KIND_ICONS: Record<string, string> = {
+  past_due_invoice: '⚠️',
+  stalled_project: '⏸',
+  overdue_project: '⏰',
+  new_signup: '🎉',
+  signup: '🎉',
+  project_completed: '✅',
+  project_started: '🚀',
+  subscription_paid: '💵',
 }
 
-const PIPELINE_STAGES: AgencyProjectStatus[] = ['lead', 'discovery', 'in_progress', 'review', 'completed']
-const STAGE_COLORS: Record<AgencyProjectStatus, string> = {
-  lead: 'bg-gray-500/20 text-gray-700 dark:text-gray-300',
-  discovery: 'bg-amber-500/20 text-amber-700 dark:text-amber-400',
-  in_progress: 'bg-violet-500/20 text-violet-700 dark:text-violet-400',
-  review: 'bg-sky-500/20 text-sky-700 dark:text-sky-400',
-  completed: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400',
-  on_hold: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-  cancelled: 'bg-red-500/20 text-red-700 dark:text-red-400',
+const KIND_COLOR: Record<string, string> = {
+  past_due_invoice: 'bg-red-500/15 text-red-700 dark:text-red-400',
+  stalled_project: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
+  overdue_project: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+  new_signup: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+}
+
+function moneyFull(cents: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(cents / 100)
 }
 
 export default async function PlatformOverview() {
-  const [subs, projects] = await Promise.all([getSubscriptionStats(), getProjectStats()])
+  const [subs, attention, activity] = await Promise.all([
+    getSubscriptionStats(),
+    getAttentionItems({ perKind: 3 }),
+    getRecentPlatformActivity(10),
+  ])
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            Agency Overview
+            Overview
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Recurring revenue, active engagements, and project pipeline.
+            Today's pulse and what needs your attention.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
-            href="/ecommerce/customers"
+            href="/dashboard/analytics"
             className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
           >
-            View clinics
+            Platform Metrics →
           </Link>
           <Link
-            href="/ecommerce/invoices"
-            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+            href="/dashboard/fintech"
+            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
           >
-            Subscriptions
+            Revenue →
           </Link>
         </div>
       </div>
 
-      {/* Top-line KPIs */}
+      {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Kpi label="Active Clinics" value={formatNumberShort(subs.activeClinics)} hint={`${subs.newClinics30d} new in 30d`} />
-        <Kpi label="MRR" value={formatMoneyShort(subs.monthlyRecurringCents)} hint="Subscriptions only" />
-        <Kpi label="Open Projects" value={formatNumberShort(projects.openProjects)} hint={`${projects.totalProjects} total`} />
-        <Kpi label="Pipeline Value" value={formatMoneyShort(projects.pipelineValueCents)} hint="Open project budgets" />
+        <Kpi
+          label="Active Clinics"
+          value={formatNumberShort(subs.activeClinics)}
+          hint={`${subs.newClinics30d} new in 30d`}
+        />
+        <Kpi
+          label="MRR"
+          value={formatMoneyShort(subs.monthlyRecurringCents)}
+          hint="Subscriptions only"
+        />
+        <Kpi
+          label="Open Projects"
+          value={formatNumberShort(attention.stalledProjectCount + attention.overdueProjectCount + (activity.rows.filter((a) => a.kind === 'project_started').length))}
+          hint="See Platform Metrics for trend"
+        />
+        <Kpi
+          label="Needs Attention"
+          value={formatNumberShort(attention.total)}
+          hint={
+            attention.total === 0
+              ? "You're caught up"
+              : `${attention.pastDueInvoiceCount} past-due · ${attention.stalledProjectCount + attention.overdueProjectCount} project flags`
+          }
+          tone={attention.total > 0 ? 'warn' : 'default'}
+        />
       </div>
 
-      {/* Subscriptions breakdown + Service mix */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            Subscriptions by Plan
-          </h2>
-          <ul className="space-y-3">
-            <PlanRow label="Basic ($99/mo)" count={subs.byTier.basic} total={subs.activeClinics} color="bg-gray-400" />
-            <PlanRow label="Pro ($149/mo)" count={subs.byTier.pro} total={subs.activeClinics} color="bg-sky-500" />
-            <PlanRow label="Premium ($199/mo)" count={subs.byTier.premium} total={subs.activeClinics} color="bg-violet-500" />
-          </ul>
-          {subs.activeClinics === 0 && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 italic mt-4">
-              No paid clinics yet. The first one will show up here once their Stripe Checkout completes.
-            </p>
-          )}
+      {attention.stripeUnavailable && (
+        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-400">
+          Stripe couldn't be reached — past-due invoice checks skipped this load.
         </div>
+      )}
 
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 lg:col-span-2">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            Service Mix
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {(Object.entries(projects.byType) as Array<[AgencyProjectType, number]>).map(([type, count]) => (
-              <div
-                key={type}
-                className="flex items-center gap-3 p-3 border border-gray-100 dark:border-gray-700/60 rounded-lg"
-              >
-                <span className="text-2xl">{TYPE_ICONS[type]}</span>
-                <div>
-                  <div className="text-sm font-medium text-gray-800 dark:text-gray-100">
-                    {AGENCY_PROJECT_TYPE_LABELS[type]}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {count} {count === 1 ? 'project' : 'projects'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Pipeline */}
+      {/* ── Needs Your Attention ──────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-            Project Pipeline
-          </h2>
+          <div>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+              Needs Your Attention
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Past-due invoices, stalled or overdue projects, new clinics to welcome.
+            </p>
+          </div>
+          {attention.pastDueInvoiceCents > 0 && (
+            <span className="text-sm font-semibold text-red-600 dark:text-red-400">
+              {moneyFull(attention.pastDueInvoiceCents)} past-due
+            </span>
+          )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {PIPELINE_STAGES.map((stage) => (
-            <div
-              key={stage}
-              className="p-4 rounded-lg border border-gray-100 dark:border-gray-700/60"
-            >
-              <div className={`inline-block text-xs font-semibold px-2 py-1 rounded-full mb-2 ${STAGE_COLORS[stage]}`}>
-                {AGENCY_PROJECT_STATUS_LABELS[stage]}
-              </div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                {projects.byStatus[stage]}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent activity */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-            Recent Project Activity
-          </h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {projects.completedThisMonth} completed this month
-          </span>
-        </div>
-        {projects.recentlyUpdated.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-8">
-            No projects logged yet. The Projects module will let you add ecommerce builds,
-            intake forms, videography, and photography engagements per clinic.
-          </p>
+        {attention.items.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-3xl mb-2">✅</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              All clear — no past-due invoices, no stalled projects, no new signups waiting.
+            </p>
+          </div>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
-            {projects.recentlyUpdated.map((p) => (
-              <li key={p.id} className="flex items-center gap-4 py-3">
-                <span className="text-xl shrink-0">{TYPE_ICONS[p.type as AgencyProjectType] ?? '📦'}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate">{p.title}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {p.clinicName ?? 'Internal'} · {AGENCY_PROJECT_TYPE_LABELS[p.type as AgencyProjectType]}
-                  </div>
-                </div>
-                <span className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${STAGE_COLORS[p.status as AgencyProjectStatus]}`}>
-                  {AGENCY_PROJECT_STATUS_LABELS[p.status as AgencyProjectStatus]}
+            {attention.items.map((item, i) => (
+              <li key={`${item.kind}-${i}`} className="flex items-center gap-4 py-3">
+                <span
+                  className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full text-sm ${KIND_COLOR[item.kind] ?? 'bg-gray-100 dark:bg-gray-700/60'}`}
+                  aria-hidden
+                >
+                  {KIND_ICONS[item.kind] ?? '•'}
                 </span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
+                    {item.title}
+                  </div>
+                  {item.subtitle && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {item.subtitle}
+                    </div>
+                  )}
+                </div>
+                {item.amountCents != null && (
+                  <span className="shrink-0 font-semibold text-red-600 dark:text-red-400">
+                    {moneyFull(item.amountCents)}
+                  </span>
+                )}
                 <span className="shrink-0 text-xs text-gray-400 hidden sm:inline">
-                  {formatRelativeDate(p.updatedAt)}
+                  {formatRelativeDate(item.ts)}
                 </span>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {/* ── Recent Platform Activity — mixed feed ──────────────────────── */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+            Recent Platform Activity
+          </h2>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Signups, deliveries, and payments
+          </span>
+        </div>
+        {activity.rows.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-8">
+            No activity yet. Once clinics sign up and projects start moving, you'll see them here.
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+            {activity.rows.map((row) => (
+              <li key={row.id} className="flex items-center gap-4 py-3">
+                <span
+                  className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700/60 text-sm"
+                  aria-hidden
+                >
+                  {KIND_ICONS[row.kind] ?? '•'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
+                    {row.title}
+                  </div>
+                  {row.subtitle && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {row.subtitle}
+                    </div>
+                  )}
+                </div>
+                {row.amountCents != null && (
+                  <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">
+                    +{moneyFull(row.amountCents)}
+                  </span>
+                )}
+                <span className="shrink-0 text-xs text-gray-400 hidden sm:inline">
+                  {formatRelativeDate(row.ts)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* ── Jump-off quick links to the other metric modules ──────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <QuickLink
+          href="/dashboard/analytics"
+          title="Platform Metrics"
+          subtitle="Trends, churn, ARPU, project funnel"
+        />
+        <QuickLink
+          href="/dashboard/fintech"
+          title="Revenue"
+          subtitle="Subscriptions, project work, transactions"
+        />
+        <QuickLink
+          href="/ecommerce/customers"
+          title="Clinics"
+          subtitle="Manage clinic accounts"
+        />
+      </div>
     </div>
   )
 }
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Kpi({
+  label,
+  value,
+  hint,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  hint?: string
+  tone?: 'default' | 'warn'
+}) {
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4">
       <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold mb-1">
         {label}
       </div>
-      <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">{value}</div>
+      <div
+        className={`text-2xl font-bold ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-100'}`}
+      >
+        {value}
+      </div>
       {hint && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{hint}</div>}
     </div>
   )
 }
 
-function PlanRow({
-  label,
-  count,
-  total,
-  color,
-}: {
-  label: string
-  count: number
-  total: number
-  color: string
-}) {
-  const pct = total === 0 ? 0 : Math.round((count / total) * 100)
+function QuickLink({ href, title, subtitle }: { href: string; title: string; subtitle: string }) {
   return (
-    <li>
-      <div className="flex items-center justify-between text-sm mb-1">
-        <span className="text-gray-700 dark:text-gray-200">{label}</span>
-        <span className="font-medium text-gray-800 dark:text-gray-100">
-          {count} <span className="text-gray-400 dark:text-gray-500 text-xs">({pct}%)</span>
-        </span>
+    <Link
+      href={href}
+      className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4 hover:shadow-md transition group"
+    >
+      <div className="font-semibold text-gray-800 dark:text-gray-100 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition">
+        {title}
+        <span className="ml-1">→</span>
       </div>
-      <div className="h-2 bg-gray-100 dark:bg-gray-700/60 rounded-full overflow-hidden">
-        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-    </li>
+      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</div>
+    </Link>
   )
 }

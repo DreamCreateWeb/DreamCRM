@@ -7,17 +7,33 @@ import {
   getProjectFunnel,
   getPlatformEngagement,
 } from '@/lib/services/platform-metrics'
+import { getProjectStats } from '@/lib/services/projects'
+import {
+  AGENCY_PROJECT_TYPE_LABELS,
+  type AgencyProjectType,
+} from '@/lib/db/schema/platform'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
 import Sparkline from '@/components/ui/sparkline'
 
+const TYPE_ICONS: Record<AgencyProjectType, string> = {
+  website: '🌐',
+  ecommerce: '🛒',
+  intake_form: '📝',
+  videography: '🎥',
+  photography: '📸',
+  content: '✍️',
+  other: '📦',
+}
+
 export default async function PlatformMetrics() {
-  const [growth, mrr, churn, velocity, funnel, engagement] = await Promise.all([
+  const [growth, mrr, churn, velocity, funnel, engagement, projectStats] = await Promise.all([
     getClinicGrowth(12),
     getMrrSnapshot(),
     getChurnStats(),
     getProjectVelocity(6),
     getProjectFunnel(),
     getPlatformEngagement(),
+    getProjectStats(),
   ])
 
   return (
@@ -28,53 +44,62 @@ export default async function PlatformMetrics() {
             Platform Metrics
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Growth, recurring revenue, churn, and project performance across Dream Create.
+            Health ratios, growth trends, and project performance across Dream Create.
           </p>
         </div>
-        <Link
-          href="/dashboard"
-          className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-        >
-          ← Overview
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/dashboard"
+            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
+          >
+            ← Overview
+          </Link>
+          <Link
+            href="/dashboard/fintech"
+            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
+          >
+            Revenue $
+          </Link>
+        </div>
       </div>
 
-      {/* ── Revenue row ─────────────────────────────────────────────── */}
+      {/* ── Health ratios ── focus is RATES, not absolute money values
+            (those are owned by the Revenue module) ───────────────────── */}
       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">
-        Revenue
+        Health Ratios
       </h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Stat
-          label="MRR"
-          value={formatMoneyShort(mrr.monthlyRecurringCents)}
-          hint={`${mrr.activeClinics} active clinics`}
-        />
-        <Stat
-          label="Annual Run Rate"
-          value={formatMoneyShort(mrr.annualRunRateCents)}
-          hint="MRR × 12"
-        />
-        <Stat
-          label="ARPU"
-          value={mrr.activeClinics === 0 ? '—' : formatMoneyShort(mrr.arpu)}
-          hint="Average revenue per clinic"
-        />
         <Stat
           label="Churn Rate (30d)"
           value={`${churn.approxChurnRate30d.toFixed(1)}%`}
           hint={`${churn.canceled30d} canceled · ${churn.pastDue} past due`}
           tone={churn.approxChurnRate30d > 5 ? 'warn' : 'default'}
         />
+        <Stat
+          label="ARPU"
+          value={mrr.activeClinics === 0 ? '—' : formatMoneyShort(mrr.arpu)}
+          hint={`Average per clinic · ${mrr.activeClinics} active`}
+        />
+        <Stat
+          label="Completion Rate"
+          value={`${funnel.overallCompletionRate.toFixed(1)}%`}
+          hint={`${funnel.reachedCompleted} of ${funnel.totalCreated} delivered`}
+        />
+        <Stat
+          label="Avg Project Duration"
+          value={velocity.avgDurationDays == null ? '—' : `${velocity.avgDurationDays}d`}
+          hint="Start → completion"
+        />
       </div>
 
-      {/* ── Plan-mix bar ────────────────────────────────────────────── */}
+      {/* ── Subscription mix ─────────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-            Plan Mix
+            Subscription Mix
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {mrr.activeClinics} active subscribers
+            {mrr.activeClinics} active subscribers · {formatMoneyShort(mrr.monthlyRecurringCents)} MRR
           </span>
         </div>
         {mrr.activeClinics === 0 ? (
@@ -104,6 +129,36 @@ export default async function PlatformMetrics() {
           <PlanCell tier="Basic" count={mrr.byTier.basic} price="$99" color="bg-gray-400" />
           <PlanCell tier="Pro" count={mrr.byTier.pro} price="$149" color="bg-sky-500" />
           <PlanCell tier="Premium" count={mrr.byTier.premium} price="$199" color="bg-violet-500" />
+        </div>
+      </div>
+
+      {/* ── Service mix — what kinds of project work do we sell? ─────── */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+            Service Mix
+          </h3>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {projectStats.totalProjects} total projects
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+          {(Object.entries(projectStats.byType) as Array<[AgencyProjectType, number]>).map(
+            ([type, count]) => (
+              <div
+                key={type}
+                className="flex flex-col items-center text-center gap-1 p-3 border border-gray-100 dark:border-gray-700/60 rounded-lg"
+              >
+                <span className="text-2xl">{TYPE_ICONS[type]}</span>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {AGENCY_PROJECT_TYPE_LABELS[type]}
+                </div>
+                <div className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                  {count}
+                </div>
+              </div>
+            ),
+          )}
         </div>
       </div>
 

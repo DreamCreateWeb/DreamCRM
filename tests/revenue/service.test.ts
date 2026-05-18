@@ -1,18 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Stripe mock — we control what each .list() call returns.
-const stripeStubs = {
-  paid: [] as Array<{
-    id?: string
-    amount_paid: number
-    customer: string | null
-    created: number
-    status_transitions?: { paid_at?: number }
-    lines: { data: Array<{ description: string }> }
-  }>,
-  paidPages: null as Array<typeof stripeStubs.paid> | null,
-  open: [] as Array<{ amount_remaining: number }>,
-  throwOn: null as null | 'list',
+interface PaidInvoiceStub {
+  id?: string
+  amount_paid: number
+  customer: string | null
+  created: number
+  status_transitions?: { paid_at?: number }
+  lines: { data: Array<{ description: string }> }
+}
+const stripeStubs: {
+  paid: PaidInvoiceStub[]
+  paidPages: PaidInvoiceStub[][] | null
+  open: Array<{ amount_remaining: number }>
+  throwOn: null | 'list'
+} = {
+  paid: [],
+  paidPages: null,
+  open: [],
+  throwOn: null,
 }
 
 vi.mock('@/lib/stripe', () => ({
@@ -29,7 +35,7 @@ vi.mock('@/lib/stripe', () => ({
         if (stripeStubs.paidPages) {
           const idx = params.starting_after
             ? stripeStubs.paidPages.findIndex(
-                (p) => p[p.length - 1]?.id === params.starting_after,
+                (p: PaidInvoiceStub[]) => p[p.length - 1]?.id === params.starting_after,
               ) + 1
             : 0
           const page = stripeStubs.paidPages[idx] ?? []

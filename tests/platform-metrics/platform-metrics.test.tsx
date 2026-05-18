@@ -57,6 +57,30 @@ vi.mock('@/lib/services/platform-metrics', () => ({
   getPlatformEngagement: async () => stubs.engagement,
 }))
 
+// Service Mix moved to Platform Metrics — mock the projects service it pulls from.
+vi.mock('@/lib/services/projects', () => ({
+  getProjectStats: async () => ({
+    totalProjects: 10,
+    openProjects: 6,
+    completedThisMonth: 4,
+    byStatus: {
+      lead: 0, discovery: 0, in_progress: 0, review: 0, completed: 0, on_hold: 0, cancelled: 0,
+    },
+    byType: {
+      website: 2,
+      ecommerce: 1,
+      intake_form: 3,
+      videography: 4,
+      photography: 0,
+      content: 0,
+      other: 0,
+    },
+    pipelineValueCents: 0,
+    completedValueCents: 0,
+    recentlyUpdated: [],
+  }),
+}))
+
 import PlatformMetrics from '@/app/(default)/dashboard/analytics/platform-metrics'
 
 beforeEach(() => {
@@ -64,27 +88,35 @@ beforeEach(() => {
 })
 
 describe('PlatformMetrics', () => {
-  it('renders the four top-line stats with formatted values', async () => {
+  it('renders the four health-ratio KPIs', async () => {
     const ui = await PlatformMetrics()
     render(ui)
     expect(screen.getByText('Platform Metrics')).toBeInTheDocument()
-    expect(screen.getByText('MRR')).toBeInTheDocument()
-    expect(screen.getByText('Annual Run Rate')).toBeInTheDocument()
-    expect(screen.getByText('ARPU')).toBeInTheDocument()
     expect(screen.getByText('Churn Rate (30d)')).toBeInTheDocument()
+    expect(screen.getByText('ARPU')).toBeInTheDocument()
+    expect(screen.getByText('Completion Rate')).toBeInTheDocument()
+    expect(screen.getByText('Avg Project Duration')).toBeInTheDocument()
     expect(screen.getByText('14.3%')).toBeInTheDocument()
   })
 
-  it('shows plan-mix counts for Basic / Pro / Premium', async () => {
+  it('shows subscription-mix counts for Basic / Pro / Premium', async () => {
     const ui = await PlatformMetrics()
     render(ui)
-    expect(screen.getByText(/Basic/)).toBeInTheDocument()
-    expect(screen.getByText(/Pro\b/)).toBeInTheDocument()
-    expect(screen.getByText(/Premium/)).toBeInTheDocument()
-    // counts per tier
+    expect(screen.getByText('Subscription Mix')).toBeInTheDocument()
     expect(screen.getByText('$99')).toBeInTheDocument()
     expect(screen.getByText('$149')).toBeInTheDocument()
     expect(screen.getByText('$199')).toBeInTheDocument()
+  })
+
+  it('shows the Service Mix section with all project type labels', async () => {
+    const ui = await PlatformMetrics()
+    render(ui)
+    expect(screen.getByText('Service Mix')).toBeInTheDocument()
+    expect(screen.getByText('Website')).toBeInTheDocument()
+    expect(screen.getByText('Ecommerce')).toBeInTheDocument()
+    expect(screen.getByText('Patient Intake Form')).toBeInTheDocument()
+    expect(screen.getByText('Videography')).toBeInTheDocument()
+    expect(screen.getByText('Photography')).toBeInTheDocument()
   })
 
   it('renders growth + velocity trend cards with WoW badges', async () => {
@@ -104,7 +136,8 @@ describe('PlatformMetrics', () => {
     expect(screen.getByText('In progress+')).toBeInTheDocument()
     expect(screen.getByText('Review+')).toBeInTheDocument()
     expect(screen.getByText('Completed')).toBeInTheDocument()
-    expect(screen.getByText('40.0%')).toBeInTheDocument()
+    // 40% appears as both the headline completion-rate KPI and the funnel inner stat
+    expect(screen.getAllByText('40.0%').length).toBeGreaterThan(0)
     expect(screen.getByText('10.0%')).toBeInTheDocument()
   })
 
@@ -118,7 +151,7 @@ describe('PlatformMetrics', () => {
     expect(screen.getByText('1,200')).toBeInTheDocument()
   })
 
-  it('shows empty-state for plan mix when nobody is active', async () => {
+  it('shows empty-state for subscription mix when nobody is active', async () => {
     stubs.mrr.activeClinics = 0
     stubs.mrr.byTier = { basic: 0, pro: 0, premium: 0 }
     stubs.mrr.monthlyRecurringCents = 0
