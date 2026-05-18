@@ -98,6 +98,142 @@ export async function listAllProjects() {
   return rows
 }
 
+// ---------- Sales Pipeline ----------
+
+export interface PipelineProject {
+  id: string
+  title: string
+  description: string | null
+  type: AgencyProjectType
+  status: AgencyProjectStatus
+  budgetCents: number | null
+  dueDate: Date | null
+  startedAt: Date | null
+  completedAt: Date | null
+  organizationId: string | null
+  clinicName: string | null
+  clinicSlug: string | null
+  ownerUserId: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export async function listPipelineProjects(): Promise<PipelineProject[]> {
+  try {
+    const rows = await db
+      .select({
+        id: agencyProject.id,
+        title: agencyProject.title,
+        description: agencyProject.description,
+        type: agencyProject.type,
+        status: agencyProject.status,
+        budgetCents: agencyProject.budgetCents,
+        dueDate: agencyProject.dueDate,
+        startedAt: agencyProject.startedAt,
+        completedAt: agencyProject.completedAt,
+        organizationId: agencyProject.organizationId,
+        clinicName: organization.name,
+        clinicSlug: organization.slug,
+        ownerUserId: agencyProject.ownerUserId,
+        createdAt: agencyProject.createdAt,
+        updatedAt: agencyProject.updatedAt,
+      })
+      .from(agencyProject)
+      .leftJoin(organization, eq(organization.id, agencyProject.organizationId))
+      .orderBy(desc(agencyProject.updatedAt))
+    return rows as PipelineProject[]
+  } catch (err) {
+    if (isMissingSchemaError(err)) {
+      console.warn('[projects] agency_project table missing — apply migration 0002')
+      return []
+    }
+    throw err
+  }
+}
+
+export interface PipelineMetrics {
+  openCount: number
+  openValueCents: number
+  wonCount90d: number
+  wonValueCents90d: number
+  winRatePct: number
+  avgDaysToClose: number | null
+  byStatusValueCents: Record<AgencyProjectStatus, number>
+  byStatusCount: Record<AgencyProjectStatus, number>
+  byTypeCount: Record<AgencyProjectType, number>
+  overdueCount: number
+}
+
+export function computePipelineMetrics(
+  projects: Pick<PipelineProject, 'status' | 'budgetCents' | 'createdAt' | 'completedAt' | 'dueDate' | 'type'>[],
+  opts: { now?: Date } = {},
+): PipelineMetrics {
+  const now = opts.now ?? new Date()
+  const since90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+
+  const byStatusValueCents = Object.fromEntries(
+    AGENCY_PROJECT_STATUSES.map((s) => [s, 0] as const),
+  ) as Record<AgencyProjectStatus, number>
+  const byStatusCount = Object.fromEntries(
+    AGENCY_PROJECT_STATUSES.map((s) => [s, 0] as const),
+  ) as Record<AgencyProjectStatus, number>
+  const byTypeCount = Object.fromEntries(
+    AGENCY_PROJECT_TYPES.map((t) => [t, 0] as const),
+  ) as Record<AgencyProjectType, number>
+
+  let openCount = 0
+  let openValueCents = 0
+  let wonCount90d = 0
+  let wonValueCents90d = 0
+  let lostCount90d = 0
+  let closeTimesMs: number[] = []
+  let overdueCount = 0
+
+  for (const p of projects) {
+    const status = p.status as AgencyProjectStatus
+    byStatusCount[status]++
+    byStatusValueCents[status] += p.budgetCents ?? 0
+    byTypeCount[p.type as AgencyProjectType] = (byTypeCount[p.type as AgencyProjectType] ?? 0) + 1
+    if (OPEN_STATUSES.includes(status)) {
+      openCount++
+      openValueCents += p.budgetCents ?? 0
+      if (p.dueDate && p.dueDate.getTime() < now.getTime()) overdueCount++
+    }
+    if (status === 'completed' && p.completedAt && p.completedAt >= since90) {
+      wonCount90d++
+      wonValueCents90d += p.budgetCents ?? 0
+      const created = p.createdAt instanceof Date ? p.createdAt.getTime() : new Date(p.createdAt as unknown as string).getTime()
+      const closed = p.completedAt.getTime()
+      if (Number.isFinite(created) && closed >= created) {
+        closeTimesMs.push(closed - created)
+      }
+    }
+    if (status === 'cancelled' && p.completedAt && p.completedAt >= since90) {
+      lostCount90d++
+    }
+  }
+
+  const total90d = wonCount90d + lostCount90d
+  const winRatePct = total90d > 0 ? Math.round((wonCount90d / total90d) * 100) : 0
+  const avgDaysToClose =
+    closeTimesMs.length > 0
+      ? Math.round(closeTimesMs.reduce((a, b) => a + b, 0) / closeTimesMs.length / (24 * 60 * 60 * 1000))
+      : null
+
+  return {
+    openCount,
+    openValueCents,
+    wonCount90d,
+    wonValueCents90d,
+    winRatePct,
+    avgDaysToClose,
+    byStatusValueCents,
+    byStatusCount,
+    byTypeCount,
+    overdueCount,
+  }
+}
+
 export async function listProjectsForOrg(organizationId: string) {
   return db
     .select()

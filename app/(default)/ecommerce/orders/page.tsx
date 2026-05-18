@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { SelectedItemsProvider } from '@/app/selected-items-context'
 import DateSelect from '@/components/date-select'
 import FilterButton from '@/components/dropdown-filter'
@@ -5,22 +6,27 @@ import PaginationClassic from '@/components/pagination-classic'
 import OrdersTable, { type OrderRow } from './orders-table'
 import AddOrderModal from './add-order-modal'
 import DeleteOrdersButton from './delete-orders-button'
+import SalesPipeline from './sales-pipeline'
 import { listOrders } from '@/lib/services/orders'
 import { listCustomers } from '@/lib/services/customers'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { formatShortDate } from '@/lib/utils'
 
 export const metadata = {
-  title: 'Orders - DreamCRM',
-  description: 'Manage orders',
+  title: 'Sales Pipeline - DreamCRM',
+  description: 'Track every agency project across all clinics',
 }
 
 export const dynamic = 'force-dynamic'
 
-export default async function Orders() {
-  await requireUser()
-  const [orders, customers] = await Promise.all([listOrders(), listCustomers()])
+export default async function OrdersOrPipeline() {
+  const ctx = await requireTenant()
+  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
+  if (ctx.tenantType === 'platform') return <SalesPipeline />
+
+  // Clinic tenants — keep the existing CRM-style orders / treatment plans view.
+  const [orders, customers] = await Promise.all([listOrders(), listCustomers()])
   const rows: OrderRow[] = orders.map((o) => {
     const items = Array.isArray(o.items) ? o.items : []
     return {
@@ -35,7 +41,7 @@ export default async function Orders() {
       location: o.location,
       type: items.length > 1 ? 'Multi-item' : 'One-time',
       description: items.length
-        ? items.map((i: any) => `${i.quantity ?? 1}× ${i.name}`).join(', ')
+        ? items.map((i: { quantity?: number; name: string }) => `${i.quantity ?? 1}× ${i.name}`).join(', ')
         : 'No item details recorded.',
     }
   })
