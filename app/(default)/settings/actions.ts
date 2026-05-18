@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import {
   AccountInput,
   AppToggleInput,
@@ -44,11 +45,14 @@ export async function changePlan(plan: string) {
 }
 
 export async function startStripeCheckout(planId: PlanId, interval: BillingInterval) {
-  const user = await requireUser()
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') {
+    throw new Error('Only clinic tenants can change plans here')
+  }
   const session = await createCheckoutSession({
-    userId: user.id,
-    email: user.email!,
-    name: user.name ?? null,
+    organizationId: ctx.organizationId,
+    email: ctx.userEmail,
+    name: ctx.organizationName,
     planId,
     interval,
   })
@@ -57,11 +61,14 @@ export async function startStripeCheckout(planId: PlanId, interval: BillingInter
 }
 
 export async function openBillingPortal() {
-  const user = await requireUser()
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') {
+    throw new Error('Only clinic tenants can open a billing portal here')
+  }
   const portal = await createPortalSession({
-    userId: user.id,
-    email: user.email!,
-    name: user.name ?? null,
+    organizationId: ctx.organizationId,
+    email: ctx.userEmail,
+    name: ctx.organizationName,
   })
   redirect(portal.url)
 }
