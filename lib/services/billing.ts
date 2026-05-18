@@ -11,170 +11,181 @@ function publicUrl(path: string) {
   return `${base.replace(/\/$/, '')}${path}`
 }
 
-async function ensureStripeCustomer(userId: string, email: string, name: string | null) {
+/**
+ * Ensure a Stripe customer exists for this clinic org. The customer's
+ * metadata is keyed on organizationId so we can resolve the customer
+ * back to the clinic on webhook events.
+ */
+async function ensureOrgStripeCustomer(args: {
+  organizationId: string
+  email: string
+  name: string
+}): Promise<string> {
   const [profile] = await db
-    .select()
-    .from(schema.billingProfiles)
-    .where(eq(schema.billingProfiles.userId, userId))
+    .select({ stripeCustomerId: schema.clinicProfile.stripeCustomerId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, args.organizationId))
     .limit(1)
 
   if (profile?.stripeCustomerId) return profile.stripeCustomerId
 
   const customer = await stripe.customers.create({
-    email,
-    name: name ?? undefined,
-    metadata: { userId },
+    email: args.email,
+    name: args.name,
+    metadata: { organizationId: args.organizationId },
   })
 
   await db
-    .insert(schema.billingProfiles)
-    .values({ userId, stripeCustomerId: customer.id, billingEmail: email })
-    .onConflictDoUpdate({
-      target: schema.billingProfiles.userId,
-      set: { stripeCustomerId: customer.id, billingEmail: email, updatedAt: new Date() },
-    })
+    .update(schema.clinicProfile)
+    .set({ stripeCustomerId: customer.id, updatedAt: new Date() })
+    .where(eq(schema.clinicProfile.organizationId, args.organizationId))
 
   return customer.id
 }
 
+/**
+ * Start a Stripe Checkout session for a clinic upgrading/changing plans.
+ * Returns the session — caller should redirect to `session.url`.
+ */
 export async function createCheckoutSession(args: {
-  userId: string
+  organizationId: string
   email: string
-  name: string | null
+  name: string
   planId: PlanId
   interval: BillingInterval
 }) {
   const plan = PLANS.find((p) => p.id === args.planId)
-  if (!plan) throw new Error('Unknown plan')
+  if (!plan) throw new Error(`Unknown plan: ${args.planId}`)
   const priceId = plan.priceIds[args.interval]
   if (!priceId) throw new Error(`Stripe price for ${plan.name} (${args.interval}) is not configured`)
 
-  const customerId = await ensureStripeCustomer(args.userId, args.email, args.name)
+  const customerId = await ensureOrgStripeCustomer({
+    organizationId: args.organizationId,
+    email: args.email,
+    name: args.name,
+  })
 
-  const session = await stripe.checkout.sessions.create({
+  return stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: publicUrl('/settings/plans?checkout=success'),
     cancel_url: publicUrl('/settings/plans?checkout=cancelled'),
     allow_promotion_codes: true,
-    metadata: { userId: args.userId, planId: plan.id, interval: args.interval },
+    metadata: {
+      organizationId: args.organizationId,
+      planId: plan.id,
+      interval: args.interval,
+    },
     subscription_data: {
-      metadata: { userId: args.userId, planId: plan.id, interval: args.interval },
+      metadata: {
+        organizationId: args.organizationId,
+        planId: plan.id,
+        interval: args.interval,
+      },
     },
   })
-
-  return session
 }
 
-export async function createPortalSession(args: { userId: string; email: string; name: string | null }) {
-  const customerId = await ensureStripeCustomer(args.userId, args.email, args.name)
-  const portal = await stripe.billingPortal.sessions.create({
+export async function createPortalSession(args: {
+  organizationId: string
+  email: string
+  name: string
+}) {
+  const customerId = await ensureOrgStripeCustomer({
+    organizationId: args.organizationId,
+    email: args.email,
+    name: args.name,
+  })
+  return stripe.billingPortal.sessions.create({
     customer: customerId,
     return_url: publicUrl('/settings/billing'),
   })
-  return portal
 }
 
+/**
+ * Map a Stripe price → our clinic_profile.plan_tier value.
+ * Falls back to 'basic' if the subscription is canceled / not on a known price.
+ */
+function resolvePlanTier(
+  status: string,
+  planMatch: ReturnType<typeof getPlanByPriceId>,
+): 'basic' | 'pro' | 'premium' {
+  if (status !== 'active' && status !== 'trialing') return 'basic'
+  return (planMatch?.plan.id as 'basic' | 'pro' | 'premium' | undefined) ?? 'basic'
+}
+
+/**
+ * Sync subscription state from Stripe → clinic_profile.
+ * Called from the Stripe webhook on every relevant event.
+ */
 export async function syncSubscriptionFromStripe(subscriptionId: string) {
   const sub = await stripe.subscriptions.retrieve(subscriptionId, {
-    expand: ['items.data.price', 'default_payment_method', 'customer'],
+    expand: ['items.data.price', 'customer'],
   })
 
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
   if (!customerId) throw new Error('Subscription has no customer')
 
-  // Resolve back to a userId via existing billing_profiles row, or via metadata.
-  let userId = (sub.metadata?.userId as string | undefined) ?? null
-  if (!userId) {
+  // Resolve org: prefer subscription metadata, fall back to clinic_profile
+  // matched by stripeCustomerId, finally fall back to the customer metadata.
+  let organizationId = (sub.metadata?.organizationId as string | undefined) ?? null
+
+  if (!organizationId) {
     const [existing] = await db
-      .select({ userId: schema.billingProfiles.userId })
-      .from(schema.billingProfiles)
-      .where(eq(schema.billingProfiles.stripeCustomerId, customerId))
+      .select({ organizationId: schema.clinicProfile.organizationId })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.stripeCustomerId, customerId))
       .limit(1)
-    userId = existing?.userId ?? null
+    organizationId = existing?.organizationId ?? null
   }
-  if (!userId) {
-    console.warn('[stripe] subscription has no resolvable userId', subscriptionId)
+
+  if (!organizationId && typeof sub.customer !== 'string' && sub.customer) {
+    organizationId = ((sub.customer as { metadata?: { organizationId?: string } }).metadata
+      ?.organizationId) ?? null
+  }
+
+  if (!organizationId) {
+    console.warn('[stripe] subscription has no resolvable organizationId', subscriptionId)
     return
   }
 
   const item = sub.items.data[0]
   const priceId = item?.price?.id
   const planMatch = priceId ? getPlanByPriceId(priceId) : undefined
-
-  // Map Stripe status → our `billing_plan` enum. Treat anything non-active as free.
-  const dbPlan: 'free' | 'pro' | 'team' | 'enterprise' = (() => {
-    if (sub.status !== 'active' && sub.status !== 'trialing') return 'free'
-    switch (planMatch?.plan.id) {
-      case 'basic':
-        return 'free'
-      case 'pro':
-        return 'pro'
-      case 'premium':
-        return 'team'
-      default:
-        return 'free'
-    }
-  })()
-
-  const pm = sub.default_payment_method
-  const card = typeof pm === 'object' && pm && 'card' in pm ? (pm as any).card : null
-
-  const renewsAt = (sub as any).current_period_end
-    ? new Date(((sub as any).current_period_end as number) * 1000)
-    : null
+  const planTier = resolvePlanTier(sub.status, planMatch)
 
   await db
-    .insert(schema.billingProfiles)
-    .values({
-      userId,
+    .update(schema.clinicProfile)
+    .set({
       stripeCustomerId: customerId,
       stripeSubscriptionId: sub.id,
-      stripePriceId: priceId ?? null,
-      stripeStatus: sub.status,
-      plan: dbPlan,
-      renewsAt,
-      cardLast4: card?.last4 ?? null,
-      cardBrand: card?.brand ?? null,
-      cardExpMonth: card?.exp_month ?? null,
-      cardExpYear: card?.exp_year ?? null,
+      subscriptionStatus: sub.status,
+      planTier,
       updatedAt: new Date(),
     })
-    .onConflictDoUpdate({
-      target: schema.billingProfiles.userId,
-      set: {
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: sub.id,
-        stripePriceId: priceId ?? null,
-        stripeStatus: sub.status,
-        plan: dbPlan,
-        renewsAt,
-        cardLast4: card?.last4 ?? null,
-        cardBrand: card?.brand ?? null,
-        cardExpMonth: card?.exp_month ?? null,
-        cardExpYear: card?.exp_year ?? null,
-        updatedAt: new Date(),
-      },
-    })
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
+/**
+ * Clear a clinic's subscription state when Stripe reports it's been deleted.
+ * Drops plan tier back to 'basic' so module gating revokes paid features.
+ */
 export async function clearSubscription(subscriptionId: string) {
   const [profile] = await db
-    .select()
-    .from(schema.billingProfiles)
-    .where(eq(schema.billingProfiles.stripeSubscriptionId, subscriptionId))
+    .select({ organizationId: schema.clinicProfile.organizationId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.stripeSubscriptionId, subscriptionId))
     .limit(1)
   if (!profile) return
+
   await db
-    .update(schema.billingProfiles)
+    .update(schema.clinicProfile)
     .set({
       stripeSubscriptionId: null,
-      stripePriceId: null,
-      stripeStatus: 'canceled',
-      plan: 'free',
-      renewsAt: null,
+      subscriptionStatus: 'canceled',
+      planTier: 'basic',
       updatedAt: new Date(),
     })
-    .where(eq(schema.billingProfiles.userId, profile.userId))
+    .where(eq(schema.clinicProfile.organizationId, profile.organizationId))
 }

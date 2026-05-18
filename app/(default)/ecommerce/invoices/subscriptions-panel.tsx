@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useMemo, useState, useTransition } from 'react'
 import { formatMoney, relativeTime } from '@/lib/utils'
 import {
   cancelSubscription,
@@ -25,24 +26,128 @@ const STATUS_COLORS: Record<string, string> = {
   paused: 'bg-gray-300 dark:bg-gray-600 text-gray-700',
 }
 
+type StatusFilter = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled'
+
+const STATUS_FILTERS: { id: StatusFilter; label: string; match: (s: AdminSubscription) => boolean }[] = [
+  { id: 'all', label: 'All', match: () => true },
+  { id: 'active', label: 'Active', match: (s) => s.status === 'active' },
+  { id: 'trialing', label: 'Trialing', match: (s) => s.status === 'trialing' },
+  { id: 'past_due', label: 'Past due', match: (s) => s.status === 'past_due' || s.status === 'unpaid' },
+  { id: 'canceled', label: 'Canceled', match: (s) => s.status === 'canceled' || s.status === 'incomplete_expired' },
+]
+
 export default function SubscriptionsPanel({ subscriptions, products }: Props) {
-  // Flatten products → recurring prices for the change-plan picker.
-  const recurringPriceOptions = products.flatMap((p) =>
-    p.prices
-      .filter((pr) => pr.active && pr.interval)
-      .map((pr) => ({
-        id: pr.id,
-        label: `${p.name} — ${pr.interval === 'year' ? 'Annual' : 'Monthly'} (${formatMoney(pr.unitAmountCents ?? 0, pr.currency.toUpperCase())})`,
-      }))
+  const recurringPriceOptions = useMemo(
+    () =>
+      products.flatMap((p) =>
+        p.prices
+          .filter((pr) => pr.active && pr.interval)
+          .map((pr) => ({
+            id: pr.id,
+            label: `${p.name} — ${pr.interval === 'year' ? 'Annual' : 'Monthly'} (${formatMoney(pr.unitAmountCents ?? 0, pr.currency.toUpperCase())})`,
+          })),
+      ),
+    [products],
   )
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [productFilter, setProductFilter] = useState<string>('all')
+  const [search, setSearch] = useState('')
+
+  const productOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const s of subscriptions) {
+      if (s.productId && s.productName) seen.set(s.productId, s.productName)
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
+  }, [subscriptions])
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    const matcher = STATUS_FILTERS.find((f) => f.id === statusFilter)!.match
+    return subscriptions.filter((s) => {
+      if (!matcher(s)) return false
+      if (productFilter !== 'all' && s.productId !== productFilter) return false
+      if (term) {
+        const haystack = [s.clinicName, s.customerName, s.customerEmail, s.id]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        if (!haystack.includes(term)) return false
+      }
+      return true
+    })
+  }, [subscriptions, statusFilter, productFilter, search])
+
+  const counts = useMemo(() => {
+    const out: Record<StatusFilter, number> = {
+      all: subscriptions.length,
+      active: 0,
+      trialing: 0,
+      past_due: 0,
+      canceled: 0,
+    }
+    for (const s of subscriptions) {
+      for (const f of STATUS_FILTERS) {
+        if (f.id === 'all') continue
+        if (f.match(s)) out[f.id]++
+      }
+    }
+    return out
+  }, [subscriptions])
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-      <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
-        <h2 className="font-semibold text-gray-800 dark:text-gray-100">
-          Active subscriptions{' '}
-          <span className="text-gray-400 dark:text-gray-500 font-medium">{subscriptions.length}</span>
-        </h2>
+      <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <h2 className="font-semibold text-gray-800 dark:text-gray-100">
+            Subscriptions{' '}
+            <span className="text-gray-400 dark:text-gray-500 font-medium">
+              {filtered.length} of {subscriptions.length}
+            </span>
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search clinic, email, or sub ID…"
+              aria-label="Search subscriptions"
+              className="form-input text-sm py-1.5 w-56"
+            />
+            {productOptions.length > 0 && (
+              <select
+                aria-label="Filter by plan"
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+                className="form-select text-sm py-1.5"
+              >
+                <option value="all">All plans</option>
+                {productOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setStatusFilter(f.id)}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                statusFilter === f.id
+                  ? 'bg-violet-500 border-violet-500 text-white'
+                  : 'border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >
+              {f.label} ({counts[f.id]})
+            </button>
+          ))}
+        </div>
       </header>
       <div className="overflow-x-auto">
         <table className="table-auto w-full dark:text-gray-300">
@@ -56,14 +161,16 @@ export default function SubscriptionsPanel({ subscriptions, products }: Props) {
             </tr>
           </thead>
           <tbody className="text-sm divide-y divide-gray-100 dark:divide-gray-700/60">
-            {subscriptions.length === 0 ? (
+            {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-                  No subscriptions yet. Once a clinic completes Stripe Checkout, it&apos;ll show up here.
+                  {subscriptions.length === 0
+                    ? "No subscriptions yet. Once a clinic completes Stripe Checkout, it'll show up here."
+                    : 'No subscriptions match these filters.'}
                 </td>
               </tr>
             ) : (
-              subscriptions.map((s) => (
+              filtered.map((s) => (
                 <SubscriptionRow
                   key={s.id}
                   sub={s}
@@ -129,12 +236,21 @@ function SubscriptionRow({
       ? `Renews ${relativeTime(sub.currentPeriodEnd * 1000)}`
       : '—'
 
+  const displayName = sub.clinicName ?? sub.customerName ?? '—'
+
   return (
     <tr className={pending ? 'opacity-60' : ''}>
       <td className="px-5 py-3">
-        <div className="font-medium text-gray-800 dark:text-gray-100">
-          {sub.clinicName ?? sub.customerName ?? '—'}
-        </div>
+        {sub.clinicOrgId ? (
+          <Link
+            href={`/ecommerce/customers/${sub.clinicOrgId}`}
+            className="font-medium text-gray-800 dark:text-gray-100 hover:text-violet-600 dark:hover:text-violet-400"
+          >
+            {displayName}
+          </Link>
+        ) : (
+          <div className="font-medium text-gray-800 dark:text-gray-100">{displayName}</div>
+        )}
         <div className="text-xs text-gray-500 dark:text-gray-400">{sub.customerEmail ?? '—'}</div>
         <div className="text-[10px] text-gray-400 font-mono mt-0.5">{sub.id}</div>
         {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
@@ -172,6 +288,7 @@ function SubscriptionRow({
                 onChange={(e) => handleChangePlan(e.target.value)}
                 className="form-select text-xs py-1 pr-7 pl-2 max-w-[14rem]"
                 title="Change plan"
+                aria-label="Change plan"
               >
                 {priceOptions.find((p) => p.id === sub.priceId) === undefined && sub.priceId && (
                   <option value={sub.priceId}>

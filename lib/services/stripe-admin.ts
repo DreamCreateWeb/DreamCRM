@@ -95,6 +95,103 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
   })
 }
 
+// ---------- Summary / Attention helpers ----------
+
+export interface SubscriptionStats {
+  total: number
+  active: number
+  trialing: number
+  pastDue: number
+  canceled: number
+  scheduledCancel: number
+  trialEndingSoon: number
+  mrrCents: number
+  planMix: Array<{ productName: string; count: number; mrrCents: number }>
+}
+
+export interface SubscriptionAttention {
+  trialEndingSoon: AdminSubscription[]
+  pastDue: AdminSubscription[]
+  scheduledCancel: AdminSubscription[]
+}
+
+export function monthlyContributionCents(sub: Pick<AdminSubscription, 'unitAmountCents' | 'interval' | 'status'>): number {
+  if (sub.status !== 'active' && sub.status !== 'trialing') return 0
+  if (sub.unitAmountCents == null) return 0
+  if (sub.interval === 'year') return Math.round(sub.unitAmountCents / 12)
+  if (sub.interval === 'week') return sub.unitAmountCents * 4
+  if (sub.interval === 'day') return sub.unitAmountCents * 30
+  return sub.unitAmountCents
+}
+
+export function summarizeSubscriptions(
+  subs: AdminSubscription[],
+  opts: { now?: number; trialWindowDays?: number } = {},
+): SubscriptionStats {
+  const nowSec = Math.floor((opts.now ?? Date.now()) / 1000)
+  const windowSec = (opts.trialWindowDays ?? 7) * 24 * 60 * 60
+  const planMixMap = new Map<string, { productName: string; count: number; mrrCents: number }>()
+  let active = 0
+  let trialing = 0
+  let pastDue = 0
+  let canceled = 0
+  let scheduledCancel = 0
+  let trialEndingSoon = 0
+  let mrr = 0
+  for (const s of subs) {
+    const contribution = monthlyContributionCents(s)
+    mrr += contribution
+    if (s.status === 'active') active++
+    else if (s.status === 'trialing') trialing++
+    else if (s.status === 'past_due' || s.status === 'unpaid') pastDue++
+    else if (s.status === 'canceled' || s.status === 'incomplete_expired') canceled++
+    if (s.cancelAtPeriodEnd && s.status !== 'canceled') scheduledCancel++
+    if (s.status === 'trialing' && s.trialEnd && s.trialEnd - nowSec <= windowSec && s.trialEnd >= nowSec) {
+      trialEndingSoon++
+    }
+    if (s.status === 'active' || s.status === 'trialing') {
+      const key = s.productName ?? 'Unknown'
+      const existing = planMixMap.get(key)
+      if (existing) {
+        existing.count += 1
+        existing.mrrCents += contribution
+      } else {
+        planMixMap.set(key, { productName: key, count: 1, mrrCents: contribution })
+      }
+    }
+  }
+  const planMix = Array.from(planMixMap.values()).sort((a, b) => b.mrrCents - a.mrrCents)
+  return {
+    total: subs.length,
+    active,
+    trialing,
+    pastDue,
+    canceled,
+    scheduledCancel,
+    trialEndingSoon,
+    mrrCents: mrr,
+    planMix,
+  }
+}
+
+export function pickAttentionSubscriptions(
+  subs: AdminSubscription[],
+  opts: { now?: number; trialWindowDays?: number } = {},
+): SubscriptionAttention {
+  const nowSec = Math.floor((opts.now ?? Date.now()) / 1000)
+  const windowSec = (opts.trialWindowDays ?? 7) * 24 * 60 * 60
+  const trialEndingSoon = subs
+    .filter((s) => s.status === 'trialing' && s.trialEnd && s.trialEnd - nowSec <= windowSec && s.trialEnd >= nowSec)
+    .sort((a, b) => (a.trialEnd ?? 0) - (b.trialEnd ?? 0))
+  const pastDue = subs
+    .filter((s) => s.status === 'past_due' || s.status === 'unpaid')
+    .sort((a, b) => (a.currentPeriodEnd ?? 0) - (b.currentPeriodEnd ?? 0))
+  const scheduledCancel = subs
+    .filter((s) => s.cancelAtPeriodEnd && s.status !== 'canceled')
+    .sort((a, b) => (a.currentPeriodEnd ?? 0) - (b.currentPeriodEnd ?? 0))
+  return { trialEndingSoon, pastDue, scheduledCancel }
+}
+
 export interface AdminPrice {
   id: string
   unitAmountCents: number | null

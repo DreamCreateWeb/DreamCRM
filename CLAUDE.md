@@ -22,12 +22,12 @@ app/
   (default)/         Authenticated app surface (dashboard, settings, etc.)
                      — same code serves platform admin and clinic admin;
                        page bodies branch on getTenantContext().tenantType
-  (auth)/            sign-in / sign-up / reset-password / accept-invite (TODO)
+  (auth)/            sign-in / sign-up / reset-password / accept-invite
   (onboarding)/      4-step onboarding → creates clinic org + Stripe Checkout
   (double-sidebar)/  inbox + messages (uses tenant-sidebar v2 + their own inner sidebar)
   (alternative)/     component library + finance demos + utility pages
-  (clinic-public)/   public clinic websites (TODO — currently empty)
-  site/[slug]/       (TODO) clinic public homepages, served via subdomain rewrite
+  site/[slug]/       Public clinic homepage + /book (pro+) — served via
+                     subdomain rewrite from {slug}.dreamcreatestudio.com
   api/auth/[...all]  better-auth handler
   api/webhooks/stripe  Stripe webhook → updates clinic_profile
   api/upload         Vercel Blob upload (auth-gated)
@@ -51,8 +51,11 @@ components/ui/
   tenant-sidebar.tsx   Data-driven sidebar (modules from lib/modules/)
   nav-icons.tsx        Icon registry
 
-middleware.ts          Auth gate + public-path allowlist
-                       (TODO: subdomain rewrite for clinic public sites)
+middleware.ts          Auth gate + public-path allowlist + subdomain
+                       rewrite ({slug}.dreamcreatestudio.com → /site/{slug})
+
+tests/                 Vitest unit/integration tests (run `pnpm test`).
+                       Mocks live in tests/mocks/. happy-dom env.
 ```
 
 ## Multi-tenancy model
@@ -95,25 +98,53 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   shop/cart/pay, settings panels, fintech, analytics)
 - Stripe admin UI (subscriptions table + plans CRUD) for platform admins
 - Vercel security headers, function timeouts, image remotePatterns
+- **Public clinic websites** at `{slug}.dreamcreatestudio.com` (modern
+  template — hero / about / hours / services / contact / footer; +/book
+  page for pro/premium tiers). Subdomain rewrite in middleware.ts.
+- **Clinic site editor** at /settings/clinic — display name, tagline,
+  about, full address, contact, brand color, 7-day office hours editor,
+  template selector. /settings/locations for multi-location practices.
+- **Stripe → clinic_profile** sync: webhook now writes plan_tier /
+  stripeSubscriptionId / subscriptionStatus to clinic_profile (org-keyed)
+  with 3 fallback paths to resolve the org.
+- **Accept-invite flow** at /accept-invite?token=… — token validation,
+  sign-up-or-sign-in toggle, auto-accept on submit, patient.userId linkage
+  via link-patient.ts.
+- **Patient portal** at /patient/* — dashboard with upcoming appointments,
+  appointments list (upcoming + history), book a visit (server action,
+  future-time validation), profile editor (name/contact/DOB/address),
+  bills placeholder. Patient sidebar auto-selected by DashboardShell when
+  ctx.tenantType==='patient'. `/` redirects patients to /patient/dashboard.
+- **Clinic profile editor enhancements**: logo + hero image uploaders
+  wired to Vercel Blob, editable services list (replaces hardcoded 4),
+  staff editor with headshot uploads and bios. Modern template renders
+  all of it (logo → header letter-mark fallback; hero image with gradient
+  overlay; configurable services strip; Meet The Team section that
+  auto-hides when empty).
+- **Vitest test suite** (108+ tests) covering middleware, billing sync,
+  site rendering, server actions, invite-details, link-patient, patient
+  booking, profile updates, services/staff JSON parsing.
 
 ## What's NOT yet wired (priorities for next session)
-1. **`app/site/[slug]/`** + **`app/(clinic-public)/layout.tsx`** — public
-   clinic websites (the audit captured archive code; just port it in)
-2. **Subdomain-rewriting middleware** — `{slug}.dreamcreatestudio.com` →
-   `/site/{slug}` internally
-3. **`app/(patient)/`** — patient portal surface (audit captured the
-   registry; need actual pages for appointments / records / bills / book)
-4. **`app/(auth)/accept-invite/`** — invitation acceptance flow
-5. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL` envs
-6. **Module recontextualization** — currently Messages / Forum / Ecommerce
-   are platform-scoped only; the schema supports per-org via `organization_id`
-   columns; need to add `eq(table.organizationId, ctx.organizationId)` filters
-   in clinic context and add the clinic↔platform conversation seam
-7. **Patient `users` linkage on `patient.userId`** — when an invited patient
-   accepts, link their `user.id` to the `patient` row
-8. **Subscription state → planTier sync on clinic_profile** is wired in the
-   Stripe webhook but currently writes to `billing_profiles` (per-user). Move
-   to `clinic_profile` so the source of truth is the org, not the user.
+1. **DB migration 0001 must be applied to prod** — adds logo_url,
+   hero_image_url, services jsonb, staff jsonb to clinic_profile.
+   Push the /api/admin/bootstrap route (auth'd by a freshly-rotated
+   ADMIN_BOOTSTRAP_TOKEN env), curl it to run pending migrations, then
+   remove the route + env.
+2. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard must be added
+   to the Vercel project before clinic sites resolve in production.
+3. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL` envs
+4. **Module recontextualization for clinic admins** — currently Messages /
+   Forum / Ecommerce / Customers / Orders / Invoices / Calendar / Tasks
+   services don't filter by organizationId. Single-tenant for now so
+   this is correctness, not a real leak — but MUST be fixed before
+   onboarding clinic #2. Every domain table already carries an
+   organization_id FK; the service functions just need:
+   `eq(table.organizationId, ctx.organizationId)` in the where clauses,
+   plus pass ctx.organizationId on every insert.
+5. **Patient bills + records + messages** — the patient portal pages
+   exist but bills is a placeholder, records/messages are 'soon' in the
+   sidebar registry. Pending real clinic invoicing flow.
 
 ## Deployment & operations
 
@@ -165,7 +196,9 @@ pnpm dev                  # local dev (needs .env with the Vercel envs)
 pnpm build                # next build
 pnpm db:generate          # drizzle-kit generate (after schema changes)
 pnpm db:push              # apply schema directly (local dev only)
-npx tsc --noEmit          # type-check
+pnpm typecheck            # tsc --noEmit
+pnpm test                 # vitest run (full unit + integration suite)
+pnpm test:watch           # vitest in watch mode
 ```
 
 ## Test account

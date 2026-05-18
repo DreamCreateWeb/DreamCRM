@@ -1,6 +1,7 @@
 import SettingsSidebar from '../settings-sidebar'
 import BillingPanel from './billing-panel'
 import { requireUser } from '@/lib/session'
+import { getTenantContext } from '@/lib/auth/context'
 import { getBilling } from '@/lib/services/settings'
 import { db, schema } from '@/lib/db'
 import { and, eq } from 'drizzle-orm'
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function BillingSettings() {
   const user = await requireUser()
+  const ctx = await getTenantContext()
   const billing = await getBilling(user.id)
   const paid = await db
     .select({
@@ -34,7 +36,7 @@ export default async function BillingSettings() {
       </div>
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
-          <SettingsSidebar />
+          <SettingsSidebar tenantType={ctx?.tenantType} />
           <BillingPanel
             initial={{
               plan: (billing?.plan ?? 'free') as 'free' | 'pro' | 'team' | 'enterprise',

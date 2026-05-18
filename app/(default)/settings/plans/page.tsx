@@ -1,6 +1,7 @@
 import SettingsSidebar from '../settings-sidebar'
 import PlansPanel from './plans-panel'
 import { requireUser } from '@/lib/session'
+import { getTenantContext } from '@/lib/auth/context'
 import { getBilling } from '@/lib/services/settings'
 
 export const metadata = {
@@ -12,6 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function PlansSettings() {
   const user = await requireUser()
+  const ctx = await getTenantContext()
   const billing = await getBilling(user.id)
 
   return (
@@ -21,7 +23,7 @@ export default async function PlansSettings() {
       </div>
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
-          <SettingsSidebar />
+          <SettingsSidebar tenantType={ctx?.tenantType} />
           <PlansPanel currentPlan={(billing?.plan ?? 'free') as 'free' | 'pro' | 'team' | 'enterprise'} />
         </div>
       </div>

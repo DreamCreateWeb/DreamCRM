@@ -1,3 +1,12 @@
+export const metadata = {
+  title: 'Clinics - DreamCRM',
+  description: 'All clinic tenants and their plans, projects, and revenue',
+}
+
+export const dynamic = 'force-dynamic'
+
+import { redirect } from 'next/navigation'
+import { requireTenant } from '@/lib/auth/context'
 import { SelectedItemsProvider } from '@/app/selected-items-context'
 import DateSelect from '@/components/date-select'
 import FilterButton from '@/components/dropdown-filter'
@@ -6,18 +15,17 @@ import CustomersTable, { type CustomerRow } from './customers-table'
 import AddCustomerModal from './add-customer-modal'
 import DeleteCustomersButton from './delete-customers-button'
 import { listCustomers, getCustomerOrderStats } from '@/lib/services/customers'
-import { requireUser } from '@/lib/session'
+import PlatformClinics from './platform-clinics'
 
-export const metadata = {
-  title: 'Customers - DreamCRM',
-  description: 'Manage your customers',
-}
+export default async function CustomersPage() {
+  const ctx = await requireTenant()
+  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
-export const dynamic = 'force-dynamic'
+  if (ctx.tenantType === 'platform') return <PlatformClinics />
 
-export default async function Customers() {
-  await requireUser()
-
+  // Clinic tenants — keep the existing CRM-style customers/patients table.
+  // (The clinic-side Patients module gets its own pass when we work the
+  // clinic registry top-down.)
   const [customers, stats] = await Promise.all([listCustomers(), getCustomerOrderStats()])
   const statsByCustomer = new Map(stats.map((s) => [s.customerId, s]))
 
@@ -42,7 +50,9 @@ export default async function Customers() {
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <div className="sm:flex sm:justify-between sm:items-center mb-8">
           <div className="mb-4 sm:mb-0">
-            <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Customers</h1>
+            <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
+              Patients
+            </h1>
           </div>
           <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
             <DeleteCustomersButton />

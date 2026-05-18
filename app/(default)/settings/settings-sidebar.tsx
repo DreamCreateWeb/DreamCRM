@@ -3,11 +3,46 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-export default function SettingsSidebar() {
+interface Props {
+  /** Tenant type drives which sections appear. Clinic tenants see the
+   *  clinic-only "Website" group (profile + locations). */
+  tenantType?: 'platform' | 'clinic' | 'patient'
+}
+
+export default function SettingsSidebar({ tenantType }: Props = {}) {
   const pathname = usePathname()
-    
+
   return (
     <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-auto px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60 min-w-[15rem] md:space-y-3">
+      {tenantType === 'clinic' && (
+        <div>
+          <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">Website</div>
+          <ul className="flex flex-nowrap md:block mr-3 md:mr-0">
+            <li className="mr-0.5 md:mr-0 md:mb-0.5">
+              <Link
+                href="/settings/clinic"
+                className={`flex items-center px-2.5 py-2 rounded-lg whitespace-nowrap ${pathname.includes('/settings/clinic') && 'bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'}`}
+              >
+                <svg className={`shrink-0 fill-current mr-2 ${pathname.includes('/settings/clinic') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'}`} width="16" height="16" viewBox="0 0 16 16">
+                  <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 14A6 6 0 1 1 8 2a6 6 0 0 1 0 12Zm0-10a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+                </svg>
+                <span className={`text-sm font-medium ${pathname.includes('/settings/clinic') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'}`}>Clinic Profile</span>
+              </Link>
+            </li>
+            <li className="mr-0.5 md:mr-0 md:mb-0.5">
+              <Link
+                href="/settings/locations"
+                className={`flex items-center px-2.5 py-2 rounded-lg whitespace-nowrap ${pathname.includes('/settings/locations') && 'bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'}`}
+              >
+                <svg className={`shrink-0 fill-current mr-2 ${pathname.includes('/settings/locations') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'}`} width="16" height="16" viewBox="0 0 16 16">
+                  <path d="M8 0a5 5 0 0 0-5 5c0 4 5 11 5 11s5-7 5-11a5 5 0 0 0-5-5Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
+                </svg>
+                <span className={`text-sm font-medium ${pathname.includes('/settings/locations') ? 'text-violet-500 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'}`}>Locations</span>
+              </Link>
+            </li>
+          </ul>
+        </div>
+      )}
       {/* Group 1 */}
       <div>
         <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">Business settings</div>

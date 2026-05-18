@@ -1,6 +1,7 @@
 import SettingsSidebar from '../settings-sidebar'
 import AppsPanel from './apps-panel'
 import { requireUser } from '@/lib/session'
+import { getTenantContext } from '@/lib/auth/context'
 import { listConnectedApps } from '@/lib/services/settings'
 
 export const metadata = {
@@ -12,6 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function AppsSettings() {
   const user = await requireUser()
+  const ctx = await getTenantContext()
   const apps = await listConnectedApps(user.id)
   const connected = Object.fromEntries(apps.map((a) => [a.appKey, a.enabled])) as Record<string, boolean>
 
@@ -22,7 +24,7 @@ export default async function AppsSettings() {
       </div>
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
-          <SettingsSidebar />
+          <SettingsSidebar tenantType={ctx?.tenantType} />
           <AppsPanel connected={connected} />
         </div>
       </div>
