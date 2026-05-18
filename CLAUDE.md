@@ -110,31 +110,41 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
 - **Accept-invite flow** at /accept-invite?token=… — token validation,
   sign-up-or-sign-in toggle, auto-accept on submit, patient.userId linkage
   via link-patient.ts.
-- **Vitest test suite** (84+ tests) covering middleware, billing sync,
-  site rendering, server actions, invite-details, link-patient.
+- **Patient portal** at /patient/* — dashboard with upcoming appointments,
+  appointments list (upcoming + history), book a visit (server action,
+  future-time validation), profile editor (name/contact/DOB/address),
+  bills placeholder. Patient sidebar auto-selected by DashboardShell when
+  ctx.tenantType==='patient'. `/` redirects patients to /patient/dashboard.
+- **Clinic profile editor enhancements**: logo + hero image uploaders
+  wired to Vercel Blob, editable services list (replaces hardcoded 4),
+  staff editor with headshot uploads and bios. Modern template renders
+  all of it (logo → header letter-mark fallback; hero image with gradient
+  overlay; configurable services strip; Meet The Team section that
+  auto-hides when empty).
+- **Vitest test suite** (108+ tests) covering middleware, billing sync,
+  site rendering, server actions, invite-details, link-patient, patient
+  booking, profile updates, services/staff JSON parsing.
 
 ## What's NOT yet wired (priorities for next session)
-1. **`app/(patient)/`** — patient portal surface (Premium-only feature;
-   audit captured the registry; need actual pages for appointments /
-   records / bills / book). When an invited patient accepts, they
-   currently land on the clinic admin dashboard which they shouldn't see.
-2. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL` envs
-3. **Module recontextualization** — currently Messages / Forum / Ecommerce
-   are platform-scoped only; the schema supports per-org via `organization_id`
-   columns; need to add `eq(table.organizationId, ctx.organizationId)` filters
-   in clinic context and add the clinic↔platform conversation seam. Single-
-   tenant for now so this is correctness, not a leak.
-4. **Image uploads on the clinic site** — Vercel Blob is wired
-   (`/api/upload`); the clinic profile editor doesn't expose a logo or
-   hero image picker yet.
-5. **Services + staff bios editable from /settings/clinic** — the modern
-   template currently hardcodes 4 generic services. Schema additions
-   needed (e.g. `clinic_service`, `clinic_staff` tables) plus editor UI.
-6. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard must be added
+1. **DB migration 0001 must be applied to prod** — adds logo_url,
+   hero_image_url, services jsonb, staff jsonb to clinic_profile.
+   Push the /api/admin/bootstrap route (auth'd by a freshly-rotated
+   ADMIN_BOOTSTRAP_TOKEN env), curl it to run pending migrations, then
+   remove the route + env.
+2. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard must be added
    to the Vercel project before clinic sites resolve in production.
-7. **Module recontextualization for clinic admins**: clinics see
-   platform-wide Messages/Forum/Feed data because services don't filter
-   by organizationId.
+3. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL` envs
+4. **Module recontextualization for clinic admins** — currently Messages /
+   Forum / Ecommerce / Customers / Orders / Invoices / Calendar / Tasks
+   services don't filter by organizationId. Single-tenant for now so
+   this is correctness, not a real leak — but MUST be fixed before
+   onboarding clinic #2. Every domain table already carries an
+   organization_id FK; the service functions just need:
+   `eq(table.organizationId, ctx.organizationId)` in the where clauses,
+   plus pass ctx.organizationId on every insert.
+5. **Patient bills + records + messages** — the patient portal pages
+   exist but bills is a placeholder, records/messages are 'soon' in the
+   sidebar registry. Pending real clinic invoicing flow.
 
 ## Deployment & operations
 
