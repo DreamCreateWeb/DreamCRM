@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomUUID } from 'crypto'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   getAccessToken,
@@ -8,14 +8,39 @@ import {
   listHistory,
   listInboxMessageIds,
   markMessageRead,
+  modifyLabels as gmailModifyLabels,
   parseGmailMessage,
   sendMessage as gmailSend,
   stopWatch,
+  trashMessage as gmailTrash,
   watchMailbox,
 } from './gmail'
 import type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
 
 export type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
+
+/**
+ * Look up a patient in `organizationId` whose email matches `fromEmail`
+ * (case-insensitive). Returns the patient id or null. The match is exact
+ * on email; we don't try to fuzzy-match across multiple email addresses
+ * per patient yet — practically rare for dental clinics.
+ */
+async function findPatientByEmail(organizationId: string, fromEmail: string): Promise<string | null> {
+  if (!fromEmail) return null
+  const normalized = fromEmail.trim().toLowerCase()
+  if (!normalized) return null
+  const [row] = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        sql`lower(${schema.patient.email}) = ${normalized}`,
+      ),
+    )
+    .limit(1)
+  return row?.id ?? null
+}
 
 function isMissingSchemaError(err: unknown): boolean {
   const code = (err as { code?: string; cause?: { code?: string } } | null)?.code
@@ -84,17 +109,35 @@ export interface EmailMessageListItem {
   isRead: boolean
   isStarred: boolean
   folder: string
+  intent: string | null
+  patientId: string | null
+  patientFirstName: string | null
+  patientLastName: string | null
+}
+
+export interface ListMessagesOpts {
+  accountId?: string
+  folder?: string
+  limit?: number
+  intent?: string         // filter by classified intent
+  unreadOnly?: boolean
+  starredOnly?: boolean
+  patientsOnly?: boolean  // only messages matched to a patient
 }
 
 export async function listMessagesForOrg(
   organizationId: string,
-  opts: { accountId?: string; folder?: string; limit?: number } = {},
+  opts: ListMessagesOpts = {},
 ): Promise<EmailMessageListItem[]> {
   try {
     const limit = opts.limit ?? 100
     const conditions = [eq(schema.emailMessage.organizationId, organizationId)]
     if (opts.accountId) conditions.push(eq(schema.emailMessage.accountId, opts.accountId))
     conditions.push(eq(schema.emailMessage.folder, opts.folder ?? 'inbox'))
+    if (opts.intent) conditions.push(eq(schema.emailMessage.intent, opts.intent))
+    if (opts.unreadOnly) conditions.push(eq(schema.emailMessage.isRead, false))
+    if (opts.starredOnly) conditions.push(eq(schema.emailMessage.isStarred, true))
+    if (opts.patientsOnly) conditions.push(sql`${schema.emailMessage.patientId} is not null`)
 
     const rows = await db
       .select({
@@ -111,15 +154,52 @@ export async function listMessagesForOrg(
         isRead: schema.emailMessage.isRead,
         isStarred: schema.emailMessage.isStarred,
         folder: schema.emailMessage.folder,
+        intent: schema.emailMessage.intent,
+        patientId: schema.emailMessage.patientId,
+        patientFirstName: schema.patient.firstName,
+        patientLastName: schema.patient.lastName,
       })
       .from(schema.emailMessage)
       .leftJoin(schema.emailAccount, eq(schema.emailAccount.id, schema.emailMessage.accountId))
+      .leftJoin(schema.patient, eq(schema.patient.id, schema.emailMessage.patientId))
       .where(and(...conditions))
       .orderBy(desc(schema.emailMessage.receivedAt))
       .limit(limit)
     return rows as EmailMessageListItem[]
   } catch (err) {
     if (isMissingSchemaError(err)) return []
+    throw err
+  }
+}
+
+/**
+ * Counts grouped by intent for the inbox triage filter chips. Returns one
+ * entry per intent including 'other' and a synthetic 'unclassified' bucket
+ * for messages with a null intent (Phase 1 leaves intent null; Phase 2's AI
+ * classifier populates it on ingest).
+ */
+export async function countMessagesByIntent(organizationId: string): Promise<Record<string, number>> {
+  try {
+    const rows = await db
+      .select({
+        intent: schema.emailMessage.intent,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(schema.emailMessage)
+      .where(
+        and(
+          eq(schema.emailMessage.organizationId, organizationId),
+          eq(schema.emailMessage.folder, 'inbox'),
+        ),
+      )
+      .groupBy(schema.emailMessage.intent)
+    const map: Record<string, number> = {}
+    for (const r of rows) {
+      map[r.intent ?? 'unclassified'] = r.count
+    }
+    return map
+  } catch (err) {
+    if (isMissingSchemaError(err)) return {}
     throw err
   }
 }
@@ -194,10 +274,12 @@ export async function syncAccount(
       try {
         const full = await getMessage(accessToken, item.id)
         const parsed = parseGmailMessage(full)
+        const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
         await db.insert(schema.emailMessage).values({
           id: randomUUID(),
           accountId,
           organizationId,
+          patientId,
           providerMessageId: parsed.providerMessageId,
           providerThreadId: parsed.providerThreadId,
           folder: 'inbox',
@@ -285,6 +367,83 @@ export async function setMessageRead(messageId: string, organizationId: string, 
   }
 }
 
+/**
+ * Toggle the starred flag on a message. Mirrors to Gmail via the STARRED
+ * label so the change shows up in the user's regular Gmail UI too.
+ */
+export async function setMessageStarred(messageId: string, organizationId: string, starred: boolean): Promise<void> {
+  const [msg] = await db
+    .select({
+      providerMessageId: schema.emailMessage.providerMessageId,
+      accountId: schema.emailMessage.accountId,
+    })
+    .from(schema.emailMessage)
+    .where(and(eq(schema.emailMessage.id, messageId), eq(schema.emailMessage.organizationId, organizationId)))
+    .limit(1)
+  if (!msg) return
+  await db
+    .update(schema.emailMessage)
+    .set({ isStarred: starred })
+    .where(eq(schema.emailMessage.id, messageId))
+  try {
+    const accessToken = await getAccessToken(msg.accountId)
+    await gmailModifyLabels(accessToken, msg.providerMessageId, starred ? ['STARRED'] : [], starred ? [] : ['STARRED'])
+  } catch (err) {
+    console.warn('[mailbox] could not sync star flag back to Gmail', err)
+  }
+}
+
+/**
+ * Archive a message: locally moves it out of the inbox folder; on Gmail
+ * removes the INBOX label (which is how Gmail itself models "archive").
+ */
+export async function archiveMessage(messageId: string, organizationId: string): Promise<void> {
+  const [msg] = await db
+    .select({
+      providerMessageId: schema.emailMessage.providerMessageId,
+      accountId: schema.emailMessage.accountId,
+    })
+    .from(schema.emailMessage)
+    .where(and(eq(schema.emailMessage.id, messageId), eq(schema.emailMessage.organizationId, organizationId)))
+    .limit(1)
+  if (!msg) return
+  await db
+    .update(schema.emailMessage)
+    .set({ folder: 'archive' })
+    .where(eq(schema.emailMessage.id, messageId))
+  try {
+    const accessToken = await getAccessToken(msg.accountId)
+    await gmailModifyLabels(accessToken, msg.providerMessageId, [], ['INBOX'])
+  } catch (err) {
+    console.warn('[mailbox] could not archive on Gmail', err)
+  }
+}
+
+/**
+ * Move a message to trash. Mirrors to Gmail via users.messages.trash.
+ */
+export async function trashMessage(messageId: string, organizationId: string): Promise<void> {
+  const [msg] = await db
+    .select({
+      providerMessageId: schema.emailMessage.providerMessageId,
+      accountId: schema.emailMessage.accountId,
+    })
+    .from(schema.emailMessage)
+    .where(and(eq(schema.emailMessage.id, messageId), eq(schema.emailMessage.organizationId, organizationId)))
+    .limit(1)
+  if (!msg) return
+  await db
+    .update(schema.emailMessage)
+    .set({ folder: 'trash' })
+    .where(eq(schema.emailMessage.id, messageId))
+  try {
+    const accessToken = await getAccessToken(msg.accountId)
+    await gmailTrash(accessToken, msg.providerMessageId)
+  } catch (err) {
+    console.warn('[mailbox] could not trash on Gmail', err)
+  }
+}
+
 export async function disconnectAccount(accountId: string, organizationId: string): Promise<void> {
   // Best-effort: tell Gmail to stop pushing for this mailbox. Don't block the
   // disconnect on it — if the token is already revoked we still want to mark
@@ -358,10 +517,12 @@ async function ingestMessageById(
     // the message fetch.
     if (!(full.labelIds ?? []).includes('INBOX')) return false
     const parsed = parseGmailMessage(full)
+    const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
     await db.insert(schema.emailMessage).values({
       id: randomUUID(),
       accountId,
       organizationId,
+      patientId,
       providerMessageId: parsed.providerMessageId,
       providerThreadId: parsed.providerThreadId,
       folder: 'inbox',
@@ -382,6 +543,44 @@ async function ingestMessageById(
     console.warn(`[mailbox.ingest] ${providerMessageId} failed`, err)
     return false
   }
+}
+
+/**
+ * One-off backfill: scan all messages in an org that have a null patient_id
+ * and try to match them to a patient by sender email. Runs in batches; safe
+ * to invoke repeatedly. Returns the number of rows that got matched.
+ */
+export async function backfillPatientMatches(organizationId: string, opts: { limit?: number } = {}): Promise<{ matched: number }> {
+  const limit = opts.limit ?? 500
+  const rows = await db
+    .select({ id: schema.emailMessage.id, fromEmail: schema.emailMessage.fromEmail })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.organizationId, organizationId),
+        isNull(schema.emailMessage.patientId),
+      ),
+    )
+    .limit(limit)
+  let matched = 0
+  // Cache by email to avoid re-querying the same address for every message.
+  const cache = new Map<string, string | null>()
+  for (const row of rows) {
+    const key = row.fromEmail.trim().toLowerCase()
+    let patientId = cache.get(key)
+    if (patientId === undefined) {
+      patientId = await findPatientByEmail(organizationId, row.fromEmail)
+      cache.set(key, patientId)
+    }
+    if (patientId) {
+      await db
+        .update(schema.emailMessage)
+        .set({ patientId })
+        .where(eq(schema.emailMessage.id, row.id))
+      matched++
+    }
+  }
+  return { matched }
 }
 
 /**

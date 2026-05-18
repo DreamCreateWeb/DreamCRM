@@ -5,10 +5,13 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireTenant } from '@/lib/auth/context'
 import {
+  archiveMessage as svcArchive,
   disconnectAccount as svcDisconnect,
   sendEmail,
   setMessageRead,
+  setMessageStarred,
   syncAccount,
+  trashMessage as svcTrash,
 } from '@/lib/services/mailbox'
 
 async function requireOrgUser() {
@@ -36,6 +39,27 @@ export async function disconnectMailbox(accountId: string) {
 export async function markMessage(messageId: string, read: boolean) {
   const ctx = await requireOrgUser()
   await setMessageRead(messageId, ctx.organizationId, read)
+  revalidatePath('/inbox')
+  return { ok: true }
+}
+
+export async function toggleStar(messageId: string, starred: boolean) {
+  const ctx = await requireOrgUser()
+  await setMessageStarred(messageId, ctx.organizationId, starred)
+  revalidatePath('/inbox')
+  return { ok: true }
+}
+
+export async function archiveMessageAction(messageId: string) {
+  const ctx = await requireOrgUser()
+  await svcArchive(messageId, ctx.organizationId)
+  revalidatePath('/inbox')
+  return { ok: true }
+}
+
+export async function trashMessageAction(messageId: string) {
+  const ctx = await requireOrgUser()
+  await svcTrash(messageId, ctx.organizationId)
   revalidatePath('/inbox')
   return { ok: true }
 }

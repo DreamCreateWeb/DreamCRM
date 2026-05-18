@@ -400,6 +400,31 @@ export async function markMessageRead(accessToken: string, providerMessageId: st
   })
 }
 
+/**
+ * Add/remove Gmail labels on a message in a single API call. Use empty
+ * arrays when only adding or removing.
+ */
+export async function modifyLabels(
+  accessToken: string,
+  providerMessageId: string,
+  addLabelIds: string[],
+  removeLabelIds: string[],
+): Promise<void> {
+  await gmailFetch(accessToken, `/users/me/messages/${providerMessageId}/modify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ addLabelIds, removeLabelIds }),
+  })
+}
+
+/**
+ * Move a message to the Trash in Gmail (reversible for 30 days from the
+ * user's web UI — does not delete permanently).
+ */
+export async function trashMessage(accessToken: string, providerMessageId: string): Promise<void> {
+  await gmailFetch(accessToken, `/users/me/messages/${providerMessageId}/trash`, { method: 'POST' })
+}
+
 // ---------- Push notifications: watch / stop / history ----------
 
 export interface WatchResponse {
