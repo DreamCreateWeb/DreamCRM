@@ -111,6 +111,7 @@ export interface EmailMessageListItem {
   isStarred: boolean
   folder: string
   intent: string | null
+  category: string | null
   patientId: string | null
   patientFirstName: string | null
   patientLastName: string | null
@@ -121,6 +122,13 @@ export interface ListMessagesOpts {
   folder?: string
   limit?: number
   intent?: string         // filter by classified intent
+  /**
+   * Category tab filter. `'primary'` matches `category='primary'` AND
+   * `category IS NULL` so freshly-ingested messages don't disappear into a
+   * void while the classifier is still running. Other categories match
+   * exactly.
+   */
+  category?: string
   unreadOnly?: boolean
   starredOnly?: boolean
   patientsOnly?: boolean  // only messages matched to a patient
@@ -136,6 +144,17 @@ export async function listMessagesForOrg(
     if (opts.accountId) conditions.push(eq(schema.emailMessage.accountId, opts.accountId))
     conditions.push(eq(schema.emailMessage.folder, opts.folder ?? 'inbox'))
     if (opts.intent) conditions.push(eq(schema.emailMessage.intent, opts.intent))
+    if (opts.category) {
+      if (opts.category === 'primary') {
+        // Show unclassified mail in Primary so newly-ingested messages
+        // don't vanish during the brief AI classification window.
+        conditions.push(
+          sql`(${schema.emailMessage.category} = 'primary' OR ${schema.emailMessage.category} IS NULL)`,
+        )
+      } else {
+        conditions.push(eq(schema.emailMessage.category, opts.category))
+      }
+    }
     if (opts.unreadOnly) conditions.push(eq(schema.emailMessage.isRead, false))
     if (opts.starredOnly) conditions.push(eq(schema.emailMessage.isStarred, true))
     if (opts.patientsOnly) conditions.push(sql`${schema.emailMessage.patientId} is not null`)
@@ -156,6 +175,7 @@ export async function listMessagesForOrg(
         isStarred: schema.emailMessage.isStarred,
         folder: schema.emailMessage.folder,
         intent: schema.emailMessage.intent,
+        category: schema.emailMessage.category,
         patientId: schema.emailMessage.patientId,
         patientFirstName: schema.patient.firstName,
         patientLastName: schema.patient.lastName,
@@ -201,6 +221,39 @@ export async function countMessagesByIntent(organizationId: string): Promise<Rec
     return map
   } catch (err) {
     if (isMissingSchemaError(err)) return {}
+    throw err
+  }
+}
+
+/**
+ * Counts grouped by category — drives the tab badges in the inbox header.
+ * Unclassified messages are folded into 'primary' to match listMessagesForOrg's
+ * default behavior (so the Primary tab count matches what the user actually
+ * sees on the Primary tab).
+ */
+export async function countMessagesByCategory(organizationId: string): Promise<Record<string, number>> {
+  try {
+    const rows = await db
+      .select({
+        category: schema.emailMessage.category,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(schema.emailMessage)
+      .where(
+        and(
+          eq(schema.emailMessage.organizationId, organizationId),
+          eq(schema.emailMessage.folder, 'inbox'),
+        ),
+      )
+      .groupBy(schema.emailMessage.category)
+    const map: Record<string, number> = { primary: 0, updates: 0, promotions: 0, spam: 0 }
+    for (const r of rows) {
+      const key = r.category ?? 'primary' // null → primary (see listMessagesForOrg)
+      map[key] = (map[key] ?? 0) + r.count
+    }
+    return map
+  } catch (err) {
+    if (isMissingSchemaError(err)) return { primary: 0, updates: 0, promotions: 0, spam: 0 }
     throw err
   }
 }
@@ -306,11 +359,12 @@ export async function syncAccount(
       .update(schema.emailAccount)
       .set({ syncStatus: 'ready', lastSyncAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.emailAccount.id, accountId))
-    // Best-effort: classify any messages still pending intent. Doesn't block
-    // sync success — classification errors are swallowed inside classifyBatch.
-    if (added > 0) {
-      classifyPendingIntents(organizationId, { limit: 50 }).catch(() => {})
-    }
+    // Classify any messages still pending category — runs even when no new
+    // mail was added so a fresh schema migration (category=null on every
+    // row) gets backfilled on the next page load. Awaited so Vercel doesn't
+    // kill it after the function returns; bounded by the limit param so
+    // latency is predictable (~5-10s for 50 emails at 8-way concurrency).
+    await classifyPendingIntents(organizationId, { limit: 50 }).catch(() => {})
     return { added }
   } catch (err) {
     await db
@@ -607,13 +661,14 @@ export async function addPatientFromEmail(opts: {
 }
 
 /**
- * Classify pending (intent IS NULL) inbox messages for an org using the AI
+ * Classify pending (category IS NULL) inbox messages for an org using the AI
  * classifier in `ai-mailbox.ts`. Runs in parallel with bounded concurrency.
  * Safe to invoke repeatedly — completed rows are skipped on the next call.
  *
  * Called automatically at the end of syncAccount() and processHistoryEvent()
- * so newly-ingested messages get intent labels without needing a separate
- * cron. Also callable as a backfill from the inbox settings page.
+ * so newly-ingested messages get both `category` (which inbox tab) and
+ * `intent` (what it's about) without needing a separate cron. Also callable
+ * as a backfill from the inbox settings page.
  */
 export async function classifyPendingIntents(
   organizationId: string,
@@ -625,24 +680,26 @@ export async function classifyPendingIntents(
     .select({
       id: schema.emailMessage.id,
       fromEmail: schema.emailMessage.fromEmail,
+      fromName: schema.emailMessage.fromName,
       subject: schema.emailMessage.subject,
       bodyText: schema.emailMessage.bodyText,
+      bodyHtml: schema.emailMessage.bodyHtml,
       snippet: schema.emailMessage.snippet,
     })
     .from(schema.emailMessage)
     .where(
       and(
         eq(schema.emailMessage.organizationId, organizationId),
-        isNull(schema.emailMessage.intent),
+        isNull(schema.emailMessage.category),
       ),
     )
     .limit(limit)
   if (rows.length === 0) return { classified: 0 }
   const results = await classifyBatch(rows)
-  for (const [id, intent] of Array.from(results.entries())) {
+  for (const [id, { category, intent }] of Array.from(results.entries())) {
     await db
       .update(schema.emailMessage)
-      .set({ intent })
+      .set({ category, intent })
       .where(eq(schema.emailMessage.id, id))
   }
   return { classified: results.size }

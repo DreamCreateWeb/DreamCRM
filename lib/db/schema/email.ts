@@ -75,6 +75,12 @@ export const emailMessage = pgTable(
     // 'marketing' | 'follow_up' | 'other'. Populated by Phase 2 classifier;
     // null until then. Drives the triage filter chips in the inbox UI.
     intent: text('intent'),
+    // AI-classified category: 'primary' | 'updates' | 'promotions' | 'spam'.
+    // Decides which inbox tab the message lands in — Primary is the "real
+    // emails that need a response" view, Updates is automated/transactional,
+    // Promotions is marketing/newsletters, Spam is suspicious. Populated by
+    // the classifier in the same call that sets `intent`.
+    category: text('category'),
     // AI-generated one-liner summary for threads > 3 messages. Populated on
     // demand when the user opens a long thread.
     threadSummary: text('thread_summary'),
@@ -86,6 +92,7 @@ export const emailMessage = pgTable(
     index('email_message_org_idx').on(t.organizationId),
     index('email_message_patient_idx').on(t.patientId),
     index('email_message_received_idx').on(t.receivedAt),
+    index('email_message_category_idx').on(t.category),
   ],
 )
 
@@ -134,3 +141,13 @@ export const EMAIL_INTENTS = [
   'other',       // Catch-all
 ] as const
 export type EmailIntent = (typeof EMAIL_INTENTS)[number]
+
+// Inbox tab the message belongs to. Distinct from `intent` — answers
+// "where does this live?" not "what is it about?".
+export const EMAIL_CATEGORIES = [
+  'primary',     // Real personal/business email written by a human, needs attention
+  'updates',     // Automated / transactional from a known service (receipts, alerts)
+  'promotions',  // Marketing, newsletters, sales pitches, bulk announcements
+  'spam',        // Suspicious / phishing / junk that slipped past Gmail spam filter
+] as const
+export type EmailCategory = (typeof EMAIL_CATEGORIES)[number]

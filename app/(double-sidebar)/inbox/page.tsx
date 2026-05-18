@@ -3,6 +3,7 @@ import { FlyoutProvider } from '@/app/flyout-context'
 import { requireTenant } from '@/lib/auth/context'
 import { gmailOAuthConfigured } from '@/lib/services/gmail'
 import {
+  countMessagesByCategory,
   countMessagesByIntent,
   getMessageDetail,
   listMessagesForOrg,
@@ -32,7 +33,10 @@ interface SP {
   intent?: string
   view?: string // 'unread' | 'starred'
   patients?: string
+  cat?: string // 'primary' (default) | 'updates' | 'promotions' | 'spam'
 }
+
+const VALID_CATEGORIES = new Set(['primary', 'updates', 'promotions', 'spam'])
 
 export default async function Inbox({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireTenant()
@@ -42,7 +46,10 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   const params = await searchParams
   const activeAccountId = params.account && accounts.some((a) => a.id === params.account) ? params.account : null
   const activeMessageId = params.m ?? null
-  const activeIntent = params.intent ?? null
+  const activeCategory = params.cat && VALID_CATEGORIES.has(params.cat) ? params.cat : 'primary'
+  // Intent filter only applies inside the Primary tab — on other tabs the
+  // intent buckets aren't meaningful (everything in Promotions is marketing).
+  const activeIntent = activeCategory === 'primary' ? (params.intent ?? null) : null
   const unreadOnly = params.view === 'unread'
   const starredOnly = params.view === 'starred'
   const patientsOnly = params.patients === '1'
@@ -78,14 +85,16 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
     accountId: activeAccountId ?? undefined,
     folder: 'inbox',
     intent: activeIntent ?? undefined,
+    category: activeCategory,
     unreadOnly,
     starredOnly,
     patientsOnly,
   }
 
-  const [messages, intentCounts] = await Promise.all([
+  const [messages, intentCounts, categoryCounts] = await Promise.all([
     listMessagesForOrg(ctx.organizationId, listOpts),
     countMessagesByIntent(ctx.organizationId),
+    countMessagesByCategory(ctx.organizationId),
   ])
   const unreadCount = accounts.reduce((sum, a) => sum + a.unreadCount, 0)
 
@@ -106,7 +115,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
         activeMessageId={activeMessage?.id ?? null}
         activeIsRead={activeMessage?.isRead ?? true}
         activeIsStarred={activeMessage?.isStarred ?? false}
-        baseUrl={buildBaseUrl({ activeAccountId, activeIntent, unreadOnly, starredOnly, patientsOnly })}
+        baseUrl={buildBaseUrl({ activeAccountId, activeCategory, activeIntent, unreadOnly, starredOnly, patientsOnly })}
       />
       <div className="relative flex h-full">
         <MailboxSidebar
@@ -115,6 +124,8 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
           messages={messages}
           activeMessageId={activeMessage?.id ?? null}
           intentCounts={intentCounts}
+          categoryCounts={categoryCounts}
+          activeCategory={activeCategory}
           activeIntent={activeIntent}
           unreadOnly={unreadOnly}
           starredOnly={starredOnly}
@@ -137,6 +148,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
 // stable as you cursor through the list.
 function buildBaseUrl(s: {
   activeAccountId: string | null
+  activeCategory: string
   activeIntent: string | null
   unreadOnly: boolean
   starredOnly: boolean
@@ -144,6 +156,7 @@ function buildBaseUrl(s: {
 }): string {
   const p = new URLSearchParams()
   if (s.activeAccountId) p.set('account', s.activeAccountId)
+  if (s.activeCategory !== 'primary') p.set('cat', s.activeCategory)
   if (s.activeIntent) p.set('intent', s.activeIntent)
   if (s.unreadOnly) p.set('view', 'unread')
   if (s.starredOnly) p.set('view', 'starred')

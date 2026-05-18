@@ -43,6 +43,13 @@
       "when": 1779132911508,
       "tag": "0005_flashy_gorilla_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779137143702,
+      "tag": "0006_hot_hercules",
+      "breakpoints": true
     }
   ]
 }
