@@ -35,7 +35,9 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
   const subs = await stripe.subscriptions.list({
     status: (opts.status as any) ?? 'all',
     limit: opts.limit ?? 100,
-    expand: ['data.customer', 'data.items.data.price.product'],
+    // Stripe caps expand depth at 4 levels — `data.items.data.price.product`
+    // would be 5. Fetch products separately below.
+    expand: ['data.customer', 'data.items.data.price'],
   })
 
   const customerIds = subs.data
@@ -65,12 +67,36 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
       .map((c) => [c.customerId!, { orgId: c.orgId, name: c.displayName ?? c.orgName ?? null }])
   )
 
+  // Collect distinct product IDs across the returned prices, then fetch
+  // their names in parallel. Small N — typically ≤ the count of plans.
+  const productIds = Array.from(
+    new Set(
+      subs.data
+        .map((s: any) => {
+          const p = s.items.data[0]?.price?.product
+          return typeof p === 'string' ? p : p?.id
+        })
+        .filter(Boolean) as string[],
+    ),
+  )
+  const productNameById = new Map<string, string>()
+  await Promise.all(
+    productIds.map(async (id) => {
+      try {
+        const p = await stripe.products.retrieve(id)
+        if (!p.deleted) productNameById.set(p.id, p.name)
+      } catch {
+        // Deleted / inaccessible product — leave name unset
+      }
+    }),
+  )
+
   return subs.data.map((s: any) => {
     const customer = typeof s.customer === 'object' && !s.customer.deleted ? s.customer : null
     const customerId = typeof s.customer === 'string' ? s.customer : s.customer?.id ?? ''
     const item = s.items.data[0]
     const price = item?.price
-    const product = typeof price?.product === 'object' && price.product && !price.product.deleted ? price.product : null
+    const productId = typeof price?.product === 'string' ? price.product : price?.product?.id ?? null
     const linked = clinicByCustomer.get(customerId)
     return {
       id: s.id,
@@ -85,8 +111,8 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
       clinicName: linked?.name ?? null,
       itemId: item?.id ?? null,
       priceId: price?.id ?? null,
-      productId: product?.id ?? null,
-      productName: product?.name ?? null,
+      productId,
+      productName: productId ? productNameById.get(productId) ?? null : null,
       unitAmountCents: price?.unit_amount ?? null,
       currency: price?.currency ?? null,
       interval: price?.recurring?.interval ?? null,
