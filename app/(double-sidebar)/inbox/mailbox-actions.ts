@@ -111,6 +111,7 @@ export async function draftReplyAction(messageId: string): Promise<{ draft: stri
     originalBody: message.bodyText ?? message.snippet ?? '',
     fromName: message.fromName,
     fromEmail: message.fromEmail,
+    tenantType: ctx.tenantType === 'platform' ? 'platform' : 'clinic',
   })
   return { draft }
 }

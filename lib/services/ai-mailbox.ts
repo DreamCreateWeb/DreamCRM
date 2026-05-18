@@ -133,7 +133,7 @@ export async function classifyMessage(args: ClassifyInput): Promise<EmailClassif
 // Reply drafting (Sonnet 4.6 + adaptive thinking)
 // ============================================================
 
-const REPLY_SYSTEM = `You draft reply emails on behalf of a dental clinic's front-desk admin. Your output goes directly into the admin's reply textarea; they review and may edit before sending.
+const REPLY_SYSTEM_CLINIC = `You draft reply emails on behalf of a dental clinic's front-desk admin. Your output goes directly into the admin's reply textarea; they review and may edit before sending.
 
 Tone: warm, professional, concise. Address the writer by first name when known. Match the formality of the incoming email — casual gets casual, formal gets formal.
 
@@ -154,28 +154,72 @@ Constraints — defer to staff for anything you can't verify:
 - Do NOT promise insurance coverage decisions
 - When in doubt, offer to have a staff member follow up`
 
+const REPLY_SYSTEM_PLATFORM = `You draft reply emails on behalf of the owner of Dream Create, a B2B SaaS platform (DreamCRM) sold to dental clinics. The recipients you're replying to are typically clinic owners, prospects evaluating the product, or vendors / partners. Your output goes directly into the owner's reply textarea; they review and may edit before sending.
+
+Tone: warm, founder-direct, concise. Address the writer by first name when known. Match the formality of the incoming email — casual gets casual, formal gets formal. You can sound human and personal — this is a small company writing to other small business owners.
+
+Output rules:
+- Plain text only — no markdown, no bullet lists unless the original was a list of questions to answer
+- Two to three short paragraphs maximum
+- Start with a one-line greeting (e.g. "Hi Sarah,")
+- End with a clear next step or question, never "Looking forward to hearing from you"
+- Do NOT add a signature, sign-off line ("Best", "Thanks", etc.), or the owner's name — they add their own
+
+Client context handling:
+- If a client record is provided, mention what's genuinely relevant (e.g. their name, that they're already on the platform) but don't recite fields the recipient would already know about themselves
+- If the sender is not in records, treat them as new — offer to set up a call, share a demo link, answer questions
+
+Constraints — defer to the owner for anything you can't verify:
+- Do NOT commit to specific pricing or discounts
+- Do NOT promise specific feature delivery dates or roadmap commitments
+- Do NOT make legal or contractual commitments (refunds, SLAs, etc.)
+- When in doubt, offer to follow up after checking with the owner`
+
 interface DraftReplyInput {
   patientContext: InboxPatientContext | null
   originalSubject: string | null
   originalBody: string
   fromName: string | null
   fromEmail: string
+  /**
+   * Tenant type drives which system prompt to use. Platform-tenant replies
+   * are drafted from the SaaS owner's POV; clinic-tenant replies from the
+   * front-desk admin's POV. Defaults to clinic if not supplied (backward
+   * compat with older callers).
+   */
+  tenantType?: 'platform' | 'clinic'
 }
 
 export async function draftReply(args: DraftReplyInput): Promise<string | null> {
   const client = getClient()
   if (!client) return null
 
+  const isPlatform = args.tenantType === 'platform'
   const ctx = args.patientContext
-  const contextBlock = ctx
-    ? `<patient_record>
+  const recordTag = isPlatform ? 'client_record' : 'patient_record'
+
+  let contextBlock: string
+  if (ctx) {
+    if (isPlatform) {
+      // Platform clients: only show fields that make sense for B2B context.
+      // Skip DOB / insurance / appointment count (clinic-specific).
+      contextBlock = `<${recordTag}>
+name: ${ctx.patient.firstName} ${ctx.patient.lastName}
+${ctx.patient.email ? `email: ${ctx.patient.email}\n` : ''}${ctx.patient.phone ? `phone: ${ctx.patient.phone}\n` : ''}${ctx.patient.notes ? `notes: ${ctx.patient.notes}` : ''}
+</${recordTag}>`
+    } else {
+      contextBlock = `<${recordTag}>
 name: ${ctx.patient.firstName} ${ctx.patient.lastName}
 ${ctx.patient.dateOfBirth ? `date_of_birth: ${ctx.patient.dateOfBirth}\n` : ''}${ctx.patient.phone ? `phone: ${ctx.patient.phone}\n` : ''}${ctx.patient.insuranceProvider ? `insurance: ${ctx.patient.insuranceProvider}\n` : ''}total_visits: ${ctx.appointmentCount}
 ${ctx.nextAppointment ? `next_appointment: ${ctx.nextAppointment.startTime.toISOString()} (${ctx.nextAppointment.type}, ${ctx.nextAppointment.status})` : 'next_appointment: none scheduled'}
 ${ctx.lastAppointment && new Date(ctx.lastAppointment.startTime) < new Date() ? `last_visit: ${ctx.lastAppointment.startTime.toISOString()} (${ctx.lastAppointment.type})` : 'last_visit: none on record'}
 ${ctx.patient.notes ? `notes: ${ctx.patient.notes}` : ''}
-</patient_record>`
-    : '<patient_record>This sender is NOT in our patient records.</patient_record>'
+</${recordTag}>`
+    }
+  } else {
+    const noun = isPlatform ? 'client' : 'patient'
+    contextBlock = `<${recordTag}>This sender is NOT in our ${noun} records.</${recordTag}>`
+  }
 
   const userText = `${contextBlock}
 
@@ -191,13 +235,12 @@ Draft a reply now. Output only the email body — no preamble, no explanation.`
   try {
     // Stream internally to avoid SDK HTTP timeouts on slow generations;
     // collect into a single string before returning. Adaptive thinking
-    // lets the model dial up reasoning when patient context makes the
-    // reply non-trivial.
+    // lets the model dial up reasoning when the reply is non-trivial.
     const stream = client.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       thinking: { type: 'adaptive' },
-      system: REPLY_SYSTEM,
+      system: isPlatform ? REPLY_SYSTEM_PLATFORM : REPLY_SYSTEM_CLINIC,
       messages: [{ role: 'user', content: userText }],
     })
     const final = await stream.finalMessage()
@@ -205,7 +248,7 @@ Draft a reply now. Output only the email body — no preamble, no explanation.`
     if (block && block.type === 'text') return block.text.trim()
     return null
   } catch (err) {
-    console.warn('[ai] draftReply failed', err)
+    console.warn('[ai.draft] failed:', (err as Error).message)
     return null
   }
 }

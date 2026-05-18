@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn, formatShortDate, formatTime } from '@/lib/utils'
 import type { EmailMessage } from '@/lib/services/mailbox'
 import type { InboxPatientContext } from '@/lib/types/patient-context'
+import type { InboxTerminology } from '@/lib/inbox-terminology'
 import {
   archiveMessageAction,
   markMessage,
@@ -22,9 +23,10 @@ interface Props {
   bodyHtml: string | null // pre-sanitized by the server
   patientContext: InboxPatientContext | null
   accountId: string | null
+  terminology: InboxTerminology
 }
 
-export default function MessageView({ message, bodyHtml, patientContext, accountId }: Props) {
+export default function MessageView({ message, bodyHtml, patientContext, accountId, terminology }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
@@ -226,17 +228,23 @@ export default function MessageView({ message, bodyHtml, patientContext, account
                   subject={msg.subject}
                   messageId={msg.id}
                   textareaId="quick-reply-textarea"
+                  terminology={terminology}
                 />
               )}
             </div>
           </div>
 
-          {/* Right column — patient card or add-patient CTA */}
+          {/* Right column — contact card or add-contact CTA */}
           <div className="xl:sticky xl:top-16 xl:self-start">
             {patientContext ? (
-              <PatientCard ctx={patientContext} />
+              <PatientCard ctx={patientContext} terminology={terminology} />
             ) : (
-              <AddPatientCard messageId={msg.id} fromEmail={msg.fromEmail} fromName={msg.fromName} />
+              <AddPatientCard
+                messageId={msg.id}
+                fromEmail={msg.fromEmail}
+                fromName={msg.fromName}
+                terminology={terminology}
+              />
             )}
           </div>
         </div>

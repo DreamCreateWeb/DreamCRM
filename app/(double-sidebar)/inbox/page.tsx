@@ -14,6 +14,7 @@ import {
 } from '@/lib/services/mailbox'
 import { getInboxPatientContext } from '@/lib/services/patient-context'
 import { sanitizeEmailHtml } from '@/lib/email-sanitize'
+import { inboxTerminology, type TenantType } from '@/lib/inbox-terminology'
 import ConnectPrompt from './connect-prompt'
 import MailboxSidebar from './components/mailbox-sidebar'
 import MessageView from './components/message-view'
@@ -47,6 +48,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   const params = await searchParams
   const activeAccountId = params.account && accounts.some((a) => a.id === params.account) ? params.account : null
   const activeMessageId = params.m ?? null
+  const terminology = inboxTerminology(ctx.tenantType as TenantType)
   const activeCategory = params.cat && VALID_CATEGORIES.has(params.cat) ? params.cat : 'primary'
   // Intent filter only applies inside the Primary tab — on other tabs the
   // intent buckets aren't meaningful (everything in Promotions is marketing).
@@ -140,12 +142,14 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
           starredOnly={starredOnly}
           patientsOnly={patientsOnly}
           unreadCount={unreadCount}
+          terminology={terminology}
         />
         <MessageView
           message={activeMessage}
           bodyHtml={sanitizedHtml}
           patientContext={patientContext}
           accountId={activeMessage?.accountId ?? null}
+          terminology={terminology}
         />
       </div>
     </FlyoutProvider>

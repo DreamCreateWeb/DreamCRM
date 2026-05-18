@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useFlyoutContext } from '@/app/flyout-context'
 import { cn, relativeTime } from '@/lib/utils'
 import type { EmailAccountSummary, EmailMessageListItem } from '@/lib/services/mailbox'
+import type { InboxTerminology } from '@/lib/inbox-terminology'
 import ComposeButton from '../compose-button'
 import { syncMailbox } from '../mailbox-actions'
 import FilterChips from './filter-chips'
@@ -71,6 +72,7 @@ interface Props {
   starredOnly: boolean
   patientsOnly: boolean
   unreadCount: number
+  terminology: InboxTerminology
 }
 
 export default function MailboxSidebar({
@@ -86,6 +88,7 @@ export default function MailboxSidebar({
   starredOnly,
   patientsOnly,
   unreadCount,
+  terminology,
 }: Props) {
   const { flyoutOpen, setFlyoutOpen } = useFlyoutContext()
   const pathname = usePathname()
@@ -189,7 +192,10 @@ export default function MailboxSidebar({
           unreadOnly={unreadOnly}
           starredOnly={starredOnly}
           patientsOnly={patientsOnly}
-          showIntents={activeCategory === 'primary'}
+          // Intent buckets (booking/insurance/records) are dental-specific;
+          // only show them on Primary tab for clinic tenants.
+          showIntents={activeCategory === 'primary' && terminology.isClinical}
+          terminology={terminology}
           totalCount={messages.length}
           unreadCount={unreadCount}
         />
