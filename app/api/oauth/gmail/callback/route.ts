@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/context'
 import { exchangeCodeForTokens, saveConnectedAccount } from '@/lib/services/gmail'
-import { syncAccount } from '@/lib/services/mailbox'
+import { registerWatch, syncAccount } from '@/lib/services/mailbox'
 
 function redirectUri(req: NextRequest): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
@@ -67,6 +67,17 @@ export async function GET(req: NextRequest) {
     await syncAccount(saved.accountId, ctx.organizationId, { limit: 50 })
   } catch (err) {
     console.warn('[gmail.callback] initial sync failed', err)
+  }
+
+  // Register the Gmail push-notification watch so new mail arrives in
+  // near-real-time. Skipped silently if the Pub/Sub topic env var isn't
+  // configured (preview deploys, local dev without GCP wiring).
+  if (process.env.GMAIL_PUBSUB_TOPIC) {
+    try {
+      await registerWatch(saved.accountId)
+    } catch (err) {
+      console.warn('[gmail.callback] watch() registration failed', err)
+    }
   }
 
   const url = new URL('/inbox/settings', req.url)

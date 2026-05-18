@@ -5,10 +5,13 @@ import { db, schema } from '@/lib/db'
 import {
   getAccessToken,
   getMessage,
+  listHistory,
   listInboxMessageIds,
   markMessageRead,
   parseGmailMessage,
   sendMessage as gmailSend,
+  stopWatch,
+  watchMailbox,
 } from './gmail'
 import type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
 
@@ -283,10 +286,216 @@ export async function setMessageRead(messageId: string, organizationId: string, 
 }
 
 export async function disconnectAccount(accountId: string, organizationId: string): Promise<void> {
+  // Best-effort: tell Gmail to stop pushing for this mailbox. Don't block the
+  // disconnect on it — if the token is already revoked we still want to mark
+  // the row disabled locally.
+  try {
+    const accessToken = await getAccessToken(accountId)
+    await stopWatch(accessToken)
+  } catch (err) {
+    console.warn('[mailbox.disconnect] failed to stop Gmail watch', err)
+  }
   await db
     .update(schema.emailAccount)
-    .set({ disabled: true, updatedAt: new Date() })
+    .set({ disabled: true, watchExpiresAt: null, updatedAt: new Date() })
     .where(
       and(eq(schema.emailAccount.id, accountId), eq(schema.emailAccount.organizationId, organizationId)),
     )
+}
+
+// ---------- Gmail push notifications: watch + history ingest ----------
+
+function pubsubTopicName(): string {
+  const topic = process.env.GMAIL_PUBSUB_TOPIC
+  if (!topic) throw new Error('GMAIL_PUBSUB_TOPIC env var is not set')
+  return topic
+}
+
+/**
+ * Register (or re-register) a Gmail `users.watch()` for the account. Stores
+ * the returned historyId as our incremental-sync cursor and the expiration
+ * timestamp so the renewal cron knows when to refresh. Idempotent: calling
+ * watch() again before expiration simply resets the clock.
+ */
+export async function registerWatch(accountId: string): Promise<{ historyId: string; expiresAt: Date }> {
+  const accessToken = await getAccessToken(accountId)
+  const result = await watchMailbox(accessToken, pubsubTopicName())
+  const expiresAt = new Date(Number(result.expiration))
+  await db
+    .update(schema.emailAccount)
+    .set({ historyId: result.historyId, watchExpiresAt: expiresAt, updatedAt: new Date() })
+    .where(eq(schema.emailAccount.id, accountId))
+  return { historyId: result.historyId, expiresAt }
+}
+
+/**
+ * Ingest a single Gmail message id into the local cache if we don't have it
+ * yet. Returns true if a new row was created. Used by both the full sync
+ * path and the push-driven history processing.
+ */
+async function ingestMessageById(
+  accountId: string,
+  organizationId: string,
+  accessToken: string,
+  providerMessageId: string,
+): Promise<boolean> {
+  const existing = await db
+    .select({ id: schema.emailMessage.id })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.accountId, accountId),
+        eq(schema.emailMessage.providerMessageId, providerMessageId),
+      ),
+    )
+    .limit(1)
+  if (existing[0]) return false
+
+  try {
+    const full = await getMessage(accessToken, providerMessageId)
+    // Only ingest INBOX messages — the history filter already narrows this,
+    // but defending against a label change between the history event and
+    // the message fetch.
+    if (!(full.labelIds ?? []).includes('INBOX')) return false
+    const parsed = parseGmailMessage(full)
+    await db.insert(schema.emailMessage).values({
+      id: randomUUID(),
+      accountId,
+      organizationId,
+      providerMessageId: parsed.providerMessageId,
+      providerThreadId: parsed.providerThreadId,
+      folder: 'inbox',
+      fromName: parsed.fromName,
+      fromEmail: parsed.fromEmail,
+      toEmails: parsed.toEmails,
+      ccEmails: parsed.ccEmails,
+      subject: parsed.subject,
+      snippet: parsed.snippet,
+      bodyText: parsed.bodyText,
+      bodyHtml: parsed.bodyHtml,
+      isRead: parsed.isRead,
+      labels: parsed.labels,
+      receivedAt: parsed.receivedAt,
+    })
+    return true
+  } catch (err) {
+    console.warn(`[mailbox.ingest] ${providerMessageId} failed`, err)
+    return false
+  }
+}
+
+/**
+ * Handle a single Gmail Pub/Sub push event. Looks the account up by email
+ * address, calls users.history.list from our stored cursor, ingests any new
+ * inbox messages, and advances the cursor.
+ *
+ * If our stored historyId is older than 7 days Gmail returns 404 — in that
+ * case we fall back to a full inbox sync and re-register the watch.
+ */
+export async function processHistoryEvent(opts: {
+  emailAddress: string
+  notificationHistoryId: string
+}): Promise<{ ingested: number; resync?: boolean }> {
+  const [account] = await db
+    .select()
+    .from(schema.emailAccount)
+    .where(
+      and(
+        eq(schema.emailAccount.emailAddress, opts.emailAddress),
+        eq(schema.emailAccount.disabled, false),
+      ),
+    )
+    .limit(1)
+  if (!account) {
+    console.warn(`[mailbox.push] no account for ${opts.emailAddress}`)
+    return { ingested: 0 }
+  }
+
+  // First-ever push for this mailbox — store the cursor and stop. Future
+  // pushes will deliver actual deltas relative to this point.
+  if (!account.historyId) {
+    await db
+      .update(schema.emailAccount)
+      .set({ historyId: opts.notificationHistoryId, updatedAt: new Date() })
+      .where(eq(schema.emailAccount.id, account.id))
+    return { ingested: 0 }
+  }
+
+  const accessToken = await getAccessToken(account.id)
+
+  let pageToken: string | undefined
+  let ingested = 0
+  let latestHistoryId = account.historyId
+  try {
+    do {
+      const page = await listHistory(accessToken, account.historyId, { pageToken })
+      latestHistoryId = page.historyId ?? latestHistoryId
+      for (const record of page.history ?? []) {
+        for (const added of record.messagesAdded ?? []) {
+          const ok = await ingestMessageById(account.id, account.organizationId, accessToken, added.message.id)
+          if (ok) ingested++
+        }
+      }
+      pageToken = page.nextPageToken
+    } while (pageToken)
+  } catch (err) {
+    // 404 means our cursor is too old (>7 days). Full-resync and re-watch.
+    if (err instanceof Error && /\b404\b/.test(err.message)) {
+      console.warn(`[mailbox.push] stale historyId for ${opts.emailAddress}, full resync`)
+      await syncAccount(account.id, account.organizationId, { limit: 100 })
+      await registerWatch(account.id)
+      return { ingested: 0, resync: true }
+    }
+    throw err
+  }
+
+  await db
+    .update(schema.emailAccount)
+    .set({ historyId: latestHistoryId, lastSyncAt: new Date(), updatedAt: new Date() })
+    .where(eq(schema.emailAccount.id, account.id))
+
+  return { ingested }
+}
+
+/**
+ * Renew Gmail watches that are about to expire (within `withinHours` from
+ * now). Returns one result per account attempted. Designed to be called by
+ * a daily cron — Gmail watches last 7 days so daily renewal keeps a 6-day
+ * buffer.
+ */
+export async function renewExpiringWatches(
+  withinHours = 36,
+): Promise<{ accountId: string; emailAddress: string; ok: boolean; error?: string }[]> {
+  const cutoff = new Date(Date.now() + withinHours * 60 * 60 * 1000)
+  const due = await db
+    .select({
+      id: schema.emailAccount.id,
+      emailAddress: schema.emailAccount.emailAddress,
+      watchExpiresAt: schema.emailAccount.watchExpiresAt,
+    })
+    .from(schema.emailAccount)
+    .where(
+      and(
+        eq(schema.emailAccount.disabled, false),
+        eq(schema.emailAccount.provider, 'gmail'),
+      ),
+    )
+
+  const results: { accountId: string; emailAddress: string; ok: boolean; error?: string }[] = []
+  for (const account of due) {
+    // Skip accounts whose watch is still healthy enough.
+    if (account.watchExpiresAt && account.watchExpiresAt.getTime() > cutoff.getTime()) continue
+    try {
+      await registerWatch(account.id)
+      results.push({ accountId: account.id, emailAddress: account.emailAddress, ok: true })
+    } catch (err) {
+      results.push({
+        accountId: account.id,
+        emailAddress: account.emailAddress,
+        ok: false,
+        error: (err as Error).message,
+      })
+    }
+  }
+  return results
 }

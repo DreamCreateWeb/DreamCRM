@@ -25,6 +25,7 @@ export const emailAccount = pgTable(
     accessExpiresAt: timestamp('access_expires_at', { withTimezone: true }),
     scope: text('scope'),
     historyId: text('history_id'), // Gmail-side cursor for incremental sync
+    watchExpiresAt: timestamp('watch_expires_at', { withTimezone: true }), // when the users.watch() registration lapses; renewed by cron
     syncStatus: text('sync_status').notNull().default('pending'), // pending | syncing | ready | error
     syncError: text('sync_error'),
     lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),

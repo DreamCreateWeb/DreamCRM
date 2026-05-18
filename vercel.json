@@ -10,8 +10,20 @@
     },
     "app/api/upload/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/webhooks/gmail/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/cron/gmail-watch-renew/route.ts": {
+      "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/gmail-watch-renew",
+      "schedule": "0 4 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
