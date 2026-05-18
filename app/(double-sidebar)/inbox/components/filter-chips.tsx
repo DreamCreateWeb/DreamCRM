@@ -13,6 +13,12 @@ interface Props {
   patientsOnly: boolean
   totalCount: number
   unreadCount: number
+  /**
+   * Hide the intent row on non-Primary tabs (Promotions, Updates, Spam) —
+   * intent buckets are designed around primary clinic email and aren't
+   * meaningful in the marketing/automated tabs.
+   */
+  showIntents?: boolean
 }
 
 /**
@@ -28,6 +34,7 @@ export default function FilterChips({
   patientsOnly,
   totalCount,
   unreadCount,
+  showIntents = true,
 }: Props) {
   const pathname = usePathname()
   const sp = useSearchParams()
@@ -73,7 +80,7 @@ export default function FilterChips({
       </div>
 
       {/* Intent row */}
-      {Object.keys(intentCounts).length > 0 && (
+      {showIntents && Object.keys(intentCounts).length > 0 && (
         <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
           {Object.entries(INTENT_COLORS).map(([key, c]) => {
             const count = intentCounts[key]

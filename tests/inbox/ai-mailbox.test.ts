@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 
 beforeEach(() => {
   // Make sure no key leaks in from the real env during tests.
@@ -6,12 +6,14 @@ beforeEach(() => {
 })
 
 describe('ai-mailbox: graceful degradation without ANTHROPIC_API_KEY', () => {
-  it('classifyIntent returns null when no API key is set', async () => {
-    const { classifyIntent } = await import('@/lib/services/ai-mailbox')
-    const result = await classifyIntent({
+  it('classifyMessage returns null when no API key is set', async () => {
+    const { classifyMessage } = await import('@/lib/services/ai-mailbox')
+    const result = await classifyMessage({
       fromEmail: 'patient@example.com',
+      fromName: 'Lisa Mabray',
       subject: 'Need to reschedule',
       bodyText: 'Hi, can I move my Tuesday appointment to Wednesday?',
+      bodyHtml: null,
       snippet: null,
     })
     expect(result).toBeNull()
@@ -32,8 +34,24 @@ describe('ai-mailbox: graceful degradation without ANTHROPIC_API_KEY', () => {
   it('classifyBatch resolves to an empty map when no API key is set', async () => {
     const { classifyBatch } = await import('@/lib/services/ai-mailbox')
     const result = await classifyBatch([
-      { id: 'm1', fromEmail: 'a@b.com', subject: 's', bodyText: 'body', snippet: null },
-      { id: 'm2', fromEmail: 'c@d.com', subject: 's', bodyText: 'body', snippet: null },
+      {
+        id: 'm1',
+        fromEmail: 'a@b.com',
+        fromName: null,
+        subject: 's',
+        bodyText: 'body',
+        bodyHtml: null,
+        snippet: null,
+      },
+      {
+        id: 'm2',
+        fromEmail: 'c@d.com',
+        fromName: null,
+        subject: 's',
+        bodyText: 'body',
+        bodyHtml: null,
+        snippet: null,
+      },
     ])
     expect(result.size).toBe(0)
   })

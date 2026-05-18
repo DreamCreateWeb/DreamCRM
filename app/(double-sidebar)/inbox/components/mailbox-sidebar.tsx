@@ -9,6 +9,7 @@ import type { EmailAccountSummary, EmailMessageListItem } from '@/lib/services/m
 import ComposeButton from '../compose-button'
 import { syncMailbox } from '../mailbox-actions'
 import FilterChips from './filter-chips'
+import CategoryTabs from './category-tabs'
 import { INTENT_COLORS } from './intent-badge'
 
 /**
@@ -63,6 +64,8 @@ interface Props {
   messages: EmailMessageListItem[]
   activeMessageId: string | null
   intentCounts: Record<string, number>
+  categoryCounts: Record<string, number>
+  activeCategory: string
   activeIntent: string | null
   unreadOnly: boolean
   starredOnly: boolean
@@ -76,6 +79,8 @@ export default function MailboxSidebar({
   messages,
   activeMessageId,
   intentCounts,
+  categoryCounts,
+  activeCategory,
   activeIntent,
   unreadOnly,
   starredOnly,
@@ -176,12 +181,15 @@ export default function MailboxSidebar({
           {syncError && <div className="mt-1 text-[11px] text-rose-600">{syncError}</div>}
         </div>
 
+        <CategoryTabs counts={categoryCounts} activeCategory={activeCategory} />
+
         <FilterChips
           intentCounts={intentCounts}
           activeIntent={activeIntent}
           unreadOnly={unreadOnly}
           starredOnly={starredOnly}
           patientsOnly={patientsOnly}
+          showIntents={activeCategory === 'primary'}
           totalCount={messages.length}
           unreadCount={unreadCount}
         />
