@@ -250,6 +250,57 @@ describe('getProjectStats', () => {
   })
 })
 
+describe('graceful degradation when migrations are pending', () => {
+  it('getProjectStats returns empty stats when table is missing', async () => {
+    const { db } = await import('@/lib/db')
+    const original = db.select
+    const err = Object.assign(new Error('relation "agency_project" does not exist'), {
+      code: '42P01',
+    })
+    ;(db as { select: () => unknown }).select = () => {
+      throw err
+    }
+    try {
+      const stats = await getProjectStats()
+      expect(stats.totalProjects).toBe(0)
+      expect(stats.recentlyUpdated).toHaveLength(0)
+      expect(stats.byStatus.lead).toBe(0)
+    } finally {
+      ;(db as { select: unknown }).select = original
+    }
+  })
+
+  it('listActiveProjectsForOrg returns [] when table is missing', async () => {
+    const { db } = await import('@/lib/db')
+    const original = db.select
+    const err = Object.assign(new Error('relation "agency_project" does not exist'), {
+      code: '42P01',
+    })
+    ;(db as { select: () => unknown }).select = () => {
+      throw err
+    }
+    try {
+      const rows = await listActiveProjectsForOrg('org_1')
+      expect(rows).toEqual([])
+    } finally {
+      ;(db as { select: unknown }).select = original
+    }
+  })
+
+  it('still rethrows non-schema errors', async () => {
+    const { db } = await import('@/lib/db')
+    const original = db.select
+    ;(db as { select: () => unknown }).select = () => {
+      throw new Error('connection refused')
+    }
+    try {
+      await expect(getProjectStats()).rejects.toThrow(/connection refused/)
+    } finally {
+      ;(db as { select: unknown }).select = original
+    }
+  })
+})
+
 describe('getSubscriptionStats', () => {
   it('computes MRR from active clinics at each tier', async () => {
     state.selectQueue.push([

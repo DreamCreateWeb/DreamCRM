@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { clinicProfile } from '@/lib/db/schema/platform'
+import { clinicProfile, type ClinicProfile } from '@/lib/db/schema/platform'
 import { listActiveProjectsForOrg } from '@/lib/services/projects'
 import {
   AGENCY_PROJECT_TYPE_LABELS,
@@ -36,14 +36,36 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
 
 const PLAN_LABELS = { basic: 'Basic', pro: 'Pro', premium: 'Premium' } as const
 
-export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [profile, projects] = await Promise.all([
-    db
+// Postgres reports missing columns as code 42703 — treat as "migration pending"
+// and degrade gracefully so the page renders even before 0001 is applied.
+function isMissingSchema(err: unknown): boolean {
+  const code = (err as { code?: string; cause?: { code?: string } } | null)?.code
+    ?? (err as { cause?: { code?: string } } | null)?.cause?.code
+  if (code === '42P01' || code === '42703') return true
+  const msg = err instanceof Error ? err.message : String(err)
+  return /relation .* does not exist|column .* does not exist/i.test(msg)
+}
+
+async function loadClinicProfile(orgId: string): Promise<ClinicProfile | null> {
+  try {
+    const rows = await db
       .select()
       .from(clinicProfile)
-      .where(eq(clinicProfile.organizationId, ctx.organizationId))
+      .where(eq(clinicProfile.organizationId, orgId))
       .limit(1)
-      .then((rows) => rows[0] ?? null),
+    return rows[0] ?? null
+  } catch (err) {
+    if (isMissingSchema(err)) {
+      console.warn('[clinic-overview] clinic_profile column missing — apply migration 0001')
+      return null
+    }
+    throw err
+  }
+}
+
+export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
+  const [profile, projects] = await Promise.all([
+    loadClinicProfile(ctx.organizationId),
     listActiveProjectsForOrg(ctx.organizationId),
   ])
 

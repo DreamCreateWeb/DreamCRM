@@ -107,16 +107,24 @@ export async function listProjectsForOrg(organizationId: string) {
 }
 
 export async function listActiveProjectsForOrg(organizationId: string) {
-  return db
-    .select()
-    .from(agencyProject)
-    .where(
-      and(
-        eq(agencyProject.organizationId, organizationId),
-        inArray(agencyProject.status, OPEN_STATUSES),
-      ),
-    )
-    .orderBy(desc(agencyProject.updatedAt))
+  try {
+    return await db
+      .select()
+      .from(agencyProject)
+      .where(
+        and(
+          eq(agencyProject.organizationId, organizationId),
+          inArray(agencyProject.status, OPEN_STATUSES),
+        ),
+      )
+      .orderBy(desc(agencyProject.updatedAt))
+  } catch (err) {
+    if (isMissingSchemaError(err)) {
+      console.warn('[projects] agency_project table missing — apply migration 0002')
+      return []
+    }
+    throw err
+  }
 }
 
 export interface ProjectStats {
@@ -130,7 +138,50 @@ export interface ProjectStats {
   recentlyUpdated: Array<{ id: string; title: string; type: string; status: string; clinicName: string | null; updatedAt: Date }>
 }
 
+// Postgres reports "relation does not exist" as code 42P01 and missing column
+// as 42703. Treat both as "migration pending" — degrade gracefully instead of
+// crashing the page, so a deploy that lands before the migration runs is
+// recoverable from the UI side.
+function isMissingSchemaError(err: unknown): boolean {
+  const code = (err as { code?: string; cause?: { code?: string } } | null)?.code
+    ?? (err as { cause?: { code?: string } } | null)?.cause?.code
+  if (code === '42P01' || code === '42703') return true
+  const msg = err instanceof Error ? err.message : String(err)
+  return /relation .* does not exist|column .* does not exist/i.test(msg)
+}
+
+function emptyProjectStats(): ProjectStats {
+  return {
+    totalProjects: 0,
+    openProjects: 0,
+    completedThisMonth: 0,
+    byStatus: Object.fromEntries(AGENCY_PROJECT_STATUSES.map((s) => [s, 0] as const)) as Record<
+      AgencyProjectStatus,
+      number
+    >,
+    byType: Object.fromEntries(AGENCY_PROJECT_TYPES.map((t) => [t, 0] as const)) as Record<
+      AgencyProjectType,
+      number
+    >,
+    pipelineValueCents: 0,
+    completedValueCents: 0,
+    recentlyUpdated: [],
+  }
+}
+
 export async function getProjectStats(): Promise<ProjectStats> {
+  try {
+    return await getProjectStatsRaw()
+  } catch (err) {
+    if (isMissingSchemaError(err)) {
+      console.warn('[projects] agency_project table missing — apply migration 0002')
+      return emptyProjectStats()
+    }
+    throw err
+  }
+}
+
+async function getProjectStatsRaw(): Promise<ProjectStats> {
   const monthStart = new Date()
   monthStart.setDate(1)
   monthStart.setHours(0, 0, 0, 0)
@@ -211,6 +262,18 @@ export interface SubscriptionStats {
 const TIER_PRICES_CENTS = { basic: 9900, pro: 14900, premium: 19900 } as const
 
 export async function getSubscriptionStats(): Promise<SubscriptionStats> {
+  try {
+    return await getSubscriptionStatsRaw()
+  } catch (err) {
+    if (isMissingSchemaError(err)) {
+      console.warn('[projects] clinic_profile or organization columns missing')
+      return { activeClinics: 0, byTier: { basic: 0, pro: 0, premium: 0 }, monthlyRecurringCents: 0, newClinics30d: 0 }
+    }
+    throw err
+  }
+}
+
+async function getSubscriptionStatsRaw(): Promise<SubscriptionStats> {
   const { clinicProfile } = await import('@/lib/db/schema/platform')
 
   // Count clinics with an active subscription, grouped by plan tier
