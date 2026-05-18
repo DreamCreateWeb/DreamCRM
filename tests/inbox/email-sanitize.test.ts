@@ -42,10 +42,15 @@ describe('sanitizeEmailHtml', () => {
     expect(out).toContain('font-weight')
   })
 
-  it('strips display: none (often used for tracking/cloaking)', () => {
-    const html = '<div style="display: none">hidden</div>'
+  it('allows display:none — newsletters use it for preheader text', () => {
+    // Stripping it caused the visible body to render preheader copy that
+    // was supposed to be hidden, producing weird "stacked text" blobs.
+    // The threat model for display-none cloaking is contained by our
+    // sandboxed iframe rendering.
+    const html = '<div style="display: none">preheader</div><p>visible</p>'
     const out = sanitizeEmailHtml(html)
-    expect(out).not.toContain('display: none')
+    expect(out).toContain('display:none')
+    expect(out).toContain('<p>visible</p>')
   })
 
   it('keeps tables (email layouts depend on them)', () => {
