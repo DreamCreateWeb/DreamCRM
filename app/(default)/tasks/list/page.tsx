@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { listTasks, TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/services/tasks'
 import AddTaskButton from '../kanban/add-task-button'
 import TaskListRow from './task-list-row'
@@ -11,8 +11,8 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function TasksList() {
-  await requireUser()
-  const tasks = await listTasks()
+  const ctx = await requireTenant()
+  const tasks = await listTasks(ctx.organizationId)
 
   const grouped: Record<TaskStatus, typeof tasks> = {
     todo: [],

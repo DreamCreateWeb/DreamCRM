@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import {
   CalendarEventInput,
   createCalendarEvent,
@@ -9,15 +9,18 @@ import {
 } from '@/lib/services/calendar'
 
 export async function addCalendarEvent(input: unknown) {
-  const user = await requireUser()
-  const event = await createCalendarEvent(CalendarEventInput.parse(input), user.id)
+  const ctx = await requireTenant()
+  const event = await createCalendarEvent(CalendarEventInput.parse(input), {
+    userId: ctx.userId,
+    organizationId: ctx.organizationId,
+  })
   revalidatePath('/calendar')
   return event
 }
 
 export async function removeCalendarEvent(id: number) {
-  await requireUser()
-  const result = await deleteCalendarEvent(id)
+  const ctx = await requireTenant()
+  const result = await deleteCalendarEvent(id, ctx.organizationId)
   revalidatePath('/calendar')
   return result
 }

@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import {
   TaskInput,
   TaskUpdate,
@@ -17,55 +17,58 @@ import {
 } from '@/lib/services/tasks'
 
 export async function addTask(input: unknown) {
-  const user = await requireUser()
-  const task = await createTask(TaskInput.parse(input), user.id)
+  const ctx = await requireTenant()
+  const task = await createTask(TaskInput.parse(input), {
+    userId: ctx.userId,
+    organizationId: ctx.organizationId,
+  })
   revalidatePath('/tasks/kanban')
   revalidatePath('/tasks/list')
   return task
 }
 
 export async function moveTask(id: number, status: string) {
-  await requireUser()
+  const ctx = await requireTenant()
   if (!TASK_STATUSES.includes(status as TaskStatus)) throw new Error('invalid status')
-  const task = await updateTaskStatus(id, status as TaskStatus)
+  const task = await updateTaskStatus(id, status as TaskStatus, ctx.organizationId)
   revalidatePath('/tasks/kanban')
   revalidatePath('/tasks/list')
   return task
 }
 
 export async function editTask(id: number, input: unknown) {
-  await requireUser()
-  const task = await updateTask(id, TaskUpdate.parse(input))
+  const ctx = await requireTenant()
+  const task = await updateTask(id, TaskUpdate.parse(input), ctx.organizationId)
   revalidatePath('/tasks/kanban')
   revalidatePath('/tasks/list')
   return task
 }
 
 export async function toggleSubtaskDone(id: number) {
-  await requireUser()
-  const sub = await toggleSubtask(id)
+  const ctx = await requireTenant()
+  const sub = await toggleSubtask(id, ctx.organizationId)
   revalidatePath('/tasks/list')
   return sub
 }
 
 export async function addSubtaskAction(taskId: number, title: string) {
-  await requireUser()
-  const sub = await addSubtask(taskId, title)
+  const ctx = await requireTenant()
+  const sub = await addSubtask(taskId, title, ctx.organizationId)
   revalidatePath('/tasks/list')
   return sub
 }
 
 export async function removeTasks(ids: number[]) {
-  await requireUser()
-  const result = await deleteTasks(ids.filter(Number.isInteger))
+  const ctx = await requireTenant()
+  const result = await deleteTasks(ids.filter(Number.isInteger), ctx.organizationId)
   revalidatePath('/tasks/kanban')
   revalidatePath('/tasks/list')
   return result
 }
 
 export async function likeTaskAction(id: number) {
-  await requireUser()
-  const result = await likeTask(id)
+  const ctx = await requireTenant()
+  const result = await likeTask(id, ctx.organizationId)
   revalidatePath('/tasks/kanban')
   return result
 }

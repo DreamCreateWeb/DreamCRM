@@ -3,7 +3,7 @@ import CalendarNavigation from './calendar-navigation'
 import CalendarTable from './calendar-table'
 import CalendarTitle from './title'
 import CreateEventModal from './create-event-modal'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import {
   CATEGORY_COLOR,
   CATEGORY_LABEL,
@@ -20,14 +20,14 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function Calendar() {
-  await requireUser()
+  const ctx = await requireTenant()
 
   // Fetch a 3-month window centered on today so prev/current/next-month views render.
   const now = new Date()
   const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const to = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59)
 
-  const dbEvents = await listCalendarEvents({ from, to })
+  const dbEvents = await listCalendarEvents(ctx.organizationId, { from, to })
   const events = dbEvents.map((e) => ({
     eventStart: new Date(e.startsAt),
     eventEnd: e.endsAt ? new Date(e.endsAt) : null,
