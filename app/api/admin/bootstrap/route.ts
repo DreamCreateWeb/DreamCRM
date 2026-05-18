@@ -64,6 +64,19 @@ export async function POST(request: Request) {
 
   const results: Array<{ filename: string; statements: number; status: 'applied' | 'failed'; error?: string }> = []
 
+  // "Already applied" Postgres error codes: 42P07 (relation already exists),
+  // 42701 (duplicate column), 42710 (object already exists). When a migration
+  // was applied out-of-band (drizzle-kit push'd before this runner was added)
+  // its statements fail with one of these — skip the statement and move on
+  // so we can mark the file as done and proceed to the next one.
+  const ALREADY_DONE_CODES = new Set(['42P07', '42701', '42710'])
+  const isAlreadyDone = (err: unknown) => {
+    const code = (err as { code?: string } | null)?.code
+    if (code && ALREADY_DONE_CODES.has(code)) return true
+    const msg = err instanceof Error ? err.message : String(err)
+    return /already exists|duplicate column/i.test(msg)
+  }
+
   for (const filename of pending) {
     const raw = await readFile(join(MIGRATIONS_DIR, filename), 'utf8')
     // Drizzle generates files with `--> statement-breakpoint` separators.
@@ -72,21 +85,35 @@ export async function POST(request: Request) {
       .map((s) => s.trim())
       .filter(Boolean)
 
-    try {
-      // Neon's @neondatabase/serverless doesn't expose a multi-statement
-      // transaction over HTTP directly, so we just run statements in order.
-      // Each migration file is small (column adds, table creates), and if
-      // one fails the migration record won't be written, so re-running is safe.
-      for (const stmt of statements) {
+    let applied = 0
+    let skipped = 0
+    let hardError: string | null = null
+    for (const stmt of statements) {
+      try {
         await sql.query(stmt)
+        applied++
+      } catch (err) {
+        if (isAlreadyDone(err)) {
+          skipped++
+          continue
+        }
+        hardError = err instanceof Error ? err.message : String(err)
+        break
       }
-      await sql`INSERT INTO __dreamcrm_migrations (filename) VALUES (${filename})`
-      results.push({ filename, statements: statements.length, status: 'applied' })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      results.push({ filename, statements: statements.length, status: 'failed', error: message })
+    }
+
+    if (hardError) {
+      results.push({ filename, statements: statements.length, status: 'failed', error: hardError })
       break
     }
+
+    await sql`INSERT INTO __dreamcrm_migrations (filename) VALUES (${filename})`
+    results.push({
+      filename,
+      statements: statements.length,
+      status: 'applied',
+      ...(skipped > 0 ? { error: `${skipped} statement(s) skipped (already existed)` } : {}),
+    })
   }
 
   const failed = results.some((r) => r.status === 'failed')
