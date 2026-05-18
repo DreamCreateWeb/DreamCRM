@@ -5,8 +5,10 @@ export const metadata = {
 
 import SettingsSidebar from '../settings-sidebar'
 import FeedbackPanel from './feedback-panel'
+import { getTenantContext } from '@/lib/auth/context'
 
-export default function FeedbackSettings() {
+export default async function FeedbackSettings() {
+  const ctx = await getTenantContext()
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
 
@@ -20,7 +22,7 @@ export default function FeedbackSettings() {
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
 
-          <SettingsSidebar />
+          <SettingsSidebar tenantType={ctx?.tenantType} />
           <FeedbackPanel />
 
         </div>
