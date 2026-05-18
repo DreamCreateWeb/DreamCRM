@@ -254,7 +254,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           <QuickLink href="/calendar" icon="📅" label="Appointments" />
         )}
         {ctx.planTier !== 'basic' && (
-          <QuickLink href="/customers" icon="👥" label="Patients" />
+          <QuickLink href="/ecommerce/customers" icon="👥" label="Patients" />
         )}
         <QuickLink href="/settings/billing" icon="💳" label="Billing" />
       </div>
