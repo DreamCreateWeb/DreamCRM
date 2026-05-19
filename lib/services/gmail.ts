@@ -403,14 +403,17 @@ function buildRawMessage(input: SendMessageInput): string {
   return [headerLines.join('\r\n'), '', textPart, htmlPart, closing].join('\r\n')
 }
 
-export async function sendMessage(accessToken: string, input: SendMessageInput): Promise<{ id: string }> {
+export async function sendMessage(
+  accessToken: string,
+  input: SendMessageInput,
+): Promise<{ id: string; threadId: string; labelIds?: string[] }> {
   const raw = Buffer.from(buildRawMessage(input)).toString('base64url')
   const res = await gmailFetch(accessToken, '/users/me/messages/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ raw }),
   })
-  return res.json() as Promise<{ id: string }>
+  return res.json() as Promise<{ id: string; threadId: string; labelIds?: string[] }>
 }
 
 export async function markMessageRead(accessToken: string, providerMessageId: string, read: boolean): Promise<void> {
