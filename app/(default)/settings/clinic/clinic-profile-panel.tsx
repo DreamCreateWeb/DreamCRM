@@ -193,14 +193,7 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
               hint="Wide banner image shown behind your hero. 16:9 or wider. JPG/PNG, up to 5MB."
               previewClass="aspect-[3/1]"
             />
-            <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="template">Website Template</label>
-              <select id="template" name="template" className="form-select w-full" defaultValue={profile?.template ?? 'modern'}>
-                <option value="modern">Modern</option>
-                <option value="classic">Classic (coming soon)</option>
-                <option value="editorial">Editorial (coming soon)</option>
-              </select>
-            </div>
+            <input type="hidden" name="template" value="modern" />
           </div>
         </section>
 

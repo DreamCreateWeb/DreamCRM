@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import SettingsSidebar from '../settings-sidebar'
 import BillingPanel from './billing-panel'
 import { requireUser } from '@/lib/session'
@@ -16,6 +17,7 @@ export const dynamic = 'force-dynamic'
 export default async function BillingSettings() {
   const user = await requireUser()
   const ctx = await getTenantContext()
+  if (ctx && ctx.tenantType !== 'clinic') redirect('/settings/account')
   const billing = await getBilling(user.id)
   const paid = await db
     .select({

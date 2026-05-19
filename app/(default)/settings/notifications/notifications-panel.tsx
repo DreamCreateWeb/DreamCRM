@@ -12,7 +12,64 @@ interface Prefs {
   pushNothing: boolean
 }
 
-export default function NotificationsPanel({ initial }: { initial: Prefs }) {
+type TenantType = 'platform' | 'clinic' | 'patient'
+
+/**
+ * Tenant-aware labels for the three email-event toggles. The schema columns
+ * stay generic (comments / candidates / offers) — they're the only three
+ * "buckets" of email events we currently fire — but the wording shown to each
+ * tenant reflects what events actually occur for them.
+ */
+const EMAIL_LABELS: Record<
+  TenantType,
+  { comments: { title: string; description: string }; candidates: { title: string; description: string }; offers: { title: string; description: string } }
+> = {
+  platform: {
+    comments: {
+      title: 'Customer activity',
+      description: 'When a clinic signs up, upgrades, downgrades, or cancels.',
+    },
+    candidates: {
+      title: 'Support & inbox',
+      description: 'New email lands in the platform inbox or a customer replies.',
+    },
+    offers: {
+      title: 'Product news',
+      description: 'Occasional release notes and admin tips from Dream Create.',
+    },
+  },
+  clinic: {
+    comments: {
+      title: 'Patient activity',
+      description: 'New patient inquiries, appointment bookings, and replies.',
+    },
+    candidates: {
+      title: 'Recall & marketing',
+      description: 'When a recall campaign is sent, or a patient becomes due for follow-up.',
+    },
+    offers: {
+      title: 'Billing & platform updates',
+      description: 'Subscription receipts and important DreamCRM product news.',
+    },
+  },
+  patient: {
+    comments: {
+      title: 'Messages from your clinic',
+      description: 'When the clinic replies to you or sends you a new message.',
+    },
+    candidates: {
+      title: 'Appointment reminders',
+      description: 'Upcoming appointments, confirmations, and recall reminders.',
+    },
+    offers: {
+      title: 'Clinic news',
+      description: 'Newsletters and dental health tips from your clinic.',
+    },
+  },
+}
+
+export default function NotificationsPanel({ initial, tenantType }: { initial: Prefs; tenantType: TenantType }) {
+  const labels = EMAIL_LABELS[tenantType]
   const [prefs, setPrefs] = useState<Prefs>(initial)
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
@@ -65,9 +122,9 @@ export default function NotificationsPanel({ initial }: { initial: Prefs }) {
           <section>
             <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Email</h3>
             <ul>
-              <ToggleRow id="np-comments" prefKey="comments" title="Comments and replies" description="When someone comments on your posts or replies to your threads." />
-              <ToggleRow id="np-candidates" prefKey="candidates" title="Candidates" description="New leads, applicants and people you might want to follow up with." />
-              <ToggleRow id="np-offers" prefKey="offers" title="Offers and product news" description="Occasional product announcements and special offers." />
+              <ToggleRow id="np-comments" prefKey="comments" title={labels.comments.title} description={labels.comments.description} />
+              <ToggleRow id="np-candidates" prefKey="candidates" title={labels.candidates.title} description={labels.candidates.description} />
+              <ToggleRow id="np-offers" prefKey="offers" title={labels.offers.title} description={labels.offers.description} />
             </ul>
           </section>
 

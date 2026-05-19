@@ -25,6 +25,7 @@ export default async function NotificationsSettings() {
         <div className="flex flex-col md:flex-row md:-mr-px">
           <SettingsSidebar tenantType={ctx?.tenantType} />
           <NotificationsPanel
+            tenantType={ctx?.tenantType ?? 'clinic'}
             initial={{
               comments: prefs.comments,
               candidates: prefs.candidates,

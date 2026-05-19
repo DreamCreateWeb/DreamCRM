@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { saveAccount } from '../actions'
-import { changePassword } from '@/lib/auth-client'
 
 interface InitialUser {
   id: string
@@ -28,13 +28,6 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
   const [uploading, setUploading] = useState(false)
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
-
-  // Password change UI
-  const [pwOpen, setPwOpen] = useState(false)
-  const [currentPw, setCurrentPw] = useState('')
-  const [newPw, setNewPw] = useState('')
-  const [pwBusy, setPwBusy] = useState(false)
-  const [pwFeedback, setPwFeedback] = useState<{ ok?: string; error?: string } | null>(null)
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -77,26 +70,6 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
         setFeedback({ error: (err as Error).message })
       }
     })
-  }
-
-  async function handlePasswordChange(e: React.FormEvent) {
-    e.preventDefault()
-    setPwFeedback(null)
-    setPwBusy(true)
-    const { error } = await changePassword({
-      currentPassword: currentPw,
-      newPassword: newPw,
-      revokeOtherSessions: true,
-    })
-    setPwBusy(false)
-    if (error) {
-      setPwFeedback({ error: error.message ?? 'Unable to change password' })
-      return
-    }
-    setPwFeedback({ ok: 'Password updated' })
-    setCurrentPw('')
-    setNewPw('')
-    setPwOpen(false)
   }
 
   return (
@@ -160,38 +133,14 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
         </form>
 
         <section>
-          <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Password</h2>
-          <div className="text-sm">Set a new password. You&apos;ll be signed out of other devices.</div>
-          {!pwOpen ? (
-            <div className="mt-5">
-              <button onClick={() => setPwOpen(true)} className="btn dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300">
-                Set New Password
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handlePasswordChange} className="mt-5 space-y-3 max-w-md">
-              <div>
-                <label className="block text-sm font-medium mb-1" htmlFor="cur-pw">Current Password</label>
-                <input id="cur-pw" type="password" className="form-input w-full" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required minLength={8} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" htmlFor="new-pw">New Password</label>
-                <input id="new-pw" type="password" className="form-input w-full" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={8} />
-              </div>
-              {pwFeedback?.error && (
-                <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{pwFeedback.error}</div>
-              )}
-              {pwFeedback?.ok && (
-                <div className="text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">{pwFeedback.ok}</div>
-              )}
-              <div className="flex space-x-2">
-                <button type="button" onClick={() => { setPwOpen(false); setCurrentPw(''); setNewPw('') }} className="btn-sm border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300">Cancel</button>
-                <button type="submit" disabled={pwBusy} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60">
-                  {pwBusy ? 'Updating…' : 'Update password'}
-                </button>
-              </div>
-            </form>
-          )}
+          <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Password & sessions</h2>
+          <div className="text-sm mb-3">
+            Manage your password and signed-in devices on the{' '}
+            <Link href="/settings/security" className="text-violet-600 dark:text-violet-400 hover:underline">
+              Security
+            </Link>{' '}
+            tab.
+          </div>
         </section>
       </div>
 
