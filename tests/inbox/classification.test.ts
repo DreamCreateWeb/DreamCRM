@@ -201,6 +201,85 @@ describe('classifyPendingIntents: heuristics + LLM split', () => {
   })
 })
 
+describe('classifyPendingIntents: extra heuristics', () => {
+  it('routes Gmail-PERSONAL-labeled mail to primary without calling the LLM', async () => {
+    state.selectQueue.push([
+      {
+        id: 'msg-1',
+        fromEmail: 'someone@unknown-domain.example',
+        fromName: 'Someone',
+        subject: 'Hello',
+        bodyText: 'a test body',
+        bodyHtml: null,
+        snippet: null,
+        providerThreadId: 't-1',
+        patientId: null,
+        labels: ['INBOX', 'CATEGORY_PERSONAL'],
+      },
+    ])
+    state.selectQueue.push([]) // no thread siblings
+    const { classifyPendingIntents } = await import('@/lib/services/mailbox')
+    const result = await classifyPendingIntents('org-1')
+    expect(result.viaHeuristic).toBe(1)
+    expect(state.classifyBatchCalls).toHaveLength(0)
+    expect(state.updateCalls[0].set).toEqual({
+      category: 'primary',
+      intent: 'follow_up',
+      categorySource: 'gmail',
+    })
+  })
+
+  it('routes consumer-domain senders (gmail.com / yahoo.com / etc) to primary without the LLM', async () => {
+    state.selectQueue.push([
+      {
+        id: 'msg-1',
+        fromEmail: 'random@gmail.com',
+        fromName: 'Random Person',
+        subject: 'Quick question',
+        bodyText: 'wondering about something',
+        bodyHtml: null,
+        snippet: null,
+        providerThreadId: 't-1',
+        patientId: null,
+        labels: ['INBOX'],
+      },
+    ])
+    state.selectQueue.push([]) // no thread siblings
+    const { classifyPendingIntents } = await import('@/lib/services/mailbox')
+    const result = await classifyPendingIntents('org-1')
+    expect(result.viaHeuristic).toBe(1)
+    expect(state.classifyBatchCalls).toHaveLength(0)
+    expect(state.updateCalls[0].set).toEqual({
+      category: 'primary',
+      intent: 'follow_up',
+      categorySource: 'auto',
+    })
+  })
+
+  it('falls back to the LLM for business-domain senders without other signals', async () => {
+    state.selectQueue.push([
+      {
+        id: 'msg-1',
+        fromEmail: 'sales@some-vendor.com',
+        fromName: 'Vendor Sales',
+        subject: 'Pitch',
+        bodyText: 'pitch content',
+        bodyHtml: null,
+        snippet: null,
+        providerThreadId: 't-1',
+        patientId: null,
+        labels: ['INBOX'],
+      },
+    ])
+    state.selectQueue.push([]) // no thread siblings
+    state.classifyResults.set('msg-1', { category: 'primary', intent: 'follow_up' })
+    const { classifyPendingIntents } = await import('@/lib/services/mailbox')
+    const result = await classifyPendingIntents('org-1')
+    expect(result.viaHeuristic).toBe(0)
+    expect(state.classifyBatchCalls).toHaveLength(1)
+  })
+})
+
 describe('setMessageCategory', () => {
   it('updates every message in the thread and flips the source to user', async () => {
     // Lookup of the message returns the thread id

@@ -31,7 +31,7 @@ export type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
  * Map Gmail's own labels onto our category buckets. Returns null when
  * Gmail hasn't decided — the AI classifier (or another heuristic) gets
  * to choose. Critically this is how we *stop overriding Gmail*: if it
- * says SPAM/PROMOTIONS/UPDATES we honor it rather than re-running
+ * says SPAM/PROMOTIONS/UPDATES/PERSONAL we honor it rather than re-running
  * Haiku and second-guessing.
  */
 function categoryFromGmailLabels(
@@ -43,7 +43,39 @@ function categoryFromGmailLabels(
   if (labels.includes('CATEGORY_UPDATES')) return { category: 'updates', intent: 'other' }
   if (labels.includes('CATEGORY_SOCIAL')) return { category: 'updates', intent: 'other' }
   if (labels.includes('CATEGORY_FORUMS')) return { category: 'updates', intent: 'other' }
+  // CATEGORY_PERSONAL is Gmail's "this is a real person writing to you"
+  // signal. Trust it — the LLM has been mis-flagging meta-content (e.g.
+  // emails that talk about spam testing) as spam, and Gmail's classifier
+  // has years of training data behind it that ours doesn't.
+  if (labels.includes('CATEGORY_PERSONAL')) return { category: 'primary', intent: 'follow_up' }
+  // IMPORTANT is Gmail's learned-from-your-behavior signal. If Gmail
+  // already promoted this email, treat it as primary rather than
+  // letting the LLM second-guess.
+  if (labels.includes('IMPORTANT')) return { category: 'primary', intent: 'follow_up' }
   return null
+}
+
+const CONSUMER_EMAIL_DOMAINS = new Set([
+  'gmail.com',
+  'googlemail.com',
+  'yahoo.com',
+  'ymail.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'msn.com',
+  'icloud.com',
+  'me.com',
+  'mac.com',
+  'aol.com',
+  'protonmail.com',
+  'proton.me',
+])
+
+function isConsumerSender(fromEmail: string): boolean {
+  const at = fromEmail.lastIndexOf('@')
+  if (at < 0) return false
+  return CONSUMER_EMAIL_DOMAINS.has(fromEmail.slice(at + 1).toLowerCase())
 }
 
 /**
@@ -1482,6 +1514,16 @@ export async function classifyPendingIntents(
     // certainly a real human writing to us. Treat as primary, mark as
     // an auto decision so the user can still override.
     if (row.patientId) {
+      heuristicHits.push({ id: row.id, category: 'primary', intent: 'follow_up', source: 'auto' })
+      continue
+    }
+    // Consumer-domain sender (gmail.com, yahoo.com, etc.) → almost
+    // always a real person. Marketing blasts come from owned domains
+    // with newsletter infrastructure, not personal gmail accounts.
+    // This catches prospects, partners, and self-sent test emails
+    // (which the LLM has been mis-flagging as spam because the body
+    // mentions the word "spam").
+    if (isConsumerSender(row.fromEmail)) {
       heuristicHits.push({ id: row.id, category: 'primary', intent: 'follow_up', source: 'auto' })
       continue
     }
