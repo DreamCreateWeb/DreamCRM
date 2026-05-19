@@ -3,14 +3,14 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn, formatShortDate, formatTime } from '@/lib/utils'
-import type { EmailMessage } from '@/lib/services/mailbox'
+import type { EmailMessage, EmailThreadDetail } from '@/lib/services/mailbox'
 import type { InboxPatientContext } from '@/lib/types/patient-context'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
 import {
-  archiveMessageAction,
-  markMessage,
-  toggleStar,
-  trashMessageAction,
+  archiveThreadAction,
+  markThreadAction,
+  toggleThreadStarAction,
+  trashThreadAction,
 } from '../mailbox-actions'
 import PatientCard from './patient-card'
 import AddPatientCard from './add-patient-card'
@@ -20,28 +20,29 @@ import { IntentBadge } from './intent-badge'
 import MoveToMenu from './move-to-menu'
 
 interface Props {
-  message: EmailMessage | null
-  bodyHtml: string | null // pre-sanitized by the server
+  thread: EmailThreadDetail | null
+  sanitizedBodies: Record<string, string>
   patientContext: InboxPatientContext | null
-  accountId: string | null
   terminology: InboxTerminology
 }
 
-export default function MessageView({ message, bodyHtml, patientContext, accountId, terminology }: Props) {
+export default function ThreadView({ thread, sanitizedBodies, patientContext, terminology }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
   const [pendingAction, startTransition] = useTransition()
   const [replyOpenSignal, setReplyOpenSignal] = useState(0)
 
-  // Mark as read on open (silent best-effort).
+  // Mark the whole thread as read on open. Fire-and-forget so it doesn't
+  // block the render.
   useEffect(() => {
-    if (message && !message.isRead) {
-      markMessage(message.id, true).catch(() => {})
+    if (!thread) return
+    const anyUnread = thread.messages.some((m) => !m.isRead)
+    if (anyUnread) {
+      markThreadAction(thread.threadId, true).catch(() => {})
     }
-  }, [message])
+  }, [thread])
 
-  // Scroll the reply input into view when the user hits R.
   useEffect(() => {
     function onReply() {
       setReplyOpenSignal((n) => n + 1)
@@ -54,7 +55,7 @@ export default function MessageView({ message, bodyHtml, patientContext, account
     return () => window.removeEventListener('inbox:quickreply', onReply)
   }, [])
 
-  if (!message) {
+  if (!thread) {
     return (
       <div className="grow flex flex-col items-center justify-center text-stone-400 dark:text-stone-500 px-8">
         <div className="w-16 h-16 rounded-full bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center mb-4">
@@ -63,7 +64,7 @@ export default function MessageView({ message, bodyHtml, patientContext, account
           </svg>
         </div>
         <div className="text-sm font-medium text-stone-600 dark:text-stone-400">Nothing selected</div>
-        <div className="text-[12px] mt-1.5 text-stone-400 dark:text-stone-500">Pick a message from the list</div>
+        <div className="text-[12px] mt-1.5 text-stone-400 dark:text-stone-500">Pick a conversation from the list</div>
         <div className="mt-6 flex items-center gap-2.5 text-[10px] text-stone-400 dark:text-stone-500 tabular-nums tracking-wider">
           <Kbd>j</Kbd><Kbd>k</Kbd>
           <span className="opacity-80">navigate</span>
@@ -81,10 +82,10 @@ export default function MessageView({ message, bodyHtml, patientContext, account
     )
   }
 
-  // Capture the narrowed-non-null message into a const so closures keep its
-  // type — TS doesn't carry narrowing into function declarations made after
-  // an early return.
-  const msg = message
+  const t = thread
+  const latest = t.messages[t.messages.length - 1]
+  const anyStarred = t.messages.some((m) => m.isStarred)
+  const anyUnread = t.messages.some((m) => !m.isRead)
 
   function nav(updates: Record<string, string | null>) {
     const params = new URLSearchParams(sp.toString())
@@ -104,34 +105,34 @@ export default function MessageView({ message, bodyHtml, patientContext, account
   }
   function handleArchive() {
     startTransition(async () => {
-      await archiveMessageAction(msg.id)
+      await archiveThreadAction(t.threadId)
       nav({ m: null })
       router.refresh()
     })
   }
   function handleTrash() {
     startTransition(async () => {
-      await trashMessageAction(msg.id)
+      await trashThreadAction(t.threadId)
       nav({ m: null })
       router.refresh()
     })
   }
   function handleStar() {
     startTransition(async () => {
-      await toggleStar(msg.id, !msg.isStarred)
+      await toggleThreadStarAction(t.threadId, !anyStarred)
       router.refresh()
     })
   }
   function handleToggleRead() {
     startTransition(async () => {
-      await markMessage(msg.id, !msg.isRead)
+      await markThreadAction(t.threadId, anyUnread)
       router.refresh()
     })
   }
 
   return (
     <div className="grow overflow-y-auto bg-stone-50/40 dark:bg-stone-900/20">
-      {/* Sticky toolbar — stays visible while scrolling long emails */}
+      {/* Sticky toolbar — operates on the whole thread */}
       <div className="sticky top-0 z-10 bg-white/85 dark:bg-stone-900/85 backdrop-blur border-b border-stone-200 dark:border-stone-700/60">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-1.5">
           <ToolbarButton onClick={handleReplyClick} variant="primary" shortcut="R" pending={pendingAction}>
@@ -141,11 +142,11 @@ export default function MessageView({ message, bodyHtml, patientContext, account
             Reply
           </ToolbarButton>
           <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
-          <ToolbarButton onClick={handleStar} active={msg.isStarred} shortcut="S" pending={pendingAction}>
-            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill={msg.isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
+          <ToolbarButton onClick={handleStar} active={anyStarred} shortcut="S" pending={pendingAction}>
+            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill={anyStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
               <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" strokeLinejoin="round" />
             </svg>
-            {msg.isStarred ? 'Starred' : 'Star'}
+            {anyStarred ? 'Starred' : 'Star'}
           </ToolbarButton>
           <ToolbarButton onClick={handleArchive} shortcut="E" pending={pendingAction}>
             <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -162,7 +163,7 @@ export default function MessageView({ message, bodyHtml, patientContext, account
           </ToolbarButton>
           <ToolbarButton onClick={handleToggleRead} shortcut="U" pending={pendingAction}>
             <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              {msg.isRead ? (
+              {anyUnread ? (
                 <>
                   <circle cx="12" cy="12" r="3.5" />
                   <path d="M3 8l9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
@@ -171,90 +172,152 @@ export default function MessageView({ message, bodyHtml, patientContext, account
                 <circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none" />
               )}
             </svg>
-            {msg.isRead ? 'Unread' : 'Read'}
+            {anyUnread ? 'Read' : 'Unread'}
           </ToolbarButton>
           <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
-          <MoveToMenu messageId={msg.id} currentCategory={msg.category} />
+          <MoveToMenu messageId={latest.id} currentCategory={t.category} />
           <div className="ml-auto text-[11px] text-stone-500 dark:text-stone-400 tabular-nums tracking-wider hidden sm:block">
-            {formatShortDate(msg.receivedAt)} · {formatTime(msg.receivedAt)}
+            {formatShortDate(latest.receivedAt)} · {formatTime(latest.receivedAt)}
           </div>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-5 pt-4 pb-8">
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-5">
-          {/* Main content */}
           <div className="min-w-0">
             {/* Subject + intent */}
-            <div className="flex items-start gap-2.5 mb-3">
+            <div className="flex items-start gap-2.5 mb-4">
               <h1 className="text-[20px] leading-snug font-semibold text-stone-900 dark:text-stone-100 tracking-tight">
-                {msg.subject ?? '(no subject)'}
+                {t.subject ?? '(no subject)'}
               </h1>
-              <div className="pt-1"><IntentBadge intent={msg.intent} /></div>
-            </div>
-
-            {/* Compact sender row */}
-            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-stone-200 dark:border-stone-700/40">
-              <Avatar name={msg.fromName ?? msg.fromEmail} />
-              <div className="min-w-0 grow text-[13px]">
-                <div className="flex items-baseline gap-1.5 min-w-0">
-                  <span className="font-medium text-stone-900 dark:text-stone-100 truncate">
-                    {msg.fromName ?? msg.fromEmail}
-                  </span>
-                  {msg.fromName && (
-                    <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
-                      &lt;{msg.fromEmail}&gt;
-                    </span>
-                  )}
-                </div>
-                <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
-                  to {msg.toEmails.join(', ')}
-                  {msg.ccEmails.length > 0 && <> · cc {msg.ccEmails.join(', ')}</>}
-                </div>
-              </div>
-            </div>
-
-            {/* Body — iframe-rendered for full CSS isolation */}
-            {bodyHtml ? (
-              <EmailIframe html={bodyHtml} />
-            ) : (
-              <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-stone-800 dark:text-stone-100">
-                {msg.bodyText ?? '(empty body)'}
-              </pre>
-            )}
-
-            {/* Quick reply */}
-            <div id="quick-reply" className="mt-6 scroll-mt-20">
-              {accountId && (
-                <QuickReply
-                  key={`reply-${msg.id}-${replyOpenSignal}`}
-                  accountId={accountId}
-                  toEmail={msg.fromEmail}
-                  toName={msg.fromName}
-                  subject={msg.subject}
-                  messageId={msg.id}
-                  textareaId="quick-reply-textarea"
-                  terminology={terminology}
-                />
+              <div className="pt-1"><IntentBadge intent={t.intent} /></div>
+              {t.messages.length > 1 && (
+                <span className="pt-1.5 text-[11px] text-stone-500 dark:text-stone-400 tabular-nums">
+                  {t.messages.length} messages
+                </span>
               )}
+            </div>
+
+            {/* Stacked conversation: oldest first, newest expanded by default */}
+            <div className="space-y-2.5">
+              {t.messages.map((m, i) => {
+                const isLatest = i === t.messages.length - 1
+                return (
+                  <MessageCard
+                    key={m.id}
+                    message={m}
+                    bodyHtml={sanitizedBodies[m.id] ?? null}
+                    defaultOpen={isLatest}
+                  />
+                )
+              })}
+            </div>
+
+            {/* Quick reply — replies to the latest message in the thread */}
+            <div id="quick-reply" className="mt-6 scroll-mt-20">
+              <QuickReply
+                key={`reply-${latest.id}-${replyOpenSignal}`}
+                accountId={latest.accountId}
+                toEmail={latest.fromEmail}
+                toName={latest.fromName}
+                subject={t.subject}
+                messageId={latest.id}
+                textareaId="quick-reply-textarea"
+                terminology={terminology}
+              />
             </div>
           </div>
 
-          {/* Right column — contact card or add-contact CTA */}
           <div className="xl:sticky xl:top-16 xl:self-start">
             {patientContext ? (
               <PatientCard ctx={patientContext} terminology={terminology} />
             ) : (
               <AddPatientCard
-                messageId={msg.id}
-                fromEmail={msg.fromEmail}
-                fromName={msg.fromName}
+                messageId={latest.id}
+                fromEmail={latest.fromEmail}
+                fromName={latest.fromName}
                 terminology={terminology}
               />
             )}
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * A single message inside a stacked thread. Collapsed messages show
+ * just the sender + snippet + time; expanded shows the full body.
+ * Defaults to expanded for the newest message in the thread.
+ */
+function MessageCard({
+  message,
+  bodyHtml,
+  defaultOpen,
+}: {
+  message: EmailMessage
+  bodyHtml: string | null
+  defaultOpen: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const senderName = message.fromName ?? message.fromEmail
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border bg-white dark:bg-stone-900/40 transition-colors',
+        open
+          ? 'border-stone-200 dark:border-stone-700/60'
+          : 'border-stone-100 dark:border-stone-800 hover:border-stone-200 dark:hover:border-stone-700/60',
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'w-full text-left flex items-start gap-2.5 px-4',
+          open ? 'pt-3.5 pb-2' : 'py-3',
+        )}
+      >
+        <Avatar name={senderName} />
+        <div className="min-w-0 grow">
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <span className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate">
+              {senderName}
+            </span>
+            {message.fromName && (
+              <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                &lt;{message.fromEmail}&gt;
+              </span>
+            )}
+            <span className="ml-auto text-[11px] text-stone-400 dark:text-stone-500 tabular-nums whitespace-nowrap shrink-0">
+              {formatShortDate(message.receivedAt)}, {formatTime(message.receivedAt)}
+            </span>
+          </div>
+          {open ? (
+            <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+              to {message.toEmails.join(', ')}
+              {message.ccEmails.length > 0 && <> · cc {message.ccEmails.join(', ')}</>}
+            </div>
+          ) : (
+            <div className="text-[12px] text-stone-500 dark:text-stone-400 truncate">
+              {message.snippet ?? message.bodyText?.slice(0, 140) ?? ''}
+            </div>
+          )}
+        </div>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-2 border-t border-stone-100 dark:border-stone-800">
+          {bodyHtml ? (
+            <EmailIframe html={bodyHtml} />
+          ) : (
+            <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-stone-800 dark:text-stone-100">
+              {message.bodyText ?? '(empty body)'}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   )
 }

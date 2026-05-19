@@ -226,10 +226,14 @@ export async function listMessagesForOrg(
  */
 export async function countMessagesByIntent(organizationId: string): Promise<Record<string, number>> {
   try {
+    // Count distinct threads, not messages — the inbox now lists one
+    // row per thread, so the badge should agree. Falls back to message id
+    // when provider_thread_id is null (legacy rows) so the message still
+    // gets counted as its own thread-of-one.
     const rows = await db
       .select({
         intent: schema.emailMessage.intent,
-        count: sql<number>`count(*)::int`,
+        count: sql<number>`count(distinct coalesce(${schema.emailMessage.providerThreadId}, ${schema.emailMessage.id}))::int`,
       })
       .from(schema.emailMessage)
       .where(
@@ -261,7 +265,7 @@ export async function countMessagesByCategory(organizationId: string): Promise<R
     const rows = await db
       .select({
         category: schema.emailMessage.category,
-        count: sql<number>`count(*)::int`,
+        count: sql<number>`count(distinct coalesce(${schema.emailMessage.providerThreadId}, ${schema.emailMessage.id}))::int`,
       })
       .from(schema.emailMessage)
       .where(
@@ -281,6 +285,228 @@ export async function countMessagesByCategory(organizationId: string): Promise<R
     if (isMissingSchemaError(err)) return { primary: 0, updates: 0, promotions: 0, spam: 0 }
     throw err
   }
+}
+
+/**
+ * Thread-shaped variant of the inbox list — one row per conversation
+ * rather than one per message. The sidebar renders these, the detail
+ * pane loads the full thread.
+ */
+export interface EmailThreadListItem {
+  threadId: string
+  latestMessageId: string
+  accountId: string
+  accountEmail: string | null
+  fromName: string | null
+  fromEmail: string
+  subject: string | null
+  snippet: string | null
+  receivedAt: Date
+  /** All messages in the thread are read. */
+  isRead: boolean
+  /** Any message in the thread is starred. */
+  isStarred: boolean
+  intent: string | null
+  category: string | null
+  patientId: string | null
+  patientFirstName: string | null
+  patientLastName: string | null
+  totalCount: number
+  unreadCount: number
+}
+
+export async function listThreadsForOrg(
+  organizationId: string,
+  opts: ListMessagesOpts = {},
+): Promise<EmailThreadListItem[]> {
+  try {
+    // Pull a generous overshoot of messages and aggregate by thread
+    // in JS — much simpler than a window function and fast enough at
+    // the volumes the inbox sees today. Each thread typically has 1-3
+    // messages so a 3x multiplier gets us roughly `limit` threads.
+    const messageLimit = (opts.limit ?? 100) * 3
+    const messages = await listMessagesForOrg(organizationId, {
+      ...opts,
+      limit: messageLimit,
+    })
+
+    interface Acc {
+      threadId: string
+      latest: EmailMessageListItem
+      total: number
+      unread: number
+      starred: boolean
+    }
+    const byThread = new Map<string, Acc>()
+    for (const m of messages) {
+      // Fall back to message id for the rare legacy row with no thread id —
+      // gives that message its own "thread of one" so it still renders.
+      const tid = m.providerThreadId ?? m.id
+      const existing = byThread.get(tid)
+      if (!existing) {
+        byThread.set(tid, {
+          threadId: tid,
+          latest: m,
+          total: 1,
+          unread: m.isRead ? 0 : 1,
+          starred: m.isStarred,
+        })
+      } else {
+        existing.total++
+        if (!m.isRead) existing.unread++
+        if (m.isStarred) existing.starred = true
+        // messages comes back ordered receivedAt DESC, so first iteration
+        // wins as `latest` — nothing to update here.
+      }
+    }
+
+    const limit = opts.limit ?? 100
+    return Array.from(byThread.values())
+      .sort((a, b) => b.latest.receivedAt.getTime() - a.latest.receivedAt.getTime())
+      .slice(0, limit)
+      .map((t) => ({
+        threadId: t.threadId,
+        latestMessageId: t.latest.id,
+        accountId: t.latest.accountId,
+        accountEmail: t.latest.accountEmail,
+        fromName: t.latest.fromName,
+        fromEmail: t.latest.fromEmail,
+        subject: t.latest.subject,
+        snippet: t.latest.snippet,
+        receivedAt: t.latest.receivedAt,
+        isRead: t.unread === 0,
+        isStarred: t.starred,
+        intent: t.latest.intent,
+        category: t.latest.category,
+        patientId: t.latest.patientId,
+        patientFirstName: t.latest.patientFirstName,
+        patientLastName: t.latest.patientLastName,
+        totalCount: t.total,
+        unreadCount: t.unread,
+      }))
+  } catch (err) {
+    if (isMissingSchemaError(err)) return []
+    throw err
+  }
+}
+
+/**
+ * All messages in a thread, oldest first, plus aggregate metadata.
+ * Drives the stacked conversation view in the right pane.
+ */
+export interface EmailThreadDetail {
+  threadId: string
+  subject: string | null
+  category: string | null
+  intent: string | null
+  patientId: string | null
+  accountId: string
+  messages: EmailMessage[]
+}
+
+export async function getThreadDetail(
+  threadId: string,
+  organizationId: string,
+): Promise<EmailThreadDetail | null> {
+  const messages = await db
+    .select()
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.providerThreadId, threadId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+    .orderBy(schema.emailMessage.receivedAt)
+  if (messages.length === 0) return null
+  const latest = messages[messages.length - 1]
+  return {
+    threadId,
+    // First message's subject is the "real" thread subject — replies
+    // typically just prefix Re: / Fwd: to the same line.
+    subject: messages[0].subject,
+    category: latest.category,
+    intent: latest.intent,
+    patientId: messages.find((m) => m.patientId)?.patientId ?? null,
+    accountId: latest.accountId,
+    messages,
+  }
+}
+
+/**
+ * Find the thread id that contains the given message id. Used by the
+ * inbox page to derive the active thread from the URL's `m=` param.
+ */
+export async function getThreadIdForMessage(
+  messageId: string,
+  organizationId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ providerThreadId: schema.emailMessage.providerThreadId })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.id, messageId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  return row?.providerThreadId ?? null
+}
+
+/**
+ * Expand a list of thread ids to every message id in those threads,
+ * scoped to one org. Used by the thread-level bulk ops below.
+ */
+async function expandThreadsToMessages(
+  threadIds: string[],
+  organizationId: string,
+): Promise<string[]> {
+  if (threadIds.length === 0) return []
+  const rows = await db
+    .select({ id: schema.emailMessage.id })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        inArray(schema.emailMessage.providerThreadId, threadIds),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  return rows.map((r) => r.id)
+}
+
+export async function bulkArchiveThreads(
+  threadIds: string[],
+  organizationId: string,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkArchive(ids, organizationId)
+}
+
+export async function bulkTrashThreads(
+  threadIds: string[],
+  organizationId: string,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkTrash(ids, organizationId)
+}
+
+export async function bulkSetThreadRead(
+  threadIds: string[],
+  organizationId: string,
+  read: boolean,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkSetRead(ids, organizationId, read)
+}
+
+export async function bulkSetThreadStarred(
+  threadIds: string[],
+  organizationId: string,
+  starred: boolean,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkSetStarred(ids, organizationId, starred)
 }
 
 export async function getMessageDetail(messageId: string, organizationId: string): Promise<EmailMessage | null> {

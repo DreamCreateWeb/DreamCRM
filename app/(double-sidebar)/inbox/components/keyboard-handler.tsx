@@ -3,43 +3,47 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useTransition } from 'react'
 import {
-  archiveMessageAction,
-  markMessage,
-  toggleStar,
-  trashMessageAction,
+  archiveThreadAction,
+  markThreadAction,
+  toggleThreadStarAction,
+  trashThreadAction,
 } from '../mailbox-actions'
 import { useSelection } from './selection-context'
 
+interface ThreadStub {
+  threadId: string
+  latestMessageId: string
+}
+
 interface Props {
-  messageIds: string[]
-  activeMessageId: string | null
+  threadList: ThreadStub[]
+  activeThreadId: string | null
   activeIsRead: boolean
   activeIsStarred: boolean
-  baseUrl: string // e.g. "/inbox" or "/inbox?account=xxx"
+  baseUrl: string
 }
 
 /**
- * Global keyboard shortcuts for the inbox. Bound on the window at this
- * component's mount so they work regardless of which sub-element is focused
- * — except when the user is typing in an input/textarea, which we explicitly
- * exempt to avoid trapping the j/k navigation on top of normal typing.
+ * Global keyboard shortcuts for the inbox. j/k now moves through threads
+ * (not individual messages) since the sidebar lists conversations. The
+ * URL still uses `m=<messageId>` for back-compat — j/k navigates to the
+ * latest message id of the next/previous thread.
  *
  * Bindings:
- *   j/k     next / previous message
- *   u       toggle read/unread on the active message
+ *   j/k     next / previous thread
+ *   u       toggle read/unread on the active thread
  *   s       toggle star
- *   e       archive
- *   #       trash
- *   r       open quick-reply (dispatches a custom event the reply pane listens to)
- *   c       open compose (same)
- *   x       toggle bulk selection on the active message
- *   ⌘/⌃-A   select all visible messages
+ *   e       archive the active thread
+ *   #       trash the active thread
+ *   r       open quick-reply
+ *   c       open compose
+ *   x       toggle bulk selection on the active thread
+ *   ⌘/⌃-A   select all visible threads
  *   Esc     clear bulk selection
- *   ?       show shortcut help (future)
  */
 export default function KeyboardHandler({
-  messageIds,
-  activeMessageId,
+  threadList,
+  activeThreadId,
   activeIsRead,
   activeIsStarred,
   baseUrl,
@@ -63,72 +67,75 @@ export default function KeyboardHandler({
     function onKey(e: KeyboardEvent) {
       if (isTextInput(e.target)) return
 
-      // Cmd/Ctrl-A: select all visible. Allow this one modifier combo through;
-      // every other shortcut below requires no modifiers.
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && messageIds.length > 0) {
+      const threadIds = threadList.map((t) => t.threadId)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && threadIds.length > 0) {
         e.preventDefault()
-        selection.selectAll(messageIds)
+        selection.selectAll(threadIds)
         return
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return
 
-      const idx = activeMessageId ? messageIds.indexOf(activeMessageId) : -1
+      const idx = activeThreadId ? threadIds.indexOf(activeThreadId) : -1
 
       switch (e.key) {
-        case 'j':
+        case 'j': {
           e.preventDefault()
-          if (messageIds.length === 0) return
-          go(messageIds[Math.min(messageIds.length - 1, idx + 1)] ?? messageIds[0])
+          if (threadList.length === 0) return
+          const next = threadList[Math.min(threadList.length - 1, idx + 1)] ?? threadList[0]
+          go(next.latestMessageId)
           return
-        case 'k':
+        }
+        case 'k': {
           e.preventDefault()
-          if (messageIds.length === 0) return
-          go(messageIds[Math.max(0, idx - 1)] ?? messageIds[0])
+          if (threadList.length === 0) return
+          const next = threadList[Math.max(0, idx - 1)] ?? threadList[0]
+          go(next.latestMessageId)
           return
+        }
         case 'u':
-          if (!activeMessageId) return
+          if (!activeThreadId) return
           e.preventDefault()
           startTransition(async () => {
             try {
-              await markMessage(activeMessageId, !activeIsRead)
+              await markThreadAction(activeThreadId, !activeIsRead)
               router.refresh()
             } catch {}
           })
           return
         case 's':
-          if (!activeMessageId) return
+          if (!activeThreadId) return
           e.preventDefault()
           startTransition(async () => {
             try {
-              await toggleStar(activeMessageId, !activeIsStarred)
+              await toggleThreadStarAction(activeThreadId, !activeIsStarred)
               router.refresh()
             } catch {}
           })
           return
         case 'e':
-          if (!activeMessageId) return
+          if (!activeThreadId) return
           e.preventDefault()
           startTransition(async () => {
             try {
-              const nextId = messageIds[idx + 1] ?? messageIds[idx - 1] ?? null
-              await archiveMessageAction(activeMessageId)
-              go(nextId)
+              const nextThread = threadList[idx + 1] ?? threadList[idx - 1] ?? null
+              await archiveThreadAction(activeThreadId)
+              go(nextThread?.latestMessageId ?? null)
             } catch {}
           })
           return
         case '#':
-          if (!activeMessageId) return
+          if (!activeThreadId) return
           e.preventDefault()
           startTransition(async () => {
             try {
-              const nextId = messageIds[idx + 1] ?? messageIds[idx - 1] ?? null
-              await trashMessageAction(activeMessageId)
-              go(nextId)
+              const nextThread = threadList[idx + 1] ?? threadList[idx - 1] ?? null
+              await trashThreadAction(activeThreadId)
+              go(nextThread?.latestMessageId ?? null)
             } catch {}
           })
           return
         case 'r':
-          if (!activeMessageId) return
+          if (!activeThreadId) return
           e.preventDefault()
           window.dispatchEvent(new CustomEvent('inbox:quickreply'))
           return
@@ -137,9 +144,9 @@ export default function KeyboardHandler({
           window.dispatchEvent(new CustomEvent('inbox:compose'))
           return
         case 'x':
-          if (!activeMessageId) return
+          if (!activeThreadId) return
           e.preventDefault()
-          selection.toggle(activeMessageId)
+          selection.toggle(activeThreadId)
           return
         case 'Escape':
           if (selection.count === 0) return
@@ -151,7 +158,7 @@ export default function KeyboardHandler({
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [messageIds, activeMessageId, activeIsRead, activeIsStarred, baseUrl, router, selection])
+  }, [threadList, activeThreadId, activeIsRead, activeIsStarred, baseUrl, router, selection])
 
   return null
 }

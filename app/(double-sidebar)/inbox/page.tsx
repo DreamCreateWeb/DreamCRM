@@ -6,9 +6,10 @@ import {
   classifyPendingIntents,
   countMessagesByCategory,
   countMessagesByIntent,
-  getMessageDetail,
-  listMessagesForOrg,
+  getThreadDetail,
+  getThreadIdForMessage,
   listOrgEmailAccounts,
+  listThreadsForOrg,
   resolvePendingInlineImages,
   syncAccount,
   type ListMessagesOpts,
@@ -18,7 +19,7 @@ import { sanitizeEmailHtml } from '@/lib/email-sanitize'
 import { inboxTerminology, type TenantType } from '@/lib/inbox-terminology'
 import ConnectPrompt from './connect-prompt'
 import MailboxSidebar from './components/mailbox-sidebar'
-import MessageView from './components/message-view'
+import ThreadView from './components/thread-view'
 import KeyboardHandler from './components/keyboard-handler'
 import { SelectionProvider } from './components/selection-context'
 
@@ -111,39 +112,50 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
     patientsOnly,
   }
 
-  const [messages, intentCounts, categoryCounts] = await Promise.all([
-    listMessagesForOrg(ctx.organizationId, listOpts),
+  const [threads, intentCounts, categoryCounts] = await Promise.all([
+    listThreadsForOrg(ctx.organizationId, listOpts),
     countMessagesByIntent(ctx.organizationId),
     countMessagesByCategory(ctx.organizationId),
   ])
   const unreadCount = accounts.reduce((sum, a) => sum + a.unreadCount, 0)
 
-  const activeMessage = activeMessageId ? await getMessageDetail(activeMessageId, ctx.organizationId) : null
+  // The URL still uses `m=<messageId>` for back-compat with old notification
+  // links — derive the thread containing that message and load it whole.
+  const activeThreadId = activeMessageId
+    ? await getThreadIdForMessage(activeMessageId, ctx.organizationId)
+    : null
+  const activeThread = activeThreadId
+    ? await getThreadDetail(activeThreadId, ctx.organizationId)
+    : null
 
-  // Sanitize the HTML body server-side so the client component just renders.
-  const sanitizedHtml = activeMessage?.bodyHtml ? sanitizeEmailHtml(activeMessage.bodyHtml) : null
+  // Sanitize each message body server-side so the iframe renderer just emits.
+  const sanitizedBodies: Record<string, string> = {}
+  if (activeThread) {
+    for (const m of activeThread.messages) {
+      if (m.bodyHtml) sanitizedBodies[m.id] = sanitizeEmailHtml(m.bodyHtml)
+    }
+  }
 
-  // Patient context for the side panel — only if the active message matches.
-  const patientContext = activeMessage?.patientId
-    ? await getInboxPatientContext(activeMessage.patientId, ctx.organizationId)
+  const patientContext = activeThread?.patientId
+    ? await getInboxPatientContext(activeThread.patientId, ctx.organizationId)
     : null
 
   return (
     <FlyoutProvider initialState={true}>
       <SelectionProvider>
         <KeyboardHandler
-          messageIds={messages.map((m) => m.id)}
-          activeMessageId={activeMessage?.id ?? null}
-          activeIsRead={activeMessage?.isRead ?? true}
-          activeIsStarred={activeMessage?.isStarred ?? false}
+          threadList={threads.map((t) => ({ threadId: t.threadId, latestMessageId: t.latestMessageId }))}
+          activeThreadId={activeThread?.threadId ?? null}
+          activeIsRead={activeThread ? activeThread.messages.every((m) => m.isRead) : true}
+          activeIsStarred={activeThread ? activeThread.messages.some((m) => m.isStarred) : false}
           baseUrl={buildBaseUrl({ activeAccountId, activeCategory, activeIntent, unreadOnly, starredOnly, patientsOnly })}
         />
         <div className="relative flex h-full">
           <MailboxSidebar
             accounts={accounts}
             activeAccountId={activeAccountId}
-            messages={messages}
-            activeMessageId={activeMessage?.id ?? null}
+            threads={threads}
+            activeThreadId={activeThread?.threadId ?? null}
             intentCounts={intentCounts}
             categoryCounts={categoryCounts}
             activeCategory={activeCategory}
@@ -154,11 +166,10 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
             unreadCount={unreadCount}
             terminology={terminology}
           />
-          <MessageView
-            message={activeMessage}
-            bodyHtml={sanitizedHtml}
+          <ThreadView
+            thread={activeThread}
+            sanitizedBodies={sanitizedBodies}
             patientContext={patientContext}
-            accountId={activeMessage?.accountId ?? null}
             terminology={terminology}
           />
         </div>

@@ -354,6 +354,17 @@ export interface SendMessageInput {
   references?: string
 }
 
+function encodeBase64Body(body: string): string {
+  // RFC 2045 prefers line lengths <= 76 chars for base64-encoded bodies.
+  // Most receivers tolerate longer lines but stricter spam filters care.
+  const b = Buffer.from(body, 'utf8').toString('base64')
+  return b.match(/.{1,76}/g)?.join('\r\n') ?? b
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 function buildRawMessage(input: SendMessageInput): string {
   const boundary = `dcrm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   const headerLines = [
@@ -361,24 +372,32 @@ function buildRawMessage(input: SendMessageInput): string {
     `To: ${input.to.join(', ')}`,
     ...(input.cc && input.cc.length > 0 ? [`Cc: ${input.cc.join(', ')}`] : []),
     `Subject: ${input.subject}`,
+    `Date: ${new Date().toUTCString()}`,
     'MIME-Version: 1.0',
+    // Threading headers. Gmail's filter looks at these to decide if a
+    // message belongs to an existing conversation; missing them on a
+    // reply is a strong "looks like a fresh cold email" signal that
+    // hurts deliverability.
     ...(input.inReplyTo ? [`In-Reply-To: ${input.inReplyTo}`] : []),
     ...(input.references ? [`References: ${input.references}`] : []),
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ]
+  // base64 transfer encoding handles UTF-8 (emoji, accented characters)
+  // without surprises and avoids the bare-CR/LF pitfalls of 7bit.
+  const htmlBody = input.bodyHtml ?? escapeHtml(input.bodyText).replace(/\n/g, '<br>')
   const textPart = [
     `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: 7bit',
+    'Content-Transfer-Encoding: base64',
     '',
-    input.bodyText,
+    encodeBase64Body(input.bodyText),
   ].join('\r\n')
   const htmlPart = [
     `--${boundary}`,
     'Content-Type: text/html; charset="UTF-8"',
-    'Content-Transfer-Encoding: 7bit',
+    'Content-Transfer-Encoding: base64',
     '',
-    input.bodyHtml ?? input.bodyText.replace(/</g, '&lt;').replace(/\n/g, '<br>'),
+    encodeBase64Body(htmlBody),
   ].join('\r\n')
   const closing = `--${boundary}--`
   return [headerLines.join('\r\n'), '', textPart, htmlPart, closing].join('\r\n')
