@@ -45,7 +45,7 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
     const replySubject = subject?.startsWith('Re:') ? subject : `Re: ${subject ?? ''}`.trim()
     startTransition(async () => {
       try {
-        await sendMailbox({
+        const result = await sendMailbox({
           accountId,
           to: toEmail,
           subject: replySubject,
@@ -59,6 +59,15 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
         // thread immediately. revalidatePath in the action invalidates
         // the cache but doesn't actively re-render — that's on us.
         router.refresh()
+        // Send went out, but we couldn't write a local row for it. The
+        // reply will be invisible in the thread view until backfill
+        // catches up. Surface as a non-blocking warning so the user
+        // knows what's happening (and so we hear about it).
+        if (result && (result as { localRecord?: string }).localRecord === 'failed') {
+          const localError = (result as { localError?: string }).localError
+          setError(`Sent — but local record failed${localError ? `: ${localError}` : ''}. Refresh in a moment.`)
+          console.error('[QuickReply] localRecord failed', result)
+        }
         setTimeout(() => setSent(false), 1600)
       } catch (err) {
         setError((err as Error).message)

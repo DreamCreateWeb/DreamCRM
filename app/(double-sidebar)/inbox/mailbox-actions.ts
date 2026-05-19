@@ -365,7 +365,7 @@ export async function sendMailbox(input: unknown) {
     }
   }
 
-  await sendEmail({
+  const result = await sendEmail({
     accountId: data.accountId,
     organizationId: ctx.organizationId,
     to: splitAddresses(data.to),
@@ -376,7 +376,11 @@ export async function sendMailbox(input: unknown) {
     references,
   })
   revalidatePath('/inbox')
-  return { ok: true }
+  return {
+    ok: true,
+    localRecord: result.localRecord,
+    localError: result.localError ?? null,
+  }
 }
 
 export async function startGmailConnect() {
