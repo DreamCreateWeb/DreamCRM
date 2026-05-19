@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { draftReplyAction, sendMailbox } from '../mailbox-actions'
@@ -23,6 +24,7 @@ interface Props {
  */
 export default function QuickReply({ accountId, toEmail, toName, subject, messageId, textareaId, terminology }: Props) {
   const contact = terminology?.contact ?? 'contact'
+  const router = useRouter()
   const [body, setBody] = useState('')
   const [pending, startTransition] = useTransition()
   const [drafting, setDrafting] = useState(false)
@@ -53,6 +55,10 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
         })
         setSent(true)
         setBody('')
+        // Pull fresh server data so the just-sent reply appears in the
+        // thread immediately. revalidatePath in the action invalidates
+        // the cache but doesn't actively re-render — that's on us.
+        router.refresh()
         setTimeout(() => setSent(false), 1600)
       } catch (err) {
         setError((err as Error).message)
