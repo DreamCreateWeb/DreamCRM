@@ -339,7 +339,6 @@ describe('getThreadDetail: in-reply-to chain merge', () => {
         labels: [],
         categorySource: 'auto',
         folder: 'inbox',
-        accountId: 'acct-1',
       },
     ])
     state.selectQueue.push([]) // chain query: no in-reply-to matches

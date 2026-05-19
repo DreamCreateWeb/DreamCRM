@@ -8,8 +8,6 @@ import {
   getMessage,
   listHistory,
   listInboxMessageIds,
-  markMessageRead,
-  modifyLabels as gmailModifyLabels,
   parseGmailMessage,
   resolveInlineImages,
   sendMessage as gmailSend,
@@ -19,6 +17,14 @@ import {
 } from './gmail'
 import { classifyBatch } from './ai-mailbox'
 import { notifyInboxChange } from './inbox-events'
+import {
+  SYSTEM_ACTOR,
+  logInboxAction,
+  logInboxActionsBulk,
+  type InboxActionEntry,
+  type InboxActor,
+} from './inbox-audit'
+import type { InboxAction } from '@/lib/db/schema/email'
 import type {
   EmailAccount,
   EmailCategory,
@@ -588,35 +594,39 @@ async function expandThreadsToMessages(
 export async function bulkArchiveThreads(
   threadIds: string[],
   organizationId: string,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const ids = await expandThreadsToMessages(threadIds, organizationId)
-  return bulkArchive(ids, organizationId)
+  return bulkArchive(ids, organizationId, actor)
 }
 
 export async function bulkTrashThreads(
   threadIds: string[],
   organizationId: string,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const ids = await expandThreadsToMessages(threadIds, organizationId)
-  return bulkTrash(ids, organizationId)
+  return bulkTrash(ids, organizationId, actor)
 }
 
 export async function bulkSetThreadRead(
   threadIds: string[],
   organizationId: string,
   read: boolean,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const ids = await expandThreadsToMessages(threadIds, organizationId)
-  return bulkSetRead(ids, organizationId, read)
+  return bulkSetRead(ids, organizationId, read, actor)
 }
 
 export async function bulkSetThreadStarred(
   threadIds: string[],
   organizationId: string,
   starred: boolean,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const ids = await expandThreadsToMessages(threadIds, organizationId)
-  return bulkSetStarred(ids, organizationId, starred)
+  return bulkSetStarred(ids, organizationId, starred, actor)
 }
 
 export async function getMessageDetail(messageId: string, organizationId: string): Promise<EmailMessage | null> {
@@ -759,6 +769,7 @@ export async function sendEmail(opts: {
   bodyHtml?: string
   inReplyTo?: string
   references?: string
+  actor?: InboxActor
 }): Promise<{ id: string; threadId: string; localRecord: 'stored' | 'failed'; localError?: string }> {
   const account = await getAccount(opts.accountId, opts.organizationId)
   if (!account) throw new Error('Account not found')
@@ -817,9 +828,22 @@ export async function sendEmail(opts: {
       categorySource: 'auto',
       receivedAt: new Date(),
     })
+    const actor = opts.actor ?? SYSTEM_ACTOR
+    await logInboxAction({
+      organizationId: opts.organizationId,
+      messageId: result.id,
+      threadId: result.threadId ?? null,
+      action: 'send',
+      actor,
+      meta: { subject: opts.subject, replyTo: opts.inReplyTo ?? null },
+    })
     // Notify any open inbox tabs so the sent reply shows up in the
     // thread without a manual refresh on other devices/tabs.
-    await notifyInboxChange(opts.organizationId, 'updated')
+    await notifyInboxChange(opts.organizationId, 'updated', {
+      messageId: result.id,
+      threadId: result.threadId,
+      actor,
+    })
     return { id: result.id, threadId: result.threadId ?? '', localRecord: 'stored' }
   } catch (err) {
     // Don't throw — the send already succeeded on Gmail's side; the user
@@ -832,99 +856,25 @@ export async function sendEmail(opts: {
   }
 }
 
-export async function setMessageRead(messageId: string, organizationId: string, read: boolean): Promise<void> {
-  const [msg] = await db
-    .select({
-      providerMessageId: schema.emailMessage.providerMessageId,
-      accountId: schema.emailMessage.accountId,
-    })
-    .from(schema.emailMessage)
-    .where(
-      and(eq(schema.emailMessage.id, messageId), eq(schema.emailMessage.organizationId, organizationId)),
-    )
-    .limit(1)
-  if (!msg) return
-  await db
-    .update(schema.emailMessage)
-    .set({ isRead: read })
-    .where(eq(schema.emailMessage.id, messageId))
-  try {
-    const accessToken = await getAccessToken(msg.accountId)
-    await markMessageRead(accessToken, msg.providerMessageId, read)
-  } catch (err) {
-    console.warn('[mailbox] could not sync read flag back to Gmail', err)
-  }
-}
-
 /**
- * Toggle the starred flag on a message. Mirrors to Gmail via the STARRED
- * label so the change shows up in the user's regular Gmail UI too.
- */
-export async function setMessageStarred(messageId: string, organizationId: string, starred: boolean): Promise<void> {
-  const [msg] = await db
-    .select({
-      providerMessageId: schema.emailMessage.providerMessageId,
-      accountId: schema.emailMessage.accountId,
-    })
-    .from(schema.emailMessage)
-    .where(and(eq(schema.emailMessage.id, messageId), eq(schema.emailMessage.organizationId, organizationId)))
-    .limit(1)
-  if (!msg) return
-  await db
-    .update(schema.emailMessage)
-    .set({ isStarred: starred })
-    .where(eq(schema.emailMessage.id, messageId))
-  try {
-    const accessToken = await getAccessToken(msg.accountId)
-    await gmailModifyLabels(accessToken, msg.providerMessageId, starred ? ['STARRED'] : [], starred ? [] : ['STARRED'])
-  } catch (err) {
-    console.warn('[mailbox] could not sync star flag back to Gmail', err)
-  }
-}
-
-/**
- * Archive a message: locally moves it out of the inbox folder; on Gmail
- * removes the INBOX label (which is how Gmail itself models "archive").
- */
-export async function archiveMessage(messageId: string, organizationId: string): Promise<void> {
-  const [msg] = await db
-    .select({
-      providerMessageId: schema.emailMessage.providerMessageId,
-      accountId: schema.emailMessage.accountId,
-    })
-    .from(schema.emailMessage)
-    .where(and(eq(schema.emailMessage.id, messageId), eq(schema.emailMessage.organizationId, organizationId)))
-    .limit(1)
-  if (!msg) return
-  await db
-    .update(schema.emailMessage)
-    .set({ folder: 'archive' })
-    .where(eq(schema.emailMessage.id, messageId))
-  try {
-    const accessToken = await getAccessToken(msg.accountId)
-    await gmailModifyLabels(accessToken, msg.providerMessageId, [], ['INBOX'])
-  } catch (err) {
-    console.warn('[mailbox] could not archive on Gmail', err)
-  }
-}
-
-/**
- * Bulk variants of the per-message ops. One SQL UPDATE for the local state,
- * then one Gmail batchModify per affected account (or per-id fallback for
- * trash since Gmail has no batch-trash endpoint). All Gmail calls are
- * best-effort; local state always wins.
+ * Bulk variants are the single source of truth for per-message
+ * mutations. One SQL UPDATE for the local state, then one Gmail
+ * batchModify per affected account (or per-id fallback for trash since
+ * Gmail has no batch-trash endpoint). All Gmail calls are best-effort;
+ * local state always wins. Single-row callers pass a 1-element array.
  */
 
 async function fetchMessageRefs(
   messageIds: string[],
   organizationId: string,
-): Promise<Array<{ id: string; accountId: string; providerMessageId: string }>> {
+): Promise<Array<{ id: string; accountId: string; providerMessageId: string; providerThreadId: string | null }>> {
   if (messageIds.length === 0) return []
   return db
     .select({
       id: schema.emailMessage.id,
       accountId: schema.emailMessage.accountId,
       providerMessageId: schema.emailMessage.providerMessageId,
+      providerThreadId: schema.emailMessage.providerThreadId,
     })
     .from(schema.emailMessage)
     .where(
@@ -933,6 +883,27 @@ async function fetchMessageRefs(
         eq(schema.emailMessage.organizationId, organizationId),
       ),
     )
+}
+
+/**
+ * Build audit-log entries from a fetched ref list. One entry per
+ * message, with thread context so an agent can query by thread.
+ */
+function refsToAuditEntries(
+  refs: Array<{ id: string; providerThreadId: string | null }>,
+  organizationId: string,
+  action: InboxAction,
+  actor: InboxActor,
+  meta?: Record<string, unknown>,
+): InboxActionEntry[] {
+  return refs.map((r) => ({
+    organizationId,
+    messageId: r.id,
+    threadId: r.providerThreadId,
+    action,
+    actor,
+    meta,
+  }))
 }
 
 function groupByAccount<T extends { accountId: string }>(rows: T[]): Map<string, T[]> {
@@ -967,6 +938,7 @@ export async function bulkSetRead(
   messageIds: string[],
   organizationId: string,
   read: boolean,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const refs = await fetchMessageRefs(messageIds, organizationId)
   if (refs.length === 0) return { count: 0 }
@@ -980,6 +952,7 @@ export async function bulkSetRead(
       ),
     )
   await mirrorLabelsToGmail(refs, read ? [] : ['UNREAD'], read ? ['UNREAD'] : [])
+  await logInboxActionsBulk(refsToAuditEntries(refs, organizationId, read ? 'mark_read' : 'mark_unread', actor))
   return { count: refs.length }
 }
 
@@ -987,6 +960,7 @@ export async function bulkSetStarred(
   messageIds: string[],
   organizationId: string,
   starred: boolean,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const refs = await fetchMessageRefs(messageIds, organizationId)
   if (refs.length === 0) return { count: 0 }
@@ -1000,12 +974,14 @@ export async function bulkSetStarred(
       ),
     )
   await mirrorLabelsToGmail(refs, starred ? ['STARRED'] : [], starred ? [] : ['STARRED'])
+  await logInboxActionsBulk(refsToAuditEntries(refs, organizationId, starred ? 'star' : 'unstar', actor))
   return { count: refs.length }
 }
 
 export async function bulkArchive(
   messageIds: string[],
   organizationId: string,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const refs = await fetchMessageRefs(messageIds, organizationId)
   if (refs.length === 0) return { count: 0 }
@@ -1019,12 +995,14 @@ export async function bulkArchive(
       ),
     )
   await mirrorLabelsToGmail(refs, [], ['INBOX'])
+  await logInboxActionsBulk(refsToAuditEntries(refs, organizationId, 'archive', actor))
   return { count: refs.length }
 }
 
 export async function bulkTrash(
   messageIds: string[],
   organizationId: string,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ count: number }> {
   const refs = await fetchMessageRefs(messageIds, organizationId)
   if (refs.length === 0) return { count: 0 }
@@ -1050,33 +1028,10 @@ export async function bulkTrash(
       }
     }),
   )
+  await logInboxActionsBulk(refsToAuditEntries(refs, organizationId, 'trash', actor))
   return { count: refs.length }
 }
 
-/**
- * Move a message to trash. Mirrors to Gmail via users.messages.trash.
- */
-export async function trashMessage(messageId: string, organizationId: string): Promise<void> {
-  const [msg] = await db
-    .select({
-      providerMessageId: schema.emailMessage.providerMessageId,
-      accountId: schema.emailMessage.accountId,
-    })
-    .from(schema.emailMessage)
-    .where(and(eq(schema.emailMessage.id, messageId), eq(schema.emailMessage.organizationId, organizationId)))
-    .limit(1)
-  if (!msg) return
-  await db
-    .update(schema.emailMessage)
-    .set({ folder: 'trash' })
-    .where(eq(schema.emailMessage.id, messageId))
-  try {
-    const accessToken = await getAccessToken(msg.accountId)
-    await gmailTrash(accessToken, msg.providerMessageId)
-  } catch (err) {
-    console.warn('[mailbox] could not trash on Gmail', err)
-  }
-}
 
 export async function disconnectAccount(accountId: string, organizationId: string): Promise<void> {
   // Best-effort: tell Gmail to stop pushing for this mailbox. Don't block the
@@ -1154,8 +1109,9 @@ async function ingestMessageById(
     const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
     const resolvedHtml = await resolveInlineImages(accessToken, providerMessageId, parsed.bodyHtml, full.payload)
     const gmailCat = categoryFromGmailLabels(parsed.labels)
+    const localId = randomUUID()
     await db.insert(schema.emailMessage).values({
-      id: randomUUID(),
+      id: localId,
       accountId,
       organizationId,
       patientId,
@@ -1178,6 +1134,14 @@ async function ingestMessageById(
       intent: gmailCat?.intent ?? null,
       categorySource: gmailCat ? 'gmail' : 'auto',
       receivedAt: parsed.receivedAt,
+    })
+    await logInboxAction({
+      organizationId,
+      messageId: localId,
+      threadId: parsed.providerThreadId,
+      action: 'ingest',
+      actor: SYSTEM_ACTOR,
+      meta: { fromEmail: parsed.fromEmail, subject: parsed.subject },
     })
 
     // Surface to org members. Use the `comments` bucket — that's the
@@ -1204,7 +1168,10 @@ async function ingestMessageById(
     )
     // Push to any open inbox tabs — this is the path that fires when
     // Gmail Pub/Sub delivers a new-mail event in real time.
-    await notifyInboxChange(organizationId, 'new_message')
+    await notifyInboxChange(organizationId, 'new_message', {
+      messageId: localId,
+      threadId: parsed.providerThreadId,
+    })
     return true
   } catch (err) {
     console.warn(`[mailbox.ingest] ${providerMessageId} failed`, err)
@@ -1426,15 +1393,18 @@ export async function backfillRfcMessageIds(
 }
 
 /**
- * Move a message to a different category as a manual user override.
+ * Move a message to a different category as a manual override.
  * Propagates to every other message in the same thread so the whole
- * conversation moves together (matches Gmail's mental model). Sets
- * `categorySource='user'` so the classifier never overwrites this.
+ * conversation moves together (matches Gmail's mental model).
+ * categorySource reflects the actor — 'user' or 'agent' — so the
+ * classifier never overwrites this and other code paths can attribute
+ * the change.
  */
 export async function setMessageCategory(
   messageId: string,
   organizationId: string,
   category: EmailCategory,
+  actor: InboxActor = SYSTEM_ACTOR,
 ): Promise<{ updated: number }> {
   const [msg] = await db
     .select({
@@ -1450,13 +1420,17 @@ export async function setMessageCategory(
     .limit(1)
   if (!msg) return { updated: 0 }
 
-  // Apply to the whole thread so a single override sticks for new
-  // replies too. If there's no thread id (rare), fall back to the
-  // single message.
+  // Agent and system both write authoritative source='agent' / 'user'
+  // values so the classifier won't undo them. We only ever set 'user'
+  // for actor.kind==='user' to keep the existing semantic.
+  const source =
+    actor.kind === 'user' ? 'user' : actor.kind === 'agent' ? 'agent' : 'user'
+
+  let updatedIds: string[] = []
   if (msg.providerThreadId) {
     const result = await db
       .update(schema.emailMessage)
-      .set({ category, categorySource: 'user' })
+      .set({ category, categorySource: source })
       .where(
         and(
           eq(schema.emailMessage.providerThreadId, msg.providerThreadId),
@@ -1464,18 +1438,34 @@ export async function setMessageCategory(
         ),
       )
       .returning({ id: schema.emailMessage.id })
-    return { updated: result.length }
+    updatedIds = result.map((r) => r.id)
+  } else {
+    await db
+      .update(schema.emailMessage)
+      .set({ category, categorySource: source })
+      .where(
+        and(
+          eq(schema.emailMessage.id, messageId),
+          eq(schema.emailMessage.organizationId, organizationId),
+        ),
+      )
+    updatedIds = [messageId]
   }
-  await db
-    .update(schema.emailMessage)
-    .set({ category, categorySource: 'user' })
-    .where(
-      and(
-        eq(schema.emailMessage.id, messageId),
-        eq(schema.emailMessage.organizationId, organizationId),
-      ),
-    )
-  return { updated: 1 }
+
+  await logInboxAction({
+    organizationId,
+    messageId,
+    threadId: msg.providerThreadId ?? null,
+    action: 'category_set',
+    actor,
+    meta: { category, applied: updatedIds.length },
+  })
+  await notifyInboxChange(organizationId, 'updated', {
+    messageId,
+    threadId: msg.providerThreadId,
+    actor,
+  })
+  return { updated: updatedIds.length }
 }
 
 /**
@@ -1539,7 +1529,7 @@ export async function classifyPendingIntents(
         and(
           eq(schema.emailMessage.organizationId, organizationId),
           inArray(schema.emailMessage.providerThreadId, threadIds),
-          inArray(schema.emailMessage.categorySource, ['user', 'inherit', 'gmail']),
+          inArray(schema.emailMessage.categorySource, ['user', 'inherit', 'gmail', 'agent']),
         ),
       )
     for (const s of siblings) {
@@ -1647,7 +1637,7 @@ async function applyClassificationGroups(
     else groups.set(key, { category: hit.category, intent: hit.intent, source: hit.source, ids: [hit.id] })
   }
   let updated = 0
-  for (const g of groups.values()) {
+  for (const g of Array.from(groups.values())) {
     await db
       .update(schema.emailMessage)
       .set({ category: g.category, intent: g.intent, categorySource: g.source })
