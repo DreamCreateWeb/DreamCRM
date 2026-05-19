@@ -18,7 +18,7 @@ export const clinicModules: ModuleRegistry = {
     { id: 'patient_messaging',  path: '/messages',          label: 'Patient Messaging', section: 'Pages', icon: 'chat',    status: 'live', minPlan: 'pro' },
     { id: 'inbox',              path: '/inbox',             label: 'Inbox',             section: 'Pages', icon: 'inbox',   status: 'live', minPlan: 'pro' },
     { id: 'tasks',              path: '/tasks/kanban',      label: 'Tasks',             section: 'Pages', icon: 'check',   status: 'live', minPlan: 'pro' },
-    { id: 'patient_recall',     path: '/campaigns',         label: 'Patient Recall',    section: 'Pages', icon: 'megaphone', status: 'live', minPlan: 'premium' },
+    { id: 'patient_recall',     path: '/marketing',         label: 'Recall & Outreach', section: 'Pages', icon: 'megaphone', status: 'live', minPlan: 'premium' },
     { id: 'blog',               path: '/blog',              label: 'Blog Posts',        section: 'Website', icon: 'pen',   status: 'soon', minPlan: 'premium' },
     { id: 'seo',                path: '/seo',               label: 'SEO',               section: 'Website', icon: 'search', status: 'soon', minPlan: 'premium' },
     { id: 'careers',            path: '/careers',           label: 'Careers Page',      section: 'Website', icon: 'briefcase', status: 'soon', minPlan: 'premium' },

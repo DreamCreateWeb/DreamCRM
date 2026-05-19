@@ -31,6 +31,12 @@ import { user, organization } from './auth'
 // On the platform org this can be "prospects / external contacts". On a clinic
 // org, prefer the `patient` table (in lib/db/schema/clinic.ts) for clinical
 // records. The customers table is kept for non-clinical CRM use.
+//
+// Marketing-pipeline columns (`pipelineStage`, `leadSource`, `lifecycleStage`,
+// `lastActivityAt`, `optedOut`, `notes`) extend this table into the lead
+// pipeline used by the Marketing module. Pipeline stages are strings rather
+// than an enum so platform and clinic tenants can use different stage sets
+// without a schema migration.
 export const customers = pgTable('customers', {
   id: serial('id').primaryKey(),
   organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
@@ -42,6 +48,12 @@ export const customers = pgTable('customers', {
   imageUrl: text('image_url'),
   fav: boolean('fav').notNull().default(false),
   archived: boolean('archived').notNull().default(false),
+  pipelineStage: text('pipeline_stage').notNull().default('new'),
+  leadSource: text('lead_source'),
+  lifecycleStage: text('lifecycle_stage').notNull().default('lead'),
+  lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
+  optedOut: boolean('opted_out').notNull().default(false),
+  notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -176,13 +188,23 @@ export const calendarEvents = pgTable('calendar_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// ---------- Campaigns (platform-wide marketing tool by default) ----------
+// ---------- Campaigns (tenant-scoped email marketing) ----------
+// Extended from a tracker into a real send-and-measure tool. `subject`,
+// `previewText`, `bodyHtml`, `bodyJson`, `audienceId`, `sendChannel`,
+// `sentAt`, `scheduledAt`, `sendStats` drive the campaign editor and analytics.
+// `sendChannel='resend'` blasts via Resend; `sendChannel='gmail'` sends one-by-one
+// from the org's connected Gmail (warmer for cold sales sequences).
 export const campaignStatusEnum = pgEnum('campaign_status', [
   'draft',
   'scheduled',
   'active',
   'completed',
   'paused',
+])
+
+export const campaignChannelEnum = pgEnum('campaign_channel', [
+  'resend',
+  'gmail',
 ])
 
 export const campaigns = pgTable('campaigns', {
@@ -194,6 +216,15 @@ export const campaigns = pgTable('campaigns', {
   startDate: date('start_date'),
   endDate: date('end_date'),
   budgetCents: integer('budget_cents').notNull().default(0),
+  subject: text('subject'),
+  previewText: text('preview_text'),
+  bodyHtml: text('body_html'),
+  bodyJson: jsonb('body_json'),
+  audienceId: integer('audience_id'),
+  sendChannel: campaignChannelEnum('send_channel').notNull().default('resend'),
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  sendStats: jsonb('send_stats').notNull().default(sql`'{}'::jsonb`),
   createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -208,6 +239,49 @@ export const campaignMembers = pgTable(
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.campaignId, t.userId] })]
+)
+
+// ---------- Audiences (saved segments over customers) ----------
+// `filter` is a JSON predicate evaluated server-side when materializing the
+// recipient list for a send. v1 supports: stage IN [...], lifecycleStage IN [...],
+// hasTag, lastActivityWithinDays, optedOut=false (implicit).
+export const audiences = pgTable('audiences', {
+  id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  filter: jsonb('filter').notNull().default(sql`'{}'::jsonb`),
+  createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// ---------- Campaign events (sent / open / click / bounce / unsub) ----------
+// One row per recipient interaction. Aggregations roll into `campaigns.sendStats`
+// for fast dashboard reads; the raw rows back per-recipient analytics + audit.
+export const campaignEventTypeEnum = pgEnum('campaign_event_type', [
+  'sent',
+  'delivered',
+  'open',
+  'click',
+  'bounce',
+  'complaint',
+  'unsubscribe',
+  'failed',
+])
+
+export const campaignEvents = pgTable(
+  'campaign_events',
+  {
+    id: serial('id').primaryKey(),
+    campaignId: integer('campaign_id').notNull().references(() => campaigns.id, { onDelete: 'cascade' }),
+    recipientEmail: text('recipient_email').notNull(),
+    customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+    type: campaignEventTypeEnum('type').notNull(),
+    meta: jsonb('meta').notNull().default(sql`'{}'::jsonb`),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('campaign_events_campaign_recipient_type_idx').on(t.campaignId, t.recipientEmail, t.type, t.occurredAt)]
 )
 
 // ---------- Community (platform-wide; no org scoping) ----------
@@ -462,6 +536,9 @@ export type Product = typeof products.$inferSelect
 export type Task = typeof tasks.$inferSelect
 export type CalendarEvent = typeof calendarEvents.$inferSelect
 export type Campaign = typeof campaigns.$inferSelect
+export type Audience = typeof audiences.$inferSelect
+export type NewAudience = typeof audiences.$inferInsert
+export type CampaignEvent = typeof campaignEvents.$inferSelect
 export type ForumThread = typeof forumThreads.$inferSelect
 export type FeedPost = typeof feedPosts.$inferSelect
 export type Meetup = typeof meetups.$inferSelect
