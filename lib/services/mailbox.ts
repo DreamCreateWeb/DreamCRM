@@ -484,7 +484,7 @@ export async function getThreadDetail(
   threadId: string,
   organizationId: string,
 ): Promise<EmailThreadDetail | null> {
-  const messages = await db
+  const direct = await db
     .select()
     .from(schema.emailMessage)
     .where(
@@ -494,7 +494,40 @@ export async function getThreadDetail(
       ),
     )
     .orderBy(schema.emailMessage.receivedAt)
-  if (messages.length === 0) return null
+  if (direct.length === 0) return null
+
+  // Gmail's send response sometimes assigns a NEW providerThreadId to
+  // our outbound reply even when we set In-Reply-To correctly (timing
+  // or threading heuristic quirks). The reply row in our DB does
+  // carry the original's Message-ID in its `in_reply_to` field, so we
+  // can still link them. Pull any sent messages whose In-Reply-To
+  // points at one of the Message-IDs in this thread, and any thread
+  // whose messages reference one of *our* sent rfc_message_ids.
+  const rfcIds = direct
+    .map((m) => m.rfcMessageId)
+    .filter((id): id is string => !!id)
+  const directIds = new Set(direct.map((m) => m.id))
+
+  let linked: EmailMessage[] = []
+  if (rfcIds.length > 0) {
+    linked = await db
+      .select()
+      .from(schema.emailMessage)
+      .where(
+        and(
+          eq(schema.emailMessage.organizationId, organizationId),
+          inArray(schema.emailMessage.inReplyTo, rfcIds),
+        ),
+      )
+  }
+  const additional = linked.filter((m) => !directIds.has(m.id))
+
+  const messages = additional.length > 0
+    ? [...direct, ...additional].sort(
+        (a, b) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime(),
+      )
+    : direct
+
   const latest = messages[messages.length - 1]
   return {
     threadId,
@@ -719,7 +752,7 @@ export async function sendEmail(opts: {
   bodyHtml?: string
   inReplyTo?: string
   references?: string
-}) {
+}): Promise<{ id: string; threadId: string; localRecord: 'stored' | 'failed'; localError?: string }> {
   const account = await getAccount(opts.accountId, opts.organizationId)
   if (!account) throw new Error('Account not found')
   if (account.provider !== 'gmail') throw new Error('Only Gmail is supported right now')
@@ -742,44 +775,51 @@ export async function sendEmail(opts: {
   // frequently 404s, leaving the reply in Gmail but missing from our
   // thread view. The trade-off is no rfcMessageId yet — backfill picks
   // it up on the next page load.
-  if (result.id && result.threadId) {
-    try {
-      const patientId = opts.to[0]
-        ? await findPatientByEmail(opts.organizationId, opts.to[0])
-        : null
-      const snippet = opts.bodyText.replace(/\s+/g, ' ').trim().slice(0, 200)
-      await db.insert(schema.emailMessage).values({
-        id: randomUUID(),
-        accountId: opts.accountId,
-        organizationId: opts.organizationId,
-        patientId,
-        providerMessageId: result.id,
-        providerThreadId: result.threadId,
-        rfcMessageId: null,
-        inReplyTo: opts.inReplyTo ?? null,
-        folder: 'sent',
-        fromName: account.displayName ?? null,
-        fromEmail: account.emailAddress,
-        toEmails: opts.to,
-        ccEmails: opts.cc ?? [],
-        subject: opts.subject,
-        snippet,
-        bodyText: opts.bodyText,
-        bodyHtml: opts.bodyHtml ?? null,
-        isRead: true,
-        isStarred: false,
-        labels: result.labelIds ?? [],
-        category: null,
-        intent: null,
-        categorySource: 'auto',
-        receivedAt: new Date(),
-      })
-    } catch (err) {
-      console.warn('[mailbox.send] failed to record sent message locally', err)
-    }
+  if (!result.id) {
+    console.error('[mailbox.send] gmailSend returned no id', result)
+    return { id: '', threadId: '', localRecord: 'failed', localError: 'gmail-send-no-id' }
   }
-
-  return result
+  try {
+    const patientId = opts.to[0]
+      ? await findPatientByEmail(opts.organizationId, opts.to[0])
+      : null
+    const snippet = opts.bodyText.replace(/\s+/g, ' ').trim().slice(0, 200)
+    await db.insert(schema.emailMessage).values({
+      id: randomUUID(),
+      accountId: opts.accountId,
+      organizationId: opts.organizationId,
+      patientId,
+      providerMessageId: result.id,
+      providerThreadId: result.threadId ?? null,
+      rfcMessageId: null,
+      inReplyTo: opts.inReplyTo ?? null,
+      folder: 'sent',
+      fromName: account.displayName ?? null,
+      fromEmail: account.emailAddress,
+      toEmails: opts.to,
+      ccEmails: opts.cc ?? [],
+      subject: opts.subject,
+      snippet,
+      bodyText: opts.bodyText,
+      bodyHtml: opts.bodyHtml ?? null,
+      isRead: true,
+      isStarred: false,
+      labels: result.labelIds ?? [],
+      category: null,
+      intent: null,
+      categorySource: 'auto',
+      receivedAt: new Date(),
+    })
+    return { id: result.id, threadId: result.threadId ?? '', localRecord: 'stored' }
+  } catch (err) {
+    // Don't throw — the send already succeeded on Gmail's side; the user
+    // shouldn't be told their reply failed. Surface the local-write
+    // failure to the caller so the UI can react (refresh, show a
+    // warning, log diagnostics).
+    const msg = (err as Error).message ?? String(err)
+    console.error('[mailbox.send] failed to record sent message locally', err)
+    return { id: result.id, threadId: result.threadId ?? '', localRecord: 'failed', localError: msg }
+  }
 }
 
 export async function setMessageRead(messageId: string, organizationId: string, read: boolean): Promise<void> {
