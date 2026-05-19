@@ -34,6 +34,15 @@ export async function GET(): Promise<Response> {
   let autoClose: ReturnType<typeof setTimeout> | null = null
   let closed = false
 
+  function cleanup() {
+    if (closed) return
+    closed = true
+    if (heartbeat) clearInterval(heartbeat)
+    if (autoClose) clearTimeout(autoClose)
+    client.release()
+    pool.end().catch(() => {})
+  }
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       function safeEnqueue(chunk: string) {
@@ -41,18 +50,13 @@ export async function GET(): Promise<Response> {
         try {
           controller.enqueue(encoder.encode(chunk))
         } catch {
-          // Controller already closed (client navigated away). Mark
-          // closed so the heartbeat stops attempting.
-          closed = true
+          // Controller already closed (race with disconnect). Tear down
+          // the rest synchronously.
+          cleanup()
         }
       }
-      function cleanup() {
-        if (closed) return
-        closed = true
-        if (heartbeat) clearInterval(heartbeat)
-        if (autoClose) clearTimeout(autoClose)
-        client.release()
-        pool.end().catch(() => {})
+      function endFromServer() {
+        cleanup()
         try {
           controller.close()
         } catch {}
@@ -69,18 +73,16 @@ export async function GET(): Promise<Response> {
         }
       })
 
-      // Postgres errors on the listening client (e.g. connection drop)
-      // should close the stream so the browser reconnects cleanly.
       client.on('error', (err) => {
         console.warn('[inbox.stream] client error', err)
-        cleanup()
+        endFromServer()
       })
 
       try {
         await client.query('LISTEN inbox_events')
       } catch (err) {
         console.warn('[inbox.stream] LISTEN failed', err)
-        cleanup()
+        endFromServer()
         return
       }
 
@@ -94,14 +96,12 @@ export async function GET(): Promise<Response> {
       // Self-close at 4 min (Vercel function hard limit is 5 min on
       // Pro). EventSource auto-reconnects, so the user gets ~instant
       // continuity.
-      autoClose = setTimeout(cleanup, 4 * 60 * 1000)
+      autoClose = setTimeout(endFromServer, 4 * 60 * 1000)
     },
     cancel() {
-      closed = true
-      if (heartbeat) clearInterval(heartbeat)
-      if (autoClose) clearTimeout(autoClose)
-      client.release()
-      pool.end().catch(() => {})
+      // Consumer closed (navigation, tab close, EventSource.close).
+      // The controller is already gone — no need to call .close() here.
+      cleanup()
     },
   })
 

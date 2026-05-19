@@ -1,0 +1,1 @@
+CREATE INDEX "email_message_in_reply_to_idx" ON "email_message" USING btree ("in_reply_to");

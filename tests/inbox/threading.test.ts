@@ -248,6 +248,114 @@ describe('listThreadsForOrg', () => {
   })
 })
 
+describe('getThreadDetail: in-reply-to chain merge', () => {
+  it('pulls in sent replies whose in_reply_to points at a message in the thread, even when Gmail assigned a different threadId', async () => {
+    // First query: direct providerThreadId match → returns the original
+    state.selectQueue.push([
+      {
+        id: 'm-orig',
+        accountId: 'acct-1',
+        organizationId: 'org-1',
+        providerMessageId: 'g-orig',
+        providerThreadId: 't-orig',
+        rfcMessageId: '<rfc-orig@mail.gmail.com>',
+        inReplyTo: null,
+        fromName: 'Alice',
+        fromEmail: 'alice@x.com',
+        toEmails: ['me@x.com'],
+        ccEmails: [],
+        subject: 'Hello',
+        snippet: 'hi',
+        bodyText: 'hi',
+        bodyHtml: null,
+        receivedAt: new Date('2026-05-19T10:00:00Z'),
+        isRead: true,
+        isStarred: false,
+        labels: [],
+        category: 'primary',
+        categorySource: 'auto',
+        intent: 'follow_up',
+        patientId: null,
+        folder: 'inbox',
+        threadSummary: null,
+        createdAt: new Date(),
+      },
+    ])
+    // Second query: in_reply_to match → returns the orphan sent reply
+    // that Gmail decided not to thread on its side
+    state.selectQueue.push([
+      {
+        id: 'm-reply',
+        accountId: 'acct-1',
+        organizationId: 'org-1',
+        providerMessageId: 'g-reply',
+        providerThreadId: 't-different',
+        rfcMessageId: null,
+        inReplyTo: '<rfc-orig@mail.gmail.com>',
+        fromName: 'Me',
+        fromEmail: 'me@x.com',
+        toEmails: ['alice@x.com'],
+        ccEmails: [],
+        subject: 'Re: Hello',
+        snippet: 'reply text',
+        bodyText: 'reply text',
+        bodyHtml: null,
+        receivedAt: new Date('2026-05-19T11:00:00Z'),
+        isRead: true,
+        isStarred: false,
+        labels: [],
+        category: null,
+        categorySource: 'auto',
+        intent: null,
+        patientId: null,
+        folder: 'sent',
+        threadSummary: null,
+        createdAt: new Date(),
+      },
+    ])
+    const { getThreadDetail } = await import('@/lib/services/mailbox')
+    const thread = await getThreadDetail('t-orig', 'org-1')
+    expect(thread).not.toBeNull()
+    expect(thread!.messages).toHaveLength(2)
+    // Order is oldest → newest
+    expect(thread!.messages[0].id).toBe('m-orig')
+    expect(thread!.messages[1].id).toBe('m-reply')
+  })
+
+  it('returns just the direct matches when no other message references the thread', async () => {
+    state.selectQueue.push([
+      {
+        id: 'm-only',
+        accountId: 'acct-1',
+        organizationId: 'org-1',
+        providerThreadId: 't-1',
+        rfcMessageId: '<rfc-1@x>',
+        inReplyTo: null,
+        fromEmail: 'a@b.com',
+        toEmails: [],
+        ccEmails: [],
+        receivedAt: new Date(),
+        isRead: false,
+        labels: [],
+        categorySource: 'auto',
+        folder: 'inbox',
+        accountId: 'acct-1',
+      },
+    ])
+    state.selectQueue.push([]) // chain query: no in-reply-to matches
+    const { getThreadDetail } = await import('@/lib/services/mailbox')
+    const thread = await getThreadDetail('t-1', 'org-1')
+    expect(thread!.messages).toHaveLength(1)
+  })
+
+  it('returns null when no messages match the thread id', async () => {
+    state.selectQueue.push([])
+    const { getThreadDetail } = await import('@/lib/services/mailbox')
+    const thread = await getThreadDetail('t-missing', 'org-1')
+    expect(thread).toBeNull()
+  })
+})
+
 describe('bulkArchiveThreads', () => {
   it('expands each thread to its messages then issues one batchModify per account', async () => {
     // expandThreadsToMessages select
