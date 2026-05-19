@@ -22,6 +22,7 @@ import ConnectPrompt from './connect-prompt'
 import MailboxSidebar from './components/mailbox-sidebar'
 import ThreadView from './components/thread-view'
 import KeyboardHandler from './components/keyboard-handler'
+import InboxLiveUpdater from './components/inbox-live-updater'
 import { SelectionProvider } from './components/selection-context'
 
 export const metadata = {
@@ -155,6 +156,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   return (
     <FlyoutProvider initialState={true}>
       <SelectionProvider>
+        <InboxLiveUpdater />
         <KeyboardHandler
           threadList={threads.map((t) => ({ threadId: t.threadId, latestMessageId: t.latestMessageId }))}
           activeThreadId={activeThread?.threadId ?? null}

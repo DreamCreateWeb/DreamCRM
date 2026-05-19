@@ -18,6 +18,7 @@ import {
   watchMailbox,
 } from './gmail'
 import { classifyBatch } from './ai-mailbox'
+import { notifyInboxChange } from './inbox-events'
 import type {
   EmailAccount,
   EmailCategory,
@@ -726,6 +727,12 @@ export async function syncAccount(
       .update(schema.emailAccount)
       .set({ syncStatus: 'ready', lastSyncAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.emailAccount.id, accountId))
+    // Notify connected SSE clients so they refresh without polling.
+    // One notify per sync batch is enough — clients refresh and pull the
+    // full updated thread list in one shot.
+    if (added > 0) {
+      await notifyInboxChange(organizationId, 'new_message')
+    }
     // Classify any messages still pending category — runs even when no new
     // mail was added so a fresh schema migration (category=null on every
     // row) gets backfilled on the next page load. Awaited so Vercel doesn't
@@ -810,6 +817,9 @@ export async function sendEmail(opts: {
       categorySource: 'auto',
       receivedAt: new Date(),
     })
+    // Notify any open inbox tabs so the sent reply shows up in the
+    // thread without a manual refresh on other devices/tabs.
+    await notifyInboxChange(opts.organizationId, 'updated')
     return { id: result.id, threadId: result.threadId ?? '', localRecord: 'stored' }
   } catch (err) {
     // Don't throw — the send already succeeded on Gmail's side; the user
@@ -1192,6 +1202,9 @@ async function ingestMessageById(
       },
       { roles: ['owner', 'admin'] },
     )
+    // Push to any open inbox tabs — this is the path that fires when
+    // Gmail Pub/Sub delivers a new-mail event in real time.
+    await notifyInboxChange(organizationId, 'new_message')
     return true
   } catch (err) {
     console.warn(`[mailbox.ingest] ${providerMessageId} failed`, err)
