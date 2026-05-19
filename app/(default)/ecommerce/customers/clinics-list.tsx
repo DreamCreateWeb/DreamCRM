@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
+import { enterDemoMode, seedAndEnterDemoClinic } from './admin-actions'
 
 interface Props {
   rows: ClinicListRow[]
@@ -183,10 +184,14 @@ export default function ClinicsList({ rows }: Props) {
                 <tr>
                   <td colSpan={8} className="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
                     {rows.length === 0 ? (
-                      <>
-                        <p className="text-3xl mb-2">🏢</p>
-                        <p>No clinics signed up yet. Your first one will appear here after they complete onboarding.</p>
-                      </>
+                      <div className="flex flex-col items-center gap-3">
+                        <p className="text-3xl">🏢</p>
+                        <p>No clinics signed up yet — your first one will appear here after onboarding.</p>
+                        <p className="text-xs">
+                          Want to preview the clinic dashboard right now? Seed a demo clinic and jump straight in.
+                        </p>
+                        <SeedDemoClinicButton />
+                      </div>
                     ) : (
                       <>No clinics match your filter.</>
                     )}
@@ -284,6 +289,7 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
       </td>
       <td className="px-5 py-3 text-right">
         <div className="flex items-center justify-end gap-3 text-xs font-medium">
+          <ViewAsButton orgId={c.orgId} />
           <a
             href={siteUrl}
             target="_blank"
@@ -301,6 +307,35 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         </div>
       </td>
     </tr>
+  )
+}
+
+function ViewAsButton({ orgId }: { orgId: string }) {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => start(() => enterDemoMode({ orgId, role: 'owner' }))}
+      className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 disabled:opacity-50"
+      title="Drop into this clinic's dashboard as their owner"
+    >
+      {pending ? 'Switching…' : 'View as'}
+    </button>
+  )
+}
+
+function SeedDemoClinicButton() {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => start(() => seedAndEnterDemoClinic('owner'))}
+      className="btn-sm bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+    >
+      {pending ? 'Seeding…' : 'Create demo clinic & view'}
+    </button>
   )
 }
 

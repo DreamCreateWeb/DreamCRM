@@ -121,10 +121,19 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (318 tests) covering middleware, billing sync,
+- **Vitest test suite** (419 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
-  auth gate.
+  auth gate, tenant-scoping on ecommerce services, demo-mode actions
+  and seeder.
+- **Platform admin "view as clinic" demo mode** — `demo_context` cookie
+  carries `{orgId, role, patientId?}`; `getTenantContext` synthesizes a
+  clinic/patient context from it when the real user is `platformAdmin`.
+  Enter via "View as" button on the clinics list page or "Create demo
+  clinic & view" empty-state button (seeds Acme Dental Demo with
+  patients, appointments, customers, orders, invoices, tasks, products).
+  Sticky amber banner shows on every page while in demo mode; Exit
+  button clears the cookie. Real session is untouched throughout.
 - **Gmail push notifications via Google Pub/Sub** — `users.watch()` is
   registered when a mailbox is connected; Gmail publishes change events
   to `projects/dreamcrm-496717/topics/gmail-watch`; the push subscription
