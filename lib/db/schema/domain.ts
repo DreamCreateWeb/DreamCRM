@@ -479,6 +479,32 @@ export const feedback = pgTable('feedback', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// ---------- Notifications ----------
+// One row per surface-able in-app notification. The `bucket` column maps onto
+// the three boolean toggles in `notification_prefs` (comments / candidates /
+// offers) so the dispatcher can short-circuit by checking `prefs[bucket]`.
+// `organization_id` is nullable for system-wide notifications that don't
+// belong to a tenant context.
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+    bucket: text('bucket').notNull(), // 'comments' | 'candidates' | 'offers'
+    type: text('type').notNull(), // e.g. 'campaign_sent', 'lead_added', 'inbox_message'
+    title: text('title').notNull(),
+    body: text('body'),
+    linkPath: text('link_path'),
+    meta: jsonb('meta').notNull().default(sql`'{}'::jsonb`),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('notifications_user_created_idx').on(t.userId, t.createdAt),
+  ],
+)
+
 // ---------- Fintech (per-user demo accounts) ----------
 export const accountsFinance = pgTable('finance_accounts', {
   id: serial('id').primaryKey(),
@@ -539,6 +565,8 @@ export type Campaign = typeof campaigns.$inferSelect
 export type Audience = typeof audiences.$inferSelect
 export type NewAudience = typeof audiences.$inferInsert
 export type CampaignEvent = typeof campaignEvents.$inferSelect
+export type Notification = typeof notifications.$inferSelect
+export type NewNotification = typeof notifications.$inferInsert
 export type ForumThread = typeof forumThreads.$inferSelect
 export type FeedPost = typeof feedPosts.$inferSelect
 export type Meetup = typeof meetups.$inferSelect

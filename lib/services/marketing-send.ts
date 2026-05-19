@@ -8,6 +8,7 @@ import {
   getMarketingCampaign,
   resolveCampaignRecipients,
 } from './marketing-campaigns'
+import { notify } from './notifications'
 
 /**
  * Marketing send service. Two channels:
@@ -92,6 +93,25 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
         updatedAt: new Date(),
       })
       .where(eq(schema.campaigns.id, campaign.id))
+
+    // Ping the campaign creator with the final tally
+    if (campaign.createdBy) {
+      const success = result.failed === 0
+      await notify({
+        userId: campaign.createdBy,
+        organizationId: opts.organizationId,
+        bucket: 'candidates',
+        type: success ? 'campaign_sent' : 'campaign_sent_with_errors',
+        title: success
+          ? `Campaign sent: ${campaign.name}`
+          : `Campaign sent with ${result.failed} failure${result.failed === 1 ? '' : 's'}`,
+        body: success
+          ? `Delivered to ${result.sent} recipient${result.sent === 1 ? '' : 's'}.`
+          : `${result.sent} delivered, ${result.failed} failed. Click to review per-recipient status.`,
+        linkPath: `/marketing/campaigns/${campaign.id}`,
+        meta: { campaignId: campaign.id, sent: result.sent, failed: result.failed },
+      })
+    }
   }
 
   return result

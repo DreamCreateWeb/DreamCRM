@@ -159,3 +159,47 @@ export async function sendVerificationEmail(to: string, verifyUrl: string) {
     `,
   })
 }
+
+export interface NotificationEmailInput {
+  to: string
+  /** Recipient name, used in the greeting if present. */
+  name: string | null
+  title: string
+  body: string
+  /** Path on dreamcreatestudio.com to deep-link to (e.g. /inbox?id=123). */
+  linkPath?: string | null
+}
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dreamcreatestudio.com'
+
+export async function sendNotificationEmail(input: NotificationEmailInput) {
+  const resend = getResend()
+  const link = input.linkPath ? `${APP_URL}${input.linkPath}` : null
+  const greeting = input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'
+  await resend.emails.send({
+    from: FROM,
+    to: input.to,
+    subject: input.title,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
+        <p style="margin:0 0 12px;color:#57534e">${greeting}</p>
+        <h2 style="margin:0 0 12px;font-size:18px;color:#0c0a09">${escapeHtml(input.title)}</h2>
+        ${input.body ? `<p style="margin:0 0 16px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(input.body)}</p>` : ''}
+        ${link ? `<a href="${link}" style="display:inline-block;padding:10px 20px;background:#0c0a09;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Open in DreamCRM</a>` : ''}
+        <p style="margin:24px 0 0;font-size:11px;color:#a8a29e">
+          You're getting this because of your notification preferences. Manage them at
+          <a href="${APP_URL}/settings/notifications" style="color:#57534e">settings → notifications</a>.
+        </p>
+      </div>
+    `,
+  })
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
