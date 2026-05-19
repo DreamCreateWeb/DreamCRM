@@ -735,85 +735,51 @@ export async function sendEmail(opts: {
     inReplyTo: opts.inReplyTo,
     references: opts.references,
   })
-  // Pull the message we just sent back into our local DB so the inbox
-  // thread shows the reply immediately and future replies have its
-  // Message-ID to chain References onto. Best-effort — if it fails the
-  // send already happened, and the next full sync (or a manual refresh)
-  // would catch it.
-  if (result.id) {
+
+  // Record the sent message in our local DB directly from the inputs +
+  // Gmail's response. We deliberately don't re-fetch via getMessage:
+  // Gmail's send isn't strongly consistent and the immediate read
+  // frequently 404s, leaving the reply in Gmail but missing from our
+  // thread view. The trade-off is no rfcMessageId yet — backfill picks
+  // it up on the next page load.
+  if (result.id && result.threadId) {
     try {
-      await ingestSentMessage(opts.accountId, opts.organizationId, accessToken, result.id)
+      const patientId = opts.to[0]
+        ? await findPatientByEmail(opts.organizationId, opts.to[0])
+        : null
+      const snippet = opts.bodyText.replace(/\s+/g, ' ').trim().slice(0, 200)
+      await db.insert(schema.emailMessage).values({
+        id: randomUUID(),
+        accountId: opts.accountId,
+        organizationId: opts.organizationId,
+        patientId,
+        providerMessageId: result.id,
+        providerThreadId: result.threadId,
+        rfcMessageId: null,
+        inReplyTo: opts.inReplyTo ?? null,
+        folder: 'sent',
+        fromName: account.displayName ?? null,
+        fromEmail: account.emailAddress,
+        toEmails: opts.to,
+        ccEmails: opts.cc ?? [],
+        subject: opts.subject,
+        snippet,
+        bodyText: opts.bodyText,
+        bodyHtml: opts.bodyHtml ?? null,
+        isRead: true,
+        isStarred: false,
+        labels: result.labelIds ?? [],
+        category: null,
+        intent: null,
+        categorySource: 'auto',
+        receivedAt: new Date(),
+      })
     } catch (err) {
-      console.warn('[mailbox.send] sent-ingest failed', err)
+      console.warn('[mailbox.send] failed to record sent message locally', err)
     }
   }
-  return result
-}
 
-/**
- * Ingest a just-sent message into the local DB with folder='sent'.
- * Identical shape to ingestMessageById but doesn't filter by INBOX
- * label (sent items don't have one), marks isRead, and matches the
- * patient off the To: field rather than From: since the user is
- * writing to a contact, not from one.
- */
-async function ingestSentMessage(
-  accountId: string,
-  organizationId: string,
-  accessToken: string,
-  providerMessageId: string,
-): Promise<boolean> {
-  const existing = await db
-    .select({ id: schema.emailMessage.id })
-    .from(schema.emailMessage)
-    .where(
-      and(
-        eq(schema.emailMessage.accountId, accountId),
-        eq(schema.emailMessage.providerMessageId, providerMessageId),
-      ),
-    )
-    .limit(1)
-  if (existing[0]) return false
-  try {
-    const full = await getMessage(accessToken, providerMessageId)
-    const parsed = parseGmailMessage(full)
-    const patientId = parsed.toEmails[0]
-      ? await findPatientByEmail(organizationId, parsed.toEmails[0])
-      : null
-    const resolvedHtml = await resolveInlineImages(accessToken, providerMessageId, parsed.bodyHtml, full.payload)
-    await db.insert(schema.emailMessage).values({
-      id: randomUUID(),
-      accountId,
-      organizationId,
-      patientId,
-      providerMessageId: parsed.providerMessageId,
-      providerThreadId: parsed.providerThreadId,
-      rfcMessageId: parsed.rfcMessageId,
-      inReplyTo: parsed.inReplyTo,
-      folder: 'sent',
-      fromName: parsed.fromName,
-      fromEmail: parsed.fromEmail,
-      toEmails: parsed.toEmails,
-      ccEmails: parsed.ccEmails,
-      subject: parsed.subject,
-      snippet: parsed.snippet,
-      bodyText: parsed.bodyText,
-      bodyHtml: resolvedHtml,
-      isRead: true,
-      isStarred: false,
-      labels: parsed.labels,
-      // Sent items don't go through the classifier; they inherit context
-      // from the thread by being in it.
-      category: null,
-      intent: null,
-      categorySource: 'auto',
-      receivedAt: parsed.receivedAt,
-    })
-    return true
-  } catch (err) {
-    console.warn(`[mailbox.sent-ingest] ${providerMessageId} failed`, err)
-    return false
-  }
+  return result
 }
 
 export async function setMessageRead(messageId: string, organizationId: string, read: boolean): Promise<void> {
