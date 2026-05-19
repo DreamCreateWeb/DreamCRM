@@ -16,6 +16,7 @@ import {
   bulkTrash,
   bulkTrashThreads,
   classifyPendingIntents,
+  reclassifyAll,
   disconnectAccount as svcDisconnect,
   getMessageDetail,
   getThreadDetail,
@@ -256,6 +257,23 @@ export async function draftReplyAction(messageId: string): Promise<{ draft: stri
 export async function classifyPendingAction(): Promise<{ classified: number }> {
   const ctx = await requireOrgUser()
   const result = await classifyPendingIntents(ctx.organizationId, { limit: 200 })
+  revalidatePath('/inbox')
+  return result
+}
+
+/**
+ * One-shot backlog repair — resets every auto-classified message back
+ * to "pending" and re-runs the (now-improved) classifier. Skips messages
+ * the user or Gmail labeled directly. Exposed on /inbox/settings.
+ */
+export async function reclassifyAllAction(): Promise<{
+  reset: number
+  classified: number
+  viaHeuristic: number
+  remaining: number
+}> {
+  const ctx = await requireOrgUser()
+  const result = await reclassifyAll(ctx.organizationId)
   revalidatePath('/inbox')
   return result
 }

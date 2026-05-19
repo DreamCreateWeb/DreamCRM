@@ -35,8 +35,9 @@ export type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
  * Haiku and second-guessing.
  */
 function categoryFromGmailLabels(
-  labels: string[],
+  labels: string[] | null | undefined,
 ): { category: EmailCategory; intent: EmailIntent } | null {
+  if (!labels) return null
   if (labels.includes('SPAM')) return { category: 'spam', intent: 'other' }
   if (labels.includes('CATEGORY_PROMOTIONS')) return { category: 'promotions', intent: 'marketing' }
   if (labels.includes('CATEGORY_UPDATES')) return { category: 'updates', intent: 'other' }
@@ -1229,6 +1230,7 @@ export async function classifyPendingIntents(
       snippet: schema.emailMessage.snippet,
       providerThreadId: schema.emailMessage.providerThreadId,
       patientId: schema.emailMessage.patientId,
+      labels: schema.emailMessage.labels,
     })
     .from(schema.emailMessage)
     .where(
@@ -1286,10 +1288,18 @@ export async function classifyPendingIntents(
     id: string
     category: EmailCategory
     intent: EmailIntent
-    source: 'inherit' | 'auto'
+    source: 'inherit' | 'auto' | 'gmail'
   }> = []
   const needsLlm: typeof rows = []
   for (const row of rows) {
+    // Gmail's own SPAM / CATEGORY_* labels — most authoritative signal
+    // we have. Already applied at ingest, but lives here too so a
+    // reclassify pass over older messages picks it up.
+    const gmailCat = categoryFromGmailLabels(row.labels)
+    if (gmailCat) {
+      heuristicHits.push({ id: row.id, category: gmailCat.category, intent: gmailCat.intent, source: 'gmail' })
+      continue
+    }
     const hint = row.providerThreadId ? threadHints.get(row.providerThreadId) : undefined
     if (hint) {
       heuristicHits.push({ id: row.id, category: hint.category, intent: hint.intent, source: 'inherit' })
@@ -1337,6 +1347,55 @@ export async function classifyPendingIntents(
     classified: viaHeuristic + results.size,
     pending: needsLlm.length - results.size,
     viaHeuristic,
+  }
+}
+
+/**
+ * One-shot backlog repair: nulls out the category on every message that
+ * was set by the auto-classifier (leaving user / inherit / gmail rows
+ * untouched), then runs classifyPendingIntents in batches over the whole
+ * org until the backlog drains. Used by the "Reclassify everything"
+ * button in inbox settings after we ship classifier improvements so
+ * historical mis-categorizations get corrected.
+ */
+export async function reclassifyAll(
+  organizationId: string,
+  opts: { batchSize?: number; maxBatches?: number } = {},
+): Promise<{ reset: number; classified: number; viaHeuristic: number; remaining: number }> {
+  const batchSize = opts.batchSize ?? 200
+  const maxBatches = opts.maxBatches ?? 50
+
+  // Reset everything the user / Gmail / thread didn't decide on. Returns
+  // the row ids so we can report how many were reset.
+  const resetRows = await db
+    .update(schema.emailMessage)
+    .set({ category: null, intent: null })
+    .where(
+      and(
+        eq(schema.emailMessage.organizationId, organizationId),
+        eq(schema.emailMessage.categorySource, 'auto'),
+      ),
+    )
+    .returning({ id: schema.emailMessage.id })
+  const reset = resetRows.length
+  if (reset === 0) return { reset: 0, classified: 0, viaHeuristic: 0, remaining: 0 }
+
+  let totalClassified = 0
+  let totalHeuristic = 0
+  let remaining = reset
+  for (let i = 0; i < maxBatches && remaining > 0; i++) {
+    const result = await classifyPendingIntents(organizationId, { limit: batchSize })
+    if (result.classified === 0 && result.pending === 0) break
+    totalClassified += result.classified
+    totalHeuristic += result.viaHeuristic
+    remaining = result.pending
+    if (result.classified === 0) break // nothing moved → bail to avoid infinite loop
+  }
+  return {
+    reset,
+    classified: totalClassified,
+    viaHeuristic: totalHeuristic,
+    remaining,
   }
 }
 
