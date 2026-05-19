@@ -255,7 +255,7 @@ describe('invoices service — tenant scoping', () => {
 describe('products service — tenant scoping', () => {
   it('createProduct writes organizationId on insert', async () => {
     await createProduct(
-      { name: 'Cleaning', priceCents: 12000, currency: 'USD' },
+      { name: 'Cleaning', priceCents: 12000, currency: 'USD', stock: 0 },
       ORG_A,
     )
     expect(state.inserts[0].values.organizationId).toBe(ORG_A)
