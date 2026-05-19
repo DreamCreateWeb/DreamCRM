@@ -6,7 +6,6 @@ import { z } from 'zod'
 import { requireTenant } from '@/lib/auth/context'
 import {
   addPatientFromEmail,
-  archiveMessage as svcArchive,
   bulkArchive,
   bulkArchiveThreads,
   bulkSetRead,
@@ -23,19 +22,21 @@ import {
   getThreadDetail,
   sendEmail,
   setMessageCategory as svcSetMessageCategory,
-  setMessageRead,
-  setMessageStarred,
   syncAccount,
-  trashMessage as svcTrash,
 } from '@/lib/services/mailbox'
 import { EMAIL_CATEGORIES } from '@/lib/db/schema/email'
 import { draftReply } from '@/lib/services/ai-mailbox'
 import { getInboxPatientContext } from '@/lib/services/patient-context'
+import type { InboxActor } from '@/lib/services/inbox-audit'
 
 async function requireOrgUser() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') throw new Error('Forbidden')
   return ctx
+}
+
+function userActor(userId: string): InboxActor {
+  return { kind: 'user', userId }
 }
 
 export async function syncMailbox(accountId: string) {
@@ -54,64 +55,36 @@ export async function disconnectMailbox(accountId: string) {
   return { ok: true }
 }
 
-export async function markMessage(messageId: string, read: boolean) {
-  const ctx = await requireOrgUser()
-  await setMessageRead(messageId, ctx.organizationId, read)
-  revalidatePath('/inbox')
-  return { ok: true }
-}
-
-export async function toggleStar(messageId: string, starred: boolean) {
-  const ctx = await requireOrgUser()
-  await setMessageStarred(messageId, ctx.organizationId, starred)
-  revalidatePath('/inbox')
-  return { ok: true }
-}
-
-export async function archiveMessageAction(messageId: string) {
-  const ctx = await requireOrgUser()
-  await svcArchive(messageId, ctx.organizationId)
-  revalidatePath('/inbox')
-  return { ok: true }
-}
-
-export async function trashMessageAction(messageId: string) {
-  const ctx = await requireOrgUser()
-  await svcTrash(messageId, ctx.organizationId)
-  revalidatePath('/inbox')
-  return { ok: true }
-}
-
 /**
- * Thread-level variants of the per-message ops. The inbox UI now operates
+ * Thread-level variants of the per-message ops. The inbox UI operates
  * on whole conversations, not individual messages — these are thin
  * wrappers around the bulk*Threads service functions that take a single
- * thread id.
+ * thread id and the calling user as the actor.
  */
 export async function archiveThreadAction(threadId: string) {
   const ctx = await requireOrgUser()
-  await bulkArchiveThreads([threadId], ctx.organizationId)
+  await bulkArchiveThreads([threadId], ctx.organizationId, userActor(ctx.userId))
   revalidatePath('/inbox')
   return { ok: true }
 }
 
 export async function trashThreadAction(threadId: string) {
   const ctx = await requireOrgUser()
-  await bulkTrashThreads([threadId], ctx.organizationId)
+  await bulkTrashThreads([threadId], ctx.organizationId, userActor(ctx.userId))
   revalidatePath('/inbox')
   return { ok: true }
 }
 
 export async function markThreadAction(threadId: string, read: boolean) {
   const ctx = await requireOrgUser()
-  await bulkSetThreadRead([threadId], ctx.organizationId, read)
+  await bulkSetThreadRead([threadId], ctx.organizationId, read, userActor(ctx.userId))
   revalidatePath('/inbox')
   return { ok: true }
 }
 
 export async function toggleThreadStarAction(threadId: string, starred: boolean) {
   const ctx = await requireOrgUser()
-  await bulkSetThreadStarred([threadId], ctx.organizationId, starred)
+  await bulkSetThreadStarred([threadId], ctx.organizationId, starred, userActor(ctx.userId))
   revalidatePath('/inbox')
   return { ok: true }
 }
@@ -124,7 +97,7 @@ const SetCategoryInput = z.object({
 export async function setMessageCategoryAction(input: unknown): Promise<{ updated: number }> {
   const ctx = await requireOrgUser()
   const { messageId, category } = SetCategoryInput.parse(input)
-  const result = await svcSetMessageCategory(messageId, ctx.organizationId, category)
+  const result = await svcSetMessageCategory(messageId, ctx.organizationId, category, userActor(ctx.userId))
   revalidatePath('/inbox')
   return result
 }
@@ -145,25 +118,26 @@ const BulkInput = z.object({
 export async function bulkMessageAction(input: unknown): Promise<{ count: number }> {
   const ctx = await requireOrgUser()
   const { ids, action } = BulkInput.parse(input)
+  const actor = userActor(ctx.userId)
   let result = { count: 0 }
   switch (action as BulkAction) {
     case 'archive':
-      result = await bulkArchive(ids, ctx.organizationId)
+      result = await bulkArchive(ids, ctx.organizationId, actor)
       break
     case 'trash':
-      result = await bulkTrash(ids, ctx.organizationId)
+      result = await bulkTrash(ids, ctx.organizationId, actor)
       break
     case 'mark_read':
-      result = await bulkSetRead(ids, ctx.organizationId, true)
+      result = await bulkSetRead(ids, ctx.organizationId, true, actor)
       break
     case 'mark_unread':
-      result = await bulkSetRead(ids, ctx.organizationId, false)
+      result = await bulkSetRead(ids, ctx.organizationId, false, actor)
       break
     case 'star':
-      result = await bulkSetStarred(ids, ctx.organizationId, true)
+      result = await bulkSetStarred(ids, ctx.organizationId, true, actor)
       break
     case 'unstar':
-      result = await bulkSetStarred(ids, ctx.organizationId, false)
+      result = await bulkSetStarred(ids, ctx.organizationId, false, actor)
       break
   }
   revalidatePath('/inbox')
@@ -178,25 +152,26 @@ export async function bulkMessageAction(input: unknown): Promise<{ count: number
 export async function bulkThreadAction(input: unknown): Promise<{ count: number }> {
   const ctx = await requireOrgUser()
   const { ids, action } = BulkInput.parse(input)
+  const actor = userActor(ctx.userId)
   let result = { count: 0 }
   switch (action as BulkAction) {
     case 'archive':
-      result = await bulkArchiveThreads(ids, ctx.organizationId)
+      result = await bulkArchiveThreads(ids, ctx.organizationId, actor)
       break
     case 'trash':
-      result = await bulkTrashThreads(ids, ctx.organizationId)
+      result = await bulkTrashThreads(ids, ctx.organizationId, actor)
       break
     case 'mark_read':
-      result = await bulkSetThreadRead(ids, ctx.organizationId, true)
+      result = await bulkSetThreadRead(ids, ctx.organizationId, true, actor)
       break
     case 'mark_unread':
-      result = await bulkSetThreadRead(ids, ctx.organizationId, false)
+      result = await bulkSetThreadRead(ids, ctx.organizationId, false, actor)
       break
     case 'star':
-      result = await bulkSetThreadStarred(ids, ctx.organizationId, true)
+      result = await bulkSetThreadStarred(ids, ctx.organizationId, true, actor)
       break
     case 'unstar':
-      result = await bulkSetThreadStarred(ids, ctx.organizationId, false)
+      result = await bulkSetThreadStarred(ids, ctx.organizationId, false, actor)
       break
   }
   revalidatePath('/inbox')
@@ -374,6 +349,7 @@ export async function sendMailbox(input: unknown) {
     bodyText,
     inReplyTo,
     references,
+    actor: userActor(ctx.userId),
   })
   revalidatePath('/inbox')
   return {

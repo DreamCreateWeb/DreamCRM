@@ -117,6 +117,39 @@ export const emailMessage = pgTable(
 )
 
 /**
+ * Append-only audit log of mutating actions taken on the inbox —
+ * category moves, archives, sends, etc. Captures the actor (user / agent /
+ * system) so once the agent layer ships we can tell agent-driven
+ * actions apart from user actions and reconstruct timelines.
+ *
+ * Soft FK to email_message (no constraint) so the row survives even
+ * when the message is hard-deleted. Same for the user FK — preserves
+ * history when a member is removed.
+ */
+export const inboxActionLog = pgTable(
+  'inbox_action_log',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    messageId: text('message_id'),
+    threadId: text('thread_id'),
+    action: text('action').notNull(), // category_set | archive | trash | send | mark_read | mark_unread | star | unstar | ingest
+    actorKind: text('actor_kind').notNull().default('system'), // user | agent | system
+    actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+    meta: jsonb('meta').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('inbox_action_log_org_idx').on(t.organizationId),
+    index('inbox_action_log_message_idx').on(t.messageId),
+    index('inbox_action_log_thread_idx').on(t.threadId),
+    index('inbox_action_log_created_idx').on(t.createdAt),
+  ],
+)
+
+/**
  * Org-scoped canned-response templates. Body can include {{patient_first_name}},
  * {{next_appt_date}}, {{clinic_name}} placeholders that are expanded at
  * send-time. Optional single-character `shortcut` lets users insert a
@@ -143,6 +176,25 @@ export const emailSnippet = pgTable(
 export type EmailAccount = typeof emailAccount.$inferSelect
 export type EmailMessage = typeof emailMessage.$inferSelect
 export type EmailSnippet = typeof emailSnippet.$inferSelect
+export type InboxActionLog = typeof inboxActionLog.$inferSelect
+
+// Action types written to inbox_action_log. Adding new ones here is the
+// contract — the agent runtime will filter on these.
+export const INBOX_ACTIONS = [
+  'category_set',
+  'archive',
+  'trash',
+  'send',
+  'mark_read',
+  'mark_unread',
+  'star',
+  'unstar',
+  'ingest',
+] as const
+export type InboxAction = (typeof INBOX_ACTIONS)[number]
+
+export const INBOX_ACTOR_KINDS = ['user', 'agent', 'system'] as const
+export type InboxActorKind = (typeof INBOX_ACTOR_KINDS)[number]
 
 export const EMAIL_PROVIDERS = ['gmail'] as const // microsoft added later
 export type EmailProvider = (typeof EMAIL_PROVIDERS)[number]
