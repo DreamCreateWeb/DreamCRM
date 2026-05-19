@@ -13,8 +13,11 @@ export const InvoiceInput = z.object({
   notes: z.string().max(2000).optional().nullable(),
 })
 
-export async function listInvoices(opts: { search?: string; status?: string } = {}) {
-  const filters = []
+export async function listInvoices(
+  organizationId: string,
+  opts: { search?: string; status?: string } = {},
+) {
+  const filters = [eq(schema.invoices.organizationId, organizationId)]
   if (opts.search) filters.push(ilike(schema.invoices.invoiceNumber, `%${opts.search}%`))
   if (opts.status && opts.status !== 'all') filters.push(eq(schema.invoices.status, opts.status as any))
 
@@ -33,26 +36,31 @@ export async function listInvoices(opts: { search?: string; status?: string } = 
     })
     .from(schema.invoices)
     .leftJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
-    .where(filters.length ? and(...filters) : undefined)
+    .where(and(...filters))
     .orderBy(desc(schema.invoices.issueDate))
     .limit(200)
 }
 
-export async function invoiceCountsByStatus() {
+export async function invoiceCountsByStatus(organizationId: string) {
   const rows = await db
     .select({ status: schema.invoices.status, count: count() })
     .from(schema.invoices)
+    .where(eq(schema.invoices.organizationId, organizationId))
     .groupBy(schema.invoices.status)
   const all = rows.reduce((sum, r) => sum + Number(r.count), 0)
   const map = Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]))
   return { all, paid: map.paid ?? 0, pending: map.pending ?? 0, overdue: map.overdue ?? 0 }
 }
 
-export async function createInvoice(input: z.infer<typeof InvoiceInput>) {
+export async function createInvoice(
+  input: z.infer<typeof InvoiceInput>,
+  organizationId: string,
+) {
   const data = InvoiceInput.parse(input)
   const [row] = await db
     .insert(schema.invoices)
     .values({
+      organizationId,
       invoiceNumber: '#' + newId().slice(0, 6).toUpperCase(),
       customerId: data.customerId ?? null,
       status: data.status,
@@ -65,26 +73,38 @@ export async function createInvoice(input: z.infer<typeof InvoiceInput>) {
   return row
 }
 
-export async function markInvoicePaid(id: number) {
+export async function markInvoicePaid(id: number, organizationId: string) {
   const [row] = await db
     .update(schema.invoices)
     .set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() })
-    .where(eq(schema.invoices.id, id))
+    .where(and(eq(schema.invoices.id, id), eq(schema.invoices.organizationId, organizationId)))
     .returning()
   return row
 }
 
-export async function setInvoiceStatus(id: number, status: z.infer<typeof InvoiceInput>['status']) {
+export async function setInvoiceStatus(
+  id: number,
+  organizationId: string,
+  status: z.infer<typeof InvoiceInput>['status'],
+) {
   const [row] = await db
     .update(schema.invoices)
     .set({ status, updatedAt: new Date(), paidAt: status === 'paid' ? new Date() : null })
-    .where(eq(schema.invoices.id, id))
+    .where(and(eq(schema.invoices.id, id), eq(schema.invoices.organizationId, organizationId)))
     .returning()
   return row
 }
 
-export async function deleteInvoices(ids: number[]) {
+export async function deleteInvoices(ids: number[], organizationId: string) {
   if (!ids.length) return { deleted: 0 }
-  const rows = await db.delete(schema.invoices).where(inArray(schema.invoices.id, ids)).returning({ id: schema.invoices.id })
+  const rows = await db
+    .delete(schema.invoices)
+    .where(
+      and(
+        inArray(schema.invoices.id, ids),
+        eq(schema.invoices.organizationId, organizationId),
+      ),
+    )
+    .returning({ id: schema.invoices.id })
   return { deleted: rows.length }
 }

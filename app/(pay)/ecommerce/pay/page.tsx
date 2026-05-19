@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import PayForm from './pay-form'
 import Logo from '@/components/ui/logo'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { cartTotal } from '@/lib/services/cart'
 
 export default async function Pay({
@@ -16,7 +16,7 @@ export default async function Pay({
 }: {
   searchParams: Promise<{ amount?: string; orderId?: string; currency?: string }>
 }) {
-  const user = await requireUser()
+  const ctx = await requireTenant()
   const params = await searchParams
 
   let totalCents = 0
@@ -26,7 +26,7 @@ export default async function Pay({
   if (params.amount) {
     totalCents = Math.round(parseFloat(params.amount) * 100)
   } else {
-    const { subtotalCents, lines } = await cartTotal(user.id)
+    const { subtotalCents, lines } = await cartTotal(ctx.userId, ctx.organizationId)
     const taxes = Math.round(subtotalCents * 0.1)
     totalCents = subtotalCents + taxes
     if (lines[0]?.currency) currency = lines[0].currency

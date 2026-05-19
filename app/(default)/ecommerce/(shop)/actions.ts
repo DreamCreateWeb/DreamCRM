@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import {
   addToCart as addToCartSvc,
   removeFromCart as removeFromCartSvc,
@@ -10,8 +10,8 @@ import {
 } from '@/lib/services/cart'
 
 export async function addToCart(productId: number, quantity: number = 1) {
-  const user = await requireUser()
-  const row = await addToCartSvc(user.id, productId, quantity)
+  const ctx = await requireTenant()
+  const row = await addToCartSvc(ctx.userId, ctx.organizationId, productId, quantity)
   revalidatePath('/ecommerce/cart')
   revalidatePath('/ecommerce/cart-2')
   revalidatePath('/ecommerce/cart-3')
@@ -19,22 +19,22 @@ export async function addToCart(productId: number, quantity: number = 1) {
 }
 
 export async function removeFromCart(productId: number) {
-  const user = await requireUser()
-  await removeFromCartSvc(user.id, productId)
+  const ctx = await requireTenant()
+  await removeFromCartSvc(ctx.userId, ctx.organizationId, productId)
   revalidatePath('/ecommerce/cart')
   revalidatePath('/ecommerce/cart-2')
   revalidatePath('/ecommerce/cart-3')
 }
 
 export async function updateCartQuantity(productId: number, quantity: number) {
-  const user = await requireUser()
-  await updateCartQuantitySvc(user.id, productId, quantity)
+  const ctx = await requireTenant()
+  await updateCartQuantitySvc(ctx.userId, ctx.organizationId, productId, quantity)
   revalidatePath('/ecommerce/cart')
 }
 
 export async function checkoutCart() {
-  const user = await requireUser()
-  const order = await checkoutCartSvc(user.id)
+  const ctx = await requireTenant()
+  const order = await checkoutCartSvc(ctx.userId, ctx.organizationId)
   revalidatePath('/ecommerce/cart')
   revalidatePath('/ecommerce/orders')
   return order

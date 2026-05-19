@@ -14,8 +14,14 @@ export const CustomerInput = z.object({
 
 export const CustomerUpdate = CustomerInput.partial()
 
-export async function listCustomers(opts: { search?: string; archived?: boolean } = {}) {
-  const filters = [eq(schema.customers.archived, opts.archived ?? false)]
+export async function listCustomers(
+  organizationId: string,
+  opts: { search?: string; archived?: boolean } = {},
+) {
+  const filters = [
+    eq(schema.customers.organizationId, organizationId),
+    eq(schema.customers.archived, opts.archived ?? false),
+  ]
   if (opts.search) {
     filters.push(
       or(
@@ -31,7 +37,7 @@ export async function listCustomers(opts: { search?: string; archived?: boolean 
     .orderBy(desc(schema.customers.createdAt))
 }
 
-export async function getCustomerOrderStats() {
+export async function getCustomerOrderStats(organizationId: string) {
   return db
     .select({
       customerId: schema.orders.customerId,
@@ -40,39 +46,56 @@ export async function getCustomerOrderStats() {
       lastOrderNumber: sql<string>`max(${schema.orders.orderNumber})`,
     })
     .from(schema.orders)
+    .where(eq(schema.orders.organizationId, organizationId))
     .groupBy(schema.orders.customerId)
 }
 
-export async function createCustomer(input: z.infer<typeof CustomerInput>, ownerId: string) {
+export async function createCustomer(
+  input: z.infer<typeof CustomerInput>,
+  ownerId: string,
+  organizationId: string,
+) {
   const data = CustomerInput.parse(input)
   const [row] = await db
     .insert(schema.customers)
-    .values({ ...data, ownerId })
+    .values({ ...data, ownerId, organizationId })
     .returning()
   return row
 }
 
-export async function updateCustomer(id: number, input: z.infer<typeof CustomerUpdate>) {
+export async function updateCustomer(
+  id: number,
+  organizationId: string,
+  input: z.infer<typeof CustomerUpdate>,
+) {
   const data = CustomerUpdate.parse(input)
   const [row] = await db
     .update(schema.customers)
     .set({ ...data, updatedAt: new Date() })
-    .where(eq(schema.customers.id, id))
+    .where(and(eq(schema.customers.id, id), eq(schema.customers.organizationId, organizationId)))
     .returning()
   return row
 }
 
-export async function toggleFav(id: number) {
+export async function toggleFav(id: number, organizationId: string) {
   const [row] = await db
     .update(schema.customers)
     .set({ fav: sql`not ${schema.customers.fav}`, updatedAt: new Date() })
-    .where(eq(schema.customers.id, id))
+    .where(and(eq(schema.customers.id, id), eq(schema.customers.organizationId, organizationId)))
     .returning({ id: schema.customers.id, fav: schema.customers.fav })
   return row
 }
 
-export async function deleteCustomers(ids: number[]) {
+export async function deleteCustomers(ids: number[], organizationId: string) {
   if (!ids.length) return { deleted: 0 }
-  const rows = await db.delete(schema.customers).where(inArray(schema.customers.id, ids)).returning({ id: schema.customers.id })
+  const rows = await db
+    .delete(schema.customers)
+    .where(
+      and(
+        inArray(schema.customers.id, ids),
+        eq(schema.customers.organizationId, organizationId),
+      ),
+    )
+    .returning({ id: schema.customers.id })
   return { deleted: rows.length }
 }

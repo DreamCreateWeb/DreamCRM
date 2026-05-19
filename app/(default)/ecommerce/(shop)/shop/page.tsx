@@ -8,12 +8,12 @@ export const dynamic = 'force-dynamic'
 import ShopCards05 from '../shop-cards-05'
 import ShopCards06 from '../shop-cards-06'
 import ProductList from '../product-list'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { listProducts } from '@/lib/services/products'
 
 export default async function Shop() {
-  await requireUser()
-  const products = await listProducts({ limit: 24 })
+  const ctx = await requireTenant()
+  const products = await listProducts(ctx.organizationId, { limit: 24 })
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">

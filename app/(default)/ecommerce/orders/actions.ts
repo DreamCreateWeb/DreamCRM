@@ -1,26 +1,26 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { OrderInput, createOrder, deleteOrders, updateOrderStatus } from '@/lib/services/orders'
 
 export async function addOrder(input: unknown) {
-  await requireUser()
-  const order = await createOrder(OrderInput.parse(input))
+  const ctx = await requireTenant()
+  const order = await createOrder(OrderInput.parse(input), ctx.organizationId)
   revalidatePath('/ecommerce/orders')
   return order
 }
 
 export async function setOrderStatus(id: number, status: string) {
-  await requireUser()
-  const order = await updateOrderStatus(id, status as any)
+  const ctx = await requireTenant()
+  const order = await updateOrderStatus(id, ctx.organizationId, status as any)
   revalidatePath('/ecommerce/orders')
   return order
 }
 
 export async function removeOrders(ids: number[]) {
-  await requireUser()
-  const result = await deleteOrders(ids.filter(Number.isInteger))
+  const ctx = await requireTenant()
+  const result = await deleteOrders(ids.filter(Number.isInteger), ctx.organizationId)
   revalidatePath('/ecommerce/orders')
   return result
 }

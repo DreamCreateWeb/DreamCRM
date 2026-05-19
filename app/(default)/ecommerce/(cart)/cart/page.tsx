@@ -7,13 +7,13 @@ export const dynamic = 'force-dynamic'
 
 import CartItems from '../cart-items'
 import CheckoutButton from '../checkout-button'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { cartTotal } from '@/lib/services/cart'
 import { formatMoney } from '@/lib/utils'
 
 export default async function Cart() {
-  const user = await requireUser()
-  const { subtotalCents, itemCount, lines } = await cartTotal(user.id)
+  const ctx = await requireTenant()
+  const { subtotalCents, itemCount, lines } = await cartTotal(ctx.userId, ctx.organizationId)
   const currency = lines[0]?.currency ?? 'USD'
   const taxes = Math.round(subtotalCents * 0.1)
   const total = subtotalCents + taxes

@@ -13,7 +13,7 @@ export type CartLine = {
   imageUrl: string | null
 }
 
-export async function listCart(userId: string): Promise<CartLine[]> {
+export async function listCart(userId: string, organizationId: string): Promise<CartLine[]> {
   const rows = await db
     .select({
       productId: schema.cartItems.productId,
@@ -26,67 +26,117 @@ export async function listCart(userId: string): Promise<CartLine[]> {
     })
     .from(schema.cartItems)
     .innerJoin(schema.products, eq(schema.cartItems.productId, schema.products.id))
-    .where(eq(schema.cartItems.userId, userId))
+    .where(
+      and(
+        eq(schema.cartItems.userId, userId),
+        eq(schema.cartItems.organizationId, organizationId),
+      ),
+    )
   return rows
 }
 
-export async function cartTotal(userId: string) {
-  const lines = await listCart(userId)
+export async function cartTotal(userId: string, organizationId: string) {
+  const lines = await listCart(userId, organizationId)
   const subtotalCents = lines.reduce((s, l) => s + l.priceCents * l.quantity, 0)
   const itemCount = lines.reduce((s, l) => s + l.quantity, 0)
   return { subtotalCents, itemCount, lines }
 }
 
-export async function addToCart(userId: string, productId: number, quantity: number = 1) {
-  // Upsert by adding quantity
+export async function addToCart(
+  userId: string,
+  organizationId: string,
+  productId: number,
+  quantity: number = 1,
+) {
   const existing = await db
     .select()
     .from(schema.cartItems)
-    .where(and(eq(schema.cartItems.userId, userId), eq(schema.cartItems.productId, productId)))
+    .where(
+      and(
+        eq(schema.cartItems.userId, userId),
+        eq(schema.cartItems.organizationId, organizationId),
+        eq(schema.cartItems.productId, productId),
+      ),
+    )
     .limit(1)
   if (existing.length) {
     const [row] = await db
       .update(schema.cartItems)
       .set({ quantity: sql`${schema.cartItems.quantity} + ${quantity}` })
-      .where(and(eq(schema.cartItems.userId, userId), eq(schema.cartItems.productId, productId)))
+      .where(
+        and(
+          eq(schema.cartItems.userId, userId),
+          eq(schema.cartItems.organizationId, organizationId),
+          eq(schema.cartItems.productId, productId),
+        ),
+      )
       .returning()
     return row
   }
   const [row] = await db
     .insert(schema.cartItems)
-    .values({ userId, productId, quantity })
+    .values({ userId, organizationId, productId, quantity })
     .returning()
   return row
 }
 
-export async function updateCartQuantity(userId: string, productId: number, quantity: number) {
-  if (quantity <= 0) return removeFromCart(userId, productId)
+export async function updateCartQuantity(
+  userId: string,
+  organizationId: string,
+  productId: number,
+  quantity: number,
+) {
+  if (quantity <= 0) return removeFromCart(userId, organizationId, productId)
   const [row] = await db
     .update(schema.cartItems)
     .set({ quantity })
-    .where(and(eq(schema.cartItems.userId, userId), eq(schema.cartItems.productId, productId)))
+    .where(
+      and(
+        eq(schema.cartItems.userId, userId),
+        eq(schema.cartItems.organizationId, organizationId),
+        eq(schema.cartItems.productId, productId),
+      ),
+    )
     .returning()
   return row
 }
 
-export async function removeFromCart(userId: string, productId: number) {
+export async function removeFromCart(
+  userId: string,
+  organizationId: string,
+  productId: number,
+) {
   await db
     .delete(schema.cartItems)
-    .where(and(eq(schema.cartItems.userId, userId), eq(schema.cartItems.productId, productId)))
+    .where(
+      and(
+        eq(schema.cartItems.userId, userId),
+        eq(schema.cartItems.organizationId, organizationId),
+        eq(schema.cartItems.productId, productId),
+      ),
+    )
   return { ok: true }
 }
 
-export async function clearCart(userId: string) {
-  await db.delete(schema.cartItems).where(eq(schema.cartItems.userId, userId))
+export async function clearCart(userId: string, organizationId: string) {
+  await db
+    .delete(schema.cartItems)
+    .where(
+      and(
+        eq(schema.cartItems.userId, userId),
+        eq(schema.cartItems.organizationId, organizationId),
+      ),
+    )
   return { ok: true }
 }
 
-export async function checkoutCart(userId: string) {
-  const { subtotalCents, lines } = await cartTotal(userId)
+export async function checkoutCart(userId: string, organizationId: string) {
+  const { subtotalCents, lines } = await cartTotal(userId, organizationId)
   if (!lines.length) throw new Error('Cart is empty')
   const [order] = await db
     .insert(schema.orders)
     .values({
+      organizationId,
       orderNumber: '#' + newId().slice(0, 6).toUpperCase(),
       customerId: null,
       status: 'processing',
@@ -100,6 +150,6 @@ export async function checkoutCart(userId: string) {
       })),
     })
     .returning()
-  await clearCart(userId)
+  await clearCart(userId, organizationId)
   return order
 }

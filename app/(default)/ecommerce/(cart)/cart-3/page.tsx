@@ -6,13 +6,13 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { listOrders } from '@/lib/services/orders'
 import { formatMoney, formatShortDate } from '@/lib/utils'
 
 export default async function Cart3() {
-  await requireUser()
-  const orders = await listOrders()
+  const ctx = await requireTenant()
+  const orders = await listOrders(ctx.organizationId)
   const lastOrder = orders[0]
 
   return (

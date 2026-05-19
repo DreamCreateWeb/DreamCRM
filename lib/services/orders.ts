@@ -22,8 +22,11 @@ export const OrderInput = z.object({
 
 export type OrderListItem = Awaited<ReturnType<typeof listOrders>>[number]
 
-export async function listOrders(opts: { search?: string; status?: string; from?: Date; to?: Date } = {}) {
-  const filters = []
+export async function listOrders(
+  organizationId: string,
+  opts: { search?: string; status?: string; from?: Date; to?: Date } = {},
+) {
+  const filters = [eq(schema.orders.organizationId, organizationId)]
   if (opts.search) {
     filters.push(
       or(
@@ -51,16 +54,20 @@ export async function listOrders(opts: { search?: string; status?: string; from?
     })
     .from(schema.orders)
     .leftJoin(schema.customers, eq(schema.orders.customerId, schema.customers.id))
-    .where(filters.length ? and(...filters) : undefined)
+    .where(and(...filters))
     .orderBy(desc(schema.orders.createdAt))
     .limit(200)
 }
 
-export async function createOrder(input: z.infer<typeof OrderInput>) {
+export async function createOrder(
+  input: z.infer<typeof OrderInput>,
+  organizationId: string,
+) {
   const data = OrderInput.parse(input)
   const [row] = await db
     .insert(schema.orders)
     .values({
+      organizationId,
       orderNumber: '#' + newId().slice(0, 6).toUpperCase(),
       customerId: data.customerId ?? null,
       status: data.status,
@@ -73,17 +80,29 @@ export async function createOrder(input: z.infer<typeof OrderInput>) {
   return row
 }
 
-export async function updateOrderStatus(id: number, status: z.infer<typeof OrderInput>['status']) {
+export async function updateOrderStatus(
+  id: number,
+  organizationId: string,
+  status: z.infer<typeof OrderInput>['status'],
+) {
   const [row] = await db
     .update(schema.orders)
     .set({ status, updatedAt: new Date() })
-    .where(eq(schema.orders.id, id))
+    .where(and(eq(schema.orders.id, id), eq(schema.orders.organizationId, organizationId)))
     .returning()
   return row
 }
 
-export async function deleteOrders(ids: number[]) {
+export async function deleteOrders(ids: number[], organizationId: string) {
   if (!ids.length) return { deleted: 0 }
-  const rows = await db.delete(schema.orders).where(inArray(schema.orders.id, ids)).returning({ id: schema.orders.id })
+  const rows = await db
+    .delete(schema.orders)
+    .where(
+      and(
+        inArray(schema.orders.id, ids),
+        eq(schema.orders.organizationId, organizationId),
+      ),
+    )
+    .returning({ id: schema.orders.id })
   return { deleted: rows.length }
 }

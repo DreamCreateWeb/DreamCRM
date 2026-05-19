@@ -26,7 +26,10 @@ export default async function OrdersOrPipeline() {
   if (ctx.tenantType === 'platform') return <SalesPipeline />
 
   // Clinic tenants — keep the existing CRM-style orders / treatment plans view.
-  const [orders, customers] = await Promise.all([listOrders(), listCustomers()])
+  const [orders, customers] = await Promise.all([
+    listOrders(ctx.organizationId),
+    listCustomers(ctx.organizationId),
+  ])
   const rows: OrderRow[] = orders.map((o) => {
     const items = Array.isArray(o.items) ? o.items : []
     return {
