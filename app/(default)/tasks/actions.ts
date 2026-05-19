@@ -10,6 +10,7 @@ import {
   createTask,
   deleteTasks,
   likeTask,
+  reorderTask,
   toggleSubtask,
   updateTask,
   updateTaskStatus,
@@ -34,6 +35,16 @@ export async function moveTask(id: number, status: string) {
   revalidatePath('/tasks/kanban')
   revalidatePath('/tasks/list')
   return task
+}
+
+export async function reorderTaskAction(id: number, newStatus: string, newIndex: number) {
+  const ctx = await requireTenant()
+  if (!TASK_STATUSES.includes(newStatus as TaskStatus)) throw new Error('invalid status')
+  if (!Number.isInteger(newIndex) || newIndex < 0) throw new Error('invalid index')
+  await reorderTask(id, newStatus as TaskStatus, newIndex, ctx.organizationId)
+  revalidatePath('/tasks/kanban')
+  revalidatePath('/tasks/list')
+  return { ok: true }
 }
 
 export async function editTask(id: number, input: unknown) {
