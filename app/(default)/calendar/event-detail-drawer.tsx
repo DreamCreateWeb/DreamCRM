@@ -37,6 +37,7 @@ export default function EventDetailDrawer({ event, onClose }: Props) {
   const [endsAt, setEndsAt] = useState('')
   const [allDay, setAllDay] = useState(false)
   const [category, setCategory] = useState<CalendarCategory>('work')
+  const [recurrence, setRecurrence] = useState<string>('')
 
   // Whenever the event prop changes, hydrate the form state. The form is
   // hidden behind the `editing` toggle but pre-populating makes the
@@ -50,6 +51,7 @@ export default function EventDetailDrawer({ event, onClose }: Props) {
     setEndsAt(toInputValue(event.endsAt))
     setAllDay(event.allDay)
     setCategory(event.category as CalendarCategory)
+    setRecurrence(event.recurrenceRule ?? '')
     setEditing(false)
     setError(null)
   }, [event])
@@ -67,6 +69,7 @@ export default function EventDetailDrawer({ event, onClose }: Props) {
           endsAt: new Date(endsAt).toISOString(),
           allDay,
           category,
+          recurrenceRule: recurrence || null,
         })
         setEditing(false)
         router.refresh()
@@ -192,6 +195,21 @@ export default function EventDetailDrawer({ event, onClose }: Props) {
               ))}
             </select>
           </Field>
+          <Field label="Repeats">
+            <select
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Does not repeat</option>
+              <option value="FREQ=DAILY">Daily</option>
+              <option value="FREQ=WEEKLY">Weekly</option>
+              <option value="FREQ=WEEKLY;INTERVAL=2">Every 2 weeks</option>
+              <option value="FREQ=MONTHLY">Monthly</option>
+              <option value="FREQ=YEARLY">Yearly</option>
+              <option value="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR">Every weekday (Mon–Fri)</option>
+            </select>
+          </Field>
           <Field label="Description">
             <textarea
               value={description}
@@ -227,6 +245,11 @@ function ReadOnly({ event }: { event: CalendarEventRow }) {
           {CATEGORY_LABEL[event.category as CalendarCategory] ?? event.category}
         </span>
       </Row>
+      {event.recurrenceRule && (
+        <Row label="Repeats">
+          <span className="text-[13px] text-stone-700 dark:text-stone-300">{formatRecurrence(event.recurrenceRule)}</span>
+        </Row>
+      )}
       {event.description && (
         <Row label="Notes">
           <p className="text-[13px] text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
@@ -263,4 +286,16 @@ function toInputValue(d: Date): string {
   // datetime-local needs YYYY-MM-DDTHH:mm without seconds or timezone.
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function formatRecurrence(rule: string): string {
+  // Friendly summary of a tiny subset of RRULE — covers the options the
+  // create modal offers. Falls back to the raw rule string.
+  if (/FREQ=DAILY/i.test(rule)) return 'Daily'
+  if (/FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR/i.test(rule)) return 'Every weekday (Mon–Fri)'
+  if (/FREQ=WEEKLY;INTERVAL=2/i.test(rule)) return 'Every 2 weeks'
+  if (/FREQ=WEEKLY/i.test(rule)) return 'Weekly'
+  if (/FREQ=MONTHLY/i.test(rule)) return 'Monthly'
+  if (/FREQ=YEARLY/i.test(rule)) return 'Yearly'
+  return rule
 }

@@ -136,3 +136,110 @@
     border-color: var(--color-gray-200, currentColor);
   }
 }
+/* ============================================================
+   FullCalendar (calendar module) — stone-palette overrides.
+   The .dcrm-calendar wrapper scopes these so they only apply to our
+   admin calendar; FullCalendar's default CSS still loads first via
+   the plugin imports.
+   ============================================================ */
+
+.dcrm-calendar .fc {
+  --fc-border-color: var(--color-stone-200, #e7e5e4);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--color-stone-50, #fafaf9);
+  --fc-list-event-hover-bg-color: var(--color-stone-50, #fafaf9);
+  --fc-today-bg-color: rgba(120, 113, 108, 0.05);
+  --fc-now-indicator-color: #e11d48;
+  --fc-event-border-color: transparent;
+  font-family: inherit;
+}
+
+.dark .dcrm-calendar .fc {
+  --fc-border-color: rgba(120, 113, 108, 0.3);
+  --fc-neutral-bg-color: rgba(28, 25, 23, 0.4);
+  --fc-list-event-hover-bg-color: rgba(120, 113, 108, 0.1);
+  --fc-today-bg-color: rgba(120, 113, 108, 0.08);
+}
+
+.dcrm-calendar .fc .fc-col-header-cell-cushion,
+.dcrm-calendar .fc .fc-list-day-cushion {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-stone-500, #78716c);
+  padding: 8px 4px;
+}
+
+.dcrm-calendar .fc .fc-daygrid-day-number,
+.dcrm-calendar .fc .fc-timegrid-axis-cushion,
+.dcrm-calendar .fc .fc-timegrid-slot-label-cushion {
+  font-size: 11px;
+  color: var(--color-stone-600, #57534e);
+  padding: 4px 6px;
+}
+
+.dcrm-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: var(--color-stone-900, #1c1917);
+  color: white;
+  border-radius: 9999px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px;
+}
+
+.dark .dcrm-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: var(--color-stone-100, #f5f5f4);
+  color: var(--color-stone-900, #1c1917);
+}
+
+.dcrm-calendar .fc .fc-event {
+  border-radius: 4px;
+  border: none;
+  padding: 1px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.dcrm-calendar .fc .fc-event:hover {
+  opacity: 0.85;
+}
+
+.dcrm-calendar .fc .fc-timegrid-slot,
+.dcrm-calendar .fc .fc-timegrid-slot-lane {
+  height: 2.5em;
+}
+
+.dcrm-calendar .fc .fc-button {
+  display: none; /* we use our own nav */
+}
+
+.dcrm-calendar .fc-theme-standard td,
+.dcrm-calendar .fc-theme-standard th {
+  border-color: var(--fc-border-color);
+}
+
+.dcrm-calendar .fc-highlight {
+  background: rgba(120, 113, 108, 0.1);
+}
+
+/* List view rows */
+.dcrm-calendar .fc .fc-list-event-title a {
+  color: var(--color-stone-800, #292524);
+  font-weight: 500;
+}
+
+.dark .dcrm-calendar .fc .fc-list-event-title a {
+  color: var(--color-stone-100, #f5f5f4);
+}
+
+.dcrm-calendar .fc .fc-list-empty {
+  color: var(--color-stone-400, #a8a29e);
+  font-size: 13px;
+  font-style: italic;
+}

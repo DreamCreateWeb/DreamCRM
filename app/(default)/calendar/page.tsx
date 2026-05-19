@@ -33,6 +33,7 @@ export default async function Calendar() {
     endsAt: new Date(e.endsAt),
     allDay: e.allDay,
     category: e.category,
+    recurrenceRule: e.recurrenceRule,
   }))
 
   return (

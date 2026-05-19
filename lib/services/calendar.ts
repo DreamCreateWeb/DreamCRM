@@ -19,6 +19,10 @@ export const CalendarEventInput = z.object({
   endsAt: z.string(),
   allDay: z.boolean().optional().default(false),
   category: z.enum(CALENDAR_CATEGORIES).default('work'),
+  /** Optional RFC-5545 RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO,WE,FR").
+   *  When set, FullCalendar's rrule plugin expands this into N occurrences
+   *  using startsAt as the dtstart anchor. */
+  recurrenceRule: z.string().max(500).optional().nullable(),
 })
 
 /**
@@ -55,6 +59,7 @@ export async function updateCalendarEvent(
   if (data.location !== undefined) patch.location = data.location
   if (data.allDay !== undefined) patch.allDay = data.allDay
   if (data.category !== undefined) patch.category = data.category
+  if (data.recurrenceRule !== undefined) patch.recurrenceRule = data.recurrenceRule
   if (data.startsAt !== undefined) {
     const startsAt = new Date(data.startsAt)
     if (Number.isNaN(startsAt.getTime())) throw new Error('Invalid event start')
@@ -95,6 +100,7 @@ export async function createCalendarEvent(
       endsAt,
       allDay: data.allDay ?? false,
       category: data.category,
+      recurrenceRule: data.recurrenceRule ?? null,
       ownerId: opts.userId,
       organizationId: opts.organizationId,
     })

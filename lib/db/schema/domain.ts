@@ -168,6 +168,10 @@ export const calendarEvents = pgTable('calendar_events', {
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
   allDay: boolean('all_day').notNull().default(false),
   category: text('category').notNull().default('default'),
+  // Optional RFC-5545 RRULE string for recurring events. Rendered by the
+  // FullCalendar rrule plugin; null = single occurrence. Example:
+  //   "FREQ=WEEKLY;BYDAY=MO,WE,FR"
+  recurrenceRule: text('recurrence_rule'),
   ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
