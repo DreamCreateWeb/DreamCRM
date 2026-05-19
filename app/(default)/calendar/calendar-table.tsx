@@ -1,14 +1,20 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { cn } from '@/lib/utils'
-import { useCalendarContext, addDays, startOfWeek, isSameDay } from './calendar-context'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import FullCalendar from '@fullcalendar/react'
+import dayGridPlugin from '@fullcalendar/daygrid'
+import timeGridPlugin from '@fullcalendar/timegrid'
+import listPlugin from '@fullcalendar/list'
+import interactionPlugin from '@fullcalendar/interaction'
+import rrulePlugin from '@fullcalendar/rrule'
+import type { DateSelectArg, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
+import type { EventResizeDoneArg } from '@fullcalendar/interaction'
+import { useCalendarContext } from './calendar-context'
 import EventDetailDrawer from './event-detail-drawer'
-import {
-  CATEGORY_COLOR,
-  CATEGORY_LABEL,
-  type CalendarCategory,
-} from '@/lib/types/calendar'
+import CreateEventModal from './create-event-modal'
+import { editCalendarEvent } from './actions'
+import { CATEGORY_COLOR, CATEGORY_LABEL, type CalendarCategory } from '@/lib/types/calendar'
 
 export interface CalendarEventRow {
   id: number
@@ -19,370 +25,228 @@ export interface CalendarEventRow {
   endsAt: Date
   allDay: boolean
   category: string
+  recurrenceRule: string | null
 }
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
 /**
- * Single calendar surface that swaps between Month / Week / Day based on
- * the view in CalendarContext. All three views share the same event-chip
- * styling + click-to-open-drawer behavior, so adding the week/day surfaces
- * is layout-only — no new mutation paths or state.
+ * Calendar grid powered by FullCalendar. Replaces the hand-rolled
+ * month/week/day grid I built first — gives us drag-to-reschedule,
+ * drag-to-resize, hour-row time-grid week view, drag-select to create,
+ * list/agenda view, and recurring events for free.
+ *
+ * Toolbar is hidden (headerToolbar:false) — our own CalendarNavigation
+ * drives the view via a ref to FullCalendar's API so the chrome matches
+ * the rest of the platform admin design.
  */
 export default function CalendarTable({ events }: { events: CalendarEventRow[] }) {
-  const { view, anchor, today } = useCalendarContext()
+  const router = useRouter()
+  const { view, anchor, setApi } = useCalendarContext()
+  const calRef = useRef<FullCalendar | null>(null)
   const [selected, setSelected] = useState<CalendarEventRow | null>(null)
+  const [createDraft, setCreateDraft] = useState<{ start: Date; end: Date; allDay: boolean } | null>(null)
 
-  // Index events by day-string for O(1) lookup per cell.
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEventRow[]>()
-    for (const e of events) {
-      const key = dayKey(e.startsAt)
-      const arr = map.get(key) ?? []
-      arr.push(e)
-      map.set(key, arr)
-    }
-    // Sort each day's events chronologically.
-    Array.from(map.values()).forEach((arr: CalendarEventRow[]) => {
-      arr.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+  // Hand the FullCalendar API up to the nav so it can call .changeView() /
+  // .next() / .prev() / .today() without re-rendering the calendar.
+  useEffect(() => {
+    setApi(calRef.current?.getApi() ?? null)
+    return () => setApi(null)
+  }, [setApi])
+
+  // When the context's view changes (e.g. user clicks Month/Week/Day),
+  // tell FullCalendar to switch. Keeps the URL/context as the source of
+  // truth for view state.
+  useEffect(() => {
+    const api = calRef.current?.getApi()
+    if (!api) return
+    const fcView = FC_VIEW[view]
+    if (api.view.type !== fcView) api.changeView(fcView)
+  }, [view])
+
+  // Same for the anchor date — keep FullCalendar in sync when our nav
+  // moves it via prev/next/today.
+  useEffect(() => {
+    const api = calRef.current?.getApi()
+    if (!api) return
+    api.gotoDate(anchor)
+  }, [anchor])
+
+  // FullCalendar wants EventInput[] (string ids, Date|string start/end,
+  // optional `rrule` for recurring). Map our DB rows over.
+  const fcEvents: EventInput[] = useMemo(() => {
+    return events.map((e): EventInput => {
+      const c = (CATEGORY_COLOR[e.category as CalendarCategory] ?? 'sky') as string
+      const base = {
+        id: String(e.id),
+        title: e.title,
+        backgroundColor: bgColor(c),
+        borderColor: bgColor(c),
+        textColor: textColor(c),
+        allDay: e.allDay,
+        extendedProps: { row: e },
+      }
+      if (e.recurrenceRule) {
+        return {
+          ...base,
+          // FullCalendar rrule plugin: provide rrule + duration; it
+          // expands into N occurrences using startsAt as dtstart.
+          rrule: {
+            freq: parseRRuleFreq(e.recurrenceRule),
+            dtstart: e.startsAt.toISOString(),
+            ...parseRRuleExtras(e.recurrenceRule),
+          },
+          duration: durationMs(e.startsAt, e.endsAt),
+        }
+      }
+      return { ...base, start: e.startsAt, end: e.endsAt }
     })
-    return map
   }, [events])
+
+  function handleEventClick(arg: EventClickArg) {
+    const row = arg.event.extendedProps?.row as CalendarEventRow | undefined
+    if (row) setSelected(row)
+  }
+
+  // Drag-select an empty time range → open the create modal pre-filled.
+  function handleSelect(arg: DateSelectArg) {
+    setCreateDraft({ start: arg.start, end: arg.end, allDay: arg.allDay })
+    arg.view.calendar.unselect()
+  }
+
+  // Drag-to-reschedule (changes start/end by the dragged delta).
+  function handleEventDrop(arg: EventDropArg) {
+    persistTimeChange(arg.event.id, arg.event.start, arg.event.end, arg.event.allDay).catch((err) => {
+      console.warn('[calendar.drag] failed:', err)
+      arg.revert()
+    })
+  }
+
+  // Drag-to-resize (changes end only).
+  function handleEventResize(arg: EventResizeDoneArg) {
+    persistTimeChange(arg.event.id, arg.event.start, arg.event.end, arg.event.allDay).catch((err) => {
+      console.warn('[calendar.resize] failed:', err)
+      arg.revert()
+    })
+  }
+
+  async function persistTimeChange(idStr: string, start: Date | null, end: Date | null, allDay: boolean) {
+    if (!start) return
+    const id = Number(idStr)
+    if (!Number.isInteger(id)) return
+    await editCalendarEvent(id, {
+      startsAt: start.toISOString(),
+      endsAt: (end ?? new Date(start.getTime() + 60 * 60 * 1000)).toISOString(),
+      allDay,
+    })
+    router.refresh()
+  }
 
   return (
     <>
-      {view === 'month' && (
-        <MonthGrid eventsByDay={eventsByDay} anchor={anchor} today={today} onOpen={setSelected} />
-      )}
-      {view === 'week' && (
-        <WeekGrid eventsByDay={eventsByDay} anchor={anchor} today={today} onOpen={setSelected} />
-      )}
-      {view === 'day' && (
-        <DayList eventsByDay={eventsByDay} anchor={anchor} today={today} onOpen={setSelected} />
-      )}
+      <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-3 dcrm-calendar">
+        <FullCalendar
+          ref={calRef}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin, rrulePlugin]}
+          initialView={FC_VIEW[view]}
+          initialDate={anchor}
+          headerToolbar={false}
+          height="auto"
+          contentHeight="auto"
+          expandRows
+          stickyHeaderDates
+          dayMaxEventRows={4}
+          firstDay={0}
+          nowIndicator
+          editable
+          selectable
+          selectMirror
+          dragRevertDuration={150}
+          eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
+          slotMinTime="06:00:00"
+          slotMaxTime="22:00:00"
+          slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
+          events={fcEvents}
+          eventClick={handleEventClick}
+          select={handleSelect}
+          eventDrop={handleEventDrop}
+          eventResize={handleEventResize}
+        />
+      </div>
       <EventDetailDrawer event={selected} onClose={() => setSelected(null)} />
+      {createDraft && (
+        <CreateEventModal
+          autoOpen
+          draft={createDraft}
+          onClose={() => setCreateDraft(null)}
+        />
+      )}
     </>
   )
 }
 
-// ============================================================
-// Month grid
-// ============================================================
+// ---------- Helpers ----------
 
-function MonthGrid({
-  eventsByDay,
-  anchor,
-  today,
-  onOpen,
-}: {
-  eventsByDay: Map<string, CalendarEventRow[]>
-  anchor: Date
-  today: Date
-  onOpen: (e: CalendarEventRow) => void
-}) {
-  const year = anchor.getFullYear()
-  const month = anchor.getMonth()
-  const firstOfMonth = new Date(year, month, 1)
-  const startBlankCount = firstOfMonth.getDay() // 0 = Sunday
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  // Always render 6 rows × 7 cols = 42 cells so the grid is a stable size
-  // across month switches (avoids layout shift).
-  const cells: { date: Date; isCurrentMonth: boolean }[] = []
-  for (let i = 0; i < 42; i++) {
-    const dayOffset = i - startBlankCount + 1
-    const date = new Date(year, month, dayOffset)
-    cells.push({ date, isCurrentMonth: date.getMonth() === month })
-  }
-
-  return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-stone-200 dark:border-stone-700/60">
-        {DAY_LABELS.map((d) => (
-          <div key={d} className="px-2 py-2 text-[11px] font-medium text-stone-500 dark:text-stone-400 text-center uppercase tracking-wider">
-            {d}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 grid-rows-6 gap-px bg-stone-200 dark:bg-stone-700/60">
-        {cells.map(({ date, isCurrentMonth }) => {
-          const dayEvents = eventsByDay.get(dayKey(date)) ?? []
-          const isTodayCell = isSameDay(date, today)
-          return (
-            <div
-              key={date.toISOString()}
-              className={cn(
-                'min-h-[110px] p-1.5 bg-white dark:bg-stone-900',
-                !isCurrentMonth && 'bg-stone-50/60 dark:bg-stone-900/60',
-              )}
-            >
-              <div
-                className={cn(
-                  'text-[11px] font-medium mb-1 inline-flex items-center justify-center w-5 h-5 rounded-full',
-                  isTodayCell
-                    ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                    : isCurrentMonth
-                      ? 'text-stone-700 dark:text-stone-300'
-                      : 'text-stone-400 dark:text-stone-600',
-                )}
-              >
-                {date.getDate()}
-              </div>
-              <div className="space-y-0.5">
-                {dayEvents.slice(0, 3).map((e) => (
-                  <EventChip key={e.id} event={e} compact onClick={() => onOpen(e)} />
-                ))}
-                {dayEvents.length > 3 && (
-                  <div className="text-[10px] text-stone-500 dark:text-stone-400 pl-1.5">
-                    +{dayEvents.length - 3} more
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+const FC_VIEW: Record<string, string> = {
+  month: 'dayGridMonth',
+  week: 'timeGridWeek',
+  day: 'timeGridDay',
+  list: 'listWeek',
 }
 
-// ============================================================
-// Week grid — 7 columns, all-day list per day
-// ============================================================
-
-function WeekGrid({
-  eventsByDay,
-  anchor,
-  today,
-  onOpen,
-}: {
-  eventsByDay: Map<string, CalendarEventRow[]>
-  anchor: Date
-  today: Date
-  onOpen: (e: CalendarEventRow) => void
-}) {
-  const weekStart = startOfWeek(anchor)
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-
-  return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-stone-200 dark:border-stone-700/60">
-        {days.map((d) => {
-          const isTodayCol = isSameDay(d, today)
-          return (
-            <div
-              key={d.toISOString()}
-              className={cn(
-                'px-3 py-2.5 text-center border-l border-stone-100 dark:border-stone-700/40 first:border-l-0',
-                isTodayCol && 'bg-stone-50 dark:bg-stone-800/40',
-              )}
-            >
-              <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400 font-medium">
-                {DAY_LABELS[d.getDay()]}
-              </div>
-              <div
-                className={cn(
-                  'text-lg font-semibold mt-0.5 inline-flex items-center justify-center w-7 h-7 rounded-full',
-                  isTodayCol
-                    ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                    : 'text-stone-800 dark:text-stone-100',
-                )}
-              >
-                {d.getDate()}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      <div className="grid grid-cols-7 min-h-[24rem]">
-        {days.map((d) => {
-          const dayEvents = eventsByDay.get(dayKey(d)) ?? []
-          return (
-            <div
-              key={d.toISOString()}
-              className="px-2 py-2 space-y-1 border-l border-stone-100 dark:border-stone-700/40 first:border-l-0"
-            >
-              {dayEvents.length === 0 ? (
-                <div className="text-[11px] text-stone-300 dark:text-stone-600 text-center pt-2 italic">—</div>
-              ) : (
-                dayEvents.map((e) => (
-                  <EventChip key={e.id} event={e} onClick={() => onOpen(e)} />
-                ))
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
-// Day view — single column, larger event cards
-// ============================================================
-
-function DayList({
-  eventsByDay,
-  anchor,
-  today,
-  onOpen,
-}: {
-  eventsByDay: Map<string, CalendarEventRow[]>
-  anchor: Date
-  today: Date
-  onOpen: (e: CalendarEventRow) => void
-}) {
-  const dayEvents = eventsByDay.get(dayKey(anchor)) ?? []
-  const isTodayView = isSameDay(anchor, today)
-  return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-6">
-      <div className="flex items-baseline gap-3 mb-5">
-        <div className="text-3xl font-bold text-stone-900 dark:text-stone-100">{anchor.getDate()}</div>
-        <div className="text-sm text-stone-500 dark:text-stone-400">
-          {anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', year: 'numeric' })}
-        </div>
-        {isTodayView && (
-          <span className="text-[10px] uppercase tracking-wider font-medium bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 px-1.5 py-0.5 rounded">
-            Today
-          </span>
-        )}
-      </div>
-      {dayEvents.length === 0 ? (
-        <div className="text-sm text-stone-400 dark:text-stone-500 italic py-12 text-center">
-          No events scheduled for this day.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {dayEvents.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => onOpen(e)}
-              className="w-full text-left rounded-lg border border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors p-3"
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className={cn(
-                    'w-1 self-stretch rounded-full',
-                    categoryBgClass(e.category as CalendarCategory),
-                  )}
-                />
-                <div className="min-w-0 grow">
-                  <div className="font-medium text-stone-900 dark:text-stone-100 text-sm">{e.title}</div>
-                  <div className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5 tabular-nums">
-                    {formatTimeRange(e)}
-                    {e.location && <span className="ml-2">· {e.location}</span>}
-                  </div>
-                  {e.description && (
-                    <div className="text-[12px] text-stone-600 dark:text-stone-400 mt-1.5 line-clamp-2">
-                      {e.description}
-                    </div>
-                  )}
-                  <div className="mt-2">
-                    <CategoryBadge category={e.category as CalendarCategory} />
-                  </div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ============================================================
-// Shared pieces
-// ============================================================
-
-function EventChip({
-  event,
-  compact,
-  onClick,
-}: {
-  event: CalendarEventRow
-  compact?: boolean
-  onClick: () => void
-}) {
-  const cat = event.category as CalendarCategory
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full text-left rounded truncate hover:opacity-90 transition-opacity flex items-center gap-1',
-        compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-[11px]',
-        categoryFullClass(cat),
-      )}
-      title={event.title}
-    >
-      {!compact && !event.allDay && (
-        <span className="opacity-80 tabular-nums shrink-0">
-          {event.startsAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-        </span>
-      )}
-      <span className="truncate font-medium">{event.title}</span>
-    </button>
-  )
-}
-
-function CategoryBadge({ category }: { category: CalendarCategory }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full text-[10px] font-medium px-1.5 py-0.5',
-        categoryFullClass(category),
-      )}
-    >
-      {CATEGORY_LABEL[category] ?? category}
-    </span>
-  )
-}
-
-// Mosaic exported color names per category; map them to actual Tailwind
-// classes used by the chips/cards. Stronger color for the side bar, soft
-// fill for chip backgrounds.
-function categoryFullClass(c: CalendarCategory): string {
-  const name = CATEGORY_COLOR[c] ?? 'sky'
+// Tailwind-ish category color → CSS values for FullCalendar's
+// backgroundColor/borderColor/textColor props (FullCalendar doesn't
+// accept className-based theming for events).
+function bgColor(name: string): string {
   switch (name) {
-    case 'sky': return 'bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200'
+    case 'sky': return '#bae6fd'
     case 'indigo':
-    case 'violet': return 'bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200'
-    case 'yellow': return 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200'
+    case 'violet': return '#ddd6fe'
+    case 'yellow':
+    case 'amber': return '#fde68a'
     case 'green':
-    case 'emerald': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200'
+    case 'emerald': return '#a7f3d0'
     case 'red':
-    case 'rose': return 'bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-200'
+    case 'rose': return '#fecdd3'
     case 'gray':
-    case 'stone': return 'bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-200'
-    default: return 'bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200'
+    case 'stone': return '#e7e5e4'
+    default: return '#bae6fd'
   }
 }
 
-function categoryBgClass(c: CalendarCategory): string {
-  const name = CATEGORY_COLOR[c] ?? 'sky'
+function textColor(name: string): string {
   switch (name) {
-    case 'sky': return 'bg-sky-500'
+    case 'sky': return '#075985'
     case 'indigo':
-    case 'violet': return 'bg-violet-500'
-    case 'yellow': return 'bg-amber-500'
+    case 'violet': return '#5b21b6'
+    case 'yellow':
+    case 'amber': return '#92400e'
     case 'green':
-    case 'emerald': return 'bg-emerald-500'
+    case 'emerald': return '#065f46'
     case 'red':
-    case 'rose': return 'bg-rose-500'
+    case 'rose': return '#9f1239'
     case 'gray':
-    case 'stone': return 'bg-stone-500'
-    default: return 'bg-sky-500'
+    case 'stone': return '#44403c'
+    default: return '#075985'
   }
 }
 
-function formatTimeRange(e: CalendarEventRow): string {
-  if (e.allDay) return 'All day'
-  const sameDay = isSameDay(e.startsAt, e.endsAt)
-  const startStr = e.startsAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  if (sameDay) {
-    return `${startStr} – ${e.endsAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-  }
-  return `${e.startsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${startStr} – ${e.endsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+function durationMs(start: Date, end: Date): { milliseconds: number } {
+  return { milliseconds: Math.max(60_000, end.getTime() - start.getTime()) }
 }
 
-function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+function parseRRuleFreq(rule: string): string {
+  const m = rule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i)
+  return m ? m[1].toLowerCase() : 'weekly'
+}
+
+function parseRRuleExtras(rule: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const interval = rule.match(/INTERVAL=(\d+)/i)
+  if (interval) out.interval = Number(interval[1])
+  const byday = rule.match(/BYDAY=([A-Z,]+)/i)
+  if (byday) out.byweekday = byday[1].split(',').map((d) => d.toLowerCase())
+  const until = rule.match(/UNTIL=([0-9T]+Z?)/i)
+  if (until) out.until = until[1]
+  const count = rule.match(/COUNT=(\d+)/i)
+  if (count) out.count = Number(count[1])
+  return out
 }

@@ -2,7 +2,6 @@
 
 import {
   useCalendarContext,
-  addDays,
   startOfWeek,
   isSameDay,
   formatMonthYear,
@@ -15,32 +14,23 @@ const VIEWS: { key: CalendarView; label: string }[] = [
   { key: 'month', label: 'Month' },
   { key: 'week', label: 'Week' },
   { key: 'day', label: 'Day' },
+  { key: 'list', label: 'List' },
 ]
 
 /**
- * Top bar for the calendar: shows the current period title (month name, week
- * range, or full day label), Today button, prev/next chevrons, and the
- * Month/Week/Day view switcher.
+ * Top bar for the calendar: shows the current period title, Today button,
+ * prev/next chevrons, and the view switcher. Drives FullCalendar via its
+ * API (exposed through CalendarContext) so the chrome stays consistent
+ * with the rest of the platform admin design rather than using
+ * FullCalendar's default toolbar.
  */
 export default function CalendarNavigation() {
-  const { view, setView, anchor, setAnchor, goToToday, today } = useCalendarContext()
-
-  function navigate(direction: -1 | 1) {
-    if (view === 'month') {
-      const next = new Date(anchor)
-      next.setMonth(anchor.getMonth() + direction)
-      setAnchor(next)
-    } else if (view === 'week') {
-      setAnchor(addDays(anchor, direction * 7))
-    } else {
-      setAnchor(addDays(anchor, direction))
-    }
-  }
+  const { view, setView, anchor, goToToday, prev, next, today } = useCalendarContext()
 
   const periodLabel =
     view === 'month'
       ? formatMonthYear(anchor)
-      : view === 'week'
+      : view === 'week' || view === 'list'
         ? formatWeekRange(startOfWeek(anchor))
         : formatDayLabel(anchor)
 
@@ -50,7 +40,7 @@ export default function CalendarNavigation() {
     <div className="flex items-center gap-2 flex-wrap">
       <div className="flex items-center gap-1 mr-2">
         <button
-          onClick={() => navigate(-1)}
+          onClick={prev}
           className="p-1.5 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800 transition-colors"
           title="Previous"
         >
@@ -58,11 +48,11 @@ export default function CalendarNavigation() {
             <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <div className="min-w-[10rem] text-center text-sm font-semibold text-stone-800 dark:text-stone-100">
+        <div className="min-w-[12rem] text-center text-sm font-semibold text-stone-800 dark:text-stone-100">
           {periodLabel}
         </div>
         <button
-          onClick={() => navigate(1)}
+          onClick={next}
           className="p-1.5 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-100 dark:hover:bg-stone-800 transition-colors"
           title="Next"
         >

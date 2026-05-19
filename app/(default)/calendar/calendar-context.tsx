@@ -1,35 +1,70 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import type { CalendarApi } from '@fullcalendar/core'
 
-export type CalendarView = 'month' | 'week' | 'day'
+export type CalendarView = 'month' | 'week' | 'day' | 'list'
 
 interface CalendarContextProps {
   today: Date
   view: CalendarView
   setView: (view: CalendarView) => void
-  /** Anchor date used by all views. For month view the day-of-month doesn't
-   *  matter (only month/year); for week view it picks the week containing
-   *  this date; for day view it's the day shown. */
+  /** Anchor date used by all views. Updated via prev/next/today nav. */
   anchor: Date
   setAnchor: (d: Date) => void
   /** Convenience: jump-to-today resets anchor to now. */
   goToToday: () => void
+  /** Handle to the FullCalendar API for imperative calls (next/prev/today).
+   *  CalendarTable sets it on mount; nav uses it via the helpers below. */
+  setApi: (api: CalendarApi | null) => void
+  /** Imperative prev. Calls FullCalendar's API if mounted, else mutates
+   *  `anchor` by a sensible delta for the current view. */
+  prev: () => void
+  next: () => void
 }
 
 const CalendarContext = createContext<CalendarContextProps | undefined>(undefined)
 
 export const CalendarProvider = ({ children }: { children: React.ReactNode }) => {
   const [today] = useState(() => new Date())
-  const [view, setView] = useState<CalendarView>('month')
-  const [anchor, setAnchor] = useState<Date>(() => new Date())
+  const [view, setViewState] = useState<CalendarView>('month')
+  const [anchor, setAnchorState] = useState<Date>(() => new Date())
+  const apiRef = useRef<CalendarApi | null>(null)
 
-  function goToToday() {
-    setAnchor(new Date())
-  }
+  const setApi = useCallback((api: CalendarApi | null) => {
+    apiRef.current = api
+  }, [])
+
+  const setView = useCallback((v: CalendarView) => {
+    setViewState(v)
+  }, [])
+
+  const setAnchor = useCallback((d: Date) => {
+    setAnchorState(d)
+  }, [])
+
+  const goToToday = useCallback(() => {
+    const now = new Date()
+    setAnchorState(now)
+    apiRef.current?.today()
+  }, [])
+
+  const prev = useCallback(() => {
+    apiRef.current?.prev()
+    // Mirror to anchor so it stays in sync (the FullCalendar API moves the
+    // grid, but our nav title reads from anchor).
+    const api = apiRef.current
+    if (api) setAnchorState(api.getDate())
+  }, [])
+
+  const next = useCallback(() => {
+    apiRef.current?.next()
+    const api = apiRef.current
+    if (api) setAnchorState(api.getDate())
+  }, [])
 
   return (
-    <CalendarContext.Provider value={{ today, view, setView, anchor, setAnchor, goToToday }}>
+    <CalendarContext.Provider value={{ today, view, setView, anchor, setAnchor, goToToday, setApi, prev, next }}>
       {children}
     </CalendarContext.Provider>
   )
