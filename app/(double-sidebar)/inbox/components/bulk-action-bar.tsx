@@ -3,19 +3,20 @@
 import { useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { bulkMessageAction } from '../mailbox-actions'
+import { bulkThreadAction } from '../mailbox-actions'
 import { useSelection } from './selection-context'
 
 interface Props {
   visibleIds: string[]
+  activeThreadId: string | null
 }
 
 /**
- * Sticky toolbar that appears above the inbox when one or more messages
- * are selected via the row checkbox. Sits at the top of the viewport
- * floating over both the message list and the message detail pane.
+ * Sticky toolbar that appears above the inbox when one or more threads
+ * are selected via the row checkbox. Operates at thread granularity —
+ * each action fans out over every message in the selected threads.
  */
-export default function BulkActionBar({ visibleIds }: Props) {
+export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
   const { selected, selectAll, clear, count } = useSelection()
   const [pending, startTransition] = useTransition()
   const router = useRouter()
@@ -30,11 +31,10 @@ export default function BulkActionBar({ visibleIds }: Props) {
   function run(action: 'archive' | 'trash' | 'mark_read' | 'mark_unread' | 'star' | 'unstar') {
     startTransition(async () => {
       try {
-        await bulkMessageAction({ ids, action })
-        // If the currently-open message was bulk-archived/trashed, drop the
-        // m= param so the right pane doesn't try to render a stale message.
-        const activeM = sp.get('m')
-        if (activeM && (action === 'archive' || action === 'trash') && selected.has(activeM)) {
+        await bulkThreadAction({ ids, action })
+        // If the currently-open thread was bulk-archived/trashed, drop the
+        // m= param so the right pane doesn't try to render a stale thread.
+        if (activeThreadId && (action === 'archive' || action === 'trash') && selected.has(activeThreadId)) {
           const params = new URLSearchParams(sp.toString())
           params.delete('m')
           const qs = params.toString()

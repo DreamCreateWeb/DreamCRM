@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatShortDate, formatTime } from '@/lib/utils'
 import type { EmailAccountSummary } from '@/lib/services/mailbox'
-import { disconnectMailbox, syncMailbox } from '../mailbox-actions'
+import { disconnectMailbox, reclassifyAllAction, syncMailbox } from '../mailbox-actions'
 
 interface Props {
   accounts: EmailAccountSummary[]
@@ -15,6 +16,31 @@ interface Props {
 export default function SettingsPanel({ accounts, configured, flash }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reclassifying, startReclassify] = useTransition()
+  const [reclassifyResult, setReclassifyResult] = useState<{
+    reset: number
+    classified: number
+    viaHeuristic: number
+    remaining: number
+  } | null>(null)
+  const router = useRouter()
+
+  function handleReclassify() {
+    if (!confirm('Reclassify every auto-categorized message in this inbox? Manual moves and Gmail-labeled messages are left alone. Can take a couple minutes for large mailboxes.')) {
+      return
+    }
+    setError(null)
+    setReclassifyResult(null)
+    startReclassify(async () => {
+      try {
+        const result = await reclassifyAllAction()
+        setReclassifyResult(result)
+        router.refresh()
+      } catch (err) {
+        setError((err as Error).message)
+      }
+    })
+  }
 
   async function handleSync(id: string) {
     setBusy(id)
@@ -90,6 +116,45 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
           </div>
         )}
       </div>
+
+      {accounts.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 mb-6">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">Reclassify backlog</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            We&apos;ve been improving how new mail is categorized — Gmail&apos;s own SPAM and category labels are
+            now respected, replies inherit their thread&apos;s category, and known senders go straight to Primary.
+            Click below to re-run the classifier over your existing inbox so older mis-categorized messages get
+            sorted with the new logic. Manual moves and Gmail-labeled messages stay locked.
+          </p>
+          <button
+            type="button"
+            onClick={handleReclassify}
+            disabled={reclassifying}
+            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60 inline-flex items-center gap-2"
+          >
+            {reclassifying ? (
+              <>
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                  <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
+                </svg>
+                Reclassifying…
+              </>
+            ) : (
+              'Reclassify everything'
+            )}
+          </button>
+          {reclassifyResult && (
+            <div className="mt-3 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 rounded">
+              Reset {reclassifyResult.reset.toLocaleString()} messages.{' '}
+              {reclassifyResult.viaHeuristic.toLocaleString()} sorted via heuristic (Gmail label, thread inheritance, or known sender).{' '}
+              {reclassifyResult.classified.toLocaleString()} sorted via AI.
+              {reclassifyResult.remaining > 0 && (
+                <> {reclassifyResult.remaining.toLocaleString()} still pending — click again to keep processing.</>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">

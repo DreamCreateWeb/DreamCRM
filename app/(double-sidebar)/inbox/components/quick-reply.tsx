@@ -43,7 +43,14 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
     const replySubject = subject?.startsWith('Re:') ? subject : `Re: ${subject ?? ''}`.trim()
     startTransition(async () => {
       try {
-        await sendMailbox({ accountId, to: toEmail, subject: replySubject, body, cc: '' })
+        await sendMailbox({
+          accountId,
+          to: toEmail,
+          subject: replySubject,
+          body,
+          cc: '',
+          replyToMessageId: messageId,
+        })
         setSent(true)
         setBody('')
         setTimeout(() => setSent(false), 1600)

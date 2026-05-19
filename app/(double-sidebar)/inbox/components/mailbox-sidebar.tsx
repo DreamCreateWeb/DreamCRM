@@ -5,19 +5,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useFlyoutContext } from '@/app/flyout-context'
 import { cn, relativeTime } from '@/lib/utils'
-import type { EmailAccountSummary, EmailMessageListItem } from '@/lib/services/mailbox'
+import type { EmailAccountSummary, EmailThreadListItem } from '@/lib/services/mailbox'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
 import ComposeButton from '../compose-button'
-import { bulkMessageAction, syncMailbox } from '../mailbox-actions'
+import { bulkThreadAction, syncMailbox } from '../mailbox-actions'
 import FilterChips from './filter-chips'
 import CategoryTabs from './category-tabs'
 import BulkActionBar from './bulk-action-bar'
 import { useSelection } from './selection-context'
 import { INTENT_COLORS } from './intent-badge'
 
-/**
- * Avatar with optional intent-color outline ring + unread dot in the corner.
- */
 function RowAvatar({
   name,
   intent,
@@ -56,8 +53,8 @@ function RowAvatar({
 interface Props {
   accounts: EmailAccountSummary[]
   activeAccountId: string | null
-  messages: EmailMessageListItem[]
-  activeMessageId: string | null
+  threads: EmailThreadListItem[]
+  activeThreadId: string | null
   intentCounts: Record<string, number>
   categoryCounts: Record<string, number>
   activeCategory: string
@@ -74,8 +71,8 @@ const JUNK_CATEGORIES = new Set(['updates', 'promotions', 'spam'])
 export default function MailboxSidebar({
   accounts,
   activeAccountId,
-  messages,
-  activeMessageId,
+  threads,
+  activeThreadId,
   intentCounts,
   categoryCounts,
   activeCategory,
@@ -95,12 +92,9 @@ export default function MailboxSidebar({
   const [archivingAll, startArchiveAll] = useTransition()
   const selection = useSelection()
 
-  const visibleIds = useMemo(() => messages.map((m) => m.id), [messages])
-  const groups = useMemo(() => groupMessagesByDate(messages), [messages])
+  const visibleThreadIds = useMemo(() => threads.map((t) => t.threadId), [threads])
+  const groups = useMemo(() => groupThreadsByDate(threads), [threads])
 
-  // When the user changes tab/account/filter, drop any in-flight bulk
-  // selection — they're moving context, and selected IDs that are no
-  // longer visible would silently take part in the next bulk action.
   useEffect(() => {
     selection.clear()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,10 +118,10 @@ export default function MailboxSidebar({
   }
 
   function handleArchiveAll() {
-    if (visibleIds.length === 0) return
+    if (visibleThreadIds.length === 0) return
     startArchiveAll(async () => {
       try {
-        await bulkMessageAction({ ids: visibleIds, action: 'archive' })
+        await bulkThreadAction({ ids: visibleThreadIds, action: 'archive' })
         selection.clear()
         router.refresh()
       } catch (err) {
@@ -136,9 +130,9 @@ export default function MailboxSidebar({
     })
   }
 
-  function messageHref(messageId: string): string {
+  function threadHref(latestMessageId: string): string {
     const params = new URLSearchParams(sp.toString())
-    params.set('m', messageId)
+    params.set('m', latestMessageId)
     return `${pathname}?${params.toString()}`
   }
 
@@ -149,13 +143,12 @@ export default function MailboxSidebar({
     return `${pathname}?${params.toString()}`
   }
 
-  function handleRowCheckbox(e: React.MouseEvent | React.ChangeEvent, id: string) {
-    const ev = e as React.MouseEvent
-    const rangeFrom = (ev as React.MouseEvent).shiftKey ? selection.lastToggledRef.current : null
-    selection.toggle(id, rangeFrom ? { rangeFrom, allIds: visibleIds } : undefined)
+  function handleRowCheckbox(e: React.MouseEvent, threadId: string) {
+    const rangeFrom = e.shiftKey ? selection.lastToggledRef.current : null
+    selection.toggle(threadId, rangeFrom ? { rangeFrom, allIds: visibleThreadIds } : undefined)
   }
 
-  const showArchiveAll = JUNK_CATEGORIES.has(activeCategory) && messages.length > 0
+  const showArchiveAll = JUNK_CATEGORIES.has(activeCategory) && threads.length > 0
 
   return (
     <div
@@ -167,12 +160,12 @@ export default function MailboxSidebar({
     >
       <div className="sticky top-16 bg-white dark:bg-stone-900 overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-stone-200 dark:border-stone-700/60 md:w-[22rem] xl:w-[24rem] h-[calc(100dvh-64px)]">
         {selection.count > 0 ? (
-          <BulkActionBar visibleIds={visibleIds} />
+          <BulkActionBar visibleIds={visibleThreadIds} activeThreadId={activeThreadId} />
         ) : (
           <SidebarHeader
             accounts={accounts}
             activeAccountId={activeAccountId}
-            messagesCount={messages.length}
+            threadCount={threads.length}
             syncing={syncing}
             syncError={syncError}
             onSync={() => handleSync(activeAccountId ? 'one' : 'all')}
@@ -190,7 +183,7 @@ export default function MailboxSidebar({
           patientsOnly={patientsOnly}
           showIntents={activeCategory === 'primary' && terminology.isClinical}
           terminology={terminology}
-          totalCount={messages.length}
+          totalCount={threads.length}
           unreadCount={unreadCount}
         />
 
@@ -209,13 +202,12 @@ export default function MailboxSidebar({
                 <rect x="3" y="4" width="18" height="4" rx="1" />
                 <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
               </svg>
-              {archivingAll ? 'Archiving…' : `Archive all ${messages.length}`}
+              {archivingAll ? 'Archiving…' : `Archive all ${threads.length}`}
             </button>
           </div>
         )}
 
-        {/* Message list, grouped by date */}
-        {messages.length === 0 ? (
+        {threads.length === 0 ? (
           <div className="px-4 py-16 text-center">
             <div className="mx-auto w-10 h-10 rounded-full bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center mb-3">
               <svg className="w-5 h-5 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -237,18 +229,18 @@ export default function MailboxSidebar({
                   {group.label}
                 </div>
                 <ul>
-                  {group.items.map((m) => {
-                    const isActive = m.id === activeMessageId
-                    const isChecked = selection.isSelected(m.id)
-                    const patientName = m.patientFirstName
-                      ? `${m.patientFirstName} ${m.patientLastName ?? ''}`.trim()
+                  {group.items.map((t) => {
+                    const isActive = t.threadId === activeThreadId
+                    const isChecked = selection.isSelected(t.threadId)
+                    const patientName = t.patientFirstName
+                      ? `${t.patientFirstName} ${t.patientLastName ?? ''}`.trim()
                       : null
                     return (
-                      <li key={m.id} className="relative group">
+                      <li key={t.threadId} className="relative group">
                         {isActive && (
                           <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-stone-900 dark:bg-stone-100 z-10" />
                         )}
-                        {!m.isRead && !isActive && (
+                        {!t.isRead && !isActive && (
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-500 z-10" />
                         )}
                         <div
@@ -258,12 +250,11 @@ export default function MailboxSidebar({
                               ? 'bg-stone-100/80 dark:bg-stone-800/60'
                               : isChecked
                                 ? 'bg-sky-50/60 dark:bg-sky-500/5'
-                                : !m.isRead
+                                : !t.isRead
                                   ? 'bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800/30'
                                   : 'hover:bg-stone-50 dark:hover:bg-stone-800/30',
                           )}
                         >
-                          {/* Checkbox — shows on hover, or always when anything is selected */}
                           <div
                             className={cn(
                               'shrink-0 self-center transition-opacity',
@@ -274,56 +265,69 @@ export default function MailboxSidebar({
                           >
                             <Checkbox
                               checked={isChecked}
-                              onClick={(e) => handleRowCheckbox(e, m.id)}
+                              onClick={(e) => handleRowCheckbox(e, t.threadId)}
                             />
                           </div>
 
                           <Link
-                            href={messageHref(m.id)}
+                            href={threadHref(t.latestMessageId)}
                             onClick={() => setFlyoutOpen(false)}
                             className="flex items-start gap-2.5 min-w-0 grow"
                           >
-                            <RowAvatar name={m.fromName ?? m.fromEmail} intent={m.intent} />
+                            <RowAvatar name={t.fromName ?? t.fromEmail} intent={t.intent} />
                             <div className="min-w-0 grow">
                               <div className="flex items-baseline gap-1.5 mb-0.5">
                                 <span
                                   className={cn(
                                     'text-[13px] truncate leading-tight',
-                                    m.isRead
+                                    t.isRead
                                       ? 'text-stone-600 dark:text-stone-400'
                                       : 'font-semibold text-stone-900 dark:text-stone-100',
                                   )}
                                 >
-                                  {m.fromName ?? m.fromEmail}
+                                  {t.fromName ?? t.fromEmail}
                                 </span>
-                                {m.isStarred && (
+                                {t.totalCount > 1 && (
+                                  <span
+                                    className={cn(
+                                      'text-[10px] tabular-nums rounded-full px-1.5 py-0.5 leading-none shrink-0',
+                                      t.unreadCount > 0
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-medium'
+                                        : 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
+                                    )}
+                                    title={`${t.totalCount} messages${t.unreadCount > 0 ? `, ${t.unreadCount} unread` : ''}`}
+                                  >
+                                    {t.totalCount}
+                                  </span>
+                                )}
+                                {t.isStarred && (
                                   <svg className="w-3 h-3 text-amber-500 shrink-0 self-center" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" />
                                   </svg>
                                 )}
                                 <span className="ml-auto text-[10px] text-stone-400 dark:text-stone-500 shrink-0 tabular-nums whitespace-nowrap">
-                                  {relativeTime(m.receivedAt)}
+                                  {relativeTime(t.receivedAt)}
                                 </span>
                               </div>
                               <div
                                 className={cn(
                                   'text-[12px] truncate leading-snug',
-                                  m.isRead
+                                  t.isRead
                                     ? 'text-stone-500 dark:text-stone-500'
                                     : 'text-stone-800 dark:text-stone-200',
                                 )}
                               >
-                                <span className={cn(m.isRead ? '' : 'font-medium')}>
-                                  {m.subject ?? '(no subject)'}
+                                <span className={cn(t.isRead ? '' : 'font-medium')}>
+                                  {t.subject ?? '(no subject)'}
                                 </span>
-                                {m.snippet && (
+                                {t.snippet && (
                                   <span className="text-stone-400 dark:text-stone-500 font-normal">
                                     {' — '}
-                                    {m.snippet}
+                                    {t.snippet}
                                   </span>
                                 )}
                               </div>
-                              {(patientName || (accounts.length > 1 && m.accountEmail)) && (
+                              {(patientName || (accounts.length > 1 && t.accountEmail)) && (
                                 <div className="flex items-center gap-1.5 mt-1">
                                   {patientName && (
                                     <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full bg-emerald-100/70 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 px-1.5 py-0.5">
@@ -331,9 +335,9 @@ export default function MailboxSidebar({
                                       {patientName}
                                     </span>
                                   )}
-                                  {accounts.length > 1 && m.accountEmail && (
+                                  {accounts.length > 1 && t.accountEmail && (
                                     <span className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
-                                      {m.accountEmail}
+                                      {t.accountEmail}
                                     </span>
                                   )}
                                 </div>
@@ -357,7 +361,7 @@ export default function MailboxSidebar({
 function SidebarHeader({
   accounts,
   activeAccountId,
-  messagesCount,
+  threadCount,
   syncing,
   syncError,
   onSync,
@@ -365,7 +369,7 @@ function SidebarHeader({
 }: {
   accounts: EmailAccountSummary[]
   activeAccountId: string | null
-  messagesCount: number
+  threadCount: number
   syncing: string | null
   syncError: string | null
   onSync: () => void
@@ -373,7 +377,6 @@ function SidebarHeader({
 }) {
   return (
     <div className="px-4 pt-3 pb-2 border-b border-stone-100 dark:border-stone-700/40">
-      {/* Title + sync + compose, all on one line */}
       <div className="flex items-center gap-2 mb-2">
         <div className="text-base font-semibold text-stone-900 dark:text-stone-100 tracking-tight">Inbox</div>
         <button
@@ -389,11 +392,10 @@ function SidebarHeader({
           <ComposeButton accounts={accounts} />
         </div>
       </div>
-      {/* Account chips */}
       <div className="flex flex-wrap gap-1 items-center">
         <AccountChip
           label="All"
-          count={messagesCount}
+          count={threadCount}
           active={activeAccountId === null}
           href={accountHref(null)}
         />
@@ -480,22 +482,17 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.M
   )
 }
 
-interface MessageGroup {
+interface ThreadGroup {
   label: string
-  items: EmailMessageListItem[]
+  items: EmailThreadListItem[]
 }
 
-/**
- * Bucket the message list into Today / Yesterday / This Week / This Month /
- * Older. Inputs come in already sorted desc by receivedAt from the server,
- * so we just walk and split on bucket transitions.
- */
-function groupMessagesByDate(messages: EmailMessageListItem[]): MessageGroup[] {
-  if (messages.length === 0) return []
+function groupThreadsByDate(threads: EmailThreadListItem[]): ThreadGroup[] {
+  if (threads.length === 0) return []
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
   const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000
-  const dow = now.getDay() // 0 (Sun) - 6 (Sat)
+  const dow = now.getDay()
   const startOfWeek = startOfToday - dow * 24 * 60 * 60 * 1000
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
 
@@ -507,16 +504,16 @@ function groupMessagesByDate(messages: EmailMessageListItem[]): MessageGroup[] {
     return 'Older'
   }
 
-  const groups: MessageGroup[] = []
-  let current: MessageGroup | null = null
-  for (const m of messages) {
-    const ts = new Date(m.receivedAt).getTime()
+  const groups: ThreadGroup[] = []
+  let current: ThreadGroup | null = null
+  for (const t of threads) {
+    const ts = new Date(t.receivedAt).getTime()
     const label = bucketFor(ts)
     if (!current || current.label !== label) {
       current = { label, items: [] }
       groups.push(current)
     }
-    current.items.push(m)
+    current.items.push(t)
   }
   return groups
 }

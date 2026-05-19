@@ -85,6 +85,13 @@
       "when": 1779201954979,
       "tag": "0011_goofy_violations",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779209325657,
+      "tag": "0012_smart_zombie",
+      "breakpoints": true
     }
   ]
 }

@@ -81,6 +81,21 @@ export const emailMessage = pgTable(
     // Promotions is marketing/newsletters, Spam is suspicious. Populated by
     // the classifier in the same call that sets `intent`.
     category: text('category'),
+    // How the category got there. Decides whether the auto-classifier is
+    // allowed to overwrite it. 'auto' = Haiku decided, fair game to
+    // reclassify. 'user' = a person clicked "Move to X", treat as ground
+    // truth and never overwrite. 'inherit' = inherited from another message
+    // in the same thread (user-locked or known-sender heuristic).
+    // 'gmail' = Gmail's own label put it here (SPAM, CATEGORY_*).
+    categorySource: text('category_source').notNull().default('auto'),
+    // RFC 5322 Message-ID header value (e.g. "<CABx...@mail.gmail.com>").
+    // Distinct from `providerMessageId` (Gmail's internal id). Used as the
+    // target for In-Reply-To / References on outbound replies — critical
+    // for thread continuity in recipient clients and for deliverability.
+    rfcMessageId: text('rfc_message_id'),
+    // The Message-ID this message is replying to, if any. Lets us walk a
+    // conversation chain client-side without re-fetching headers.
+    inReplyTo: text('in_reply_to'),
     // AI-generated one-liner summary for threads > 3 messages. Populated on
     // demand when the user opens a long thread.
     threadSummary: text('thread_summary'),
@@ -93,6 +108,7 @@ export const emailMessage = pgTable(
     index('email_message_patient_idx').on(t.patientId),
     index('email_message_received_idx').on(t.receivedAt),
     index('email_message_category_idx').on(t.category),
+    index('email_message_thread_idx').on(t.providerThreadId),
   ],
 )
 

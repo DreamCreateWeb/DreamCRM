@@ -18,9 +18,33 @@ import {
   watchMailbox,
 } from './gmail'
 import { classifyBatch } from './ai-mailbox'
-import type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
+import type {
+  EmailAccount,
+  EmailCategory,
+  EmailIntent,
+  EmailMessage,
+} from '@/lib/db/schema/email'
 
 export type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
+
+/**
+ * Map Gmail's own labels onto our category buckets. Returns null when
+ * Gmail hasn't decided — the AI classifier (or another heuristic) gets
+ * to choose. Critically this is how we *stop overriding Gmail*: if it
+ * says SPAM/PROMOTIONS/UPDATES we honor it rather than re-running
+ * Haiku and second-guessing.
+ */
+function categoryFromGmailLabels(
+  labels: string[] | null | undefined,
+): { category: EmailCategory; intent: EmailIntent } | null {
+  if (!labels) return null
+  if (labels.includes('SPAM')) return { category: 'spam', intent: 'other' }
+  if (labels.includes('CATEGORY_PROMOTIONS')) return { category: 'promotions', intent: 'marketing' }
+  if (labels.includes('CATEGORY_UPDATES')) return { category: 'updates', intent: 'other' }
+  if (labels.includes('CATEGORY_SOCIAL')) return { category: 'updates', intent: 'other' }
+  if (labels.includes('CATEGORY_FORUMS')) return { category: 'updates', intent: 'other' }
+  return null
+}
 
 /**
  * Look up a patient in `organizationId` whose email matches `fromEmail`
@@ -203,10 +227,14 @@ export async function listMessagesForOrg(
  */
 export async function countMessagesByIntent(organizationId: string): Promise<Record<string, number>> {
   try {
+    // Count distinct threads, not messages — the inbox now lists one
+    // row per thread, so the badge should agree. Falls back to message id
+    // when provider_thread_id is null (legacy rows) so the message still
+    // gets counted as its own thread-of-one.
     const rows = await db
       .select({
         intent: schema.emailMessage.intent,
-        count: sql<number>`count(*)::int`,
+        count: sql<number>`count(distinct coalesce(${schema.emailMessage.providerThreadId}, ${schema.emailMessage.id}))::int`,
       })
       .from(schema.emailMessage)
       .where(
@@ -238,7 +266,7 @@ export async function countMessagesByCategory(organizationId: string): Promise<R
     const rows = await db
       .select({
         category: schema.emailMessage.category,
-        count: sql<number>`count(*)::int`,
+        count: sql<number>`count(distinct coalesce(${schema.emailMessage.providerThreadId}, ${schema.emailMessage.id}))::int`,
       })
       .from(schema.emailMessage)
       .where(
@@ -258,6 +286,228 @@ export async function countMessagesByCategory(organizationId: string): Promise<R
     if (isMissingSchemaError(err)) return { primary: 0, updates: 0, promotions: 0, spam: 0 }
     throw err
   }
+}
+
+/**
+ * Thread-shaped variant of the inbox list — one row per conversation
+ * rather than one per message. The sidebar renders these, the detail
+ * pane loads the full thread.
+ */
+export interface EmailThreadListItem {
+  threadId: string
+  latestMessageId: string
+  accountId: string
+  accountEmail: string | null
+  fromName: string | null
+  fromEmail: string
+  subject: string | null
+  snippet: string | null
+  receivedAt: Date
+  /** All messages in the thread are read. */
+  isRead: boolean
+  /** Any message in the thread is starred. */
+  isStarred: boolean
+  intent: string | null
+  category: string | null
+  patientId: string | null
+  patientFirstName: string | null
+  patientLastName: string | null
+  totalCount: number
+  unreadCount: number
+}
+
+export async function listThreadsForOrg(
+  organizationId: string,
+  opts: ListMessagesOpts = {},
+): Promise<EmailThreadListItem[]> {
+  try {
+    // Pull a generous overshoot of messages and aggregate by thread
+    // in JS — much simpler than a window function and fast enough at
+    // the volumes the inbox sees today. Each thread typically has 1-3
+    // messages so a 3x multiplier gets us roughly `limit` threads.
+    const messageLimit = (opts.limit ?? 100) * 3
+    const messages = await listMessagesForOrg(organizationId, {
+      ...opts,
+      limit: messageLimit,
+    })
+
+    interface Acc {
+      threadId: string
+      latest: EmailMessageListItem
+      total: number
+      unread: number
+      starred: boolean
+    }
+    const byThread = new Map<string, Acc>()
+    for (const m of messages) {
+      // Fall back to message id for the rare legacy row with no thread id —
+      // gives that message its own "thread of one" so it still renders.
+      const tid = m.providerThreadId ?? m.id
+      const existing = byThread.get(tid)
+      if (!existing) {
+        byThread.set(tid, {
+          threadId: tid,
+          latest: m,
+          total: 1,
+          unread: m.isRead ? 0 : 1,
+          starred: m.isStarred,
+        })
+      } else {
+        existing.total++
+        if (!m.isRead) existing.unread++
+        if (m.isStarred) existing.starred = true
+        // messages comes back ordered receivedAt DESC, so first iteration
+        // wins as `latest` — nothing to update here.
+      }
+    }
+
+    const limit = opts.limit ?? 100
+    return Array.from(byThread.values())
+      .sort((a, b) => b.latest.receivedAt.getTime() - a.latest.receivedAt.getTime())
+      .slice(0, limit)
+      .map((t) => ({
+        threadId: t.threadId,
+        latestMessageId: t.latest.id,
+        accountId: t.latest.accountId,
+        accountEmail: t.latest.accountEmail,
+        fromName: t.latest.fromName,
+        fromEmail: t.latest.fromEmail,
+        subject: t.latest.subject,
+        snippet: t.latest.snippet,
+        receivedAt: t.latest.receivedAt,
+        isRead: t.unread === 0,
+        isStarred: t.starred,
+        intent: t.latest.intent,
+        category: t.latest.category,
+        patientId: t.latest.patientId,
+        patientFirstName: t.latest.patientFirstName,
+        patientLastName: t.latest.patientLastName,
+        totalCount: t.total,
+        unreadCount: t.unread,
+      }))
+  } catch (err) {
+    if (isMissingSchemaError(err)) return []
+    throw err
+  }
+}
+
+/**
+ * All messages in a thread, oldest first, plus aggregate metadata.
+ * Drives the stacked conversation view in the right pane.
+ */
+export interface EmailThreadDetail {
+  threadId: string
+  subject: string | null
+  category: string | null
+  intent: string | null
+  patientId: string | null
+  accountId: string
+  messages: EmailMessage[]
+}
+
+export async function getThreadDetail(
+  threadId: string,
+  organizationId: string,
+): Promise<EmailThreadDetail | null> {
+  const messages = await db
+    .select()
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.providerThreadId, threadId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+    .orderBy(schema.emailMessage.receivedAt)
+  if (messages.length === 0) return null
+  const latest = messages[messages.length - 1]
+  return {
+    threadId,
+    // First message's subject is the "real" thread subject — replies
+    // typically just prefix Re: / Fwd: to the same line.
+    subject: messages[0].subject,
+    category: latest.category,
+    intent: latest.intent,
+    patientId: messages.find((m) => m.patientId)?.patientId ?? null,
+    accountId: latest.accountId,
+    messages,
+  }
+}
+
+/**
+ * Find the thread id that contains the given message id. Used by the
+ * inbox page to derive the active thread from the URL's `m=` param.
+ */
+export async function getThreadIdForMessage(
+  messageId: string,
+  organizationId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ providerThreadId: schema.emailMessage.providerThreadId })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.id, messageId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  return row?.providerThreadId ?? null
+}
+
+/**
+ * Expand a list of thread ids to every message id in those threads,
+ * scoped to one org. Used by the thread-level bulk ops below.
+ */
+async function expandThreadsToMessages(
+  threadIds: string[],
+  organizationId: string,
+): Promise<string[]> {
+  if (threadIds.length === 0) return []
+  const rows = await db
+    .select({ id: schema.emailMessage.id })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        inArray(schema.emailMessage.providerThreadId, threadIds),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  return rows.map((r) => r.id)
+}
+
+export async function bulkArchiveThreads(
+  threadIds: string[],
+  organizationId: string,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkArchive(ids, organizationId)
+}
+
+export async function bulkTrashThreads(
+  threadIds: string[],
+  organizationId: string,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkTrash(ids, organizationId)
+}
+
+export async function bulkSetThreadRead(
+  threadIds: string[],
+  organizationId: string,
+  read: boolean,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkSetRead(ids, organizationId, read)
+}
+
+export async function bulkSetThreadStarred(
+  threadIds: string[],
+  organizationId: string,
+  starred: boolean,
+): Promise<{ count: number }> {
+  const ids = await expandThreadsToMessages(threadIds, organizationId)
+  return bulkSetStarred(ids, organizationId, starred)
 }
 
 export async function getMessageDetail(messageId: string, organizationId: string): Promise<EmailMessage | null> {
@@ -331,10 +581,8 @@ export async function syncAccount(
         const full = await getMessage(accessToken, item.id)
         const parsed = parseGmailMessage(full)
         const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
-        // Resolve cid: inline images (signature logos, embedded graphics)
-        // by fetching the attachments and inlining as data: URLs. Skipped
-        // for plain-text messages or messages with no inline refs.
         const resolvedHtml = await resolveInlineImages(accessToken, item.id, parsed.bodyHtml, full.payload)
+        const gmailCat = categoryFromGmailLabels(parsed.labels)
         await db.insert(schema.emailMessage).values({
           id: randomUUID(),
           accountId,
@@ -342,6 +590,8 @@ export async function syncAccount(
           patientId,
           providerMessageId: parsed.providerMessageId,
           providerThreadId: parsed.providerThreadId,
+          rfcMessageId: parsed.rfcMessageId,
+          inReplyTo: parsed.inReplyTo,
           folder: 'inbox',
           fromName: parsed.fromName,
           fromEmail: parsed.fromEmail,
@@ -353,6 +603,9 @@ export async function syncAccount(
           bodyHtml: resolvedHtml,
           isRead: parsed.isRead,
           labels: parsed.labels,
+          category: gmailCat?.category ?? null,
+          intent: gmailCat?.intent ?? null,
+          categorySource: gmailCat ? 'gmail' : 'auto',
           receivedAt: parsed.receivedAt,
         })
         added++
@@ -730,6 +983,7 @@ async function ingestMessageById(
     const parsed = parseGmailMessage(full)
     const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
     const resolvedHtml = await resolveInlineImages(accessToken, providerMessageId, parsed.bodyHtml, full.payload)
+    const gmailCat = categoryFromGmailLabels(parsed.labels)
     await db.insert(schema.emailMessage).values({
       id: randomUUID(),
       accountId,
@@ -737,6 +991,8 @@ async function ingestMessageById(
       patientId,
       providerMessageId: parsed.providerMessageId,
       providerThreadId: parsed.providerThreadId,
+      rfcMessageId: parsed.rfcMessageId,
+      inReplyTo: parsed.inReplyTo,
       folder: 'inbox',
       fromName: parsed.fromName,
       fromEmail: parsed.fromEmail,
@@ -748,6 +1004,9 @@ async function ingestMessageById(
       bodyHtml: resolvedHtml,
       isRead: parsed.isRead,
       labels: parsed.labels,
+      category: gmailCat?.category ?? null,
+      intent: gmailCat?.intent ?? null,
+      categorySource: gmailCat ? 'gmail' : 'auto',
       receivedAt: parsed.receivedAt,
     })
 
@@ -893,6 +1152,59 @@ export async function resolvePendingInlineImages(
 }
 
 /**
+ * Move a message to a different category as a manual user override.
+ * Propagates to every other message in the same thread so the whole
+ * conversation moves together (matches Gmail's mental model). Sets
+ * `categorySource='user'` so the classifier never overwrites this.
+ */
+export async function setMessageCategory(
+  messageId: string,
+  organizationId: string,
+  category: EmailCategory,
+): Promise<{ updated: number }> {
+  const [msg] = await db
+    .select({
+      providerThreadId: schema.emailMessage.providerThreadId,
+    })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.id, messageId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  if (!msg) return { updated: 0 }
+
+  // Apply to the whole thread so a single override sticks for new
+  // replies too. If there's no thread id (rare), fall back to the
+  // single message.
+  if (msg.providerThreadId) {
+    const result = await db
+      .update(schema.emailMessage)
+      .set({ category, categorySource: 'user' })
+      .where(
+        and(
+          eq(schema.emailMessage.providerThreadId, msg.providerThreadId),
+          eq(schema.emailMessage.organizationId, organizationId),
+        ),
+      )
+      .returning({ id: schema.emailMessage.id })
+    return { updated: result.length }
+  }
+  await db
+    .update(schema.emailMessage)
+    .set({ category, categorySource: 'user' })
+    .where(
+      and(
+        eq(schema.emailMessage.id, messageId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  return { updated: 1 }
+}
+
+/**
  * Classify pending (category IS NULL) inbox messages for an org using the AI
  * classifier in `ai-mailbox.ts`. Runs in parallel with bounded concurrency.
  * Safe to invoke repeatedly — completed rows are skipped on the next call.
@@ -905,11 +1217,7 @@ export async function resolvePendingInlineImages(
 export async function classifyPendingIntents(
   organizationId: string,
   opts: { limit?: number } = {},
-): Promise<{ classified: number; pending: number }> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('[mailbox.classify] ANTHROPIC_API_KEY not set — skipping')
-    return { classified: 0, pending: 0 }
-  }
+): Promise<{ classified: number; pending: number; viaHeuristic: number }> {
   const limit = opts.limit ?? 50
   const rows = await db
     .select({
@@ -920,6 +1228,9 @@ export async function classifyPendingIntents(
       bodyText: schema.emailMessage.bodyText,
       bodyHtml: schema.emailMessage.bodyHtml,
       snippet: schema.emailMessage.snippet,
+      providerThreadId: schema.emailMessage.providerThreadId,
+      patientId: schema.emailMessage.patientId,
+      labels: schema.emailMessage.labels,
     })
     .from(schema.emailMessage)
     .where(
@@ -929,18 +1240,163 @@ export async function classifyPendingIntents(
       ),
     )
     .limit(limit)
-  if (rows.length === 0) return { classified: 0, pending: 0 }
-  console.log(`[mailbox.classify] starting ${rows.length} messages`)
+  if (rows.length === 0) return { classified: 0, pending: 0, viaHeuristic: 0 }
+
+  // Pull thread-level category state in one query so we can inherit
+  // user/inherit/gmail decisions without an N+1 lookup. Only consider
+  // threads that have at least one "sticky" classification (user choice,
+  // inherited from one, or Gmail's own label) — pure-auto siblings are
+  // not authoritative.
+  const threadIds = Array.from(
+    new Set(rows.map((r) => r.providerThreadId).filter((t): t is string => !!t)),
+  )
+  type ThreadHint = { category: EmailCategory; intent: EmailIntent }
+  const threadHints = new Map<string, ThreadHint>()
+  if (threadIds.length > 0) {
+    const siblings = await db
+      .select({
+        providerThreadId: schema.emailMessage.providerThreadId,
+        category: schema.emailMessage.category,
+        intent: schema.emailMessage.intent,
+        categorySource: schema.emailMessage.categorySource,
+      })
+      .from(schema.emailMessage)
+      .where(
+        and(
+          eq(schema.emailMessage.organizationId, organizationId),
+          inArray(schema.emailMessage.providerThreadId, threadIds),
+          inArray(schema.emailMessage.categorySource, ['user', 'inherit', 'gmail']),
+        ),
+      )
+    for (const s of siblings) {
+      if (!s.providerThreadId || !s.category) continue
+      // First sibling wins; in practice they should all agree because
+      // inherit/user propagate to the whole thread when they're set.
+      if (!threadHints.has(s.providerThreadId)) {
+        threadHints.set(s.providerThreadId, {
+          category: s.category as EmailCategory,
+          intent: (s.intent ?? 'other') as EmailIntent,
+        })
+      }
+    }
+  }
+
+  // Apply cheap heuristics first. Anything that lands here doesn't hit
+  // Haiku — that's both faster and more accurate (we know more about
+  // the sender than the LLM does from from/subject/body alone).
+  const heuristicHits: Array<{
+    id: string
+    category: EmailCategory
+    intent: EmailIntent
+    source: 'inherit' | 'auto' | 'gmail'
+  }> = []
+  const needsLlm: typeof rows = []
+  for (const row of rows) {
+    // Gmail's own SPAM / CATEGORY_* labels — most authoritative signal
+    // we have. Already applied at ingest, but lives here too so a
+    // reclassify pass over older messages picks it up.
+    const gmailCat = categoryFromGmailLabels(row.labels)
+    if (gmailCat) {
+      heuristicHits.push({ id: row.id, category: gmailCat.category, intent: gmailCat.intent, source: 'gmail' })
+      continue
+    }
+    const hint = row.providerThreadId ? threadHints.get(row.providerThreadId) : undefined
+    if (hint) {
+      heuristicHits.push({ id: row.id, category: hint.category, intent: hint.intent, source: 'inherit' })
+      continue
+    }
+    // Known sender (already linked to a patient/customer) → almost
+    // certainly a real human writing to us. Treat as primary, mark as
+    // an auto decision so the user can still override.
+    if (row.patientId) {
+      heuristicHits.push({ id: row.id, category: 'primary', intent: 'follow_up', source: 'auto' })
+      continue
+    }
+    needsLlm.push(row)
+  }
+
+  let viaHeuristic = 0
+  for (const hit of heuristicHits) {
+    await db
+      .update(schema.emailMessage)
+      .set({ category: hit.category, intent: hit.intent, categorySource: hit.source })
+      .where(eq(schema.emailMessage.id, hit.id))
+    viaHeuristic++
+  }
+
+  if (needsLlm.length === 0) {
+    return { classified: viaHeuristic, pending: 0, viaHeuristic }
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('[mailbox.classify] ANTHROPIC_API_KEY not set — heuristics only')
+    return { classified: viaHeuristic, pending: needsLlm.length, viaHeuristic }
+  }
+
+  console.log(`[mailbox.classify] heuristics ${viaHeuristic}/${rows.length}, LLM ${needsLlm.length}`)
   const start = Date.now()
-  const results = await classifyBatch(rows)
+  const results = await classifyBatch(needsLlm)
   for (const [id, { category, intent }] of Array.from(results.entries())) {
     await db
       .update(schema.emailMessage)
-      .set({ category, intent })
+      .set({ category, intent, categorySource: 'auto' })
       .where(eq(schema.emailMessage.id, id))
   }
-  console.log(`[mailbox.classify] done: ${results.size}/${rows.length} in ${Date.now() - start}ms`)
-  return { classified: results.size, pending: rows.length - results.size }
+  console.log(`[mailbox.classify] LLM done in ${Date.now() - start}ms`)
+  return {
+    classified: viaHeuristic + results.size,
+    pending: needsLlm.length - results.size,
+    viaHeuristic,
+  }
+}
+
+/**
+ * One-shot backlog repair: nulls out the category on every message that
+ * was set by the auto-classifier (leaving user / inherit / gmail rows
+ * untouched), then runs classifyPendingIntents in batches over the whole
+ * org until the backlog drains. Used by the "Reclassify everything"
+ * button in inbox settings after we ship classifier improvements so
+ * historical mis-categorizations get corrected.
+ */
+export async function reclassifyAll(
+  organizationId: string,
+  opts: { batchSize?: number; maxBatches?: number } = {},
+): Promise<{ reset: number; classified: number; viaHeuristic: number; remaining: number }> {
+  const batchSize = opts.batchSize ?? 200
+  const maxBatches = opts.maxBatches ?? 50
+
+  // Reset everything the user / Gmail / thread didn't decide on. Returns
+  // the row ids so we can report how many were reset.
+  const resetRows = await db
+    .update(schema.emailMessage)
+    .set({ category: null, intent: null })
+    .where(
+      and(
+        eq(schema.emailMessage.organizationId, organizationId),
+        eq(schema.emailMessage.categorySource, 'auto'),
+      ),
+    )
+    .returning({ id: schema.emailMessage.id })
+  const reset = resetRows.length
+  if (reset === 0) return { reset: 0, classified: 0, viaHeuristic: 0, remaining: 0 }
+
+  let totalClassified = 0
+  let totalHeuristic = 0
+  let remaining = reset
+  for (let i = 0; i < maxBatches && remaining > 0; i++) {
+    const result = await classifyPendingIntents(organizationId, { limit: batchSize })
+    if (result.classified === 0 && result.pending === 0) break
+    totalClassified += result.classified
+    totalHeuristic += result.viaHeuristic
+    remaining = result.pending
+    if (result.classified === 0) break // nothing moved → bail to avoid infinite loop
+  }
+  return {
+    reset,
+    classified: totalClassified,
+    viaHeuristic: totalHeuristic,
+    remaining,
+  }
 }
 
 /**
