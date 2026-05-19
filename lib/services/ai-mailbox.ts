@@ -40,7 +40,7 @@ CATEGORY decides which tab the email lands in:
 
 - "promotions": Marketing, newsletters, sales pitches, "20% off this week", product announcements, vendor cold-blast emails, conference invitations, generic mass mailings. Anything sent to many recipients to push a product/event/content. List-Unsubscribe footers are a strong tell. Many emails from companies like Bluevine, Calendly, Stripe-marketing, etc. are promotions if they're pushing features/products vs. transactional confirmations.
 
-- "spam": Suspicious, phishing, scam, obviously-fake invoices, sextortion, lottery wins, malware delivery attempts. Use sparingly — only when you're confident it's malicious. Gmail filters most spam before it reaches us.
+- "spam": ONLY messages that are clearly malicious — phishing attempting to steal credentials, scams (Nigerian prince, sextortion, lottery winnings), obviously-fake invoices, malware delivery. Gmail filters almost all of these before they reach us, so the bar here is very high. If a message mentions the word "spam" in its content (e.g. someone testing deliverability, asking about spam filters, discussing email marketing), that does NOT make it spam — judge by intent, not vocabulary. If you're not 100% certain a message is malicious, choose another category. When torn between spam and primary, always pick primary.
 
 INTENT applies primarily to "primary" emails (for other categories use "other"). The buckets:
 
