@@ -187,6 +187,83 @@ export async function updateTaskStatus(id: number, status: TaskStatus, organizat
   return row
 }
 
+/**
+ * Move a task to `newStatus` at `newIndex` and renumber positions in the
+ * affected column(s). Used by the kanban drag-and-drop:
+ *
+ * - Cross-column drag: rewrites the source column's positions (after
+ *   removal) and the destination column's positions (after insertion).
+ * - Within-column drag: rewrites just that column.
+ *
+ * Simpler than fractional indices and totally fine for the realistic
+ * column sizes (< a few hundred). Idempotent — drop-on-self is a no-op.
+ */
+export async function reorderTask(
+  id: number,
+  newStatus: TaskStatus,
+  newIndex: number,
+  organizationId: string,
+) {
+  // Load the moved task to learn its current status.
+  const [moved] = await db
+    .select({ id: schema.tasks.id, status: schema.tasks.status })
+    .from(schema.tasks)
+    .where(and(eq(schema.tasks.id, id), eq(schema.tasks.organizationId, organizationId)))
+    .limit(1)
+  if (!moved) throw new Error('Task not found')
+
+  const oldStatus = moved.status
+  const crossColumn = oldStatus !== newStatus
+
+  // Helper: fetch the ordered ids of a status column for this org.
+  async function orderedIds(status: TaskStatus): Promise<number[]> {
+    const rows = await db
+      .select({ id: schema.tasks.id })
+      .from(schema.tasks)
+      .where(
+        and(
+          eq(schema.tasks.organizationId, organizationId),
+          eq(schema.tasks.status, status),
+        ),
+      )
+      .orderBy(asc(schema.tasks.position), asc(schema.tasks.createdAt))
+    return rows.map((r) => r.id)
+  }
+
+  // Build the destination column's new ordering.
+  let destIds = await orderedIds(newStatus)
+  destIds = destIds.filter((tid) => tid !== id) // remove if already present
+  const clampedIndex = Math.max(0, Math.min(newIndex, destIds.length))
+  destIds.splice(clampedIndex, 0, id)
+
+  // Write the destination column.
+  await db.transaction(async (tx) => {
+    if (crossColumn) {
+      // Update the moved task's status.
+      await tx
+        .update(schema.tasks)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(and(eq(schema.tasks.id, id), eq(schema.tasks.organizationId, organizationId)))
+
+      // Renumber the source column.
+      const sourceIds = (await orderedIds(oldStatus)).filter((tid) => tid !== id)
+      for (let i = 0; i < sourceIds.length; i++) {
+        await tx
+          .update(schema.tasks)
+          .set({ position: i })
+          .where(eq(schema.tasks.id, sourceIds[i]))
+      }
+    }
+    // Renumber the destination column.
+    for (let i = 0; i < destIds.length; i++) {
+      await tx
+        .update(schema.tasks)
+        .set({ position: i })
+        .where(eq(schema.tasks.id, destIds[i]))
+    }
+  })
+}
+
 export async function updateTask(id: number, input: z.infer<typeof TaskUpdate>, organizationId: string) {
   const data = TaskUpdate.parse(input)
   const patch: Record<string, unknown> = { updatedAt: new Date() }

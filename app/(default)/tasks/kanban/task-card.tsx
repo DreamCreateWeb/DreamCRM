@@ -29,8 +29,10 @@ const PRIORITY_DOT: Record<string, string> = {
  * Kanban card. Click the card body → opens the right detail drawer for
  * full edit. The status dropdown short-circuits to a status change without
  * opening the drawer — most-frequent action in kanban view stays cheap.
+ * isDragging is passed by the dnd-kit DragOverlay clone to suppress
+ * pointer-affordance styling on the floating preview.
  */
-export default function TaskCard({ task }: { task: TaskCardData }) {
+export default function TaskCard({ task, isDragging }: { task: TaskCardData; isDragging?: boolean }) {
   const pathname = usePathname()
   const sp = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -49,7 +51,15 @@ export default function TaskCard({ task }: { task: TaskCardData }) {
     <Link
       href={drawerHref}
       scroll={false}
-      className="block bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700/60 p-3 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+      onClick={(e) => {
+        // While dragging, dnd-kit fires pointer events that look like
+        // clicks — suppress navigation so the drawer doesn't open on drop.
+        if (isDragging) e.preventDefault()
+      }}
+      className={cn(
+        'block bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700/60 p-3 transition-colors',
+        isDragging ? 'cursor-grabbing' : 'hover:border-stone-300 dark:hover:border-stone-600 cursor-grab',
+      )}
     >
       <div className="flex items-start gap-2 mb-2">
         <span

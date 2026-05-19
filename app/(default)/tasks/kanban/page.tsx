@@ -5,15 +5,14 @@ import {
   listSubtasks,
   listTagsForOrg,
   listTasks,
-  TASK_STATUSES,
-  TASK_STATUS_LABEL,
   type SavedView,
   type TaskFilters,
   type TaskPriority,
   type TaskStatus,
 } from '@/lib/services/tasks'
-import TasksGroups from './tasks-groups'
-import TaskCard, { type TaskCardData } from './task-card'
+import { TASK_STATUSES } from '@/lib/types/tasks'
+import { type TaskCardData } from './task-card'
+import KanbanBoard from './kanban-board'
 import AddTaskButton from './add-task-button'
 import FilterBar from '../_components/filter-bar'
 import TaskListClient from '../list/task-list-client'
@@ -104,19 +103,7 @@ export default async function Kanban({ searchParams }: { searchParams: Promise<S
         <FilterBar total={tasks.length} tags={tags} layout="kanban" />
       </div>
 
-      <div className="grid grid-cols-12 gap-x-3 gap-y-6">
-        {TASK_STATUSES.map((status) => (
-          <TasksGroups key={status} title={TASK_STATUS_LABEL[status]} status={status}>
-            {byStatus[status].length === 0 ? (
-              <div className="text-[11px] text-stone-400 dark:text-stone-500 italic px-1 py-1">
-                No tasks
-              </div>
-            ) : (
-              byStatus[status].map((task) => <TaskCard key={task.id} task={task} />)
-            )}
-          </TasksGroups>
-        ))}
-      </div>
+      <KanbanBoard initialByStatus={byStatus} />
 
       <TaskListClient
         task={
