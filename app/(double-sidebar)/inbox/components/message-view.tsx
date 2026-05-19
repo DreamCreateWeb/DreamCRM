@@ -67,11 +67,14 @@ export default function MessageView({ message, bodyHtml, patientContext, account
           <Kbd>j</Kbd><Kbd>k</Kbd>
           <span className="opacity-80">navigate</span>
           <span className="opacity-30">·</span>
-          <Kbd>r</Kbd>
-          <span className="opacity-80">reply</span>
+          <Kbd>x</Kbd>
+          <span className="opacity-80">select</span>
           <span className="opacity-30">·</span>
           <Kbd>e</Kbd>
           <span className="opacity-80">archive</span>
+          <span className="opacity-30">·</span>
+          <Kbd>r</Kbd>
+          <span className="opacity-80">reply</span>
         </div>
       </div>
     )

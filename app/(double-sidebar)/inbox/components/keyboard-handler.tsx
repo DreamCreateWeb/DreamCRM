@@ -8,6 +8,7 @@ import {
   toggleStar,
   trashMessageAction,
 } from '../mailbox-actions'
+import { useSelection } from './selection-context'
 
 interface Props {
   messageIds: string[]
@@ -31,6 +32,9 @@ interface Props {
  *   #       trash
  *   r       open quick-reply (dispatches a custom event the reply pane listens to)
  *   c       open compose (same)
+ *   x       toggle bulk selection on the active message
+ *   ⌘/⌃-A   select all visible messages
+ *   Esc     clear bulk selection
  *   ?       show shortcut help (future)
  */
 export default function KeyboardHandler({
@@ -42,6 +46,7 @@ export default function KeyboardHandler({
 }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const selection = useSelection()
 
   useEffect(() => {
     function isTextInput(el: EventTarget | null): boolean {
@@ -57,6 +62,14 @@ export default function KeyboardHandler({
 
     function onKey(e: KeyboardEvent) {
       if (isTextInput(e.target)) return
+
+      // Cmd/Ctrl-A: select all visible. Allow this one modifier combo through;
+      // every other shortcut below requires no modifiers.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && messageIds.length > 0) {
+        e.preventDefault()
+        selection.selectAll(messageIds)
+        return
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return
 
       const idx = activeMessageId ? messageIds.indexOf(activeMessageId) : -1
@@ -123,12 +136,22 @@ export default function KeyboardHandler({
           e.preventDefault()
           window.dispatchEvent(new CustomEvent('inbox:compose'))
           return
+        case 'x':
+          if (!activeMessageId) return
+          e.preventDefault()
+          selection.toggle(activeMessageId)
+          return
+        case 'Escape':
+          if (selection.count === 0) return
+          e.preventDefault()
+          selection.clear()
+          return
       }
     }
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [messageIds, activeMessageId, activeIsRead, activeIsStarred, baseUrl, router])
+  }, [messageIds, activeMessageId, activeIsRead, activeIsStarred, baseUrl, router, selection])
 
   return null
 }

@@ -20,6 +20,7 @@ import ConnectPrompt from './connect-prompt'
 import MailboxSidebar from './components/mailbox-sidebar'
 import MessageView from './components/message-view'
 import KeyboardHandler from './components/keyboard-handler'
+import { SelectionProvider } from './components/selection-context'
 
 export const metadata = {
   title: 'Inbox - DreamCRM',
@@ -129,37 +130,39 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
 
   return (
     <FlyoutProvider initialState={true}>
-      <KeyboardHandler
-        messageIds={messages.map((m) => m.id)}
-        activeMessageId={activeMessage?.id ?? null}
-        activeIsRead={activeMessage?.isRead ?? true}
-        activeIsStarred={activeMessage?.isStarred ?? false}
-        baseUrl={buildBaseUrl({ activeAccountId, activeCategory, activeIntent, unreadOnly, starredOnly, patientsOnly })}
-      />
-      <div className="relative flex h-full">
-        <MailboxSidebar
-          accounts={accounts}
-          activeAccountId={activeAccountId}
-          messages={messages}
+      <SelectionProvider>
+        <KeyboardHandler
+          messageIds={messages.map((m) => m.id)}
           activeMessageId={activeMessage?.id ?? null}
-          intentCounts={intentCounts}
-          categoryCounts={categoryCounts}
-          activeCategory={activeCategory}
-          activeIntent={activeIntent}
-          unreadOnly={unreadOnly}
-          starredOnly={starredOnly}
-          patientsOnly={patientsOnly}
-          unreadCount={unreadCount}
-          terminology={terminology}
+          activeIsRead={activeMessage?.isRead ?? true}
+          activeIsStarred={activeMessage?.isStarred ?? false}
+          baseUrl={buildBaseUrl({ activeAccountId, activeCategory, activeIntent, unreadOnly, starredOnly, patientsOnly })}
         />
-        <MessageView
-          message={activeMessage}
-          bodyHtml={sanitizedHtml}
-          patientContext={patientContext}
-          accountId={activeMessage?.accountId ?? null}
-          terminology={terminology}
-        />
-      </div>
+        <div className="relative flex h-full">
+          <MailboxSidebar
+            accounts={accounts}
+            activeAccountId={activeAccountId}
+            messages={messages}
+            activeMessageId={activeMessage?.id ?? null}
+            intentCounts={intentCounts}
+            categoryCounts={categoryCounts}
+            activeCategory={activeCategory}
+            activeIntent={activeIntent}
+            unreadOnly={unreadOnly}
+            starredOnly={starredOnly}
+            patientsOnly={patientsOnly}
+            unreadCount={unreadCount}
+            terminology={terminology}
+          />
+          <MessageView
+            message={activeMessage}
+            bodyHtml={sanitizedHtml}
+            patientContext={patientContext}
+            accountId={activeMessage?.accountId ?? null}
+            terminology={terminology}
+          />
+        </div>
+      </SelectionProvider>
     </FlyoutProvider>
   )
 }

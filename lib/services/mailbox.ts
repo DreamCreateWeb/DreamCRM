@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
+  batchModifyLabels as gmailBatchModifyLabels,
   getAccessToken,
   getMessage,
   listHistory,
@@ -482,6 +483,151 @@ export async function archiveMessage(messageId: string, organizationId: string):
   } catch (err) {
     console.warn('[mailbox] could not archive on Gmail', err)
   }
+}
+
+/**
+ * Bulk variants of the per-message ops. One SQL UPDATE for the local state,
+ * then one Gmail batchModify per affected account (or per-id fallback for
+ * trash since Gmail has no batch-trash endpoint). All Gmail calls are
+ * best-effort; local state always wins.
+ */
+
+async function fetchMessageRefs(
+  messageIds: string[],
+  organizationId: string,
+): Promise<Array<{ id: string; accountId: string; providerMessageId: string }>> {
+  if (messageIds.length === 0) return []
+  return db
+    .select({
+      id: schema.emailMessage.id,
+      accountId: schema.emailMessage.accountId,
+      providerMessageId: schema.emailMessage.providerMessageId,
+    })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        inArray(schema.emailMessage.id, messageIds),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+}
+
+function groupByAccount<T extends { accountId: string }>(rows: T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>()
+  for (const r of rows) {
+    const list = m.get(r.accountId)
+    if (list) list.push(r)
+    else m.set(r.accountId, [r])
+  }
+  return m
+}
+
+async function mirrorLabelsToGmail(
+  refs: Array<{ accountId: string; providerMessageId: string }>,
+  add: string[],
+  remove: string[],
+): Promise<void> {
+  const byAccount = groupByAccount(refs)
+  await Promise.allSettled(
+    Array.from(byAccount.entries()).map(async ([accountId, items]) => {
+      try {
+        const token = await getAccessToken(accountId)
+        await gmailBatchModifyLabels(token, items.map((i) => i.providerMessageId), add, remove)
+      } catch (err) {
+        console.warn('[mailbox] bulk gmail label sync failed', err)
+      }
+    }),
+  )
+}
+
+export async function bulkSetRead(
+  messageIds: string[],
+  organizationId: string,
+  read: boolean,
+): Promise<{ count: number }> {
+  const refs = await fetchMessageRefs(messageIds, organizationId)
+  if (refs.length === 0) return { count: 0 }
+  await db
+    .update(schema.emailMessage)
+    .set({ isRead: read })
+    .where(
+      and(
+        inArray(schema.emailMessage.id, refs.map((r) => r.id)),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  await mirrorLabelsToGmail(refs, read ? [] : ['UNREAD'], read ? ['UNREAD'] : [])
+  return { count: refs.length }
+}
+
+export async function bulkSetStarred(
+  messageIds: string[],
+  organizationId: string,
+  starred: boolean,
+): Promise<{ count: number }> {
+  const refs = await fetchMessageRefs(messageIds, organizationId)
+  if (refs.length === 0) return { count: 0 }
+  await db
+    .update(schema.emailMessage)
+    .set({ isStarred: starred })
+    .where(
+      and(
+        inArray(schema.emailMessage.id, refs.map((r) => r.id)),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  await mirrorLabelsToGmail(refs, starred ? ['STARRED'] : [], starred ? [] : ['STARRED'])
+  return { count: refs.length }
+}
+
+export async function bulkArchive(
+  messageIds: string[],
+  organizationId: string,
+): Promise<{ count: number }> {
+  const refs = await fetchMessageRefs(messageIds, organizationId)
+  if (refs.length === 0) return { count: 0 }
+  await db
+    .update(schema.emailMessage)
+    .set({ folder: 'archive' })
+    .where(
+      and(
+        inArray(schema.emailMessage.id, refs.map((r) => r.id)),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  await mirrorLabelsToGmail(refs, [], ['INBOX'])
+  return { count: refs.length }
+}
+
+export async function bulkTrash(
+  messageIds: string[],
+  organizationId: string,
+): Promise<{ count: number }> {
+  const refs = await fetchMessageRefs(messageIds, organizationId)
+  if (refs.length === 0) return { count: 0 }
+  await db
+    .update(schema.emailMessage)
+    .set({ folder: 'trash' })
+    .where(
+      and(
+        inArray(schema.emailMessage.id, refs.map((r) => r.id)),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  // Gmail has no batch-trash endpoint — fall back to parallel per-message
+  // calls. Still cheap enough for typical bulk sizes (a few dozen) and
+  // best-effort if any individual call fails.
+  await Promise.allSettled(
+    refs.map(async (r) => {
+      try {
+        const token = await getAccessToken(r.accountId)
+        await gmailTrash(token, r.providerMessageId)
+      } catch (err) {
+        console.warn('[mailbox] bulk gmail trash sync failed', err)
+      }
+    }),
+  )
+  return { count: refs.length }
 }
 
 /**
