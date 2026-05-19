@@ -6,12 +6,10 @@ import { requireUser } from '@/lib/session'
 import { requireTenant } from '@/lib/auth/context'
 import {
   AccountInput,
-  AppToggleInput,
   BillingInput,
   BillingPlan,
   FeedbackInput,
   NotificationPrefsInput,
-  setAppEnabled,
   submitFeedback,
   updateAccount,
   upsertBilling,
@@ -77,14 +75,6 @@ export async function saveNotificationPrefs(input: unknown) {
   const user = await requireUser()
   const row = await upsertNotificationPrefs(user.id, NotificationPrefsInput.parse(input))
   revalidatePath('/settings/notifications')
-  return row
-}
-
-export async function toggleApp(input: unknown) {
-  const user = await requireUser()
-  const data = AppToggleInput.parse(input)
-  const row = await setAppEnabled(user.id, data.appKey, data.enabled)
-  revalidatePath('/settings/apps')
   return row
 }
 

@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import SettingsSidebar from '../settings-sidebar'
 import PlansPanel from './plans-panel'
 import { requireUser } from '@/lib/session'
@@ -14,6 +15,10 @@ export const dynamic = 'force-dynamic'
 export default async function PlansSettings() {
   const user = await requireUser()
   const ctx = await getTenantContext()
+  // Plans live in the SaaS-customer subscription flow. The platform tenant
+  // (Dream Create) sells the plans, and patients aren't direct customers —
+  // both should bounce away rather than land on a dead page.
+  if (ctx && ctx.tenantType !== 'clinic') redirect('/settings/account')
   const billing = await getBilling(user.id)
 
   return (
