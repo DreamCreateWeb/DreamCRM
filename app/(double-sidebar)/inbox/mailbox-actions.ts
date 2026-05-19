@@ -16,6 +16,7 @@ import {
   bulkTrash,
   bulkTrashThreads,
   classifyPendingIntents,
+  ensureRfcMessageId,
   reclassifyAll,
   disconnectAccount as svcDisconnect,
   getMessageDetail,
@@ -331,6 +332,11 @@ export async function sendMailbox(input: unknown) {
   let bodyText = data.body
 
   if (data.replyToMessageId) {
+    // JIT backfill: if this thread predates the rfc_message_id column,
+    // fetch the header from Gmail right now. Without an In-Reply-To
+    // header the recipient's mail client will treat the reply as a
+    // fresh email and the spam filter will pile on.
+    await ensureRfcMessageId(data.replyToMessageId, ctx.organizationId)
     const original = await getMessageDetail(data.replyToMessageId, ctx.organizationId)
     if (original?.rfcMessageId) {
       inReplyTo = original.rfcMessageId
@@ -349,6 +355,13 @@ export async function sendMailbox(input: unknown) {
       }
       if (!references) references = original.rfcMessageId
       bodyText = `${data.body}${buildQuotedBody(original)}`
+    } else if (original) {
+      // No Message-ID on Gmail's side either (shouldn't happen for real
+      // mail, but surface it loudly if it ever does so we don't silently
+      // ship a thread-breaking reply).
+      console.warn('[sendMailbox] original has no rfcMessageId — reply will not thread', {
+        messageId: data.replyToMessageId,
+      })
     }
   }
 

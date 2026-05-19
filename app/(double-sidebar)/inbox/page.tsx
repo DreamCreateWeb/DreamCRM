@@ -106,8 +106,11 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   // Backfill the RFC Message-ID for messages ingested before migration
   // 0012 added the column. Without this, Reply on a pre-existing thread
   // sends without In-Reply-To/References and the recipient's mail
-  // client opens it as a new conversation.
-  await backfillRfcMessageIds(ctx.organizationId, { limit: 20 }).catch((err) => {
+  // client opens it as a new conversation. The reply path also does a
+  // just-in-time backfill on the specific message being replied to as
+  // a belt-and-suspenders — this one drains the backlog over a few
+  // visits so the rest of the inbox catches up too.
+  await backfillRfcMessageIds(ctx.organizationId, { limit: 50 }).catch((err) => {
     console.warn('[inbox.page] rfc-id backfill failed:', (err as Error).message)
   })
 
