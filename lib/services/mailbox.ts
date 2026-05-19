@@ -604,6 +604,29 @@ async function ingestMessageById(
       labels: parsed.labels,
       receivedAt: parsed.receivedAt,
     })
+
+    // Surface to org members. Use the `comments` bucket — that's the
+    // "Patient activity / Customer activity" toggle on the prefs page.
+    // We intentionally fire before classification runs so the team sees
+    // new mail immediately; the classifier later may move it to a Promotions
+    // tab, but the user-facing notification was already accurate at moment
+    // of arrival.
+    const fromLabel = parsed.fromName
+      ? `${parsed.fromName} <${parsed.fromEmail}>`
+      : parsed.fromEmail
+    const { notifyOrgMembers } = await import('./notifications')
+    await notifyOrgMembers(
+      organizationId,
+      {
+        bucket: 'comments',
+        type: 'inbox_message',
+        title: parsed.subject?.trim() || '(no subject)',
+        body: `From ${fromLabel}${parsed.snippet ? ` — ${parsed.snippet.slice(0, 120)}` : ''}`,
+        linkPath: `/inbox?m=${parsed.providerMessageId}`,
+        meta: { providerMessageId: parsed.providerMessageId, accountId },
+      },
+      { roles: ['owner', 'admin'] },
+    )
     return true
   } catch (err) {
     console.warn(`[mailbox.ingest] ${providerMessageId} failed`, err)
