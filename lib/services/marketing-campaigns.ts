@@ -158,6 +158,72 @@ export async function getCampaignStats(campaignId: number): Promise<CampaignStat
   return stats
 }
 
+/** Per-recipient breakdown: 1 row per email that received this campaign,
+ * with timestamps of their last-known event of each type. */
+export async function getRecipientBreakdown(campaignId: number) {
+  const rows = await db
+    .select({
+      email: schema.campaignEvents.recipientEmail,
+      type: schema.campaignEvents.type,
+      occurredAt: schema.campaignEvents.occurredAt,
+      customerId: schema.campaignEvents.customerId,
+    })
+    .from(schema.campaignEvents)
+    .where(eq(schema.campaignEvents.campaignId, campaignId))
+    .orderBy(desc(schema.campaignEvents.occurredAt))
+
+  const byEmail = new Map<
+    string,
+    {
+      email: string
+      customerId: number | null
+      sentAt: Date | null
+      openedAt: Date | null
+      clickedAt: Date | null
+      bouncedAt: Date | null
+      unsubAt: Date | null
+      failedAt: Date | null
+    }
+  >()
+  for (const r of rows) {
+    const cur = byEmail.get(r.email) ?? {
+      email: r.email,
+      customerId: r.customerId,
+      sentAt: null,
+      openedAt: null,
+      clickedAt: null,
+      bouncedAt: null,
+      unsubAt: null,
+      failedAt: null,
+    }
+    switch (r.type) {
+      case 'sent':
+      case 'delivered':
+        if (!cur.sentAt) cur.sentAt = r.occurredAt
+        break
+      case 'open':
+        if (!cur.openedAt) cur.openedAt = r.occurredAt
+        break
+      case 'click':
+        if (!cur.clickedAt) cur.clickedAt = r.occurredAt
+        break
+      case 'bounce':
+        if (!cur.bouncedAt) cur.bouncedAt = r.occurredAt
+        break
+      case 'unsubscribe':
+        if (!cur.unsubAt) cur.unsubAt = r.occurredAt
+        break
+      case 'failed':
+        if (!cur.failedAt) cur.failedAt = r.occurredAt
+        break
+    }
+    byEmail.set(r.email, cur)
+  }
+  return Array.from(byEmail.values()).sort((a, b) =>
+    (b.openedAt?.getTime() ?? 0) - (a.openedAt?.getTime() ?? 0),
+  )
+}
+
 /** Resolve the recipient list for a campaign. Empty array if no audience. */
 export async function resolveCampaignRecipients(
   organizationId: string,

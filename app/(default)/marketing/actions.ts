@@ -26,6 +26,7 @@ import {
   updateMarketingCampaign,
 } from '@/lib/services/marketing-campaigns'
 import { sendCampaign } from '@/lib/services/marketing-send'
+import { draftCampaign, improveCopy } from '@/lib/services/ai-marketing'
 
 // ---------- Leads ----------
 
@@ -127,6 +128,21 @@ export async function deleteCampaignAction(id: number) {
   const ctx = await requireTenant()
   await deleteMarketingCampaign(ctx.organizationId, id)
   revalidatePath('/marketing/campaigns')
+}
+
+// ---------- AI ----------
+
+export async function draftCampaignAction(brief: string) {
+  const ctx = await requireTenant()
+  if (!brief.trim() || brief.length > 4000) return null
+  return draftCampaign(brief, ctx.tenantType === 'patient' ? 'clinic' : ctx.tenantType)
+}
+
+export async function improveCopyAction(html: string, instruction: string) {
+  const ctx = await requireTenant()
+  if (!html.trim() || !instruction.trim()) return null
+  if (html.length > 12_000 || instruction.length > 400) return null
+  return improveCopy(html, instruction, ctx.tenantType === 'patient' ? 'clinic' : ctx.tenantType)
 }
 
 export async function sendCampaignAction(
