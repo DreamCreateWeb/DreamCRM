@@ -3,9 +3,14 @@ import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { marketingTerminology } from '@/lib/marketing/terminology'
 import { listAudiences, resolveAudience, type AudienceFilterT } from '@/lib/services/marketing'
-import { getCampaignStats, getMarketingCampaign } from '@/lib/services/marketing-campaigns'
+import {
+  getCampaignStats,
+  getMarketingCampaign,
+  getRecipientBreakdown,
+} from '@/lib/services/marketing-campaigns'
 import { listOrgEmailAccounts } from '@/lib/services/mailbox'
 import CampaignEditor from './campaign-editor'
+import RecipientsTable from './recipients-table'
 
 export const metadata = {
   title: 'Campaign editor - DreamCRM',
@@ -29,11 +34,14 @@ export default async function CampaignEditorPage({
   if (!campaign) notFound()
 
   const t = marketingTerminology(ctx.tenantType)
-  const [audiences, gmailAccounts, stats] = await Promise.all([
+  const [audiences, gmailAccounts, stats, recipients] = await Promise.all([
     listAudiences(ctx.organizationId),
     listOrgEmailAccounts(ctx.organizationId).catch(() => []),
     getCampaignStats(id),
+    getRecipientBreakdown(id),
   ])
+
+  const sent = campaign.status === 'completed' || campaign.status === 'active'
 
   const audienceCounts: Record<number, number> = {}
   for (const a of audiences) {
@@ -82,6 +90,22 @@ export default async function CampaignEditorPage({
         defaultFromEmail={t.defaultFromEmail}
         stats={stats}
       />
+
+      {sent && recipients.length > 0 && (
+        <div className="mt-4">
+          <RecipientsTable
+            rows={recipients.map((r) => ({
+              email: r.email,
+              sentAt: r.sentAt?.toISOString() ?? null,
+              openedAt: r.openedAt?.toISOString() ?? null,
+              clickedAt: r.clickedAt?.toISOString() ?? null,
+              bouncedAt: r.bouncedAt?.toISOString() ?? null,
+              unsubAt: r.unsubAt?.toISOString() ?? null,
+              failedAt: r.failedAt?.toISOString() ?? null,
+            }))}
+          />
+        </div>
+      )}
     </div>
   )
 }

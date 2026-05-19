@@ -7,9 +7,12 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
+import { DOMSerializer } from 'prosemirror-model'
 import { cn } from '@/lib/utils'
 import {
   deleteCampaignAction,
+  draftCampaignAction,
+  improveCopyAction,
   sendCampaignAction,
   updateCampaignAction,
 } from '../../actions'
@@ -61,6 +64,9 @@ export default function CampaignEditor({
   const [dirty, setDirty] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [showSend, setShowSend] = useState(false)
+  const [showAiDraft, setShowAiDraft] = useState(false)
+  const [aiImproveInstruction, setAiImproveInstruction] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
 
   const editor = useEditor({
     extensions: [
@@ -161,6 +167,38 @@ export default function CampaignEditor({
               className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
             />
           </Labelled>
+        </div>
+
+        <div className="px-5 py-2 border-b border-stone-100 dark:border-stone-700/40 flex items-center gap-2 flex-wrap bg-stone-50/40 dark:bg-stone-800/30">
+          <button
+            type="button"
+            onClick={() => setShowAiDraft(true)}
+            disabled={sent}
+            className="text-[11px] font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+            title="Write a draft from a brief"
+          >
+            ✨ AI draft
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!editor) return
+              const { from, to } = editor.state.selection
+              if (from === to) {
+                alert('Select some text to rewrite first.')
+                return
+              }
+              setAiImproveInstruction('')
+            }}
+            disabled={sent}
+            className="text-[11px] font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+            title="Rewrite the selected text"
+          >
+            ✨ Rewrite selection
+          </button>
+          <span className="text-[10px] text-stone-400 dark:text-stone-500 ml-auto">
+            {aiBusy ? 'AI working…' : 'AI is tenant-aware (platform / clinic voice)'}
+          </span>
         </div>
 
         {editor && <EditorToolbar editor={editor} />}
@@ -280,6 +318,59 @@ export default function CampaignEditor({
         )}
       </aside>
 
+      {showAiDraft && (
+        <AiDraftModal
+          busy={aiBusy}
+          onClose={() => setShowAiDraft(false)}
+          onApply={async (brief) => {
+            setAiBusy(true)
+            try {
+              const result = await draftCampaignAction(brief)
+              if (!result) {
+                alert('AI is unavailable right now — try again in a moment.')
+                return
+              }
+              field('subject', result.subject)
+              field('previewText', result.previewText)
+              editor?.commands.setContent(result.bodyHtml)
+              setShowAiDraft(false)
+            } finally {
+              setAiBusy(false)
+            }
+          }}
+        />
+      )}
+
+      {aiImproveInstruction !== null && (
+        <AiImproveModal
+          busy={aiBusy}
+          instruction={aiImproveInstruction}
+          onChange={setAiImproveInstruction}
+          onClose={() => setAiImproveInstruction(null)}
+          onApply={async () => {
+            if (!editor) return
+            const { from, to } = editor.state.selection
+            if (from === to) {
+              setAiImproveInstruction(null)
+              return
+            }
+            const selectedHtml = renderSelectionAsHtml(editor, from, to)
+            setAiBusy(true)
+            try {
+              const result = await improveCopyAction(selectedHtml, aiImproveInstruction)
+              if (!result) {
+                alert('AI is unavailable right now — try again in a moment.')
+                return
+              }
+              editor.chain().focus().deleteRange({ from, to }).insertContent(result).run()
+              setAiImproveInstruction(null)
+            } finally {
+              setAiBusy(false)
+            }
+          }}
+        />
+      )}
+
       {showSend && (
         <SendConfirmModal
           campaignId={draft.id}
@@ -293,6 +384,142 @@ export default function CampaignEditor({
           }}
         />
       )}
+    </div>
+  )
+}
+
+function renderSelectionAsHtml(editor: ReturnType<typeof useEditor>, from: number, to: number): string {
+  if (!editor) return ''
+  // ProseMirror's DOMSerializer turns a fragment into real DOM nodes. Render
+  // into a detached div + read innerHTML to get the same markup the editor
+  // would emit.
+  const serializer = DOMSerializer.fromSchema(editor.schema)
+  const fragment = editor.state.doc.slice(from, to).content
+  const div = document.createElement('div')
+  div.appendChild(serializer.serializeFragment(fragment))
+  return div.innerHTML
+}
+
+function AiDraftModal({
+  busy,
+  onClose,
+  onApply,
+}: {
+  busy: boolean
+  onClose: () => void
+  onApply: (brief: string) => void | Promise<void>
+}) {
+  const [brief, setBrief] = useState('')
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      onClick={busy ? undefined : onClose}
+    >
+      <div
+        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-lg p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
+          ✨ Draft with AI
+        </h2>
+        <p className="text-[12px] text-stone-500 dark:text-stone-400 mb-3">
+          One short brief — Claude writes a tenant-appropriate subject, preheader, and body.
+          You can edit everything afterwards.
+        </p>
+        <textarea
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+          rows={6}
+          placeholder="e.g. Announce that DreamCRM now supports automated patient recall by SMS and email. Target: existing clinic owners on Basic plan. Encourage them to upgrade to Pro to unlock it. Keep it warm and short."
+          className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
+        />
+        <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1">
+          This replaces the current subject, preheader, and body.
+        </p>
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onApply(brief)}
+            disabled={busy || !brief.trim()}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+          >
+            {busy ? 'Drafting…' : 'Draft it'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AiImproveModal({
+  busy,
+  instruction,
+  onChange,
+  onApply,
+  onClose,
+}: {
+  busy: boolean
+  instruction: string
+  onChange: (s: string) => void
+  onApply: () => void | Promise<void>
+  onClose: () => void
+}) {
+  const presets = ['Make it punchier', 'Shorten by half', 'Add urgency', 'More casual', 'More formal']
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      onClick={busy ? undefined : onClose}
+    >
+      <div
+        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-md p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
+          ✨ Rewrite selection
+        </h2>
+        <p className="text-[12px] text-stone-500 dark:text-stone-400 mb-3">
+          How should Claude rewrite the highlighted text?
+        </p>
+        <input
+          value={instruction}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. add urgency"
+          className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+        />
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {presets.map((p) => (
+            <button
+              key={p}
+              onClick={() => onChange(p)}
+              className="text-[11px] font-medium px-2 py-1 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onApply}
+            disabled={busy || !instruction.trim()}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+          >
+            {busy ? 'Rewriting…' : 'Rewrite'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
