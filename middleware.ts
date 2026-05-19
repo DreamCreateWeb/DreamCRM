@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   '/api/hello',
   '/api/webhooks',
   '/api/cron',
+  '/api/admin/bootstrap',
 ]
 
 const PUBLIC_PREFIXES = ['/_next', '/images', '/favicon', '/css', '/fonts']
