@@ -1,0 +1,242 @@
+import 'server-only'
+import { Resend } from 'resend'
+import { and, eq } from 'drizzle-orm'
+import { db, schema } from '@/lib/db'
+import { renderCampaignEmail } from '@/lib/marketing/render-email'
+import { getAccessToken, sendMessage as sendGmailMessage } from './gmail'
+import {
+  getMarketingCampaign,
+  resolveCampaignRecipients,
+} from './marketing-campaigns'
+
+/**
+ * Marketing send service. Two channels:
+ *
+ * - **Resend** — fast, signed by our domain, best deliverability for blast
+ *   sends. Tags each send with `campaignId` + `customerId` so the webhook
+ *   can map bounce/complaint events back to our rows.
+ * - **Gmail** — sends from the org's connected mailbox, one-by-one. Warmer
+ *   for cold outreach but rate-limited (~500/day per account) so we cap at
+ *   100 per send invocation; you can re-run for the remainder.
+ */
+
+const FROM_DEFAULT = 'Dream Create <Hello@DreamCreateWeb.com>'
+const POSTAL_ADDRESS = process.env.MARKETING_POSTAL_ADDRESS || ''
+
+export interface SendOptions {
+  organizationId: string
+  campaignId: number
+  /** If set, only send to these recipient ids (test-send subset). */
+  recipientIdsOverride?: number[]
+  /** When true, don't record opens/clicks (for test sends). */
+  test?: boolean
+  /** Required override for Gmail channel: which connected account to send from. */
+  gmailAccountId?: string
+  /** Display name used in footer + Gmail From header. */
+  fromName?: string
+}
+
+export interface SendResult {
+  channel: 'resend' | 'gmail'
+  attempted: number
+  sent: number
+  failed: number
+  errors: { email: string; error: string }[]
+}
+
+function getResend() {
+  const key = process.env.RESEND_API_KEY
+  if (!key) throw new Error('RESEND_API_KEY env var is not set')
+  return new Resend(key)
+}
+
+export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
+  const campaign = await getMarketingCampaign(opts.organizationId, opts.campaignId)
+  if (!campaign) throw new Error('Campaign not found')
+  if (!campaign.subject) throw new Error('Campaign missing subject')
+  if (!campaign.bodyHtml) throw new Error('Campaign missing body')
+
+  let recipients = await resolveCampaignRecipients(opts.organizationId, opts.campaignId)
+  if (opts.recipientIdsOverride?.length) {
+    const allow = new Set(opts.recipientIdsOverride)
+    recipients = recipients.filter((r) => allow.has(r.id))
+  }
+  if (!recipients.length) {
+    return { channel: campaign.sendChannel, attempted: 0, sent: 0, failed: 0, errors: [] }
+  }
+
+  // Mark in-flight
+  if (!opts.test) {
+    await db
+      .update(schema.campaigns)
+      .set({ status: 'active', updatedAt: new Date() })
+      .where(eq(schema.campaigns.id, campaign.id))
+  }
+
+  const result =
+    campaign.sendChannel === 'gmail'
+      ? await sendViaGmail({ ...opts, campaign, recipients })
+      : await sendViaResend({ ...opts, campaign, recipients })
+
+  if (!opts.test) {
+    await db
+      .update(schema.campaigns)
+      .set({
+        status: 'completed',
+        sentAt: new Date(),
+        sendStats: {
+          attempted: result.attempted,
+          sent: result.sent,
+          failed: result.failed,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.campaigns.id, campaign.id))
+  }
+
+  return result
+}
+
+type InternalSendOpts = SendOptions & {
+  campaign: NonNullable<Awaited<ReturnType<typeof getMarketingCampaign>>>
+  recipients: { id: number; name: string; email: string }[]
+}
+
+async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
+  const resend = getResend()
+  const errors: { email: string; error: string }[] = []
+  let sent = 0
+  const cap = Math.min(opts.recipients.length, 1000) // soft cap per invocation
+
+  for (let i = 0; i < cap; i++) {
+    const r = opts.recipients[i]
+    const { html, text } = renderCampaignEmail({
+      campaignId: opts.campaign.id,
+      recipientEmail: r.email,
+      recipientCustomerId: r.id,
+      subject: opts.campaign.subject!,
+      previewText: opts.campaign.previewText,
+      bodyHtml: opts.campaign.bodyHtml!,
+      fromName: opts.fromName,
+      postalAddress: POSTAL_ADDRESS,
+      tracking: !opts.test,
+    })
+
+    try {
+      await resend.emails.send({
+        from: opts.fromName ? `${opts.fromName} <Hello@DreamCreateWeb.com>` : FROM_DEFAULT,
+        to: r.email,
+        subject: opts.campaign.subject!,
+        html,
+        text,
+        tags: [
+          { name: 'campaignId', value: String(opts.campaign.id) },
+          { name: 'customerId', value: String(r.id) },
+        ],
+      })
+      if (!opts.test) {
+        await db.insert(schema.campaignEvents).values({
+          campaignId: opts.campaign.id,
+          recipientEmail: r.email.toLowerCase(),
+          customerId: r.id,
+          type: 'sent',
+          meta: { channel: 'resend' },
+        })
+      }
+      sent++
+    } catch (err) {
+      errors.push({ email: r.email, error: err instanceof Error ? err.message : 'unknown' })
+      if (!opts.test) {
+        await db.insert(schema.campaignEvents).values({
+          campaignId: opts.campaign.id,
+          recipientEmail: r.email.toLowerCase(),
+          customerId: r.id,
+          type: 'failed',
+          meta: { channel: 'resend', error: err instanceof Error ? err.message : 'unknown' },
+        })
+      }
+    }
+  }
+
+  return { channel: 'resend', attempted: cap, sent, failed: errors.length, errors }
+}
+
+async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
+  if (!opts.gmailAccountId) throw new Error('Gmail channel requires gmailAccountId')
+
+  // Verify account belongs to this org
+  const [account] = await db
+    .select({
+      id: schema.emailAccount.id,
+      emailAddress: schema.emailAccount.emailAddress,
+      displayName: schema.emailAccount.displayName,
+    })
+    .from(schema.emailAccount)
+    .where(
+      and(
+        eq(schema.emailAccount.id, opts.gmailAccountId),
+        eq(schema.emailAccount.organizationId, opts.organizationId),
+      ),
+    )
+    .limit(1)
+  if (!account) throw new Error('Gmail account not found for this org')
+
+  const accessToken = await getAccessToken(account.id)
+  const fromHeader = account.displayName
+    ? `${account.displayName} <${account.emailAddress}>`
+    : account.emailAddress
+  const errors: { email: string; error: string }[] = []
+  let sent = 0
+  // Conservative cap per invocation to stay under Gmail's per-user rate limits
+  const cap = Math.min(opts.recipients.length, 100)
+
+  for (let i = 0; i < cap; i++) {
+    const r = opts.recipients[i]
+    const { html, text } = renderCampaignEmail({
+      campaignId: opts.campaign.id,
+      recipientEmail: r.email,
+      recipientCustomerId: r.id,
+      subject: opts.campaign.subject!,
+      previewText: opts.campaign.previewText,
+      bodyHtml: opts.campaign.bodyHtml!,
+      fromName: opts.fromName ?? account.displayName ?? undefined,
+      postalAddress: POSTAL_ADDRESS,
+      tracking: !opts.test,
+    })
+
+    try {
+      await sendGmailMessage(accessToken, {
+        from: fromHeader,
+        to: [r.email],
+        subject: opts.campaign.subject!,
+        bodyText: text,
+        bodyHtml: html,
+      })
+      if (!opts.test) {
+        await db.insert(schema.campaignEvents).values({
+          campaignId: opts.campaign.id,
+          recipientEmail: r.email.toLowerCase(),
+          customerId: r.id,
+          type: 'sent',
+          meta: { channel: 'gmail', from: account.emailAddress },
+        })
+      }
+      sent++
+      // Gentle pacing between sends to avoid tripping rate limits
+      if (i + 1 < cap) await new Promise((res) => setTimeout(res, 150))
+    } catch (err) {
+      errors.push({ email: r.email, error: err instanceof Error ? err.message : 'unknown' })
+      if (!opts.test) {
+        await db.insert(schema.campaignEvents).values({
+          campaignId: opts.campaign.id,
+          recipientEmail: r.email.toLowerCase(),
+          customerId: r.id,
+          type: 'failed',
+          meta: { channel: 'gmail', error: err instanceof Error ? err.message : 'unknown' },
+        })
+      }
+    }
+  }
+
+  return { channel: 'gmail', attempted: cap, sent, failed: errors.length, errors }
+}

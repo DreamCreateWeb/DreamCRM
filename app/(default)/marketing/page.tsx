@@ -61,6 +61,18 @@ export default async function MarketingDashboard() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
+            href="/marketing/audiences"
+            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-stone-300 text-stone-700 dark:text-stone-200"
+          >
+            Audiences
+          </Link>
+          <Link
+            href="/marketing/campaigns"
+            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-stone-300 text-stone-700 dark:text-stone-200"
+          >
+            Campaigns
+          </Link>
+          <Link
             href="/marketing/pipeline"
             className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900"
           >
@@ -156,14 +168,17 @@ export default async function MarketingDashboard() {
             <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
               Audiences
             </h2>
-            <span className="text-[11px] text-stone-400 dark:text-stone-500">
-              Coming in next release
-            </span>
+            <Link
+              href="/marketing/audiences"
+              className="text-[11px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+            >
+              Manage →
+            </Link>
           </div>
           {audiences.length === 0 ? (
             <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              No saved segments yet. You'll be able to slice the pipeline into
-              reusable lists for campaign sends.
+              No saved segments yet. <Link href="/marketing/audiences" className="underline">Create one</Link> to
+              slice the pipeline into reusable lists for campaign sends.
             </p>
           ) : (
             <ul className="space-y-2">
