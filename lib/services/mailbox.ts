@@ -1599,14 +1599,11 @@ export async function classifyPendingIntents(
     needsLlm.push(row)
   }
 
-  let viaHeuristic = 0
-  for (const hit of heuristicHits) {
-    await db
-      .update(schema.emailMessage)
-      .set({ category: hit.category, intent: hit.intent, categorySource: hit.source })
-      .where(eq(schema.emailMessage.id, hit.id))
-    viaHeuristic++
-  }
+  // Batch the heuristic UPDATEs by their (category, intent, source)
+  // tuple so we issue a handful of queries instead of one per row.
+  // In practice 50 ingested messages typically split across 3-4 tuples
+  // → 3-4 UPDATEs instead of 50. Same trick below for the LLM results.
+  const viaHeuristic = await applyClassificationGroups(heuristicHits)
 
   if (needsLlm.length === 0) {
     return { classified: viaHeuristic, pending: 0, viaHeuristic }
@@ -1617,21 +1614,47 @@ export async function classifyPendingIntents(
     return { classified: viaHeuristic, pending: needsLlm.length, viaHeuristic }
   }
 
-  console.log(`[mailbox.classify] heuristics ${viaHeuristic}/${rows.length}, LLM ${needsLlm.length}`)
-  const start = Date.now()
   const results = await classifyBatch(needsLlm)
-  for (const [id, { category, intent }] of Array.from(results.entries())) {
-    await db
-      .update(schema.emailMessage)
-      .set({ category, intent, categorySource: 'auto' })
-      .where(eq(schema.emailMessage.id, id))
-  }
-  console.log(`[mailbox.classify] LLM done in ${Date.now() - start}ms`)
+  const llmHits = Array.from(results.entries()).map(([id, { category, intent }]) => ({
+    id,
+    category,
+    intent,
+    source: 'auto' as const,
+  }))
+  const classifiedByLlm = await applyClassificationGroups(llmHits)
+
   return {
-    classified: viaHeuristic + results.size,
-    pending: needsLlm.length - results.size,
+    classified: viaHeuristic + classifiedByLlm,
+    pending: needsLlm.length - classifiedByLlm,
     viaHeuristic,
   }
+}
+
+/**
+ * Bulk-apply a list of { id, category, intent, source } classifications.
+ * Groups by (category, intent, source) so all rows in the same bucket
+ * get one UPDATE with `WHERE id IN (...)` instead of one query per row.
+ */
+async function applyClassificationGroups(
+  hits: Array<{ id: string; category: EmailCategory; intent: EmailIntent; source: string }>,
+): Promise<number> {
+  if (hits.length === 0) return 0
+  const groups = new Map<string, { category: EmailCategory; intent: EmailIntent; source: string; ids: string[] }>()
+  for (const hit of hits) {
+    const key = `${hit.category}|${hit.intent}|${hit.source}`
+    const existing = groups.get(key)
+    if (existing) existing.ids.push(hit.id)
+    else groups.set(key, { category: hit.category, intent: hit.intent, source: hit.source, ids: [hit.id] })
+  }
+  let updated = 0
+  for (const g of groups.values()) {
+    await db
+      .update(schema.emailMessage)
+      .set({ category: g.category, intent: g.intent, categorySource: g.source })
+      .where(inArray(schema.emailMessage.id, g.ids))
+    updated += g.ids.length
+  }
+  return updated
 }
 
 /**

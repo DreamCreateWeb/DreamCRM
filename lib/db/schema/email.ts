@@ -109,6 +109,10 @@ export const emailMessage = pgTable(
     index('email_message_received_idx').on(t.receivedAt),
     index('email_message_category_idx').on(t.category),
     index('email_message_thread_idx').on(t.providerThreadId),
+    // Speeds up the In-Reply-To chain lookup in getThreadDetail
+    // (matches sent replies back to their parent thread even when
+    // Gmail didn't thread them on its side).
+    index('email_message_in_reply_to_idx').on(t.inReplyTo),
   ],
 )
 
