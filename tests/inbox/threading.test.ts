@@ -182,6 +182,70 @@ describe('listThreadsForOrg', () => {
     const { listThreadsForOrg } = await import('@/lib/services/mailbox')
     expect(await listThreadsForOrg('org-1')).toEqual([])
   })
+
+  it('merges sent siblings into the latest position but keeps the other party in row metadata', async () => {
+    // Step 1: inbox messages matching filters
+    state.selectQueue.push([
+      {
+        id: 'm-in',
+        accountId: 'acct-1',
+        accountEmail: 'me@x.com',
+        providerMessageId: 'g-in',
+        providerThreadId: 't-A',
+        fromName: 'Alice',
+        fromEmail: 'alice@x.com',
+        subject: 'Test',
+        snippet: 'their original',
+        receivedAt: new Date('2026-05-19T10:00:00Z'),
+        isRead: false,
+        isStarred: false,
+        folder: 'inbox',
+        intent: 'follow_up',
+        category: 'primary',
+        patientId: null,
+        patientFirstName: null,
+        patientLastName: null,
+      },
+    ])
+    // Step 2: sent siblings for t-A
+    state.selectQueue.push([
+      {
+        id: 'm-sent',
+        accountId: 'acct-1',
+        accountEmail: 'me@x.com',
+        providerMessageId: 'g-sent',
+        providerThreadId: 't-A',
+        fromName: 'Me',
+        fromEmail: 'me@x.com',
+        subject: 'Re: Test',
+        snippet: 'my reply',
+        receivedAt: new Date('2026-05-19T11:00:00Z'),
+        isRead: true,
+        isStarred: false,
+        folder: 'sent',
+        intent: null,
+        category: null,
+        patientId: null,
+        patientFirstName: null,
+        patientLastName: null,
+      },
+    ])
+    const { listThreadsForOrg } = await import('@/lib/services/mailbox')
+    const threads = await listThreadsForOrg('org-1')
+    expect(threads).toHaveLength(1)
+    const t = threads[0]
+    // Latest message in the thread is the sent reply, so the row's
+    // snippet + timestamp reflect that
+    expect(t.latestMessageId).toBe('m-sent')
+    expect(t.snippet).toBe('my reply')
+    // But the row's "who's in this conversation with you" stays Alice
+    expect(t.fromName).toBe('Alice')
+    expect(t.fromEmail).toBe('alice@x.com')
+    expect(t.category).toBe('primary')
+    expect(t.totalCount).toBe(2)
+    // Sent reply doesn't count toward unread (we sent it)
+    expect(t.unreadCount).toBe(1)
+  })
 })
 
 describe('bulkArchiveThreads', () => {
