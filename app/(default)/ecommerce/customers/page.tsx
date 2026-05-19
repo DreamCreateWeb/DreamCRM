@@ -26,7 +26,10 @@ export default async function CustomersPage() {
   // Clinic tenants — keep the existing CRM-style customers/patients table.
   // (The clinic-side Patients module gets its own pass when we work the
   // clinic registry top-down.)
-  const [customers, stats] = await Promise.all([listCustomers(), getCustomerOrderStats()])
+  const [customers, stats] = await Promise.all([
+    listCustomers(ctx.organizationId),
+    getCustomerOrderStats(ctx.organizationId),
+  ])
   const statsByCustomer = new Map(stats.map((s) => [s.customerId, s]))
 
   const rows: CustomerRow[] = customers.map((c) => {

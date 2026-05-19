@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { listCart, type CartLine } from '@/lib/services/cart'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { formatMoney } from '@/lib/utils'
 import RemoveCartItemButton from './remove-cart-item-button'
 
 export default async function CartItems() {
-  const user = await requireUser()
-  const lines: CartLine[] = await listCart(user.id)
+  const ctx = await requireTenant()
+  const lines: CartLine[] = await listCart(ctx.userId, ctx.organizationId)
 
   if (lines.length === 0) {
     return (

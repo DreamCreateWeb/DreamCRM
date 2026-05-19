@@ -6,7 +6,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { getProductBySlug, listProducts } from '@/lib/services/products'
 import { formatMoney } from '@/lib/utils'
 import AddToCartButton from '../(shop)/add-to-cart-button'
@@ -16,11 +16,11 @@ export default async function Product({
 }: {
   searchParams: Promise<{ slug?: string }>
 }) {
-  await requireUser()
+  const ctx = await requireTenant()
   const params = await searchParams
-  let product = params.slug ? await getProductBySlug(params.slug) : undefined
+  let product = params.slug ? await getProductBySlug(ctx.organizationId, params.slug) : undefined
   if (!product) {
-    const all = await listProducts({ limit: 1 })
+    const all = await listProducts(ctx.organizationId, { limit: 1 })
     product = all[0]
   }
 
@@ -38,7 +38,7 @@ export default async function Product({
     )
   }
 
-  const related = (await listProducts({ limit: 4 })).filter((p) => p.id !== product!.id).slice(0, 3)
+  const related = (await listProducts(ctx.organizationId, { limit: 4 })).filter((p) => p.id !== product!.id).slice(0, 3)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full">

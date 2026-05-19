@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import {
   CustomerInput,
   CustomerUpdate,
@@ -12,31 +12,31 @@ import {
 } from '@/lib/services/customers'
 
 export async function addCustomer(input: unknown) {
-  const user = await requireUser()
+  const ctx = await requireTenant()
   const data = CustomerInput.parse(input)
-  const customer = await createCustomer(data, user.id)
+  const customer = await createCustomer(data, ctx.userId, ctx.organizationId)
   revalidatePath('/ecommerce/customers')
   return customer
 }
 
 export async function editCustomer(id: number, input: unknown) {
-  await requireUser()
+  const ctx = await requireTenant()
   const data = CustomerUpdate.parse(input)
-  const customer = await updateCustomer(id, data)
+  const customer = await updateCustomer(id, ctx.organizationId, data)
   revalidatePath('/ecommerce/customers')
   return customer
 }
 
 export async function toggleCustomerFav(id: number) {
-  await requireUser()
-  const result = await toggleFav(id)
+  const ctx = await requireTenant()
+  const result = await toggleFav(id, ctx.organizationId)
   revalidatePath('/ecommerce/customers')
   return result
 }
 
 export async function removeCustomers(ids: number[]) {
-  await requireUser()
-  const result = await deleteCustomers(ids.filter((n) => Number.isInteger(n)))
+  const ctx = await requireTenant()
+  const result = await deleteCustomers(ids.filter((n) => Number.isInteger(n)), ctx.organizationId)
   revalidatePath('/ecommerce/customers')
   return result
 }

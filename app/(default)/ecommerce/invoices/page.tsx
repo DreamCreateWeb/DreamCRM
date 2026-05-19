@@ -94,9 +94,9 @@ export default async function InvoicesOrSubscriptions({
 
   // Clinic / patient: keep the existing invoices list.
   const [invoices, counts, customers] = await Promise.all([
-    listInvoices({ status: params.status, search: params.q }),
-    invoiceCountsByStatus(),
-    listCustomers(),
+    listInvoices(ctx.organizationId, { status: params.status, search: params.q }),
+    invoiceCountsByStatus(ctx.organizationId),
+    listCustomers(ctx.organizationId),
   ])
 
   const rows: InvoiceRow[] = invoices.map((i) => ({

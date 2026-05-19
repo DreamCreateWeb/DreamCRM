@@ -149,14 +149,14 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
 2. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard must be added
    to the Vercel project before clinic sites resolve in production.
 3. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL` envs
-4. **Module recontextualization for clinic admins** — currently Messages /
-   Forum / Ecommerce / Customers / Orders / Invoices / Calendar / Tasks
-   services don't filter by organizationId. Single-tenant for now so
-   this is correctness, not a real leak — but MUST be fixed before
-   onboarding clinic #2. Every domain table already carries an
-   organization_id FK; the service functions just need:
-   `eq(table.organizationId, ctx.organizationId)` in the where clauses,
-   plus pass ctx.organizationId on every insert.
+4. **Module recontextualization for clinic admins** — `messages`, `calendar`,
+   `tasks`, `customers`, `orders`, `invoices`, `products`, `cart` services
+   are all now tenant-scoped (filter by `organizationId` on every read +
+   set on every insert). Remaining unscoped surfaces are platform-wide by
+   design (forum/feed/meetups/jobs). Migration `0015_backfill_legacy_org_rows`
+   claims any leftover NULL org rows in customers/orders/invoices/products/
+   cart_items to the platform org and must be applied via bootstrap before
+   onboarding clinic #2.
 5. **Patient bills + records + messages** — the patient portal pages
    exist but bills is a placeholder, records/messages are 'soon' in the
    sidebar registry. Pending real clinic invoicing flow.

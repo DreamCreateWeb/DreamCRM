@@ -8,13 +8,13 @@ export const dynamic = 'force-dynamic'
 import ShopSidebar from '../shop-sidebar'
 import ProductList from '../product-list'
 import PaginationClassic from '@/components/pagination-classic'
-import { requireUser } from '@/lib/session'
+import { requireTenant } from '@/lib/auth/context'
 import { listProducts } from '@/lib/services/products'
 import { formatNumber } from '@/lib/utils'
 
 export default async function Shop2() {
-  await requireUser()
-  const products = await listProducts({ limit: 24 })
+  const ctx = await requireTenant()
+  const products = await listProducts(ctx.organizationId, { limit: 24 })
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
