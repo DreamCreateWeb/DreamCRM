@@ -3,6 +3,7 @@ import { FlyoutProvider } from '@/app/flyout-context'
 import { requireTenant } from '@/lib/auth/context'
 import { gmailOAuthConfigured } from '@/lib/services/gmail'
 import {
+  backfillRfcMessageIds,
   classifyPendingIntents,
   countMessagesByCategory,
   countMessagesByIntent,
@@ -100,6 +101,14 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   // — self-terminates as the backlog drains.
   await resolvePendingInlineImages(ctx.organizationId, { limit: 10 }).catch((err) => {
     console.warn('[inbox.page] inline-image backfill failed:', (err as Error).message)
+  })
+
+  // Backfill the RFC Message-ID for messages ingested before migration
+  // 0012 added the column. Without this, Reply on a pre-existing thread
+  // sends without In-Reply-To/References and the recipient's mail
+  // client opens it as a new conversation.
+  await backfillRfcMessageIds(ctx.organizationId, { limit: 20 }).catch((err) => {
+    console.warn('[inbox.page] rfc-id backfill failed:', (err as Error).message)
   })
 
   const listOpts: ListMessagesOpts = {

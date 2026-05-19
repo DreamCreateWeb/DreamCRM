@@ -158,6 +158,9 @@ export interface ListMessagesOpts {
   unreadOnly?: boolean
   starredOnly?: boolean
   patientsOnly?: boolean  // only messages matched to a patient
+  /** Restrict to messages in these threads. Used by listThreadsForOrg
+   *  to pull sent siblings of inbox-matched threads in a second query. */
+  threadIds?: string[]
 }
 
 export async function listMessagesForOrg(
@@ -184,6 +187,12 @@ export async function listMessagesForOrg(
     if (opts.unreadOnly) conditions.push(eq(schema.emailMessage.isRead, false))
     if (opts.starredOnly) conditions.push(eq(schema.emailMessage.isStarred, true))
     if (opts.patientsOnly) conditions.push(sql`${schema.emailMessage.patientId} is not null`)
+    if (opts.threadIds && opts.threadIds.length > 0) {
+      conditions.push(inArray(schema.emailMessage.providerThreadId, opts.threadIds))
+    } else if (opts.threadIds && opts.threadIds.length === 0) {
+      // Caller explicitly passed an empty set — nothing should match.
+      return []
+    }
 
     const rows = await db
       .select({
@@ -321,43 +330,70 @@ export async function listThreadsForOrg(
   opts: ListMessagesOpts = {},
 ): Promise<EmailThreadListItem[]> {
   try {
-    // Pull a generous overshoot of messages and aggregate by thread
-    // in JS — much simpler than a window function and fast enough at
-    // the volumes the inbox sees today. Each thread typically has 1-3
-    // messages so a 3x multiplier gets us roughly `limit` threads.
+    // Step 1: messages matching the user's tab/intent/account filters at
+    // the configured folder (default inbox). These determine which threads
+    // are visible in this view.
     const messageLimit = (opts.limit ?? 100) * 3
-    const messages = await listMessagesForOrg(organizationId, {
+    const inboxMessages = await listMessagesForOrg(organizationId, {
       ...opts,
       limit: messageLimit,
     })
 
+    // Step 2: pull sent siblings of those threads so the user's own
+    // replies show up in the thread row's latest-message position and
+    // in the stacked conversation view. No category/intent filter on
+    // this query — sent messages don't have those fields populated.
+    const threadIds = Array.from(
+      new Set(
+        inboxMessages
+          .map((m) => m.providerThreadId)
+          .filter((t): t is string => !!t),
+      ),
+    )
+    const sentMessages = threadIds.length > 0
+      ? await listMessagesForOrg(organizationId, {
+          folder: 'sent',
+          threadIds,
+          limit: messageLimit,
+        })
+      : []
+
+    // Merge + sort by receivedAt desc so the latest message (whether
+    // inbox or sent) sits at the head of each thread's group.
+    const allMessages = [...inboxMessages, ...sentMessages].sort(
+      (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
+    )
+
     interface Acc {
       threadId: string
       latest: EmailMessageListItem
+      latestInbound: EmailMessageListItem | null
       total: number
       unread: number
       starred: boolean
     }
     const byThread = new Map<string, Acc>()
-    for (const m of messages) {
-      // Fall back to message id for the rare legacy row with no thread id —
-      // gives that message its own "thread of one" so it still renders.
+    for (const m of allMessages) {
       const tid = m.providerThreadId ?? m.id
+      const isSent = m.folder === 'sent'
       const existing = byThread.get(tid)
       if (!existing) {
         byThread.set(tid, {
           threadId: tid,
           latest: m,
+          latestInbound: isSent ? null : m,
           total: 1,
-          unread: m.isRead ? 0 : 1,
+          unread: !isSent && !m.isRead ? 1 : 0,
           starred: m.isStarred,
         })
       } else {
         existing.total++
-        if (!m.isRead) existing.unread++
+        if (!isSent && !m.isRead) existing.unread++
         if (m.isStarred) existing.starred = true
-        // messages comes back ordered receivedAt DESC, so first iteration
-        // wins as `latest` — nothing to update here.
+        // latest is set by first-iteration (already sorted desc by
+        // receivedAt). For latestInbound we may need to backfill the
+        // first non-sent we encounter.
+        if (!isSent && !existing.latestInbound) existing.latestInbound = m
       }
     }
 
@@ -365,26 +401,33 @@ export async function listThreadsForOrg(
     return Array.from(byThread.values())
       .sort((a, b) => b.latest.receivedAt.getTime() - a.latest.receivedAt.getTime())
       .slice(0, limit)
-      .map((t) => ({
-        threadId: t.threadId,
-        latestMessageId: t.latest.id,
-        accountId: t.latest.accountId,
-        accountEmail: t.latest.accountEmail,
-        fromName: t.latest.fromName,
-        fromEmail: t.latest.fromEmail,
-        subject: t.latest.subject,
-        snippet: t.latest.snippet,
-        receivedAt: t.latest.receivedAt,
-        isRead: t.unread === 0,
-        isStarred: t.starred,
-        intent: t.latest.intent,
-        category: t.latest.category,
-        patientId: t.latest.patientId,
-        patientFirstName: t.latest.patientFirstName,
-        patientLastName: t.latest.patientLastName,
-        totalCount: t.total,
-        unreadCount: t.unread,
-      }))
+      .map((t) => {
+        // Show the OTHER party (latest inbound sender) in the row, even
+        // when the user's outbound is the most recent activity — matches
+        // Gmail's inbox-list mental model where the avatar/name = "who's
+        // in this conversation with you", not "who spoke last".
+        const partyInfo = t.latestInbound ?? t.latest
+        return {
+          threadId: t.threadId,
+          latestMessageId: t.latest.id,
+          accountId: t.latest.accountId,
+          accountEmail: t.latest.accountEmail,
+          fromName: partyInfo.fromName,
+          fromEmail: partyInfo.fromEmail,
+          subject: t.latest.subject,
+          snippet: t.latest.snippet,
+          receivedAt: t.latest.receivedAt,
+          isRead: t.unread === 0,
+          isStarred: t.starred,
+          intent: partyInfo.intent,
+          category: partyInfo.category,
+          patientId: partyInfo.patientId,
+          patientFirstName: partyInfo.patientFirstName,
+          patientLastName: partyInfo.patientLastName,
+          totalCount: t.total,
+          unreadCount: t.unread,
+        }
+      })
   } catch (err) {
     if (isMissingSchemaError(err)) return []
     throw err
@@ -650,7 +693,7 @@ export async function sendEmail(opts: {
   if (account.provider !== 'gmail') throw new Error('Only Gmail is supported right now')
   const accessToken = await getAccessToken(opts.accountId)
   const from = account.displayName ? `${account.displayName} <${account.emailAddress}>` : account.emailAddress
-  return gmailSend(accessToken, {
+  const result = await gmailSend(accessToken, {
     from,
     to: opts.to,
     cc: opts.cc,
@@ -660,6 +703,85 @@ export async function sendEmail(opts: {
     inReplyTo: opts.inReplyTo,
     references: opts.references,
   })
+  // Pull the message we just sent back into our local DB so the inbox
+  // thread shows the reply immediately and future replies have its
+  // Message-ID to chain References onto. Best-effort — if it fails the
+  // send already happened, and the next full sync (or a manual refresh)
+  // would catch it.
+  if (result.id) {
+    try {
+      await ingestSentMessage(opts.accountId, opts.organizationId, accessToken, result.id)
+    } catch (err) {
+      console.warn('[mailbox.send] sent-ingest failed', err)
+    }
+  }
+  return result
+}
+
+/**
+ * Ingest a just-sent message into the local DB with folder='sent'.
+ * Identical shape to ingestMessageById but doesn't filter by INBOX
+ * label (sent items don't have one), marks isRead, and matches the
+ * patient off the To: field rather than From: since the user is
+ * writing to a contact, not from one.
+ */
+async function ingestSentMessage(
+  accountId: string,
+  organizationId: string,
+  accessToken: string,
+  providerMessageId: string,
+): Promise<boolean> {
+  const existing = await db
+    .select({ id: schema.emailMessage.id })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.accountId, accountId),
+        eq(schema.emailMessage.providerMessageId, providerMessageId),
+      ),
+    )
+    .limit(1)
+  if (existing[0]) return false
+  try {
+    const full = await getMessage(accessToken, providerMessageId)
+    const parsed = parseGmailMessage(full)
+    const patientId = parsed.toEmails[0]
+      ? await findPatientByEmail(organizationId, parsed.toEmails[0])
+      : null
+    const resolvedHtml = await resolveInlineImages(accessToken, providerMessageId, parsed.bodyHtml, full.payload)
+    await db.insert(schema.emailMessage).values({
+      id: randomUUID(),
+      accountId,
+      organizationId,
+      patientId,
+      providerMessageId: parsed.providerMessageId,
+      providerThreadId: parsed.providerThreadId,
+      rfcMessageId: parsed.rfcMessageId,
+      inReplyTo: parsed.inReplyTo,
+      folder: 'sent',
+      fromName: parsed.fromName,
+      fromEmail: parsed.fromEmail,
+      toEmails: parsed.toEmails,
+      ccEmails: parsed.ccEmails,
+      subject: parsed.subject,
+      snippet: parsed.snippet,
+      bodyText: parsed.bodyText,
+      bodyHtml: resolvedHtml,
+      isRead: true,
+      isStarred: false,
+      labels: parsed.labels,
+      // Sent items don't go through the classifier; they inherit context
+      // from the thread by being in it.
+      category: null,
+      intent: null,
+      categorySource: 'auto',
+      receivedAt: parsed.receivedAt,
+    })
+    return true
+  } catch (err) {
+    console.warn(`[mailbox.sent-ingest] ${providerMessageId} failed`, err)
+    return false
+  }
 }
 
 export async function setMessageRead(messageId: string, organizationId: string, read: boolean): Promise<void> {
@@ -1149,6 +1271,57 @@ export async function resolvePendingInlineImages(
     }
   }
   return { resolved }
+}
+
+/**
+ * Re-fetch headers for messages that were ingested before we started
+ * storing the RFC 5322 Message-ID + In-Reply-To. Bounded per call so the
+ * inbox page can fire-and-forget it. Without this, Reply on any older
+ * thread sends without In-Reply-To/References and the recipient's mail
+ * client opens it as a brand-new conversation (and the spam filter
+ * notices).
+ */
+export async function backfillRfcMessageIds(
+  organizationId: string,
+  opts: { limit?: number } = {},
+): Promise<{ updated: number; checked: number }> {
+  const limit = opts.limit ?? 30
+  const rows = await db
+    .select({
+      id: schema.emailMessage.id,
+      accountId: schema.emailMessage.accountId,
+      providerMessageId: schema.emailMessage.providerMessageId,
+    })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.organizationId, organizationId),
+        isNull(schema.emailMessage.rfcMessageId),
+      ),
+    )
+    .limit(limit)
+  if (rows.length === 0) return { updated: 0, checked: 0 }
+  let updated = 0
+  for (const row of rows) {
+    try {
+      const accessToken = await getAccessToken(row.accountId)
+      const full = await getMessage(accessToken, row.providerMessageId)
+      const parsed = parseGmailMessage(full)
+      if (parsed.rfcMessageId || parsed.inReplyTo) {
+        await db
+          .update(schema.emailMessage)
+          .set({
+            rfcMessageId: parsed.rfcMessageId,
+            inReplyTo: parsed.inReplyTo,
+          })
+          .where(eq(schema.emailMessage.id, row.id))
+        if (parsed.rfcMessageId) updated++
+      }
+    } catch (err) {
+      console.warn(`[mailbox.rfc-backfill] ${row.providerMessageId} failed:`, (err as Error).message)
+    }
+  }
+  return { updated, checked: rows.length }
 }
 
 /**
