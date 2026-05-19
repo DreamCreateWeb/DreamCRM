@@ -7,6 +7,10 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   addPatientFromEmail,
   archiveMessage as svcArchive,
+  bulkArchive,
+  bulkSetRead,
+  bulkSetStarred,
+  bulkTrash,
   classifyPendingIntents,
   disconnectAccount as svcDisconnect,
   getMessageDetail,
@@ -67,6 +71,42 @@ export async function trashMessageAction(messageId: string) {
   await svcTrash(messageId, ctx.organizationId)
   revalidatePath('/inbox')
   return { ok: true }
+}
+
+const BULK_ACTIONS = ['archive', 'trash', 'mark_read', 'mark_unread', 'star', 'unstar'] as const
+type BulkAction = (typeof BULK_ACTIONS)[number]
+
+const BulkInput = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(500),
+  action: z.enum(BULK_ACTIONS),
+})
+
+export async function bulkMessageAction(input: unknown): Promise<{ count: number }> {
+  const ctx = await requireOrgUser()
+  const { ids, action } = BulkInput.parse(input)
+  let result = { count: 0 }
+  switch (action as BulkAction) {
+    case 'archive':
+      result = await bulkArchive(ids, ctx.organizationId)
+      break
+    case 'trash':
+      result = await bulkTrash(ids, ctx.organizationId)
+      break
+    case 'mark_read':
+      result = await bulkSetRead(ids, ctx.organizationId, true)
+      break
+    case 'mark_unread':
+      result = await bulkSetRead(ids, ctx.organizationId, false)
+      break
+    case 'star':
+      result = await bulkSetStarred(ids, ctx.organizationId, true)
+      break
+    case 'unstar':
+      result = await bulkSetStarred(ids, ctx.organizationId, false)
+      break
+  }
+  revalidatePath('/inbox')
+  return result
 }
 
 const AddPatientInput = z.object({

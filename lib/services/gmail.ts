@@ -418,6 +418,24 @@ export async function modifyLabels(
 }
 
 /**
+ * Apply the same label change to many messages in one request. Gmail caps
+ * batchModify at 1000 ids per call, so callers should chunk if needed.
+ */
+export async function batchModifyLabels(
+  accessToken: string,
+  providerMessageIds: string[],
+  addLabelIds: string[],
+  removeLabelIds: string[],
+): Promise<void> {
+  if (providerMessageIds.length === 0) return
+  await gmailFetch(accessToken, '/users/me/messages/batchModify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: providerMessageIds, addLabelIds, removeLabelIds }),
+  })
+}
+
+/**
  * Move a message to the Trash in Gmail (reversible for 30 days from the
  * user's web UI — does not delete permanently).
  */
