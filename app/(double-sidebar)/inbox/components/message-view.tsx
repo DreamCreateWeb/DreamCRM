@@ -17,6 +17,7 @@ import AddPatientCard from './add-patient-card'
 import QuickReply from './quick-reply'
 import EmailIframe from './email-iframe'
 import { IntentBadge } from './intent-badge'
+import MoveToMenu from './move-to-menu'
 
 interface Props {
   message: EmailMessage | null
@@ -172,6 +173,8 @@ export default function MessageView({ message, bodyHtml, patientContext, account
             </svg>
             {msg.isRead ? 'Unread' : 'Read'}
           </ToolbarButton>
+          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
+          <MoveToMenu messageId={msg.id} currentCategory={msg.category} />
           <div className="ml-auto text-[11px] text-stone-500 dark:text-stone-400 tabular-nums tracking-wider hidden sm:block">
             {formatShortDate(msg.receivedAt)} · {formatTime(msg.receivedAt)}
           </div>

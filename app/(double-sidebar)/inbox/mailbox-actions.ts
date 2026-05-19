@@ -15,11 +15,13 @@ import {
   disconnectAccount as svcDisconnect,
   getMessageDetail,
   sendEmail,
+  setMessageCategory as svcSetMessageCategory,
   setMessageRead,
   setMessageStarred,
   syncAccount,
   trashMessage as svcTrash,
 } from '@/lib/services/mailbox'
+import { EMAIL_CATEGORIES } from '@/lib/db/schema/email'
 import { draftReply } from '@/lib/services/ai-mailbox'
 import { getInboxPatientContext } from '@/lib/services/patient-context'
 
@@ -71,6 +73,19 @@ export async function trashMessageAction(messageId: string) {
   await svcTrash(messageId, ctx.organizationId)
   revalidatePath('/inbox')
   return { ok: true }
+}
+
+const SetCategoryInput = z.object({
+  messageId: z.string().min(1),
+  category: z.enum(EMAIL_CATEGORIES),
+})
+
+export async function setMessageCategoryAction(input: unknown): Promise<{ updated: number }> {
+  const ctx = await requireOrgUser()
+  const { messageId, category } = SetCategoryInput.parse(input)
+  const result = await svcSetMessageCategory(messageId, ctx.organizationId, category)
+  revalidatePath('/inbox')
+  return result
 }
 
 const BULK_ACTIONS = ['archive', 'trash', 'mark_read', 'mark_unread', 'star', 'unstar'] as const

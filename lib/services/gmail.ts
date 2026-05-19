@@ -299,6 +299,8 @@ function parseAddress(raw: string | null): { name: string | null; email: string 
 export interface ParsedGmailMessage {
   providerMessageId: string
   providerThreadId: string
+  rfcMessageId: string | null
+  inReplyTo: string | null
   fromName: string | null
   fromEmail: string
   toEmails: string[]
@@ -325,6 +327,8 @@ export function parseGmailMessage(msg: GmailMessage): ParsedGmailMessage {
   return {
     providerMessageId: msg.id,
     providerThreadId: msg.threadId,
+    rfcMessageId: headerValue(headers, 'Message-ID') ?? headerValue(headers, 'Message-Id'),
+    inReplyTo: headerValue(headers, 'In-Reply-To'),
     fromName: from.name,
     fromEmail: from.email,
     toEmails: parseAddressList(headerValue(headers, 'To')),

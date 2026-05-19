@@ -18,9 +18,32 @@ import {
   watchMailbox,
 } from './gmail'
 import { classifyBatch } from './ai-mailbox'
-import type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
+import type {
+  EmailAccount,
+  EmailCategory,
+  EmailIntent,
+  EmailMessage,
+} from '@/lib/db/schema/email'
 
 export type { EmailAccount, EmailMessage } from '@/lib/db/schema/email'
+
+/**
+ * Map Gmail's own labels onto our category buckets. Returns null when
+ * Gmail hasn't decided — the AI classifier (or another heuristic) gets
+ * to choose. Critically this is how we *stop overriding Gmail*: if it
+ * says SPAM/PROMOTIONS/UPDATES we honor it rather than re-running
+ * Haiku and second-guessing.
+ */
+function categoryFromGmailLabels(
+  labels: string[],
+): { category: EmailCategory; intent: EmailIntent } | null {
+  if (labels.includes('SPAM')) return { category: 'spam', intent: 'other' }
+  if (labels.includes('CATEGORY_PROMOTIONS')) return { category: 'promotions', intent: 'marketing' }
+  if (labels.includes('CATEGORY_UPDATES')) return { category: 'updates', intent: 'other' }
+  if (labels.includes('CATEGORY_SOCIAL')) return { category: 'updates', intent: 'other' }
+  if (labels.includes('CATEGORY_FORUMS')) return { category: 'updates', intent: 'other' }
+  return null
+}
 
 /**
  * Look up a patient in `organizationId` whose email matches `fromEmail`
@@ -331,10 +354,8 @@ export async function syncAccount(
         const full = await getMessage(accessToken, item.id)
         const parsed = parseGmailMessage(full)
         const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
-        // Resolve cid: inline images (signature logos, embedded graphics)
-        // by fetching the attachments and inlining as data: URLs. Skipped
-        // for plain-text messages or messages with no inline refs.
         const resolvedHtml = await resolveInlineImages(accessToken, item.id, parsed.bodyHtml, full.payload)
+        const gmailCat = categoryFromGmailLabels(parsed.labels)
         await db.insert(schema.emailMessage).values({
           id: randomUUID(),
           accountId,
@@ -342,6 +363,8 @@ export async function syncAccount(
           patientId,
           providerMessageId: parsed.providerMessageId,
           providerThreadId: parsed.providerThreadId,
+          rfcMessageId: parsed.rfcMessageId,
+          inReplyTo: parsed.inReplyTo,
           folder: 'inbox',
           fromName: parsed.fromName,
           fromEmail: parsed.fromEmail,
@@ -353,6 +376,9 @@ export async function syncAccount(
           bodyHtml: resolvedHtml,
           isRead: parsed.isRead,
           labels: parsed.labels,
+          category: gmailCat?.category ?? null,
+          intent: gmailCat?.intent ?? null,
+          categorySource: gmailCat ? 'gmail' : 'auto',
           receivedAt: parsed.receivedAt,
         })
         added++
@@ -730,6 +756,7 @@ async function ingestMessageById(
     const parsed = parseGmailMessage(full)
     const patientId = await findPatientByEmail(organizationId, parsed.fromEmail)
     const resolvedHtml = await resolveInlineImages(accessToken, providerMessageId, parsed.bodyHtml, full.payload)
+    const gmailCat = categoryFromGmailLabels(parsed.labels)
     await db.insert(schema.emailMessage).values({
       id: randomUUID(),
       accountId,
@@ -737,6 +764,8 @@ async function ingestMessageById(
       patientId,
       providerMessageId: parsed.providerMessageId,
       providerThreadId: parsed.providerThreadId,
+      rfcMessageId: parsed.rfcMessageId,
+      inReplyTo: parsed.inReplyTo,
       folder: 'inbox',
       fromName: parsed.fromName,
       fromEmail: parsed.fromEmail,
@@ -748,6 +777,9 @@ async function ingestMessageById(
       bodyHtml: resolvedHtml,
       isRead: parsed.isRead,
       labels: parsed.labels,
+      category: gmailCat?.category ?? null,
+      intent: gmailCat?.intent ?? null,
+      categorySource: gmailCat ? 'gmail' : 'auto',
       receivedAt: parsed.receivedAt,
     })
 
@@ -893,6 +925,59 @@ export async function resolvePendingInlineImages(
 }
 
 /**
+ * Move a message to a different category as a manual user override.
+ * Propagates to every other message in the same thread so the whole
+ * conversation moves together (matches Gmail's mental model). Sets
+ * `categorySource='user'` so the classifier never overwrites this.
+ */
+export async function setMessageCategory(
+  messageId: string,
+  organizationId: string,
+  category: EmailCategory,
+): Promise<{ updated: number }> {
+  const [msg] = await db
+    .select({
+      providerThreadId: schema.emailMessage.providerThreadId,
+    })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.id, messageId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  if (!msg) return { updated: 0 }
+
+  // Apply to the whole thread so a single override sticks for new
+  // replies too. If there's no thread id (rare), fall back to the
+  // single message.
+  if (msg.providerThreadId) {
+    const result = await db
+      .update(schema.emailMessage)
+      .set({ category, categorySource: 'user' })
+      .where(
+        and(
+          eq(schema.emailMessage.providerThreadId, msg.providerThreadId),
+          eq(schema.emailMessage.organizationId, organizationId),
+        ),
+      )
+      .returning({ id: schema.emailMessage.id })
+    return { updated: result.length }
+  }
+  await db
+    .update(schema.emailMessage)
+    .set({ category, categorySource: 'user' })
+    .where(
+      and(
+        eq(schema.emailMessage.id, messageId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+  return { updated: 1 }
+}
+
+/**
  * Classify pending (category IS NULL) inbox messages for an org using the AI
  * classifier in `ai-mailbox.ts`. Runs in parallel with bounded concurrency.
  * Safe to invoke repeatedly — completed rows are skipped on the next call.
@@ -905,11 +990,7 @@ export async function resolvePendingInlineImages(
 export async function classifyPendingIntents(
   organizationId: string,
   opts: { limit?: number } = {},
-): Promise<{ classified: number; pending: number }> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('[mailbox.classify] ANTHROPIC_API_KEY not set — skipping')
-    return { classified: 0, pending: 0 }
-  }
+): Promise<{ classified: number; pending: number; viaHeuristic: number }> {
   const limit = opts.limit ?? 50
   const rows = await db
     .select({
@@ -920,6 +1001,8 @@ export async function classifyPendingIntents(
       bodyText: schema.emailMessage.bodyText,
       bodyHtml: schema.emailMessage.bodyHtml,
       snippet: schema.emailMessage.snippet,
+      providerThreadId: schema.emailMessage.providerThreadId,
+      patientId: schema.emailMessage.patientId,
     })
     .from(schema.emailMessage)
     .where(
@@ -929,18 +1012,106 @@ export async function classifyPendingIntents(
       ),
     )
     .limit(limit)
-  if (rows.length === 0) return { classified: 0, pending: 0 }
-  console.log(`[mailbox.classify] starting ${rows.length} messages`)
+  if (rows.length === 0) return { classified: 0, pending: 0, viaHeuristic: 0 }
+
+  // Pull thread-level category state in one query so we can inherit
+  // user/inherit/gmail decisions without an N+1 lookup. Only consider
+  // threads that have at least one "sticky" classification (user choice,
+  // inherited from one, or Gmail's own label) — pure-auto siblings are
+  // not authoritative.
+  const threadIds = Array.from(
+    new Set(rows.map((r) => r.providerThreadId).filter((t): t is string => !!t)),
+  )
+  type ThreadHint = { category: EmailCategory; intent: EmailIntent }
+  const threadHints = new Map<string, ThreadHint>()
+  if (threadIds.length > 0) {
+    const siblings = await db
+      .select({
+        providerThreadId: schema.emailMessage.providerThreadId,
+        category: schema.emailMessage.category,
+        intent: schema.emailMessage.intent,
+        categorySource: schema.emailMessage.categorySource,
+      })
+      .from(schema.emailMessage)
+      .where(
+        and(
+          eq(schema.emailMessage.organizationId, organizationId),
+          inArray(schema.emailMessage.providerThreadId, threadIds),
+          inArray(schema.emailMessage.categorySource, ['user', 'inherit', 'gmail']),
+        ),
+      )
+    for (const s of siblings) {
+      if (!s.providerThreadId || !s.category) continue
+      // First sibling wins; in practice they should all agree because
+      // inherit/user propagate to the whole thread when they're set.
+      if (!threadHints.has(s.providerThreadId)) {
+        threadHints.set(s.providerThreadId, {
+          category: s.category as EmailCategory,
+          intent: (s.intent ?? 'other') as EmailIntent,
+        })
+      }
+    }
+  }
+
+  // Apply cheap heuristics first. Anything that lands here doesn't hit
+  // Haiku — that's both faster and more accurate (we know more about
+  // the sender than the LLM does from from/subject/body alone).
+  const heuristicHits: Array<{
+    id: string
+    category: EmailCategory
+    intent: EmailIntent
+    source: 'inherit' | 'auto'
+  }> = []
+  const needsLlm: typeof rows = []
+  for (const row of rows) {
+    const hint = row.providerThreadId ? threadHints.get(row.providerThreadId) : undefined
+    if (hint) {
+      heuristicHits.push({ id: row.id, category: hint.category, intent: hint.intent, source: 'inherit' })
+      continue
+    }
+    // Known sender (already linked to a patient/customer) → almost
+    // certainly a real human writing to us. Treat as primary, mark as
+    // an auto decision so the user can still override.
+    if (row.patientId) {
+      heuristicHits.push({ id: row.id, category: 'primary', intent: 'follow_up', source: 'auto' })
+      continue
+    }
+    needsLlm.push(row)
+  }
+
+  let viaHeuristic = 0
+  for (const hit of heuristicHits) {
+    await db
+      .update(schema.emailMessage)
+      .set({ category: hit.category, intent: hit.intent, categorySource: hit.source })
+      .where(eq(schema.emailMessage.id, hit.id))
+    viaHeuristic++
+  }
+
+  if (needsLlm.length === 0) {
+    return { classified: viaHeuristic, pending: 0, viaHeuristic }
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('[mailbox.classify] ANTHROPIC_API_KEY not set — heuristics only')
+    return { classified: viaHeuristic, pending: needsLlm.length, viaHeuristic }
+  }
+
+  console.log(`[mailbox.classify] heuristics ${viaHeuristic}/${rows.length}, LLM ${needsLlm.length}`)
   const start = Date.now()
-  const results = await classifyBatch(rows)
+  const results = await classifyBatch(needsLlm)
   for (const [id, { category, intent }] of Array.from(results.entries())) {
     await db
       .update(schema.emailMessage)
-      .set({ category, intent })
+      .set({ category, intent, categorySource: 'auto' })
       .where(eq(schema.emailMessage.id, id))
   }
-  console.log(`[mailbox.classify] done: ${results.size}/${rows.length} in ${Date.now() - start}ms`)
-  return { classified: results.size, pending: rows.length - results.size }
+  console.log(`[mailbox.classify] LLM done in ${Date.now() - start}ms`)
+  return {
+    classified: viaHeuristic + results.size,
+    pending: needsLlm.length - results.size,
+    viaHeuristic,
+  }
 }
 
 /**
