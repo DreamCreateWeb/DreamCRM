@@ -1306,6 +1306,56 @@ export async function resolvePendingInlineImages(
 }
 
 /**
+ * Just-in-time backfill of one message's RFC headers right before a Reply
+ * goes out. Avoids the race where the page-load backfill hasn't reached
+ * this specific row yet — the reply path *must* have a Message-ID to
+ * pass to In-Reply-To, otherwise Gmail starts a new thread on the
+ * recipient side and our own sent-ingest stores it under a different
+ * providerThreadId. Returns the updated values or the originals if the
+ * fetch fails (best-effort).
+ */
+export async function ensureRfcMessageId(
+  messageId: string,
+  organizationId: string,
+): Promise<{ rfcMessageId: string | null; inReplyTo: string | null } | null> {
+  const [row] = await db
+    .select({
+      id: schema.emailMessage.id,
+      accountId: schema.emailMessage.accountId,
+      providerMessageId: schema.emailMessage.providerMessageId,
+      rfcMessageId: schema.emailMessage.rfcMessageId,
+      inReplyTo: schema.emailMessage.inReplyTo,
+    })
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.id, messageId),
+        eq(schema.emailMessage.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  if (!row) return null
+  if (row.rfcMessageId) {
+    return { rfcMessageId: row.rfcMessageId, inReplyTo: row.inReplyTo }
+  }
+  try {
+    const accessToken = await getAccessToken(row.accountId)
+    const full = await getMessage(accessToken, row.providerMessageId)
+    const parsed = parseGmailMessage(full)
+    if (parsed.rfcMessageId) {
+      await db
+        .update(schema.emailMessage)
+        .set({ rfcMessageId: parsed.rfcMessageId, inReplyTo: parsed.inReplyTo })
+        .where(eq(schema.emailMessage.id, row.id))
+      return { rfcMessageId: parsed.rfcMessageId, inReplyTo: parsed.inReplyTo }
+    }
+  } catch (err) {
+    console.warn('[mailbox.ensure-rfc-id] fetch failed', err)
+  }
+  return { rfcMessageId: null, inReplyTo: row.inReplyTo }
+}
+
+/**
  * Re-fetch headers for messages that were ingested before we started
  * storing the RFC 5322 Message-ID + In-Reply-To. Bounded per call so the
  * inbox page can fire-and-forget it. Without this, Reply on any older
