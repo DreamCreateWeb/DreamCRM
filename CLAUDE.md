@@ -126,7 +126,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (490 tests) covering middleware, billing sync,
+- **Vitest test suite** (515 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
@@ -138,7 +138,9 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   intake forms (slug collision, default flag enforcement, archive,
   submit, seed idempotency, by-slug + get-default), clinic overview
   (hero / attention cards / today's chair / glyph matrix / trend tiles
-  / activity feed).
+  / activity feed), patients module (glyph cluster render + cap, detail
+  header / needs-attention / timeline filter pills / pill count badges,
+  bulk-email skip/send/error rules).
 - **Platform admin "view as clinic" demo mode** — `demo_context` cookie
   carries `{orgId, role, patientId?}`; `getTenantContext` synthesizes a
   clinic/patient context from it when the real user is `platformAdmin`.
@@ -208,6 +210,36 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   — sets expectations rather than fake-it placeholders for the
   PMS-owned KPIs we deliberately don't show (production $, AR aging,
   case acceptance %, hygiene reappt %).
+- **Patients module v1** at `/patients` — dental `patient` table, not
+  generic `customers`. Research-grounded as a *relationship record*, not
+  a clinical chart (no charts/perio/procedure/claims/Rx — those live in
+  the PMS). `lib/services/patients.ts` returns rows with derived columns
+  (last visit, next visit, recall status, outstanding balance, lifetime
+  value, last contact, source) and a per-row glyph flag set (newPatient
+  ★ / birthday 🎂 / $ balance / 📝! missing-intake-before-next-visit /
+  ⚠️ unconfirmed-next-48h / 💤 lapsed / 🔕 opted-out). Filter chips
+  (All / New / Recall due / Lapsed / Has balance / Missing intake /
+  Birthday this month / Source) + fuzzy search across name/email/phone
+  + sortable columns. Bulk email send via Resend (`lib/services/
+  patient-bulk-comms.ts`) skips no-email/archived patients, personalizes
+  with first name, errors don't abort the batch. Detail page at
+  `/patients/[id]` — sticky header with lifecycle pill + all-glyphs +
+  4-stat strip (last visit / next visit / balance / LTV) + primary CTAs
+  (Send message / Book / Send intake / Edit). Left identity rail
+  (contact / personal / insurance / portal). Center timeline merges
+  appointments + messages + form submissions + invoices + notes +
+  "patient added" floor, filtered by tab pills (All / Appointments /
+  Messages / Forms / Billing / Notes) with count badges. Right column:
+  "Needs attention" panel (per-patient version of the Overview pattern
+  — only renders when there's something actionable) + append-only
+  relationship-notes panel (separate `patient_note` table, soft-delete
+  via `deleted_at`). Migration 0018 added `patient.source / lifecycle /
+  first_seen_at / last_activity_at`, the `patient_note` table, and
+  `customers.patient_id` FK (replaces brittle email-based joins).
+  `/ecommerce/customers` clinic branch 308s to `/patients`; clicking a
+  patient name on Today's chair in Overview jumps to their detail page.
+  Booking action + invite-accept set `source` on insert; demo seeder
+  backfills mixed sources for the 15 seeded patients.
 - **Gmail push notifications via Google Pub/Sub** — `users.watch()` is
   registered when a mailbox is connected; Gmail publishes change events
   to `projects/dreamcrm-496717/topics/gmail-watch`; the push subscription
@@ -227,7 +259,7 @@ on dental-correct schema. Placeholder = "Coming soon" UI only.
 | Overview | `/` → `/dashboard` | **Live (v1)** | Morning-huddle dashboard, shipped this session |
 | Analytics | `/dashboard/analytics` | Stub | Mosaic template, not dental-shaped |
 | Revenue | `/dashboard/fintech` | Stub | Per-user fintech demo, not real clinic revenue |
-| Patients | `/ecommerce/customers` | Stub | Backed by generic `customers` table, NOT the dental `patient` table. Big rebuild candidate. |
+| Patients | `/patients` | **Live (v1)** | Dental `patient` table. List with glyph cluster + filter chips + fuzzy search + bulk email; detail page with identity rail + unified timeline (appointments + messages + forms + invoices + notes) + needs-attention panel + relationship notes (append-only `patient_note` table) |
 | Appointments | `/calendar` | Live | FullCalendar on dental `appointment` table; tenant-scoped |
 | Treatment Plans | `/orders` | Stub | Currently on generic `orders` table — mis-labeled per DESIGN.md (we don't do clinical treatment plans yet; this is product orders) |
 | Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
@@ -253,10 +285,12 @@ Public clinic surfaces also live:
    NXDOMAIN. Required record: `CNAME *  cname.vercel-dns.com.` Vercel
    side already has the wildcard domain configured + verified.
    Path-based URLs (`/site/[slug]/...`) work today as a workaround.
-2. **Patients module rebuild** — `/ecommerce/customers` currently shows
-   generic `customers` rows. The dental `patient` table is populated
-   (demo has 15) but isn't surfaced in the clinic sidebar's Patients
-   entry. This is the next-biggest module to rebuild.
+2. **Patients module v2** — v1 shipped this session. v2 candidates:
+   per-patient tags + audience targeting; comms preferences granularity
+   (per-channel opt-in: SMS/email/marketing); household linkage table
+   for pediatric/family clinics; per-view audit log for Premium tier;
+   web-analytics events on the timeline once that lands; patient.source
+   backfill for legacy rows that predate the new column (currently null).
 3. **Treatment Plans label is wrong** — sidebar entry `treatment_plans`
    points to `/orders`. We don't do clinical treatment plans (per
    DESIGN.md out-of-scope). Rename to "Orders" or "Shop Orders" and

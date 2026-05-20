@@ -42,6 +42,10 @@ export async function linkPatientRecord(): Promise<void> {
 
   await db
     .update(patient)
-    .set({ userId: session.user.id })
+    .set({
+      userId: session.user.id,
+      source: patientRow.source ?? 'invite',
+      lastActivityAt: new Date(),
+    })
     .where(eq(patient.id, patientRow.id))
 }

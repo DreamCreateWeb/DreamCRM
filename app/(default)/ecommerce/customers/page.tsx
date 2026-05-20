@@ -21,11 +21,13 @@ export default async function CustomersPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
+  // Clinic tenants now use the dental-correct Patients module at /patients.
+  // The generic customers table still serves the platform org as a
+  // leads/contacts list.
+  if (ctx.tenantType === 'clinic') redirect('/patients')
+
   if (ctx.tenantType === 'platform') return <PlatformClinics />
 
-  // Clinic tenants — keep the existing CRM-style customers/patients table.
-  // (The clinic-side Patients module gets its own pass when we work the
-  // clinic registry top-down.)
   const [customers, stats] = await Promise.all([
     listCustomers(ctx.organizationId),
     getCustomerOrderStats(ctx.organizationId),

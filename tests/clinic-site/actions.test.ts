@@ -38,6 +38,11 @@ vi.mock('@/lib/db', async () => {
           insertedRows.push({ table: tableName, values: vals })
         },
       }),
+      // Patient "last activity" bump on rebook — we just need the chain
+      // to resolve. The test doesn't assert on the bumped value.
+      update: () => ({
+        set: () => ({ where: async () => undefined }),
+      }),
     },
   }
 })

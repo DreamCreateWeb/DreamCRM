@@ -312,6 +312,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       notes:
         i % 4 === 0 ? 'Prefers morning appointments.' : i % 5 === 0 ? 'Allergic to penicillin.' : null,
       isActive: 1,
+      source: i % 3 === 0 ? 'booking' : i % 3 === 1 ? 'referral' : 'manual',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - (i * 7 + 30) * 24 * 60 * 60 * 1000),
+      lastActivityAt: new Date(now.getTime() - (i % 5) * 24 * 60 * 60 * 1000),
     })
   }
 

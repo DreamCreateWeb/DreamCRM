@@ -341,9 +341,12 @@ function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold text-gray-800 dark:text-gray-100 truncate">
+          <Link
+            href={`/patients/${appt.patientId}`}
+            className="font-semibold text-gray-800 dark:text-gray-100 truncate hover:underline"
+          >
             {appt.patientName}
-          </span>
+          </Link>
           {appt.flags.newPatient && (
             <span title="New patient" className="text-amber-500 text-sm" aria-label="New patient">
               ★
