@@ -126,7 +126,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (515 tests) covering middleware, billing sync,
+- **Vitest test suite** (518 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
@@ -387,6 +387,20 @@ Public clinic surfaces also live:
   + tenant context see the new state on the next request.
 - Stripe / DB / better-auth clients are lazy `Proxy` instances so
   `next build` can run without runtime envs.
+- **No fake content. Every UI placeholder must read from a real DB column,
+  and the Acme demo seeder must populate every column shown anywhere in
+  the UI.** "Coming soon" cards with `status: 'soon'` in the module
+  registry are the only honest exception — they label themselves as
+  not-yet-built. Whenever you add a new field, table, or section, do all
+  three in the same PR:
+  (1) ship the real DB-backed wiring,
+  (2) extend `lib/services/demo-clinic.ts` so the Acme demo seeds that
+      field with realistic content (cover empty / common / edge-case
+      values so every code path is exercised on the demo),
+  (3) extend the self-heal block so existing demos backfill the field
+      on the next platform-admin "View as clinic" entry. This keeps the
+      demo as the single source of truth that the platform showcases
+      every module's full functionality.
 
 ## Useful commands
 
