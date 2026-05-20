@@ -126,11 +126,19 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (419 tests) covering middleware, billing sync,
+- **Vitest test suite** (490 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
-  and seeder.
+  and seeder, modern-template (warm-neutral palette, anti-shame voice,
+  numbered service pillars, sticky mobile bar), content sections
+  (stats / testimonials / office tour), SEO (publicSiteUrl + Dentist
+  JSON-LD branches), booking slot picker (open/closed days, overlap
+  math, status filtering, freshness check, race-condition guard),
+  intake forms (slug collision, default flag enforcement, archive,
+  submit, seed idempotency, by-slug + get-default), clinic overview
+  (hero / attention cards / today's chair / glyph matrix / trend tiles
+  / activity feed).
 - **Platform admin "view as clinic" demo mode** — `demo_context` cookie
   carries `{orgId, role, patientId?}`; `getTenantContext` synthesizes a
   clinic/patient context from it when the real user is `platformAdmin`.
@@ -139,6 +147,67 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   patients, appointments, customers, orders, invoices, tasks, products).
   Sticky amber banner shows on every page while in demo mode; Exit
   button clears the cookie. Real session is untouched throughout.
+  `enterDemoMode` auto-self-heals the Acme demo (bumps brandColor,
+  backfills stats/testimonials/officePhotos, seeds default intake form)
+  whenever the platform admin enters it, so the demo always showcases
+  the latest template.
+- **Modern Family/Wellness clinic site template** (`/site/[slug]`) —
+  Tend-inspired warm off-white palette (`#FAF7F2` bg, `#1C1A17` ink,
+  brand color bounded to CTAs only). Sections: header, photo-driven
+  hero with copy-primacy fallback, stat anchor row, numbered service
+  pillars (01/02/03, capped at 6), team grid (4:5 headshots), long-
+  form testimonials, about, office-tour gallery, hours+location,
+  booking CTA, footer, sticky mobile Book+Call bar. "Book a Visit"
+  copy universal across tiers; anti-shame default subhead. Editable
+  via `/settings/clinic` (services, staff, stats, testimonials, office
+  photos, hours, brand, logo/hero uploads).
+- **SEO foundations for clinic sites** — `publicSiteUrl()` canonical
+  URL helper (custom domain or subdomain). `clinicJsonLd()` builds a
+  schema.org `Dentist` payload (name, address with primary-location
+  preference, OpeningHoursSpecification per open day, AggregateRating
+  when stats include a reviewy stat, priceRange). Rendered as
+  `<script type="application/ld+json">` in the initial HTML.
+  Per-clinic `/sitemap.xml`, `/robots.txt`, and a dynamic OG image
+  via Next.js `ImageResponse` (hero-photo overlay or warm copy-primacy
+  fallback). `generateMetadata` on `/` and `/book` outputs proper
+  title / description / canonical / OG / Twitter / favicon.
+- **Real online booking with slot picker** at `/site/[slug]/book` —
+  `lib/services/booking.ts` exposes `getAvailableSlots(orgId, date)`
+  (30-min grid within clinic hours minus existing appointments,
+  cancelled/no_show appointments don't block, past slots filtered)
+  and `isSlotAvailable(orgId, startTime)` (race-condition guard called
+  before INSERT). UI: 14-day date strip, slot grid with strike-through
+  for taken slots, 3-step form (date · time · contact). Patient lookup
+  by email OR phone, default endTime = start + 30 min. Universal
+  "Book a Visit" copy; basic-tier routes to contact-form anchor instead
+  of `/book`.
+- **Intake forms** — schema (`form_template` + `form_submission`,
+  migration 0017), service in `lib/services/forms.ts` (CRUD +
+  `seedDefaultIntakeForm` for new clinics), discriminated-union
+  `FormField` type covering text/textarea/email/tel/date/select/radio/
+  checkbox/yes_no/signature. Admin UI at `/intake-forms` (list + create
+  + builder page with sections + fields, drag-up/down reorder, type
+  picker, options editor, required/help/placeholder, archive). Public
+  fill at `/site/[slug]/intake/[formSlug]` (warm-neutral template,
+  `noindex` meta, required-field validation client + server). Booking
+  confirmation email now includes amber "Fill out your intake form"
+  block when clinic has a default template. `DEFAULT_INTAKE_TEMPLATE`
+  (opinionated standard dental new-patient: demographics, insurance,
+  medical, dental history, anti-shame anxiety question, HIPAA,
+  signature) seeded for the demo clinic + as the "+ New Form" starting
+  point.
+- **Morning-huddle Overview module** at `/` (routes to `/dashboard`,
+  branches to `ClinicOverview` for clinic tenant). Research-grounded
+  in the dental "morning huddle" pattern: six things to action, every
+  number drillable. `lib/services/clinic-overview.ts` returns a single
+  snapshot (today's chair with per-patient flags, unconfirmed-next-48h,
+  intake submissions last 7d, outstanding balances, trend tiles, recent
+  activity feed). Per-row glyphs on today's chair: new-patient ★,
+  birthday 🎂, balance $, missing-intake 📝!. Three honest "Coming
+  soon" placeholders at the bottom (Reviews, SMS replies, Website leads)
+  — sets expectations rather than fake-it placeholders for the
+  PMS-owned KPIs we deliberately don't show (production $, AR aging,
+  case acceptance %, hygiene reappt %).
 - **Gmail push notifications via Google Pub/Sub** — `users.watch()` is
   registered when a mailbox is connected; Gmail publishes change events
   to `projects/dreamcrm-496717/topics/gmail-watch`; the push subscription
@@ -148,44 +217,111 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   expires within 36h (`/api/cron/gmail-watch-renew`). Existing polling
   (auto-sync on page load + Refresh button) remains as a fallback path.
 
+## Module status snapshot (clinic dashboard)
+
+Live = real data + interaction. Stub = template-shape exists but not yet
+on dental-correct schema. Placeholder = "Coming soon" UI only.
+
+| Module | Sidebar path | Status | Notes |
+|---|---|---|---|
+| Overview | `/` → `/dashboard` | **Live (v1)** | Morning-huddle dashboard, shipped this session |
+| Analytics | `/dashboard/analytics` | Stub | Mosaic template, not dental-shaped |
+| Revenue | `/dashboard/fintech` | Stub | Per-user fintech demo, not real clinic revenue |
+| Patients | `/ecommerce/customers` | Stub | Backed by generic `customers` table, NOT the dental `patient` table. Big rebuild candidate. |
+| Appointments | `/calendar` | Live | FullCalendar on dental `appointment` table; tenant-scoped |
+| Treatment Plans | `/orders` | Stub | Currently on generic `orders` table — mis-labeled per DESIGN.md (we don't do clinical treatment plans yet; this is product orders) |
+| Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
+| Patient Messaging | `/messages` | Live | Conversations, tenant-scoped |
+| Intake Forms | `/intake-forms` | **Live (v1)** | Shipped this session |
+| Inbox | `/inbox` | Live | Gmail integration, real-time SSE, triage, threading |
+| Tasks | `/tasks/kanban` | Live | Kanban + table, dnd |
+| Recall & Outreach | `/marketing` | Live | Campaigns module |
+| Blog / SEO / Careers / Website Editor | — | Placeholder | `status: 'soon'` in clinic registry |
+| Settings | `/settings/account` | Live | + `/settings/clinic` with services, staff, stats, testimonials, office photos editors |
+
+Public clinic surfaces also live:
+- `{slug}.dreamcreatestudio.com/` — Modern Family/Wellness template
+- `{slug}.dreamcreatestudio.com/book` — slot-picker booking (pro/premium)
+- `{slug}.dreamcreatestudio.com/intake/[formSlug]` — public form fill
+- `{slug}.dreamcreatestudio.com/sitemap.xml`, `/robots.txt`
+- `{slug}.dreamcreatestudio.com/opengraph-image` — dynamic OG image
+
 ## What's NOT yet wired (priorities for next session)
-1. **Migration 0004 + Gmail push env vars need applying to prod** —
+
+1. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard at name.com
+   isn't set. Apex resolves to Vercel (216.150.1.1) but subdomains
+   NXDOMAIN. Required record: `CNAME *  cname.vercel-dns.com.` Vercel
+   side already has the wildcard domain configured + verified.
+   Path-based URLs (`/site/[slug]/...`) work today as a workaround.
+2. **Patients module rebuild** — `/ecommerce/customers` currently shows
+   generic `customers` rows. The dental `patient` table is populated
+   (demo has 15) but isn't surfaced in the clinic sidebar's Patients
+   entry. This is the next-biggest module to rebuild.
+3. **Treatment Plans label is wrong** — sidebar entry `treatment_plans`
+   points to `/orders`. We don't do clinical treatment plans (per
+   DESIGN.md out-of-scope). Rename to "Orders" or "Shop Orders" and
+   reposition.
+4. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL`
+   envs (they currently point to the same monthly prices).
+5. **Patient portal completion** — `/patient/*` exists but bills is
+   placeholder; records, messages, intake-fill, refill-request marked
+   'soon' in the patient sidebar.
+6. **Coming-soon Overview cards become real modules** —
+   - Reviews & reputation (post-visit Google/Yelp prompts)
+   - SMS replies (Twilio integration, two-way)
+   - Website leads (contact form submissions need to land in a `lead`
+     table — currently the contact form just fires an email and
+     forgets the submission)
+7. **Migration 0004 + Gmail push env vars need applying to prod** —
    bootstrap-apply `0004_lowly_microbe.sql` (adds `watch_expires_at`),
    then set Vercel env vars:
    `GMAIL_PUBSUB_TOPIC=projects/dreamcrm-496717/topics/gmail-watch`,
    `GMAIL_PUBSUB_SA_EMAIL=dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`,
    `CRON_SECRET=<random>`. Finally create the Pub/Sub push subscription
    pointing at `https://dreamcreatestudio.com/api/webhooks/gmail` with
-   OIDC identity `dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`
-   (and grant Pub/Sub service agent `roles/iam.serviceAccountTokenCreator`
-   on that SA so it can mint the OIDC tokens). Setup helpers live in
-   `/tmp/gcp-*.mjs` (not committed; rerun from the SA JSON if needed).
-2. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard must be added
-   to the Vercel project before clinic sites resolve in production.
-3. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL` envs
-4. **Module recontextualization for clinic admins** — `messages`, `calendar`,
-   `tasks`, `customers`, `orders`, `invoices`, `products`, `cart` services
-   are all now tenant-scoped (filter by `organizationId` on every read +
-   set on every insert). Remaining unscoped surfaces are platform-wide by
-   design (forum/feed/meetups/jobs). Migration `0015_backfill_legacy_org_rows`
-   claims any leftover NULL org rows in customers/orders/invoices/products/
-   cart_items to the platform org and must be applied via bootstrap before
-   onboarding clinic #2.
-5. **Patient bills + records + messages** — the patient portal pages
-   exist but bills is a placeholder, records/messages are 'soon' in the
-   sidebar registry. Pending real clinic invoicing flow.
+   OIDC identity `dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`.
 
 ## Deployment & operations
 
 - **Production**: `main` branch auto-deploys to `https://dreamcreatestudio.com`
 - **Region**: `iad1` (matches Neon)
-- **DB migration**: applied via one-time `/api/admin/bootstrap` pattern.
-  If you need to apply a new migration, push the bootstrap route (auth'd
-  by a freshly-rotated `ADMIN_BOOTSTRAP_TOKEN` env var), curl it, then
-  remove the route + the env var.
+- **Vercel token**: the user (Dustin) has provided a Vercel access token
+  in this session's history (rotate-aware — don't echo it back to chat
+  in future sessions; check session context for the latest one). Token
+  is used for: reading project envs (note: `DATABASE_URL` is "sensitive"
+  type and can't be pulled via `vercel env pull`), setting/deleting
+  `ADMIN_BOOTSTRAP_TOKEN` for migration runs, polling deployment status.
+- **DB migration workflow** (used 3× this session for 0015, 0016, 0017):
+  1. Generate migration via `pnpm db:generate --name foo`
+  2. Generate a random `ADMIN_BOOTSTRAP_TOKEN` and POST it to
+     `https://api.vercel.com/v10/projects/prj_HK0PWpVYjcDPZNUUoxIQ5UptBFMS/env`
+     with target `["production"]`, type `encrypted`.
+  3. Add `app/api/admin/bootstrap/route.ts` (copy from any prior
+     `claude/cleanup-bootstrap-*` PR — the canonical implementation
+     ships an idempotent ledger `_dreamcrm_migrations_applied` and
+     tolerates `42P07/42701/42710` mid-migration).
+  4. Add `/api/admin/bootstrap` to `middleware.ts` `PUBLIC_PATHS`.
+  5. Commit + push + auto-merge the PR. Wait for deploy
+     (poll `/v6/deployments?...&target=production&limit=1` until
+     `readyState=READY`).
+  6. `curl -X POST -H "Authorization: Bearer $TOKEN"
+     https://dreamcreatestudio.com/api/admin/bootstrap`. Verify response
+     shows the new migration's status as `applied`.
+  7. DELETE the `ADMIN_BOOTSTRAP_TOKEN` env var via the Vercel API.
+  8. Open a follow-up PR (`claude/cleanup-bootstrap-NNNN`) removing
+     the bootstrap route + middleware allowlist. Auto-merge.
 - **Webhook secret rotation**: same pattern — `/api/admin/bootstrap` with
   `stripe-setup` action returns the new whsec; PATCH the
   `STRIPE_WEBHOOK_SECRET` env var via Vercel API.
+
+## PR / merge workflow (this session's convention)
+
+- Develop on a `claude/<feature-name>` branch off main.
+- Push → open PR via GitHub MCP (`mcp__github__create_pull_request`).
+- Auto-merge via `mcp__github__merge_pull_request` with `merge_method: squash`.
+- Sync local main: `git checkout main && git fetch origin main && git reset --hard origin/main`.
+- Migration PRs are paired: one PR ships the route + migration + code,
+  the follow-up PR removes the route after migration is applied.
 
 ## Vercel project facts
 - `accountId: team_JCkmr9YSdUoHDEI9kLvznwCc`
