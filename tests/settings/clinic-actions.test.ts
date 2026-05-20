@@ -200,4 +200,85 @@ describe('updateClinicProfile', () => {
     expect(set.staff[0].photoUrl).toBe('p1.jpg')
     expect(set.staff[1].name).toBe('Dr. Lee')
   })
+
+  it('parses stats JSON, drops fully-empty rows', async () => {
+    await updateClinicProfile(
+      form({
+        displayName: 'X',
+        stats: JSON.stringify([
+          { id: 's1', value: '8,000+', label: 'reviews' },
+          { id: 's2', value: '', label: '' }, // dropped
+          { id: 's3', value: 'Same-week', label: 'appointments' },
+        ]),
+      }),
+    )
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as { set: { stats: Array<{ value: string }> } }).set
+    expect(set.stats).toHaveLength(2)
+    expect(set.stats.map((s) => s.value)).toEqual(['8,000+', 'Same-week'])
+  })
+
+  it('parses testimonials JSON, requires both quote + authorName', async () => {
+    await updateClinicProfile(
+      form({
+        displayName: 'X',
+        testimonials: JSON.stringify([
+          {
+            id: 't1',
+            quote: 'Great visit.',
+            authorName: 'Sarah K.',
+            authorLocation: 'Austin, TX',
+          },
+          { id: 't2', quote: 'No name', authorName: '' }, // dropped (no author)
+          { id: 't3', quote: '', authorName: 'No quote' }, // dropped (no quote)
+          { id: 't4', quote: 'Loved it.', authorName: 'Marcus T.' },
+        ]),
+      }),
+    )
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as {
+      set: {
+        testimonials: Array<{
+          quote: string
+          authorName: string
+          authorLocation: string | null
+        }>
+      }
+    }).set
+    expect(set.testimonials).toHaveLength(2)
+    expect(set.testimonials[0].quote).toBe('Great visit.')
+    expect(set.testimonials[0].authorLocation).toBe('Austin, TX')
+    expect(set.testimonials[1].authorName).toBe('Marcus T.')
+  })
+
+  it('parses office photos JSON, requires url', async () => {
+    await updateClinicProfile(
+      form({
+        displayName: 'X',
+        officePhotos: JSON.stringify([
+          { id: 'op1', url: 'https://blob/op1.jpg', alt: 'Reception', caption: 'Front desk' },
+          { id: 'op2', url: '', alt: 'No url' }, // dropped
+          { id: 'op3', url: 'https://blob/op2.jpg' },
+        ]),
+      }),
+    )
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as {
+      set: { officePhotos: Array<{ url: string; alt: string | null; caption: string | null }> }
+    }).set
+    expect(set.officePhotos).toHaveLength(2)
+    expect(set.officePhotos[0].url).toBe('https://blob/op1.jpg')
+    expect(set.officePhotos[0].caption).toBe('Front desk')
+  })
+
+  it('stores null for the new content fields when not provided', async () => {
+    await updateClinicProfile(form({ displayName: 'X' }))
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as {
+      set: { stats: unknown; testimonials: unknown; officePhotos: unknown }
+    }).set
+    expect(set.stats).toBeNull()
+    expect(set.testimonials).toBeNull()
+    expect(set.officePhotos).toBeNull()
+  })
 })

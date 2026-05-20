@@ -16,6 +16,41 @@ export interface ClinicStaff {
   photoUrl?: string | null
 }
 
+/**
+ * Long-form patient testimonial card. Tend pattern — quote + first name +
+ * neighborhood + optional photo. Long quotes (2–4 sentences) beat star
+ * counts; first-name + city beats "Mary B., happy patient."
+ */
+export interface ClinicTestimonial {
+  id: string
+  quote: string
+  authorName: string
+  authorLocation?: string | null
+  authorPhotoUrl?: string | null
+}
+
+/**
+ * "Stat anchor" — a short, scannable trust signal pair. `value` is the
+ * big-text headline ("8,000+", "Same-week", "Most"), `label` is the
+ * follow-on phrase ("five-star reviews", "appointments", "insurance accepted").
+ */
+export interface ClinicStat {
+  id: string
+  value: string
+  label: string
+}
+
+/**
+ * Office tour / interior photo. One row in the magazine-style gallery.
+ * Caption optional.
+ */
+export interface ClinicOfficePhoto {
+  id: string
+  url: string
+  alt?: string | null
+  caption?: string | null
+}
+
 export const DEFAULT_SERVICES: ClinicService[] = [
   { id: 'cleanings', name: 'Cleanings & Exams', icon: '🦷' },
   { id: 'cosmetic', name: 'Cosmetic Dentistry', icon: '✨' },

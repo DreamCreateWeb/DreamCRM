@@ -1,5 +1,11 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
-import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
+import type {
+  ClinicService,
+  ClinicStaff,
+  ClinicStat,
+  ClinicTestimonial,
+  ClinicOfficePhoto,
+} from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import ContactForm from '@/app/site/[slug]/contact-form'
 
@@ -54,6 +60,11 @@ export default function ModernTemplate({ data, basePath }: Props) {
   const services: ClinicService[] =
     ((profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES).slice(0, 6)
   const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
+  const stats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
+  const testimonials: ClinicTestimonial[] =
+    ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 6)
+  const officePhotos: ClinicOfficePhoto[] =
+    ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
   const bookLabel = 'Book a Visit'
 
@@ -192,6 +203,42 @@ export default function ModernTemplate({ data, basePath }: Props) {
         </div>
       </section>
 
+      {/* ── Stat anchors — trust signals immediately after hero ────────── */}
+      {stats.length > 0 && (
+        <section className="py-12 sm:py-16 border-y" style={{ borderColor: BORDER }}>
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+            <div
+              className={`grid gap-8 sm:gap-12 ${
+                stats.length === 4
+                  ? 'grid-cols-2 lg:grid-cols-4'
+                  : stats.length === 3
+                    ? 'grid-cols-1 sm:grid-cols-3'
+                    : stats.length === 2
+                      ? 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto'
+                      : 'grid-cols-1 max-w-md mx-auto'
+              }`}
+            >
+              {stats.map((s) => (
+                <div key={s.id} className="text-center sm:text-left">
+                  <div
+                    className="text-3xl sm:text-4xl font-bold leading-none mb-2 tracking-[-0.02em]"
+                    style={{ color: brand }}
+                  >
+                    {s.value}
+                  </div>
+                  <div
+                    className="text-sm sm:text-[15px] leading-snug"
+                    style={{ color: INK_MUTED }}
+                  >
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Services — numbered pillars ────────────────────────────────── */}
       <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
@@ -296,6 +343,80 @@ export default function ModernTemplate({ data, basePath }: Props) {
         </section>
       )}
 
+      {/* ── Testimonials — long-form, photo + first name + city ────────── */}
+      {testimonials.length > 0 && (
+        <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+            <div className="max-w-[640px] mb-14">
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
+                style={{ color: brand }}
+              >
+                In their words
+              </p>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-[1.1] tracking-[-0.02em]"
+                style={{ color: INK }}
+              >
+                Patients on the experience.
+              </h2>
+            </div>
+            <div
+              className={`grid gap-6 lg:gap-8 ${
+                testimonials.length >= 3
+                  ? 'md:grid-cols-3'
+                  : testimonials.length === 2
+                    ? 'md:grid-cols-2 max-w-4xl'
+                    : 'max-w-2xl'
+              }`}
+            >
+              {testimonials.slice(0, 3).map((t) => (
+                <figure
+                  key={t.id}
+                  className="rounded-2xl p-7 sm:p-8 flex flex-col"
+                  style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+                >
+                  <blockquote
+                    className="text-[17px] leading-[1.55] flex-1 mb-6"
+                    style={{ color: INK }}
+                  >
+                    &ldquo;{t.quote}&rdquo;
+                  </blockquote>
+                  <figcaption className="flex items-center gap-3">
+                    {t.authorPhotoUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={t.authorPhotoUrl}
+                        alt=""
+                        className="w-11 h-11 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <span
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0"
+                        style={{ backgroundColor: brand }}
+                        aria-hidden="true"
+                      >
+                        {t.authorName.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div>
+                      <div className="text-sm font-semibold leading-tight" style={{ color: INK }}>
+                        {t.authorName}
+                      </div>
+                      {t.authorLocation && (
+                        <div className="text-xs mt-0.5" style={{ color: INK_MUTED }}>
+                          {t.authorLocation}
+                        </div>
+                      )}
+                    </div>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── About ──────────────────────────────────────────────────────── */}
       {profile.about && (
         <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
@@ -317,6 +438,61 @@ export default function ModernTemplate({ data, basePath }: Props) {
                   {profile.about}
                 </p>
               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Office tour — magazine-rhythm photo gallery ─────────────────── */}
+      {officePhotos.length > 0 && (
+        <section className="py-20 sm:py-28">
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+            <div className="max-w-[640px] mb-14">
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
+                style={{ color: brand }}
+              >
+                Inside the office
+              </p>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-[1.1] tracking-[-0.02em]"
+                style={{ color: INK }}
+              >
+                A space designed to put you at ease.
+              </h2>
+            </div>
+            <div
+              className={`grid gap-4 sm:gap-6 ${
+                officePhotos.length >= 4
+                  ? 'grid-cols-2 lg:grid-cols-4'
+                  : officePhotos.length === 3
+                    ? 'grid-cols-1 sm:grid-cols-3'
+                    : officePhotos.length === 2
+                      ? 'grid-cols-1 sm:grid-cols-2'
+                      : 'grid-cols-1 max-w-2xl'
+              }`}
+            >
+              {officePhotos.slice(0, 4).map((p) => (
+                <figure key={p.id}>
+                  <div
+                    className="overflow-hidden rounded-2xl"
+                    style={{ backgroundColor: BORDER }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.url}
+                      alt={p.alt ?? ''}
+                      className="w-full aspect-[4/5] object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  {p.caption && (
+                    <figcaption className="mt-3 text-sm" style={{ color: INK_MUTED }}>
+                      {p.caption}
+                    </figcaption>
+                  )}
+                </figure>
+              ))}
             </div>
           </div>
         </section>

@@ -23,10 +23,16 @@ export const clinicProfile = pgTable('clinic_profile', {
 
   // Editable site content stored as JSON for the MVP — avoids the join
   // overhead while we figure out which fields clinics actually customize.
-  // services: Array<{ id, name, description?, icon? }>
-  // staff:    Array<{ id, name, title?, bio?, photoUrl? }>
+  // services:      Array<{ id, name, description?, icon? }>
+  // staff:         Array<{ id, name, title?, bio?, photoUrl? }>
+  // testimonials:  Array<{ id, quote, authorName, authorLocation?, authorPhotoUrl? }>
+  // stats:         Array<{ id, value, label }>
+  // officePhotos:  Array<{ id, url, alt?, caption? }>
   services: jsonb('services'),
   staff: jsonb('staff'),
+  testimonials: jsonb('testimonials'),
+  stats: jsonb('stats'),
+  officePhotos: jsonb('office_photos'),
 
   // Contact
   phone: text('phone'),

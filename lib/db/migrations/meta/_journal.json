@@ -113,6 +113,13 @@
       "when": 1779225732101,
       "tag": "0015_backfill_legacy_org_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779254751756,
+      "tag": "0016_add_site_content_sections",
+      "breakpoints": true
     }
   ]
 }
