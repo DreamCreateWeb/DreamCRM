@@ -105,6 +105,9 @@ export interface BookingConfirmationData {
   clinicPhone: string | null
   startTime: Date
   appointmentType: string
+  /** When the clinic has a default intake form configured, the absolute
+   * URL we want the patient to land on to fill it out. */
+  intakeFormUrl?: string | null
 }
 
 export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData) {
@@ -114,6 +117,21 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
     weekday: 'long', month: 'long', day: 'numeric',
     year: 'numeric', hour: 'numeric', minute: '2-digit',
   })
+  const intakeBlock = data.intakeFormUrl
+    ? `
+        <div style="margin:0 0 24px;padding:16px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
+          <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#9a3412">
+            One quick step before your visit
+          </p>
+          <p style="margin:0 0 12px;font-size:13px;color:#7c2d12;line-height:1.55">
+            Take 3 minutes to fill out your new patient intake form — saves you
+            time at the door.
+          </p>
+          <a href="${data.intakeFormUrl}" style="display:inline-block;padding:10px 18px;background:#9a3412;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">
+            Fill out intake form
+          </a>
+        </div>`
+    : ''
   await resend.emails.send({
     from: FROM,
     to,
@@ -129,6 +147,7 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
           <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
           <p style="margin:0;font-size:14px;color:#555">${data.clinicName}${data.clinicPhone ? ` · ${data.clinicPhone}` : ''}</p>
         </div>
+        ${intakeBlock}
         <p style="margin:0;font-size:13px;color:#888">
           We'll be in touch to confirm. If you need to reschedule, please call us directly.
         </p>

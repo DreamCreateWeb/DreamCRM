@@ -2,6 +2,7 @@ import 'server-only'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
+import { seedDefaultIntakeForm } from '@/lib/services/forms'
 
 /**
  * Demo-clinic seeder. Creates a fully-populated clinic org so platform
@@ -195,6 +196,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         .set(patch)
         .where(eq(schema.clinicProfile.organizationId, existing.id))
     }
+    // Seed the default intake form if the demo predates the forms feature.
+    await seedDefaultIntakeForm(existing.id)
+
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -449,6 +453,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
           : null,
     })
   }
+
+  // Default intake form template — the standard dental new-patient form.
+  await seedDefaultIntakeForm(orgId)
 
   return {
     organizationId: orgId,

@@ -7,6 +7,9 @@ import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
 import { getAvailableSlots, isSlotAvailable, SLOT_MINUTES, type BookingSlot } from '@/lib/services/booking'
+import { getDefaultFormTemplate } from '@/lib/services/forms'
+import { publicSiteUrl } from '@/lib/services/clinic-site'
+import { organization } from '@/lib/db/schema/auth'
 
 export async function submitContactRequest(formData: FormData) {
   const orgId = formData.get('orgId')?.toString()
@@ -131,18 +134,38 @@ export async function submitBookingRequest(formData: FormData) {
       email: clinicProfile.email,
       displayName: clinicProfile.displayName,
       phone: clinicProfile.phone,
+      websiteDomain: clinicProfile.websiteDomain,
     })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
 
   if (email) {
+    // Build the intake-form link when the clinic has a default form.
+    let intakeFormUrl: string | null = null
+    const defaultForm = await getDefaultFormTemplate(orgId)
+    if (defaultForm) {
+      const [org] = await db
+        .select({ slug: organization.slug })
+        .from(organization)
+        .where(eq(organization.id, orgId))
+        .limit(1)
+      if (org) {
+        const base = publicSiteUrl({
+          slug: org.slug,
+          profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+        })
+        intakeFormUrl = `${base}/intake/${defaultForm.slug}`
+      }
+    }
+
     sendBookingConfirmationEmail(email, {
       patientName: `${firstName} ${lastName}`,
       clinicName: profile?.displayName ?? 'Your Clinic',
       clinicPhone: profile?.phone ?? null,
       startTime,
       appointmentType,
+      intakeFormUrl,
     }).catch((err) => {
       console.error('[clinic-site] booking email failed', err)
     })

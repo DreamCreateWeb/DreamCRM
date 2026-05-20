@@ -28,6 +28,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.products) return 'products'
     if (t === schema.orders) return 'orders'
     if (t === schema.invoices) return 'invoices'
+    if (t === schema.formTemplate) return 'form_template'
     return 'unknown'
   }
   const chain = () => {
@@ -97,6 +98,8 @@ describe('createDemoClinic', () => {
         officePhotos: [{ id: 'o', url: 'u' }],
       },
     ])
+    // Default intake form already seeded — seedDefaultIntakeForm bails out.
+    state.selectQueue.push([{ id: 'form_existing' }])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 
@@ -116,6 +119,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([
       { brandColor: '#9CAF9F', stats: null, testimonials: null, officePhotos: null },
     ])
+    state.selectQueue.push([{ id: 'form_existing' }]) // form template lookup
     state.selectQueue.push([]) // patients
     state.selectQueue.push([]) // appointments
 
@@ -137,6 +141,7 @@ describe('createDemoClinic', () => {
 
   it('seeds the full clinic when none exists', async () => {
     state.selectQueue.push([]) // no existing org
+    state.selectQueue.push([]) // no existing default intake form
 
     const out = await createDemoClinic()
 
@@ -155,12 +160,14 @@ describe('createDemoClinic', () => {
     expect(counts.tasks).toBe(3)
     expect(counts.customers).toBe(10)
     expect(counts.products).toBe(4)
+    expect(counts.form_template).toBe(1)
     expect(counts.orders).toBe(5)
     expect(counts.invoices).toBe(5)
   })
 
   it('seeded org has type=clinic and a premium plan tier', async () => {
     state.selectQueue.push([])
+    state.selectQueue.push([]) // form lookup
     await createDemoClinic()
     const orgInsert = state.inserts.find((i) => i.table === 'organization')!
     expect((orgInsert.values as { type: string }).type).toBe('clinic')
@@ -171,6 +178,7 @@ describe('createDemoClinic', () => {
 
   it('every patient row carries the new orgId', async () => {
     state.selectQueue.push([])
+    state.selectQueue.push([]) // form lookup
     const out = await createDemoClinic()
     const patientInserts = state.inserts.filter((i) => i.table === 'patient')
     expect(patientInserts).toHaveLength(15)
@@ -181,6 +189,7 @@ describe('createDemoClinic', () => {
 
   it('appointments split into past + future buckets', async () => {
     state.selectQueue.push([])
+    state.selectQueue.push([]) // form lookup
     await createDemoClinic()
     const apptInserts = state.inserts.filter((i) => i.table === 'appointment')
     expect(apptInserts).toHaveLength(12)
