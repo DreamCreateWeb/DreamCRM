@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 
@@ -104,6 +104,18 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     .where(eq(schema.organization.slug, slug))
     .limit(1)
   if (existing) {
+    // Self-heal: if the demo was seeded before the warm-neutral palette
+    // shipped (sky-blue brand color), bump it forward so the demo always
+    // showcases the current default template look.
+    await db
+      .update(schema.clinicProfile)
+      .set({ brandColor: '#9CAF9F' })
+      .where(
+        and(
+          eq(schema.clinicProfile.organizationId, existing.id),
+          eq(schema.clinicProfile.brandColor, '#0ea5e9'),
+        ),
+      )
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -141,7 +153,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     tagline: 'Bright smiles, gentle care',
     about:
       'Acme Dental is a demonstration clinic seeded by the DreamCRM platform admin to preview the clinic dashboard. All patient data shown is fictional.',
-    brandColor: '#0ea5e9',
+    brandColor: '#9CAF9F',
     template: 'modern',
     phone: '(512) 555-0100',
     email: 'hello@acme-dental.example',
