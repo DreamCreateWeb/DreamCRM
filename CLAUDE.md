@@ -5,6 +5,11 @@ platform; clinics are tenant orgs; patients are users with `role='patient'`
 in a clinic org. The Mosaic Next.js admin template provides the dashboard
 aesthetic — keep it; wire logic to it rather than replacing components.
 
+> **Read [`DESIGN.md`](./DESIGN.md) before designing any new module.** It is
+> the durable strategy + design-principles document — what we're building, who
+> for, how it's positioned, the design language, and the module roadmap.
+> `CLAUDE.md` is implementation context; `DESIGN.md` is direction.
+
 ## Stack
 - **Next.js 16** (App Router, Turbopack), TypeScript, Tailwind 4
 - **Drizzle ORM** on **Neon Postgres** (US-East, `iad1`)
