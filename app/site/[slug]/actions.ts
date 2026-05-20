@@ -102,6 +102,7 @@ export async function submitBookingRequest(formData: FormData) {
 
   if (!patientId) {
     patientId = randomUUID()
+    const now = new Date()
     await db.insert(patient).values({
       id: patientId,
       organizationId: orgId,
@@ -110,7 +111,16 @@ export async function submitBookingRequest(formData: FormData) {
       email,
       phone,
       isActive: 1,
+      source: 'booking',
+      lifecycle: 'new',
+      firstSeenAt: now,
+      lastActivityAt: now,
     })
+  } else {
+    await db
+      .update(patient)
+      .set({ lastActivityAt: new Date() })
+      .where(eq(patient.id, patientId))
   }
 
   // Default end time = start + one slot (30 min). Lets the schedule view

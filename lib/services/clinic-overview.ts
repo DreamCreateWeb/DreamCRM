@@ -509,7 +509,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       occurredAt: p.createdAt,
       title: `${p.firstName} ${p.lastName} added as a patient`,
       subtitle: null,
-      href: '/ecommerce/customers',
+      href: `/patients/${p.id}`,
     })
   }
   activity.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
