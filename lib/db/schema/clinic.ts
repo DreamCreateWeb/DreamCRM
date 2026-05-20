@@ -1,36 +1,82 @@
-import { pgTable, text, timestamp, integer, jsonb, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 
 // Core patient record for a clinic tenant.
 // Scoped to organizationId so each clinic only sees their own patients.
-export const patient = pgTable('patient', {
-  id: text('id').primaryKey(),
-  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
-  // Linked auth user — set when a patient accepts a portal invitation.
-  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+export const patient = pgTable(
+  'patient',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    // Linked auth user — set when a patient accepts a portal invitation.
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
 
-  firstName: text('first_name').notNull(),
-  lastName: text('last_name').notNull(),
-  dateOfBirth: text('date_of_birth'), // ISO date 'YYYY-MM-DD'
-  email: text('email'),
-  phone: text('phone'),
+    firstName: text('first_name').notNull(),
+    lastName: text('last_name').notNull(),
+    dateOfBirth: text('date_of_birth'), // ISO date 'YYYY-MM-DD'
+    email: text('email'),
+    phone: text('phone'),
 
-  addressLine1: text('address_line1'),
-  city: text('city'),
-  state: text('state'),
-  postalCode: text('postal_code'),
+    addressLine1: text('address_line1'),
+    city: text('city'),
+    state: text('state'),
+    postalCode: text('postal_code'),
 
-  insuranceProvider: text('insurance_provider'),
-  insurancePolicyNumber: text('insurance_policy_number'),
-  insuranceGroupNumber: text('insurance_group_number'),
+    insuranceProvider: text('insurance_provider'),
+    insurancePolicyNumber: text('insurance_policy_number'),
+    insuranceGroupNumber: text('insurance_group_number'),
 
-  notes: text('notes'),
-  isActive: integer('is_active').notNull().default(1),
+    notes: text('notes'),
+    isActive: integer('is_active').notNull().default(1),
 
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+    // Acquisition + lifecycle. `source` is where the relationship started
+    // ('website' | 'booking' | 'referral' | 'walk_in' | 'manual' | 'lead_form'
+    // | 'invite'). `lifecycle` is the CRM-style stage; default 'active'
+    // covers existing rows, and new bookings land as 'new' for the first
+    // 30 days. Values: 'lead' | 'new' | 'active' | 'at_risk' | 'lapsed'
+    // | 'archived'. Strings (not enum) so we can iterate without migrations.
+    source: text('source'),
+    lifecycle: text('lifecycle').notNull().default('active'),
+    // First time this human appeared in our system (often = createdAt, but
+    // could be earlier if we ever migrate from another system).
+    firstSeenAt: timestamp('first_seen_at'),
+    // Last interaction across appointments / messages / submissions / invoices.
+    // Maintained by the service layer on write; reads use this directly so
+    // the list page is O(1) per row.
+    lastActivityAt: timestamp('last_activity_at'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // Sort/search on the list page hits these constantly.
+    index('patient_org_name_idx').on(t.organizationId, t.lastName, t.firstName),
+    index('patient_org_lifecycle_idx').on(t.organizationId, t.lifecycle),
+    index('patient_org_last_activity_idx').on(t.organizationId, t.lastActivityAt),
+    // For email-based lookups (booking flow, invite accept) — not unique
+    // because parents/children commonly share an email in pediatric practices.
+    index('patient_org_email_idx').on(t.organizationId, t.email),
+  ],
+)
+
+// Append-only relationship notes on a patient. Audit-friendly: rows are
+// soft-deleted (deletedAt) rather than mutated, and every row carries the
+// author. NOT clinical notes — these are CRM-side ("prefers morning",
+// "anxious", "referred by Dr. Park").
+export const patientNote = pgTable(
+  'patient_note',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    authorId: text('author_id').references(() => user.id, { onDelete: 'set null' }),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (t) => [index('patient_note_patient_created_idx').on(t.patientId, t.createdAt)],
+)
 
 export const appointment = pgTable('appointment', {
   id: text('id').primaryKey(),
@@ -101,6 +147,8 @@ export const formSubmission = pgTable('form_submission', {
 
 export type Patient = typeof patient.$inferSelect
 export type NewPatient = typeof patient.$inferInsert
+export type PatientNote = typeof patientNote.$inferSelect
+export type NewPatientNote = typeof patientNote.$inferInsert
 export type Appointment = typeof appointment.$inferSelect
 export type NewAppointment = typeof appointment.$inferInsert
 export type FormTemplate = typeof formTemplate.$inferSelect

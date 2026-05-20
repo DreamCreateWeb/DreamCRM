@@ -15,6 +15,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 import { user, organization } from './auth'
+import { patient } from './clinic'
 
 /**
  * Domain (CRM-style) tables that the Mosaic-template pages render. Every
@@ -41,6 +42,11 @@ export const customers = pgTable('customers', {
   id: serial('id').primaryKey(),
   organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
+  // Once a customer is matched to a clinic-side `patient` row (by email, by
+  // booking, by invite, …) we set this so cross-module joins (invoices →
+  // patient, marketing campaigns → patient) don't have to fall back to
+  // brittle email matching. Nullable so non-clinical CRM use still works.
+  patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   email: text('email').notNull(),
   phone: text('phone'),
