@@ -127,6 +127,13 @@
       "when": 1779260149967,
       "tag": "0017_add_intake_forms",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779310814189,
+      "tag": "0018_add_patient_lifecycle_and_notes",
+      "breakpoints": true
     }
   ]
 }
