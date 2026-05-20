@@ -1,33 +1,17 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-// Stub the query chain so we control what the overview sees.
-const stubs: {
-  profile: Record<string, unknown> | null
-  activeProjects: Array<Record<string, unknown>>
-} = { profile: null, activeProjects: [] }
+const { mockGetOverview } = vi.hoisted(() => ({
+  mockGetOverview: vi.fn(),
+}))
 
-vi.mock('@/lib/db', async () => {
-  const { clinicProfile } = await import('@/lib/db/schema/platform')
-  return {
-    db: {
-      select: () => ({
-        from: (t: unknown) => ({
-          where: () => ({
-            limit: async () => (t === clinicProfile && stubs.profile ? [stubs.profile] : []),
-          }),
-        }),
-      }),
-    },
-  }
-})
-
-vi.mock('@/lib/services/projects', () => ({
-  listActiveProjectsForOrg: async () => stubs.activeProjects,
+vi.mock('@/lib/services/clinic-overview', () => ({
+  getClinicOverview: mockGetOverview,
 }))
 
 import ClinicOverview from '@/app/(default)/dashboard/clinic-overview'
 import type { TenantContext } from '@/lib/auth/context'
+import type { ClinicOverviewData } from '@/lib/services/clinic-overview'
 
 function makeCtx(overrides: Partial<TenantContext> = {}): TenantContext {
   return {
@@ -47,104 +31,316 @@ function makeCtx(overrides: Partial<TenantContext> = {}): TenantContext {
   }
 }
 
-describe('ClinicOverview', () => {
-  it('shows getting-started checklist with all items undone when profile is empty', async () => {
-    stubs.profile = null
-    stubs.activeProjects = []
+function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewData {
+  return {
+    date: new Date('2026-05-20T08:00:00Z'),
+    todaysAppointments: [],
+    unconfirmed: { count: 0, preview: [] },
+    intakeSubmissions: { count: 0, preview: [] },
+    outstandingBalances: { count: 0, totalCents: 0 },
+    trends: {
+      bookingsToday: 0,
+      newPatientsMTD: 0,
+      newPatientsLastMTD: 0,
+      upcomingNext7d: 0,
+      activeIntakeForms: 0,
+    },
+    recentActivity: [],
+    ...overrides,
+  }
+}
+
+beforeEach(() => {
+  mockGetOverview.mockReset()
+})
+
+describe('ClinicOverview hero', () => {
+  it('renders the morning huddle date + clinic name + primary CTA', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByText(/Get your website ready/)).toBeInTheDocument()
-    expect(screen.getByText(/0 of 6 done/)).toBeInTheDocument()
-    expect(screen.getByText('Add a tagline')).toBeInTheDocument()
-    expect(screen.getByText('Set office hours')).toBeInTheDocument()
+    expect(screen.getByText(/Morning huddle/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Acme Dental' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /\+ New booking/i })).toBeInTheDocument()
   })
+})
 
-  it('marks items as done once the corresponding profile fields exist', async () => {
-    stubs.profile = {
-      tagline: 'Caring smiles',
-      about: 'About text',
-      hours: { mon: { open: '09:00', close: '17:00' } },
-      services: [{ id: 'a', name: 'Cleanings' }],
-      logoUrl: null,
-      staff: null,
-    }
-    stubs.activeProjects = []
+describe('Needs your attention cards', () => {
+  it('shows the empty state copy when there is nothing to action', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByText(/4 of 6 done/)).toBeInTheDocument()
+    expect(screen.getByText(/Every booking in the next 48h is confirmed/)).toBeInTheDocument()
+    expect(screen.getByText(/No intake submissions this week/)).toBeInTheDocument()
+    expect(screen.getByText(/No outstanding shop balances/)).toBeInTheDocument()
   })
 
-  it('shows the correct plan label and upgrade vs manage CTA', async () => {
-    stubs.profile = { subscriptionStatus: 'active' }
-    const proUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'pro' }) })
-    const { unmount } = render(proUi)
-    expect(screen.getByText('Pro')).toBeInTheDocument()
-    expect(screen.getByText('Upgrade plan →')).toBeInTheDocument()
-    unmount()
-
-    const premiumUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'premium' }) })
-    render(premiumUi)
-    expect(screen.getByText('Premium')).toBeInTheDocument()
-    expect(screen.getByText('Manage subscription →')).toBeInTheDocument()
-  })
-
-  it('renders quick-link to Appointments only for pro+ tenants', async () => {
-    stubs.profile = null
-    stubs.activeProjects = []
-    const basicUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'basic' }) })
-    const { unmount } = render(basicUi)
-    expect(screen.queryByText('Appointments')).not.toBeInTheDocument()
-    expect(screen.queryByText('Patients')).not.toBeInTheDocument()
-    unmount()
-
-    const proUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'pro' }) })
-    render(proUi)
-    expect(screen.getByText('Appointments')).toBeInTheDocument()
-    expect(screen.getByText('Patients')).toBeInTheDocument()
-  })
-
-  it('renders active projects when present', async () => {
-    stubs.profile = null
-    stubs.activeProjects = [
-      {
-        id: 'p1',
-        title: 'Rebrand video shoot',
-        type: 'videography',
-        status: 'in_progress',
-        dueDate: null,
-        updatedAt: new Date(),
-      },
-      {
-        id: 'p2',
-        title: 'New intake form',
-        type: 'intake_form',
-        status: 'review',
-        dueDate: null,
-        updatedAt: new Date(),
-      },
-    ]
+  it('shows counts + preview when items exist', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        unconfirmed: {
+          count: 3,
+          preview: [
+            { id: 'a1', patientName: 'Mia Hayes', startTime: new Date('2026-05-21T09:00:00Z') },
+            { id: 'a2', patientName: 'Liam Brooks', startTime: new Date('2026-05-21T10:00:00Z') },
+          ],
+        },
+        intakeSubmissions: {
+          count: 2,
+          preview: [
+            { id: 's1', formTitle: 'New Patient Intake', submitterName: 'Sarah K.', submittedAt: new Date() },
+          ],
+        },
+        outstandingBalances: { count: 5, totalCents: 45000 },
+      }),
+    )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByText('Rebrand video shoot')).toBeInTheDocument()
-    expect(screen.getByText('New intake form')).toBeInTheDocument()
-    expect(screen.getByText('In Progress')).toBeInTheDocument()
-    expect(screen.getByText('In Review')).toBeInTheDocument()
+    expect(screen.getByText('Mia Hayes')).toBeInTheDocument()
+    expect(screen.getByText('Liam Brooks')).toBeInTheDocument()
+    expect(screen.getByText('Sarah K.')).toBeInTheDocument()
+    // Outstanding balance card surfaces total $
+    expect(screen.getByText(/\$450/)).toBeInTheDocument()
   })
 
-  it('shows an empty-state when no projects', async () => {
-    stubs.profile = null
-    stubs.activeProjects = []
+  it('CTAs only render when there is something to action', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({ unconfirmed: { count: 1, preview: [] } }),
+    )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByText(/No active projects/)).toBeInTheDocument()
+    expect(screen.getByText(/Send confirmations/)).toBeInTheDocument()
+    // Other cards have count=0 → no CTA
+    expect(screen.queryByText(/Review submissions/)).not.toBeInTheDocument()
+  })
+})
+
+describe("Today's chair", () => {
+  it('shows the empty-coffee state when nothing is booked', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Nothing booked today/)).toBeInTheDocument()
+    expect(screen.getByText(/quiet morning/i)).toBeInTheDocument()
   })
 
-  it('renders the preview-site URL from slug when no custom websiteDomain', async () => {
-    stubs.profile = { websiteDomain: null }
-    stubs.activeProjects = []
-    const ui = await ClinicOverview({ ctx: makeCtx({ organizationSlug: 'shiny-smile' }) })
+  it('renders a row per appointment with name, type, status pill, and time', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        todaysAppointments: [
+          {
+            id: 'a1',
+            patientId: 'p1',
+            patientName: 'Mia Hayes',
+            startTime: new Date('2026-05-20T09:00:00Z'),
+            endTime: new Date('2026-05-20T09:30:00Z'),
+            type: 'cleaning',
+            status: 'confirmed',
+            flags: {
+              newPatient: false,
+              birthdayThisWeek: false,
+              hasOutstandingBalance: false,
+              hasIntakeOnFile: true,
+            },
+          },
+          {
+            id: 'a2',
+            patientId: 'p2',
+            patientName: 'Liam Brooks',
+            startTime: new Date('2026-05-20T10:00:00Z'),
+            endTime: new Date('2026-05-20T10:30:00Z'),
+            type: 'root_canal',
+            status: 'scheduled',
+            flags: {
+              newPatient: true,
+              birthdayThisWeek: false,
+              hasOutstandingBalance: false,
+              hasIntakeOnFile: false,
+            },
+          },
+        ],
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    const link = screen.getByText(/View website/) as HTMLAnchorElement
-    expect(link.getAttribute('href')).toContain('shiny-smile')
+    expect(screen.getByText('Mia Hayes')).toBeInTheDocument()
+    expect(screen.getByText('Liam Brooks')).toBeInTheDocument()
+    expect(screen.getByText('cleaning')).toBeInTheDocument()
+    // "root_canal" gets the underscore replaced
+    expect(screen.getByText('root canal')).toBeInTheDocument()
+    expect(screen.getByText('Confirmed')).toBeInTheDocument()
+    // "Unconfirmed" appears in both the attention-card title + the row status
+    // pill — use getAllByText and assert ≥ 2 occurrences.
+    expect(screen.getAllByText('Unconfirmed').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('renders the new-patient ★ glyph for first-visit patients', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        todaysAppointments: [
+          {
+            id: 'a1',
+            patientId: 'p1',
+            patientName: 'Liam Brooks',
+            startTime: new Date(),
+            endTime: null,
+            type: 'checkup',
+            status: 'scheduled',
+            flags: {
+              newPatient: true,
+              birthdayThisWeek: false,
+              hasOutstandingBalance: false,
+              hasIntakeOnFile: false,
+            },
+          },
+        ],
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByLabelText('New patient')).toBeInTheDocument()
+  })
+
+  it('renders the balance $ glyph when patient has outstanding balance', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        todaysAppointments: [
+          {
+            id: 'a1',
+            patientId: 'p1',
+            patientName: 'Mia Hayes',
+            startTime: new Date(),
+            endTime: null,
+            type: 'cleaning',
+            status: 'confirmed',
+            flags: {
+              newPatient: false,
+              birthdayThisWeek: false,
+              hasOutstandingBalance: true,
+              hasIntakeOnFile: true,
+            },
+          },
+        ],
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByLabelText(/Outstanding balance/)).toBeInTheDocument()
+  })
+
+  it('renders the missing-intake glyph for new patients without intake on file', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        todaysAppointments: [
+          {
+            id: 'a1',
+            patientId: 'p1',
+            patientName: 'Marcus T.',
+            startTime: new Date(),
+            endTime: null,
+            type: 'cleaning',
+            status: 'confirmed',
+            flags: {
+              newPatient: true,
+              birthdayThisWeek: false,
+              hasOutstandingBalance: false,
+              hasIntakeOnFile: false,
+            },
+          },
+        ],
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByLabelText(/No intake form on file/)).toBeInTheDocument()
+  })
+})
+
+describe('Trend tiles', () => {
+  it('shows MTD delta vs last month', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        trends: {
+          bookingsToday: 4,
+          newPatientsMTD: 12,
+          newPatientsLastMTD: 8,
+          upcomingNext7d: 23,
+          activeIntakeForms: 1,
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('4')).toBeInTheDocument() // bookings today
+    expect(screen.getByText('12')).toBeInTheDocument() // MTD
+    expect(screen.getByText(/\+4 vs last month/)).toBeInTheDocument()
+    expect(screen.getByText('23')).toBeInTheDocument() // upcoming
+  })
+
+  it('shows "first month tracking" when last-month had 0 patients', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        trends: {
+          bookingsToday: 0,
+          newPatientsMTD: 3,
+          newPatientsLastMTD: 0,
+          upcomingNext7d: 0,
+          activeIntakeForms: 0,
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/first month tracking/i)).toBeInTheDocument()
+  })
+})
+
+describe('Recent activity feed', () => {
+  it('shows empty-state copy when no activity', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Bookings, intake submissions, and paid invoices will appear here/)).toBeInTheDocument()
+  })
+
+  it('renders activity rows with title, subtitle, and deep link', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        recentActivity: [
+          {
+            id: 'a1',
+            kind: 'appointment_booked',
+            occurredAt: new Date(),
+            title: 'Sarah K. booked cleaning',
+            subtitle: 'for May 21, 10:00 AM',
+            href: '/calendar',
+          },
+          {
+            id: 'a2',
+            kind: 'intake_submitted',
+            occurredAt: new Date(),
+            title: 'Marcus T. submitted New Patient Intake',
+            subtitle: 'Intake form',
+            href: '/intake-forms',
+          },
+        ],
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('Sarah K. booked cleaning')).toBeInTheDocument()
+    expect(screen.getByText('Marcus T. submitted New Patient Intake')).toBeInTheDocument()
+    expect(screen.getByText('for May 21, 10:00 AM')).toBeInTheDocument()
+  })
+})
+
+describe('Coming soon strip', () => {
+  it('renders the three honest "coming soon" placeholders', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('Reviews & reputation')).toBeInTheDocument()
+    expect(screen.getByText('SMS replies')).toBeInTheDocument()
+    expect(screen.getByText('Website leads')).toBeInTheDocument()
   })
 })

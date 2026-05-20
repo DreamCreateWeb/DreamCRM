@@ -1,275 +1,429 @@
 import Link from 'next/link'
-import { eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { clinicProfile, type ClinicProfile } from '@/lib/db/schema/platform'
-import { listActiveProjectsForOrg } from '@/lib/services/projects'
-import {
-  AGENCY_PROJECT_TYPE_LABELS,
-  AGENCY_PROJECT_STATUS_LABELS,
-  type AgencyProjectStatus,
-  type AgencyProjectType,
-} from '@/lib/db/schema/platform'
+import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import type { TenantContext } from '@/lib/auth/context'
 import { formatRelativeDate } from '@/lib/utils/format'
 
-const TYPE_ICONS: Record<AgencyProjectType, string> = {
-  website: '🌐',
-  ecommerce: '🛒',
-  intake_form: '📝',
-  videography: '🎥',
-  photography: '📸',
-  content: '✍️',
-  other: '📦',
+const STATUS_PILLS: Record<string, string> = {
+  scheduled: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  confirmed: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  completed: 'bg-gray-500/15 text-gray-600 dark:text-gray-300',
+  cancelled: 'bg-red-500/15 text-red-700 dark:text-red-300',
+  no_show: 'bg-red-500/15 text-red-700 dark:text-red-300',
 }
 
-const STAGE_COLORS: Record<AgencyProjectStatus, string> = {
-  lead: 'bg-gray-500/20 text-gray-700 dark:text-gray-300',
-  discovery: 'bg-amber-500/20 text-amber-700 dark:text-amber-400',
-  in_progress: 'bg-violet-500/20 text-violet-700 dark:text-violet-400',
-  review: 'bg-sky-500/20 text-sky-700 dark:text-sky-400',
-  completed: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400',
-  on_hold: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-  cancelled: 'bg-red-500/20 text-red-700 dark:text-red-400',
+const STATUS_LABELS: Record<string, string> = {
+  scheduled: 'Unconfirmed',
+  confirmed: 'Confirmed',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  no_show: 'No-show',
 }
 
-const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
-
-const PLAN_LABELS = { basic: 'Basic', pro: 'Pro', premium: 'Premium' } as const
-
-// Postgres reports missing columns as code 42703 — treat as "migration pending"
-// and degrade gracefully so the page renders even before 0001 is applied.
-function isMissingSchema(err: unknown): boolean {
-  const code = (err as { code?: string; cause?: { code?: string } } | null)?.code
-    ?? (err as { cause?: { code?: string } } | null)?.cause?.code
-  if (code === '42P01' || code === '42703') return true
-  const msg = err instanceof Error ? err.message : String(err)
-  return /relation .* does not exist|column .* does not exist/i.test(msg)
+const ACTIVITY_ICON: Record<ActivityKind, string> = {
+  appointment_booked: '📅',
+  intake_submitted: '📝',
+  invoice_paid: '💵',
+  patient_added: '👤',
 }
 
-async function loadClinicProfile(orgId: string): Promise<ClinicProfile | null> {
-  try {
-    const rows = await db
-      .select()
-      .from(clinicProfile)
-      .where(eq(clinicProfile.organizationId, orgId))
-      .limit(1)
-    return rows[0] ?? null
-  } catch (err) {
-    if (isMissingSchema(err)) {
-      console.warn('[clinic-overview] clinic_profile column missing — apply migration 0001')
-      return null
-    }
-    throw err
-  }
+function money(cents: number): string {
+  if (cents === 0) return '$0'
+  const dollars = cents / 100
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`
+  return `$${dollars.toFixed(0)}`
+}
+
+function fmtTime(d: Date): string {
+  return d.toLocaleString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function fmtDayHeader(d: Date): string {
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
 }
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [profile, projects] = await Promise.all([
-    loadClinicProfile(ctx.organizationId),
-    listActiveProjectsForOrg(ctx.organizationId),
-  ])
-
-  const siteUrl = profile?.websiteDomain
-    ? `https://${profile.websiteDomain}`
-    : `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
-
-  // What's the first thing the clinic owner should do? Compute a small
-  // "getting started" checklist based on what they've configured.
-  const hasTagline = !!profile?.tagline
-  const hasAbout = !!profile?.about
-  const hasHours = profile?.hours && Object.keys(profile.hours as object).length > 0
-  const hasLogo = !!profile?.logoUrl
-  const hasServices = Array.isArray(profile?.services) && profile.services.length > 0
-  const hasStaff = Array.isArray(profile?.staff) && profile.staff.length > 0
-  const setupComplete = hasTagline && hasAbout && hasHours && hasServices
-  const checklist = [
-    { done: hasTagline, label: 'Add a tagline' },
-    { done: hasAbout, label: 'Write your "About" paragraph' },
-    { done: hasHours, label: 'Set office hours' },
-    { done: hasServices, label: 'List your services' },
-    { done: hasLogo, label: 'Upload your logo' },
-    { done: hasStaff, label: 'Add staff bios' },
-  ]
-  const checklistDone = checklist.filter((c) => c.done).length
+  const data = await getClinicOverview(ctx.organizationId)
+  const name = ctx.organizationName
+  const mtdDelta = data.trends.newPatientsMTD - data.trends.newPatientsLastMTD
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      {/* ── Sticky hero ──────────────────────────────────────────────── */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            Welcome, {profile?.displayName ?? ctx.organizationName}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage your website, projects, and clinic operations.
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
+            Morning huddle · {fmtDayHeader(data.date)}
           </p>
+          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
+            {name}
+          </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a
-            href={siteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/calendar"
             className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
           >
-            View website ↗
-          </a>
+            Open calendar
+          </Link>
           <Link
-            href="/settings/clinic"
+            href="/calendar"
             className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
           >
-            Edit website
+            + New booking
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Your Plan */}
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
-          <p className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold mb-2">
-            Your Plan
-          </p>
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {PLAN_LABELS[ctx.planTier]}
-            </span>
-            <span
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                profile?.subscriptionStatus === 'active' || profile?.subscriptionStatus === 'trialing'
-                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-gray-500/20 text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              {profile?.subscriptionStatus ?? 'inactive'}
-            </span>
-          </div>
-          <ul className="text-sm text-gray-500 dark:text-gray-400 space-y-1.5 mb-4">
-            <li>✓ Public clinic website</li>
-            <li>✓ Custom domain &amp; SSL</li>
-            {ctx.planTier !== 'basic' && <li>✓ Admin portal &amp; analytics</li>}
-            {ctx.planTier === 'premium' && (
-              <>
-                <li>✓ Patient portal</li>
-                <li>✓ Online booking</li>
-              </>
-            )}
-          </ul>
-          <Link
-            href="/settings/plans"
-            className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+      {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
+      <section className="mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <AttentionCard
+            title="Unconfirmed"
+            count={data.unconfirmed.count}
+            countSuffix={data.unconfirmed.count === 1 ? 'appointment in next 48h' : 'appointments in next 48h'}
+            cta={data.unconfirmed.count > 0 ? { label: 'Send confirmations', href: '/calendar' } : null}
+            emptyCopy="Every booking in the next 48h is confirmed. Nice."
           >
-            {ctx.planTier === 'premium' ? 'Manage subscription →' : 'Upgrade plan →'}
-          </Link>
-        </div>
+            {data.unconfirmed.preview.map((r) => (
+              <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
+                <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3">
+                  {r.startTime.toLocaleString('en-US', {
+                    weekday: 'short',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </li>
+            ))}
+          </AttentionCard>
 
-        {/* Getting Started checklist */}
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-3">
+          <AttentionCard
+            title="New intake submissions"
+            count={data.intakeSubmissions.count}
+            countSuffix={data.intakeSubmissions.count === 1 ? 'in the last 7 days' : 'in the last 7 days'}
+            cta={data.intakeSubmissions.count > 0 ? { label: 'Review submissions', href: '/intake-forms' } : null}
+            emptyCopy="No intake submissions this week. Send the link to new bookings to drive volume."
+          >
+            {data.intakeSubmissions.preview.map((r) => (
+              <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
+                <span className="truncate text-gray-700 dark:text-gray-200">
+                  {r.submitterName ?? 'Anonymous'}
+                </span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 truncate max-w-[10ch]">
+                  {r.formTitle}
+                </span>
+              </li>
+            ))}
+          </AttentionCard>
+
+          <AttentionCard
+            title="Outstanding balances"
+            count={data.outstandingBalances.count}
+            countSuffix={
+              data.outstandingBalances.count > 0
+                ? `${data.outstandingBalances.count === 1 ? 'invoice' : 'invoices'} · ${money(data.outstandingBalances.totalCents)}`
+                : 'invoices to chase'
+            }
+            cta={data.outstandingBalances.count > 0 ? { label: 'View invoices', href: '/ecommerce/invoices' } : null}
+            emptyCopy="No outstanding shop balances. Patients are paid up."
+          >
+            {/* Balance card has no per-row preview yet — totals tell the story. */}
+            {data.outstandingBalances.count > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 italic mt-1">
+                Click through to see who owes and send pay-link reminders.
+              </p>
+            )}
+          </AttentionCard>
+        </div>
+      </section>
+
+      {/* ── Row 2 — Today's chair ────────────────────────────────────── */}
+      <section className="mb-8">
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-              {setupComplete ? 'Your website is set up' : 'Get your website ready'}
+              Today&rsquo;s chair
             </h2>
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              {checklistDone} of {checklist.length} done
+              {data.todaysAppointments.length}{' '}
+              {data.todaysAppointments.length === 1 ? 'appointment' : 'appointments'}
             </span>
           </div>
-          <div className="h-2 bg-gray-100 dark:bg-gray-700/60 rounded-full overflow-hidden mb-4">
-            <div
-              className="h-full bg-emerald-500 transition-all"
-              style={{ width: `${(checklistDone / checklist.length) * 100}%` }}
-            />
-          </div>
-          <ul className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-            {checklist.map((c) => (
-              <li
-                key={c.label}
-                className={`flex items-center gap-2 ${c.done ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-700 dark:text-gray-200'}`}
-              >
-                <span
-                  className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${c.done ? 'bg-emerald-500 text-white' : 'border border-gray-300 dark:border-gray-600'}`}
-                >
-                  {c.done ? '✓' : ''}
-                </span>
-                {c.label}
-              </li>
-            ))}
-          </ul>
-          {!setupComplete && (
-            <Link
-              href="/settings/clinic"
-              className="inline-block mt-4 text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
-            >
-              Finish setting up →
-            </Link>
+          {data.todaysAppointments.length === 0 ? (
+            <div className="px-5 py-12 text-center">
+              <p className="text-3xl mb-2">☕</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                Nothing booked today.
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Go enjoy a quiet morning.
+              </p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {data.todaysAppointments.map((a) => (
+                <TodayChairRow key={a.id} appt={a} />
+              ))}
+            </ul>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Active engagements with Dream Create */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-              Your Projects with Dream Create
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Ecommerce builds, intake forms, videography, photography — anything beyond your subscription.
-            </p>
-          </div>
+      {/* ── Row 3 — Trend tiles ──────────────────────────────────────── */}
+      <section className="mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <TrendTile
+            label="Bookings today"
+            value={data.trends.bookingsToday.toString()}
+            hint="across all channels"
+          />
+          <TrendTile
+            label="New patients MTD"
+            value={data.trends.newPatientsMTD.toString()}
+            hint={
+              data.trends.newPatientsLastMTD === 0
+                ? 'first month tracking'
+                : `${mtdDelta >= 0 ? '+' : ''}${mtdDelta} vs last month`
+            }
+            tone={mtdDelta >= 0 ? 'positive' : 'negative'}
+          />
+          <TrendTile
+            label="Upcoming"
+            value={data.trends.upcomingNext7d.toString()}
+            hint="next 7 days"
+          />
+          <TrendTile
+            label="Intake forms"
+            value={data.trends.activeIntakeForms.toString()}
+            hint={data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'}
+          />
         </div>
-        {projects.length === 0 ? (
-          <div className="text-center py-10 border border-dashed border-gray-200 dark:border-gray-700/60 rounded-lg">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              No active projects.
-            </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">
-              When you start a new engagement with Dream Create (a new website refresh, a content shoot,
-              a custom intake form, etc.), it'll appear here.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
-            {projects.map((p) => (
-              <li key={p.id} className="flex items-center gap-4 py-3">
-                <span className="text-2xl shrink-0">{TYPE_ICONS[p.type as AgencyProjectType] ?? '📦'}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate">{p.title}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {AGENCY_PROJECT_TYPE_LABELS[p.type as AgencyProjectType]}
-                    {p.dueDate && ` · Due ${new Date(p.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                    {' · Updated '}
-                    {formatRelativeDate(p.updatedAt)}
-                  </div>
-                </div>
-                <span className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${STAGE_COLORS[p.status as AgencyProjectStatus]}`}>
-                  {AGENCY_PROJECT_STATUS_LABELS[p.status as AgencyProjectStatus]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      </section>
 
-      {/* Quick links */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <QuickLink href="/settings/clinic" icon="🌐" label="Website Editor" />
-        {ctx.planTier !== 'basic' && (
-          <QuickLink href="/calendar" icon="📅" label="Appointments" />
-        )}
-        {ctx.planTier !== 'basic' && (
-          <QuickLink href="/ecommerce/customers" icon="👥" label="Patients" />
-        )}
-        <QuickLink href="/settings/billing" icon="💳" label="Billing" />
-      </div>
+      {/* ── Row 4 — Recent activity ──────────────────────────────────── */}
+      <section className="mb-8">
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+              Recent activity
+            </h2>
+          </div>
+          {data.recentActivity.length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No activity yet. Bookings, intake submissions, and paid invoices will appear here.
+              </p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {data.recentActivity.map((a) => {
+                const inner = (
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl shrink-0">{ACTIVITY_ICON[a.kind]}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-gray-800 dark:text-gray-100 truncate">
+                        {a.title}
+                      </div>
+                      {a.subtitle && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {a.subtitle}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                      {formatRelativeDate(a.occurredAt)}
+                    </span>
+                  </div>
+                )
+                return (
+                  <li key={a.id} className="px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
+                    {a.href ? (
+                      <Link href={a.href} className="block">{inner}</Link>
+                    ) : (
+                      inner
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* ── Bottom — Coming soon strip ───────────────────────────────── */}
+      <section>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <ComingSoonCard
+            title="Reviews & reputation"
+            blurb="Auto-prompt patients for Google reviews after the visit."
+          />
+          <ComingSoonCard
+            title="SMS replies"
+            blurb="Two-way patient text via Twilio. Replies land in your inbox."
+          />
+          <ComingSoonCard
+            title="Website leads"
+            blurb="Capture every contact-form submission with UTM source."
+          />
+        </div>
+      </section>
     </div>
   )
 }
 
-function QuickLink({ href, icon, label }: { href: string; icon: string; label: string }) {
+// ─────────────────────────────────────────────────────────────────────
+// Subcomponents
+// ─────────────────────────────────────────────────────────────────────
+
+function AttentionCard({
+  title,
+  count,
+  countSuffix,
+  cta,
+  emptyCopy,
+  children,
+}: {
+  title: string
+  count: number
+  countSuffix: string
+  cta: { label: string; href: string } | null
+  emptyCopy: string
+  children?: React.ReactNode
+}) {
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-3 hover:shadow-md transition"
-    >
-      <span className="text-2xl">{icon}</span>
-      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
-    </Link>
+    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 flex flex-col">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+        {title}
+      </p>
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className={`text-3xl font-bold ${count > 0 ? 'text-gray-800 dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'}`}>
+          {count}
+        </span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">{countSuffix}</span>
+      </div>
+      {count === 0 ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400 italic flex-1 mt-1">
+          {emptyCopy}
+        </p>
+      ) : (
+        <ul className="text-sm text-gray-700 dark:text-gray-200 mt-1 flex-1">{children}</ul>
+      )}
+      {cta && (
+        <Link
+          href={cta.href}
+          className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline mt-3 self-start"
+        >
+          {cta.label} →
+        </Link>
+      )}
+    </div>
+  )
+}
+
+function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
+  const statusKey = appt.status
+  const statusClass = STATUS_PILLS[statusKey] ?? STATUS_PILLS.scheduled
+  const statusLabel = STATUS_LABELS[statusKey] ?? statusKey
+  const typeLabel = appt.type.replace('_', ' ')
+
+  return (
+    <li className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
+      <div className="shrink-0 w-16 text-sm font-mono font-medium text-gray-600 dark:text-gray-300">
+        {fmtTime(appt.startTime)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-gray-800 dark:text-gray-100 truncate">
+            {appt.patientName}
+          </span>
+          {appt.flags.newPatient && (
+            <span title="New patient" className="text-amber-500 text-sm" aria-label="New patient">
+              ★
+            </span>
+          )}
+          {appt.flags.birthdayThisWeek && (
+            <span title="Birthday this week" className="text-pink-500 text-sm" aria-label="Birthday this week">
+              🎂
+            </span>
+          )}
+          {appt.flags.hasOutstandingBalance && (
+            <span
+              title="Outstanding balance on file"
+              className="text-red-500 text-sm"
+              aria-label="Outstanding balance"
+            >
+              $
+            </span>
+          )}
+          {!appt.flags.hasIntakeOnFile && appt.flags.newPatient && (
+            <span
+              title="No intake form on file"
+              className="text-amber-500 text-sm"
+              aria-label="No intake form on file"
+            >
+              📝!
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{typeLabel}</div>
+      </div>
+      <span
+        className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${statusClass}`}
+      >
+        {statusLabel}
+      </span>
+    </li>
+  )
+}
+
+function TrendTile({
+  label,
+  value,
+  hint,
+  tone = 'neutral',
+}: {
+  label: string
+  value: string
+  hint: string
+  tone?: 'neutral' | 'positive' | 'negative'
+}) {
+  const hintClass =
+    tone === 'positive'
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : tone === 'negative'
+        ? 'text-red-600 dark:text-red-400'
+        : 'text-gray-500 dark:text-gray-400'
+  return (
+    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4">
+      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">
+        {label}
+      </p>
+      <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">{value}</div>
+      <div className={`text-xs mt-1 ${hintClass}`}>{hint}</div>
+    </div>
+  )
+}
+
+function ComingSoonCard({ title, blurb }: { title: string; blurb: string }) {
+  return (
+    <div className="bg-gray-50 dark:bg-gray-900/30 border border-dashed border-gray-200 dark:border-gray-700/60 rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          {title}
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+          Coming soon
+        </span>
+      </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{blurb}</p>
+    </div>
   )
 }
