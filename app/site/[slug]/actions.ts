@@ -1,11 +1,12 @@
 'use server'
 
 import { randomUUID } from 'crypto'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
+import { getAvailableSlots, isSlotAvailable, SLOT_MINUTES, type BookingSlot } from '@/lib/services/booking'
 
 export async function submitContactRequest(formData: FormData) {
   const orgId = formData.get('orgId')?.toString()
@@ -40,6 +41,16 @@ export async function submitContactRequest(formData: FormData) {
   }
 }
 
+export async function listBookingSlots(
+  orgId: string,
+  dateIso: string,
+): Promise<BookingSlot[]> {
+  if (!orgId || !dateIso) return []
+  const date = new Date(dateIso)
+  if (isNaN(date.getTime())) return []
+  return getAvailableSlots(orgId, date)
+}
+
 export async function submitBookingRequest(formData: FormData) {
   const orgId = formData.get('orgId')?.toString()
   const firstName = formData.get('firstName')?.toString().trim()
@@ -56,13 +67,32 @@ export async function submitBookingRequest(formData: FormData) {
 
   const startTime = new Date(startTimeRaw)
   if (isNaN(startTime.getTime())) throw new Error('Invalid date/time')
+  if (startTime.getTime() < Date.now()) throw new Error('Appointment must be in the future')
+
+  // Race-condition guard — between page load and submit, someone else
+  // could have grabbed the same slot. Re-check against the live calendar.
+  const stillFree = await isSlotAvailable(orgId, startTime)
+  if (!stillFree) {
+    throw new Error('That slot is no longer available — please pick another time.')
+  }
 
   let patientId = ''
-  if (email) {
+  // Look up an existing patient by email OR phone — phone-only bookings
+  // are common (some patients don't share email), and we want to attach
+  // repeat visits to the same patient row.
+  if (email || phone) {
+    const conditions = [] as ReturnType<typeof eq>[]
+    if (email) conditions.push(eq(patient.email, email))
+    if (phone) conditions.push(eq(patient.phone, phone))
     const [existing] = await db
       .select({ id: patient.id })
       .from(patient)
-      .where(and(eq(patient.organizationId, orgId), eq(patient.email, email)))
+      .where(
+        and(
+          eq(patient.organizationId, orgId),
+          conditions.length === 1 ? conditions[0] : or(conditions[0], conditions[1])!,
+        ),
+      )
       .limit(1)
     patientId = existing?.id ?? ''
   }
@@ -80,12 +110,17 @@ export async function submitBookingRequest(formData: FormData) {
     })
   }
 
+  // Default end time = start + one slot (30 min). Lets the schedule view
+  // and conflict detection both work without a separate end-time field.
+  const endTime = new Date(startTime.getTime() + SLOT_MINUTES * 60_000)
+
   await db.insert(appointment).values({
     id: randomUUID(),
     organizationId: orgId,
     patientId,
     title: `${appointmentType.charAt(0).toUpperCase() + appointmentType.slice(1).replace('_', ' ')} – ${firstName} ${lastName}`,
     startTime,
+    endTime,
     type: appointmentType,
     status: 'scheduled',
     notes,
