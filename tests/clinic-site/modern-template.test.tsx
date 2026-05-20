@@ -64,14 +64,18 @@ describe('ModernTemplate', () => {
     })
   })
 
-  it('uses Request CTA for basic-plan clinics (no booking link)', () => {
+  it('uses "Book a Visit" copy regardless of tier, but basic links to contact, not /book', () => {
     render(<ModernTemplate data={makeData({ planTier: 'basic' })} basePath="/site/test" />)
-    const requestLinks = screen.getAllByRole('link', { name: /Request/i })
-    expect(requestLinks.length).toBeGreaterThan(0)
-    // No links to /book on the basic tier
+    // Universal CTA copy
+    const bookButtons = screen.getAllByRole('link', { name: /Book a Visit/i })
+    expect(bookButtons.length).toBeGreaterThan(0)
+    // Basic clinics route the CTA to the contact section, not a /book widget
     expect(
       screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/site/test/book'),
     ).toHaveLength(0)
+    expect(
+      screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/site/test#contact').length,
+    ).toBeGreaterThan(0)
   })
 
   it('shows Book CTA for pro+ clinics pointing to /book', () => {
@@ -92,7 +96,18 @@ describe('ModernTemplate', () => {
 
   it('omits about section when not provided', () => {
     render(<ModernTemplate data={makeData({ about: null })} basePath="/site/test" />)
-    expect(screen.queryByText('About Us')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^About Test Dental$/)).not.toBeInTheDocument()
+  })
+
+  it('renders the about section with the clinic-name eyebrow when provided', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ about: 'We are a friendly local dentist office.' })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText(/About Test Dental/)).toBeInTheDocument()
+    expect(screen.getByText(/friendly local dentist office/)).toBeInTheDocument()
   })
 
   it('formats hours in 12-hour format', () => {
@@ -147,8 +162,8 @@ describe('ModernTemplate', () => {
 
   it('omits the staff section when no staff configured', () => {
     render(<ModernTemplate data={makeData({ staff: null as never })} basePath="/site/test" />)
-    expect(screen.queryByText('Our Team')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Meet the people/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Our team/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/people who care/i)).not.toBeInTheDocument()
   })
 
   it('renders staff with names, titles, and bios', () => {
@@ -223,5 +238,66 @@ describe('ModernTemplate', () => {
     const imgs = document.querySelectorAll('img')
     const hero = Array.from(imgs).find((i) => i.src === 'https://example.com/hero.jpg')
     expect(hero).toBeDefined()
+  })
+
+  it('falls back to anti-shame default subhead when tagline is null', () => {
+    render(<ModernTemplate data={makeData({ tagline: null })} basePath="/site/test" />)
+    expect(screen.getByText(/No judgment, ever/i)).toBeInTheDocument()
+  })
+
+  it('renders numbered service pillars (01, 02, …)', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          services: [
+            { id: 's1', name: 'Cleanings', description: null },
+            { id: 's2', name: 'Whitening', description: null },
+            { id: 's3', name: 'Implants', description: null },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText('01')).toBeInTheDocument()
+    expect(screen.getByText('02')).toBeInTheDocument()
+    expect(screen.getByText('03')).toBeInTheDocument()
+  })
+
+  it('caps services at 6 on the homepage', () => {
+    const services = Array.from({ length: 10 }, (_, i) => ({
+      id: `s${i}`,
+      name: `Service ${i}`,
+      description: null,
+    }))
+    render(
+      <ModernTemplate data={makeData({ services: services as never })} basePath="/site/test" />,
+    )
+    expect(screen.getByText('Service 0')).toBeInTheDocument()
+    expect(screen.getByText('Service 5')).toBeInTheDocument()
+    // 7+ should not render
+    expect(screen.queryByText('Service 6')).not.toBeInTheDocument()
+    expect(screen.queryByText('Service 9')).not.toBeInTheDocument()
+  })
+
+  it('renders the sticky mobile Book + Call bar', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ planTier: 'pro', phone: '(555) 123-4567' })}
+        basePath="/site/test"
+      />,
+    )
+    // The sticky bar lives in a fixed container — look for its Call aria-label
+    expect(
+      screen.getByRole('link', { name: /Call Test Dental/i }),
+    ).toHaveAttribute('href', 'tel:(555) 123-4567')
+  })
+
+  it('uses the sage-default brand color when none is set', () => {
+    // No assertion on visual style directly — instead verify the template
+    // renders without errors when brandColor is null (fallback path).
+    const { container } = render(
+      <ModernTemplate data={makeData({ brandColor: null })} basePath="/site/test" />,
+    )
+    expect(container.querySelector('header')).toBeInTheDocument()
   })
 })

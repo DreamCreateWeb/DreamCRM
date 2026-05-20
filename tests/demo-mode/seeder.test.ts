@@ -49,6 +49,11 @@ vi.mock('@/lib/db', async () => {
           }
         },
       }),
+      update: () => ({
+        set: () => ({
+          where: async () => undefined,
+        }),
+      }),
     },
     schema,
   }
