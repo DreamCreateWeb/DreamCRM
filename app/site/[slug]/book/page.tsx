@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import BookForm from './book-form'
 
 interface Props {
@@ -11,7 +11,16 @@ export async function generateMetadata({ params }: Props) {
   const data = await getClinicSiteBySlug(slug)
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
-  return { title: `Book an Appointment – ${name}` }
+  const url = `${publicSiteUrl(data)}/book`
+  const title = `Book a Visit — ${name}`
+  const description = `Book your appointment online with ${name}. Same-week availability.`
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: { title, description, url, type: 'website' },
+    twitter: { card: 'summary', title, description },
+  }
 }
 
 export default async function BookPage({ params }: Props) {
