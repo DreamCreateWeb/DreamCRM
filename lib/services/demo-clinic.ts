@@ -94,6 +94,137 @@ function phoneNumber(): string {
   return `(512) 555-${String(1000 + Math.floor(Math.random() * 9000))}`
 }
 
+interface PatientPersona {
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  email: string | null
+  phone: string | null
+  addressLine1: string
+  city: string
+  state: string
+  postalCode: string
+  insuranceProvider: string | null
+  insurancePolicyNumber: string | null
+  notes: string | null
+  isActive: number
+  source: string | null
+  lifecycle: string
+  firstSeenAt: Date
+  lastActivityAt: Date | null
+}
+
+// Builds a curated set of 15 patients with deterministic glyph + lifecycle
+// coverage for the demo. Each index has a meaning — see callers.
+function buildPatientPersonas(now: Date): PatientPersona[] {
+  const dayMs = 24 * 60 * 60 * 1000
+  const austin = CITIES[0]
+  function persona(
+    firstName: string,
+    lastName: string,
+    dateOfBirth: string,
+    extras: Partial<PatientPersona>,
+  ): PatientPersona {
+    return {
+      firstName,
+      lastName,
+      dateOfBirth,
+      email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
+      phone: phoneNumber(),
+      addressLine1: `${100 + Math.floor(Math.random() * 900)} ${pick(STREETS)}`,
+      city: austin.city,
+      state: austin.state,
+      postalCode: austin.zip,
+      insuranceProvider: 'Delta Dental',
+      insurancePolicyNumber: `POL-${Math.floor(Math.random() * 9_000_000) + 1_000_000}`,
+      notes: null,
+      isActive: 1,
+      source: 'manual',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - 365 * dayMs),
+      lastActivityAt: new Date(now.getTime() - 30 * dayMs),
+      ...extras,
+    }
+  }
+  // Build a birthday string that falls within the next 6 days for the
+  // birthday-this-week glyph. Year is held fixed at 1992 so the rest of
+  // the date math doesn't drift.
+  const bdayDate = new Date(now.getTime() + 3 * dayMs)
+  const bday = `1992-${String(bdayDate.getMonth() + 1).padStart(2, '0')}-${String(bdayDate.getDate()).padStart(2, '0')}`
+
+  return [
+    // [0] Happy-path active patient
+    persona('Mia', 'Hayes', '1988-03-12', {
+      source: 'referral',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - 800 * dayMs),
+      lastActivityAt: new Date(now.getTime() - 7 * dayMs),
+      notes: 'Prefers morning appointments.',
+    }),
+    // [1] New patient (★) + missing intake before future visit (📝!)
+    persona('Liam', 'Brooks', '1995-08-22', {
+      source: 'booking',
+      lifecycle: 'new',
+      firstSeenAt: new Date(now.getTime() - 9 * dayMs),
+      lastActivityAt: new Date(now.getTime() - 9 * dayMs),
+    }),
+    // [2] Birthday this week (🎂)
+    persona('Charlotte', 'Diaz', bday, {
+      source: 'referral',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - 450 * dayMs),
+    }),
+    // [3] Outstanding overdue balance ($)
+    persona('Marcus', 'Johnson', '1979-11-05', {
+      source: 'manual',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - 600 * dayMs),
+      notes: 'Insurance pre-auth is a pain — call ahead next time.',
+    }),
+    // [4] Confirmed next-24h appointment (puts them on Today's chair)
+    persona('Sophia', 'Iverson', '1991-02-14', {
+      source: 'booking',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - 200 * dayMs),
+    }),
+    // [5] Lapsed (💤) — 11 months since last visit, no future
+    persona('Aiden', 'Kim', '1965-06-30', {
+      source: 'referral',
+      lifecycle: 'lapsed',
+      firstSeenAt: new Date(now.getTime() - 1500 * dayMs),
+      lastActivityAt: new Date(now.getTime() - 330 * dayMs),
+    }),
+    // [6] At-risk — 7 months since last visit
+    persona('Emma', 'Lopez', '1983-12-01', {
+      source: 'walk_in',
+      lifecycle: 'at_risk',
+      firstSeenAt: new Date(now.getTime() - 720 * dayMs),
+      lastActivityAt: new Date(now.getTime() - 210 * dayMs),
+    }),
+    // [7] Has relationship notes + intake on file
+    persona('Noah', 'Mitchell', '1972-04-18', {
+      source: 'referral',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - 900 * dayMs),
+      lastActivityAt: new Date(now.getTime() - 14 * dayMs),
+      notes: 'Anxious patient — see relationship notes.',
+    }),
+    // [8..13] Filler active patients
+    persona('Olivia', 'Anderson', '1990-09-09', { source: 'booking' }),
+    persona('Ethan', 'Carter', '1985-07-25', { source: 'referral' }),
+    persona('Isabella', 'Evans', '1978-10-11', { source: 'manual' }),
+    persona('Mason', 'Garza', '1996-01-30', { source: 'lead_form', lifecycle: 'lead' }),
+    persona('Ava', 'Fischer', '1982-05-19', { source: 'booking' }),
+    persona('James', 'Owens', '1969-08-08', { source: 'invite' }),
+    // [14] Archived (filter-only)
+    persona('Lucas', 'Nguyen', '1955-03-03', {
+      isActive: 0,
+      lifecycle: 'archived',
+      lastActivityAt: new Date(now.getTime() - 700 * dayMs),
+    }),
+  ]
+}
+
 // Demo content — pulled out so the create path and the self-heal path
 // for already-seeded demos share one source of truth.
 const DEMO_STATS = [
@@ -199,6 +330,70 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Seed the default intake form if the demo predates the forms feature.
     await seedDefaultIntakeForm(existing.id)
 
+    // Self-heal patient_note + form_submission rows when missing. We can't
+    // re-pick the original persona indices (those IDs are gone), so we
+    // just attach a few generic samples to the first patients we find.
+    // A full reset still requires the "Create demo clinic" flow on a wiped
+    // demo — but this at least makes the Notes + Forms tabs non-empty.
+    const existingPatientsForHeal = await db
+      .select({ id: schema.patient.id, email: schema.patient.email, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .from(schema.patient)
+      .where(eq(schema.patient.organizationId, existing.id))
+      .limit(8)
+    if (existingPatientsForHeal.length > 0) {
+      const [noteFound] = await db
+        .select({ id: schema.patientNote.id })
+        .from(schema.patientNote)
+        .where(eq(schema.patientNote.organizationId, existing.id))
+        .limit(1)
+      if (!noteFound) {
+        const noteBodies = [
+          'Prefers Dr. Patel for cleanings. Loves the warm towels.',
+          'Tried to reach in 2024-09 — left voicemail. Try again next quarter.',
+          'Highly anxious. Always pre-medicate with halcion + use nitrous.',
+        ]
+        for (let i = 0; i < Math.min(3, existingPatientsForHeal.length); i++) {
+          await db.insert(schema.patientNote).values({
+            id: newId('pnote'),
+            organizationId: existing.id,
+            patientId: existingPatientsForHeal[i].id,
+            authorId: null,
+            body: noteBodies[i],
+          })
+        }
+      }
+
+      const [subFound] = await db
+        .select({ id: schema.formSubmission.id })
+        .from(schema.formSubmission)
+        .where(eq(schema.formSubmission.organizationId, existing.id))
+        .limit(1)
+      if (!subFound) {
+        const [defaultForm] = await db
+          .select({ id: schema.formTemplate.id })
+          .from(schema.formTemplate)
+          .where(eq(schema.formTemplate.organizationId, existing.id))
+          .limit(1)
+        if (defaultForm) {
+          for (let i = 0; i < Math.min(3, existingPatientsForHeal.length); i++) {
+            const p = existingPatientsForHeal[i]
+            await db.insert(schema.formSubmission).values({
+              id: newId('sub'),
+              organizationId: existing.id,
+              formTemplateId: defaultForm.id,
+              patientId: p.id,
+              appointmentId: null,
+              data: { intake: 'sample' },
+              submitterName: `${p.firstName} ${p.lastName}`,
+              submitterEmail: p.email,
+              submitterPhone: null,
+              submittedAt: new Date(Date.now() - (60 + i * 30) * 24 * 60 * 60 * 1000),
+            })
+          }
+        }
+      }
+    }
+
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -286,76 +481,97 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     isPrimary: 1,
   })
 
-  // Seed 15 patients with varied demographics + insurance
+  // Seed 15 patients with curated personas so every Patients-module
+  // glyph + lifecycle stage shows up somewhere in the demo. Each persona
+  // index below is referenced later for invoices, form submissions, notes.
+  //
+  // - [0] Mia Hayes — happy-path active patient with intake on file
+  // - [1] Liam Brooks — new (★), booking source, future visit + no intake (📝!)
+  // - [2] Charlotte Diaz — birthday this week (🎂)
+  // - [3] Marcus Johnson — outstanding overdue invoice ($)
+  // - [4] Sophia Iverson — confirmed appt in next 24h (warms the chair view)
+  // - [5] Aiden Kim — lapsed, 11 months since last visit (💤 + lifecycle=lapsed)
+  // - [6] Emma Lopez — at_risk, 7 months since last visit
+  // - [7] Noah Mitchell — relationship notes + intake on file
+  // - [8..13] Filler active patients (randomized within persona shape)
+  // - [14] Olivia Nguyen — archived (isActive=0)
+  const personas = buildPatientPersonas(now)
   const patientIds: string[] = []
-  for (let i = 0; i < 15; i++) {
-    const first = pick(FIRST_NAMES)
-    const last = pick(LAST_NAMES)
-    const loc = pick(CITIES)
+  for (let i = 0; i < personas.length; i++) {
+    const p = personas[i]
     const pid = newId('pat')
     patientIds.push(pid)
     await db.insert(schema.patient).values({
       id: pid,
       organizationId: orgId,
-      firstName: first,
-      lastName: last,
-      dateOfBirth: randomDob(),
-      email: `${first.toLowerCase()}.${last.toLowerCase()}@example.com`,
-      phone: phoneNumber(),
-      addressLine1: `${100 + Math.floor(Math.random() * 900)} ${pick(STREETS)}`,
-      city: loc.city,
-      state: loc.state,
-      postalCode: loc.zip,
-      insuranceProvider: pick(INSURERS),
-      insurancePolicyNumber:
-        pick(INSURERS) === null ? null : `POL-${Math.floor(Math.random() * 9_000_000) + 1_000_000}`,
-      notes:
-        i % 4 === 0 ? 'Prefers morning appointments.' : i % 5 === 0 ? 'Allergic to penicillin.' : null,
-      isActive: 1,
-      source: i % 3 === 0 ? 'booking' : i % 3 === 1 ? 'referral' : 'manual',
-      lifecycle: 'active',
-      firstSeenAt: new Date(now.getTime() - (i * 7 + 30) * 24 * 60 * 60 * 1000),
-      lastActivityAt: new Date(now.getTime() - (i % 5) * 24 * 60 * 60 * 1000),
+      firstName: p.firstName,
+      lastName: p.lastName,
+      dateOfBirth: p.dateOfBirth,
+      email: p.email,
+      phone: p.phone,
+      addressLine1: p.addressLine1,
+      city: p.city,
+      state: p.state,
+      postalCode: p.postalCode,
+      insuranceProvider: p.insuranceProvider,
+      insurancePolicyNumber: p.insurancePolicyNumber,
+      notes: p.notes,
+      isActive: p.isActive,
+      source: p.source,
+      lifecycle: p.lifecycle,
+      firstSeenAt: p.firstSeenAt,
+      lastActivityAt: p.lastActivityAt,
     })
   }
 
-  // Seed appointments — 6 past (completed/no_show), 6 future (scheduled/confirmed)
+  // Curated appointments so personas trigger the right glyphs.
+  // Past: most personas (except [1] new + [5] lapsed) have completed visits.
+  // Future: persona [1] has a new-patient cleaning in 5 days (no intake →
+  // 📝!), persona [4] has a confirmed appt in 22h, persona [3] has an
+  // unconfirmed appt in 30h (this overlaps with the ⚠️ trigger plus the
+  // outstanding-balance $ glyph already on them), persona [0] [2] [7] all
+  // have scheduled future visits.
   let apptCount = 0
   const dayMs = 24 * 60 * 60 * 1000
-
-  for (let i = 0; i < 6; i++) {
-    const start = new Date(now.getTime() - (i + 1) * 3 * dayMs)
-    start.setHours(9 + (i % 6), 0, 0, 0)
+  const hourMs = 60 * 60 * 1000
+  const apptsToSeed: Array<{
+    patientIdx: number
+    startOffsetMs: number
+    type: typeof APPT_TYPES[number]
+    status: 'scheduled' | 'confirmed' | 'completed' | 'no_show'
+    notes: string | null
+  }> = [
+    // ── Past visits (drive last-visit recency for the list page) ──
+    { patientIdx: 0, startOffsetMs: -60 * dayMs, type: 'cleaning', status: 'completed', notes: null },
+    { patientIdx: 0, startOffsetMs: -240 * dayMs, type: 'checkup', status: 'completed', notes: null },
+    { patientIdx: 2, startOffsetMs: -90 * dayMs, type: 'cleaning', status: 'completed', notes: null },
+    { patientIdx: 3, startOffsetMs: -45 * dayMs, type: 'filling', status: 'completed', notes: 'MOD on #14, 2 carpules lido' },
+    { patientIdx: 5, startOffsetMs: -330 * dayMs, type: 'cleaning', status: 'completed', notes: null }, // 11 mo ago — lapsed
+    { patientIdx: 6, startOffsetMs: -210 * dayMs, type: 'cleaning', status: 'completed', notes: null }, // ~7 mo ago — at_risk
+    { patientIdx: 7, startOffsetMs: -150 * dayMs, type: 'consultation', status: 'completed', notes: null },
+    { patientIdx: 8, startOffsetMs: -30 * dayMs, type: 'cleaning', status: 'no_show', notes: null },
+    // ── Future visits (drive next-visit + glyph triggers) ──
+    { patientIdx: 1, startOffsetMs: 5 * dayMs + 9 * hourMs, type: 'cleaning', status: 'confirmed', notes: 'New patient cleaning' },
+    { patientIdx: 0, startOffsetMs: 14 * dayMs + 10 * hourMs, type: 'cleaning', status: 'scheduled', notes: null },
+    { patientIdx: 2, startOffsetMs: 21 * dayMs + 11 * hourMs, type: 'checkup', status: 'scheduled', notes: null },
+    { patientIdx: 4, startOffsetMs: 22 * hourMs, type: 'cleaning', status: 'confirmed', notes: null }, // tomorrow morning
+    { patientIdx: 3, startOffsetMs: 30 * hourMs, type: 'filling', status: 'scheduled', notes: null }, // ⚠️ unconfirmed-next-48h
+    { patientIdx: 7, startOffsetMs: 9 * dayMs + 14 * hourMs, type: 'cleaning', status: 'confirmed', notes: null },
+  ]
+  for (const a of apptsToSeed) {
+    const start = new Date(now.getTime() + a.startOffsetMs)
     const end = new Date(start.getTime() + 45 * 60 * 1000)
     await db.insert(schema.appointment).values({
       id: newId('appt'),
       organizationId: orgId,
-      patientId: pick(patientIds),
+      patientId: patientIds[a.patientIdx],
       locationId,
-      title: `${pick(APPT_TYPES).replace('_', ' ')} — past`,
+      title: `${a.type.replace('_', ' ')} — ${personas[a.patientIdx].firstName} ${personas[a.patientIdx].lastName}`,
       startTime: start,
       endTime: end,
-      type: pick(APPT_TYPES),
-      status: i % 5 === 0 ? 'no_show' : 'completed',
-      notes: null,
-    })
-    apptCount++
-  }
-  for (let i = 0; i < 6; i++) {
-    const start = new Date(now.getTime() + (i + 1) * 2 * dayMs)
-    start.setHours(10 + (i % 6), 0, 0, 0)
-    const end = new Date(start.getTime() + 45 * 60 * 1000)
-    await db.insert(schema.appointment).values({
-      id: newId('appt'),
-      organizationId: orgId,
-      patientId: pick(patientIds),
-      locationId,
-      title: `${pick(APPT_TYPES).replace('_', ' ')}`,
-      startTime: start,
-      endTime: end,
-      type: pick(APPT_TYPES),
-      status: i % 3 === 0 ? 'confirmed' : 'scheduled',
-      notes: null,
+      type: a.type,
+      status: a.status,
+      notes: a.notes,
     })
     apptCount++
   }
@@ -387,11 +603,26 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     },
   ])
 
-  // CRM-style customers (these populate the legacy /ecommerce/customers table
-  // until the dedicated Patients module ships). 10 sample leads with mixed
-  // pipeline stages so the marketing module also has something to look at.
+  // Customer rows — half derived from patients (so invoices link via
+  // customers.patientId and surface on patient timelines), half generic
+  // "leads" (so the platform-side /ecommerce/customers + marketing
+  // pipeline modules also have something to show).
+  //
+  // Personas with a customers row: [0] Mia (LTV history), [3] Marcus
+  // (overdue $), [4] Sophia (paid history), [7] Noah (paid history).
+  const patientLinkedCustomers = [0, 3, 4, 7].map((idx) => ({
+    organizationId: orgId,
+    patientId: patientIds[idx],
+    name: `${personas[idx].firstName} ${personas[idx].lastName}`,
+    email: personas[idx].email!,
+    phone: personas[idx].phone,
+    location: `${personas[idx].city}, ${personas[idx].state}`,
+    pipelineStage: 'won',
+    lifecycleStage: 'customer',
+    lastActivityAt: new Date(now.getTime() - dayMs),
+  }))
   const STAGES = ['new', 'contacted', 'qualified', 'opportunity', 'won']
-  const customerRows = Array.from({ length: 10 }, (_, i) => {
+  const leadCustomers = Array.from({ length: 6 }, (_, i) => {
     const first = pick(FIRST_NAMES)
     const last = pick(LAST_NAMES)
     const loc = pick(CITIES)
@@ -402,11 +633,14 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       phone: phoneNumber(),
       location: `${loc.city}, ${loc.state}`,
       pipelineStage: STAGES[i % STAGES.length],
-      lifecycleStage: i < 4 ? 'lead' : 'customer',
+      lifecycleStage: i < 3 ? 'lead' : 'customer',
       lastActivityAt: new Date(now.getTime() - i * dayMs),
     }
   })
-  const insertedCustomers = await db.insert(schema.customers).values(customerRows).returning({ id: schema.customers.id })
+  const insertedCustomers = await db
+    .insert(schema.customers)
+    .values([...patientLinkedCustomers, ...leadCustomers])
+    .returning({ id: schema.customers.id })
 
   // Sample products (treatments offered as "products" in the catalog).
   const productRows = [
@@ -442,24 +676,103 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     })
   }
 
-  const invoiceStatuses = ['paid', 'paid', 'pending', 'overdue', 'draft'] as const
-  for (let i = 0; i < 5; i++) {
+  // Invoices — curated so each patient-linked customer has a realistic
+  // history. Patient-linked customer IDs are the first N of insertedCustomers
+  // (in the same order as patientLinkedCustomers above).
+  // [0] Mia: 2 paid invoices (LTV history)
+  // [1] Marcus: 1 paid + 1 overdue (drives the $ glyph + balance pill)
+  // [2] Sophia: 1 paid
+  // [3] Noah: 1 paid
+  const invoiceSeeds: Array<{
+    customerIdx: number
+    status: 'draft' | 'pending' | 'paid' | 'overdue' | 'cancelled'
+    totalCents: number
+    daysAgo: number
+  }> = [
+    { customerIdx: 0, status: 'paid', totalCents: 22500, daysAgo: 90 },
+    { customerIdx: 0, status: 'paid', totalCents: 18000, daysAgo: 30 },
+    { customerIdx: 1, status: 'paid', totalCents: 15000, daysAgo: 120 },
+    { customerIdx: 1, status: 'overdue', totalCents: 45000, daysAgo: 21 },
+    { customerIdx: 2, status: 'paid', totalCents: 9500, daysAgo: 60 },
+    { customerIdx: 3, status: 'paid', totalCents: 30000, daysAgo: 150 },
+  ]
+  for (const inv of invoiceSeeds) {
+    const created = new Date(now.getTime() - inv.daysAgo * dayMs)
     await db.insert(schema.invoices).values({
       organizationId: orgId,
       invoiceNumber: '#' + newId().slice(0, 6).toUpperCase(),
-      customerId: insertedCustomers[i % insertedCustomers.length]?.id ?? null,
-      status: invoiceStatuses[i % invoiceStatuses.length],
-      totalCents: 20000 + i * 7500,
+      customerId: insertedCustomers[inv.customerIdx]?.id ?? null,
+      status: inv.status,
+      totalCents: inv.totalCents,
       currency: 'USD',
-      paidAt:
-        invoiceStatuses[i % invoiceStatuses.length] === 'paid'
-          ? new Date(now.getTime() - i * dayMs)
-          : null,
+      createdAt: created,
+      paidAt: inv.status === 'paid' ? new Date(created.getTime() + 2 * dayMs) : null,
     })
   }
 
   // Default intake form template — the standard dental new-patient form.
   await seedDefaultIntakeForm(orgId)
+
+  // Form submissions — one per persona that already filled out the intake.
+  // Persona [1] (new patient, future visit) is intentionally *missing* a
+  // submission so the 📝! "missing intake before next visit" glyph triggers.
+  const [defaultForm] = await db
+    .select({ id: schema.formTemplate.id })
+    .from(schema.formTemplate)
+    .where(eq(schema.formTemplate.organizationId, orgId))
+    .limit(1)
+  if (defaultForm) {
+    const submissionSeeds: Array<{ patientIdx: number; daysAgo: number }> = [
+      { patientIdx: 0, daysAgo: 240 },
+      { patientIdx: 2, daysAgo: 95 },
+      { patientIdx: 3, daysAgo: 50 },
+      { patientIdx: 6, daysAgo: 220 },
+      { patientIdx: 7, daysAgo: 160 },
+    ]
+    for (const s of submissionSeeds) {
+      const p = personas[s.patientIdx]
+      await db.insert(schema.formSubmission).values({
+        id: newId('sub'),
+        organizationId: orgId,
+        formTemplateId: defaultForm.id,
+        patientId: patientIds[s.patientIdx],
+        appointmentId: null,
+        data: {
+          first_name: p.firstName,
+          last_name: p.lastName,
+          email: p.email,
+          phone: p.phone,
+          dob: p.dateOfBirth,
+          insurance: p.insuranceProvider ?? 'None',
+          anxious: s.patientIdx === 7 ? 'Yes — I prefer nitrous oxide' : 'A little — please go slow',
+        },
+        submitterName: `${p.firstName} ${p.lastName}`,
+        submitterEmail: p.email,
+        submitterPhone: p.phone,
+        submittedAt: new Date(now.getTime() - s.daysAgo * dayMs),
+      })
+    }
+  }
+
+  // Patient notes — relationship notes (NOT clinical) on a few personas
+  // so the Notes panel on the detail page renders real content.
+  const noteSeeds: Array<{ patientIdx: number; body: string; daysAgo: number }> = [
+    { patientIdx: 0, body: 'Prefers Dr. Patel for cleanings. Loves the warm towels.', daysAgo: 90 },
+    { patientIdx: 5, body: 'Tried to reach 2024-09 — left voicemail, no callback. Try again next quarter.', daysAgo: 240 },
+    { patientIdx: 5, body: 'Confirmed wants to come back, life got busy. Sending recall email week of demo.', daysAgo: 12 },
+    { patientIdx: 7, body: 'Highly anxious. Always pre-medicate with halcion + use nitrous. Spouse usually drives.', daysAgo: 150 },
+    { patientIdx: 3, body: 'Balance dispute: insurance kicked back the May filling — call to walk through EOB.', daysAgo: 18 },
+  ]
+  for (const n of noteSeeds) {
+    await db.insert(schema.patientNote).values({
+      id: newId('pnote'),
+      organizationId: orgId,
+      patientId: patientIds[n.patientIdx],
+      authorId: null, // demo notes have no author — UI shows "Staff"
+      body: n.body,
+      createdAt: new Date(now.getTime() - n.daysAgo * dayMs),
+    })
+  }
 
   return {
     organizationId: orgId,
