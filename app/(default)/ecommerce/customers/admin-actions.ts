@@ -3,12 +3,13 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db } from '@/lib/db'
+import { db, schema } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
 import { createDemoClinic } from '@/lib/services/demo-clinic'
+import { cancelSubscriptionNow } from '@/lib/services/stripe-admin'
 import type { Role } from '@/lib/modules/types'
 
 const DEMO_CLINIC_SLUG = 'acme-dental-demo'
@@ -82,6 +83,89 @@ export async function seedDemoClinic() {
   const result = await createDemoClinic()
   revalidatePath('/ecommerce/customers')
   return result
+}
+
+/**
+ * Hard-delete a clinic org. Cascades to clinic_profile, patients,
+ * appointments, customers, invoices, intake forms + submissions, notes,
+ * conversations / messages, members, invitations, projects — anything
+ * with `organization_id` FK that's marked `onDelete: cascade`.
+ *
+ * If the clinic has an active Stripe subscription we cancel it first so
+ * we don't keep billing them post-delete. Cancel failures are logged but
+ * don't block the DB delete — the operator already typed-to-confirm.
+ *
+ * Guards:
+ * - platform owner only
+ * - org type must be 'clinic' (never delete the platform org itself)
+ * - confirmation slug must match (UI requires the operator to type the
+ *   clinic slug; we double-check on the server in case the form is
+ *   replayed)
+ */
+const DeleteClinicInput = z.object({
+  orgId: z.string().min(1),
+  confirmSlug: z.string().min(1),
+})
+
+export interface DeleteClinicResult {
+  ok: true
+  name: string
+  subscriptionCanceled: boolean
+}
+
+export async function deleteClinicAction(input: unknown): Promise<DeleteClinicResult> {
+  const ctx = await requirePlatformAdmin()
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Forbidden: platform owner or admin only')
+  }
+  const data = DeleteClinicInput.parse(input)
+
+  const [org] = await db
+    .select({ id: organization.id, name: organization.name, slug: organization.slug, type: organization.type })
+    .from(organization)
+    .where(eq(organization.id, data.orgId))
+    .limit(1)
+  if (!org) throw new Error('Clinic not found')
+  if (org.type !== 'clinic') throw new Error(`Refusing to delete org of type '${org.type}' — only clinic tenants can be deleted from here`)
+  if (org.slug !== data.confirmSlug) throw new Error('Confirmation slug does not match')
+
+  // Cancel Stripe subscription if one is on file, so we don't bill them
+  // after the clinic is gone.
+  let subscriptionCanceled = false
+  const [profile] = await db
+    .select({ stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, org.id))
+    .limit(1)
+  if (profile?.stripeSubscriptionId) {
+    try {
+      await cancelSubscriptionNow(profile.stripeSubscriptionId)
+      subscriptionCanceled = true
+    } catch (err) {
+      // Log + continue. A failed cancel doesn't block the delete — the
+      // operator confirmed by typing the slug, and a stale Stripe sub on
+      // a deleted org is something we'd rather fix manually than block on.
+      console.warn('[deleteClinic] failed to cancel Stripe subscription', err)
+    }
+  }
+
+  // If the current demo_context cookie points at this org, drop it so the
+  // platform admin doesn't get stranded "viewing as" a deleted clinic.
+  const cookieStore = await cookies()
+  const demo = cookieStore.get(DEMO_COOKIE)?.value
+  if (demo) {
+    try {
+      const parsed = JSON.parse(demo) as { orgId?: string }
+      if (parsed.orgId === org.id) cookieStore.delete(DEMO_COOKIE)
+    } catch {
+      /* swallow malformed cookie */
+    }
+  }
+
+  await db.delete(organization).where(and(eq(organization.id, org.id), eq(organization.type, 'clinic')))
+
+  revalidatePath('/ecommerce/customers')
+  return { ok: true, name: org.name, subscriptionCanceled }
 }
 
 /**

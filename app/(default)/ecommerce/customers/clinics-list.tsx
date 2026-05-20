@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
-import { enterDemoMode, seedAndEnterDemoClinic } from './admin-actions'
+import { enterDemoMode, seedAndEnterDemoClinic, deleteClinicAction } from './admin-actions'
 
 interface Props {
   rows: ClinicListRow[]
@@ -304,9 +305,139 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
           >
             Open
           </Link>
+          <DeleteClinicButton clinic={c} />
         </div>
       </td>
     </tr>
+  )
+}
+
+function DeleteClinicButton({ clinic }: { clinic: ClinicListRow }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition"
+        title="Delete this clinic and all its data"
+      >
+        Delete
+      </button>
+      {open && <DeleteClinicModal clinic={clinic} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose: () => void }) {
+  const router = useRouter()
+  const [typed, setTyped] = useState('')
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<{ name: string; subscriptionCanceled: boolean } | null>(null)
+  const matches = typed.trim() === clinic.slug
+  const hasActiveSub =
+    clinic.subscriptionStatus === 'active' || clinic.subscriptionStatus === 'trialing'
+
+  function submit() {
+    setError(null)
+    if (!matches) { setError('Type the slug exactly to confirm.'); return }
+    startTransition(async () => {
+      try {
+        const r = await deleteClinicAction({ orgId: clinic.orgId, confirmSlug: clinic.slug })
+        setResult({ name: r.name, subscriptionCanceled: r.subscriptionCanceled })
+      } catch (e) {
+        setError((e as Error).message)
+      }
+    })
+  }
+
+  function finish() {
+    onClose()
+    router.refresh()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-2 sm:px-4">
+      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            {result ? 'Clinic deleted' : `Delete ${clinic.displayName ?? clinic.name}?`}
+          </h2>
+          {!result && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              This permanently deletes the clinic org, its members, patients, appointments,
+              invoices, intake forms + submissions, conversations, and everything else
+              scoped to <code className="bg-gray-100 dark:bg-gray-900 px-1 py-0.5 rounded">{clinic.slug}</code>.
+              This can&rsquo;t be undone.
+            </p>
+          )}
+        </div>
+
+        {result ? (
+          <div className="px-6 py-5">
+            <p className="text-2xl mb-2">🗑️</p>
+            <p className="text-sm text-gray-800 dark:text-gray-100">
+              <strong>{result.name}</strong> and all its data have been removed.
+            </p>
+            {result.subscriptionCanceled && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Stripe subscription was canceled.
+              </p>
+            )}
+            <div className="mt-5 flex justify-end">
+              <button onClick={finish} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800">
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="px-6 py-5 space-y-3">
+              {hasActiveSub && (
+                <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
+                  This clinic has an active Stripe subscription. We&rsquo;ll cancel it before
+                  deleting the org. If the cancel call fails, the DB delete still proceeds —
+                  you may need to clean up the stale subscription in Stripe manually.
+                </div>
+              )}
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                Type the clinic slug{' '}
+                <code className="bg-gray-100 dark:bg-gray-900 px-1 py-0.5 rounded font-mono">
+                  {clinic.slug}
+                </code>{' '}
+                to confirm.
+              </p>
+              <input
+                type="text"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={clinic.slug}
+                autoFocus
+                className="form-input w-full text-sm font-mono"
+              />
+              {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
+              <button
+                onClick={onClose}
+                disabled={pending}
+                className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submit}
+                disabled={pending || !matches}
+                className="btn-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {pending ? 'Deleting…' : 'Delete forever'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
