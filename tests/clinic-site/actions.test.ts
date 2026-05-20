@@ -47,6 +47,17 @@ vi.mock('@/lib/email', () => ({
   sendBookingConfirmationEmail: vi.fn().mockResolvedValue(undefined),
 }))
 
+// Slot availability is exercised in its own test file; the action tests
+// only care that submitBookingRequest writes the right rows + sends the
+// right email, so we stub the slot check to always pass.
+const { slotAvailableMock } = vi.hoisted(() => ({
+  slotAvailableMock: vi.fn(async () => true),
+}))
+vi.mock('@/lib/services/booking', () => ({
+  isSlotAvailable: slotAvailableMock,
+  SLOT_MINUTES: 30,
+}))
+
 import { submitContactRequest, submitBookingRequest } from '@/app/site/[slug]/actions'
 import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
 
@@ -55,6 +66,7 @@ beforeEach(() => {
   selectStubs.patient = null
   selectStubs.profile = null
   vi.clearAllMocks()
+  slotAvailableMock.mockResolvedValue(true)
 })
 
 describe('submitContactRequest', () => {
@@ -123,6 +135,8 @@ describe('submitBookingRequest', () => {
     return fd
   }
 
+  // Always-future startTime so the past-time guard never fires in tests.
+  const futureStartTime = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
   const baseFields = {
     orgId: 'org_1',
     firstName: 'Jane',
@@ -130,7 +144,7 @@ describe('submitBookingRequest', () => {
     email: 'jane@x.com',
     phone: '555',
     type: 'cleaning',
-    startTime: '2026-06-01T10:00',
+    startTime: futureStartTime,
     notes: null,
   }
 
@@ -156,6 +170,18 @@ describe('submitBookingRequest', () => {
     await expect(
       submitBookingRequest(form({ ...baseFields, startTime: 'not-a-date' })),
     ).rejects.toThrow(/Invalid/i)
+  })
+
+  it('rejects past startTime', async () => {
+    const past = new Date(Date.now() - 86400_000).toISOString()
+    await expect(
+      submitBookingRequest(form({ ...baseFields, startTime: past })),
+    ).rejects.toThrow(/future/i)
+  })
+
+  it('rejects when slot is no longer available (race condition)', async () => {
+    slotAvailableMock.mockResolvedValueOnce(false)
+    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/no longer available/i)
   })
 
   it('creates a new patient when none exists with that email', async () => {
