@@ -5,10 +5,15 @@ interface InsertCall {
   values: unknown
 }
 
+interface UpdateCall {
+  set: unknown
+}
+
 const state: {
   selectQueue: unknown[][]
   inserts: InsertCall[]
-} = { selectQueue: [], inserts: [] }
+  updates: UpdateCall[]
+} = { selectQueue: [], inserts: [], updates: [] }
 
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
@@ -50,8 +55,10 @@ vi.mock('@/lib/db', async () => {
         },
       }),
       update: () => ({
-        set: () => ({
-          where: async () => undefined,
+        set: (set: unknown) => ({
+          where: async () => {
+            state.updates.push({ set })
+          },
         }),
       }),
     },
@@ -73,12 +80,22 @@ function tableCounts(): Record<string, number> {
 beforeEach(() => {
   state.selectQueue.length = 0
   state.inserts.length = 0
+  state.updates.length = 0
 })
 
 describe('createDemoClinic', () => {
   it('returns existing clinic without inserting when slug already exists (idempotent)', async () => {
     state.selectQueue.push([
       { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
+    ])
+    // Self-heal reads the profile to decide what to backfill — already-current here.
+    state.selectQueue.push([
+      {
+        brandColor: '#9CAF9F',
+        stats: [{ id: 's', value: 'X', label: 'y' }],
+        testimonials: [{ id: 't', quote: 'q', authorName: 'a' }],
+        officePhotos: [{ id: 'o', url: 'u' }],
+      },
     ])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
@@ -90,6 +107,32 @@ describe('createDemoClinic', () => {
     expect(out.patientCount).toBe(3)
     expect(out.appointmentCount).toBe(1)
     expect(state.inserts).toHaveLength(0)
+  })
+
+  it('self-heals stats / testimonials / officePhotos when the existing demo has nulls', async () => {
+    state.selectQueue.push([
+      { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
+    ])
+    state.selectQueue.push([
+      { brandColor: '#9CAF9F', stats: null, testimonials: null, officePhotos: null },
+    ])
+    state.selectQueue.push([]) // patients
+    state.selectQueue.push([]) // appointments
+
+    // Capture the update call by hooking the mock — we already track via state.updates
+    state.updates.length = 0
+    await createDemoClinic()
+    expect(state.updates).toHaveLength(1)
+    const patch = state.updates[0].set as {
+      stats?: unknown
+      testimonials?: unknown
+      officePhotos?: unknown
+      brandColor?: unknown
+    }
+    expect(patch.stats).toBeDefined()
+    expect(patch.testimonials).toBeDefined()
+    expect(patch.officePhotos).toBeDefined()
+    expect(patch.brandColor).toBeUndefined() // already current
   })
 
   it('seeds the full clinic when none exists', async () => {

@@ -3,10 +3,19 @@
 import { useState } from 'react'
 import { updateClinicProfile } from './actions'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
-import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
+import type {
+  ClinicService,
+  ClinicStaff,
+  ClinicStat,
+  ClinicTestimonial,
+  ClinicOfficePhoto,
+} from '@/lib/types/clinic-content'
 import ImageUploader from '@/components/ui/image-uploader'
 import ServicesEditor from './services-editor'
 import StaffEditor from './staff-editor'
+import StatsEditor from './stats-editor'
+import TestimonialsEditor from './testimonials-editor'
+import OfficePhotosEditor from './office-photos-editor'
 
 interface Props {
   profile: ClinicProfile | null
@@ -33,6 +42,9 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
   const initialHours = (profile?.hours ?? {}) as Record<string, HoursEntry>
   const initialServices = (profile?.services ?? null) as ClinicService[] | null
   const initialStaff = (profile?.staff ?? null) as ClinicStaff[] | null
+  const initialStats = (profile?.stats ?? null) as ClinicStat[] | null
+  const initialTestimonials = (profile?.testimonials ?? null) as ClinicTestimonial[] | null
+  const initialOfficePhotos = (profile?.officePhotos ?? null) as ClinicOfficePhoto[] | null
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -211,6 +223,33 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
             Your team. Add headshots and bios — they appear in a Meet The Team section.
           </p>
           <StaffEditor name="staff" defaultValue={initialStaff} />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Stats</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Three short trust signals shown right under your hero. Examples: &ldquo;8,000+
+            five-star reviews&rdquo;, &ldquo;Same-week appointments&rdquo;, &ldquo;Most insurance accepted&rdquo;.
+          </p>
+          <StatsEditor name="stats" defaultValue={initialStats} />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Testimonials</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Long-form patient quotes — first name + city. The single strongest trust signal
+            on the page when done well.
+          </p>
+          <TestimonialsEditor name="testimonials" defaultValue={initialTestimonials} />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Office Photos</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            3–4 real photos of your office (reception, treatment room, waiting area). Drop
+            them in below and they&apos;ll appear as a gallery on your site.
+          </p>
+          <OfficePhotosEditor name="officePhotos" defaultValue={initialOfficePhotos} />
         </section>
 
         <div className="flex items-center gap-3 pt-2 border-t border-gray-200 dark:border-gray-700/60">

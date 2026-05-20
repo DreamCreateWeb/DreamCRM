@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 
@@ -93,6 +93,68 @@ function phoneNumber(): string {
   return `(512) 555-${String(1000 + Math.floor(Math.random() * 9000))}`
 }
 
+// Demo content — pulled out so the create path and the self-heal path
+// for already-seeded demos share one source of truth.
+const DEMO_STATS = [
+  { id: 'st1', value: '8,000+', label: 'five-star reviews' },
+  { id: 'st2', value: 'Same-week', label: 'appointments available' },
+  { id: 'st3', value: 'Most', label: 'insurance accepted' },
+]
+
+const DEMO_TESTIMONIALS = [
+  {
+    id: 't1',
+    quote:
+      "I dreaded the dentist for years. Acme treated me like a person, not a tooth. I actually look forward to my cleanings now — I can't believe I'm saying that.",
+    authorName: 'Sarah K.',
+    authorLocation: 'Austin, TX',
+    authorPhotoUrl: null,
+  },
+  {
+    id: 't2',
+    quote:
+      "Booked online at 11pm on a Sunday, sat in the chair Tuesday morning. The team explained every step of my treatment plan before any work — no surprises, no upsells.",
+    authorName: 'Marcus T.',
+    authorLocation: 'Round Rock, TX',
+    authorPhotoUrl: null,
+  },
+  {
+    id: 't3',
+    quote:
+      "My kids actually ASK to go to Acme. The hygienist remembered that Lily likes the bubblegum fluoride. Small thing — huge difference for a six-year-old.",
+    authorName: 'Jen R.',
+    authorLocation: 'Cedar Park, TX',
+    authorPhotoUrl: null,
+  },
+]
+
+const DEMO_OFFICE_PHOTOS = [
+  {
+    id: 'op1',
+    url: 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=1200&q=80',
+    alt: 'Modern dental treatment room with natural light',
+    caption: null,
+  },
+  {
+    id: 'op2',
+    url: 'https://images.unsplash.com/photo-1606811971618-4486d14f3f99?w=1200&q=80',
+    alt: 'Reception area with warm wood and plants',
+    caption: null,
+  },
+  {
+    id: 'op3',
+    url: 'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=1200&q=80',
+    alt: 'Hygienist working with a patient',
+    caption: null,
+  },
+  {
+    id: 'op4',
+    url: 'https://images.unsplash.com/photo-1609840114035-3c981b782dfe?w=1200&q=80',
+    alt: 'Comfortable waiting lounge',
+    caption: null,
+  },
+]
+
 export async function createDemoClinic(): Promise<DemoClinicResult> {
   const name = 'Acme Dental Demo'
   const slug = slugify(name)
@@ -104,18 +166,35 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     .where(eq(schema.organization.slug, slug))
     .limit(1)
   if (existing) {
-    // Self-heal: if the demo was seeded before the warm-neutral palette
-    // shipped (sky-blue brand color), bump it forward so the demo always
-    // showcases the current default template look.
-    await db
-      .update(schema.clinicProfile)
-      .set({ brandColor: '#9CAF9F' })
-      .where(
-        and(
-          eq(schema.clinicProfile.organizationId, existing.id),
-          eq(schema.clinicProfile.brandColor, '#0ea5e9'),
-        ),
-      )
+    // Self-heal: keep the demo on the current template defaults so it
+    // always showcases the latest visual direction. Runs every time the
+    // "Create demo clinic" button is hit on an already-seeded demo.
+    //
+    // - bump sky-blue brand to sage if still on the pre-warm-neutral default
+    // - backfill stats / testimonials / officePhotos when columns are null
+    //   (e.g. demo seeded before those fields existed)
+    const [profile] = await db
+      .select({
+        brandColor: schema.clinicProfile.brandColor,
+        stats: schema.clinicProfile.stats,
+        testimonials: schema.clinicProfile.testimonials,
+        officePhotos: schema.clinicProfile.officePhotos,
+      })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, existing.id))
+      .limit(1)
+
+    const patch: Partial<typeof schema.clinicProfile.$inferInsert> = {}
+    if (profile?.brandColor === '#0ea5e9') patch.brandColor = '#9CAF9F'
+    if (!profile?.stats) patch.stats = DEMO_STATS
+    if (!profile?.testimonials) patch.testimonials = DEMO_TESTIMONIALS
+    if (!profile?.officePhotos) patch.officePhotos = DEMO_OFFICE_PHOTOS
+    if (Object.keys(patch).length > 0) {
+      await db
+        .update(schema.clinicProfile)
+        .set(patch)
+        .where(eq(schema.clinicProfile.organizationId, existing.id))
+    }
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -182,6 +261,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       { id: 'p2', name: 'Dr. Sam Patel', title: 'Cosmetic Specialist' },
       { id: 'p3', name: 'Maria Vega, RDH', title: 'Lead Hygienist' },
     ],
+    stats: DEMO_STATS,
+    testimonials: DEMO_TESTIMONIALS,
+    officePhotos: DEMO_OFFICE_PHOTOS,
     planTier: 'premium',
     subscriptionStatus: 'active',
   })

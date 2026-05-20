@@ -6,7 +6,13 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
-import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
+import type {
+  ClinicService,
+  ClinicStaff,
+  ClinicStat,
+  ClinicTestimonial,
+  ClinicOfficePhoto,
+} from '@/lib/types/clinic-content'
 
 export interface HoursEntry {
   open?: string | null
@@ -55,6 +61,82 @@ function parseStaff(raw: string | undefined): ClinicStaff[] | null {
         title: typeof obj.title === 'string' ? obj.title.trim() || null : null,
         bio: typeof obj.bio === 'string' ? obj.bio.trim() || null : null,
         photoUrl: typeof obj.photoUrl === 'string' ? obj.photoUrl || null : null,
+      })
+    }
+    return out.length ? out : null
+  } catch {
+    return null
+  }
+}
+
+function parseStats(raw: string | undefined): ClinicStat[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: ClinicStat[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const value = typeof obj.value === 'string' ? obj.value.trim() : ''
+      const label = typeof obj.label === 'string' ? obj.label.trim() : ''
+      if (!value && !label) continue
+      out.push({
+        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
+        value,
+        label,
+      })
+    }
+    return out.length ? out : null
+  } catch {
+    return null
+  }
+}
+
+function parseTestimonials(raw: string | undefined): ClinicTestimonial[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: ClinicTestimonial[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const quote = typeof obj.quote === 'string' ? obj.quote.trim() : ''
+      const authorName = typeof obj.authorName === 'string' ? obj.authorName.trim() : ''
+      if (!quote || !authorName) continue
+      out.push({
+        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
+        quote,
+        authorName,
+        authorLocation:
+          typeof obj.authorLocation === 'string' ? obj.authorLocation.trim() || null : null,
+        authorPhotoUrl:
+          typeof obj.authorPhotoUrl === 'string' ? obj.authorPhotoUrl || null : null,
+      })
+    }
+    return out.length ? out : null
+  } catch {
+    return null
+  }
+}
+
+function parseOfficePhotos(raw: string | undefined): ClinicOfficePhoto[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: ClinicOfficePhoto[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const url = typeof obj.url === 'string' ? obj.url.trim() : ''
+      if (!url) continue
+      out.push({
+        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
+        url,
+        alt: typeof obj.alt === 'string' ? obj.alt.trim() || null : null,
+        caption: typeof obj.caption === 'string' ? obj.caption.trim() || null : null,
       })
     }
     return out.length ? out : null
@@ -121,6 +203,9 @@ export async function updateClinicProfile(formData: FormData) {
   const heroImageUrl = clean('heroImageUrl', formData)
   const services = parseServices(formData.get('services')?.toString())
   const staff = parseStaff(formData.get('staff')?.toString())
+  const stats = parseStats(formData.get('stats')?.toString())
+  const testimonials = parseTestimonials(formData.get('testimonials')?.toString())
+  const officePhotos = parseOfficePhotos(formData.get('officePhotos')?.toString())
   const hours = parseHours(formData)
 
   const payload = {
@@ -143,6 +228,9 @@ export async function updateClinicProfile(formData: FormData) {
     hours,
     services,
     staff,
+    stats,
+    testimonials,
+    officePhotos,
   }
 
   await db

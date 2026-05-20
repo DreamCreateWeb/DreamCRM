@@ -37,6 +37,9 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
       heroImageUrl: null,
       services: null,
       staff: null,
+      stats: null,
+      testimonials: null,
+      officePhotos: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,
@@ -299,5 +302,140 @@ describe('ModernTemplate', () => {
       <ModernTemplate data={makeData({ brandColor: null })} basePath="/site/test" />,
     )
     expect(container.querySelector('header')).toBeInTheDocument()
+  })
+
+  // ── Stat anchors ────────────────────────────────────────────────────
+
+  it('omits stat anchors when none are configured', () => {
+    render(<ModernTemplate data={makeData({ stats: null as never })} basePath="/site/test" />)
+    expect(screen.queryByText('8,000+')).not.toBeInTheDocument()
+  })
+
+  it('renders stat anchor values + labels', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          stats: [
+            { id: 's1', value: '8,000+', label: 'five-star reviews' },
+            { id: 's2', value: 'Same-week', label: 'appointments available' },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText('8,000+')).toBeInTheDocument()
+    expect(screen.getByText('five-star reviews')).toBeInTheDocument()
+    expect(screen.getByText('Same-week')).toBeInTheDocument()
+  })
+
+  it('caps stats at 4 on the homepage', () => {
+    const stats = Array.from({ length: 6 }, (_, i) => ({
+      id: `s${i}`,
+      value: `V${i}`,
+      label: `Label ${i}`,
+    }))
+    render(<ModernTemplate data={makeData({ stats: stats as never })} basePath="/site/test" />)
+    expect(screen.getByText('V0')).toBeInTheDocument()
+    expect(screen.getByText('V3')).toBeInTheDocument()
+    expect(screen.queryByText('V4')).not.toBeInTheDocument()
+  })
+
+  // ── Testimonials ────────────────────────────────────────────────────
+
+  it('omits the testimonials section when none configured', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ testimonials: null as never })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.queryByText(/In their words/i)).not.toBeInTheDocument()
+  })
+
+  it('renders testimonial quote + author + location', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          testimonials: [
+            {
+              id: 't1',
+              quote: 'They made me feel at home.',
+              authorName: 'Sarah K.',
+              authorLocation: 'Brooklyn, NY',
+              authorPhotoUrl: null,
+            },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText(/They made me feel at home/)).toBeInTheDocument()
+    expect(screen.getByText('Sarah K.')).toBeInTheDocument()
+    expect(screen.getByText('Brooklyn, NY')).toBeInTheDocument()
+  })
+
+  it('renders an initial letter avatar when no testimonial photo is set', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          testimonials: [
+            {
+              id: 't1',
+              quote: 'Q.',
+              authorName: 'Marcus T.',
+              authorLocation: null,
+              authorPhotoUrl: null,
+            },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText('M')).toBeInTheDocument()
+  })
+
+  // ── Office photos ───────────────────────────────────────────────────
+
+  it('omits the office tour section when no photos configured', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ officePhotos: null as never })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.queryByText(/Inside the office/i)).not.toBeInTheDocument()
+  })
+
+  it('renders office photo URLs', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          officePhotos: [
+            { id: 'op1', url: 'https://example.com/op1.jpg', alt: 'Reception', caption: null },
+            { id: 'op2', url: 'https://example.com/op2.jpg', alt: 'Treatment room', caption: null },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    const imgs = Array.from(document.querySelectorAll('img'))
+    expect(imgs.some((i) => i.src === 'https://example.com/op1.jpg')).toBe(true)
+    expect(imgs.some((i) => i.src === 'https://example.com/op2.jpg')).toBe(true)
+  })
+
+  it('caps office photos at 4', () => {
+    const photos = Array.from({ length: 8 }, (_, i) => ({
+      id: `op${i}`,
+      url: `https://example.com/op${i}.jpg`,
+      alt: null,
+      caption: null,
+    }))
+    render(
+      <ModernTemplate data={makeData({ officePhotos: photos as never })} basePath="/site/test" />,
+    )
+    const imgs = Array.from(document.querySelectorAll('img'))
+    expect(imgs.some((i) => i.src === 'https://example.com/op0.jpg')).toBe(true)
+    expect(imgs.some((i) => i.src === 'https://example.com/op3.jpg')).toBe(true)
+    expect(imgs.some((i) => i.src === 'https://example.com/op4.jpg')).toBe(false)
   })
 })
