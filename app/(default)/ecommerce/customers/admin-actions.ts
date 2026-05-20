@@ -3,10 +3,15 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { db } from '@/lib/db'
+import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
 import { createDemoClinic } from '@/lib/services/demo-clinic'
 import type { Role } from '@/lib/modules/types'
+
+const DEMO_CLINIC_SLUG = 'acme-dental-demo'
 
 const DEMO_COOKIE = 'demo_context'
 const DEMO_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
@@ -33,6 +38,20 @@ const EnterDemoInput = z.object({
 export async function enterDemoMode(input: unknown) {
   await requirePlatformAdmin()
   const data = EnterDemoInput.parse(input)
+
+  // If entering the Acme Dental Demo clinic, run the seeder's self-heal
+  // pass so the demo is always on the latest template defaults — picks
+  // up new fields (stats, testimonials, officePhotos, etc.) added since
+  // the demo was first seeded. No-op for any other org.
+  const [org] = await db
+    .select({ slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, data.orgId))
+    .limit(1)
+  if (org?.slug === DEMO_CLINIC_SLUG) {
+    await createDemoClinic()
+  }
+
   const cookieStore = await cookies()
   cookieStore.set(DEMO_COOKIE, JSON.stringify(data), {
     httpOnly: true,

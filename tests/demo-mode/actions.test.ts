@@ -34,18 +34,33 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-const seedResult = {
-  organizationId: 'org_demo_1',
-  organizationSlug: 'acme-dental-demo',
-  organizationName: 'Acme Dental Demo',
-  created: true,
-  patientCount: 15,
-  appointmentCount: 12,
-}
+// Hoisted so the vi.mock factories below can capture them.
+const { mockCreateDemo, dbState } = vi.hoisted(() => ({
+  mockCreateDemo: vi.fn(async () => ({
+    organizationId: 'org_demo_1',
+    organizationSlug: 'acme-dental-demo',
+    organizationName: 'Acme Dental Demo',
+    created: true,
+    patientCount: 15,
+    appointmentCount: 12,
+  })),
+  dbState: { stubOrgSlug: 'some-other-clinic' as string | null },
+}))
 
 vi.mock('@/lib/services/demo-clinic', () => ({
-  createDemoClinic: vi.fn(async () => seedResult),
+  createDemoClinic: mockCreateDemo,
 }))
+
+vi.mock('@/lib/db', () => {
+  const chain = () => {
+    const obj: any = {}
+    obj.from = () => obj
+    obj.where = () => obj
+    obj.limit = async () => (dbState.stubOrgSlug ? [{ slug: dbState.stubOrgSlug }] : [])
+    return obj
+  }
+  return { db: { select: () => chain() } }
+})
 
 import {
   enterDemoMode,
@@ -57,6 +72,8 @@ import {
 beforeEach(() => {
   cookieStore.set.mockReset()
   cookieStore.delete.mockReset()
+  mockCreateDemo.mockClear()
+  dbState.stubOrgSlug = 'some-other-clinic'
   tenantCtx = {
     tenantType: 'platform',
     organizationId: 'org_platform',
@@ -107,6 +124,18 @@ describe('enterDemoMode', () => {
     }
     await expect(enterDemoMode({ orgId: 'org_b', role: 'admin' })).rejects.toThrow(/Forbidden/)
     expect(cookieStore.set).not.toHaveBeenCalled()
+  })
+
+  it('does NOT run the demo seeder when entering a non-demo clinic', async () => {
+    dbState.stubOrgSlug = 'real-clinic-slug'
+    await expectRedirect(enterDemoMode({ orgId: 'org_real', role: 'owner' }), '/')
+    expect(mockCreateDemo).not.toHaveBeenCalled()
+  })
+
+  it('triggers the seeder self-heal when entering the Acme demo specifically', async () => {
+    dbState.stubOrgSlug = 'acme-dental-demo'
+    await expectRedirect(enterDemoMode({ orgId: 'org_demo', role: 'owner' }), '/')
+    expect(mockCreateDemo).toHaveBeenCalledTimes(1)
   })
 
   it('refuses when input is malformed', async () => {
