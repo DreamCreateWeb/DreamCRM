@@ -1,5 +1,9 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
+import {
+  getClinicSiteBySlug,
+  publicSiteUrl,
+  clinicJsonLd,
+} from '@/lib/services/clinic-site'
 import ModernTemplate from '@/components/clinic-site/modern-template'
 
 interface Props {
@@ -11,9 +15,37 @@ export async function generateMetadata({ params }: Props) {
   const data = await getClinicSiteBySlug(slug)
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
+  const tagline = data.profile.tagline ?? null
+  const description =
+    tagline ??
+    (data.profile.about ? data.profile.about.slice(0, 160) : `Welcome to ${name}.`)
+  const url = publicSiteUrl(data)
+  const title = tagline ? `${name} — ${tagline}` : name
+
   return {
-    title: name,
-    description: data.profile.tagline ?? `Welcome to ${name}`,
+    title,
+    description,
+    metadataBase: new URL(url),
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: name,
+      type: 'website',
+      ...(data.profile.heroImageUrl
+        ? { images: [{ url: data.profile.heroImageUrl, alt: name }] }
+        : {}),
+    },
+    twitter: {
+      card: data.profile.heroImageUrl ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      ...(data.profile.heroImageUrl ? { images: [data.profile.heroImageUrl] } : {}),
+    },
+    icons: data.profile.logoUrl
+      ? { icon: data.profile.logoUrl, apple: data.profile.logoUrl }
+      : undefined,
   }
 }
 
@@ -23,5 +55,18 @@ export default async function ClinicSitePage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = `/site/${slug}`
-  return <ModernTemplate data={data} basePath={basePath} />
+  const jsonLd = clinicJsonLd(data)
+
+  return (
+    <>
+      {/* JSON-LD for Google rich results / Knowledge Panel. Embedded as a
+          plain script tag rather than next/script so it's part of the
+          initial HTML and indexed without a JS roundtrip. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ModernTemplate data={data} basePath={basePath} />
+    </>
+  )
 }
