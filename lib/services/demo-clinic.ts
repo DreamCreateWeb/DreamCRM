@@ -829,8 +829,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   }))
   await db.insert(schema.products).values(productRows)
 
-  // A handful of orders (rendered as "Treatment Plans" in the clinic sidebar)
-  // and invoices, evenly distributed across statuses.
+  // A handful of product orders + invoices, evenly distributed across statuses.
   const orderStatuses = ['pending', 'processing', 'delivered', 'delivered', 'shipped'] as const
   for (let i = 0; i < 5; i++) {
     await db.insert(schema.orders).values({

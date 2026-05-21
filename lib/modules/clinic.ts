@@ -2,7 +2,10 @@ import type { ModuleRegistry } from './types'
 
 /**
  * Clinic dashboard — what a dental clinic sees after signing up.
- * Their "customers" are patients; their "orders" are treatment plans.
+ * Their "customers" are patients. We do NOT manage treatment plans
+ * (clinical plans live in the PMS — see DESIGN.md). The Orders entry
+ * is the generic Mosaic e-commerce module for clinics that sell
+ * products on the side (whitening kits, electric toothbrushes, etc.).
  * Higher plan tiers unlock more modules.
  */
 export const clinicModules: ModuleRegistry = {
@@ -13,7 +16,7 @@ export const clinicModules: ModuleRegistry = {
     { id: 'revenue',            path: '/dashboard/fintech', label: 'Revenue',           section: 'Pages', icon: 'wallet',  status: 'live', minPlan: 'pro' },
     { id: 'patients',           path: '/patients',          label: 'Patients',          section: 'Pages', icon: 'users',   status: 'live', minPlan: 'pro' },
     { id: 'appointments',       path: '/appointments',      label: 'Appointments',      section: 'Pages', icon: 'cal',     status: 'live', minPlan: 'pro' },
-    { id: 'treatment_plans',    path: '/orders',            label: 'Treatment Plans',   section: 'Pages', icon: 'flag',    status: 'live', minPlan: 'pro' },
+    { id: 'product_orders',     path: '/ecommerce/orders',  label: 'Product Orders',    section: 'Pages', icon: 'flag',    status: 'live', minPlan: 'pro' },
     { id: 'invoices',           path: '/invoices',          label: 'Invoices',          section: 'Pages', icon: 'receipt', status: 'live', minPlan: 'pro' },
     { id: 'patient_messaging',  path: '/messages',          label: 'Patient Messaging', section: 'Pages', icon: 'chat',    status: 'live', minPlan: 'pro' },
     { id: 'intake_forms',       path: '/intake-forms',      label: 'Intake Forms',      section: 'Pages', icon: 'pen',     status: 'live', minPlan: 'pro' },
