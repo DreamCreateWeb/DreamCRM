@@ -198,6 +198,13 @@ describe('createDemoClinic', () => {
     expect(counts.form_submission).toBe(3)
     expect(counts.clinic_provider).toBe(2)
     expect(counts.appointment_reminder_log).toBe(1)
+    // Provider-backfill self-heal: two appointment updates fire — one to
+    // attach cleanings to the hygienist + one for everything else to the
+    // dentist.
+    const providerBackfills = state.updates.filter(
+      (u) => (u.set as { providerId?: string }).providerId,
+    )
+    expect(providerBackfills).toHaveLength(2)
   })
 
   it('seeds the full clinic when none exists', async () => {

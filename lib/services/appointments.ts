@@ -17,7 +17,7 @@ import { randomBytes } from 'crypto'
 // ----- Public types -----------------------------------------------------
 
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
-export type AppointmentSource = 'booking_widget' | 'manual' | 'recall_campaign' | 'phone' | 'invite'
+export type AppointmentSource = 'booking_widget' | 'portal' | 'manual' | 'recall_campaign' | 'phone' | 'invite'
 export type AppointmentChannel = 'sms' | 'email'
 
 /** Glyphs that travel from Patients onto the agenda row + 3 appointment-scoped additions. */
@@ -140,7 +140,10 @@ const REMINDER_RECENT_MS = 24 * 60 * 60 * 1000
 // Booked-just-now glyph window: 1 hour.
 const JUST_BOOKED_MS = 60 * 60 * 1000
 
-function computeAging(startTime: Date, status: AppointmentStatus, now: Date): AgingLevel {
+// Exported for testability. Computes the aging-color tier for the left
+// border on a row. Only ever non-`none` when the row is unconfirmed —
+// confirmed/completed/cancelled/no_show rows render with no aging tint.
+export function computeAging(startTime: Date, status: AppointmentStatus, now: Date): AgingLevel {
   if (status !== 'scheduled') return 'none'
   const msUntil = startTime.getTime() - now.getTime()
   if (msUntil < 0) return 'red' // overdue + unconfirmed
@@ -757,46 +760,49 @@ export interface RescheduleInput {
 }
 
 export async function rescheduleAppointment(input: RescheduleInput) {
-  // Mark the original as cancelled (we keep the row for audit history) +
-  // create a new appointment with rescheduledFromAppointmentId pointing back.
-  const [original] = await db
-    .select()
-    .from(schema.appointment)
-    .where(
-      and(
-        eq(schema.appointment.organizationId, input.organizationId),
-        eq(schema.appointment.id, input.appointmentId),
-      ),
-    )
-    .limit(1)
-  if (!original) throw new Error('Appointment not found')
+  // Wrap the cancel-original + insert-new pair in a transaction. Without
+  // this, a mid-flight failure could leave the original cancelled with no
+  // replacement — strictly worse than the pre-reschedule state.
+  return db.transaction(async (tx) => {
+    const [original] = await tx
+      .select()
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.organizationId, input.organizationId),
+          eq(schema.appointment.id, input.appointmentId),
+        ),
+      )
+      .limit(1)
+    if (!original) throw new Error('Appointment not found')
 
-  await db
-    .update(schema.appointment)
-    .set({
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
+    await tx
+      .update(schema.appointment)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.appointment.id, input.appointmentId))
+
+    const newId = newAppointmentId()
+    await tx.insert(schema.appointment).values({
+      id: newId,
+      organizationId: input.organizationId,
+      patientId: original.patientId,
+      locationId: original.locationId,
+      providerId: original.providerId,
+      title: original.title,
+      startTime: input.newStartTime,
+      endTime: input.newEndTime,
+      type: original.type,
+      status: 'scheduled',
+      notes: original.notes,
+      source: 'manual',
+      rescheduledFromAppointmentId: input.appointmentId,
     })
-    .where(eq(schema.appointment.id, input.appointmentId))
-
-  const newId = newAppointmentId()
-  await db.insert(schema.appointment).values({
-    id: newId,
-    organizationId: input.organizationId,
-    patientId: original.patientId,
-    locationId: original.locationId,
-    providerId: original.providerId,
-    title: original.title,
-    startTime: input.newStartTime,
-    endTime: input.newEndTime,
-    type: original.type,
-    status: 'scheduled',
-    notes: original.notes,
-    source: 'manual',
-    rescheduledFromAppointmentId: input.appointmentId,
+    return newId
   })
-  return newId
 }
 
 // ----- Reminder log -----------------------------------------------------

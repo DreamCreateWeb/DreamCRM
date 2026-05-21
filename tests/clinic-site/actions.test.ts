@@ -210,6 +210,14 @@ describe('submitBookingRequest', () => {
     expect((appointmentInsert!.values as { patientId: string }).patientId).toBe('pat_existing')
   })
 
+  it("tags the booking with source='booking_widget' so the Appointments module can filter on it", async () => {
+    selectStubs.patient = { id: 'pat_existing' }
+    await submitBookingRequest(form(baseFields))
+    const appointmentInsert = insertedRows.find((r) => r.table === 'appointment')
+    expect(appointmentInsert).toBeDefined()
+    expect((appointmentInsert!.values as { source?: string }).source).toBe('booking_widget')
+  })
+
   it('creates a new patient when no email is provided', async () => {
     await submitBookingRequest(form({ ...baseFields, email: null }))
     const patientInsert = insertedRows.find((r) => r.table === 'patient')

@@ -126,7 +126,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (551 tests) covering middleware, billing sync,
+- **Vitest test suite** (563 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
@@ -143,7 +143,11 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   bulk-email skip/send/error rules), appointments module (agenda
   rendering / contextual empty states / inline confirm button on
   scheduled rows only / bulk-send bar reveal / appointment glyph cluster
-  / groupByDay date-grouping + today-tomorrow labels + totals math).
+  / groupByDay date-grouping + today-tomorrow labels + totals math /
+  computeAging tier transitions T-72h→T-12h→red / rescheduleAppointment
+  transaction integrity + provider/location/type preservation + backref
+  to original, booking widget tags appointment.source='booking_widget'
+  + patient portal tags 'portal').
 - **Platform admin "view as clinic" demo mode** — `demo_context` cookie
   carries `{orgId, role, patientId?}`; `getTenantContext` synthesizes a
   clinic/patient context from it when the real user is `platformAdmin`.

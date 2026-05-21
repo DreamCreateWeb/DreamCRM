@@ -111,6 +111,7 @@ describe('bookAppointment', () => {
       status: string
       notes: string | null
       title: string
+      source: string
     }
     expect(vals.organizationId).toBe('org_1')
     expect(vals.patientId).toBe('pat_1')
@@ -118,6 +119,9 @@ describe('bookAppointment', () => {
     expect(vals.status).toBe('scheduled')
     expect(vals.notes).toBe('Sensitive teeth')
     expect(vals.title).toMatch(/Cleaning/)
+    // Patient-portal bookings get a distinct source so the Appointments
+    // filter chip + analytics can tell them apart from public-widget bookings.
+    expect(vals.source).toBe('portal')
   })
 
   it('defaults type to checkup when not provided', async () => {

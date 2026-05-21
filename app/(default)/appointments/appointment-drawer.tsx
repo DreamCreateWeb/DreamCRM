@@ -72,41 +72,45 @@ export default function AppointmentDrawer({
   const [reschedOpen, setReschedOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
-  useEffect(() => {
+  async function loadDetail() {
     setLoading(true)
-    fetch(`/api/appointments/${appointmentId}`, { cache: 'no-store' })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed to load (${r.status})`)
-        return r.json()
-      })
-      .then((d) => {
-        // Re-hydrate Date objects
-        const rehydrated = {
-          ...d,
-          startTime: new Date(d.startTime),
-          endTime: d.endTime ? new Date(d.endTime) : null,
-          confirmedAt: d.confirmedAt ? new Date(d.confirmedAt) : null,
-          cancelledAt: d.cancelledAt ? new Date(d.cancelledAt) : null,
-          createdAt: new Date(d.createdAt),
-          reminderLastSentAt: d.reminderLastSentAt ? new Date(d.reminderLastSentAt) : null,
-          patient: {
-            ...d.patient,
-            lastVisitAt: d.patient.lastVisitAt ? new Date(d.patient.lastVisitAt) : null,
-          },
-          reminders: (d.reminders ?? []).map((r: { sentAt: string; deliveredAt?: string; repliedAt?: string }) => ({
-            ...r,
-            sentAt: new Date(r.sentAt),
-            deliveredAt: r.deliveredAt ? new Date(r.deliveredAt) : null,
-            repliedAt: r.repliedAt ? new Date(r.repliedAt) : null,
-          })),
-          intakeAttached: d.intakeAttached
-            ? { ...d.intakeAttached, submittedAt: new Date(d.intakeAttached.submittedAt) }
-            : null,
-        }
-        setDetail(rehydrated as AppointmentDetail)
-      })
-      .catch((e) => setError((e as Error).message))
-      .finally(() => setLoading(false))
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error(`Failed to load (${res.status})`)
+      const d = await res.json()
+      const rehydrated = {
+        ...d,
+        startTime: new Date(d.startTime),
+        endTime: d.endTime ? new Date(d.endTime) : null,
+        confirmedAt: d.confirmedAt ? new Date(d.confirmedAt) : null,
+        cancelledAt: d.cancelledAt ? new Date(d.cancelledAt) : null,
+        createdAt: new Date(d.createdAt),
+        reminderLastSentAt: d.reminderLastSentAt ? new Date(d.reminderLastSentAt) : null,
+        patient: {
+          ...d.patient,
+          lastVisitAt: d.patient.lastVisitAt ? new Date(d.patient.lastVisitAt) : null,
+        },
+        reminders: (d.reminders ?? []).map((r: { sentAt: string; deliveredAt?: string; repliedAt?: string }) => ({
+          ...r,
+          sentAt: new Date(r.sentAt),
+          deliveredAt: r.deliveredAt ? new Date(r.deliveredAt) : null,
+          repliedAt: r.repliedAt ? new Date(r.repliedAt) : null,
+        })),
+        intakeAttached: d.intakeAttached
+          ? { ...d.intakeAttached, submittedAt: new Date(d.intakeAttached.submittedAt) }
+          : null,
+      }
+      setDetail(rehydrated as AppointmentDetail)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadDetail()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId])
 
   function refresh() {
@@ -160,6 +164,9 @@ export default function AppointmentDrawer({
       const r = await sendReminderAction(appointmentId, 'email')
       flash('ok' in r && r.ok === true ? 'Reminder sent.' : 'error' in r ? r.error : 'Failed')
       router.refresh()
+      // Re-fetch the drawer payload so the new reminder log entry shows
+      // up in the activity stripe without a close+reopen cycle.
+      await loadDetail()
     })
   }
 

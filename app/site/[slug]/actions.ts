@@ -137,6 +137,7 @@ export async function submitBookingRequest(formData: FormData) {
     type: appointmentType,
     status: 'scheduled',
     notes,
+    source: 'booking_widget',
   })
 
   const [profile] = await db
