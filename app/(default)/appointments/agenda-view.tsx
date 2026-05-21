@@ -61,6 +61,18 @@ function fmtTime(d: Date): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
+function sourceLabel(s: string): string {
+  switch (s) {
+    case 'booking_widget': return 'Public booking widget'
+    case 'portal': return 'Patient portal'
+    case 'manual': return 'Front desk (manual)'
+    case 'phone': return 'Phone call'
+    case 'recall_campaign': return 'Recall campaign'
+    case 'invite': return 'Invite acceptance'
+    default: return s.replace(/_/g, ' ')
+  }
+}
+
 function emptyCopy(filters: AppointmentListFilters): { emoji: string; title: string; subtitle: string } {
   if (filters.attention?.includes('unconfirmed')) {
     return { emoji: '✅', title: 'No unconfirmed appointments — nice.', subtitle: 'Everything in this window is confirmed.' }
@@ -205,6 +217,19 @@ export default function AgendaView({
               <option value="">Any staff</option>
               {meta.providers.map((p) => (
                 <option key={p.id} value={p.id}>{p.displayName}</option>
+              ))}
+            </select>
+          )}
+          {meta.sources.length > 0 && (
+            <select
+              value={filters.source ?? ''}
+              onChange={(e) => setParam('source', e.target.value || null)}
+              className="form-select text-xs py-1"
+              title="Filter by how the booking came in"
+            >
+              <option value="">Any source</option>
+              {meta.sources.map((s) => (
+                <option key={s} value={s}>{sourceLabel(s)}</option>
               ))}
             </select>
           )}

@@ -67,6 +67,8 @@ export interface AppointmentListFilters {
   attention?: Array<'unconfirmed' | 'needs_intake' | 'new_patients' | 'has_balance' | 'cancelled' | 'no_show' | 'lapsed_rebooking'>
   /** Filter to one staff member. */
   providerId?: string
+  /** Filter to one booking channel ('booking_widget' / 'portal' / 'phone' / etc.). */
+  source?: string
   /** Fuzzy search across patient name / email / phone / notes. */
   search?: string
 }
@@ -213,6 +215,9 @@ export async function listAppointments(
   ]
   if (filters.providerId) {
     where.push(eq(schema.appointment.providerId, filters.providerId))
+  }
+  if (filters.source) {
+    where.push(eq(schema.appointment.source, filters.source))
   }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim().toLowerCase()}%`
@@ -878,24 +883,38 @@ export async function createInternalAppointment(input: CreateInternalAppointment
 
 export interface AppointmentFilterMeta {
   providers: Array<{ id: string; displayName: string; role: string }>
+  /** Booking-channel values that actually exist for this org. */
+  sources: string[]
 }
 
 export async function getAppointmentFilterMeta(organizationId: string): Promise<AppointmentFilterMeta> {
-  const providers = await db
-    .select({
-      id: schema.clinicProvider.id,
-      displayName: schema.clinicProvider.displayName,
-      role: schema.clinicProvider.role,
-    })
-    .from(schema.clinicProvider)
-    .where(
-      and(
-        eq(schema.clinicProvider.organizationId, organizationId),
-        eq(schema.clinicProvider.isActive, 1),
-      ),
-    )
-    .orderBy(asc(schema.clinicProvider.displayName))
-  return { providers }
+  const [providers, sourceRows] = await Promise.all([
+    db
+      .select({
+        id: schema.clinicProvider.id,
+        displayName: schema.clinicProvider.displayName,
+        role: schema.clinicProvider.role,
+      })
+      .from(schema.clinicProvider)
+      .where(
+        and(
+          eq(schema.clinicProvider.organizationId, organizationId),
+          eq(schema.clinicProvider.isActive, 1),
+        ),
+      )
+      .orderBy(asc(schema.clinicProvider.displayName)),
+    // Distinct booking sources present on this org's appointments. We
+    // exclude nulls so the dropdown shows only meaningful options.
+    db
+      .selectDistinct({ source: schema.appointment.source })
+      .from(schema.appointment)
+      .where(eq(schema.appointment.organizationId, organizationId)),
+  ])
+  const sources = sourceRows
+    .map((r) => r.source)
+    .filter((s): s is string => !!s)
+    .sort()
+  return { providers, sources }
 }
 
 // Quiet unused-import lint for the seldom-hit `isNull` import.

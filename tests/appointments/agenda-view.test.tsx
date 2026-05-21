@@ -21,7 +21,7 @@ import type {
   AppointmentFilterMeta,
 } from '@/lib/services/appointments'
 
-const baseMeta: AppointmentFilterMeta = { providers: [] }
+const baseMeta: AppointmentFilterMeta = { providers: [], sources: [] }
 const baseFilters: AppointmentListFilters = { window: 'next_14d', attention: [] }
 
 function makeRow(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
@@ -156,6 +156,31 @@ describe('AgendaView', () => {
     expect(screen.getAllByText('Unconfirmed').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByLabelText('New patient')).toBeInTheDocument()
     expect(screen.getByLabelText(/Missing intake form before this visit/)).toBeInTheDocument()
+  })
+
+  it('renders the source dropdown only when the org has booking-source data', () => {
+    const empty = { date: new Date('2026-05-21T00:00:00Z'), label: 'Wed May 21', rows: [makeRow()], totals: { booked: 1, confirmed: 0, unconfirmed: 1 } }
+    const { rerender } = render(
+      <AgendaView
+        groups={[empty]}
+        meta={{ providers: [], sources: [] }}
+        filters={baseFilters}
+        orgName="Acme Dental"
+      />,
+    )
+    // No source data → no dropdown
+    expect(screen.queryByText(/Any source/)).not.toBeInTheDocument()
+    rerender(
+      <AgendaView
+        groups={[empty]}
+        meta={{ providers: [], sources: ['booking_widget', 'manual'] }}
+        filters={baseFilters}
+        orgName="Acme Dental"
+      />,
+    )
+    expect(screen.getByText('Any source')).toBeInTheDocument()
+    expect(screen.getByText('Public booking widget')).toBeInTheDocument()
+    expect(screen.getByText('Front desk (manual)')).toBeInTheDocument()
   })
 
   it('shows the day sub-header with booked count + still-need-confirm count', () => {

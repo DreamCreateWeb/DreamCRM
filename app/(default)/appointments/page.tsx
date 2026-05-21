@@ -43,6 +43,7 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
     window: parseWindow(params.window),
     attention: parseAttention(params.attention),
     providerId: typeof params.provider === 'string' ? params.provider : undefined,
+    source: typeof params.source === 'string' ? params.source : undefined,
     search: typeof params.q === 'string' ? params.q : undefined,
   }
 
