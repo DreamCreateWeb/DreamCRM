@@ -76,7 +76,7 @@ export default function TeamPanel({ members, invitations }: Props) {
         <header>
           <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-1">Team</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Invite Dream Create employees to the platform admin app. Invitees get email access via the same accept-invite flow.
+            Invite teammates to your workspace. They&apos;ll get an email with a link to set up their account and pick a password.
           </p>
         </header>
 
@@ -87,7 +87,7 @@ export default function TeamPanel({ members, invitations }: Props) {
             <input
               type="email"
               required
-              placeholder="teammate@dreamcreateweb.com"
+              placeholder="teammate@example.com"
               className="form-input flex-1"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

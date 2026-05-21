@@ -8,10 +8,18 @@ import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { sendInvitationEmail } from '@/lib/email'
 
-async function requirePlatformAdmin() {
+/**
+ * Team management is available to owner / admin of any org type (clinic
+ * or platform). Patient-tenant users have no team concept. Member-role
+ * users can only see the team list, not invite or remove.
+ */
+async function requireTeamAdmin() {
   const ctx = await requireTenant()
-  if (ctx.tenantType !== 'platform' || (ctx.role !== 'owner' && ctx.role !== 'admin')) {
-    throw new Error('Forbidden: platform admin only')
+  if (ctx.tenantType === 'patient') {
+    throw new Error('Forbidden: team management is not available to patients.')
+  }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Forbidden: only owners and admins can manage the team.')
   }
   return ctx
 }
@@ -24,12 +32,13 @@ const InviteInput = z.object({
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
- * Invite a Dream Create employee to the platform org. Reuses the
- * better-auth invitation table so the existing /accept-invite flow
- * handles claiming the seat.
+ * Invite a team member to the active org. Reuses the better-auth
+ * invitation table so the existing /accept-invite flow handles claiming
+ * the seat. Works for both platform (Dream Create employees) and clinic
+ * (dentist / hygienist / front-desk / admin) tenants.
  */
 export async function inviteTeamMember(input: unknown) {
-  const ctx = await requirePlatformAdmin()
+  const ctx = await requireTeamAdmin()
   const data = InviteInput.parse(input)
   const email = data.email.toLowerCase().trim()
 
@@ -89,7 +98,7 @@ export async function inviteTeamMember(input: unknown) {
 }
 
 export async function cancelTeamInvitation(invitationId: string) {
-  const ctx = await requirePlatformAdmin()
+  const ctx = await requireTeamAdmin()
   await db
     .update(schema.invitation)
     .set({ status: 'cancelled' })
@@ -101,7 +110,7 @@ export async function cancelTeamInvitation(invitationId: string) {
 }
 
 export async function removeTeamMember(userId: string) {
-  const ctx = await requirePlatformAdmin()
+  const ctx = await requireTeamAdmin()
   if (userId === ctx.userId) {
     throw new Error("You can't remove yourself.")
   }
