@@ -9,6 +9,7 @@ import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/ema
 import { getAvailableSlots, isSlotAvailable, SLOT_MINUTES, type BookingSlot } from '@/lib/services/booking'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
+import { createLead } from '@/lib/services/leads'
 import { organization } from '@/lib/db/schema/auth'
 
 export async function submitContactRequest(formData: FormData) {
@@ -19,9 +20,34 @@ export async function submitContactRequest(formData: FormData) {
   const message = formData.get('message')?.toString().trim() || null
   const preferredDate = formData.get('preferredDate')?.toString().trim() || null
 
+  // Source-attribution fields populated by the client-side ContactForm.
+  // All optional — older form versions / programmatic submissions won't
+  // have them and that's fine.
+  const sourcePage = formData.get('sourcePage')?.toString().trim() || null
+  const referrer = formData.get('referrer')?.toString().trim() || null
+  const utmSource = formData.get('utm_source')?.toString().trim() || null
+  const utmMedium = formData.get('utm_medium')?.toString().trim() || null
+  const utmCampaign = formData.get('utm_campaign')?.toString().trim() || null
+
   if (!orgId) throw new Error('Missing organization')
   if (!name) throw new Error('Name is required')
   if (!phone) throw new Error('Phone is required')
+
+  // Persist the lead BEFORE firing email — DB success is the source of
+  // truth. Email is best-effort notification on top.
+  await createLead({
+    organizationId: orgId,
+    name,
+    phone,
+    email,
+    preferredDate,
+    message,
+    sourcePage,
+    referrer,
+    utmSource,
+    utmMedium,
+    utmCampaign,
+  })
 
   const [profile] = await db
     .select({ email: clinicProfile.email, displayName: clinicProfile.displayName })

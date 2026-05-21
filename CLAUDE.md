@@ -126,7 +126,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (568 tests) covering middleware, billing sync,
+- **Vitest test suite** (583 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
@@ -147,7 +147,12 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   computeAging tier transitions T-72h→T-12h→red / rescheduleAppointment
   transaction integrity + provider/location/type preservation + backref
   to original, booking widget tags appointment.source='booking_widget'
-  + patient portal tags 'portal').
+  + patient portal tags 'portal'), leads module (convertLeadToPatient
+  lifecycle bridge + dedupe-by-phone/email + idempotent re-convert +
+  single-vs-multi-word name split / list-view chip count badges +
+  contextual empty states + aging-color border + fresh-call-now
+  badge + converted-patient backlink / public contact form persists
+  lead row even when email is misconfigured + captures UTM attribution).
 - **Platform admin "view as clinic" demo mode** — `demo_context` cookie
   carries `{orgId, role, patientId?}`; `getTenantContext` synthesizes a
   clinic/patient context from it when the real user is `platformAdmin`.
@@ -289,6 +294,25 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   appointment, 4 reminder log entries (one with a reply from Sophia),
   Aiden's 💤 lapsed-rebooking, Emma's 🆕 just-booked, Mia's 📅
   rescheduled-with-phantom-cancelled-source.
+- **Website Leads v1** at `/leads` — turns the public-site contact-form
+  pipeline from "fire-and-forget email" into a tracked triage queue.
+  New `lead` table (migration 0020) carries contact info, source
+  attribution (sourcePage / referrer / utm_source/medium/campaign
+  captured client-side at submit), lifecycle (`new` → `contacted` →
+  `converted` or → `archived`), audit timestamps, and a soft pointer
+  `convertedToPatientId` linking to the patient row created on convert.
+  Status filter chips with count badges, fuzzy search, aging-color left
+  border that drifts green (under 1h) → red (over 72h) so untouched
+  leads visibly rot. Right-side drawer with one-click Mark Contacted /
+  Convert to Patient (creates patient with `source='lead_form'`, dedupes
+  by phone/email, transactionally flips the lead) / Archive (with reason
+  picker). The convert action lands the user on the new patient's
+  detail page so they can book the first appointment immediately.
+  Source-attribution surfaces in both the row card (UTM campaign tag)
+  and the drawer (full breakdown). Overview "New leads" attention card
+  replaces the prior coming-soon placeholder. Demo seeder pump: 6
+  curated leads (fresh / aging / stale-red / contacted / converted-to-
+  Emma-Lopez / archived-spam) covering every lifecycle state.
 - **Gmail push notifications via Google Pub/Sub** — `users.watch()` is
   registered when a mailbox is connected; Gmail publishes change events
   to `projects/dreamcrm-496717/topics/gmail-watch`; the push subscription
@@ -309,6 +333,7 @@ on dental-correct schema. Placeholder = "Coming soon" UI only.
 | Analytics | `/dashboard/analytics` | Stub | Mosaic template, not dental-shaped |
 | Revenue | `/dashboard/fintech` | Stub | Per-user fintech demo, not real clinic revenue |
 | Patients | `/patients` | **Live (v1)** | Dental `patient` table. List with glyph cluster + filter chips + fuzzy search + bulk email; detail page with identity rail + unified timeline (appointments + messages + forms + invoices + notes) + needs-attention panel + relationship notes (append-only `patient_note` table) |
+| Leads | `/leads` | **Live (v1)** | Public-website contact-form submissions as a triage queue. Filter chips (New / Contacted / Converted / Archived) with count badges, fuzzy search, aging-color left border that rots green→amber→red as new leads sit untouched, right-side drawer with one-click Mark Contacted / Convert to Patient / Archive. Convert → creates a patient row (`source='lead_form'`) with phone/email dedupe + lifecycle pointer. Source-attribution (sourcePage / referrer / utm_*) captured at submit time and surfaced in the drawer. New Overview "New leads" attention card. |
 | Appointments | `/appointments` | **Live (v1)** | Dental `appointment` table. Agenda-list default grouped by day, glyph cluster (★/🎂/$/📝!/⚠️/💤/🆕/📅/⏱/🔕), aging-color left border (T-72h neutral → T-12h red until confirmed), filter chips (date window + needs-attention + staff), side drawer for confirm / reschedule / cancel / mark no-show / send reminder, bulk reminder send. "Book appointment" from patient detail opens an in-place drawer. `/calendar` 308s to `/appointments` for clinic tenants (platform org keeps the generic FullCalendar) |
 | Product Orders | `/ecommerce/orders` | Stub | Generic Mosaic e-commerce orders module for clinics that sell products on the side (whitening kits etc.). We do NOT manage clinical treatment plans — those stay in the PMS per DESIGN.md |
 | Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
@@ -348,9 +373,6 @@ Public clinic surfaces also live:
 5. **Coming-soon Overview cards become real modules** —
    - Reviews & reputation (post-visit Google/Yelp prompts)
    - SMS replies (Twilio integration, two-way)
-   - Website leads (contact form submissions need to land in a `lead`
-     table — currently the contact form just fires an email and
-     forgets the submission)
 6. **Migration 0004 + Gmail push env vars need applying to prod** —
    bootstrap-apply `0004_lowly_microbe.sql` (adds `watch_expires_at`),
    then set Vercel env vars:

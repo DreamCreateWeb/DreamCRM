@@ -38,6 +38,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     unconfirmed: { count: 0, preview: [] },
     intakeSubmissions: { count: 0, preview: [] },
     outstandingBalances: { count: 0, totalCents: 0 },
+    newLeads: { count: 0, preview: [] },
     trends: {
       bookingsToday: 0,
       newPatientsMTD: 0,
@@ -335,12 +336,14 @@ describe('Recent activity feed', () => {
 })
 
 describe('Coming soon strip', () => {
-  it('renders the three honest "coming soon" placeholders', async () => {
+  it('renders the two honest "coming soon" placeholders', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText('Reviews & reputation')).toBeInTheDocument()
     expect(screen.getByText('SMS replies')).toBeInTheDocument()
-    expect(screen.getByText('Website leads')).toBeInTheDocument()
+    // Website leads is no longer a placeholder — it has its own real
+    // AttentionCard in the row above now.
+    expect(screen.queryByText('Capture every contact-form submission')).not.toBeInTheDocument()
   })
 })

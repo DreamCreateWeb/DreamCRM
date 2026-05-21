@@ -476,6 +476,55 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       }
     }
 
+    // Leads module self-heal: seed a couple of sample leads if none exist
+    // so the new /leads page + Overview attention card have something to
+    // render on legacy demos. Idempotent — bails when any lead exists.
+    const [leadFound] = await db
+      .select({ id: schema.lead.id })
+      .from(schema.lead)
+      .where(eq(schema.lead.organizationId, existing.id))
+      .limit(1)
+    if (!leadFound) {
+      const nowHeal = new Date()
+      await db.insert(schema.lead).values([
+        {
+          id: newId('lead'),
+          organizationId: existing.id,
+          name: 'Olivia Chen',
+          phone: '(415) 555-0188',
+          email: 'olivia.c@example.com',
+          message: "Looking for a family dentist. Two kids (5 + 8).",
+          sourcePage: '/',
+          referrer: 'https://www.google.com/',
+          utmSource: 'google',
+          utmMedium: 'organic',
+          status: 'new',
+          createdAt: new Date(nowHeal.getTime() - 30 * 60 * 1000),
+        },
+        {
+          id: newId('lead'),
+          organizationId: existing.id,
+          name: 'Daniel Park',
+          phone: '(415) 555-0119',
+          message: 'Need a cleaning. No insurance, what would the cash price be?',
+          sourcePage: '/services',
+          status: 'new',
+          createdAt: new Date(nowHeal.getTime() - 18 * 60 * 60 * 1000),
+        },
+        {
+          id: newId('lead'),
+          organizationId: existing.id,
+          name: 'spam test',
+          phone: '(000) 000-0000',
+          message: 'BUY SEO SERVICES',
+          status: 'archived',
+          archivedAt: new Date(nowHeal.getTime() - 95 * 60 * 60 * 1000),
+          archivedReason: 'spam',
+          createdAt: new Date(nowHeal.getTime() - 96 * 60 * 60 * 1000),
+        },
+      ])
+    }
+
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -942,6 +991,89 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       createdAt: new Date(now.getTime() - n.daysAgo * dayMs),
     })
   }
+
+  // ── Website leads — public contact-form submissions ─────────────────
+  // Covers the full lifecycle (new fresh / new aging / contacted /
+  // converted / archived) so the Leads triage view + Overview attention
+  // card + lead drawer all have real content to render.
+  // One of the converted leads is linked to an existing seeded patient
+  // (Emma Lopez, persona 6) — establishes the lead→patient pointer.
+  const leadSeeds: Array<{
+    name: string
+    phone: string
+    email: string | null
+    preferredDate: string | null
+    message: string | null
+    sourcePage: string | null
+    referrer: string | null
+    utmSource: string | null
+    utmMedium: string | null
+    utmCampaign: string | null
+    status: 'new' | 'contacted' | 'converted' | 'archived'
+    hoursAgo: number
+    contactedHoursAgo?: number
+    convertedHoursAgo?: number
+    convertedToPatientIdx?: number
+    archivedHoursAgo?: number
+    archivedReason?: string
+  }> = [
+    // Fresh new lead — under an hour, triggers "call within the hour" CTA
+    { name: 'Olivia Chen', phone: '(415) 555-0188', email: 'olivia.c@example.com', preferredDate: null,
+      message: "Looking for a family dentist for me and my two kids (5 + 8). Saw your website — love that you're warm-fuzzies about anxiety.",
+      sourcePage: '/', referrer: 'https://www.google.com/', utmSource: 'google', utmMedium: 'organic', utmCampaign: null,
+      status: 'new', hoursAgo: 0.5 },
+    // Aging new lead — 18h, amber tint
+    { name: 'Daniel Park', phone: '(415) 555-0119', email: null, preferredDate: '2026-06-15',
+      message: 'Need a cleaning. Last one was probably 18 months ago. No insurance, what would the cash price be?',
+      sourcePage: '/services', referrer: null, utmSource: null, utmMedium: null, utmCampaign: null,
+      status: 'new', hoursAgo: 18 },
+    // Stale new lead — 3 days, red border, embarrassing
+    { name: 'Rachel Williams', phone: '(415) 555-0123', email: 'rachel.w@example.com', preferredDate: null,
+      message: 'Hi! Wisdom tooth pain on the upper right, getting worse. Can I come in this week?',
+      sourcePage: '/', referrer: 'https://www.instagram.com/', utmSource: 'instagram', utmMedium: 'social', utmCampaign: 'fall_recall',
+      status: 'new', hoursAgo: 72 },
+    // Contacted — staff called, waiting for follow-up
+    { name: 'Marcus Johnson', phone: '(415) 555-0156', email: 'marcus.j@example.com', preferredDate: '2026-06-22',
+      message: 'Need crown work, had a temporary fall out yesterday. Will need a same-week appointment if possible.',
+      sourcePage: '/services', referrer: null, utmSource: null, utmMedium: null, utmCampaign: null,
+      status: 'contacted', hoursAgo: 36, contactedHoursAgo: 30 },
+    // Converted — became Emma Lopez (persona 6)
+    { name: 'Emma Lopez', phone: '(415) 555-0234', email: 'emma.l@example.com', preferredDate: null,
+      message: "Hi! New to the area, looking for a regular cleaning. Heard great things from a coworker.",
+      sourcePage: '/', referrer: 'https://www.google.com/', utmSource: 'google', utmMedium: 'organic', utmCampaign: null,
+      status: 'converted', hoursAgo: 14 * 24, contactedHoursAgo: 13 * 24, convertedHoursAgo: 12 * 24, convertedToPatientIdx: 6 },
+    // Archived — spam example
+    { name: 'aaaaa zzzzzz', phone: '(000) 000-0000', email: 'spam@spam.test', preferredDate: null,
+      message: 'BUY MY SEO SERVICES CHEAP!!! Click here for amazing rankings!!! https://spamlink.example/seo',
+      sourcePage: '/', referrer: null, utmSource: null, utmMedium: null, utmCampaign: null,
+      status: 'archived', hoursAgo: 96, archivedHoursAgo: 95, archivedReason: 'spam' },
+  ]
+  let leadCount = 0
+  for (const l of leadSeeds) {
+    await db.insert(schema.lead).values({
+      id: newId('lead'),
+      organizationId: orgId,
+      name: l.name,
+      phone: l.phone,
+      email: l.email,
+      preferredDate: l.preferredDate,
+      message: l.message,
+      sourcePage: l.sourcePage,
+      referrer: l.referrer,
+      utmSource: l.utmSource,
+      utmMedium: l.utmMedium,
+      utmCampaign: l.utmCampaign,
+      status: l.status,
+      convertedToPatientId: l.convertedToPatientIdx !== undefined ? patientIds[l.convertedToPatientIdx] : null,
+      contactedAt: l.contactedHoursAgo !== undefined ? new Date(now.getTime() - l.contactedHoursAgo * hourMs) : null,
+      convertedAt: l.convertedHoursAgo !== undefined ? new Date(now.getTime() - l.convertedHoursAgo * hourMs) : null,
+      archivedAt: l.archivedHoursAgo !== undefined ? new Date(now.getTime() - l.archivedHoursAgo * hourMs) : null,
+      archivedReason: l.archivedReason ?? null,
+      createdAt: new Date(now.getTime() - l.hoursAgo * hourMs),
+    })
+    leadCount++
+  }
+  void leadCount
 
   return {
     organizationId: orgId,

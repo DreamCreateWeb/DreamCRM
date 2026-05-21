@@ -52,6 +52,17 @@ export default function ContactForm({ orgId, brand, isPro, basePath }: Props) {
     setErrorMsg('')
     const fd = new FormData(e.currentTarget)
     fd.set('orgId', orgId)
+    // Source-attribution snapshot — captured at submit time from the
+    // browser context. Lets staff see "came from /services, referred by
+    // Google" in the Leads drawer + drives a future UTM campaign report.
+    if (typeof window !== 'undefined') {
+      fd.set('sourcePage', window.location.pathname)
+      fd.set('referrer', document.referrer || '')
+      const params = new URLSearchParams(window.location.search)
+      fd.set('utm_source', params.get('utm_source') || '')
+      fd.set('utm_medium', params.get('utm_medium') || '')
+      fd.set('utm_campaign', params.get('utm_campaign') || '')
+    }
     try {
       await submitContactRequest(fd)
       setStatus('success')

@@ -83,7 +83,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
 
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
       <section className="mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <AttentionCard
             title="Unconfirmed"
             count={data.unconfirmed.count}
@@ -141,6 +141,25 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                 Click through to see who owes and send pay-link reminders.
               </p>
             )}
+          </AttentionCard>
+
+          <AttentionCard
+            title="New leads"
+            count={data.newLeads.count}
+            countSuffix={
+              data.newLeads.count === 1 ? 'untouched website inquiry' : 'untouched website inquiries'
+            }
+            cta={data.newLeads.count > 0 ? { label: 'Triage leads', href: '/leads?status=new' } : null}
+            emptyCopy="No new website leads waiting. Anyone who fills out your contact form lands here."
+          >
+            {data.newLeads.preview.map((l) => (
+              <li key={l.id} className="flex items-center justify-between text-sm py-1.5">
+                <span className="truncate text-gray-700 dark:text-gray-200">{l.name}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3">
+                  {l.ageHours < 1 ? 'just now' : `${l.ageHours}h ago`}
+                </span>
+              </li>
+            ))}
           </AttentionCard>
         </div>
       </section>
@@ -260,7 +279,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
 
       {/* ── Bottom — Coming soon strip ───────────────────────────────── */}
       <section>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <ComingSoonCard
             title="Reviews & reputation"
             blurb="Auto-prompt patients for Google reviews after the visit."
@@ -268,10 +287,6 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           <ComingSoonCard
             title="SMS replies"
             blurb="Two-way patient text via Twilio. Replies land in your inbox."
-          />
-          <ComingSoonCard
-            title="Website leads"
-            blurb="Capture every contact-form submission with UTM source."
           />
         </div>
       </section>
