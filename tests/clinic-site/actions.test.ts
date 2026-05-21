@@ -20,7 +20,7 @@ function chain(returnFn: () => unknown) {
 }
 
 vi.mock('@/lib/db', async () => {
-  const { patient, appointment } = await import('@/lib/db/schema/clinic')
+  const { patient, appointment, lead } = await import('@/lib/db/schema/clinic')
   return {
     db: {
       select: (cols?: Record<string, unknown>) => {
@@ -35,6 +35,7 @@ vi.mock('@/lib/db', async () => {
           let tableName = 'unknown'
           if (table === patient) tableName = 'patient'
           else if (table === appointment) tableName = 'appointment'
+          else if (table === lead) tableName = 'lead'
           insertedRows.push({ table: tableName, values: vals })
         },
       }),
@@ -44,6 +45,7 @@ vi.mock('@/lib/db', async () => {
         set: () => ({ where: async () => undefined }),
       }),
     },
+    schema: { lead },
   }
 })
 
@@ -130,6 +132,55 @@ describe('submitContactRequest', () => {
       form({ orgId: 'org_1', name: 'Jane', phone: '555' }),
     )
     expect(sendContactRequestEmail).not.toHaveBeenCalled()
+  })
+
+  it('persists the lead row even when email delivery is misconfigured', async () => {
+    selectStubs.profile = null // simulates clinic with no profile/email
+    await submitContactRequest(
+      form({
+        orgId: 'org_1',
+        name: 'Jane Doe',
+        phone: '5551234',
+        email: 'jane@example.com',
+        message: 'Tooth hurts',
+      }),
+    )
+    // Lead row is the source of truth — DB write must happen even if
+    // email never gets sent.
+    const leadInsert = insertedRows.find((r) => r.table === 'lead')
+    expect(leadInsert).toBeDefined()
+    expect(leadInsert!.values).toMatchObject({
+      organizationId: 'org_1',
+      name: 'Jane Doe',
+      phone: '5551234',
+      email: 'jane@example.com',
+      message: 'Tooth hurts',
+    })
+  })
+
+  it('captures source-attribution fields from the form when present', async () => {
+    selectStubs.profile = null
+    await submitContactRequest(
+      form({
+        orgId: 'org_1',
+        name: 'Tracked Lead',
+        phone: '5552345',
+        sourcePage: '/services',
+        referrer: 'https://www.google.com/',
+        utm_source: 'google',
+        utm_medium: 'cpc',
+        utm_campaign: 'fall_recall',
+      }),
+    )
+    const leadInsert = insertedRows.find((r) => r.table === 'lead')
+    expect(leadInsert).toBeDefined()
+    expect(leadInsert!.values).toMatchObject({
+      sourcePage: '/services',
+      referrer: 'https://www.google.com/',
+      utmSource: 'google',
+      utmMedium: 'cpc',
+      utmCampaign: 'fall_recall',
+    })
   })
 })
 

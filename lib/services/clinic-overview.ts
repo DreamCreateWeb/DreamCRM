@@ -39,6 +39,10 @@ export interface ClinicOverviewData {
     count: number
     totalCents: number
   }
+  newLeads: {
+    count: number
+    preview: LeadPreviewRow[]
+  }
   trends: {
     bookingsToday: number
     newPatientsMTD: number
@@ -63,6 +67,14 @@ export interface TodayAppointmentRow {
     hasOutstandingBalance: boolean
     hasIntakeOnFile: boolean
   }
+}
+
+export interface LeadPreviewRow {
+  id: string
+  name: string
+  phone: string
+  createdAt: Date
+  ageHours: number
 }
 
 export interface AppointmentPreviewRow {
@@ -344,6 +356,35 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     totalCents: Number(balanceRow?.totalCents ?? 0),
   }
 
+  // ── New leads (untouched website inquiries) ─────────────────────────
+  const leadRows = await db
+    .select({
+      id: schema.lead.id,
+      name: schema.lead.name,
+      phone: schema.lead.phone,
+      createdAt: schema.lead.createdAt,
+    })
+    .from(schema.lead)
+    .where(
+      and(
+        eq(schema.lead.organizationId, organizationId),
+        eq(schema.lead.status, 'new'),
+      ),
+    )
+    .orderBy(desc(schema.lead.createdAt))
+    .limit(5)
+
+  const newLeads = {
+    count: leadRows.length,
+    preview: leadRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      createdAt: r.createdAt,
+      ageHours: Math.round((now.getTime() - r.createdAt.getTime()) / (60 * 60 * 1000)),
+    })),
+  }
+
   // ── Trend tiles ─────────────────────────────────────────────────────
   const [bookingsTodayRow] = await db
     .select({ count: count() })
@@ -521,6 +562,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     unconfirmed,
     intakeSubmissions,
     outstandingBalances,
+    newLeads,
     trends,
     recentActivity,
   }

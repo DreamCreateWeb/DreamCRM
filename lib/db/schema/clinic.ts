@@ -212,6 +212,51 @@ export const formSubmission = pgTable('form_submission', {
   submittedAt: timestamp('submitted_at').notNull().defaultNow(),
 })
 
+// Public website contact-form submissions. Distinct from `patient` —
+// these are inbound prospects who have not yet converted. Once a lead
+// becomes a patient (front-desk clicks "Convert"), a `patient` row is
+// created and `lead.convertedToPatientId` is set; the lead row stays
+// for audit + source attribution + analytics ("how many website leads
+// converted last month?").
+export const lead = pgTable('lead', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+
+  // Contact info — matches what the public form collects. Name is a
+  // single string by design (matches how the form prompts for it +
+  // avoids forcing a brittle first/last split until conversion time).
+  name: text('name').notNull(),
+  phone: text('phone').notNull(),
+  email: text('email'),
+  preferredDate: text('preferred_date'),
+  message: text('message'),
+
+  // Source attribution. Captured at submit time via hidden form fields
+  // populated by JS from window.location + document.referrer + utm_*
+  // query params. All optional — older form versions won't have them.
+  sourcePage: text('source_page'),
+  referrer: text('referrer'),
+  utmSource: text('utm_source'),
+  utmMedium: text('utm_medium'),
+  utmCampaign: text('utm_campaign'),
+
+  // Lifecycle. 'new' (just landed, untouched), 'contacted' (staff
+  // reached out — phone/email), 'converted' (now a patient row exists),
+  // 'archived' (spam / not interested / wrong number / duplicate).
+  status: text('status').notNull().default('new'),
+  convertedToPatientId: text('converted_to_patient_id').references(() => patient.id, { onDelete: 'set null' }),
+  contactedAt: timestamp('contacted_at'),
+  convertedAt: timestamp('converted_at'),
+  archivedAt: timestamp('archived_at'),
+  archivedReason: text('archived_reason'),
+
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  index('lead_org_status_idx').on(t.organizationId, t.status),
+  index('lead_org_created_idx').on(t.organizationId, t.createdAt),
+])
+
 export type Patient = typeof patient.$inferSelect
 export type NewPatient = typeof patient.$inferInsert
 export type PatientNote = typeof patientNote.$inferSelect
@@ -226,3 +271,5 @@ export type FormTemplate = typeof formTemplate.$inferSelect
 export type NewFormTemplate = typeof formTemplate.$inferInsert
 export type FormSubmission = typeof formSubmission.$inferSelect
 export type NewFormSubmission = typeof formSubmission.$inferInsert
+export type Lead = typeof lead.$inferSelect
+export type NewLead = typeof lead.$inferInsert

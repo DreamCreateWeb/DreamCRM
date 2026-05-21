@@ -15,6 +15,7 @@ export const clinicModules: ModuleRegistry = {
     { id: 'analytics',          path: '/dashboard/analytics', label: 'Analytics',       section: 'Pages', icon: 'chart',   status: 'live', minPlan: 'pro' },
     { id: 'revenue',            path: '/dashboard/fintech', label: 'Revenue',           section: 'Pages', icon: 'wallet',  status: 'live', minPlan: 'pro' },
     { id: 'patients',           path: '/patients',          label: 'Patients',          section: 'Pages', icon: 'users',   status: 'live', minPlan: 'pro' },
+    { id: 'leads',              path: '/leads',             label: 'Leads',             section: 'Pages', icon: 'megaphone', status: 'live', minPlan: 'pro' },
     { id: 'appointments',       path: '/appointments',      label: 'Appointments',      section: 'Pages', icon: 'cal',     status: 'live', minPlan: 'pro' },
     { id: 'product_orders',     path: '/ecommerce/orders',  label: 'Product Orders',    section: 'Pages', icon: 'flag',    status: 'live', minPlan: 'pro' },
     { id: 'invoices',           path: '/invoices',          label: 'Invoices',          section: 'Pages', icon: 'receipt', status: 'live', minPlan: 'pro' },

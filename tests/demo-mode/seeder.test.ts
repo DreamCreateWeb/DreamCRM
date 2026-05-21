@@ -33,6 +33,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.patientNote) return 'patient_note'
     if (t === schema.clinicProvider) return 'clinic_provider'
     if (t === schema.appointmentReminderLog) return 'appointment_reminder_log'
+    if (t === schema.lead) return 'lead'
     return 'unknown'
   }
   const chain = () => {
@@ -116,6 +117,8 @@ describe('createDemoClinic', () => {
     // Appointments-module self-heal: provider present, reminder log present
     state.selectQueue.push([{ id: 'prov_existing' }])
     state.selectQueue.push([{ id: 'rem_existing' }])
+    // Leads self-heal: lead already present
+    state.selectQueue.push([{ id: 'lead_existing' }])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 
@@ -140,6 +143,8 @@ describe('createDemoClinic', () => {
     // Appointments self-heal: provider present, reminder present → skip
     state.selectQueue.push([{ id: 'prov_existing' }])
     state.selectQueue.push([{ id: 'rem_existing' }])
+    // Leads self-heal: lead already present → skip
+    state.selectQueue.push([{ id: 'lead_existing' }])
     state.selectQueue.push([]) // patients count
     state.selectQueue.push([]) // appointments count
 
@@ -189,6 +194,8 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([]) // no clinic_provider yet
     state.selectQueue.push([]) // no reminder log yet
     state.selectQueue.push([{ id: 'appt_future_a' }]) // future appointment lookup for reminder
+    // Leads self-heal: no leads yet → seeds 3 sample leads
+    state.selectQueue.push([])
     state.selectQueue.push([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) // patient count
     state.selectQueue.push([{ id: 'a1' }]) // appointment count
 
@@ -198,6 +205,8 @@ describe('createDemoClinic', () => {
     expect(counts.form_submission).toBe(3)
     expect(counts.clinic_provider).toBe(2)
     expect(counts.appointment_reminder_log).toBe(1)
+    // Leads self-heal: 3 sample leads inserted (1 fresh new, 1 aging new, 1 archived)
+    expect(counts.lead).toBe(3)
     // Provider-backfill self-heal: two appointment updates fire — one to
     // attach cleanings to the hygienist + one for everything else to the
     // dentist.
@@ -238,6 +247,9 @@ describe('createDemoClinic', () => {
     expect(counts.invoices).toBe(6)
     expect(counts.form_submission).toBe(5)
     expect(counts.patient_note).toBe(5)
+    // 6 curated leads: 3 new (fresh / aging / stale), 1 contacted, 1 converted
+    // (linked to Emma Lopez, persona 6), 1 archived (spam example).
+    expect(counts.lead).toBe(6)
   })
 
   it('seeded org has type=clinic and a premium plan tier', async () => {
