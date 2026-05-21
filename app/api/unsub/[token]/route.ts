@@ -11,14 +11,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   }
 
   try {
-    // Mark the recipient opted out, scoped through the campaign org
-    if (payload.i) {
+    // Patient-source unsubscribe: flip the patient's marketingEmailOptIn=0
+    // and stamp the opt-out time. We do NOT touch marketingSmsOptIn — SMS
+    // opt-out is a separate STOP-keyword flow (Phase B).
+    if (payload.pi) {
+      await db
+        .update(schema.patient)
+        .set({
+          marketingEmailOptIn: 0,
+          marketingEmailOptOutAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.patient.id, payload.pi))
+    } else if (payload.i) {
+      // Customer-source unsubscribe (SaaS lead pipeline).
       await db
         .update(schema.customers)
         .set({ optedOut: true, updatedAt: new Date() })
         .where(eq(schema.customers.id, payload.i))
     } else {
-      // Fall back: match all rows with this email across the same org as the campaign
+      // Fall back: match all customers with this email across the same org
+      // as the campaign. Best-effort — patient-source rows without payload.pi
+      // (e.g. very old tokens) won't be touched here, but the explicit-pi
+      // branch above covers all Phase A+ sends.
       const [campaign] = await db
         .select({ orgId: schema.campaigns.organizationId })
         .from(schema.campaigns)
@@ -34,6 +49,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
               eq(schema.customers.email, payload.e),
             ),
           )
+        await db
+          .update(schema.patient)
+          .set({
+            marketingEmailOptIn: 0,
+            marketingEmailOptOutAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.patient.organizationId, campaign.orgId),
+              eq(schema.patient.email, payload.e),
+            ),
+          )
       }
     }
 
@@ -41,6 +69,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       campaignId: payload.c,
       recipientEmail: payload.e,
       customerId: payload.i ?? null,
+      patientId: payload.pi ?? null,
       type: 'unsubscribe',
       meta: { ua: req.headers.get('user-agent') ?? null },
     })

@@ -16,7 +16,12 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dreamcreatestudio.co
 export interface RenderOptions {
   campaignId: number
   recipientEmail: string
+  /** Set when recipient comes from the SaaS lead/customers table. */
   recipientCustomerId?: number
+  /** Set when recipient comes from the clinic patient table. Mutually
+   * exclusive with recipientCustomerId in practice — the send orchestrator
+   * supplies one or the other based on audience.recipientSource. */
+  recipientPatientId?: string
   subject: string
   previewText?: string | null
   bodyHtml: string
@@ -38,6 +43,7 @@ export function renderCampaignEmail(opts: RenderOptions): { html: string; text: 
         c: opts.campaignId,
         e: opts.recipientEmail.toLowerCase(),
         i: opts.recipientCustomerId,
+        pi: opts.recipientPatientId,
         p: 'o',
       })}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px" />`
     : ''
@@ -45,6 +51,7 @@ export function renderCampaignEmail(opts: RenderOptions): { html: string; text: 
     c: opts.campaignId,
     e: opts.recipientEmail.toLowerCase(),
     i: opts.recipientCustomerId,
+    pi: opts.recipientPatientId,
     p: 'u',
   })}`
 
@@ -117,6 +124,7 @@ function rewriteLinks(html: string, opts: RenderOptions): string {
       c: opts.campaignId,
       e: opts.recipientEmail.toLowerCase(),
       i: opts.recipientCustomerId,
+      pi: opts.recipientPatientId,
       p: 'k',
       u: url,
     })

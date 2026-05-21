@@ -15,7 +15,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 import { user, organization } from './auth'
-import { patient } from './clinic'
+import { patient, appointment } from './clinic'
 
 /**
  * Domain (CRM-style) tables that the Mosaic-template pages render. Every
@@ -211,6 +211,10 @@ export const campaignStatusEnum = pgEnum('campaign_status', [
 export const campaignChannelEnum = pgEnum('campaign_channel', [
   'resend',
   'gmail',
+  // Phase B (Twilio integration). Phase A creates the enum value so we don't
+  // need another migration when Twilio gets wired; sends through this channel
+  // no-op + record a 'failed' event until clinicSmsConfig.a2pStatus='approved'.
+  'twilio_sms',
 ])
 
 export const campaigns = pgTable('campaigns', {
@@ -231,6 +235,14 @@ export const campaigns = pgTable('campaigns', {
   scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   sendStats: jsonb('send_stats').notNull().default(sql`'{}'::jsonb`),
+  // Which entity the audience materializes against. 'customers' = SaaS lead
+  // pipeline (platform tenant); 'patients' = dental patient table (clinic
+  // tenant Recall & Outreach). Discriminator drives `lib/services/marketing.ts`
+  // `resolveAudience` between two schemas.
+  recipientSource: text('recipient_source').notNull().default('customers'),
+  // Soft pointer to the template a campaign was created from (analytics +
+  // "save changes as new template"). Null for ad-hoc campaigns.
+  templateId: integer('template_id'),
   createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -247,20 +259,65 @@ export const campaignMembers = pgTable(
   (t) => [primaryKey({ columns: [t.campaignId, t.userId] })]
 )
 
-// ---------- Audiences (saved segments over customers) ----------
-// `filter` is a JSON predicate evaluated server-side when materializing the
-// recipient list for a send. v1 supports: stage IN [...], lifecycleStage IN [...],
-// hasTag, lastActivityWithinDays, optedOut=false (implicit).
+// ---------- Audiences (saved segments) ----------
+// `recipient_source` discriminates between the two filter shapes:
+//
+//   - 'customers' — SaaS lead pipeline (platform tenant). `filter` is
+//     {stages, sources, lifecycleStages, lastActivityWithinDays, includeOptedOut}.
+//
+//   - 'patients' — dental patient table (clinic tenant Recall & Outreach v1).
+//     `patient_filter` is the active shape: {status, hasBalance, missingIntake,
+//     birthdayThisMonth, sources, recallStatus, channelHasOptIn[]}. Mirrors
+//     `PatientListFilters` in lib/services/patients.ts so segments use the
+//     same predicates the patient list does.
+//
+// Two columns rather than one polymorphic JSON so we can preserve the
+// existing platform-tenant `filter` shape verbatim and not break in-flight
+// audiences when Phase A lands.
 export const audiences = pgTable('audiences', {
   id: serial('id').primaryKey(),
   organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
+  recipientSource: text('recipient_source').notNull().default('customers'),
   filter: jsonb('filter').notNull().default(sql`'{}'::jsonb`),
+  patientFilter: jsonb('patient_filter').notNull().default(sql`'{}'::jsonb`),
   createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Reusable starter copy for new campaigns. System templates ship with the
+// product (organizationId = null, kind = 'system') and every tenant can use
+// them. Custom templates (organizationId set, kind = 'custom') are
+// per-org saves the clinic created themselves. The seeder lays down three
+// systems on every install: Reactivation, Birthday, New-patient welcome.
+export const campaignTemplates = pgTable('campaign_templates', {
+  id: serial('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+  // 'system' (ships with product, all orgs see, can't be edited)
+  // 'custom' (per-org)
+  kind: text('kind').notNull().default('custom'),
+  // 'reactivation' | 'birthday' | 'welcome' | 'recall' | 'general' — drives
+  // the "Choose a template" picker grouping + the suggested-audience hint.
+  category: text('category').notNull().default('general'),
+  name: text('name').notNull(),
+  description: text('description'),
+  subject: text('subject').notNull(),
+  previewText: text('preview_text'),
+  bodyHtml: text('body_html').notNull(),
+  bodyJson: jsonb('body_json'),
+  defaultChannel: campaignChannelEnum('default_channel').notNull().default('resend'),
+  // Hint at the audience to pre-select when a clinic creates a campaign from
+  // this template (e.g. 'lapsed_180d' for Reactivation). Just a slug; the
+  // UI resolves to a real audience by name or falls through to "pick one".
+  defaultAudienceSlug: text('default_audience_slug'),
+  createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('campaign_template_org_name_idx').on(t.organizationId, t.name),
+])
 
 // ---------- Campaign events (sent / open / click / bounce / unsub) ----------
 // One row per recipient interaction. Aggregations roll into `campaigns.sendStats`
@@ -274,6 +331,11 @@ export const campaignEventTypeEnum = pgEnum('campaign_event_type', [
   'complaint',
   'unsubscribe',
   'failed',
+  // Outcome attribution: recipient booked an appointment after a campaign send.
+  // Written either by `lib/services/booking.ts` when the booking carries a
+  // tracked-link campaign id, or by a follow-up reconciliation job that joins
+  // last-30d sends → last-30d new appointments per patient.
+  'booked',
 ])
 
 export const campaignEvents = pgTable(
@@ -283,11 +345,26 @@ export const campaignEvents = pgTable(
     campaignId: integer('campaign_id').notNull().references(() => campaigns.id, { onDelete: 'cascade' }),
     recipientEmail: text('recipient_email').notNull(),
     customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+    // Patient-source attribution. Set when the recipient came from the
+    // `patient` table (clinic Recall & Outreach) instead of `customers`.
+    // Soft pointer (no `notNull` so the existing platform-tenant rows
+    // continue to write with patientId = null).
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    // For 'booked' events only — points at the appointment that resulted.
+    // Lets the campaign stats panel show "Bookings: 4" with click-through
+    // to the actual rows.
+    bookedAppointmentId: text('booked_appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+    bookedAt: timestamp('booked_at', { withTimezone: true }),
     type: campaignEventTypeEnum('type').notNull(),
     meta: jsonb('meta').notNull().default(sql`'{}'::jsonb`),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('campaign_events_campaign_recipient_type_idx').on(t.campaignId, t.recipientEmail, t.type, t.occurredAt)]
+  (t) => [
+    uniqueIndex('campaign_events_campaign_recipient_type_idx').on(t.campaignId, t.recipientEmail, t.type, t.occurredAt),
+    // Per-patient timeline lookup ("show me all marketing events for Sophia")
+    // — used by patient-timeline.ts.
+    uniqueIndex('campaign_events_campaign_patient_type_idx').on(t.campaignId, t.patientId, t.type, t.occurredAt),
+  ]
 )
 
 // ---------- Community (platform-wide; no org scoping) ----------

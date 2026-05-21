@@ -2,7 +2,12 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { marketingTerminology } from '@/lib/marketing/terminology'
-import { listAudiences, resolveAudience, type AudienceFilterT } from '@/lib/services/marketing'
+import {
+  listAudiences,
+  resolveAudience,
+  type AudienceFilterT,
+  type PatientAudienceFilterT,
+} from '@/lib/services/marketing'
 import {
   getCampaignStats,
   getMarketingCampaign,
@@ -45,7 +50,11 @@ export default async function CampaignEditorPage({
 
   const audienceCounts: Record<number, number> = {}
   for (const a of audiences) {
-    const rows = await resolveAudience(ctx.organizationId, (a.filter ?? {}) as AudienceFilterT)
+    const rows = await resolveAudience(ctx.organizationId, {
+      recipientSource: (a.recipientSource ?? 'customers') as 'customers' | 'patients',
+      filter: (a.filter ?? {}) as AudienceFilterT,
+      patientFilter: (a.patientFilter ?? {}) as PatientAudienceFilterT,
+    })
     audienceCounts[a.id] = rows.length
   }
 

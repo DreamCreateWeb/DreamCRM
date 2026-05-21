@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
-import type { AudienceFilterT } from '@/lib/services/marketing'
+import type { AudienceFilterT, PatientAudienceFilterT } from '@/lib/services/marketing'
 import {
   createAudienceAction,
   deleteAudienceAction,
@@ -15,12 +15,19 @@ export interface AudienceRow {
   id: number
   name: string
   description: string | null
+  recipientSource: 'customers' | 'patients'
   filter: AudienceFilterT
+  patientFilter: PatientAudienceFilterT
   recipientCount: number
 }
 
 interface Props {
   initial: AudienceRow[]
+  /** Drives whether the audience editor exposes patient-segment chips
+   * (clinic) or pipeline-stage chips (platform). Phase A clinic users
+   * see system audiences but can't yet create custom patient ones via UI
+   * — UI for that lands in v1.1. */
+  tenantType: 'platform' | 'clinic'
   stages: PipelineStage[]
   sources: string[]
 }

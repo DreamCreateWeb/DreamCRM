@@ -7,6 +7,7 @@ import {
   AudienceInput,
   LeadInput,
   LeadUpdate,
+  PatientAudienceFilter,
   archiveLead,
   createAudience,
   createLead,
@@ -17,6 +18,7 @@ import {
   updateAudience,
   updateLead,
   type AudienceFilterT,
+  type PatientAudienceFilterT,
 } from '@/lib/services/marketing'
 import {
   CampaignInput,
@@ -93,15 +95,29 @@ export async function deleteAudienceAction(id: number) {
   revalidatePath('/marketing')
 }
 
-/** Live preview of how many recipients an audience filter resolves to. */
-export async function previewAudienceAction(filter: unknown) {
+/**
+ * Live preview of how many recipients an audience filter resolves to. Accepts
+ * either filter shape and an optional recipientSource discriminator; the
+ * audience editor passes the in-flight filter so users see the count update
+ * as they tweak chips.
+ */
+export async function previewAudienceAction(input: unknown) {
   const ctx = await requireTenant()
-  // Best-effort parse; tolerant of partial filters
-  const parsed = (filter ?? {}) as AudienceFilterT
-  const rows = await resolveAudience(ctx.organizationId, parsed)
+  const opts = (input ?? {}) as {
+    recipientSource?: 'customers' | 'patients'
+    filter?: unknown
+    patientFilter?: unknown
+  }
+  const rows = await resolveAudience(ctx.organizationId, {
+    recipientSource: opts.recipientSource ?? 'customers',
+    filter: (opts.filter ?? {}) as AudienceFilterT,
+    patientFilter: opts.patientFilter
+      ? PatientAudienceFilter.parse(opts.patientFilter)
+      : ({} as PatientAudienceFilterT),
+  })
   return {
     count: rows.length,
-    sample: rows.slice(0, 5).map((r) => ({ name: r.name, email: r.email })),
+    sample: rows.slice(0, 5).map((r) => ({ name: r.name, email: r.email ?? '' })),
   }
 }
 

@@ -26,7 +26,7 @@ export interface CampaignEditorData {
   bodyHtml: string
   bodyJson: Record<string, unknown> | null
   audienceId: number | null
-  sendChannel: 'resend' | 'gmail'
+  sendChannel: 'resend' | 'gmail' | 'twilio_sms'
   status: string
   sentAt: string | null
 }
@@ -634,7 +634,7 @@ function SendConfirmModal({
   onSent,
 }: {
   campaignId: number
-  channel: 'resend' | 'gmail'
+  channel: 'resend' | 'gmail' | 'twilio_sms'
   audience: AudienceOption | null
   gmailAccounts: GmailAccount[]
   onClose: () => void

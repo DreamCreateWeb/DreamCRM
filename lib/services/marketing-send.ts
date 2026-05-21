@@ -8,6 +8,7 @@ import {
   getMarketingCampaign,
   resolveCampaignRecipients,
 } from './marketing-campaigns'
+import type { ResolvedRecipient } from './marketing'
 import { notify } from './notifications'
 
 /**
@@ -27,8 +28,10 @@ const POSTAL_ADDRESS = process.env.MARKETING_POSTAL_ADDRESS || ''
 export interface SendOptions {
   organizationId: string
   campaignId: number
-  /** If set, only send to these recipient ids (test-send subset). */
-  recipientIdsOverride?: number[]
+  /** If set, only send to these recipient ids (test-send subset). Strings
+   * are matched against ResolvedRecipient.id (which is stringified for
+   * customer ids and the raw text id for patient ids). */
+  recipientIdsOverride?: (number | string)[]
   /** When true, don't record opens/clicks (for test sends). */
   test?: boolean
   /** Required override for Gmail channel: which connected account to send from. */
@@ -38,7 +41,7 @@ export interface SendOptions {
 }
 
 export interface SendResult {
-  channel: 'resend' | 'gmail'
+  channel: 'resend' | 'gmail' | 'twilio_sms'
   attempted: number
   sent: number
   failed: number
@@ -59,9 +62,13 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
 
   let recipients = await resolveCampaignRecipients(opts.organizationId, opts.campaignId)
   if (opts.recipientIdsOverride?.length) {
-    const allow = new Set(opts.recipientIdsOverride)
+    const allow = new Set(opts.recipientIdsOverride.map(String))
     recipients = recipients.filter((r) => allow.has(r.id))
   }
+  // Drop recipients the channel can't send to (no email/phone, no opt-in).
+  // This is a safety net — the audience resolver enforces opt-in too, but a
+  // patient that has since opted out gets caught here.
+  recipients = recipients.filter((r) => eligibleForChannel(r, campaign.sendChannel))
   if (!recipients.length) {
     return { channel: campaign.sendChannel, attempted: 0, sent: 0, failed: 0, errors: [] }
   }
@@ -74,10 +81,26 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
       .where(eq(schema.campaigns.id, campaign.id))
   }
 
-  const result =
-    campaign.sendChannel === 'gmail'
-      ? await sendViaGmail({ ...opts, campaign, recipients })
-      : await sendViaResend({ ...opts, campaign, recipients })
+  // Phase A: only email channels actually send. The 'twilio_sms' enum exists
+  // so Phase B can layer the Twilio code path in without a migration, but
+  // attempting an SMS send today no-ops with a clear error.
+  let result: SendResult
+  if (campaign.sendChannel === 'twilio_sms') {
+    result = {
+      channel: 'twilio_sms',
+      attempted: recipients.length,
+      sent: 0,
+      failed: recipients.length,
+      errors: recipients.map((r) => ({
+        email: r.phone ?? r.email ?? '(unknown)',
+        error: 'SMS channel is not enabled in this build (Phase B). Switch to email.',
+      })),
+    }
+  } else if (campaign.sendChannel === 'gmail') {
+    result = await sendViaGmail({ ...opts, campaign, recipients })
+  } else {
+    result = await sendViaResend({ ...opts, campaign, recipients })
+  }
 
   if (!opts.test) {
     await db
@@ -119,7 +142,24 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
 
 type InternalSendOpts = SendOptions & {
   campaign: NonNullable<Awaited<ReturnType<typeof getMarketingCampaign>>>
-  recipients: { id: number; name: string; email: string }[]
+  recipients: ResolvedRecipient[]
+}
+
+/**
+ * Filter recipients to those a given channel can actually send to. For email
+ * channels we need a non-null email AND email opt-in. For SMS we need a
+ * non-null phone AND sms opt-in. The audience filter already enforces opt-in,
+ * but we double-check at send time so a downgraded audience definition can't
+ * leak an opted-out recipient.
+ */
+function eligibleForChannel(
+  recipient: ResolvedRecipient,
+  channel: 'resend' | 'gmail' | 'twilio_sms',
+): boolean {
+  if (channel === 'twilio_sms') {
+    return !!recipient.phone && recipient.smsOptIn
+  }
+  return !!recipient.email && recipient.emailOptIn
 }
 
 async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
@@ -130,10 +170,12 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
 
   for (let i = 0; i < cap; i++) {
     const r = opts.recipients[i]
+    if (!r.email) continue
     const { html, text } = renderCampaignEmail({
       campaignId: opts.campaign.id,
       recipientEmail: r.email,
-      recipientCustomerId: r.id,
+      recipientCustomerId: r.customerId ?? undefined,
+      recipientPatientId: r.patientId ?? undefined,
       subject: opts.campaign.subject!,
       previewText: opts.campaign.previewText,
       bodyHtml: opts.campaign.bodyHtml!,
@@ -142,6 +184,12 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
       tracking: !opts.test,
     })
 
+    const tags = [
+      { name: 'campaignId', value: String(opts.campaign.id) },
+    ]
+    if (r.customerId != null) tags.push({ name: 'customerId', value: String(r.customerId) })
+    if (r.patientId != null) tags.push({ name: 'patientId', value: r.patientId })
+
     try {
       await resend.emails.send({
         from: opts.fromName ? `${opts.fromName} <Hello@DreamCreateWeb.com>` : FROM_DEFAULT,
@@ -149,16 +197,14 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
         subject: opts.campaign.subject!,
         html,
         text,
-        tags: [
-          { name: 'campaignId', value: String(opts.campaign.id) },
-          { name: 'customerId', value: String(r.id) },
-        ],
+        tags,
       })
       if (!opts.test) {
         await db.insert(schema.campaignEvents).values({
           campaignId: opts.campaign.id,
           recipientEmail: r.email.toLowerCase(),
-          customerId: r.id,
+          customerId: r.customerId,
+          patientId: r.patientId,
           type: 'sent',
           meta: { channel: 'resend' },
         })
@@ -170,7 +216,8 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
         await db.insert(schema.campaignEvents).values({
           campaignId: opts.campaign.id,
           recipientEmail: r.email.toLowerCase(),
-          customerId: r.id,
+          customerId: r.customerId,
+          patientId: r.patientId,
           type: 'failed',
           meta: { channel: 'resend', error: err instanceof Error ? err.message : 'unknown' },
         })
@@ -212,10 +259,12 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
 
   for (let i = 0; i < cap; i++) {
     const r = opts.recipients[i]
+    if (!r.email) continue
     const { html, text } = renderCampaignEmail({
       campaignId: opts.campaign.id,
       recipientEmail: r.email,
-      recipientCustomerId: r.id,
+      recipientCustomerId: r.customerId ?? undefined,
+      recipientPatientId: r.patientId ?? undefined,
       subject: opts.campaign.subject!,
       previewText: opts.campaign.previewText,
       bodyHtml: opts.campaign.bodyHtml!,
@@ -236,7 +285,8 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
         await db.insert(schema.campaignEvents).values({
           campaignId: opts.campaign.id,
           recipientEmail: r.email.toLowerCase(),
-          customerId: r.id,
+          customerId: r.customerId,
+          patientId: r.patientId,
           type: 'sent',
           meta: { channel: 'gmail', from: account.emailAddress },
         })
@@ -250,7 +300,8 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
         await db.insert(schema.campaignEvents).values({
           campaignId: opts.campaign.id,
           recipientEmail: r.email.toLowerCase(),
-          customerId: r.id,
+          customerId: r.customerId,
+          patientId: r.patientId,
           type: 'failed',
           meta: { channel: 'gmail', error: err instanceof Error ? err.message : 'unknown' },
         })

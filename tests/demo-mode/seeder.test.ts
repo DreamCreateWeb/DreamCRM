@@ -128,6 +128,30 @@ describe('createDemoClinic', () => {
     ])
     // Emma Lopez patient lookup (for convert pointer)
     state.selectQueue.push([{ id: 'pat_emma' }])
+    // Recall & Outreach self-heal: all 4 audiences + 3 campaigns + 3 system
+    // templates already present so no inserts fire — the idempotent goal.
+    state.selectQueue.push([
+      { id: 1, name: 'Recall due (6+ months)' },
+      { id: 2, name: 'Lapsed (lifecycle = lapsed)' },
+      { id: 3, name: 'New patients (past 60 days)' },
+      { id: 4, name: 'Birthday this month' },
+    ]) // existingAudienceRows
+    state.selectQueue.push([
+      { id: 10, name: 'March Reactivation — come back for a cleaning' },
+      { id: 11, name: 'May Birthday wishes' },
+      { id: 12, name: 'New patient welcome — week 1 follow-up' },
+    ]) // existingCampaignRows
+    state.selectQueue.push([{ id: 'pat_existing_1' }]) // existingPatientRows
+    state.selectQueue.push([
+      { name: 'Reactivation — come back for a cleaning' },
+      { name: 'Birthday — warm monthly check-in' },
+      { name: 'New-patient welcome' },
+    ]) // seedSystemTemplates existing names
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ]) // tplRows
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 
@@ -162,6 +186,17 @@ describe('createDemoClinic', () => {
       { name: 'aaaaa zzzzzz' },
     ])
     state.selectQueue.push([{ id: 'pat_emma' }]) // Emma patient lookup
+    // Recall & Outreach self-heal: nothing exists yet — but the empty-patients
+    // case means seedEvents block is skipped so no Aiden lookup is needed.
+    state.selectQueue.push([]) // existingAudienceRows — empty
+    state.selectQueue.push([]) // existingCampaignRows — empty
+    state.selectQueue.push([]) // existingPatientRows — empty
+    state.selectQueue.push([]) // seedSystemTemplates existing names — empty
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ]) // tplRows (returns the just-inserted template ids)
     state.selectQueue.push([]) // patients count
     state.selectQueue.push([]) // appointments count
 
@@ -214,6 +249,22 @@ describe('createDemoClinic', () => {
     // Leads self-heal: no leads yet → tops up to all 6
     state.selectQueue.push([]) // existingLeads (none)
     state.selectQueue.push([{ id: 'pat_emma' }]) // Emma patient lookup for convert pointer
+    // Recall & Outreach self-heal: nothing exists yet, top up audiences +
+    // campaigns. patientIds passed in is 3 (from line ~205), but Aiden
+    // (persona index 5) doesn't exist on the in-mock list so the booked-
+    // event branch silently skips when it tries to find his appt.
+    state.selectQueue.push([]) // existingAudienceRows
+    state.selectQueue.push([]) // existingCampaignRows
+    state.selectQueue.push([{ id: 'pat_a' }, { id: 'pat_b' }, { id: 'pat_c' }]) // existingPatientRows
+    state.selectQueue.push([]) // seedSystemTemplates existing names
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ]) // tplRows
+    // Aiden recall_campaign appointment lookup for the booked event.
+    // patientIds[5] doesn't exist (only 3 patients in this test) → guard
+    // bails before the select, so no queue entry needed for it.
     state.selectQueue.push([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) // patient count
     state.selectQueue.push([{ id: 'a1' }]) // appointment count
 
@@ -239,6 +290,14 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([]) // no existing org
     state.selectQueue.push([]) // no existing default intake form
     state.selectQueue.push([{ id: 'tmpl_seed' }]) // form template lookup before submissions
+    // Recall & Outreach: nothing in DB yet — full seed
+    state.selectQueue.push([]) // seedSystemTemplates existing names
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ]) // tplRows
+    state.selectQueue.push([{ id: 'appt_aiden_recall' }]) // Aiden recall_campaign appt for booked event
 
     const out = await createDemoClinic()
 
@@ -275,6 +334,14 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([])
     state.selectQueue.push([]) // form lookup
     state.selectQueue.push([{ id: 'tmpl' }]) // submission seeding lookup (before appts)
+    // Recall seed lookups
+    state.selectQueue.push([])
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ])
+    state.selectQueue.push([{ id: 'appt_aiden_recall' }])
     await createDemoClinic()
     const orgInsert = state.inserts.find((i) => i.table === 'organization')!
     expect((orgInsert.values as { type: string }).type).toBe('clinic')
@@ -287,6 +354,14 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([])
     state.selectQueue.push([]) // form lookup
     state.selectQueue.push([{ id: 'tmpl' }])
+    // Recall seed lookups
+    state.selectQueue.push([])
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ])
+    state.selectQueue.push([{ id: 'appt_aiden_recall' }])
     const out = await createDemoClinic()
     const patientInserts = state.inserts.filter((i) => i.table === 'patient')
     expect(patientInserts).toHaveLength(15)

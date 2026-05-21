@@ -2,7 +2,7 @@ import 'server-only'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
-import { resolveAudience, type AudienceFilterT } from './marketing'
+import { resolveAudience, type AudienceFilterT, type PatientAudienceFilterT, type ResolvedRecipient } from './marketing'
 
 /**
  * Campaign CRUD + analytics. Send + tracking event recording live in
@@ -224,11 +224,16 @@ export async function getRecipientBreakdown(campaignId: number) {
   )
 }
 
-/** Resolve the recipient list for a campaign. Empty array if no audience. */
+/**
+ * Resolve the recipient list for a campaign. Returns the full ResolvedRecipient
+ * shape so the send orchestrator has email + phone + opt-in state and can tag
+ * events with the right discriminator (customerId vs patientId). Empty array
+ * if no audience.
+ */
 export async function resolveCampaignRecipients(
   organizationId: string,
   campaignId: number,
-): Promise<{ id: number; name: string; email: string }[]> {
+): Promise<ResolvedRecipient[]> {
   const campaign = await getMarketingCampaign(organizationId, campaignId)
   if (!campaign?.audienceId) return []
   const [audience] = await db
@@ -242,6 +247,9 @@ export async function resolveCampaignRecipients(
     )
     .limit(1)
   if (!audience) return []
-  const rows = await resolveAudience(organizationId, (audience.filter ?? {}) as AudienceFilterT)
-  return rows.map((r) => ({ id: r.id, name: r.name, email: r.email }))
+  return resolveAudience(organizationId, {
+    recipientSource: (audience.recipientSource ?? 'customers') as 'customers' | 'patients',
+    filter: (audience.filter ?? {}) as AudienceFilterT,
+    patientFilter: (audience.patientFilter ?? {}) as PatientAudienceFilterT,
+  })
 }
