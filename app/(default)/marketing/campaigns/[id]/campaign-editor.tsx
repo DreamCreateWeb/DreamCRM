@@ -266,8 +266,8 @@ export default function CampaignEditor({
           </div>
           <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2 leading-snug">
             {draft.sendChannel === 'resend'
-              ? `From ${defaultFromEmail || 'Resend default'}. Best deliverability for blast sends.`
-              : 'Sends one-by-one from your connected mailbox. Warmer for cold outreach.'}
+              ? `Branded email from ${defaultFromEmail || 'a verified sender'}. Best deliverability at volume; requires DNS verification on your domain.`
+              : 'From your connected Gmail / Workspace mailbox. Patients see a familiar address; replies land in your inbox. Lower daily volume cap (~500/day).'}
           </p>
         </div>
 
@@ -690,7 +690,9 @@ function SendConfirmModal({
             <p className="text-sm text-stone-600 dark:text-stone-300 mb-4">
               Sending to {audience?.recipientCount ?? 0} recipient
               {audience?.recipientCount === 1 ? '' : 's'} via{' '}
-              <strong>{channel === 'resend' ? 'Resend' : 'Gmail'}</strong>.
+              <strong>
+                {channel === 'resend' ? 'branded email' : channel === 'gmail' ? 'your Gmail' : channel}
+              </strong>.
             </p>
             {channel === 'gmail' && gmailAccounts.length > 1 && (
               <label className="block mb-3">

@@ -22,6 +22,11 @@ interface SP {
 export default async function PipelinePage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  // Clinic tenants don't manually drag patients through pipeline stages
+  // (research: 0 of 8 mature dental products do this — lifecycle is
+  // activity-derived, not staff-curated). Redirect to the Outreach Queue,
+  // which is the dental-shaped surface for "patients needing action."
+  if (ctx.tenantType === 'clinic') redirect('/marketing/outreach')
   const params = await searchParams
   const t = marketingTerminology(ctx.tenantType)
 
