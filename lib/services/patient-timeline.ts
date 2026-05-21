@@ -211,7 +211,7 @@ export async function getPatientTimeline(
       }),
       status: a.status,
       direction: null,
-      href: '/calendar',
+      href: '/appointments',
       body: a.notes,
       agingDays: aging,
     })

@@ -8,6 +8,7 @@ import type { PatientNoteRow } from '@/lib/services/patient-notes'
 import { GlyphCluster } from '../glyph-cluster'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
+import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
 import { archivePatientAction } from '../actions'
 
 function money(cents: number): string {
@@ -89,6 +90,7 @@ export default function PatientDetail({
 }) {
   const [filter, setFilter] = useState<TimelineKind | 'all'>('all')
   const [editOpen, setEditOpen] = useState(false)
+  const [bookOpen, setBookOpen] = useState(false)
   const [archivePending, startArchive] = useTransition()
 
   const filtered = useMemo(
@@ -144,12 +146,13 @@ export default function PatientDetail({
             >
               Send message
             </Link>
-            <Link
-              href={`/calendar`}
+            <button
+              type="button"
+              onClick={() => setBookOpen(true)}
               className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50"
             >
               Book appointment
-            </Link>
+            </button>
             <Link
               href={`/intake-forms`}
               className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50"
@@ -246,6 +249,13 @@ export default function PatientDetail({
       </div>
 
       {editOpen && <EditPatientModal header={header} onClose={() => setEditOpen(false)} />}
+      {bookOpen && (
+        <BookFromPatientDrawer
+          patientId={header.id}
+          patientName={header.fullName}
+          onClose={() => setBookOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -284,7 +294,7 @@ function NeedsAttention({ header }: { header: PatientHeader }) {
     items.push({
       severity: 'warn',
       copy: 'Upcoming appointment is unconfirmed.',
-      cta: { label: 'Send confirmation', href: '/calendar' },
+      cta: { label: 'Send confirmation', href: '/appointments?attention=unconfirmed&window=next_14d' },
     })
   }
   if (header.flags.missingIntakeBeforeAppt) {

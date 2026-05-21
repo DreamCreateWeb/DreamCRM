@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { CalendarProvider } from './calendar-context'
 import CalendarNavigation from './calendar-navigation'
 import CalendarTable from './calendar-table'
@@ -15,10 +16,12 @@ export const dynamic = 'force-dynamic'
 export default async function Calendar() {
   const ctx = await requireTenant()
 
-  // Fetch a generous window centered on today so prev/next navigation
-  // doesn't re-fetch as long as the user stays within ~2 months. Cheap
-  // because the events table is small; if it grows we can switch to a
-  // narrower fetch keyed off the calendar context anchor.
+  // Clinic tenants use the dental-correct Appointments module at
+  // `/appointments` (on `schema.appointment`). The generic FullCalendar
+  // wrapped around `calendar_events` is preserved here for platform-org
+  // product planning only.
+  if (ctx.tenantType === 'clinic') redirect('/appointments')
+
   const now = new Date()
   const from = new Date(now.getFullYear(), now.getMonth() - 2, 1)
   const to = new Date(now.getFullYear(), now.getMonth() + 3, 0, 23, 59, 59)

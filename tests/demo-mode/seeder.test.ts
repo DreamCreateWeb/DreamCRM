@@ -31,6 +31,8 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.formTemplate) return 'form_template'
     if (t === schema.formSubmission) return 'form_submission'
     if (t === schema.patientNote) return 'patient_note'
+    if (t === schema.clinicProvider) return 'clinic_provider'
+    if (t === schema.appointmentReminderLog) return 'appointment_reminder_log'
     return 'unknown'
   }
   const chain = () => {
@@ -111,6 +113,9 @@ describe('createDemoClinic', () => {
     ])
     state.selectQueue.push([{ id: 'pnote_existing' }]) // notes already present
     state.selectQueue.push([{ id: 'sub_existing' }]) // submissions already present
+    // Appointments-module self-heal: provider present, reminder log present
+    state.selectQueue.push([{ id: 'prov_existing' }])
+    state.selectQueue.push([{ id: 'rem_existing' }])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 
@@ -132,13 +137,18 @@ describe('createDemoClinic', () => {
     ])
     state.selectQueue.push([{ id: 'form_existing' }]) // form template lookup
     state.selectQueue.push([]) // existing patients for self-heal (none → skip notes + submissions)
+    // Appointments self-heal: provider present, reminder present → skip
+    state.selectQueue.push([{ id: 'prov_existing' }])
+    state.selectQueue.push([{ id: 'rem_existing' }])
     state.selectQueue.push([]) // patients count
     state.selectQueue.push([]) // appointments count
 
     // Capture the update call by hooking the mock — we already track via state.updates
     state.updates.length = 0
     await createDemoClinic()
-    expect(state.updates).toHaveLength(1)
+    // Self-heal triggers 2 updates: clinicProfile patch (stats/testimonials/officePhotos)
+    // + appointment.source backfill ("set source='manual' where source is null").
+    expect(state.updates).toHaveLength(2)
     const patch = state.updates[0].set as {
       stats?: unknown
       testimonials?: unknown
@@ -149,6 +159,8 @@ describe('createDemoClinic', () => {
     expect(patch.testimonials).toBeDefined()
     expect(patch.officePhotos).toBeDefined()
     expect(patch.brandColor).toBeUndefined() // already current
+    // Second update is the appointment.source backfill.
+    expect((state.updates[1].set as { source?: string }).source).toBe('manual')
   })
 
   it('self-heal seeds patient_note + form_submission when missing', async () => {
@@ -173,6 +185,10 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([]) // no patient_note rows yet
     state.selectQueue.push([]) // no form_submission rows yet
     state.selectQueue.push([{ id: 'tmpl_1' }]) // form template lookup for submission self-heal
+    // Appointments self-heal: provider absent + reminder absent → seeds
+    state.selectQueue.push([]) // no clinic_provider yet
+    state.selectQueue.push([]) // no reminder log yet
+    state.selectQueue.push([{ id: 'appt_future_a' }]) // future appointment lookup for reminder
     state.selectQueue.push([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) // patient count
     state.selectQueue.push([{ id: 'a1' }]) // appointment count
 
@@ -180,6 +196,8 @@ describe('createDemoClinic', () => {
     const counts = tableCounts()
     expect(counts.patient_note).toBe(3)
     expect(counts.form_submission).toBe(3)
+    expect(counts.clinic_provider).toBe(2)
+    expect(counts.appointment_reminder_log).toBe(1)
   })
 
   it('seeds the full clinic when none exists', async () => {
@@ -193,16 +211,20 @@ describe('createDemoClinic', () => {
     expect(out.organizationId).toMatch(/^org_/)
     expect(out.organizationSlug).toBe('acme-dental-demo')
     expect(out.patientCount).toBe(15)
-    expect(out.appointmentCount).toBe(14)
+    // 8 past + 9 future (incl. phantom cancelled "from" row for Mia's reschedule
+    // + Aiden's lapsed-rebooking + Emma's just-booked)
+    expect(out.appointmentCount).toBe(17)
 
     const counts = tableCounts()
     expect(counts.organization).toBe(1)
     expect(counts.clinic_profile).toBe(1)
     expect(counts.clinic_location).toBe(1)
     expect(counts.patient).toBe(15)
-    expect(counts.appointment).toBe(14)
+    expect(counts.appointment).toBe(17)
+    expect(counts.clinic_provider).toBe(2)
+    expect(counts.appointment_reminder_log).toBe(4)
     expect(counts.tasks).toBe(3)
-    expect(counts.customers).toBe(10) // 4 patient-linked + 6 leads
+    expect(counts.customers).toBe(10)
     expect(counts.products).toBe(4)
     expect(counts.form_template).toBe(1)
     expect(counts.orders).toBe(5)
@@ -214,7 +236,7 @@ describe('createDemoClinic', () => {
   it('seeded org has type=clinic and a premium plan tier', async () => {
     state.selectQueue.push([])
     state.selectQueue.push([]) // form lookup
-    state.selectQueue.push([{ id: 'tmpl' }]) // submission seeding lookup
+    state.selectQueue.push([{ id: 'tmpl' }]) // submission seeding lookup (before appts)
     await createDemoClinic()
     const orgInsert = state.inserts.find((i) => i.table === 'organization')!
     expect((orgInsert.values as { type: string }).type).toBe('clinic')
@@ -241,7 +263,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'tmpl' }])
     await createDemoClinic()
     const apptInserts = state.inserts.filter((i) => i.table === 'appointment')
-    expect(apptInserts).toHaveLength(14)
+    expect(apptInserts).toHaveLength(17)
     const past = apptInserts.filter(
       (i) => (i.values as { startTime: Date }).startTime.getTime() < Date.now(),
     )
@@ -249,7 +271,58 @@ describe('createDemoClinic', () => {
       (i) => (i.values as { startTime: Date }).startTime.getTime() > Date.now(),
     )
     expect(past.length).toBe(8)
-    expect(future.length).toBe(6)
+    expect(future.length).toBe(9)
+  })
+
+  it('seeds clinic_provider rows and attaches providerId to each appointment', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'tmpl' }])
+    await createDemoClinic()
+    const providerInserts = state.inserts
+      .filter((i) => i.table === 'clinic_provider')
+      .flatMap((i) => (Array.isArray(i.values) ? i.values : [i.values])) as Array<{ displayName: string; role: string }>
+    expect(providerInserts).toHaveLength(2)
+    expect(providerInserts.find((p) => p.role === 'dentist')).toBeDefined()
+    expect(providerInserts.find((p) => p.role === 'hygienist')).toBeDefined()
+    const apptInserts = state.inserts.filter((i) => i.table === 'appointment')
+    for (const a of apptInserts) {
+      expect((a.values as { providerId?: string | null }).providerId).toBeTruthy()
+    }
+  })
+
+  it('seeds reminder log entries against future appointments', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'tmpl' }])
+    await createDemoClinic()
+    const reminderInserts = state.inserts.filter((i) => i.table === 'appointment_reminder_log')
+    expect(reminderInserts).toHaveLength(4)
+    // At least one reminder has a reply attached (Sophia's confirmation)
+    const hasReply = reminderInserts.some(
+      (r) => (r.values as { repliedAt?: Date | null }).repliedAt,
+    )
+    expect(hasReply).toBe(true)
+  })
+
+  it('seeds a rescheduled appointment that points back at its phantom "from" row', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'tmpl' }])
+    await createDemoClinic()
+    const apptInserts = state.inserts
+      .filter((i) => i.table === 'appointment')
+      .flatMap((i) => (Array.isArray(i.values) ? i.values : [i.values])) as Array<{
+        id: string
+        rescheduledFromAppointmentId?: string | null
+        status: string
+      }>
+    const rescheduled = apptInserts.find((a) => a.rescheduledFromAppointmentId)
+    expect(rescheduled).toBeDefined()
+    // The "from" row must also exist + be cancelled.
+    const fromRow = apptInserts.find((a) => a.id === rescheduled!.rescheduledFromAppointmentId)
+    expect(fromRow).toBeDefined()
+    expect(fromRow!.status).toBe('cancelled')
   })
 
   it('every customers row that has a patientId points at one of the seeded patients', async () => {

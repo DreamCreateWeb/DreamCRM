@@ -126,7 +126,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (518 tests) covering middleware, billing sync,
+- **Vitest test suite** (551 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
@@ -140,7 +140,10 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (hero / attention cards / today's chair / glyph matrix / trend tiles
   / activity feed), patients module (glyph cluster render + cap, detail
   header / needs-attention / timeline filter pills / pill count badges,
-  bulk-email skip/send/error rules).
+  bulk-email skip/send/error rules), appointments module (agenda
+  rendering / contextual empty states / inline confirm button on
+  scheduled rows only / bulk-send bar reveal / appointment glyph cluster
+  / groupByDay date-grouping + today-tomorrow labels + totals math).
 - **Platform admin "view as clinic" demo mode** — `demo_context` cookie
   carries `{orgId, role, patientId?}`; `getTenantContext` synthesizes a
   clinic/patient context from it when the real user is `platformAdmin`.
@@ -240,6 +243,46 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   patient name on Today's chair in Overview jumps to their detail page.
   Booking action + invite-accept set `source` on insert; demo seeder
   backfills mixed sources for the 15 seeded patients.
+- **Appointments module v1** at `/appointments` — dental `appointment`
+  table (NOT the generic `calendar_events`/Mosaic FullCalendar, which
+  was previously mis-pointed in the clinic sidebar). Research-grounded
+  as a *relationship view of the schedule* — not a PMS scheduler. No
+  operatories, no production $, no procedure codes, no claims, no
+  charting. The PMS still owns the visit. **Agenda list is the default
+  view** (vertical scroll grouped by day, today pinned, sticky day
+  sub-header with `N booked · M confirmed · K still need a text`).
+  Filter chips in two rows: date window (Today / Tomorrow / This week
+  / Next 14 days / All upcoming / Past 30 days) + needs-attention
+  (Unconfirmed / Needs intake / New patients / Has balance / Lapsed
+  rebooking / Cancelled / No-show), plus staff dropdown + fuzzy search
+  across patient name / email / phone / notes. Glyphs travel from
+  Patients (★/🎂/$/📝!/⚠️/💤/🔕) plus 3 appointment-scoped (⏱ reminder
+  sent recently, 🆕 booked just now, 📅 rescheduled). Aging-color left
+  border on unconfirmed rows drifts T-72h → T-12h (Pipedrive-rotting
+  borrow). Each row clicks into a right-side drawer with patient header
+  + lifecycle pill + all glyphs + 4-stat patient context + primary
+  actions (Mark confirmed / Send reminder email / Reschedule / Mark
+  completed / Mark no-show / Cancel) + reminder-activity audit stripe.
+  Reschedule sub-drawer reuses `lib/services/booking.ts` slot-availability
+  guards + sends a "we moved your time" email when the notify-patient
+  checkbox stays checked. The original row is kept as `cancelled` with
+  the new row's `rescheduledFromAppointmentId` pointing back — full audit
+  trail. Bulk-select + sticky bulk-send bar for emailing multiple
+  reminders at once. "Book appointment" CTA on the patient detail page
+  opens an in-place drawer with date/time/type/notes form (no navigation
+  away from the patient page). `/calendar` 308s to `/appointments` for
+  clinic tenants; platform org keeps the generic FullCalendar for product
+  planning. Migration 0019 added `appointment.confirmedAt / cancelledAt
+  / completedAt / noShowedAt / confirmedVia / rescheduledFromAppointmentId
+  / source / providerId`, the new `clinic_provider` table (CRM-side
+  staff label, NOT a clinical provider record — no NPI/license/
+  signature), and the new `appointment_reminder_log` table (one row per
+  reminder send, with reply audit columns). Demo seeder pump: 17
+  curated appointments (vs. random) covering every glyph state,
+  2 clinic_provider rows (Dr. Reyes + Maria Vega RDH) attached to every
+  appointment, 4 reminder log entries (one with a reply from Sophia),
+  Aiden's 💤 lapsed-rebooking, Emma's 🆕 just-booked, Mia's 📅
+  rescheduled-with-phantom-cancelled-source.
 - **Gmail push notifications via Google Pub/Sub** — `users.watch()` is
   registered when a mailbox is connected; Gmail publishes change events
   to `projects/dreamcrm-496717/topics/gmail-watch`; the push subscription
@@ -260,7 +303,7 @@ on dental-correct schema. Placeholder = "Coming soon" UI only.
 | Analytics | `/dashboard/analytics` | Stub | Mosaic template, not dental-shaped |
 | Revenue | `/dashboard/fintech` | Stub | Per-user fintech demo, not real clinic revenue |
 | Patients | `/patients` | **Live (v1)** | Dental `patient` table. List with glyph cluster + filter chips + fuzzy search + bulk email; detail page with identity rail + unified timeline (appointments + messages + forms + invoices + notes) + needs-attention panel + relationship notes (append-only `patient_note` table) |
-| Appointments | `/calendar` | Live | FullCalendar on dental `appointment` table; tenant-scoped |
+| Appointments | `/appointments` | **Live (v1)** | Dental `appointment` table. Agenda-list default grouped by day, glyph cluster (★/🎂/$/📝!/⚠️/💤/🆕/📅/⏱/🔕), aging-color left border (T-72h neutral → T-12h red until confirmed), filter chips (date window + needs-attention + staff), side drawer for confirm / reschedule / cancel / mark no-show / send reminder, bulk reminder send. "Book appointment" from patient detail opens an in-place drawer. `/calendar` 308s to `/appointments` for clinic tenants (platform org keeps the generic FullCalendar) |
 | Treatment Plans | `/orders` | Stub | Currently on generic `orders` table — mis-labeled per DESIGN.md (we don't do clinical treatment plans yet; this is product orders) |
 | Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
 | Patient Messaging | `/messages` | Live | Conversations, tenant-scoped |
