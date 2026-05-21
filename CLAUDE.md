@@ -126,7 +126,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (563 tests) covering middleware, billing sync,
+- **Vitest test suite** (568 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
@@ -258,8 +258,10 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   Filter chips in two rows: date window (Today / Tomorrow / This week
   / Next 14 days / All upcoming / Past 30 days) + needs-attention
   (Unconfirmed / Needs intake / New patients / Has balance / Lapsed
-  rebooking / Cancelled / No-show), plus staff dropdown + fuzzy search
-  across patient name / email / phone / notes. Glyphs travel from
+  rebooking / Cancelled / No-show), plus staff + booking-source
+  dropdowns (Public booking widget / Patient portal / Front desk /
+  Phone / Recall campaign / Invite — auto-hides when org has none) +
+  fuzzy search across patient name / email / phone / notes. Glyphs travel from
   Patients (★/🎂/$/📝!/⚠️/💤/🔕) plus 3 appointment-scoped (⏱ reminder
   sent recently, 🆕 booked just now, 📅 rescheduled). Aging-color left
   border on unconfirmed rows drifts T-72h → T-12h (Pipedrive-rotting
