@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 
 export type TimelineKind =
@@ -9,6 +9,8 @@ export type TimelineKind =
   | 'invoice'
   | 'note'
   | 'created'
+
+export type MessageChannel = 'in_app' | 'email' | 'sms'
 
 export interface TimelineEvent {
   id: string
@@ -25,6 +27,8 @@ export interface TimelineEvent {
   // unreplied for 7 days → 7. Null when "completed" / not actionable.
   agingDays: number | null
   authorName?: string | null
+  /** Channel for message-kind events. Lets the UI render the channel chip. */
+  channel?: MessageChannel | null
 }
 
 interface RawAppt {
@@ -63,6 +67,25 @@ interface RawNote {
   createdAt: Date
   authorName: string | null
 }
+interface RawPatientMsg {
+  id: string
+  channel: string
+  direction: string
+  body: string
+  sentAt: Date
+  sentByName: string | null
+  threadId: string
+}
+interface RawEmailMsg {
+  id: string
+  folder: string
+  fromName: string | null
+  fromEmail: string
+  subject: string | null
+  snippet: string | null
+  bodyText: string | null
+  receivedAt: Date
+}
 
 export async function getPatientTimeline(
   organizationId: string,
@@ -88,7 +111,23 @@ export async function getPatientTimeline(
   const fortyEightHrs = 48 * 60 * 60 * 1000
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
 
-  const [appts, msgs, subs, invs, notes] = await Promise.all([
+  // Look up the patient thread (one per patient) so message-kind events
+  // can link directly to /messages?thread=<id>. Null if no thread yet —
+  // the patient has not been messaged.
+  const [threadRow] = await db
+    .select({ id: schema.patientThread.id })
+    .from(schema.patientThread)
+    .where(
+      and(
+        eq(schema.patientThread.organizationId, organizationId),
+        eq(schema.patientThread.patientId, patientId),
+      ),
+    )
+    .limit(1)
+  const threadId = threadRow?.id ?? null
+  const messagesHref = threadId ? `/messages?thread=${threadId}` : '/messages'
+
+  const [appts, msgs, subs, invs, notes, pMessages, emailMessages] = await Promise.all([
     db
       .select({
         id: schema.appointment.id,
@@ -184,6 +223,41 @@ export async function getPatientTimeline(
         ),
       )
       .orderBy(desc(schema.patientNote.createdAt)) as Promise<RawNote[]>,
+    threadId
+      ? (db
+          .select({
+            id: schema.patientMessage.id,
+            channel: schema.patientMessage.channel,
+            direction: schema.patientMessage.direction,
+            body: schema.patientMessage.body,
+            sentAt: schema.patientMessage.sentAt,
+            sentByName: schema.user.name,
+            threadId: schema.patientMessage.threadId,
+          })
+          .from(schema.patientMessage)
+          .leftJoin(schema.user, eq(schema.patientMessage.sentByUserId, schema.user.id))
+          .where(eq(schema.patientMessage.threadId, threadId))
+          .orderBy(asc(schema.patientMessage.sentAt)) as Promise<RawPatientMsg[]>)
+      : (Promise.resolve([]) as Promise<RawPatientMsg[]>),
+    db
+      .select({
+        id: schema.emailMessage.id,
+        folder: schema.emailMessage.folder,
+        fromName: schema.emailMessage.fromName,
+        fromEmail: schema.emailMessage.fromEmail,
+        subject: schema.emailMessage.subject,
+        snippet: schema.emailMessage.snippet,
+        bodyText: schema.emailMessage.bodyText,
+        receivedAt: schema.emailMessage.receivedAt,
+      })
+      .from(schema.emailMessage)
+      .where(
+        and(
+          eq(schema.emailMessage.organizationId, organizationId),
+          eq(schema.emailMessage.patientId, patientId),
+        ),
+      )
+      .orderBy(asc(schema.emailMessage.receivedAt)) as Promise<RawEmailMsg[]>,
   ])
 
   const events: TimelineEvent[] = []
@@ -265,10 +339,55 @@ export async function getPatientTimeline(
       subtitle: null,
       status: null,
       direction: fromPatient ? 'in' : 'out',
-      href: '/messages',
+      href: messagesHref,
       body: m.body,
       agingDays: null,
       authorName: fromPatient ? `${patientRow.firstName} ${patientRow.lastName}` : m.authorName,
+    })
+  }
+
+  // Patient Communications v1 — unified thread messages, channel-tagged
+  for (const m of pMessages) {
+    const inbound = m.direction === 'inbound'
+    const channelLabel = m.channel === 'email' ? 'Email' : m.channel === 'sms' ? 'SMS' : 'In-app'
+    events.push({
+      id: `pmsg_${m.id}`,
+      kind: 'message',
+      occurredAt: m.sentAt,
+      title: inbound
+        ? `${patientRow.firstName} ${m.channel === 'email' ? 'emailed' : m.channel === 'sms' ? 'texted' : 'messaged'}`
+        : `${m.sentByName ?? 'Staff'} sent a ${channelLabel.toLowerCase()}`,
+      subtitle: channelLabel,
+      status: null,
+      direction: inbound ? 'in' : 'out',
+      href: messagesHref,
+      body: m.body,
+      agingDays: null,
+      authorName: inbound ? `${patientRow.firstName} ${patientRow.lastName}` : m.sentByName,
+      channel: m.channel as MessageChannel,
+    })
+  }
+
+  // Email aggregator — emails that landed in the connected Gmail mailbox
+  // and were patient-matched on ingest. Read-only on the timeline; click
+  // links to the unified thread view.
+  for (const e of emailMessages) {
+    const inbound = e.folder !== 'sent'
+    events.push({
+      id: `email_${e.id}`,
+      kind: 'message',
+      occurredAt: e.receivedAt,
+      title: inbound
+        ? `${patientRow.firstName} emailed${e.subject ? `: ${e.subject}` : ''}`
+        : `Staff emailed${e.subject ? `: ${e.subject}` : ''}`,
+      subtitle: 'Email',
+      status: null,
+      direction: inbound ? 'in' : 'out',
+      href: messagesHref,
+      body: e.bodyText ?? e.snippet ?? null,
+      agingDays: null,
+      authorName: inbound ? (e.fromName ?? e.fromEmail) : null,
+      channel: 'email',
     })
   }
 
