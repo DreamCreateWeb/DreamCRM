@@ -67,13 +67,13 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/calendar"
+            href="/appointments"
             className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
           >
-            Open calendar
+            Open agenda
           </Link>
           <Link
-            href="/calendar"
+            href="/appointments?window=today"
             className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
           >
             + New booking
@@ -88,7 +88,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             title="Unconfirmed"
             count={data.unconfirmed.count}
             countSuffix={data.unconfirmed.count === 1 ? 'appointment in next 48h' : 'appointments in next 48h'}
-            cta={data.unconfirmed.count > 0 ? { label: 'Send confirmations', href: '/calendar' } : null}
+            cta={data.unconfirmed.count > 0 ? { label: 'Send confirmations', href: '/appointments?attention=unconfirmed' } : null}
             emptyCopy="Every booking in the next 48h is confirmed. Nice."
           >
             {data.unconfirmed.preview.map((r) => (

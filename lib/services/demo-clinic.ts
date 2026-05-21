@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq } from 'drizzle-orm'
+import { and, eq, gte, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
@@ -394,6 +394,61 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       }
     }
 
+    // Appointments module v1 self-heal: clinic_provider + reminder log +
+    // appointment.source backfill. Existing demos predate these columns.
+    const [providerFound] = await db
+      .select({ id: schema.clinicProvider.id })
+      .from(schema.clinicProvider)
+      .where(eq(schema.clinicProvider.organizationId, existing.id))
+      .limit(1)
+    if (!providerFound) {
+      await db.insert(schema.clinicProvider).values([
+        { id: newId('prov'), organizationId: existing.id, displayName: 'Dr. Jordan Reyes', role: 'dentist', email: 'jordan@acme-dental.example' },
+        { id: newId('prov'), organizationId: existing.id, displayName: 'Maria Vega, RDH', role: 'hygienist', email: 'maria@acme-dental.example' },
+      ])
+    }
+
+    // Backfill appointment.source = 'manual' on rows that lack one. Cheap
+    // and idempotent (rows that already have a source are untouched).
+    await db
+      .update(schema.appointment)
+      .set({ source: 'manual' })
+      .where(
+        and(
+          eq(schema.appointment.organizationId, existing.id),
+          isNull(schema.appointment.source),
+        ),
+      )
+
+    // Seed one reminder log row against an existing future appointment so
+    // the drawer's reminder-activity stripe isn't empty.
+    const [reminderFound] = await db
+      .select({ id: schema.appointmentReminderLog.id })
+      .from(schema.appointmentReminderLog)
+      .where(eq(schema.appointmentReminderLog.organizationId, existing.id))
+      .limit(1)
+    if (!reminderFound) {
+      const [futureAppt] = await db
+        .select({ id: schema.appointment.id })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, existing.id),
+            gte(schema.appointment.startTime, new Date()),
+          ),
+        )
+        .limit(1)
+      if (futureAppt) {
+        await db.insert(schema.appointmentReminderLog).values({
+          id: newId('rem'),
+          organizationId: existing.id,
+          appointmentId: futureAppt.id,
+          channel: 'email',
+          template: 'default_reminder',
+        })
+      }
+    }
+
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -524,56 +579,144 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     })
   }
 
+  // Staff members for the Appointments module — CRM-side display labels.
+  // NOT clinical providers (per DESIGN.md out-of-scope). Each appointment
+  // below attaches to one so the "with [Staff]" line and provider filter
+  // chip have something to filter against.
+  const providerDentistId = newId('prov')
+  const providerHygienistId = newId('prov')
+  await db.insert(schema.clinicProvider).values([
+    {
+      id: providerDentistId,
+      organizationId: orgId,
+      displayName: 'Dr. Jordan Reyes',
+      role: 'dentist',
+      email: 'jordan@acme-dental.example',
+    },
+    {
+      id: providerHygienistId,
+      organizationId: orgId,
+      displayName: 'Maria Vega, RDH',
+      role: 'hygienist',
+      email: 'maria@acme-dental.example',
+    },
+  ])
+
   // Curated appointments so personas trigger the right glyphs.
   // Past: most personas (except [1] new + [5] lapsed) have completed visits.
   // Future: persona [1] has a new-patient cleaning in 5 days (no intake →
   // 📝!), persona [4] has a confirmed appt in 22h, persona [3] has an
-  // unconfirmed appt in 30h (this overlaps with the ⚠️ trigger plus the
-  // outstanding-balance $ glyph already on them), persona [0] [2] [7] all
-  // have scheduled future visits.
+  // unconfirmed appt in 30h (⚠️ + $ overlap), persona [0] [2] [7] all
+  // have scheduled future visits, persona [5] (lapsed Aiden) just rebooked
+  // → triggers 💤 lapsed-returning glyph, persona [6] (Emma) has an
+  // appointment created 20 minutes ago → triggers 🆕 booked-just-now,
+  // persona [0] (Mia) has a rescheduled appointment → triggers 📅.
   let apptCount = 0
   const dayMs = 24 * 60 * 60 * 1000
   const hourMs = 60 * 60 * 1000
+
+  // Phantom cancelled "from" row for Mia's reschedule — establishes the
+  // audit trail (rescheduledFromAppointmentId points back at this id).
+  const miaOriginalId = newId('appt')
+
   const apptsToSeed: Array<{
+    id: string
     patientIdx: number
     startOffsetMs: number
     type: typeof APPT_TYPES[number]
-    status: 'scheduled' | 'confirmed' | 'completed' | 'no_show'
+    status: 'scheduled' | 'confirmed' | 'completed' | 'no_show' | 'cancelled'
     notes: string | null
+    providerId: string
+    source: 'booking_widget' | 'manual' | 'recall_campaign' | 'phone' | 'invite'
+    confirmedAt?: Date
+    confirmedVia?: 'sms' | 'email' | 'manual' | 'auto_sms_keyword'
+    rescheduledFromAppointmentId?: string
+    cancelledAt?: Date
+    createdAtOverride?: Date
   }> = [
-    // ── Past visits (drive last-visit recency for the list page) ──
-    { patientIdx: 0, startOffsetMs: -60 * dayMs, type: 'cleaning', status: 'completed', notes: null },
-    { patientIdx: 0, startOffsetMs: -240 * dayMs, type: 'checkup', status: 'completed', notes: null },
-    { patientIdx: 2, startOffsetMs: -90 * dayMs, type: 'cleaning', status: 'completed', notes: null },
-    { patientIdx: 3, startOffsetMs: -45 * dayMs, type: 'filling', status: 'completed', notes: 'MOD on #14, 2 carpules lido' },
-    { patientIdx: 5, startOffsetMs: -330 * dayMs, type: 'cleaning', status: 'completed', notes: null }, // 11 mo ago — lapsed
-    { patientIdx: 6, startOffsetMs: -210 * dayMs, type: 'cleaning', status: 'completed', notes: null }, // ~7 mo ago — at_risk
-    { patientIdx: 7, startOffsetMs: -150 * dayMs, type: 'consultation', status: 'completed', notes: null },
-    { patientIdx: 8, startOffsetMs: -30 * dayMs, type: 'cleaning', status: 'no_show', notes: null },
-    // ── Future visits (drive next-visit + glyph triggers) ──
-    { patientIdx: 1, startOffsetMs: 5 * dayMs + 9 * hourMs, type: 'cleaning', status: 'confirmed', notes: 'New patient cleaning' },
-    { patientIdx: 0, startOffsetMs: 14 * dayMs + 10 * hourMs, type: 'cleaning', status: 'scheduled', notes: null },
-    { patientIdx: 2, startOffsetMs: 21 * dayMs + 11 * hourMs, type: 'checkup', status: 'scheduled', notes: null },
-    { patientIdx: 4, startOffsetMs: 22 * hourMs, type: 'cleaning', status: 'confirmed', notes: null }, // tomorrow morning
-    { patientIdx: 3, startOffsetMs: 30 * hourMs, type: 'filling', status: 'scheduled', notes: null }, // ⚠️ unconfirmed-next-48h
-    { patientIdx: 7, startOffsetMs: 9 * dayMs + 14 * hourMs, type: 'cleaning', status: 'confirmed', notes: null },
+    // ── Past visits ──
+    { id: newId('appt'), patientIdx: 0, startOffsetMs: -60 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 0, startOffsetMs: -240 * dayMs, type: 'checkup', status: 'completed', notes: null, providerId: providerDentistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 2, startOffsetMs: -90 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 3, startOffsetMs: -45 * dayMs, type: 'filling', status: 'completed', notes: 'MOD on #14, 2 carpules lido', providerId: providerDentistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 5, startOffsetMs: -330 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 6, startOffsetMs: -210 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 7, startOffsetMs: -150 * dayMs, type: 'consultation', status: 'completed', notes: null, providerId: providerDentistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 8, startOffsetMs: -30 * dayMs, type: 'cleaning', status: 'no_show', notes: null, providerId: providerHygienistId, source: 'manual' },
+    // Phantom cancelled "from" row — original time Mia was booked before reschedule.
+    { id: miaOriginalId, patientIdx: 0, startOffsetMs: 7 * dayMs + 10 * hourMs, type: 'cleaning', status: 'cancelled', notes: 'Originally booked here — patient asked to move.', providerId: providerHygienistId, source: 'booking_widget', cancelledAt: new Date(now.getTime() - 2 * dayMs) },
+    // ── Future visits ──
+    { id: newId('appt'), patientIdx: 1, startOffsetMs: 5 * dayMs + 9 * hourMs, type: 'cleaning', status: 'confirmed', notes: 'New patient cleaning', providerId: providerHygienistId, source: 'booking_widget', confirmedAt: new Date(now.getTime() - 1 * dayMs), confirmedVia: 'email' },
+    { id: newId('appt'), patientIdx: 0, startOffsetMs: 14 * dayMs + 10 * hourMs, type: 'cleaning', status: 'scheduled', notes: 'Rescheduled from earlier slot', providerId: providerHygienistId, source: 'manual', rescheduledFromAppointmentId: miaOriginalId },
+    { id: newId('appt'), patientIdx: 2, startOffsetMs: 21 * dayMs + 11 * hourMs, type: 'checkup', status: 'scheduled', notes: null, providerId: providerDentistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 4, startOffsetMs: 22 * hourMs, type: 'cleaning', status: 'confirmed', notes: null, providerId: providerHygienistId, source: 'booking_widget', confirmedAt: new Date(now.getTime() - 4 * hourMs), confirmedVia: 'sms' },
+    { id: newId('appt'), patientIdx: 3, startOffsetMs: 30 * hourMs, type: 'filling', status: 'scheduled', notes: 'Patient called to ask about pre-auth status', providerId: providerDentistId, source: 'phone' },
+    { id: newId('appt'), patientIdx: 7, startOffsetMs: 9 * dayMs + 14 * hourMs, type: 'cleaning', status: 'confirmed', notes: null, providerId: providerHygienistId, source: 'manual', confirmedAt: new Date(now.getTime() - 12 * hourMs), confirmedVia: 'manual' },
+    // 💤 lapsed-returning — Aiden (persona 5) just rebooked after 11 months
+    { id: newId('appt'), patientIdx: 5, startOffsetMs: 3 * dayMs + 13 * hourMs, type: 'cleaning', status: 'scheduled', notes: 'Welcome back! First visit in almost a year.', providerId: providerHygienistId, source: 'recall_campaign' },
+    // 🆕 booked-just-now — Emma (persona 6) booked 20 min ago
+    { id: newId('appt'), patientIdx: 6, startOffsetMs: 11 * dayMs + 15 * hourMs, type: 'consultation', status: 'scheduled', notes: null, providerId: providerDentistId, source: 'booking_widget', createdAtOverride: new Date(now.getTime() - 20 * 60 * 1000) },
   ]
   for (const a of apptsToSeed) {
     const start = new Date(now.getTime() + a.startOffsetMs)
     const end = new Date(start.getTime() + 45 * 60 * 1000)
     await db.insert(schema.appointment).values({
-      id: newId('appt'),
+      id: a.id,
       organizationId: orgId,
       patientId: patientIds[a.patientIdx],
       locationId,
+      providerId: a.providerId,
       title: `${a.type.replace('_', ' ')} — ${personas[a.patientIdx].firstName} ${personas[a.patientIdx].lastName}`,
       startTime: start,
       endTime: end,
       type: a.type,
       status: a.status,
       notes: a.notes,
+      source: a.source,
+      confirmedAt: a.confirmedAt ?? null,
+      confirmedVia: a.confirmedVia ?? null,
+      cancelledAt: a.cancelledAt ?? null,
+      rescheduledFromAppointmentId: a.rescheduledFromAppointmentId ?? null,
+      ...(a.createdAtOverride ? { createdAt: a.createdAtOverride } : {}),
     })
     apptCount++
+  }
+
+  // Reminder log — gives the drawer's "Reminder activity" stripe real
+  // rows + triggers the ⏱ "reminder sent recently" glyph on a couple of
+  // futures. Patterns:
+  //  - Sophia [4] (confirmed in 22h): email sent 6h ago, patient replied
+  //  - Mia [0]   (scheduled 14d out): email sent 5 days ago (no ⏱)
+  //  - Liam [1]  (confirmed 5d out): email sent 6h ago (⏱), no reply yet
+  //  - Marcus [3] (scheduled 30h out): email sent 90 min ago (⏱), no reply
+  const apptByIdx = (idx: number, when: 'future' | 'past' = 'future') => {
+    const matches = apptsToSeed.filter((a) => a.patientIdx === idx && (when === 'future' ? a.startOffsetMs > 0 : a.startOffsetMs <= 0))
+    return matches[0]?.id
+  }
+  const reminderSeeds: Array<{
+    apptId: string | undefined
+    minutesAgo: number
+    channel: 'sms' | 'email'
+    repliedMinutesAgo?: number
+    replyBody?: string
+  }> = [
+    { apptId: apptByIdx(4), minutesAgo: 6 * 60, channel: 'email', repliedMinutesAgo: 5 * 60 + 50, replyBody: 'Confirmed, see you then.' },
+    { apptId: apptByIdx(0), minutesAgo: 5 * 24 * 60, channel: 'email' },
+    { apptId: apptByIdx(1), minutesAgo: 6 * 60, channel: 'email' },
+    { apptId: apptByIdx(3), minutesAgo: 90, channel: 'email' },
+  ]
+  for (const r of reminderSeeds) {
+    if (!r.apptId) continue
+    await db.insert(schema.appointmentReminderLog).values({
+      id: newId('rem'),
+      organizationId: orgId,
+      appointmentId: r.apptId,
+      channel: r.channel,
+      template: 'default_reminder',
+      sentAt: new Date(now.getTime() - r.minutesAgo * 60 * 1000),
+      repliedAt: r.repliedMinutesAgo ? new Date(now.getTime() - r.repliedMinutesAgo * 60 * 1000) : null,
+      replyBody: r.replyBody ?? null,
+    })
   }
 
   // A couple of tasks to populate the Tasks board

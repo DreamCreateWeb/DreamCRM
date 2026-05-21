@@ -71,7 +71,8 @@ describe('PatientDetail header', () => {
   it('renders the primary CTA buttons in the header', () => {
     render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} />)
     expect(screen.getByRole('link', { name: /Send message/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Book appointment/i })).toBeInTheDocument()
+    // "Book appointment" now opens an in-place drawer (not a navigation link)
+    expect(screen.getByRole('button', { name: /Book appointment/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Send intake/i })).toBeInTheDocument()
   })
 
