@@ -21,6 +21,17 @@ const STATUS_PILL: Record<string, string> = {
   paused: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
 }
 
+/** User-facing label for the send channel. Hides vendor names (Resend) +
+ * surfaces the deliverability story instead (Email vs. From your Gmail). */
+function channelLabel(channel: string): string {
+  switch (channel) {
+    case 'resend': return 'Email (branded)'
+    case 'gmail': return 'From your Gmail'
+    case 'twilio_sms': return 'SMS'
+    default: return channel
+  }
+}
+
 export default async function CampaignsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
@@ -95,8 +106,8 @@ export default async function CampaignsPage() {
                       {c.status}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400 capitalize">
-                    {c.sendChannel}
+                  <td className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400">
+                    {channelLabel(c.sendChannel)}
                   </td>
                   <td className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums">
                     {c.sentAt ? formatRelativeDate(c.sentAt) : '—'}

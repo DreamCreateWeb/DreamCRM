@@ -11,6 +11,7 @@ import {
 import { listCampaigns } from '@/lib/services/campaigns'
 import { getSubscriptionStats } from '@/lib/services/projects'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
+import ClinicRecallDashboard from './clinic-recall-dashboard'
 
 export const metadata = {
   title: 'Marketing - DreamCRM',
@@ -23,6 +24,20 @@ export default async function MarketingDashboard() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
+  // Clinic tenants get a research-backed recall dashboard (morning-huddle
+  // pattern matching /dashboard). Platform tenants keep the SaaS pipeline
+  // funnel — the same data layer powers both, but the surfaces are wildly
+  // different by design.
+  if (ctx.tenantType === 'clinic') {
+    return <ClinicRecallDashboard ctx={ctx} />
+  }
+
+  return <PlatformMarketingDashboard ctx={ctx} />
+}
+
+// ── Platform tenant: SaaS pipeline funnel (unchanged behavior) ──────
+
+async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typeof requireTenant>> }) {
   const t = marketingTerminology(ctx.tenantType)
   const stageKeys = t.stages.map((s) => s.key)
 
@@ -54,9 +69,7 @@ export default async function MarketingDashboard() {
             {t.moduleTitle}
           </h1>
           <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-            {ctx.tenantType === 'platform'
-              ? 'Track prospects, run campaigns, grow the platform.'
-              : 'Bring patients back and stay top-of-mind.'}
+            Track prospects, run campaigns, grow the platform.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -81,7 +94,6 @@ export default async function MarketingDashboard() {
         </div>
       </div>
 
-      {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Kpi
           label={`Open ${t.leads}`}
@@ -93,11 +105,7 @@ export default async function MarketingDashboard() {
           value={formatNumberShort(wonCount)}
           hint="All-time"
         />
-        <Kpi
-          label="Audiences"
-          value={formatNumberShort(audiences.length)}
-          hint="Saved segments"
-        />
+        <Kpi label="Audiences" value={formatNumberShort(audiences.length)} hint="Saved segments" />
         <Kpi
           label={ctx.tenantType === 'platform' ? 'MRR' : 'Campaigns'}
           value={
@@ -109,7 +117,6 @@ export default async function MarketingDashboard() {
         />
       </div>
 
-      {/* Funnel */}
       <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Funnel</h2>
@@ -124,7 +131,6 @@ export default async function MarketingDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Recent activity */}
         <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
           <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 mb-3">
             Recent activity
@@ -162,12 +168,9 @@ export default async function MarketingDashboard() {
           )}
         </div>
 
-        {/* Audiences quick list */}
         <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
-              Audiences
-            </h2>
+            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Audiences</h2>
             <Link
               href="/marketing/audiences"
               className="text-[11px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
@@ -200,23 +203,13 @@ export default async function MarketingDashboard() {
   )
 }
 
-function Kpi({
-  label,
-  value,
-  hint,
-}: {
-  label: string
-  value: string | number
-  hint?: string
-}) {
+function Kpi({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 px-4 py-3">
       <p className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
         {label}
       </p>
-      <p className="text-xl font-bold text-stone-900 dark:text-stone-100 mt-0.5 tabular-nums">
-        {value}
-      </p>
+      <p className="text-xl font-bold text-stone-900 dark:text-stone-100 mt-0.5 tabular-nums">{value}</p>
       {hint && <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">{hint}</p>}
     </div>
   )
