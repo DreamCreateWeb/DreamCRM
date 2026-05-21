@@ -45,10 +45,10 @@ export default async function RevenuePage() {
             Invoices
           </Link>
           <Link
-            href="/orders"
+            href="/ecommerce/orders"
             className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
           >
-            Treatment Plans
+            Product Orders
           </Link>
         </div>
       </div>

@@ -308,7 +308,7 @@ on dental-correct schema. Placeholder = "Coming soon" UI only.
 | Revenue | `/dashboard/fintech` | Stub | Per-user fintech demo, not real clinic revenue |
 | Patients | `/patients` | **Live (v1)** | Dental `patient` table. List with glyph cluster + filter chips + fuzzy search + bulk email; detail page with identity rail + unified timeline (appointments + messages + forms + invoices + notes) + needs-attention panel + relationship notes (append-only `patient_note` table) |
 | Appointments | `/appointments` | **Live (v1)** | Dental `appointment` table. Agenda-list default grouped by day, glyph cluster (★/🎂/$/📝!/⚠️/💤/🆕/📅/⏱/🔕), aging-color left border (T-72h neutral → T-12h red until confirmed), filter chips (date window + needs-attention + staff), side drawer for confirm / reschedule / cancel / mark no-show / send reminder, bulk reminder send. "Book appointment" from patient detail opens an in-place drawer. `/calendar` 308s to `/appointments` for clinic tenants (platform org keeps the generic FullCalendar) |
-| Treatment Plans | `/orders` | Stub | Currently on generic `orders` table — mis-labeled per DESIGN.md (we don't do clinical treatment plans yet; this is product orders) |
+| Product Orders | `/ecommerce/orders` | Stub | Generic Mosaic e-commerce orders module for clinics that sell products on the side (whitening kits etc.). We do NOT manage clinical treatment plans — those stay in the PMS per DESIGN.md |
 | Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
 | Patient Messaging | `/messages` | Live | Conversations, tenant-scoped |
 | Intake Forms | `/intake-forms` | **Live (v1)** | Shipped this session |
@@ -338,22 +338,18 @@ Public clinic surfaces also live:
    for pediatric/family clinics; per-view audit log for Premium tier;
    web-analytics events on the timeline once that lands; patient.source
    backfill for legacy rows that predate the new column (currently null).
-3. **Treatment Plans label is wrong** — sidebar entry `treatment_plans`
-   points to `/orders`. We don't do clinical treatment plans (per
-   DESIGN.md out-of-scope). Rename to "Orders" or "Shop Orders" and
-   reposition.
-4. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL`
+3. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL`
    envs (they currently point to the same monthly prices).
-5. **Patient portal completion** — `/patient/*` exists but bills is
+4. **Patient portal completion** — `/patient/*` exists but bills is
    placeholder; records, messages, intake-fill, refill-request marked
    'soon' in the patient sidebar.
-6. **Coming-soon Overview cards become real modules** —
+5. **Coming-soon Overview cards become real modules** —
    - Reviews & reputation (post-visit Google/Yelp prompts)
    - SMS replies (Twilio integration, two-way)
    - Website leads (contact form submissions need to land in a `lead`
      table — currently the contact form just fires an email and
      forgets the submission)
-7. **Migration 0004 + Gmail push env vars need applying to prod** —
+6. **Migration 0004 + Gmail push env vars need applying to prod** —
    bootstrap-apply `0004_lowly_microbe.sql` (adds `watch_expires_at`),
    then set Vercel env vars:
    `GMAIL_PUBSUB_TOPIC=projects/dreamcrm-496717/topics/gmail-watch`,
