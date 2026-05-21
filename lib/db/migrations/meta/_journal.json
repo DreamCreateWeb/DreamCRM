@@ -134,6 +134,13 @@
       "when": 1779310814189,
       "tag": "0018_add_patient_lifecycle_and_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779325946561,
+      "tag": "0019_appointments_audit_provider_reminder",
+      "breakpoints": true
     }
   ]
 }
