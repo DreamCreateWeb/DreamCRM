@@ -529,6 +529,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       existingCampaignsByName,
     )
 
+    // Patient Communications self-heal: top up to the seeded thread set.
+    // Additive + idempotent — checks existing thread patient ids before
+    // inserting.
+    const existingThreadRows = await db
+      .select({ patientId: schema.patientThread.patientId })
+      .from(schema.patientThread)
+      .where(eq(schema.patientThread.organizationId, existing.id))
+    const existingThreadPatientIds = new Set(existingThreadRows.map((r) => r.patientId))
+    await seedPatientMessagesForOrg(existing.id, new Date(), existingPatientIds, existingThreadPatientIds)
+
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -1027,6 +1037,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // recall_campaign booking back to itself via a 'booked' event.
   await seedRecallOutreachForOrg(orgId, now, patientIds, new Map(), new Map())
 
+  // ── Patient Communications — threads + messages ─────────────────────
+  // Seeded after patients so threads can be tied to the right persona.
+  // Mix of in-app + email messages, mix of inbound/outbound, one snoozed
+  // thread, one with high unread count for the red-rot border state.
+  await seedPatientMessagesForOrg(orgId, now, patientIds, new Set())
+
   return {
     organizationId: orgId,
     organizationSlug: slug,
@@ -1417,4 +1433,149 @@ async function seedRecallOutreachForOrg(
   }
 
   return { audiencesAdded, campaignsAdded, eventsAdded }
+}
+
+/**
+ * Seed Patient Communications (Phase A) demo content. Lays down 5 patient
+ * threads with mixed in-app + email channel messages covering every
+ * thread-state combination: open with unread (red rot), open without
+ * unread, snoozed, archived, and one with no unread (the happy path).
+ *
+ * Idempotency: checks existing thread patient ids per org; only inserts
+ * threads for patients that don't already have one. Each newly-seeded
+ * thread gets a curated message sequence. Re-running on a topped-up demo
+ * doesn't duplicate.
+ *
+ * Used by both the new-clinic-seed path AND the self-heal path on legacy
+ * demos.
+ */
+async function seedPatientMessagesForOrg(
+  orgId: string,
+  now: Date,
+  patientIds: string[],
+  existingThreadPatientIds: Set<string>,
+): Promise<{ threadsAdded: number; messagesAdded: number }> {
+  const hourMs = 60 * 60 * 1000
+
+  // Reference personas (index-aligned to demo-clinic.ts buildPatientPersonas):
+  //   [0] Mia Hayes      — happy-path, closed-loop appointment scheduling
+  //   [3] Marcus Johnson — outstanding balance, unconfirmed appt (red rot)
+  //   [4] Sophia Iverson — confirmed appt in 22h, closed exchange
+  //   [5] Aiden Kim      — lapsed-returning, snoozed thread
+  //   [6] Emma Lopez     — fresh-booked, single inbound email (open)
+  interface SeedThread {
+    patientIdx: number
+    status: 'open' | 'snoozed' | 'archived'
+    snoozedInHours?: number
+    messages: Array<{
+      direction: 'inbound' | 'outbound'
+      channel: 'in_app' | 'email'
+      body: string
+      hoursAgo: number
+    }>
+  }
+  const THREAD_SEEDS: SeedThread[] = [
+    // Mia — happy path, recently confirmed, closed
+    {
+      patientIdx: 0,
+      status: 'open',
+      messages: [
+        { direction: 'outbound', channel: 'email', body: 'Hi Mia — just confirming your cleaning has been moved to next week per our chat. New time is on the calendar. Let us know if anything changes. — The team', hoursAgo: 72 },
+        { direction: 'inbound', channel: 'email', body: 'Perfect, thank you! That works much better for me. See you then.', hoursAgo: 71 },
+        { direction: 'outbound', channel: 'in_app', body: 'Got it. We\'ll send a reminder the day before.', hoursAgo: 70 },
+      ],
+    },
+    // Marcus — RED ROT: inbound 3 days ago, no reply
+    {
+      patientIdx: 3,
+      status: 'open',
+      messages: [
+        { direction: 'outbound', channel: 'in_app', body: 'Hi Marcus, your filling appointment is coming up. We\'ll see you Tuesday at 10am.', hoursAgo: 96 },
+        { direction: 'inbound', channel: 'in_app', body: 'Hey, quick question about insurance pre-auth — did the request go through? My HR rep said she hadn\'t seen anything yet.', hoursAgo: 75 },
+        { direction: 'inbound', channel: 'in_app', body: 'Also can I bring my partner along for the consultation? She had some questions about her own treatment.', hoursAgo: 74 },
+      ],
+    },
+    // Sophia — confirmed appointment, recently closed
+    {
+      patientIdx: 4,
+      status: 'open',
+      messages: [
+        { direction: 'outbound', channel: 'in_app', body: 'Hi Sophia — confirming your cleaning tomorrow at 3pm with Maria. Reply YES to confirm or let us know if you need to reschedule.', hoursAgo: 6 },
+        { direction: 'inbound', channel: 'in_app', body: 'Yes! See you tomorrow.', hoursAgo: 4 },
+      ],
+    },
+    // Aiden — snoozed (post-rebooking, will resurface tomorrow)
+    {
+      patientIdx: 5,
+      status: 'snoozed',
+      snoozedInHours: 24,
+      messages: [
+        { direction: 'outbound', channel: 'email', body: 'Hi Aiden — so glad you\'re coming back in! Your appointment Wednesday at 1pm is on the books. A few first-visit-back things to know: please arrive 10 minutes early to update your medical history, and we\'ll do a quick exam alongside the cleaning since it\'s been a while.', hoursAgo: 18 },
+        { direction: 'inbound', channel: 'email', body: 'Thanks, see you Wednesday!', hoursAgo: 14 },
+      ],
+    },
+    // Emma — AMBER ROT: inbound this morning, no reply yet (high-priority unread)
+    {
+      patientIdx: 6,
+      status: 'open',
+      messages: [
+        { direction: 'inbound', channel: 'email', body: 'Hi! Quick question — I booked through your website for next week but I forgot to mention I have a temporary crown on a back molar that\'s been bothering me. Could we look at that during the consult, or do I need a separate appointment?', hoursAgo: 16 },
+      ],
+    },
+  ]
+
+  let threadsAdded = 0
+  let messagesAdded = 0
+
+  for (const seed of THREAD_SEEDS) {
+    if (seed.patientIdx >= patientIds.length) continue
+    const patientId = patientIds[seed.patientIdx]
+    if (existingThreadPatientIds.has(patientId)) continue
+
+    const threadId = newId('pthread')
+    const sortedMessages = [...seed.messages].sort((a, b) => b.hoursAgo - a.hoursAgo)
+    const lastMessage = sortedMessages[sortedMessages.length - 1]
+    const inboundAfterLastOutbound = (() => {
+      // Count inbound messages that came after the last outbound (the unread
+      // count). Mirrors the real recordInboundMessage behavior.
+      let count = 0
+      for (let i = sortedMessages.length - 1; i >= 0; i--) {
+        if (sortedMessages[i].direction === 'inbound') count++
+        else break
+      }
+      return count
+    })()
+
+    await db.insert(schema.patientThread).values({
+      id: threadId,
+      organizationId: orgId,
+      patientId,
+      status: seed.status,
+      snoozedUntil: seed.snoozedInHours ? new Date(now.getTime() + seed.snoozedInHours * hourMs) : null,
+      lastMessageAt: new Date(now.getTime() - lastMessage.hoursAgo * hourMs),
+      lastMessageDirection: lastMessage.direction,
+      lastMessageChannel: lastMessage.channel,
+      unreadCountForClinic: inboundAfterLastOutbound,
+      createdAt: new Date(now.getTime() - sortedMessages[0].hoursAgo * hourMs),
+      updatedAt: new Date(now.getTime() - lastMessage.hoursAgo * hourMs),
+    })
+    threadsAdded++
+
+    for (const m of sortedMessages) {
+      await db.insert(schema.patientMessage).values({
+        id: newId('pmsg'),
+        threadId,
+        organizationId: orgId,
+        patientId,
+        channel: m.channel,
+        direction: m.direction,
+        body: m.body,
+        sentByUserId: null, // demo seeder doesn't tie to a specific staff user
+        sentAt: new Date(now.getTime() - m.hoursAgo * hourMs),
+      })
+      messagesAdded++
+    }
+  }
+
+  return { threadsAdded, messagesAdded }
 }
