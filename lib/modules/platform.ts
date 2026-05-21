@@ -19,6 +19,9 @@ export const platformModules: ModuleRegistry = {
     { id: 'tasks',            path: '/tasks/kanban',        label: 'Tasks',            section: 'Pages', icon: 'check',    status: 'live' },
     { id: 'campaigns',        path: '/marketing',           label: 'Marketing',        section: 'Pages', icon: 'megaphone',status: 'live' },
     { id: 'settings',         path: '/settings/account',    label: 'Settings',         section: 'Settings', icon: 'gear', status: 'live' },
-    { id: 'developer',        path: '/developer',           label: 'Developer',         section: 'Settings', icon: 'code', status: 'live' },
+    // 'Developer' is a placeholder slot for a future API-keys + webhooks
+    // management page. Marked `soon` so the sidebar shows it dimmed
+    // instead of routing to a 404 (no `/developer` page exists yet).
+    { id: 'developer',        path: '/developer',           label: 'Developer',         section: 'Settings', icon: 'code', status: 'soon' },
   ],
 }
