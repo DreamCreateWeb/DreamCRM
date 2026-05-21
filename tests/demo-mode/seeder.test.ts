@@ -117,8 +117,17 @@ describe('createDemoClinic', () => {
     // Appointments-module self-heal: provider present, reminder log present
     state.selectQueue.push([{ id: 'prov_existing' }])
     state.selectQueue.push([{ id: 'rem_existing' }])
-    // Leads self-heal: lead already present
-    state.selectQueue.push([{ id: 'lead_existing' }])
+    // Leads self-heal: all 6 curated leads already present → nothing to top up
+    state.selectQueue.push([
+      { name: 'Olivia Chen' },
+      { name: 'Daniel Park' },
+      { name: 'Rachel Williams' },
+      { name: 'Marcus Johnson' },
+      { name: 'Emma Lopez' },
+      { name: 'aaaaa zzzzzz' },
+    ])
+    // Emma Lopez patient lookup (for convert pointer)
+    state.selectQueue.push([{ id: 'pat_emma' }])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 
@@ -143,8 +152,16 @@ describe('createDemoClinic', () => {
     // Appointments self-heal: provider present, reminder present → skip
     state.selectQueue.push([{ id: 'prov_existing' }])
     state.selectQueue.push([{ id: 'rem_existing' }])
-    // Leads self-heal: lead already present → skip
-    state.selectQueue.push([{ id: 'lead_existing' }])
+    // Leads self-heal: all 6 already present → no-op
+    state.selectQueue.push([
+      { name: 'Olivia Chen' },
+      { name: 'Daniel Park' },
+      { name: 'Rachel Williams' },
+      { name: 'Marcus Johnson' },
+      { name: 'Emma Lopez' },
+      { name: 'aaaaa zzzzzz' },
+    ])
+    state.selectQueue.push([{ id: 'pat_emma' }]) // Emma patient lookup
     state.selectQueue.push([]) // patients count
     state.selectQueue.push([]) // appointments count
 
@@ -194,8 +211,9 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([]) // no clinic_provider yet
     state.selectQueue.push([]) // no reminder log yet
     state.selectQueue.push([{ id: 'appt_future_a' }]) // future appointment lookup for reminder
-    // Leads self-heal: no leads yet → seeds 3 sample leads
-    state.selectQueue.push([])
+    // Leads self-heal: no leads yet → tops up to all 6
+    state.selectQueue.push([]) // existingLeads (none)
+    state.selectQueue.push([{ id: 'pat_emma' }]) // Emma patient lookup for convert pointer
     state.selectQueue.push([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) // patient count
     state.selectQueue.push([{ id: 'a1' }]) // appointment count
 
@@ -205,8 +223,9 @@ describe('createDemoClinic', () => {
     expect(counts.form_submission).toBe(3)
     expect(counts.clinic_provider).toBe(2)
     expect(counts.appointment_reminder_log).toBe(1)
-    // Leads self-heal: 3 sample leads inserted (1 fresh new, 1 aging new, 1 archived)
-    expect(counts.lead).toBe(3)
+    // Leads self-heal: all 6 curated leads inserted (top-up from zero) so
+    // legacy demos showcase the full /leads view + every lifecycle state.
+    expect(counts.lead).toBe(6)
     // Provider-backfill self-heal: two appointment updates fire — one to
     // attach cleanings to the hygienist + one for everything else to the
     // dentist.
@@ -373,5 +392,94 @@ describe('createDemoClinic', () => {
     const subInserts = state.inserts.filter((i) => i.table === 'form_submission')
     expect(noteInserts).toHaveLength(5)
     expect(subInserts).toHaveLength(5)
+  })
+
+  it('seeds all 6 curated leads with Emma-Lopez convert pointer on the new-clinic path', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'tmpl' }])
+    await createDemoClinic()
+    const leadInserts = state.inserts.filter((i) => i.table === 'lead')
+    expect(leadInserts).toHaveLength(6)
+    const names = leadInserts.map((i) => (i.values as { name: string }).name)
+    expect(names).toEqual(
+      expect.arrayContaining(['Olivia Chen', 'Daniel Park', 'Rachel Williams', 'Marcus Johnson', 'Emma Lopez', 'aaaaa zzzzzz']),
+    )
+    // The converted Emma Lopez lead points back at her seeded patient row.
+    const emmaLead = leadInserts.find((i) => (i.values as { name: string }).name === 'Emma Lopez')!
+    expect((emmaLead.values as { status: string }).status).toBe('converted')
+    expect((emmaLead.values as { convertedToPatientId: string | null }).convertedToPatientId).toBeTruthy()
+  })
+
+  it('self-heal lead pump is additive — tops up to 6 when some are already present', async () => {
+    // Existing demo: 3 leads already seeded under the old (sparse) self-heal.
+    // New self-heal should only insert the 3 missing ones, not duplicate.
+    state.selectQueue.push([
+      { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
+    ])
+    state.selectQueue.push([
+      {
+        brandColor: '#9CAF9F',
+        stats: [{ id: 's', value: 'X', label: 'y' }],
+        testimonials: [{ id: 't', quote: 'q' }],
+        officePhotos: [{ id: 'o', url: 'u' }],
+      },
+    ])
+    state.selectQueue.push([{ id: 'form_existing' }])
+    state.selectQueue.push([]) // existing patients (none) → notes/submissions skipped
+    state.selectQueue.push([{ id: 'prov_existing' }]) // provider present → skip
+    state.selectQueue.push([{ id: 'rem_existing' }]) // reminder present → skip
+    // Leads: 3 of the 6 already exist (Olivia, Daniel, spam test from the
+    // prior self-heal). Top-up should add 3 more (Rachel, Marcus, Emma).
+    state.selectQueue.push([
+      { name: 'Olivia Chen' },
+      { name: 'Daniel Park' },
+      { name: 'aaaaa zzzzzz' },
+    ])
+    state.selectQueue.push([{ id: 'pat_emma' }]) // Emma patient lookup
+    state.selectQueue.push([]) // patient count
+    state.selectQueue.push([]) // appointment count
+
+    await createDemoClinic()
+    const leadInserts = state.inserts.filter((i) => i.table === 'lead')
+    expect(leadInserts).toHaveLength(3)
+    const names = leadInserts.map((i) => (i.values as { name: string }).name)
+    expect(names).toEqual(expect.arrayContaining(['Rachel Williams', 'Marcus Johnson', 'Emma Lopez']))
+    // Inserted Emma still points at the looked-up patient row.
+    const emmaLead = leadInserts.find((i) => (i.values as { name: string }).name === 'Emma Lopez')!
+    expect((emmaLead.values as { convertedToPatientId: string | null }).convertedToPatientId).toBe('pat_emma')
+  })
+
+  it('self-heal lead pump leaves Emma convert pointer null when Emma patient is missing', async () => {
+    // Legacy demo without the Emma persona (predates seed expansion) →
+    // Emma lookup returns []. Lead still seeds, just with null pointer.
+    state.selectQueue.push([
+      { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
+    ])
+    state.selectQueue.push([
+      {
+        brandColor: '#9CAF9F',
+        stats: [{ id: 's', value: 'X', label: 'y' }],
+        testimonials: [{ id: 't', quote: 'q' }],
+        officePhotos: [{ id: 'o', url: 'u' }],
+      },
+    ])
+    state.selectQueue.push([{ id: 'form_existing' }])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'prov_existing' }])
+    state.selectQueue.push([{ id: 'rem_existing' }])
+    state.selectQueue.push([]) // existingLeads (none)
+    state.selectQueue.push([]) // Emma patient lookup — NOT FOUND
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+
+    await createDemoClinic()
+    const leadInserts = state.inserts.filter((i) => i.table === 'lead')
+    expect(leadInserts).toHaveLength(6)
+    const emmaLead = leadInserts.find((i) => (i.values as { name: string }).name === 'Emma Lopez')!
+    // Status still 'converted' but pointer is null since Emma patient
+    // doesn't exist on this org.
+    expect((emmaLead.values as { status: string }).status).toBe('converted')
+    expect((emmaLead.values as { convertedToPatientId: string | null }).convertedToPatientId).toBeNull()
   })
 })
