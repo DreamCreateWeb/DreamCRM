@@ -58,7 +58,7 @@ export const clinicModules: ModuleRegistry = {
 
     // ── Growth ─────────────────────────────────────────────────────────
     { id: 'recall',            path: '/marketing',         label: 'Recall & Outreach',section: 'Growth',   icon: 'megaphone',status: 'live', minPlan: 'premium' },
-    { id: 'reviews',           path: '/reviews',           label: 'Reviews',          section: 'Growth',   icon: 'star',     status: 'soon', minPlan: 'pro' },
+    { id: 'reviews',           path: '/reviews',           label: 'Reviews',          section: 'Growth',   icon: 'star',     status: 'live', minPlan: 'pro' },
     { id: 'analytics',         path: '/analytics',         label: 'Analytics',        section: 'Growth',   icon: 'chart',    status: 'soon', minPlan: 'premium' },
 
     // ── Website (the trunk) ────────────────────────────────────────────

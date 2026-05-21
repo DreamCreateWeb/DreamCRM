@@ -156,6 +156,11 @@ describe('createDemoClinic', () => {
     // Returns 'pat_existing_1' so the seed for persona [0] skips (no
     // thread insert), keeping this test's state.inserts === 0 assertion.
     state.selectQueue.push([{ patientId: 'pat_existing_1' }])
+    // Reviews self-heal: pretend config exists + seed has already been
+    // run for pat_existing_1 so the seed loop short-circuits with 0
+    // inserts.
+    state.selectQueue.push([{ id: 'org_existing' }]) // existingReviewConfigRows
+    state.selectQueue.push([{ patientId: 'pat_existing_1' }]) // existingReviewRequestRows
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 
@@ -205,6 +210,13 @@ describe('createDemoClinic', () => {
     // no existing patients in this test (line 175) the seed loop short-
     // circuits and no threads/messages are inserted either.
     state.selectQueue.push([]) // existingThreadRows
+    // Reviews self-heal: no config, no existing requests. With empty
+    // existingPatientIds (line 175) the seed loop short-circuits before
+    // it hits patientIds[0], so no inserts even though config gets
+    // created (only affects this test if assertions check inserts —
+    // they don't beyond the update array).
+    state.selectQueue.push([]) // existingReviewConfigRows
+    state.selectQueue.push([]) // existingReviewRequestRows
     state.selectQueue.push([]) // patients count
     state.selectQueue.push([]) // appointments count
 
@@ -278,6 +290,11 @@ describe('createDemoClinic', () => {
     // messages — doesn't affect the assertions below (which only check
     // patient_note / form_submission / clinic_provider / etc.).
     state.selectQueue.push([]) // existingThreadRows
+    // Reviews self-heal: no config, no requests; the seed inserts a
+    // config + one request for pat_a (the only persona in patientIds
+    // that matches REVIEW_SEEDS indices). Doesn't affect assertions.
+    state.selectQueue.push([]) // existingReviewConfigRows
+    state.selectQueue.push([]) // existingReviewRequestRows
     state.selectQueue.push([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) // patient count
     state.selectQueue.push([{ id: 'a1' }]) // appointment count
 

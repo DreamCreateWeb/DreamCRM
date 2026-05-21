@@ -539,6 +539,24 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     const existingThreadPatientIds = new Set(existingThreadRows.map((r) => r.patientId))
     await seedPatientMessagesForOrg(existing.id, new Date(), existingPatientIds, existingThreadPatientIds)
 
+    // Reviews self-heal: top up config + review requests for legacy demos.
+    const existingReviewConfigRows = await db
+      .select({ id: schema.clinicReviewConfig.organizationId })
+      .from(schema.clinicReviewConfig)
+      .where(eq(schema.clinicReviewConfig.organizationId, existing.id))
+    const existingReviewRequestRows = await db
+      .select({ patientId: schema.reviewRequest.patientId })
+      .from(schema.reviewRequest)
+      .where(eq(schema.reviewRequest.organizationId, existing.id))
+    const existingReviewPatients = new Set(existingReviewRequestRows.map((r) => r.patientId))
+    await seedReviewsForOrg(
+      existing.id,
+      new Date(),
+      existingPatientIds,
+      existingReviewConfigRows.length > 0,
+      existingReviewPatients,
+    )
+
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -1042,6 +1060,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Mix of in-app + email messages, mix of inbound/outbound, one snoozed
   // thread, one with high unread count for the red-rot border state.
   await seedPatientMessagesForOrg(orgId, now, patientIds, new Set())
+
+  // ── Reviews & Reputation — config + review requests ─────────────────
+  // Seeded after patients + appointments so requests can be tied to
+  // real completed visits. Mix of funnel states so the dashboard shows
+  // every status pill + the per-platform breakdown.
+  await seedReviewsForOrg(orgId, now, patientIds, false, new Set())
 
   return {
     organizationId: orgId,
@@ -1578,4 +1602,100 @@ async function seedPatientMessagesForOrg(
   }
 
   return { threadsAdded, messagesAdded }
+}
+
+/**
+ * Seed Reviews & Reputation demo content. Lays down the clinic review
+ * config (Google Place ID + Healthgrades URL) and a curated set of
+ * review_request rows covering every funnel state. Idempotent —
+ * checks existing config and patient ids before inserting.
+ */
+async function seedReviewsForOrg(
+  orgId: string,
+  now: Date,
+  patientIds: string[],
+  configExists: boolean,
+  existingPatientRequestIds: Set<string>,
+): Promise<{ configAdded: boolean; requestsAdded: number }> {
+  const dayMs = 24 * 60 * 60 * 1000
+  let configAdded = false
+  let requestsAdded = 0
+
+  // Seed config (Acme Dental's "Google Place ID" — visibly fake but
+  // well-formed, so the public landing page renders the right URL even
+  // though the deep link won't resolve in dev).
+  if (!configExists) {
+    await db.insert(schema.clinicReviewConfig).values({
+      organizationId: orgId,
+      googlePlaceId: 'ChIJDemo000000000_AcmeDental',
+      healthgradesUrl: 'https://www.healthgrades.com/dental-practice/acme-dental-demo',
+      facebookPageId: 'acme-dental-demo',
+      yelpBusinessSlug: null, // opt-in only; Acme keeps it off
+      minDaysBetweenRequests: 365,
+      npsEnabled: 0,
+      autoSendEnabled: 0,
+      autoSendDelayHours: 24,
+    })
+    configAdded = true
+  }
+
+  // Curated review_request seeds covering every funnel state.
+  // Index-aligned to demo personas:
+  //   [0] Mia        — completed (picked Google, 5d ago)
+  //   [3] Marcus     — sent + clicked (3d ago) — bouncing back
+  //   [4] Sophia     — sent yesterday, not opened
+  //   [7] Noah       — completed (picked Healthgrades, 12d ago)
+  //   [8] filler     — skipped (staff decided not to ask)
+  //   [9] filler     — failed (email bounced)
+  interface ReviewSeed {
+    patientIdx: number
+    status: 'sent' | 'clicked' | 'completed' | 'skipped' | 'failed'
+    daysAgo: number
+    selectedSite?: 'google' | 'healthgrades' | 'facebook' | 'yelp'
+  }
+  const REVIEW_SEEDS: ReviewSeed[] = [
+    { patientIdx: 0, status: 'completed', daysAgo: 5, selectedSite: 'google' },
+    { patientIdx: 7, status: 'completed', daysAgo: 12, selectedSite: 'healthgrades' },
+    { patientIdx: 3, status: 'clicked', daysAgo: 3 },
+    { patientIdx: 4, status: 'sent', daysAgo: 1 },
+    { patientIdx: 8, status: 'skipped', daysAgo: 7 },
+    { patientIdx: 9, status: 'failed', daysAgo: 4 },
+  ]
+
+  for (const seed of REVIEW_SEEDS) {
+    if (seed.patientIdx >= patientIds.length) continue
+    const patientId = patientIds[seed.patientIdx]
+    if (existingPatientRequestIds.has(patientId)) continue
+
+    const sentAt = seed.status === 'failed'
+      ? null
+      : new Date(now.getTime() - seed.daysAgo * dayMs)
+    const clickedAt = seed.status === 'clicked' || seed.status === 'completed'
+      ? new Date(now.getTime() - (seed.daysAgo - 0.25) * dayMs)
+      : null
+    const completedAt = seed.status === 'completed'
+      ? new Date(now.getTime() - (seed.daysAgo - 0.5) * dayMs)
+      : null
+
+    await db.insert(schema.reviewRequest).values({
+      id: newId('revreq'),
+      organizationId: orgId,
+      patientId,
+      appointmentId: null,
+      requestedByUserId: null,
+      channel: 'email',
+      status: seed.status,
+      sentAt,
+      clickedAt,
+      completedAt,
+      selectedSite: seed.selectedSite ?? null,
+      token: `demo${seed.status.slice(0, 3)}${seed.patientIdx}_${Math.random().toString(36).slice(2, 10)}`,
+      errorMessage: seed.status === 'failed' ? 'Email bounced (demo)' : null,
+      createdAt: new Date(now.getTime() - seed.daysAgo * dayMs),
+      updatedAt: new Date(now.getTime() - seed.daysAgo * dayMs),
+    })
+    requestsAdded++
+  }
+
+  return { configAdded, requestsAdded }
 }
