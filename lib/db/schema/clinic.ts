@@ -380,6 +380,102 @@ export const patientMessage = pgTable(
   ],
 )
 
+// Reviews & Reputation v1 — post-visit review requests.
+//
+// Per-org config (one row per org, keyed on org id). Stores the review-
+// site identifiers + rate limit + Phase 2 NPS toggle. Empty by default;
+// the /reviews dashboard prompts the user to fill it on first visit.
+export const clinicReviewConfig = pgTable('clinic_review_config', {
+  organizationId: text('organization_id').primaryKey().references(() => organization.id, { onDelete: 'cascade' }),
+  // Google: Place ID feeds into the writereview deep link
+  // (https://search.google.com/local/writereview?placeid=<id>).
+  // Per research, Google is ~80% of dental review value; we make it
+  // the primary platform on the public landing page.
+  googlePlaceId: text('google_place_id'),
+  // Healthgrades: the dental-specific review platform. Higher signal
+  // than Facebook for healthcare reputation; ranks well in dentist
+  // search SERPs. URL slug from the practice's Healthgrades page.
+  healthgradesUrl: text('healthgrades_url'),
+  // Facebook: still relevant for older / family-clinic demographics.
+  facebookPageId: text('facebook_page_id'),
+  // Yelp: stored for orgs that explicitly want it, but DELIBERATELY
+  // OMITTED from the default landing page — Yelp filters solicited
+  // reviews into a hidden "not recommended" bucket, so prompts hurt
+  // more than they help (industry consensus: Birdeye / Weave / Swell
+  // all exclude Yelp from their auto-routers). Only surfaced when the
+  // clinic manually adds the slug.
+  yelpBusinessSlug: text('yelp_business_slug'),
+  // Minimum days between two requests to the same patient. Default 365
+  // (one year) matches NiceJob's 6-month lockout dialed conservative
+  // for dental — most patients see the dentist once or twice a year and
+  // re-asking within the same year reads as spam. Configurable per org.
+  minDaysBetweenRequests: integer('min_days_between_requests').notNull().default(365),
+  // Phase 2 NPS triage: ask "How was your visit?" first. 4-5 stars
+  // routes to public review platforms; 1-3 stars routes to private
+  // feedback. Off for v1 — we send the platform picker directly to
+  // avoid the FTC "review gating" anti-pattern (soliciting only
+  // positive reviews is illegal in some jurisdictions). NPS done right
+  // (ALL responses public when configured) lands in v1.1.
+  npsEnabled: integer('nps_enabled').notNull().default(0),
+  // Phase 2 auto-trigger: when an appointment.status flips to
+  // 'completed', schedule a review request for autoSendDelayHours later.
+  // Off for v1 — staff manually click "Request review" per appointment.
+  autoSendEnabled: integer('auto_send_enabled').notNull().default(0),
+  autoSendDelayHours: integer('auto_send_delay_hours').notNull().default(48),
+  // Where private 1-3 star NPS feedback lands. Falls back to
+  // clinicProfile.email when unset.
+  privateFeedbackEmail: text('private_feedback_email'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// One row per review request sent (or queued). Status tracks the funnel
+// from creation → send → click → completed-tap. `token` is a signed
+// opaque string used in the public /r/<token> redirect URL so we can
+// attribute clicks back to the right row.
+export const reviewRequest = pgTable('review_request', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+  // The visit that triggered the request, when one exists. Nullable so
+  // staff can send an ad-hoc request for any patient.
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  requestedByUserId: text('requested_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  // 'email' | 'sms' (sms is Phase B; no-ops with a clear error in v1)
+  channel: text('channel').notNull(),
+  // Funnel state:
+  //   'pending'   — created, not yet sent
+  //   'sent'      — delivered to patient
+  //   'clicked'   — patient tapped the link in the email/SMS
+  //   'completed' — patient picked a public-review platform on the
+  //                 landing page (the "left a review" proxy — we can't
+  //                 verify on the external site)
+  //   'skipped'   — staff manually skipped (rate-limit, or unhappy
+  //                 patient shouldn't be asked)
+  //   'failed'    — send failed
+  status: text('status').notNull().default('pending'),
+  sentAt: timestamp('sent_at'),
+  clickedAt: timestamp('clicked_at'),
+  completedAt: timestamp('completed_at'),
+  // 'google' | 'healthgrades' | 'facebook' | 'yelp' | 'private_feedback'
+  // — which destination the patient picked on the landing page.
+  // Null until the redirect lands.
+  selectedSite: text('selected_site'),
+  // Opaque random token for the public /r/<token> URL.
+  token: text('token').notNull(),
+  errorMessage: text('error_message'),
+  // For Phase 2 NPS triage: 1-5 rating + private feedback body.
+  rating: integer('rating'),
+  privateFeedback: text('private_feedback'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('review_request_token_idx').on(t.token),
+  index('review_request_org_status_idx').on(t.organizationId, t.status),
+  index('review_request_org_sent_idx').on(t.organizationId, t.sentAt),
+  index('review_request_patient_idx').on(t.organizationId, t.patientId),
+])
+
 export type Patient = typeof patient.$inferSelect
 export type NewPatient = typeof patient.$inferInsert
 export type PatientNote = typeof patientNote.$inferSelect
@@ -402,3 +498,7 @@ export type PatientThread = typeof patientThread.$inferSelect
 export type NewPatientThread = typeof patientThread.$inferInsert
 export type PatientMessage = typeof patientMessage.$inferSelect
 export type NewPatientMessage = typeof patientMessage.$inferInsert
+export type ClinicReviewConfig = typeof clinicReviewConfig.$inferSelect
+export type NewClinicReviewConfig = typeof clinicReviewConfig.$inferInsert
+export type ReviewRequest = typeof reviewRequest.$inferSelect
+export type NewReviewRequest = typeof reviewRequest.$inferInsert

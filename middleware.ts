@@ -13,6 +13,10 @@ const PUBLIC_PATHS = [
   '/api/hello',
   '/api/webhooks',
   '/api/cron',
+  '/api/admin/bootstrap',
+  // Public review-request landing pages — patient lands here from
+  // the email link. Token in the URL is the auth.
+  '/r',
 ]
 
 const PUBLIC_PREFIXES = ['/_next', '/images', '/favicon', '/css', '/fonts']
