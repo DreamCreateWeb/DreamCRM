@@ -124,7 +124,7 @@ describe('PatientDetail timeline', () => {
     subtitle: 'Mon, May 10, 9:00 AM',
     status: 'confirmed',
     direction: null,
-    href: '/calendar',
+    href: '/appointments',
     body: null,
     agingDays: null,
     ...overrides,

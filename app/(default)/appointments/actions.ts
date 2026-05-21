@@ -113,6 +113,9 @@ export async function sendReminderAction(
   }
   const detail = await getAppointmentDetail(ctx.organizationId, appointmentId)
   if (!detail) return { ok: false, error: 'Appointment not found' }
+  if (detail.status === 'cancelled' || detail.status === 'no_show') {
+    return { ok: false, error: `Cannot send a reminder for a ${detail.status === 'no_show' ? 'no-show' : 'cancelled'} appointment` }
+  }
   if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
 
   try {
@@ -123,8 +126,7 @@ export async function sendReminderAction(
       to: detail.patient.email,
       name: detail.patient.fullName,
       title: `Reminder: your ${detail.type.replace(/_/g, ' ')} on ${detail.startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}`,
-      body: `Hi ${detail.patient.fullName.split(' ')[0]} — just a quick reminder of your ${detail.type.replace(/_/g, ' ')} appointment at ${ctx.organizationName} on ${startStr}. Reply CONFIRM, call us, or click the link below to confirm. Thanks!`,
-      linkPath: `/`,
+      body: `Hi ${detail.patient.fullName.split(' ')[0]} — just a quick reminder of your ${detail.type.replace(/_/g, ' ')} appointment at ${ctx.organizationName} on ${startStr}. Reply CONFIRM or call us back to confirm. Thanks!`,
     })
     await logReminderSent({
       organizationId: ctx.organizationId,
@@ -160,9 +162,16 @@ export async function bulkSendRemindersAction(
   }
   for (const id of appointmentIds) {
     const r = await sendReminderAction(id, channel)
-    if ('ok' in r && r.ok === true) result.sent += 1
-    else if ('error' in r && r.error.includes('no email')) result.skipped += 1
-    else result.errors.push({ appointmentId: id, error: 'error' in r ? r.error : 'unknown' })
+    if ('ok' in r && r.ok === true) {
+      result.sent += 1
+    } else if ('error' in r && (r.error.includes('no email') || r.error.includes('Cannot send'))) {
+      // No-email + cancelled/no-show rows are intentionally-skipped, not
+      // errors. Bulk-send toast surfaces them under "skipped N" so the
+      // user understands those rows didn't fail — they're just out of scope.
+      result.skipped += 1
+    } else {
+      result.errors.push({ appointmentId: id, error: 'error' in r ? r.error : 'unknown' })
+    }
   }
   revalidatePath('/appointments')
   return result

@@ -30,6 +30,7 @@ export async function bookAppointment(formData: FormData) {
     type,
     status: 'scheduled',
     notes,
+    source: 'portal',
   })
 
   revalidatePath('/patient/dashboard')

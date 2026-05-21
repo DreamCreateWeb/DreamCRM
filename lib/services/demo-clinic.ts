@@ -395,17 +395,44 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     }
 
     // Appointments module v1 self-heal: clinic_provider + reminder log +
-    // appointment.source backfill. Existing demos predate these columns.
+    // appointment.source + appointment.providerId backfill. Existing
+    // demos predate these columns.
     const [providerFound] = await db
       .select({ id: schema.clinicProvider.id })
       .from(schema.clinicProvider)
       .where(eq(schema.clinicProvider.organizationId, existing.id))
       .limit(1)
+    const dentistId = providerFound?.id ?? newId('prov')
+    const hygienistId = newId('prov')
     if (!providerFound) {
       await db.insert(schema.clinicProvider).values([
-        { id: newId('prov'), organizationId: existing.id, displayName: 'Dr. Jordan Reyes', role: 'dentist', email: 'jordan@acme-dental.example' },
-        { id: newId('prov'), organizationId: existing.id, displayName: 'Maria Vega, RDH', role: 'hygienist', email: 'maria@acme-dental.example' },
+        { id: dentistId, organizationId: existing.id, displayName: 'Dr. Jordan Reyes', role: 'dentist', email: 'jordan@acme-dental.example' },
+        { id: hygienistId, organizationId: existing.id, displayName: 'Maria Vega, RDH', role: 'hygienist', email: 'maria@acme-dental.example' },
       ])
+
+      // Backfill providerId on existing appointments: cleanings go to the
+      // hygienist, everything else to the dentist. Only touches rows that
+      // currently have no provider attached so this is idempotent if the
+      // self-heal re-runs.
+      await db
+        .update(schema.appointment)
+        .set({ providerId: hygienistId })
+        .where(
+          and(
+            eq(schema.appointment.organizationId, existing.id),
+            eq(schema.appointment.type, 'cleaning'),
+            isNull(schema.appointment.providerId),
+          ),
+        )
+      await db
+        .update(schema.appointment)
+        .set({ providerId: dentistId })
+        .where(
+          and(
+            eq(schema.appointment.organizationId, existing.id),
+            isNull(schema.appointment.providerId),
+          ),
+        )
     }
 
     // Backfill appointment.source = 'manual' on rows that lack one. Cheap

@@ -313,7 +313,7 @@ describe('Recent activity feed', () => {
             occurredAt: new Date(),
             title: 'Sarah K. booked cleaning',
             subtitle: 'for May 21, 10:00 AM',
-            href: '/calendar',
+            href: '/appointments',
           },
           {
             id: 'a2',
