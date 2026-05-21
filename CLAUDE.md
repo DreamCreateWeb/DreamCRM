@@ -363,26 +363,42 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
 
 ## Module status snapshot (clinic dashboard)
 
-Live = real data + interaction. Stub = template-shape exists but not yet
-on dental-correct schema. Placeholder = "Coming soon" UI only.
+Sidebar grouped by user workflow: **Daily** (every-day cockpit) /
+**Growth** (acquisition + retention) / **Website** (storefront editor) /
+**Business** (commerce + integrations) / **Settings**. Each section
+matches DESIGN.md's roadmap phases.
 
-| Module | Sidebar path | Status | Notes |
-|---|---|---|---|
-| Overview | `/` → `/dashboard` | **Live (v1)** | Morning-huddle dashboard, shipped this session |
-| Analytics | `/dashboard/analytics` | Stub | Mosaic template, not dental-shaped |
-| Revenue | `/dashboard/fintech` | Stub | Per-user fintech demo, not real clinic revenue |
-| Patients | `/patients` | **Live (v1)** | Dental `patient` table. List with glyph cluster + filter chips + fuzzy search + bulk email; detail page with identity rail + unified timeline (appointments + messages + forms + invoices + notes) + needs-attention panel + relationship notes (append-only `patient_note` table) |
-| Leads | `/leads` | **Live (v1)** | Public-website contact-form submissions as a triage queue. Filter chips (New / Contacted / Converted / Archived) with count badges, fuzzy search, aging-color left border that rots green→amber→red as new leads sit untouched, right-side drawer with one-click Mark Contacted / Convert to Patient / Archive. Convert → creates a patient row (`source='lead_form'`) with phone/email dedupe + lifecycle pointer. Source-attribution (sourcePage / referrer / utm_*) captured at submit time and surfaced in the drawer. New Overview "New leads" attention card. |
-| Appointments | `/appointments` | **Live (v1)** | Dental `appointment` table. Agenda-list default grouped by day, glyph cluster (★/🎂/$/📝!/⚠️/💤/🆕/📅/⏱/🔕), aging-color left border (T-72h neutral → T-12h red until confirmed), filter chips (date window + needs-attention + staff), side drawer for confirm / reschedule / cancel / mark no-show / send reminder, bulk reminder send. "Book appointment" from patient detail opens an in-place drawer. `/calendar` 308s to `/appointments` for clinic tenants (platform org keeps the generic FullCalendar) |
-| Product Orders | `/ecommerce/orders` | Stub | Generic Mosaic e-commerce orders module for clinics that sell products on the side (whitening kits etc.). We do NOT manage clinical treatment plans — those stay in the PMS per DESIGN.md |
-| Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
-| Patient Messaging | `/messages` | Live | Conversations, tenant-scoped |
-| Intake Forms | `/intake-forms` | **Live (v1)** | Shipped this session |
-| Inbox | `/inbox` | Live | Gmail integration, real-time SSE, triage, threading |
-| Tasks | `/tasks/kanban` | Live | Kanban + table, dnd |
-| Recall & Outreach | `/marketing` | **Live (v1)** | Dental-shaped recall + nurture. 4 patient-source audiences (Recall due / Lapsed / New patients 60d / Birthday this month) backed by `audiences.patient_filter` jsonb that mirrors `PatientListFilters`. 3 system templates (Reactivation / Birthday / Welcome) auto-seeded. Send orchestrator handles patient recipients with per-channel opt-in enforcement + opt-out via Resend webhook / unsubscribe link / per-patient flag. Outcome attribution via the new `'booked'` event type. Phase B layers Twilio SMS (envs in place, channel enum stub, A2P 10DLC pending) |
-| Blog / SEO / Careers / Website Editor | — | Placeholder | `status: 'soon'` in clinic registry |
-| Settings | `/settings/account` | Live | + `/settings/clinic` with services, staff, stats, testimonials, office photos editors |
+Live = real data + interaction. Soon = placeholder page with roadmap
+copy + competitor reference + today-alternative link. Dropped from
+sidebar = the route may still exist but isn't surfaced to clinic users.
+
+| Section | Module | Sidebar path | Status | Notes |
+|---|---|---|---|---|
+| Daily | Overview | `/` → `/dashboard` | **Live (v1)** | Morning-huddle dashboard |
+| Daily | Patients | `/patients` | **Live (v1)** | Dental `patient` table — glyph cluster, filters, detail page with timeline + needs-attention + notes |
+| Daily | Appointments | `/appointments` | **Live (v1)** | Agenda list grouped by day, aging-color borders, drawer for confirm/reschedule/cancel, bulk reminder send |
+| Daily | Leads | `/leads` | **Live (v1)** | Website contact-form triage queue with status chips + convert-to-patient |
+| Daily | Messages | `/messages` | Live | In-app patient threads, tenant-scoped |
+| Daily | Inbox | `/inbox` | Live | Gmail integration, real-time SSE, triage, threading |
+| Daily | Intake Forms | `/intake-forms` | **Live (v1)** | Builder + public fill at `{slug}.dreamcreatestudio.com/intake/[formSlug]` |
+| Daily | Tasks | `/tasks/kanban` | Live | Generic kanban — lower priority for clinic workflows; candidate for v2 removal |
+| Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
+| Growth | Reviews | `/reviews` | Soon | Phase 2 placeholder — post-visit Google/Yelp prompts (matches Weave, Birdeye) |
+| Growth | Analytics | `/analytics` | Soon | Phase 4 placeholder — dental-shaped KPIs (recall conversion, no-show, hygiene reappt, schedule utilization) |
+| Website | Website Editor | `/website` | Live (redirects to `/settings/clinic`) | Per DESIGN.md "the website is the trunk" — promoted out of Settings; deep edits still in `/settings/clinic` |
+| Website | Blog | `/blog` | Soon | Phase 1 placeholder — Tiptap editor + SEO + AI-assisted drafts |
+| Website | SEO | `/seo` | Soon (dashboard) | Base SEO (sitemap / robots / JSON-LD / OG images / canonicals) is **live**; this dashboard surfaces rankings + page health |
+| Website | Careers | `/careers` | Soon | Job postings on the clinic's site + applicant tracking (replaces DentalPost / Cloud Dentistry $400/mo boards) |
+| Business | Shop | `/shop` | Soon | Phase 3 — full storefront with Stripe Connect, birthday coupons, loyalty. The differentiator move no orbital-layer competitor ships. Existing `/ecommerce/orders` is the interim view |
+| Business | Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
+| Business | Integrations | `/integrations` | Soon | Phase 4 — Open Dental first, Dentrix second. Two-way PMS sync |
+| Settings | Settings | `/settings/account` | Live | + `/settings/clinic` for site editor, `/settings/locations` for multi-location |
+
+**Dropped from sidebar in this restructure** (route files may still
+exist for platform tenant):
+- `Analytics /dashboard/analytics` — Mosaic template, not dental-shaped (replaced by clinic-side `/analytics` placeholder)
+- `Revenue /dashboard/fintech` — fintech-card demo, completely unrelated to clinic finance
+- `Product Orders /ecommerce/orders` — superseded by `Shop /shop` placeholder; route still works as the interim product-orders surface
 
 Public clinic surfaces also live:
 - `{slug}.dreamcreatestudio.com/` — Modern Family/Wellness template
