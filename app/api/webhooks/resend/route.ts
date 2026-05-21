@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
   const tags = evt.data?.tags ?? {}
   const campaignId = Number(tags.campaignId)
   const customerId = tags.customerId ? Number(tags.customerId) : null
+  const patientId = tags.patientId ?? null
   if (!campaignId) return NextResponse.json({ ok: true, ignored: 'no campaignId tag' })
 
   const toList = Array.isArray(evt.data?.to) ? evt.data?.to : evt.data?.to ? [evt.data?.to] : []
@@ -61,16 +62,28 @@ export async function POST(req: NextRequest) {
       campaignId,
       recipientEmail: recipient,
       customerId,
+      patientId,
       type: evtType,
       meta: { resendEmailId: evt.data?.email_id, bounceType: evt.data?.bounce?.type },
     })
 
-    // Hard bounce or complaint → opt out
-    if (
+    // Hard bounce or complaint → opt out. Patient-source rows opt-out via
+    // marketing_email_opt_in=0 + opt-out timestamp; customer-source rows
+    // via customers.opted_out=true.
+    const shouldOptOut =
       (evtType === 'bounce' && evt.data?.bounce?.type !== 'soft') ||
       evtType === 'complaint'
-    ) {
-      if (customerId) {
+    if (shouldOptOut) {
+      if (patientId) {
+        await db
+          .update(schema.patient)
+          .set({
+            marketingEmailOptIn: 0,
+            marketingEmailOptOutAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.patient.id, patientId))
+      } else if (customerId) {
         await db
           .update(schema.customers)
           .set({ optedOut: true, updatedAt: new Date() })
@@ -89,6 +102,19 @@ export async function POST(req: NextRequest) {
               and(
                 eq(schema.customers.organizationId, campaign.orgId),
                 eq(schema.customers.email, recipient),
+              ),
+            )
+          await db
+            .update(schema.patient)
+            .set({
+              marketingEmailOptIn: 0,
+              marketingEmailOptOutAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(schema.patient.organizationId, campaign.orgId),
+                eq(schema.patient.email, recipient),
               ),
             )
         }

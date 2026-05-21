@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 
@@ -202,6 +202,21 @@ export async function listRecentActivity(organizationId: string, limit = 8) {
 }
 
 // ---------- Audiences ----------
+// Two filter shapes share the audiences table, discriminated by
+// `recipient_source`:
+//
+//   - 'customers' — platform-tenant SaaS lead pipeline. Filter cuts on
+//     pipeline stage, lead source, last-activity window.
+//
+//   - 'patients' — clinic-tenant dental Recall & Outreach. Filter cuts on
+//     lifecycle, recall status, last-visit window, birthday-this-month,
+//     outstanding-balance, channel opt-in. Mirrors `PatientListFilters` so
+//     audiences match what the front desk sees on the patients page.
+//
+// `resolveAudience` dispatches between `resolveCustomerAudience` and
+// `resolvePatientAudience` based on `recipientSource`. Both return the
+// same recipient row shape (id stringified for patients) so the send
+// orchestrator doesn't need to branch.
 
 export const AudienceFilter = z.object({
   stages: z.array(z.string()).optional(),
@@ -215,11 +230,59 @@ export const AudienceFilter = z.object({
 
 export type AudienceFilterT = z.infer<typeof AudienceFilter>
 
+// Dental patient audience filter. Mirrors PatientListFilters where there's
+// overlap (lifecycles / sources / hasOutstandingBalance / birthdayThisMonth)
+// and adds marketing-specific concerns (channel opt-in, recall status).
+// Channel opt-in defaults to "require email opt-in, no SMS opt-in required"
+// since most campaigns are email; flip requireSmsOptIn when channel='sms'.
+export const PatientAudienceFilter = z.object({
+  lifecycles: z.array(z.enum(['lead', 'new', 'active', 'at_risk', 'lapsed', 'archived'])).optional(),
+  sources: z.array(z.string()).optional(),
+  /** 'due' | 'overdue' | 'scheduled' | 'na' — derived field, applied post-query */
+  recallStatuses: z.array(z.enum(['due', 'overdue', 'scheduled', 'na'])).optional(),
+  /** At least N days since last completed visit */
+  lastVisitAtLeastDaysAgo: z.number().int().min(0).optional(),
+  /** Last completed visit within the last N days (new-patient bucket) */
+  lastVisitWithinDays: z.number().int().min(0).optional(),
+  /** Outstanding balance > 0 cents */
+  hasOutstandingBalance: z.boolean().optional(),
+  /** Birthday falls in the current calendar month */
+  birthdayThisMonth: z.boolean().optional(),
+  /** Has a scheduled (unconfirmed) appointment in the next N hours */
+  hasUnconfirmedNextHours: z.number().int().min(0).optional(),
+  /** Require marketing_email_opt_in=1 (default true — always for email sends) */
+  requireEmailOptIn: z.boolean().default(true),
+  /** Require marketing_sms_opt_in=1 (set true for SMS campaign sends) */
+  requireSmsOptIn: z.boolean().default(false),
+  /** Include lifecycle='lapsed'|'archived' (default false) */
+  includeArchived: z.boolean().default(false),
+})
+
+export type PatientAudienceFilterT = z.infer<typeof PatientAudienceFilter>
+
 export const AudienceInput = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional().nullable(),
-  filter: AudienceFilter.default({}),
+  recipientSource: z.enum(['customers', 'patients']).default('customers'),
+  filter: AudienceFilter.optional(),
+  patientFilter: PatientAudienceFilter.optional(),
 })
+
+export interface ResolvedRecipient {
+  /** Stringified customers.id (numeric) or patient.id (text). */
+  id: string
+  /** Source row primary key in its native type — for tagging back on send. */
+  customerId: number | null
+  patientId: string | null
+  firstName: string
+  name: string
+  email: string | null
+  phone: string | null
+  /** From patient.marketingEmailOptIn / customers.optedOut → derived */
+  emailOptIn: boolean
+  /** From patient.marketingSmsOptIn — null for customer source. */
+  smsOptIn: boolean
+}
 
 export async function listAudiences(organizationId: string) {
   return db
@@ -241,7 +304,9 @@ export async function createAudience(
       organizationId,
       name: data.name,
       description: data.description ?? null,
-      filter: data.filter,
+      recipientSource: data.recipientSource,
+      filter: data.filter ?? {},
+      patientFilter: data.patientFilter ?? {},
       createdBy: userId,
     })
     .returning()
@@ -253,9 +318,15 @@ export async function updateAudience(
   id: number,
   input: Partial<z.infer<typeof AudienceInput>>,
 ) {
+  const patch: Record<string, unknown> = { updatedAt: new Date() }
+  if (input.name !== undefined) patch.name = input.name
+  if (input.description !== undefined) patch.description = input.description
+  if (input.recipientSource !== undefined) patch.recipientSource = input.recipientSource
+  if (input.filter !== undefined) patch.filter = input.filter
+  if (input.patientFilter !== undefined) patch.patientFilter = input.patientFilter
   const [row] = await db
     .update(schema.audiences)
-    .set({ ...input, updatedAt: new Date() })
+    .set(patch)
     .where(and(eq(schema.audiences.id, id), eq(schema.audiences.organizationId, organizationId)))
     .returning()
   return row ?? null
@@ -270,14 +341,32 @@ export async function deleteAudience(organizationId: string, id: number) {
 }
 
 /**
- * Materialize an audience filter into the actual list of recipient rows. Used
- * by both the audience preview UI and the campaign send path. Always excludes
- * opted-out and archived rows unless filter.includeOptedOut is set.
+ * Top-level audience resolver. Dispatches to the customer or patient
+ * resolver based on `recipientSource`. Both return ResolvedRecipient[] so
+ * the send orchestrator doesn't need to branch on source.
  */
 export async function resolveAudience(
   organizationId: string,
+  opts: {
+    recipientSource?: 'customers' | 'patients'
+    filter?: AudienceFilterT
+    patientFilter?: PatientAudienceFilterT
+  },
+): Promise<ResolvedRecipient[]> {
+  if (opts.recipientSource === 'patients') {
+    return resolvePatientAudience(organizationId, opts.patientFilter ?? {} as PatientAudienceFilterT)
+  }
+  return resolveCustomerAudience(organizationId, opts.filter ?? {} as AudienceFilterT)
+}
+
+/**
+ * Materialize a customer-source filter into recipient rows. Always excludes
+ * opted-out and archived unless `includeOptedOut` is set.
+ */
+export async function resolveCustomerAudience(
+  organizationId: string,
   filter: AudienceFilterT,
-) {
+): Promise<ResolvedRecipient[]> {
   const where = [
     eq(schema.customers.organizationId, organizationId),
     eq(schema.customers.archived, false),
@@ -296,13 +385,232 @@ export async function resolveAudience(
       where.push(or(isNull(schema.customers.lastActivityAt), sql`${schema.customers.lastActivityAt} < ${cutoff}`)!)
     }
   }
-  return db
+  const rows = await db
     .select({
       id: schema.customers.id,
       name: schema.customers.name,
       email: schema.customers.email,
-      pipelineStage: schema.customers.pipelineStage,
+      phone: schema.customers.phone,
+      optedOut: schema.customers.optedOut,
     })
     .from(schema.customers)
     .where(and(...where))
+  return rows.map((r) => ({
+    id: String(r.id),
+    customerId: r.id,
+    patientId: null,
+    firstName: r.name.split(' ')[0] || r.name,
+    name: r.name,
+    email: r.email,
+    phone: r.phone,
+    emailOptIn: !r.optedOut,
+    smsOptIn: false,
+  }))
+}
+
+/**
+ * Materialize a patient-source filter into recipient rows. Mirrors the
+ * derivation logic in `listPatients` so audience previews show the same
+ * counts the patient list shows. Channel opt-in (email or sms) is
+ * enforced here — recipients without the requested opt-in are dropped.
+ *
+ * Derived fields (recall status / has-balance / unconfirmed-next-Nh) are
+ * computed in JS after the patient rows are fetched, because they depend
+ * on joins to appointment + invoices that are easier to express
+ * imperatively than as SQL predicates.
+ */
+export async function resolvePatientAudience(
+  organizationId: string,
+  filter: PatientAudienceFilterT,
+): Promise<ResolvedRecipient[]> {
+  const parsed = PatientAudienceFilter.parse(filter)
+  const now = new Date()
+
+  const where = [eq(schema.patient.organizationId, organizationId)]
+  if (!parsed.includeArchived) where.push(eq(schema.patient.isActive, 1))
+  if (parsed.lifecycles?.length) where.push(inArray(schema.patient.lifecycle, parsed.lifecycles))
+  if (parsed.sources?.length) where.push(inArray(schema.patient.source, parsed.sources))
+  if (parsed.requireEmailOptIn) where.push(eq(schema.patient.marketingEmailOptIn, 1))
+  if (parsed.requireSmsOptIn) where.push(eq(schema.patient.marketingSmsOptIn, 1))
+
+  const patients = await db
+    .select({
+      id: schema.patient.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      email: schema.patient.email,
+      phone: schema.patient.phone,
+      dateOfBirth: schema.patient.dateOfBirth,
+      lifecycle: schema.patient.lifecycle,
+      marketingEmailOptIn: schema.patient.marketingEmailOptIn,
+      marketingSmsOptIn: schema.patient.marketingSmsOptIn,
+    })
+    .from(schema.patient)
+    .where(and(...where))
+
+  if (patients.length === 0) return []
+
+  const needLastVisit =
+    parsed.lastVisitAtLeastDaysAgo != null ||
+    parsed.lastVisitWithinDays != null ||
+    parsed.recallStatuses?.length
+  const needUpcoming = parsed.recallStatuses?.length || parsed.hasUnconfirmedNextHours != null
+  const needBalance = parsed.hasOutstandingBalance != null
+
+  const ids = patients.map((p) => p.id)
+  const emails = patients.map((p) => p.email).filter((e): e is string => !!e)
+
+  const [lastVisitRows, upcomingRows, unconfirmedRows, invoiceRows] = await Promise.all([
+    needLastVisit
+      ? db
+          .select({ patientId: schema.appointment.patientId, startTime: schema.appointment.startTime })
+          .from(schema.appointment)
+          .where(
+            and(
+              eq(schema.appointment.organizationId, organizationId),
+              inArray(schema.appointment.patientId, ids),
+              lte(schema.appointment.startTime, now),
+              ne(schema.appointment.status, 'cancelled'),
+              ne(schema.appointment.status, 'no_show'),
+            ),
+          )
+          .orderBy(desc(schema.appointment.startTime))
+      : Promise.resolve([] as { patientId: string; startTime: Date }[]),
+    needUpcoming
+      ? db
+          .select({ patientId: schema.appointment.patientId, startTime: schema.appointment.startTime, status: schema.appointment.status })
+          .from(schema.appointment)
+          .where(
+            and(
+              eq(schema.appointment.organizationId, organizationId),
+              inArray(schema.appointment.patientId, ids),
+              gte(schema.appointment.startTime, now),
+              ne(schema.appointment.status, 'cancelled'),
+              ne(schema.appointment.status, 'no_show'),
+            ),
+          )
+      : Promise.resolve([] as { patientId: string; startTime: Date; status: string }[]),
+    parsed.hasUnconfirmedNextHours != null
+      ? db
+          .select({ patientId: schema.appointment.patientId })
+          .from(schema.appointment)
+          .where(
+            and(
+              eq(schema.appointment.organizationId, organizationId),
+              inArray(schema.appointment.patientId, ids),
+              eq(schema.appointment.status, 'scheduled'),
+              gte(schema.appointment.startTime, now),
+              lte(schema.appointment.startTime, new Date(now.getTime() + parsed.hasUnconfirmedNextHours * 3600_000)),
+            ),
+          )
+      : Promise.resolve([] as { patientId: string }[]),
+    needBalance && emails.length > 0
+      ? db
+          .select({
+            patientId: schema.customers.patientId,
+            email: schema.customers.email,
+            totalCents: schema.invoices.totalCents,
+          })
+          .from(schema.invoices)
+          .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
+          .where(
+            and(
+              eq(schema.invoices.organizationId, organizationId),
+              inArray(schema.invoices.status, ['pending', 'overdue']),
+              or(
+                inArray(schema.customers.patientId, ids),
+                inArray(schema.customers.email, emails),
+              )!,
+            ),
+          )
+      : Promise.resolve([] as { patientId: string | null; email: string | null; totalCents: string | number | null }[]),
+  ])
+
+  // Build per-patient lookup maps. We dedupe last-visit to MAX (most recent) and
+  // upcoming to MIN (next future).
+  const lastVisitMap = new Map<string, Date>()
+  for (const r of lastVisitRows) {
+    if (!lastVisitMap.has(r.patientId)) lastVisitMap.set(r.patientId, r.startTime)
+  }
+  const upcomingMap = new Map<string, { startTime: Date; status: string }>()
+  for (const r of upcomingRows) {
+    const cur = upcomingMap.get(r.patientId)
+    if (!cur || r.startTime < cur.startTime) upcomingMap.set(r.patientId, { startTime: r.startTime, status: r.status })
+  }
+  const unconfirmedSet = new Set(unconfirmedRows.map((r) => r.patientId))
+
+  const emailLowerToId = new Map<string, string>()
+  for (const p of patients) {
+    if (p.email) emailLowerToId.set(p.email.toLowerCase(), p.id)
+  }
+  const balanceByPatient = new Map<string, number>()
+  for (const r of invoiceRows) {
+    const pid = r.patientId ?? (r.email ? emailLowerToId.get(r.email.toLowerCase()) ?? null : null)
+    if (!pid) continue
+    balanceByPatient.set(pid, (balanceByPatient.get(pid) ?? 0) + Number(r.totalCents ?? 0))
+  }
+
+  // Recall status: mirrors listPatients exactly. Lapsed = > 9mo + no future booking.
+  const LAPSED_MS = 9 * 30 * 24 * 60 * 60 * 1000
+  const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000
+  const lapsedCutoff = new Date(now.getTime() - LAPSED_MS)
+  const sixMonthCutoff = new Date(now.getTime() - SIX_MONTHS_MS)
+
+  return patients
+    .map((p) => {
+      const lastVisitAt = lastVisitMap.get(p.id) ?? null
+      const upcoming = upcomingMap.get(p.id) ?? null
+      const balance = balanceByPatient.get(p.id) ?? 0
+      const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !upcoming
+      const recallStatus: 'due' | 'overdue' | 'scheduled' | 'na' = upcoming
+        ? 'scheduled'
+        : lapsed
+          ? 'overdue'
+          : lastVisitAt && lastVisitAt < sixMonthCutoff
+            ? 'due'
+            : 'na'
+
+      return {
+        p,
+        lastVisitAt,
+        upcoming,
+        balance,
+        recallStatus,
+      }
+    })
+    .filter((r) => {
+      if (parsed.recallStatuses?.length && !parsed.recallStatuses.includes(r.recallStatus)) return false
+      if (parsed.lastVisitAtLeastDaysAgo != null) {
+        if (!r.lastVisitAt) return false
+        const ageMs = now.getTime() - r.lastVisitAt.getTime()
+        if (ageMs < parsed.lastVisitAtLeastDaysAgo * 86400_000) return false
+      }
+      if (parsed.lastVisitWithinDays != null) {
+        if (!r.lastVisitAt) return false
+        const ageMs = now.getTime() - r.lastVisitAt.getTime()
+        if (ageMs > parsed.lastVisitWithinDays * 86400_000) return false
+      }
+      if (parsed.hasOutstandingBalance != null) {
+        if (parsed.hasOutstandingBalance && r.balance <= 0) return false
+        if (!parsed.hasOutstandingBalance && r.balance > 0) return false
+      }
+      if (parsed.birthdayThisMonth) {
+        const m = r.p.dateOfBirth?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+        if (!m) return false
+        if (parseInt(m[2], 10) - 1 !== now.getMonth()) return false
+      }
+      if (parsed.hasUnconfirmedNextHours != null && !unconfirmedSet.has(r.p.id)) return false
+      return true
+    })
+    .map((r) => ({
+      id: r.p.id,
+      customerId: null,
+      patientId: r.p.id,
+      firstName: r.p.firstName,
+      name: `${r.p.firstName} ${r.p.lastName}`.trim(),
+      email: r.p.email,
+      phone: r.p.phone,
+      emailOptIn: r.p.marketingEmailOptIn === 1,
+      smsOptIn: r.p.marketingSmsOptIn === 1,
+    }))
 }

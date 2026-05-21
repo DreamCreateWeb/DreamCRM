@@ -2,7 +2,12 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { marketingTerminology } from '@/lib/marketing/terminology'
-import { listAudiences, resolveAudience, type AudienceFilterT } from '@/lib/services/marketing'
+import {
+  listAudiences,
+  resolveAudience,
+  type AudienceFilterT,
+  type PatientAudienceFilterT,
+} from '@/lib/services/marketing'
 import AudiencesClient from './audiences-client'
 
 export const metadata = {
@@ -20,7 +25,11 @@ export default async function AudiencesPage() {
   const audiences = await listAudiences(ctx.organizationId)
   const counts = await Promise.all(
     audiences.map(async (a) => {
-      const rows = await resolveAudience(ctx.organizationId, (a.filter ?? {}) as AudienceFilterT)
+      const rows = await resolveAudience(ctx.organizationId, {
+        recipientSource: (a.recipientSource ?? 'customers') as 'customers' | 'patients',
+        filter: (a.filter ?? {}) as AudienceFilterT,
+        patientFilter: (a.patientFilter ?? {}) as PatientAudienceFilterT,
+      })
       return rows.length
     }),
   )
@@ -49,9 +58,12 @@ export default async function AudiencesPage() {
           id: a.id,
           name: a.name,
           description: a.description,
+          recipientSource: (a.recipientSource ?? 'customers') as 'customers' | 'patients',
           filter: (a.filter ?? {}) as AudienceFilterT,
+          patientFilter: (a.patientFilter ?? {}) as PatientAudienceFilterT,
           recipientCount: counts[i],
         }))}
+        tenantType={ctx.tenantType === 'platform' ? 'platform' : 'clinic'}
         stages={t.stages}
         sources={t.sources}
       />

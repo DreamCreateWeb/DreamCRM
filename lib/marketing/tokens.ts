@@ -15,8 +15,11 @@ interface TokenPayload {
   c: number
   /** recipient email (lowercased) */
   e: string
-  /** customer id (optional — recipient might be a one-off send) */
+  /** customer id (one-off / platform-tenant lead pipeline). Optional. */
   i?: number
+  /** patient id (clinic-tenant Recall & Outreach). Optional. Only one of i/pi
+   * is set per send — the source discriminator. */
+  pi?: string
   /** token purpose: 'o'=open 'k'=click 'u'=unsub */
   p: 'o' | 'k' | 'u'
   /** for click tokens: original target URL */

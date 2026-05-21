@@ -321,6 +321,45 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   new messages. A daily Vercel cron at 04:00 UTC renews any watch that
   expires within 36h (`/api/cron/gmail-watch-renew`). Existing polling
   (auto-sync on page load + Refresh button) remains as a fallback path.
+- **Recall & Outreach v1 (Phase A — email-only)** — turns the existing
+  platform-tenant Marketing module into a dental-shaped recall + nurture
+  engine for clinic tenants. Schema (migration 0021): `patient` gains
+  `marketing_email_opt_in` + `marketing_sms_opt_in` (+ timestamps + source)
+  with email default-on, sms default-off per TCPA; `audiences` and
+  `campaigns` gain a `recipient_source` discriminator (`'customers'` for
+  SaaS leads, `'patients'` for dental); `audiences.patient_filter` jsonb
+  holds the patient-specific filter shape (lifecycles, recallStatuses,
+  lastVisit windows, hasOutstandingBalance, birthdayThisMonth,
+  hasUnconfirmedNextHours, requireEmail/SmsOptIn, includeArchived);
+  `campaign_events` gains `patient_id` + `booked_appointment_id` +
+  `booked_at` columns + a `'booked'` event type for outcome attribution;
+  new `campaign_templates` table (system + per-org); new
+  `clinic_sms_config` table (empty stub for Phase B Twilio); new
+  `'twilio_sms'` channel enum value (no-ops with a clear error in Phase A).
+  `lib/services/marketing.ts` `resolveAudience` dispatches between
+  `resolveCustomerAudience` and `resolvePatientAudience` based on
+  `recipientSource`; the patient resolver mirrors `listPatients` derived
+  logic (recall status, lapsed cutoff, balance join) so audience previews
+  match what the front desk sees on the patients page. Send orchestrator
+  (`lib/services/marketing-send.ts`) handles both recipient shapes —
+  tags emails with `patientId` or `customerId` so the Resend webhook +
+  tracking pixel + unsub route can attribute back to the right source.
+  Unsubscribe + hard-bounce + complaint all flip
+  `patient.marketing_email_opt_in=0` (alongside the existing customer
+  opt-out). Three system templates seed idempotently on first read:
+  Reactivation, Birthday, New-patient welcome (warm-neutral voice, no
+  marketing-bro vocabulary, all include the `{{firstName}}` token).
+  `patient.flags.optedOut` now reads from the new column → 🔕 glyph
+  fires correctly on the patients list. Demo seeder pump: opt-in
+  distribution across the 15 personas (13 opted-in, 2 opted-out for the
+  🔕 glyph; 2 also sms-opted-in for the Phase B audience), 4 patient-
+  source audiences (Recall due / Lapsed lifecycle / New patients 60d
+  / Birthday this month), 3 campaigns (1 sent with realistic event funnel
+  ending in Aiden\'s booked attribution / 1 scheduled / 1 draft).
+  Self-heal block in `enterDemoMode` tops up legacy demos with all of the
+  above on next platform-admin "View as clinic" entry. Phase B (Twilio)
+  layers SMS sends + STOP-keyword opt-out + inbound replies onto these
+  foundations without another migration.
 
 ## Module status snapshot (clinic dashboard)
 
@@ -341,7 +380,7 @@ on dental-correct schema. Placeholder = "Coming soon" UI only.
 | Intake Forms | `/intake-forms` | **Live (v1)** | Shipped this session |
 | Inbox | `/inbox` | Live | Gmail integration, real-time SSE, triage, threading |
 | Tasks | `/tasks/kanban` | Live | Kanban + table, dnd |
-| Recall & Outreach | `/marketing` | Live | Campaigns module |
+| Recall & Outreach | `/marketing` | **Live (v1)** | Dental-shaped recall + nurture. 4 patient-source audiences (Recall due / Lapsed / New patients 60d / Birthday this month) backed by `audiences.patient_filter` jsonb that mirrors `PatientListFilters`. 3 system templates (Reactivation / Birthday / Welcome) auto-seeded. Send orchestrator handles patient recipients with per-channel opt-in enforcement + opt-out via Resend webhook / unsubscribe link / per-patient flag. Outcome attribution via the new `'booked'` event type. Phase B layers Twilio SMS (envs in place, channel enum stub, A2P 10DLC pending) |
 | Blog / SEO / Careers / Website Editor | — | Placeholder | `status: 'soon'` in clinic registry |
 | Settings | `/settings/account` | Live | + `/settings/clinic` with services, staff, stats, testimonials, office photos editors |
 
@@ -381,6 +420,44 @@ Public clinic surfaces also live:
    `CRON_SECRET=<random>`. Finally create the Pub/Sub push subscription
    pointing at `https://dreamcreatestudio.com/api/webhooks/gmail` with
    OIDC identity `dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`.
+7. **Migration 0021 needs applying to prod** — the Recall & Outreach
+   schema ships via `0021_recall_outreach_v1.sql`. PR also ships the
+   bootstrap route + middleware allowlist; follow the canonical migration
+   workflow (set ADMIN_BOOTSTRAP_TOKEN env, POST to /api/admin/bootstrap,
+   delete token, open cleanup PR). After 0021 lands, the migration adds:
+   patient marketing opt-in columns (defaults backfill all rows to email-
+   opt-in=true / sms-opt-in=false), `recipient_source` + `patient_filter`
+   on audiences, `recipient_source` + `template_id` on campaigns,
+   `patient_id` + `booked_appointment_id` + `booked_at` + `'booked'` enum
+   on `campaign_events`, new `campaign_templates` + `clinic_sms_config`
+   tables, and the `'twilio_sms'` channel enum value.
+8. **Phase B — Twilio SMS for Recall & Outreach** — schema is already in
+   place (migration 0021), so this is wiring only. Needed: lazy Proxy
+   Twilio client (`lib/twilio.ts`); send-orchestrator SMS branch (currently
+   a no-op with clear error); inbound webhook `/api/webhooks/twilio` for
+   replies + STOP/HELP keyword handling; settings UI for the per-org
+   Twilio phone number + A2P 10DLC status display; Twilio A2P brand +
+   campaign registration (user-side, 5-14 business days for carrier
+   approval). Twilio account creds for the user (Dustin) are wired to
+   `.env.local` (gitignored) for local dev; production envs
+   (`TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_PHONE_NUMBER`)
+   need to be set in Vercel before Phase B sends real SMS. SMS channel
+   stays disabled in UI until `clinic_sms_config.a2p_status='approved'`.
+9. **Custom audience builder UI for clinic tenants** — Phase A clinic
+   users see the 4 demo-seeded patient audiences but can\'t yet create
+   new custom patient-source ones via UI (the existing audience editor
+   only knows pipeline-stage chips). v1.1 candidate: branch the editor
+   on `tenantType` to expose patient segment chips (recall status,
+   lifecycle, hasBalance, birthdayThisMonth, sources, channel opt-in
+   toggles) + a live "X patients in this segment" preview.
+10. **Marketing UX polish for clinic tenants** — `/marketing` dashboard
+    still shows the SaaS-style funnel (built for platform tenant); for
+    clinic users it should show dental-shaped KPIs (recall due / lapsed
+    counts / sent-this-month / booked-from-recall) + recent campaigns
+    + audiences. Per-patient marketing-opt-in toggle on the patient
+    detail page. Marketing events as their own timeline pill.
+    Booking-conversion attribution from tracked links (today\'s `booked`
+    events are only seeded by the demo).
 
 ## Deployment & operations
 

@@ -422,10 +422,11 @@ export async function listPatients(
         missingIntakeBeforeAppt,
         unconfirmedNext48h: unconfirmedSet.has(p.id),
         lapsed,
-        // We don't have a per-patient opt-out flag yet (lives on customers
-        // for marketing audiences) — surface it via the customers join in
-        // v2. For v1 this is always false.
-        optedOut: false,
+        // Patients are opted-OUT for marketing email when marketingEmailOptIn
+        // is 0 (one-click unsubscribe from any campaign footer, hard bounce,
+        // or explicit toggle on the patient detail). The 🔕 glyph cluster
+        // surfaces this on the list.
+        optedOut: p.marketingEmailOptIn === 0,
       },
     }
   })
@@ -643,7 +644,7 @@ export async function getPatientHeader(
       missingIntakeBeforeAppt,
       unconfirmedNext48h: unconfirmedRow.length > 0,
       lapsed,
-      optedOut: false,
+      optedOut: p.marketingEmailOptIn === 0,
     },
     outstandingBalanceCents: outstanding,
     lifetimeValueCents: ltv,

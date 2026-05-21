@@ -17,6 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
         campaignId: payload.c,
         recipientEmail: payload.e,
         customerId: payload.i ?? null,
+        patientId: payload.pi ?? null,
         type: 'open',
         meta: { ua: req.headers.get('user-agent') ?? null },
       })

@@ -46,6 +46,21 @@ export const patient = pgTable(
     // the list page is O(1) per row.
     lastActivityAt: timestamp('last_activity_at'),
 
+    // Marketing comms opt-in (Recall & Outreach v1). Email defaults to true
+    // — patient gave us their address knowing we're a clinic, the unsub link
+    // in every footer makes opting out one click. SMS defaults to false —
+    // explicit opt-in required by TCPA, capture via intake form / booking
+    // checkbox / one-time keyword reply. Opt-in/out timestamps preserve the
+    // audit trail; source records WHERE the opt-in came from.
+    marketingEmailOptIn: integer('marketing_email_opt_in').notNull().default(1),
+    marketingEmailOptInAt: timestamp('marketing_email_opt_in_at'),
+    marketingEmailOptOutAt: timestamp('marketing_email_opt_out_at'),
+    marketingSmsOptIn: integer('marketing_sms_opt_in').notNull().default(0),
+    marketingSmsOptInAt: timestamp('marketing_sms_opt_in_at'),
+    marketingSmsOptOutAt: timestamp('marketing_sms_opt_out_at'),
+    // 'backfill' | 'booking' | 'form' | 'invite' | 'manual' | 'lead_form'
+    marketingOptInSource: text('marketing_opt_in_source'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -57,6 +72,9 @@ export const patient = pgTable(
     // For email-based lookups (booking flow, invite accept) — not unique
     // because parents/children commonly share an email in pediatric practices.
     index('patient_org_email_idx').on(t.organizationId, t.email),
+    // For audience materialization in Recall & Outreach — fast "patients
+    // with email opt-in" scans.
+    index('patient_org_marketing_email_idx').on(t.organizationId, t.marketingEmailOptIn),
   ],
 )
 
@@ -257,6 +275,33 @@ export const lead = pgTable('lead', {
   index('lead_org_created_idx').on(t.organizationId, t.createdAt),
 ])
 
+// Per-org Twilio config for SMS sends. One row per organization, keyed on
+// org id. Phase A creates the table but leaves it empty — Phase B writes
+// the Twilio account info + A2P 10DLC registration state into it once the
+// clinic provisions a number. The a2pStatus stays at 'none' until the
+// clinic completes brand + campaign registration in Twilio's console;
+// 'pending' while carriers review (5-14 business days); 'approved' unlocks
+// the SMS send button in the UI.
+export const clinicSmsConfig = pgTable('clinic_sms_config', {
+  organizationId: text('organization_id').primaryKey().references(() => organization.id, { onDelete: 'cascade' }),
+  twilioPhoneNumber: text('twilio_phone_number'),
+  twilioPhoneNumberSid: text('twilio_phone_number_sid'),
+  a2pBrandSid: text('a2p_brand_sid'),
+  a2pCampaignSid: text('a2p_campaign_sid'),
+  // 'none' | 'pending' | 'approved' | 'rejected'
+  a2pStatus: text('a2p_status').notNull().default('none'),
+  a2pStatusUpdatedAt: timestamp('a2p_status_updated_at'),
+  // Rolling 30-day window counters. Reset by a cron once a month.
+  monthlySendCount: integer('monthly_send_count').notNull().default(0),
+  monthlySendCountResetAt: timestamp('monthly_send_count_reset_at'),
+  // Soft cap in dollars; UI shows a banner at 80% utilization.
+  monthlySendBudgetCents: integer('monthly_send_budget_cents'),
+  // Last Twilio API error stored for diagnostics ({ code, message, sid }).
+  lastErrorMeta: jsonb('last_error_meta'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export type Patient = typeof patient.$inferSelect
 export type NewPatient = typeof patient.$inferInsert
 export type PatientNote = typeof patientNote.$inferSelect
@@ -273,3 +318,5 @@ export type FormSubmission = typeof formSubmission.$inferSelect
 export type NewFormSubmission = typeof formSubmission.$inferInsert
 export type Lead = typeof lead.$inferSelect
 export type NewLead = typeof lead.$inferInsert
+export type ClinicSmsConfig = typeof clinicSmsConfig.$inferSelect
+export type NewClinicSmsConfig = typeof clinicSmsConfig.$inferInsert
