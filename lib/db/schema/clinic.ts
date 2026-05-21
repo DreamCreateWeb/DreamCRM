@@ -302,6 +302,84 @@ export const clinicSmsConfig = pgTable('clinic_sms_config', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// Patient Communications v1 — unified per-patient threads with channel-
+// tagged messages. The Front-style team-inbox abstraction translated to
+// dental: one thread per (organization, patient); each message carries
+// a channel discriminator ('in_app' | 'email' | 'sms' Phase B).
+//
+// Coexists with the existing `email_message` table (Gmail integration —
+// owns the technical email shape: rfc ids, threading, labels). The
+// service layer joins both into a unified thread view; we don't dupe
+// rows. New outbound messages go into `patient_message`; existing Gmail
+// inbox messages stay where they are.
+export const patientThread = pgTable(
+  'patient_thread',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    // 'open' = needs attention or actively in-progress
+    // 'snoozed' = will reappear at snoozedUntil
+    // 'archived' = done, no longer in default inbox view
+    status: text('status').notNull().default('open'),
+    assignedUserId: text('assigned_user_id').references(() => user.id, { onDelete: 'set null' }),
+    snoozedUntil: timestamp('snoozed_until'),
+    // Denormalized for inbox sort + preview. Updated by the service on every
+    // message insert; on initial thread creation = createdAt.
+    lastMessageAt: timestamp('last_message_at'),
+    lastMessageDirection: text('last_message_direction'), // 'inbound' | 'outbound'
+    lastMessageChannel: text('last_message_channel'),     // 'in_app' | 'email' | 'sms'
+    // Front-style "needs reply" counter — incremented on inbound messages,
+    // reset to 0 when a clinic user marks the thread read.
+    unreadCountForClinic: integer('unread_count_for_clinic').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // Inbox list sort: org + status + recency
+    index('patient_thread_org_status_last_idx').on(t.organizationId, t.status, t.lastMessageAt),
+    // Per-patient lookup — one thread per patient per org
+    uniqueIndex('patient_thread_org_patient_idx').on(t.organizationId, t.patientId),
+    // Assignment filtering ("mine")
+    index('patient_thread_org_assigned_idx').on(t.organizationId, t.assignedUserId),
+  ],
+)
+
+export const patientMessage = pgTable(
+  'patient_message',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id').notNull().references(() => patientThread.id, { onDelete: 'cascade' }),
+    // Denormalized for fast org-scoped queries without join through thread
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    // 'in_app' = sent in DreamCRM portal/web
+    // 'email' = sent via Gmail (Phase A) or branded Resend (later)
+    // 'sms' = Twilio (Phase B; stubbed for now)
+    channel: text('channel').notNull(),
+    // 'inbound' = from patient to clinic
+    // 'outbound' = from clinic staff to patient
+    direction: text('direction').notNull(),
+    body: text('body').notNull(),
+    // Null on inbound. On outbound, the staff member who hit send.
+    sentByUserId: text('sent_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    sentAt: timestamp('sent_at').notNull().defaultNow(),
+    deliveredAt: timestamp('delivered_at'),
+    readByPatientAt: timestamp('read_by_patient_at'),
+    repliedAt: timestamp('replied_at'),
+    // External ID for back-reference: Gmail provider_message_id when ingested
+    // from email_message, Twilio MessageSid (Phase B), null for in-app.
+    externalId: text('external_id'),
+    // Attachments, link previews, related campaign id, etc.
+    meta: jsonb('meta').notNull().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('patient_message_thread_sent_idx').on(t.threadId, t.sentAt),
+    index('patient_message_org_sent_idx').on(t.organizationId, t.sentAt),
+  ],
+)
+
 export type Patient = typeof patient.$inferSelect
 export type NewPatient = typeof patient.$inferInsert
 export type PatientNote = typeof patientNote.$inferSelect
@@ -320,3 +398,7 @@ export type Lead = typeof lead.$inferSelect
 export type NewLead = typeof lead.$inferInsert
 export type ClinicSmsConfig = typeof clinicSmsConfig.$inferSelect
 export type NewClinicSmsConfig = typeof clinicSmsConfig.$inferInsert
+export type PatientThread = typeof patientThread.$inferSelect
+export type NewPatientThread = typeof patientThread.$inferInsert
+export type PatientMessage = typeof patientMessage.$inferSelect
+export type NewPatientMessage = typeof patientMessage.$inferInsert

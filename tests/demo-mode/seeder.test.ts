@@ -152,6 +152,10 @@ describe('createDemoClinic', () => {
       { id: 2, name: 'Birthday — warm monthly check-in' },
       { id: 3, name: 'New-patient welcome' },
     ]) // tplRows
+    // Patient Communications self-heal: existingThreadRows lookup
+    // Returns 'pat_existing_1' so the seed for persona [0] skips (no
+    // thread insert), keeping this test's state.inserts === 0 assertion.
+    state.selectQueue.push([{ patientId: 'pat_existing_1' }])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 
@@ -197,6 +201,10 @@ describe('createDemoClinic', () => {
       { id: 2, name: 'Birthday — warm monthly check-in' },
       { id: 3, name: 'New-patient welcome' },
     ]) // tplRows (returns the just-inserted template ids)
+    // Patient Communications self-heal: empty existingThreadRows; with
+    // no existing patients in this test (line 175) the seed loop short-
+    // circuits and no threads/messages are inserted either.
+    state.selectQueue.push([]) // existingThreadRows
     state.selectQueue.push([]) // patients count
     state.selectQueue.push([]) // appointments count
 
@@ -265,6 +273,11 @@ describe('createDemoClinic', () => {
     // Aiden recall_campaign appointment lookup for the booked event.
     // patientIds[5] doesn't exist (only 3 patients in this test) → guard
     // bails before the select, so no queue entry needed for it.
+    // Patient Communications self-heal: empty existingThreadRows so the
+    // seed loop tries persona [0] (pat_a). seed inserts 1 thread + 3
+    // messages — doesn't affect the assertions below (which only check
+    // patient_note / form_submission / clinic_provider / etc.).
+    state.selectQueue.push([]) // existingThreadRows
     state.selectQueue.push([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) // patient count
     state.selectQueue.push([{ id: 'a1' }]) // appointment count
 

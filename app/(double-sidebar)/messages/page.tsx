@@ -2,6 +2,7 @@ import { FlyoutProvider } from '@/app/flyout-context'
 import MessagesSidebar, { type ConvoListItem } from './messages-sidebar'
 import ClientMessagingSidebar from './client-messaging-sidebar'
 import MessagesBody, { type ChatMessage } from './messages-body'
+import ClinicMessagesView from './clinic-messages-view'
 import { requireUser } from '@/lib/session'
 import { getTenantContext } from '@/lib/auth/context'
 import {
@@ -17,16 +18,33 @@ import { listCommunityUsers } from '@/lib/services/community'
 
 export const metadata = {
   title: 'Messages - DreamCRM',
-  description: 'Real-time chat',
+  description: 'Patient communications',
 }
 
 export const dynamic = 'force-dynamic'
 
-export default async function Messages({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
+interface MessagesSearchParams {
+  c?: string
+  thread?: string
+  status?: string
+  assignedTo?: string
+  q?: string
+  unread?: string
+}
+
+export default async function Messages({ searchParams }: { searchParams: Promise<MessagesSearchParams> }) {
   const user = await requireUser()
   const ctx = await getTenantContext()
   const params = await searchParams
   const requestedId = params.c ? Number(params.c) : NaN
+
+  // Clinic tenant gets the new Patient Communications view (Front-style
+  // unified inbox, one thread per patient across channels). Platform and
+  // patient tenants keep the existing generic chat surfaces — different
+  // mental model, different abstraction.
+  if (ctx?.tenantType === 'clinic') {
+    return <ClinicMessagesView ctx={ctx} searchParams={params} />
+  }
 
   if (ctx?.tenantType === 'platform') {
     const [clientConvos, clientContacts, teamContacts] = await Promise.all([
