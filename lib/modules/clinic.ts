@@ -28,6 +28,21 @@ import type { ModuleRegistry } from './types'
  *   - Basic:    Overview + Settings + Website Editor (the trunk; everyone gets it)
  *   - Pro:      Daily-cockpit modules + Reviews + Blog (core practice ops)
  *   - Premium:  Growth analytics + Shop + Integrations + Recall + Careers + SEO
+ *
+ * Deliberately NOT in clinic sidebar (route files may still exist):
+ *   - Tasks (/tasks/kanban) — generic Mosaic kanban. Research across 8
+ *     mature dental products: 0 ship a generic todo/kanban; the dental
+ *     pattern is patient-attached followups (Weave Task Center, DI Team
+ *     Tasks, Lighthouse 360 Front Desk Task List). DreamCRM already
+ *     surfaces this contextually (Overview attention cards, Patients
+ *     needs-attention panel, Appointments aging-color, Leads rot). When
+ *     a unified followups view is wanted, ship it as a "Followups" tab
+ *     inside Patients detail — not a top-level module.
+ *   - Invoices (/invoices) — Mosaic stub that 404s. Clinical billing
+ *     belongs to the PMS (out of scope per DESIGN.md). Shop payments +
+ *     booking deposits + memberships will live inside Shop (Phase 3)
+ *     as "Orders & Payments." Text-to-pay for PMS balances is a Phase 4
+ *     PMS-integration unlock.
  */
 export const clinicModules: ModuleRegistry = {
   tenantType: 'clinic',
@@ -40,7 +55,6 @@ export const clinicModules: ModuleRegistry = {
     { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', minPlan: 'pro' },
     { id: 'inbox',             path: '/inbox',             label: 'Inbox',            section: 'Daily',    icon: 'inbox',    status: 'live', minPlan: 'pro' },
     { id: 'intake_forms',      path: '/intake-forms',      label: 'Intake Forms',     section: 'Daily',    icon: 'pen',      status: 'live', minPlan: 'pro' },
-    { id: 'tasks',             path: '/tasks/kanban',      label: 'Tasks',            section: 'Daily',    icon: 'check',    status: 'live', minPlan: 'pro' },
 
     // ── Growth ─────────────────────────────────────────────────────────
     { id: 'recall',            path: '/marketing',         label: 'Recall & Outreach',section: 'Growth',   icon: 'megaphone',status: 'live', minPlan: 'premium' },
@@ -55,7 +69,6 @@ export const clinicModules: ModuleRegistry = {
 
     // ── Business ───────────────────────────────────────────────────────
     { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'soon', minPlan: 'premium' },
-    { id: 'invoices',          path: '/invoices',          label: 'Invoices',         section: 'Business', icon: 'receipt',  status: 'live', minPlan: 'pro' },
     { id: 'integrations',      path: '/integrations',      label: 'Integrations',     section: 'Business', icon: 'plug',     status: 'soon', minPlan: 'premium' },
 
     // ── Settings ───────────────────────────────────────────────────────

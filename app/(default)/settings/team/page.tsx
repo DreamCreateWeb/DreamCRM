@@ -6,14 +6,16 @@ import { listPendingInvitations, listTeamMembers } from '@/lib/services/messages
 
 export const metadata = {
   title: 'Team - DreamCRM',
-  description: 'Manage Dream Create team members and invitations',
+  description: 'Manage team members and invitations',
 }
 
 export const dynamic = 'force-dynamic'
 
 export default async function TeamSettings() {
   const ctx = await requireTenant()
-  if (ctx.tenantType !== 'platform') redirect('/settings/account')
+  // Team management is available to clinic + platform tenants; patients
+  // have no team concept.
+  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
   const [members, invitations] = await Promise.all([
     listTeamMembers(ctx.organizationId),

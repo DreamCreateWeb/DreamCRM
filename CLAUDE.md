@@ -381,7 +381,6 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Daily | Messages | `/messages` | Live | In-app patient threads, tenant-scoped |
 | Daily | Inbox | `/inbox` | Live | Gmail integration, real-time SSE, triage, threading |
 | Daily | Intake Forms | `/intake-forms` | **Live (v1)** | Builder + public fill at `{slug}.dreamcreatestudio.com/intake/[formSlug]` |
-| Daily | Tasks | `/tasks/kanban` | Live | Generic kanban — lower priority for clinic workflows; candidate for v2 removal |
 | Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
 | Growth | Reviews | `/reviews` | Soon | Phase 2 placeholder — post-visit Google/Yelp prompts (matches Weave, Birdeye) |
 | Growth | Analytics | `/analytics` | Soon | Phase 4 placeholder — dental-shaped KPIs (recall conversion, no-show, hygiene reappt, schedule utilization) |
@@ -390,15 +389,16 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Website | SEO | `/seo` | Soon (dashboard) | Base SEO (sitemap / robots / JSON-LD / OG images / canonicals) is **live**; this dashboard surfaces rankings + page health |
 | Website | Careers | `/careers` | Soon | Job postings on the clinic's site + applicant tracking (replaces DentalPost / Cloud Dentistry $400/mo boards) |
 | Business | Shop | `/shop` | Soon | Phase 3 — full storefront with Stripe Connect, birthday coupons, loyalty. The differentiator move no orbital-layer competitor ships. Existing `/ecommerce/orders` is the interim view |
-| Business | Invoices | `/invoices` | Live | Product invoices, tenant-scoped |
 | Business | Integrations | `/integrations` | Soon | Phase 4 — Open Dental first, Dentrix second. Two-way PMS sync |
 | Settings | Settings | `/settings/account` | Live | + `/settings/clinic` for site editor, `/settings/locations` for multi-location |
 
-**Dropped from sidebar in this restructure** (route files may still
-exist for platform tenant):
+**Dropped from clinic sidebar** (route files may still exist for
+platform tenant or as legacy entry points):
 - `Analytics /dashboard/analytics` — Mosaic template, not dental-shaped (replaced by clinic-side `/analytics` placeholder)
 - `Revenue /dashboard/fintech` — fintech-card demo, completely unrelated to clinic finance
 - `Product Orders /ecommerce/orders` — superseded by `Shop /shop` placeholder; route still works as the interim product-orders surface
+- `Tasks /tasks/kanban` — research across 8 dental orbital-layer products (Weave / NexHealth / RevenueWell / Modento / Lighthouse / Solutionreach / Adit / Practice by Numbers) found 0 ship a generic kanban; the dental pattern is patient-attached followups, already half-shipped across Overview attention cards + Patients needs-attention + Appointments aging-color + Leads rot. Future "Followups" surface goes inside Patients detail, not a top-level module
+- `Invoices /invoices` — Mosaic stub that 404s. Clinical billing is PMS-owned (out of scope per DESIGN.md); Shop payments + booking deposits + memberships will live inside Shop (Phase 3) as "Orders & Payments"
 
 Public clinic surfaces also live:
 - `{slug}.dreamcreatestudio.com/` — Modern Family/Wellness template
