@@ -13,11 +13,24 @@ See [`CLAUDE.md`](./CLAUDE.md) for current implementation context + module statu
 - **Drizzle ORM** on **Neon Postgres**
 - **better-auth** with Organizations plugin (multi-tenant)
 - **Stripe** (Checkout + Customer Portal + webhooks)
-- **Resend** (transactional + marketing email)
-- **Gmail OAuth** (staff inbox + clinic-side sends via connected workspace mailbox)
-- **Twilio** (Phase B — schema in place; SMS sends gated on A2P 10DLC approval)
-- **Vercel Blob** for uploads (will swap to S3 in the AWS migration)
+- **Gmail OAuth** (staff inbox + clinic-side workspace-mailbox sends)
 - Currently deployed on **Vercel**, **iad1** region
+
+**AWS migration in flight.** Every PHI-touching dependency that has an
+AWS-native equivalent is being consolidated under a single AWS BAA:
+
+- **Email**: Resend → **AWS SES**
+- **SMS** (Phase B, never shipped on Twilio): planned Twilio → **AWS End User Messaging SMS**
+- **File storage**: `@vercel/blob` → **AWS S3**
+- **AI / LLM calls**: Anthropic API direct → **AWS Bedrock**
+- **Hosting**: Vercel → AWS (deploy shape TBD — SST / Amplify / Fargate)
+
+Stays as-is: Stripe (no AWS equivalent for card processing), Gmail OAuth
+(it's the clinic's own mailbox — not replaceable), Neon Postgres
+(serverless, already us-east-aligned).
+
+See [`CLAUDE.md`](./CLAUDE.md) "Vercel + third-party → AWS migration"
+section for the full inventory + migration shape per service.
 
 ## Quickstart
 
