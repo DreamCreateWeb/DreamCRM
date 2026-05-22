@@ -360,6 +360,71 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   above on next platform-admin "View as clinic" entry. Phase B (Twilio)
   layers SMS sends + STOP-keyword opt-out + inbound replies onto these
   foundations without another migration.
+- **Patient Communications v1** — Front-style unified inbox replacing the
+  generic Mosaic chat for clinic tenants. Schema (migration 0022):
+  `patient_thread` (one per organization+patient, enforced unique) +
+  `patient_message` (channel: `in_app` | `email` | `sms` + direction +
+  body + audit timestamps + externalId for Gmail/Twilio back-ref).
+  Service (`lib/services/patient-messaging.ts`) merges
+  `patient_message` rows + existing `email_message` rows (patientId FK
+  populated on Gmail ingest) into a unified ThreadMessage stream — no
+  double-write, no backfill drift. UI at `/messages` for clinic:
+  two-pane layout with top filter bar (status / assignment / unread-
+  only with live counts), 22rem thread list with aging-color rot border
+  on inbound-unanswered (emerald < 4h, amber < 24h, rose > 24h
+  mirroring Leads), channel-colored bubble stream, reply composer
+  pinned bottom with channel picker auto-defaulting to last-inbound +
+  template dropdown (3 canned: confirm visit / treatment follow-up /
+  quick scheduling question) + ⌘+Enter to send. Sticky thread header
+  with snooze (4h / tomorrow / next week) / archive / reopen + assign
+  + patient link. Demo seeder pump: 5 curated threads covering every
+  state (Mia happy-path closed-loop email+in-app; Marcus RED ROT 72h
+  unanswered 2-unread; Sophia recently closed; Aiden SNOOZED post-
+  rebooking; Emma AMBER ROT 16h inbound). Patient timeline integration
+  also pulls `patient_message` + `email_message` rows inline, with
+  message-kind events linking to `/messages?thread=<id>`. Platform
+  tenant keeps the generic Mosaic chat surface (different mental model).
+- **Website Editor v1** — Per DESIGN.md "the website is the trunk",
+  `/website` promoted out of `/settings/clinic` into a real top-level
+  dashboard. Hero with View-live-site CTA + public URL; 4-stat row
+  (template / brand color / plan / setup completion with warn tone on
+  required-missing); 12-item Setup checklist (required: Logo, Tagline,
+  Hero image, About, Services ≥4, Staff ≥2, Office hours, Address+
+  phone; optional: Testimonials, Office photos, Stat anchors, Brand
+  color) with ✓ Set / ~ Partial / ⚠ Missing pills per item, each
+  linking to `/settings/clinic` for deep edit; Public surfaces list
+  (homepage / `/book` / intake forms / sitemap / robots / opengraph-
+  image — each with View link); Locations summary; "Coming next"
+  footer with the v1.1 roadmap (multi-page editor, template switcher
+  with preview, custom domain wiring, per-page SEO). Deep content
+  editing stays at `/settings/clinic`.
+- **Reviews & Reputation v1** — Post-visit review requests across
+  Google / Healthgrades / Facebook. Schema (migration 0023):
+  `clinic_review_config` (per-org platform IDs, 365-day default rate
+  limit, NPS toggle off, auto-trigger toggle off) + `review_request`
+  (status funnel `pending → sent → clicked → completed | skipped |
+  failed`, signed opaque token, optional rating + private feedback
+  for v1.1 NPS path). Service (`lib/services/reviews.ts`):
+  `createAndSendReviewRequest` validates rate-limit + config + opt-in,
+  sends via Resend; `listEligiblePatients` for the "Ready to ask"
+  dashboard list (visit completed last 30d + email opt-in + no recent
+  ask); `getReviewStats` for the 4-KPI funnel. UI: `/reviews`
+  morning-huddle dashboard (Sent · Opened · Reviewed · Ready-to-ask
+  KPIs + platform-mix breakdown + Ready-to-ask one-click send list +
+  recent activity table + inline config panel). Public landing at
+  `/r/<token>` outside auth (token IS the auth, `/r` in middleware
+  PUBLIC_PATHS), platform-pick buttons are server-action forms
+  recording click + redirecting to external write-review URL.
+  Research-grounded: Google primary (~80% of dental review value),
+  Healthgrades > Facebook for healthcare reputation, **Yelp opt-in
+  only** (Yelp filters solicited reviews → prompts hurt more than help;
+  Birdeye/Weave/Swell all exclude). **No NPS gating** — same prompt to
+  every recipient, FTC-clean per the 2024 Fake Reviews Rule ($53k per
+  violation; Podium is the cautionary tale). 365-day rate limit
+  matches NiceJob lockout dialed conservative for dental visit cadence.
+  Manual send in v1; auto-trigger 24h after `appointment.status='
+  completed'` is v1.1 (cron-driven; `autoSendEnabled` schema bit ready).
+  Demo seeder pump: 6 review_request rows covering every funnel state.
 
 ## Module status snapshot (clinic dashboard)
 
@@ -409,83 +474,129 @@ Public clinic surfaces also live:
 
 ## What's NOT yet wired (priorities for next session)
 
-1. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard at name.com
-   isn't set. Apex resolves to Vercel (216.150.1.1) but subdomains
-   NXDOMAIN. Required record: `CNAME *  cname.vercel-dns.com.` Vercel
-   side already has the wildcard domain configured + verified.
-   Path-based URLs (`/site/[slug]/...`) work today as a workaround.
-2. **Patients module v2** — v1 shipped this session. v2 candidates:
-   per-patient tags + audience targeting; comms preferences granularity
-   (per-channel opt-in: SMS/email/marketing); household linkage table
-   for pediatric/family clinics; per-view audit log for Premium tier;
-   web-analytics events on the timeline once that lands; patient.source
-   backfill for legacy rows that predate the new column (currently null).
-3. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL`
-   envs (they currently point to the same monthly prices).
-4. **Patient portal completion** — `/patient/*` exists but bills is
-   placeholder; records, messages, intake-fill, refill-request marked
-   'soon' in the patient sidebar.
-5. **Coming-soon Overview cards become real modules** —
-   - Reviews & reputation (post-visit Google/Yelp prompts)
-   - SMS replies (Twilio integration, two-way)
-6. **Migration 0004 + Gmail push env vars need applying to prod** —
-   bootstrap-apply `0004_lowly_microbe.sql` (adds `watch_expires_at`),
-   then set Vercel env vars:
-   `GMAIL_PUBSUB_TOPIC=projects/dreamcrm-496717/topics/gmail-watch`,
-   `GMAIL_PUBSUB_SA_EMAIL=dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`,
-   `CRON_SECRET=<random>`. Finally create the Pub/Sub push subscription
-   pointing at `https://dreamcreatestudio.com/api/webhooks/gmail` with
-   OIDC identity `dreamcrm-admin@dreamcrm-496717.iam.gserviceaccount.com`.
-7. **Migration 0021 needs applying to prod** — the Recall & Outreach
-   schema ships via `0021_recall_outreach_v1.sql`. PR also ships the
-   bootstrap route + middleware allowlist; follow the canonical migration
-   workflow (set ADMIN_BOOTSTRAP_TOKEN env, POST to /api/admin/bootstrap,
-   delete token, open cleanup PR). After 0021 lands, the migration adds:
-   patient marketing opt-in columns (defaults backfill all rows to email-
-   opt-in=true / sms-opt-in=false), `recipient_source` + `patient_filter`
-   on audiences, `recipient_source` + `template_id` on campaigns,
-   `patient_id` + `booked_appointment_id` + `booked_at` + `'booked'` enum
-   on `campaign_events`, new `campaign_templates` + `clinic_sms_config`
-   tables, and the `'twilio_sms'` channel enum value.
-8. **Phase B — Twilio SMS for Recall & Outreach** — schema is already in
-   place (migration 0021), so this is wiring only. Needed: lazy Proxy
-   Twilio client (`lib/twilio.ts`); send-orchestrator SMS branch (currently
-   a no-op with clear error); inbound webhook `/api/webhooks/twilio` for
+### Imminent: AWS migration (next session)
+
+The platform is currently deployed on Vercel. Migration to AWS is the
+next session's focus. See **"Vercel surfaces to replace"** below for
+the full surface inventory. Do that work *before* layering on new
+feature work — the AWS deployment shape will inform decisions like
+"how do we run cron?" that affect Phase B Twilio + Reviews auto-trigger.
+
+### Feature work, post-migration
+
+1. **Phase B — Twilio SMS (unlocks across 3 modules)** — Recall &
+   Outreach SMS sends, Patient Communications SMS in + outbound,
+   Reviews SMS channel. Schema is already in place across migrations
+   0021/0022/0023 (the `'twilio_sms'` channel enum, the
+   `clinic_sms_config` table, the patient `marketing_sms_opt_in`
+   columns). What's needed: lazy Proxy Twilio client (`lib/twilio.ts`);
+   send-orchestrator SMS branch (currently a no-op with clear error in
+   each of the 3 services); inbound webhook `/api/webhooks/twilio` for
    replies + STOP/HELP keyword handling; settings UI for the per-org
-   Twilio phone number + A2P 10DLC status display; Twilio A2P brand +
-   campaign registration (user-side, 5-14 business days for carrier
-   approval). Twilio account creds for the user (Dustin) are wired to
-   `.env.local` (gitignored) for local dev; production envs
-   (`TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_PHONE_NUMBER`)
-   need to be set in Vercel before Phase B sends real SMS. SMS channel
-   stays disabled in UI until `clinic_sms_config.a2p_status='approved'`.
-9. **Custom audience builder UI for clinic tenants** — Phase A clinic
-   users see the 4 demo-seeded patient audiences but can\'t yet create
-   new custom patient-source ones via UI (the existing audience editor
-   only knows pipeline-stage chips). v1.1 candidate: branch the editor
-   on `tenantType` to expose patient segment chips (recall status,
-   lifecycle, hasBalance, birthdayThisMonth, sources, channel opt-in
-   toggles) + a live "X patients in this segment" preview.
-10. **Marketing UX polish for clinic tenants** — `/marketing` dashboard
-    still shows the SaaS-style funnel (built for platform tenant); for
-    clinic users it should show dental-shaped KPIs (recall due / lapsed
-    counts / sent-this-month / booked-from-recall) + recent campaigns
-    + audiences. Per-patient marketing-opt-in toggle on the patient
-    detail page. Marketing events as their own timeline pill.
-    Booking-conversion attribution from tracked links (today\'s `booked`
-    events are only seeded by the demo).
+   Twilio phone number + A2P 10DLC status. Twilio account creds for
+   the user are wired to `.env.local` (gitignored) for local dev;
+   production envs need to be set wherever production envs live
+   post-migration. SMS channel stays disabled in UI until
+   `clinic_sms_config.a2p_status='approved'` (user-side A2P brand +
+   campaign registration takes 5-14 business days for carrier
+   approval). Twilio creds passed through prior conversation
+   transcripts should be rotated before going live.
+2. **Reviews auto-trigger (v1.1)** — cron-driven send 24h after
+   `appointment.status='completed'` for orgs with
+   `clinic_review_config.autoSendEnabled=true`. The schema bit is
+   already there; needs a cron entry + handler that queries
+   `appointment completed AND completedAt < now - autoSendDelayHours
+   AND no review_request in last minDaysBetweenRequests`. Wire
+   alongside the AWS migration so the cron mechanism (EventBridge /
+   Lambda scheduler / etc.) is decided once.
+3. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard isn't set.
+   Apex resolves to platform but subdomains NXDOMAIN. Required record
+   on the registrar: `CNAME *` pointing at the new hosting target
+   post-AWS-migration. Path-based URLs (`/site/[slug]/...`) work today
+   as a workaround.
+4. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL`
+   envs (they currently point to the same monthly prices).
+5. **Multi-page Website editor (v1.1)** — about page, services detail,
+   custom landing pages, blog posts. Template switcher with preview
+   (Cosmetic / Pediatric variants per DESIGN.md). Custom domain wiring
+   for the `websiteDomain` column. Per-page SEO controls.
+6. **Patient portal completion** — `/patient/*` exists but bills is
+   placeholder; records, messages, intake-fill, refill-request still
+   marked 'soon' in the patient sidebar.
+7. **Patients module v2** — per-patient tags + audience targeting;
+   comms preferences granularity; household linkage table for
+   pediatric/family clinics; per-view audit log for Premium tier;
+   `patient.source` backfill for legacy rows (currently null on rows
+   pre-migration-0018).
+8. **Shop module (Phase 3)** — the differentiator nobody else ships
+   (whitening kits + branded merch via Stripe Connect, birthday
+   coupons, loyalty mechanics, membership plans). `/shop` placeholder
+   exists. Existing `/ecommerce/orders` route serves as interim view.
+9. **Patient detail "Send review request" button** — quick row action
+   directly on the patient detail page; today the only entry point is
+   the Reviews dashboard's Ready-to-ask list.
+10. **Coming-soon clinic modules to build out** — Analytics (dental
+    KPIs: recall conversion, no-show, hygiene reappt, schedule
+    utilization), Blog (Tiptap + SEO + AI drafts), SEO dashboard
+    (rankings + page health on top of the already-live base SEO),
+    Careers (job postings + applicant tracking), Integrations
+    (Open Dental + Dentrix two-way sync).
+
+## Vercel surfaces to replace (AWS migration prep)
+
+Inventory of Vercel-specific surfaces currently in use. Each will need
+an AWS equivalent decided in the next session.
+
+| Vercel surface | What it does | Likely AWS replacement |
+|---|---|---|
+| **Build + deploy** | Git-push auto-deploy from `main` | CodePipeline + CodeBuild → ECS Fargate, OR App Runner, OR Amplify Hosting |
+| **Serverless functions** | Next.js API routes + Server Actions run as Vercel functions | Same code on Lambda (via SST / OpenNext / Amplify) or containerized on Fargate |
+| **Edge runtime** | `middleware.ts` runs at edge | CloudFront Functions (limited) or Lambda@Edge |
+| **`vercel.json` function timeouts** | Per-route `maxDuration` overrides (Stripe webhook 30s, upload 60s, Gmail watch renew 60s) | Lambda timeout settings per function |
+| **`vercel.json` cron** | `0 4 * * *` runs `/api/cron/gmail-watch-renew` | EventBridge Scheduler → Lambda invocation, OR EventBridge + ECS Fargate task |
+| **`vercel.json` headers** | Security headers (HSTS, X-Frame-Options, etc.) on all routes | CloudFront response-headers policy, OR set in `next.config.ts` |
+| **Speed Insights + Web Analytics** | Vercel-managed RUM + page-view analytics | CloudWatch RUM, or self-host Plausible/PostHog |
+| **`@vercel/blob`** (`lib/blob.ts`) | Hero/logo/headshot/intake-attachment uploads. ~10 call sites | AWS S3 + signed URLs. Swap `lib/blob.ts` to call S3 SDK. `BLOB_READ_WRITE_TOKEN` env → `AWS_REGION` + IAM-role or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` envs |
+| **`next/image` optimization** | Automatic image optimization on Vercel CDN | `next.config.ts` `images.loader: 'custom'` pointing at a Lambda + CloudFront image pipeline, OR pre-process at upload time and skip runtime optimization |
+| **`next/og` `ImageResponse`** | Dynamic OG image rendering for clinic sites at `/site/[slug]/opengraph-image` | Runs on any Node runtime; works on Lambda + container deploys. Confirm Edge runtime isn't required |
+| **Domain config** | apex `dreamcreatestudio.com` + wildcard `*.dreamcreatestudio.com` + auto SSL | Route 53 hosted zone + ACM cert (wildcard) + CloudFront distribution. Wildcard DNS still pending |
+| **Subdomain rewrite in `middleware.ts`** | `{slug}.dreamcreatestudio.com` → `/site/{slug}` | Same code works wherever middleware runs; verify Lambda@Edge / CloudFront Functions compatibility |
+| **Env var management** | Encrypted envs per project + per env target | AWS Secrets Manager OR Systems Manager Parameter Store, surfaced into Lambda env vars or container task definitions |
+| **DB connection** | `DATABASE_URL` (Neon Postgres pooled, US-East) | **No change** — Neon stays. Already region-aligned with us-east-1 |
+| **Webhook endpoints registered with vendors** | Stripe + Gmail Pub/Sub + Resend all point at `dreamcreatestudio.com/api/webhooks/*` | Same URL post-migration (domain stays) — but update each vendor's signing secret in the new env store. **Stripe + Resend webhooks both verify signatures; rotating secrets is a real step, not a no-op** |
+| **Migration bootstrap pattern** | One-shot `/api/admin/bootstrap` route + `ADMIN_BOOTSTRAP_TOKEN` env + paired cleanup PR | Same pattern works post-migration; only the env-set/delete API endpoints change (Vercel API → AWS Secrets Manager API or Parameter Store) |
+
+### Pre-migration code hygiene
+
+Already done (no action needed):
+- All current migrations applied to prod through 0023 (`_dreamcrm_migrations_applied` ledger reflects 0000–0023)
+- Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108)
+- 627/627 tests passing, typecheck clean
+- No uncommitted changes on `main`
+
+To-do in the AWS migration session:
+- Decide on the deploy shape (SST / OpenNext / Amplify / containerized Next.js standalone build) before changing any code
+- Audit `next.config.ts` for Vercel-specific settings
+- Swap `lib/blob.ts` to S3 (single-file change; type-compat shim recommended so call sites stay the same)
+- Move the Vercel cron to an AWS equivalent
+- Rotate every vendor webhook secret after migrating (Stripe, Resend, Gmail Pub/Sub, future Twilio)
 
 ## Deployment & operations
 
-- **Production**: `main` branch auto-deploys to `https://dreamcreatestudio.com`
-- **Region**: `iad1` (matches Neon)
-- **Vercel token**: the user (Dustin) has provided a Vercel access token
-  in this session's history (rotate-aware — don't echo it back to chat
-  in future sessions; check session context for the latest one). Token
-  is used for: reading project envs (note: `DATABASE_URL` is "sensitive"
-  type and can't be pulled via `vercel env pull`), setting/deleting
-  `ADMIN_BOOTSTRAP_TOKEN` for migration runs, polling deployment status.
-- **DB migration workflow** (used 3× this session for 0015, 0016, 0017):
+- **Production (current)**: `main` branch auto-deploys to `https://dreamcreatestudio.com` via Vercel.
+- **Region**: `iad1` (matches Neon Postgres).
+- **AWS migration is the next planned change** — see "Vercel surfaces
+  to replace" above. The migration workflow below is the
+  *current-Vercel* procedure; it gets restated post-migration once the
+  new env-management API is in place.
+- **Vercel API token** (rotate-aware): tokens passed through chat in
+  past sessions have already been used + should be rotated. Don't
+  re-use stale tokens from prior conversation transcripts — ask the
+  user for a fresh one when prod operations are needed. Used for:
+  reading project envs (`DATABASE_URL` is "sensitive" type and can't
+  be pulled), setting/deleting `ADMIN_BOOTSTRAP_TOKEN` for migration
+  runs, polling deployment status.
+- **DB migration workflow** (latest applied: 0023):
   1. Generate migration via `pnpm db:generate --name foo`
   2. Generate a random `ADMIN_BOOTSTRAP_TOKEN` and POST it to
      `https://api.vercel.com/v10/projects/prj_HK0PWpVYjcDPZNUUoxIQ5UptBFMS/env`
