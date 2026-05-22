@@ -15,9 +15,14 @@ aesthetic — keep it; wire logic to it rather than replacing components.
 - **Drizzle ORM** on **Neon Postgres** (US-East, `iad1`)
 - **better-auth** with Organizations plugin (multi-tenant)
 - **Stripe** for billing (Checkout + Customer Portal + webhooks)
-- **Resend** for transactional email (from `Hello@DreamCreateWeb.com`)
-- **Vercel Blob** for uploads
-- **Vercel** deployment, production URL: **https://dreamcreatestudio.com**
+- **Currently: Resend** for email + **Vercel Blob** for uploads + planned
+  **Twilio** for SMS + direct **Anthropic API** for Claude calls
+- **Migration in flight: replacing the above with AWS-native services
+  under a single BAA** — SES (email), AWS End User Messaging SMS,
+  S3 (storage), Bedrock (Claude). Gmail OAuth + Stripe + Neon stay.
+  See the "Vercel + third-party → AWS migration" section below.
+- **Currently deployed on Vercel**, production URL:
+  **https://dreamcreatestudio.com**
   - Wildcard `*.dreamcreatestudio.com` reserved for clinic public sites
   - Every push to `main` aliases there — refresh, don't open per-deploy URLs
 
@@ -484,23 +489,26 @@ feature work — the AWS deployment shape will inform decisions like
 
 ### Feature work, post-migration
 
-1. **Phase B — Twilio SMS (unlocks across 3 modules)** — Recall &
-   Outreach SMS sends, Patient Communications SMS in + outbound,
-   Reviews SMS channel. Schema is already in place across migrations
-   0021/0022/0023 (the `'twilio_sms'` channel enum, the
-   `clinic_sms_config` table, the patient `marketing_sms_opt_in`
-   columns). What's needed: lazy Proxy Twilio client (`lib/twilio.ts`);
-   send-orchestrator SMS branch (currently a no-op with clear error in
-   each of the 3 services); inbound webhook `/api/webhooks/twilio` for
-   replies + STOP/HELP keyword handling; settings UI for the per-org
-   Twilio phone number + A2P 10DLC status. Twilio account creds for
-   the user are wired to `.env.local` (gitignored) for local dev;
-   production envs need to be set wherever production envs live
-   post-migration. SMS channel stays disabled in UI until
-   `clinic_sms_config.a2p_status='approved'` (user-side A2P brand +
-   campaign registration takes 5-14 business days for carrier
-   approval). Twilio creds passed through prior conversation
-   transcripts should be rotated before going live.
+1. **Phase B — SMS (unlocks across 3 modules)** — Recall & Outreach
+   SMS sends, Patient Communications SMS in + outbound, Reviews SMS
+   channel. **Plan changed: AWS End User Messaging SMS, not Twilio.**
+   Rationale: AWS BAA covers SMS alongside SES + S3 + Bedrock under a
+   single agreement vs. Twilio's per-product BAAs. Schema is in place
+   across migrations 0021/0022/0023 — `clinic_sms_config` columns
+   keep their `twilio_*` names (storing AWS origination identity in
+   `twilio_phone_number` etc. is just a string-typed column; no
+   migration needed). Channel enum `'twilio_sms'` stays for back-
+   compat, surfaced as "SMS" in UI. What's needed post-migration:
+   lazy Proxy AWS-SDK SMS client at `lib/aws-sms.ts`; send-orchestrator
+   SMS branch (currently a no-op with clear error in each of the 3
+   services); inbound webhook `/api/webhooks/aws-sms` (SNS-triggered)
+   for replies + STOP/HELP keyword handling; settings UI for the
+   per-org origination identity + A2P 10DLC status. AWS submits the
+   brand + campaign registration on your behalf — 5-14 business days
+   for carrier approval, same regulatory clock as Twilio. SMS channel
+   stays disabled in UI until `clinic_sms_config.a2p_status='approved'`.
+   Twilio creds from prior conversation transcripts can be rotated +
+   discarded — they're no longer the target integration.
 2. **Reviews auto-trigger (v1.1)** — cron-driven send 24h after
    `appointment.status='completed'` for orgs with
    `clinic_review_config.autoSendEnabled=true`. The schema bit is
@@ -542,10 +550,30 @@ feature work — the AWS deployment shape will inform decisions like
     Careers (job postings + applicant tracking), Integrations
     (Open Dental + Dentrix two-way sync).
 
-## Vercel surfaces to replace (AWS migration prep)
+## Vercel + third-party → AWS migration (next session)
 
-Inventory of Vercel-specific surfaces currently in use. Each will need
-an AWS equivalent decided in the next session.
+**Strategic decision driving the migration**: consolidate every PHI-
+touching dependency under the single AWS Business Associate Agreement
+(BAA) instead of stitching together per-vendor BAAs (Twilio + Resend +
+Anthropic + Vercel + ...). One BAA, one bill, one IAM policy surface —
+materially simpler HIPAA posture for the clinic-tenant data model.
+
+That means the migration replaces *both* Vercel infra surfaces *and*
+the third-party integrations that aren't AWS-native. Inventory below.
+
+### Third-party services → AWS replacements
+
+| Current | Use in DreamCRM | AWS replacement | Migration shape |
+|---|---|---|---|
+| **Resend** | Transactional sends (password reset, invite, review request); marketing campaign sends in Recall & Outreach; FROM `Hello@DreamCreateWeb.com` | **AWS SES** (Simple Email Service) | Swap `lib/email.ts` + the Resend client in `lib/services/marketing-send.ts` + `lib/services/reviews.ts`. SES needs verified domain identity + DKIM + per-region quota request out of sandbox. Bounce/complaint webhook becomes SNS → Lambda → `/api/webhooks/ses` (replacing the Svix-signed Resend webhook). Open/click tracking moves to SES configuration sets (event publishing → SNS → our existing campaign_events ingest) |
+| **Twilio** (planned Phase B — never shipped) | SMS sends for Recall, Patient Communications, Reviews; inbound webhook + STOP keyword handling | **AWS End User Messaging SMS** (formerly Pinpoint SMS) | Drops the never-shipped Twilio integration entirely. Build the lazy Proxy client as `lib/aws-sms.ts` (not `lib/twilio.ts`). A2P 10DLC registration is still required (5-14 business day carrier approval — AWS submits the brand + campaign on your behalf, same regulatory clock). Inbound SMS publishes to SNS → our webhook. **Schema columns named `twilio_*` in `clinic_sms_config` get repurposed**, not renamed (column name is just a string; we keep `twilio_phone_number` storing the AWS origination identity to avoid a migration). Channel enum value `'twilio_sms'` stays for backwards-compat; surface it as just "SMS" in UI |
+| **Anthropic API (direct)** | Claude Sonnet calls in `lib/services/ai-marketing.ts` (campaign draft + improve copy) and any other AI surface | **AWS Bedrock** with Anthropic models | Swap the `@anthropic-ai/sdk` import for `@aws-sdk/client-bedrock-runtime`. Same model family available (Claude Sonnet 4.x / Opus 4.x). Caching + thinking features map across. Auth becomes IAM instead of `ANTHROPIC_API_KEY` |
+| **Vercel Blob** (`lib/blob.ts`, `@vercel/blob`) | Logo / hero / staff headshot / office photo / intake-form-attachment uploads. ~10 call sites | **AWS S3** + signed PUT URLs | Single-file swap inside `lib/blob.ts` keeps call sites unchanged. Use S3 presigned URLs for browser-direct uploads (skip the `app/api/upload` round-trip if we want), or keep the upload API and have it `PutObject` to S3 |
+| **Stripe** | Checkout + Customer Portal + subscription billing + future Connect (Shop Phase 3) | **No change** — stays Stripe | No AWS equivalent for card processing. Stripe has a healthcare BAA; sign it alongside the AWS BAA |
+| **Gmail OAuth** | Staff connects their workspace Gmail for the Inbox module (reading clinic-bound email, sending replies). Also a marketing-send channel in Recall & Outreach | **No change** — stays Gmail OAuth | Cannot replace; it's the clinic's own mailbox. Note that with SES on outbound, the Gmail-send option in Recall becomes the "send from my own mailbox" option, and SES becomes the "send branded blast" option (current Resend tradeoff just with SES on the branded side) |
+| **Neon Postgres** | Primary DB | **No change** — Neon stays | Already us-east-aligned with where we'll likely land on AWS. Connection string moves to Secrets Manager; otherwise no app-side change. If we ever want everything inside one BAA, RDS Postgres is the migration target — but Neon's serverless model is a real ops win and they have a separate BAA |
+
+### Vercel infra surfaces → AWS
 
 | Vercel surface | What it does | Likely AWS replacement |
 |---|---|---|
@@ -556,15 +584,13 @@ an AWS equivalent decided in the next session.
 | **`vercel.json` cron** | `0 4 * * *` runs `/api/cron/gmail-watch-renew` | EventBridge Scheduler → Lambda invocation, OR EventBridge + ECS Fargate task |
 | **`vercel.json` headers** | Security headers (HSTS, X-Frame-Options, etc.) on all routes | CloudFront response-headers policy, OR set in `next.config.ts` |
 | **Speed Insights + Web Analytics** | Vercel-managed RUM + page-view analytics | CloudWatch RUM, or self-host Plausible/PostHog |
-| **`@vercel/blob`** (`lib/blob.ts`) | Hero/logo/headshot/intake-attachment uploads. ~10 call sites | AWS S3 + signed URLs. Swap `lib/blob.ts` to call S3 SDK. `BLOB_READ_WRITE_TOKEN` env → `AWS_REGION` + IAM-role or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` envs |
 | **`next/image` optimization** | Automatic image optimization on Vercel CDN | `next.config.ts` `images.loader: 'custom'` pointing at a Lambda + CloudFront image pipeline, OR pre-process at upload time and skip runtime optimization |
 | **`next/og` `ImageResponse`** | Dynamic OG image rendering for clinic sites at `/site/[slug]/opengraph-image` | Runs on any Node runtime; works on Lambda + container deploys. Confirm Edge runtime isn't required |
 | **Domain config** | apex `dreamcreatestudio.com` + wildcard `*.dreamcreatestudio.com` + auto SSL | Route 53 hosted zone + ACM cert (wildcard) + CloudFront distribution. Wildcard DNS still pending |
 | **Subdomain rewrite in `middleware.ts`** | `{slug}.dreamcreatestudio.com` → `/site/{slug}` | Same code works wherever middleware runs; verify Lambda@Edge / CloudFront Functions compatibility |
-| **Env var management** | Encrypted envs per project + per env target | AWS Secrets Manager OR Systems Manager Parameter Store, surfaced into Lambda env vars or container task definitions |
-| **DB connection** | `DATABASE_URL` (Neon Postgres pooled, US-East) | **No change** — Neon stays. Already region-aligned with us-east-1 |
-| **Webhook endpoints registered with vendors** | Stripe + Gmail Pub/Sub + Resend all point at `dreamcreatestudio.com/api/webhooks/*` | Same URL post-migration (domain stays) — but update each vendor's signing secret in the new env store. **Stripe + Resend webhooks both verify signatures; rotating secrets is a real step, not a no-op** |
-| **Migration bootstrap pattern** | One-shot `/api/admin/bootstrap` route + `ADMIN_BOOTSTRAP_TOKEN` env + paired cleanup PR | Same pattern works post-migration; only the env-set/delete API endpoints change (Vercel API → AWS Secrets Manager API or Parameter Store) |
+| **Env var management** | Encrypted envs per project + per env target | AWS Secrets Manager (PHI-touching secrets) OR Systems Manager Parameter Store (config), surfaced into Lambda env vars or container task definitions |
+| **Webhook endpoints registered with vendors** | Stripe + Gmail Pub/Sub all point at `dreamcreatestudio.com/api/webhooks/*` | Same URL post-migration (domain stays). New: `/api/webhooks/ses` for SES bounce/complaint events; `/api/webhooks/aws-sms` for inbound SMS. Rotate **every** signing secret as part of the cutover |
+| **Migration bootstrap pattern** | One-shot `/api/admin/bootstrap` route + `ADMIN_BOOTSTRAP_TOKEN` env + paired cleanup PR | Same pattern works post-migration; only the env-set/delete API endpoints change (Vercel API → AWS Secrets Manager `PutSecretValue` / `DeleteSecret`) |
 
 ### Pre-migration code hygiene
 
@@ -573,13 +599,17 @@ Already done (no action needed):
 - Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108)
 - 627/627 tests passing, typecheck clean
 - No uncommitted changes on `main`
+- Twilio integration was never shipped — no code to remove, just a never-built Phase B plan replaced with AWS SMS
 
-To-do in the AWS migration session:
-- Decide on the deploy shape (SST / OpenNext / Amplify / containerized Next.js standalone build) before changing any code
-- Audit `next.config.ts` for Vercel-specific settings
-- Swap `lib/blob.ts` to S3 (single-file change; type-compat shim recommended so call sites stay the same)
-- Move the Vercel cron to an AWS equivalent
-- Rotate every vendor webhook secret after migrating (Stripe, Resend, Gmail Pub/Sub, future Twilio)
+To-do in the AWS migration session (rough order):
+1. Decide on the deploy shape (SST / OpenNext / Amplify / containerized Next.js standalone build) before changing any code
+2. Sign the AWS BAA, request SES sandbox-exit, kick off A2P 10DLC registration (5-14 business days — start early)
+3. Audit `next.config.ts` for Vercel-specific settings
+4. Swap `lib/blob.ts` → S3, `lib/email.ts` + send-paths → SES, `lib/services/ai-marketing.ts` → Bedrock. Each is a single-file (or small-fan-out) change; type-compat shims recommended so call sites stay the same
+5. Build `lib/aws-sms.ts` for Phase B SMS, wire the inbound webhook
+6. Move the Vercel cron to EventBridge
+7. Wire CloudFront + Route 53 + ACM for the domain
+8. Rotate every webhook signing secret post-cutover (Stripe, Gmail Pub/Sub, new SES, new AWS SMS)
 
 ## Deployment & operations
 
