@@ -8,6 +8,7 @@ import {
   archiveLeadAction,
   reopenLeadAction,
   convertLeadAction,
+  previewLeadConvertAction,
 } from './actions'
 
 const STATUS_PILL: Record<LeadStatus, string> = {
@@ -40,6 +41,10 @@ export default function LeadDrawer({
   const [archiveReason, setArchiveReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // Set when convert would link to an existing patient (email/phone match)
+  // — we confirm before merging so a shared family phone doesn't silently
+  // fold a child lead into a parent's record.
+  const [dedupeMatch, setDedupeMatch] = useState<string | null>(null)
 
   function flash(msg: string) {
     setToast(msg)
@@ -75,18 +80,34 @@ export default function LeadDrawer({
     })
   }
 
+  // Step 1: dry-run the dedupe check. If the lead's email/phone matches an
+  // existing patient, surface a confirm step instead of silently merging.
   function onConvert() {
     setError(null)
+    setDedupeMatch(null)
     startTransition(async () => {
-      const r = await convertLeadAction(row.id)
+      const preview = await previewLeadConvertAction(row.id)
+      if ('ok' in preview && preview.ok && preview.matchedPatientName) {
+        setDedupeMatch(preview.matchedPatientName)
+        return
+      }
+      if ('error' in preview && !preview.ok) { setError(preview.error); return }
+      await runConvert(false)
+    })
+  }
+
+  // Step 2: commit the convert. forceNew=true skips the dedupe and creates
+  // a separate patient (the "not the same person" escape hatch).
+  function runConvert(forceNew: boolean) {
+    startTransition(async () => {
+      const r = await convertLeadAction(row.id, { forceNewPatient: forceNew })
       if ('ok' in r && r.ok === true) {
-        flash('Converted to patient.')
+        flash(r.deduped ? `Linked to existing patient ${r.patientName}.` : `Created patient ${r.patientName}.`)
         router.refresh()
-        // Land the user on the new patient's detail page — they probably
-        // want to book the first appointment immediately.
         router.push(`/patients/${r.patientId}`)
       } else if ('error' in r) {
         setError(r.error)
+        setDedupeMatch(null)
       }
     })
   }
@@ -180,6 +201,40 @@ export default function LeadDrawer({
           </div>
 
           {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+
+          {/* Dedupe confirmation — convert matched an existing patient. */}
+          {dedupeMatch && (
+            <div className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 space-y-2">
+              <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                This lead&rsquo;s email or phone matches an existing patient:{' '}
+                <span className="font-semibold">{dedupeMatch}</span>. Link this lead to
+                them, or create a separate patient (e.g. a family member on a shared number)?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => runConvert(false)}
+                  disabled={pending}
+                  className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Link to {dedupeMatch.split(' ')[0]}
+                </button>
+                <button
+                  onClick={() => runConvert(true)}
+                  disabled={pending}
+                  className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+                >
+                  Create separate patient
+                </button>
+                <button
+                  onClick={() => setDedupeMatch(null)}
+                  disabled={pending}
+                  className="btn-sm text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Source attribution */}
           {(row.sourcePage || row.referrer || row.utmSource) && (

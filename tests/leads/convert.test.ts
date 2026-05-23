@@ -64,7 +64,7 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(() => ({ _kind: 'sql' })), { raw: vi.fn() }),
 }))
 
-import { convertLeadToPatient } from '@/lib/services/leads'
+import { convertLeadToPatient, findConvertDedupeMatch } from '@/lib/services/leads'
 
 beforeEach(() => {
   state.leadResult = null
@@ -117,6 +117,9 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
 
     expect(out.leadId).toBe('lead_1')
     expect(out.patientId).toMatch(/^pat_/)
+    // New patient → not deduped, name reflects the lead's split name
+    expect(out.deduped).toBe(false)
+    expect(out.patientName).toBe('Olivia Chen')
   })
 
   it('reuses an existing patient when email or phone matches (no duplicate)', async () => {
@@ -129,7 +132,7 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
       convertedToPatientId: null,
       createdAt: new Date(),
     }]
-    state.dupesResult = [{ id: 'pat_existing_dan' }]
+    state.dupesResult = [{ id: 'pat_existing_dan', firstName: 'Daniel', lastName: 'Park' }]
 
     const out = await convertLeadToPatient('org_1', 'lead_2')
 
@@ -139,6 +142,31 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
     expect(state.updates).toHaveLength(1)
     expect(state.updates[0].set.convertedToPatientId).toBe('pat_existing_dan')
     expect(out.patientId).toBe('pat_existing_dan')
+    // Deduped → flag set + name comes from the matched patient
+    expect(out.deduped).toBe(true)
+    expect(out.patientName).toBe('Daniel Park')
+  })
+
+  it('forceNewPatient skips the dedupe and inserts a separate patient', async () => {
+    state.leadResult = [{
+      id: 'lead_2b',
+      organizationId: 'org_1',
+      name: 'Danny Park Jr',
+      phone: '(415) 555-0119', // same phone as an existing patient
+      email: null,
+      convertedToPatientId: null,
+      createdAt: new Date(),
+    }]
+    state.dupesResult = [{ id: 'pat_existing_dan', firstName: 'Daniel', lastName: 'Park' }]
+
+    const out = await convertLeadToPatient('org_1', 'lead_2b', { forceNewPatient: true })
+
+    // A NEW patient row is inserted despite the phone match
+    expect(state.inserts).toHaveLength(1)
+    expect(out.deduped).toBe(false)
+    expect(out.patientId).toMatch(/^pat_/)
+    expect(out.patientId).not.toBe('pat_existing_dan')
+    expect(out.patientName).toBe('Danny Park Jr')
   })
 
   it('is idempotent — re-converting an already-converted lead returns the same patient', async () => {
@@ -195,5 +223,36 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
     const patientInsert = state.inserts.find((i) => i.table === 'patient')!
     expect(patientInsert.values.firstName).toBe('Maria')
     expect(patientInsert.values.lastName).toBe('del Carmen Rodriguez')
+  })
+})
+
+describe('findConvertDedupeMatch — pre-convert dry run', () => {
+  it('returns the matched patient when email/phone collides', async () => {
+    state.leadResult = [{
+      email: 'shared@example.com',
+      phone: '(415) 555-0119',
+      convertedToPatientId: null,
+    }]
+    state.dupesResult = [{ id: 'pat_parent', firstName: 'Parent', lastName: 'Smith' }]
+
+    const match = await findConvertDedupeMatch('org_1', 'lead_x')
+    expect(match).toEqual({ id: 'pat_parent', name: 'Parent Smith' })
+    // Pure read — no writes
+    expect(state.inserts).toHaveLength(0)
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('returns null when no patient matches', async () => {
+    state.leadResult = [{ email: 'fresh@example.com', phone: '(999) 999-9999', convertedToPatientId: null }]
+    state.dupesResult = []
+    const match = await findConvertDedupeMatch('org_1', 'lead_y')
+    expect(match).toBeNull()
+  })
+
+  it('returns null for an already-converted lead (no double-merge prompt)', async () => {
+    state.leadResult = [{ email: 'x@example.com', phone: '(415) 555-0119', convertedToPatientId: 'pat_already' }]
+    state.dupesResult = [{ id: 'pat_parent', firstName: 'Parent', lastName: 'Smith' }]
+    const match = await findConvertDedupeMatch('org_1', 'lead_z')
+    expect(match).toBeNull()
   })
 })

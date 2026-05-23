@@ -14,6 +14,7 @@ import { sendBulkPatientEmail, type BulkEmailResult } from '@/lib/services/patie
 import { addPatientNote, deletePatientNote } from '@/lib/services/patient-notes'
 import { getOrCreatePatientThread } from '@/lib/services/patient-messaging'
 import { sendIntakeRequestToPatient } from '@/lib/services/patient-intake-send'
+import { enterDemoMode } from '../ecommerce/customers/admin-actions'
 
 export async function createPatientAction(formData: FormData): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const ctx = await requireTenant()
@@ -116,6 +117,22 @@ export async function openPatientThreadAction(formData: FormData) {
   if (ctx.tenantType !== 'clinic') redirect('/')
   const threadId = await getOrCreatePatientThread(ctx.organizationId, patientId)
   redirect(`/messages?thread=${threadId}`)
+}
+
+/**
+ * Platform-admin-only: enter patient-portal demo mode as this specific
+ * patient. Reuses the demo_context cookie mechanism so the admin can
+ * preview the patient experience — previously the patient portal had no
+ * UI entry point and could only be reached by hand-crafting the cookie.
+ */
+export async function viewAsPatientAction(formData: FormData) {
+  const patientId = formData.get('patientId')?.toString()
+  const ctx = await requireTenant()
+  if (!ctx.platformAdmin) throw new Error('Platform admin only')
+  if (!patientId) throw new Error('Missing patientId')
+  // enterDemoMode validates platform-admin again, sets the cookie, and
+  // redirects to '/' (which routes a patient context to /patient/dashboard).
+  await enterDemoMode({ orgId: ctx.organizationId, role: 'patient', patientId })
 }
 
 /**

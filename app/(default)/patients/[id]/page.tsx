@@ -37,6 +37,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       timeline={timeline}
       counts={counts}
       notes={notes}
+      isPlatformAdmin={ctx.platformAdmin}
     />
   )
 }
