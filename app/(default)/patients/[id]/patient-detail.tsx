@@ -9,7 +9,7 @@ import { GlyphCluster } from '../glyph-cluster'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
-import { archivePatientAction, openPatientThreadAction, sendIntakeRequestAction } from '../actions'
+import { archivePatientAction, openPatientThreadAction, sendIntakeRequestAction, viewAsPatientAction } from '../actions'
 
 function money(cents: number): string {
   if (cents === 0) return '$0'
@@ -82,11 +82,13 @@ export default function PatientDetail({
   timeline,
   counts,
   notes,
+  isPlatformAdmin = false,
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
   counts: TimelineCounts
   notes: PatientNoteRow[]
+  isPlatformAdmin?: boolean
 }) {
   const [filter, setFilter] = useState<TimelineKind | 'all'>('all')
   const [editOpen, setEditOpen] = useState(false)
@@ -157,6 +159,18 @@ export default function PatientDetail({
               Book appointment
             </button>
             <SendIntakeButton patientId={header.id} />
+            {isPlatformAdmin && (
+              <form action={viewAsPatientAction}>
+                <input type="hidden" name="patientId" value={header.id} />
+                <button
+                  type="submit"
+                  title="Preview the patient portal as this patient (platform admin)"
+                  className="btn-sm bg-white dark:bg-gray-700 border border-dashed border-violet-300 dark:border-violet-500/50 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-500/10"
+                >
+                  View as patient
+                </button>
+              </form>
+            )}
             <button
               onClick={() => setEditOpen(true)}
               className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800"

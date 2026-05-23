@@ -222,7 +222,14 @@ export async function reopenLead(organizationId: string, id: string) {
     .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
 }
 
-export interface ConvertLeadResult { leadId: string; patientId: string }
+export interface ConvertLeadResult {
+  leadId: string
+  patientId: string
+  /** True when we linked to an existing patient (matched email/phone) rather than creating a new row. */
+  deduped: boolean
+  /** Display name of the resulting patient — for an honest "linked to X" / "created X" message. */
+  patientName: string
+}
 
 /**
  * Convert a lead into a real patient. Splits the lead's single `name`
@@ -245,6 +252,7 @@ export interface ConvertLeadResult { leadId: string; patientId: string }
 export async function convertLeadToPatient(
   organizationId: string,
   id: string,
+  options: { forceNewPatient?: boolean } = {},
 ): Promise<ConvertLeadResult> {
   const [existing] = await db
     .select()
@@ -253,7 +261,8 @@ export async function convertLeadToPatient(
     .limit(1)
   if (!existing) throw new Error('Lead not found')
   if (existing.convertedToPatientId) {
-    return { leadId: existing.id, patientId: existing.convertedToPatientId }
+    const name = await patientDisplayName(organizationId, existing.convertedToPatientId)
+    return { leadId: existing.id, patientId: existing.convertedToPatientId, deduped: true, patientName: name }
   }
 
   const trimmed = existing.name.trim()
@@ -262,23 +271,31 @@ export async function convertLeadToPatient(
   const lastName = firstSpace >= 0 ? trimmed.slice(firstSpace + 1).trim() : ''
 
   // If a patient already exists with this email or phone, reuse them
-  // rather than creating a duplicate.
-  const dupes = await db
-    .select({ id: schema.patient.id })
-    .from(schema.patient)
-    .where(
-      and(
-        eq(schema.patient.organizationId, organizationId),
-        or(
-          existing.email ? eq(schema.patient.email, existing.email) : sql`false`,
-          eq(schema.patient.phone, existing.phone),
-        )!,
-      ),
-    )
-    .limit(1)
+  // rather than creating a duplicate — UNLESS the caller explicitly
+  // forces a new patient (the "not the same person" escape hatch, e.g.
+  // a child lead sharing a parent's phone number — common in dental).
+  const dupes = options.forceNewPatient
+    ? []
+    : await db
+        .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+        .from(schema.patient)
+        .where(
+          and(
+            eq(schema.patient.organizationId, organizationId),
+            or(
+              existing.email ? eq(schema.patient.email, existing.email) : sql`false`,
+              eq(schema.patient.phone, existing.phone),
+            )!,
+          ),
+        )
+        .limit(1)
 
+  const deduped = !!dupes[0]
   const patientId = dupes[0]?.id ?? `pat_${randomBytes(10).toString('hex')}`
-  if (!dupes[0]) {
+  const patientName = deduped
+    ? `${dupes[0].firstName} ${dupes[0].lastName}`.trim()
+    : `${firstName || 'Unknown'} ${lastName}`.trim()
+  if (!deduped) {
     const now = new Date()
     await db.insert(schema.patient).values({
       id: patientId,
@@ -305,7 +322,47 @@ export async function convertLeadToPatient(
     })
     .where(eq(schema.lead.id, id))
 
-  return { leadId: existing.id, patientId }
+  return { leadId: existing.id, patientId, deduped, patientName }
+}
+
+/**
+ * Dry-run of the convert dedupe lookup — returns the existing patient a
+ * convert WOULD link to (by email/phone match), or null if convert would
+ * create a new patient. No writes. Lets the UI confirm before merging.
+ */
+export async function findConvertDedupeMatch(
+  organizationId: string,
+  leadId: string,
+): Promise<{ id: string; name: string } | null> {
+  const [lead] = await db
+    .select({ email: schema.lead.email, phone: schema.lead.phone, convertedToPatientId: schema.lead.convertedToPatientId })
+    .from(schema.lead)
+    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, leadId)))
+    .limit(1)
+  if (!lead || lead.convertedToPatientId) return null
+  const [match] = await db
+    .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        or(
+          lead.email ? eq(schema.patient.email, lead.email) : sql`false`,
+          eq(schema.patient.phone, lead.phone),
+        )!,
+      ),
+    )
+    .limit(1)
+  return match ? { id: match.id, name: `${match.firstName} ${match.lastName}`.trim() } : null
+}
+
+async function patientDisplayName(organizationId: string, patientId: string): Promise<string> {
+  const [p] = await db
+    .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+    .limit(1)
+  return p ? `${p.firstName} ${p.lastName}`.trim() : 'patient'
 }
 
 // ----- Insert (called from the public contact form) --------------------
