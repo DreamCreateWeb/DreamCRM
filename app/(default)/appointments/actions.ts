@@ -13,7 +13,7 @@ import {
   getAppointmentDetail,
   type CreateInternalAppointmentInput,
 } from '@/lib/services/appointments'
-import { isSlotAvailable } from '@/lib/services/booking'
+import { getSlotsForDay } from '@/lib/services/booking'
 import { sendNotificationEmail } from '@/lib/email'
 
 async function requireClinicTenant() {
@@ -67,8 +67,22 @@ export async function rescheduleAppointmentAction(input: {
   if (Number.isNaN(start.getTime()) || start < new Date()) {
     return { ok: false, error: 'New start time must be in the future' }
   }
-  if (!(await isSlotAvailable(ctx.organizationId, start))) {
-    return { ok: false, error: 'That slot is no longer available' }
+  // Same honest-error treatment as createInternalAppointmentAction;
+  // exclude the appointment-being-rescheduled so its old slot doesn't
+  // count as "taken" against itself.
+  const { slots: rSlots, closedReason: rClosedReason } = await getSlotsForDay(
+    ctx.organizationId, start, input.appointmentId,
+  )
+  const rTargetIso = start.toISOString()
+  const rSlot = rSlots.find((s) => s.startIso === rTargetIso)
+  if (!rSlot || !rSlot.available) {
+    const error =
+      rClosedReason === 'day_closed' ? "We're closed that day. Pick another date." :
+      rClosedReason === 'past_closing' ? "That time is past closing. Try a different time or day." :
+      rClosedReason === 'invalid_hours' ? "Online booking isn't set up for this day — give us a call." :
+      rSlot && !rSlot.available ? 'That slot conflicts with an existing appointment.' :
+      "That time isn't an available slot. Pick another."
+    return { ok: false, error }
   }
   const end = input.newEndTime ? new Date(input.newEndTime) : null
   const newId = await rescheduleAppointment({
@@ -189,8 +203,19 @@ export async function createInternalAppointmentAction(input: {
   if (Number.isNaN(start.getTime()) || start < new Date()) {
     return { ok: false, error: 'Appointment time must be in the future' }
   }
-  if (!(await isSlotAvailable(ctx.organizationId, start))) {
-    return { ok: false, error: 'That slot conflicts with an existing appointment' }
+  // Honest error per closedReason — "conflicts with existing" is wrong
+  // when the actual cause is a closed day or past closing.
+  const { slots, closedReason } = await getSlotsForDay(ctx.organizationId, start)
+  const targetIso = start.toISOString()
+  const slot = slots.find((s) => s.startIso === targetIso)
+  if (!slot || !slot.available) {
+    const error =
+      closedReason === 'day_closed' ? "We're closed that day. Pick another date." :
+      closedReason === 'past_closing' ? "That time is past closing. Try a different time or day." :
+      closedReason === 'invalid_hours' ? "Online booking isn't set up for this day — give us a call." :
+      slot && !slot.available ? 'That slot conflicts with an existing appointment.' :
+      "That time isn't an available slot. Pick another."
+    return { ok: false, error }
   }
   const create: CreateInternalAppointmentInput = {
     organizationId: ctx.organizationId,

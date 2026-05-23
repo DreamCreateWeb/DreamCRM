@@ -765,49 +765,54 @@ export interface RescheduleInput {
 }
 
 export async function rescheduleAppointment(input: RescheduleInput) {
-  // Wrap the cancel-original + insert-new pair in a transaction. Without
-  // this, a mid-flight failure could leave the original cancelled with no
-  // replacement — strictly worse than the pre-reschedule state.
-  return db.transaction(async (tx) => {
-    const [original] = await tx
-      .select()
-      .from(schema.appointment)
-      .where(
-        and(
-          eq(schema.appointment.organizationId, input.organizationId),
-          eq(schema.appointment.id, input.appointmentId),
-        ),
-      )
-      .limit(1)
-    if (!original) throw new Error('Appointment not found')
+  // Previously wrapped in `db.transaction()` to make cancel-original +
+  // insert-new atomic, but the Neon HTTP driver throws "No transactions
+  // support in neon-http driver" at runtime. Order matters here: insert
+  // the new appointment FIRST, then cancel the original. Failure modes:
+  //   - insert fails → original unchanged, user retries
+  //   - insert succeeds + cancel fails → temporary duplicate (front desk
+  //     spots it on the agenda + can cancel the stale row by hand), much
+  //     less bad than the old failure mode (original cancelled with no
+  //     replacement)
+  const [original] = await db
+    .select()
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, input.organizationId),
+        eq(schema.appointment.id, input.appointmentId),
+      ),
+    )
+    .limit(1)
+  if (!original) throw new Error('Appointment not found')
 
-    await tx
-      .update(schema.appointment)
-      .set({
-        status: 'cancelled',
-        cancelledAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.appointment.id, input.appointmentId))
-
-    const newId = newAppointmentId()
-    await tx.insert(schema.appointment).values({
-      id: newId,
-      organizationId: input.organizationId,
-      patientId: original.patientId,
-      locationId: original.locationId,
-      providerId: original.providerId,
-      title: original.title,
-      startTime: input.newStartTime,
-      endTime: input.newEndTime,
-      type: original.type,
-      status: 'scheduled',
-      notes: original.notes,
-      source: 'manual',
-      rescheduledFromAppointmentId: input.appointmentId,
-    })
-    return newId
+  const newId = newAppointmentId()
+  await db.insert(schema.appointment).values({
+    id: newId,
+    organizationId: input.organizationId,
+    patientId: original.patientId,
+    locationId: original.locationId,
+    providerId: original.providerId,
+    title: original.title,
+    startTime: input.newStartTime,
+    endTime: input.newEndTime,
+    type: original.type,
+    status: 'scheduled',
+    notes: original.notes,
+    source: 'manual',
+    rescheduledFromAppointmentId: input.appointmentId,
   })
+
+  await db
+    .update(schema.appointment)
+    .set({
+      status: 'cancelled',
+      cancelledAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.appointment.id, input.appointmentId))
+
+  return newId
 }
 
 // ----- Reminder log -----------------------------------------------------

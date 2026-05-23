@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Capture the calls a transaction makes so we can assert the cancel +
-// insert pattern + that the new row points back at the original.
+// Capture the calls reschedule makes so we can assert the insert +
+// cancel pattern + that the new row points back at the original.
+// rescheduleAppointment no longer uses db.transaction() — the Neon HTTP
+// driver doesn't support transactions. Writes run directly off the
+// top-level `db`. The mock intentionally has NO `transaction` method, so
+// a regression that reintroduces one fails loudly.
 const txState = {
   selects: [] as unknown[],
   updates: [] as Array<{ set: Record<string, unknown> }>,
@@ -9,7 +13,7 @@ const txState = {
   selectResult: null as unknown,
 }
 
-function makeTx() {
+function dbMethods() {
   return {
     select: () => ({
       from: () => ({
@@ -34,9 +38,7 @@ function makeTx() {
 }
 
 vi.mock('@/lib/db', () => ({
-  db: {
-    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(makeTx()),
-  },
+  db: dbMethods(),
   schema: {
     appointment: {
       id: 'id',

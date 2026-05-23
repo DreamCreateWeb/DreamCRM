@@ -10,8 +10,14 @@ const state = {
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
 }
 
-function makeTx() {
-  let nextSelectIsLead = true
+// convertLeadToPatient no longer uses db.transaction() — the Neon HTTP
+// driver doesn't support transactions (calls fail at runtime with "No
+// transactions support in neon-http driver"). The writes run directly off
+// the top-level `db`, so the mock routes select/insert/update through the
+// shared `state` capture. NB: there is intentionally NO `transaction`
+// method here — if the implementation ever reintroduces one, these tests
+// will throw "transaction is not a function", catching the regression.
+function dbMethods() {
   return {
     select: () => ({
       from: (t: unknown) => ({
@@ -40,12 +46,7 @@ function makeTx() {
 }
 
 vi.mock('@/lib/db', () => ({
-  db: {
-    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(makeTx()),
-    select: () => ({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) }),
-    insert: () => ({ values: async () => {} }),
-    update: () => ({ set: () => ({ where: async () => {} }) }),
-  },
+  db: dbMethods(),
   schema: {
     lead: 'lead',
     patient: 'patient',
