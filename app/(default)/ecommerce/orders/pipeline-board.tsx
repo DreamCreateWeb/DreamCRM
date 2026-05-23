@@ -288,7 +288,7 @@ function ProjectCard({ project }: { project: PipelineProject }) {
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5" suppressHydrationWarning>
         {project.budgetCents != null && project.budgetCents > 0 && (
           <Pill tone="gray">{formatMoneyShort(project.budgetCents)}</Pill>
         )}

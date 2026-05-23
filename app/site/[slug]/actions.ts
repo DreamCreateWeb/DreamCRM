@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
-import { getAvailableSlots, isSlotAvailable, SLOT_MINUTES, type BookingSlot } from '@/lib/services/booking'
+import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
@@ -73,11 +73,11 @@ export async function submitContactRequest(formData: FormData) {
 export async function listBookingSlots(
   orgId: string,
   dateIso: string,
-): Promise<BookingSlot[]> {
-  if (!orgId || !dateIso) return []
+): Promise<SlotsForDay> {
+  if (!orgId || !dateIso) return { slots: [], closedReason: 'invalid_hours' }
   const date = new Date(dateIso)
-  if (isNaN(date.getTime())) return []
-  return getAvailableSlots(orgId, date)
+  if (isNaN(date.getTime())) return { slots: [], closedReason: 'invalid_hours' }
+  return getSlotsForDay(orgId, date)
 }
 
 export async function submitBookingRequest(formData: FormData) {

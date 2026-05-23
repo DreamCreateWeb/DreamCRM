@@ -7,7 +7,6 @@ const PUBLIC_PATHS = [
   '/signin',
   '/signup',
   '/reset-password',
-  '/verify-email',
   '/accept-invite',
   '/api/auth',
   '/api/hello',

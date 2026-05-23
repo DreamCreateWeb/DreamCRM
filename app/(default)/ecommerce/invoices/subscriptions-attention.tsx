@@ -113,7 +113,10 @@ function AttentionBucket({
                     )}
                   </div>
                 </div>
-                <div className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0 text-right">
+                <div
+                  className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0 text-right"
+                  suppressHydrationWarning
+                >
                   {labelFor(s)}
                 </div>
               </div>

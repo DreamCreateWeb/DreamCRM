@@ -261,6 +261,24 @@ const DEMO_TESTIMONIALS = [
   },
 ]
 
+/**
+ * Round a Date down to the nearest :00 or :30 minute boundary. Used when
+ * seeding demo appointments so times look like a real clinic schedule
+ * regardless of when the seeder runs.
+ */
+function snapToHalfHour(d: Date): Date {
+  const r = new Date(d)
+  r.setMinutes(r.getMinutes() < 30 ? 0 : 30, 0, 0)
+  return r
+}
+
+// Logo + hero image for the demo clinic. Unsplash assets keep us
+// dependency-free and consistent with how DEMO_OFFICE_PHOTOS works.
+const DEMO_LOGO_URL =
+  'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=200&h=200&fit=crop&q=80'
+const DEMO_HERO_IMAGE_URL =
+  'https://images.unsplash.com/photo-1606811971618-4486d14f3f99?w=2000&q=80'
+
 const DEMO_OFFICE_PHOTOS = [
   {
     id: 'op1',
@@ -312,6 +330,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         stats: schema.clinicProfile.stats,
         testimonials: schema.clinicProfile.testimonials,
         officePhotos: schema.clinicProfile.officePhotos,
+        logoUrl: schema.clinicProfile.logoUrl,
+        heroImageUrl: schema.clinicProfile.heroImageUrl,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -322,6 +342,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (!profile?.stats) patch.stats = DEMO_STATS
     if (!profile?.testimonials) patch.testimonials = DEMO_TESTIMONIALS
     if (!profile?.officePhotos) patch.officePhotos = DEMO_OFFICE_PHOTOS
+    if (!profile?.logoUrl) patch.logoUrl = DEMO_LOGO_URL
+    if (!profile?.heroImageUrl) patch.heroImageUrl = DEMO_HERO_IMAGE_URL
     if (Object.keys(patch).length > 0) {
       await db
         .update(schema.clinicProfile)
@@ -598,6 +620,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     template: 'modern',
     phone: '(512) 555-0100',
     email: 'hello@acme-dental.example',
+    logoUrl: DEMO_LOGO_URL,
+    heroImageUrl: DEMO_HERO_IMAGE_URL,
     addressLine1: '500 Main St',
     city: 'Austin',
     state: 'TX',
@@ -784,7 +808,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     { id: newId('appt'), patientIdx: 6, startOffsetMs: 11 * dayMs + 15 * hourMs, type: 'consultation', status: 'scheduled', notes: null, providerId: providerDentistId, source: 'booking_widget', createdAtOverride: new Date(now.getTime() - 20 * 60 * 1000) },
   ]
   for (const a of apptsToSeed) {
-    const start = new Date(now.getTime() + a.startOffsetMs)
+    // Snap seeded start time to the nearest 30-min boundary so demo
+    // appointments read like a real clinic schedule (9:00, 9:30, 10:00…)
+    // rather than inheriting whatever minute/second `now` happens to be
+    // when the seeder runs (which leaves every demo appointment ending in
+    // `:20` or `:43`).
+    const start = snapToHalfHour(new Date(now.getTime() + a.startOffsetMs))
     const end = new Date(start.getTime() + 45 * 60 * 1000)
     await db.insert(schema.appointment).values({
       id: a.id,

@@ -257,7 +257,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                         </div>
                       )}
                     </div>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                    <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0" suppressHydrationWarning>
                       {formatRelativeDate(a.occurredAt)}
                     </span>
                   </div>

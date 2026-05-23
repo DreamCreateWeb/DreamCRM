@@ -17,16 +17,24 @@ export interface ClinicSiteData {
 }
 
 /**
- * The canonical public URL the clinic site lives at. Custom domain when
- * set, else the platform-managed subdomain. Used in every SEO surface —
- * canonical metadata, OG URLs, sitemap, JSON-LD `url` and `@id`.
+ * The canonical public URL the clinic site lives at. Order of preference:
+ *   1. Custom domain when configured
+ *   2. Subdomain `<slug>.<SITE_DOMAIN>` — only when wildcard DNS is wired
+ *      (opt in via `NEXT_PUBLIC_SITE_USE_SUBDOMAIN=true`)
+ *   3. Path-based `<SITE_DOMAIN>/site/<slug>` — the safe default while
+ *      wildcard DNS for *.<SITE_DOMAIN> is still pending
  *
- * Always returns a URL without trailing slash, so callers can append paths.
+ * Used in every SEO surface — canonical metadata, OG URLs, sitemap,
+ * JSON-LD `url` and `@id`. Always returns a URL without trailing slash,
+ * so callers can append paths.
  */
 export function publicSiteUrl(data: Pick<ClinicSiteData, 'slug' | 'profile'>): string {
   const custom = data.profile.websiteDomain?.trim()
   if (custom) return `https://${custom}`
-  return `https://${data.slug}.${SITE_DOMAIN}`
+  if (process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN === 'true') {
+    return `https://${data.slug}.${SITE_DOMAIN}`
+  }
+  return `https://${SITE_DOMAIN}/site/${data.slug}`
 }
 
 export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData | null> {

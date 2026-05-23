@@ -283,7 +283,7 @@ function Stat({
     <div>
       <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
       <p className={`text-sm font-semibold mt-0.5 ${valueClass}`}>{value}</p>
-      {hint && <p className="text-[11px] text-gray-500 dark:text-gray-400 capitalize">{hint}</p>}
+      {hint && <p className="text-[11px] text-gray-500 dark:text-gray-400 capitalize" suppressHydrationWarning>{hint}</p>}
     </div>
   )
 }
@@ -479,7 +479,7 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
           </p>
         )}
       </div>
-      <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">
+      <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0" suppressHydrationWarning>
         {ago}
       </span>
     </div>

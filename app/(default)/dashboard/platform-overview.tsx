@@ -147,7 +147,7 @@ export default async function PlatformOverview() {
                     {moneyFull(item.amountCents)}
                   </span>
                 )}
-                <span className="shrink-0 text-xs text-gray-400 hidden sm:inline">
+                <span className="shrink-0 text-xs text-gray-400 hidden sm:inline" suppressHydrationWarning>
                   {formatRelativeDate(item.ts)}
                 </span>
               </li>
@@ -195,7 +195,7 @@ export default async function PlatformOverview() {
                     +{moneyFull(row.amountCents)}
                   </span>
                 )}
-                <span className="shrink-0 text-xs text-gray-400 hidden sm:inline">
+                <span className="shrink-0 text-xs text-gray-400 hidden sm:inline" suppressHydrationWarning>
                   {formatRelativeDate(row.ts)}
                 </span>
               </li>

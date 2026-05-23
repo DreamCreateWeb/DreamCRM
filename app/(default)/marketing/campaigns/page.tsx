@@ -109,10 +109,16 @@ export default async function CampaignsPage() {
                   <td className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400">
                     {channelLabel(c.sendChannel)}
                   </td>
-                  <td className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums">
+                  <td
+                    className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums"
+                    suppressHydrationWarning
+                  >
                     {c.sentAt ? formatRelativeDate(c.sentAt) : '—'}
                   </td>
-                  <td className="px-3 py-2.5 text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">
+                  <td
+                    className="px-3 py-2.5 text-[11px] text-stone-400 dark:text-stone-500 tabular-nums"
+                    suppressHydrationWarning
+                  >
                     {formatRelativeDate(c.updatedAt)}
                   </td>
                 </tr>

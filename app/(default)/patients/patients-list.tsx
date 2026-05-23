@@ -369,7 +369,7 @@ function PatientRow({
           </div>
         </Link>
       </td>
-      <td className={`px-4 py-3 ${lastVisitTone(row.lastVisitAt)}`}>
+      <td className={`px-4 py-3 ${lastVisitTone(row.lastVisitAt)}`} suppressHydrationWarning>
         <div>{fmtDate(row.lastVisitAt)}</div>
         {row.lastVisitAt && (
           <div className="text-xs opacity-75">{fmtRelative(row.lastVisitAt)}</div>
@@ -398,7 +398,7 @@ function PatientRow({
       <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
         {row.source ? SOURCE_LABEL[row.source] ?? row.source : '—'}
       </td>
-      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
+      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400" suppressHydrationWarning>
         {row.lastContactAt ? fmtRelative(row.lastContactAt) : '—'}
       </td>
     </tr>
