@@ -67,7 +67,7 @@ export default function BookFromPatientDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
+    <div role="dialog" aria-modal="true" aria-label="Book appointment" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
       <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Book appointment</h2>

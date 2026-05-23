@@ -12,6 +12,8 @@ import {
 } from '@/lib/services/patients'
 import { sendBulkPatientEmail, type BulkEmailResult } from '@/lib/services/patient-bulk-comms'
 import { addPatientNote, deletePatientNote } from '@/lib/services/patient-notes'
+import { getOrCreatePatientThread } from '@/lib/services/patient-messaging'
+import { sendIntakeRequestToPatient } from '@/lib/services/patient-intake-send'
 
 export async function createPatientAction(formData: FormData): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const ctx = await requireTenant()
@@ -99,4 +101,40 @@ export async function deletePatientNoteAction(
   if (ctx.tenantType !== 'clinic') return
   await deletePatientNote(ctx.organizationId, noteId)
   revalidatePath(`/patients/${patientId}`)
+}
+
+/**
+ * Resolve (creating if necessary) the unified patient thread, then jump
+ * the user to the Messages inbox with that thread open. Wired to the
+ * "Send message" CTA on the patient detail page — previously a static
+ * `<Link href="/messages">` that dropped patient context.
+ */
+export async function openPatientThreadAction(formData: FormData) {
+  const patientId = formData.get('patientId')?.toString()
+  if (!patientId) throw new Error('Missing patientId')
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') redirect('/')
+  const threadId = await getOrCreatePatientThread(ctx.organizationId, patientId)
+  redirect(`/messages?thread=${threadId}`)
+}
+
+/**
+ * Email a patient a link to fill out the clinic's default intake form.
+ * Wired to the "Send intake" CTA on the patient detail page — previously
+ * a static `<Link href="/intake-forms">` that did NOT actually send
+ * anything; staff had to compose the email by hand. Returns ok/error so
+ * the drawer can surface a toast inline.
+ */
+export async function sendIntakeRequestAction(
+  patientId: string,
+): Promise<{ ok: true; sentTo: string } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can send intake requests' }
+  try {
+    const result = await sendIntakeRequestToPatient(ctx.organizationId, patientId)
+    revalidatePath(`/patients/${patientId}`)
+    return { ok: true, sentTo: result.sentTo }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
 }

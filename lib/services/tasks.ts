@@ -236,32 +236,32 @@ export async function reorderTask(
   const clampedIndex = Math.max(0, Math.min(newIndex, destIds.length))
   destIds.splice(clampedIndex, 0, id)
 
-  // Write the destination column.
-  await db.transaction(async (tx) => {
-    if (crossColumn) {
-      // Update the moved task's status.
-      await tx
-        .update(schema.tasks)
-        .set({ status: newStatus, updatedAt: new Date() })
-        .where(and(eq(schema.tasks.id, id), eq(schema.tasks.organizationId, organizationId)))
+  // Write the destination column. Previously `db.transaction(...)`, but
+  // the Neon HTTP driver doesn't support transactions; the kanban renumber
+  // is a sequence of independent column-position UPDATEs that converge to
+  // the correct state on success and self-heal on the next move if any
+  // single update lost the race (positions get rewritten end-to-end every
+  // move). Acceptable trade.
+  if (crossColumn) {
+    await db
+      .update(schema.tasks)
+      .set({ status: newStatus, updatedAt: new Date() })
+      .where(and(eq(schema.tasks.id, id), eq(schema.tasks.organizationId, organizationId)))
 
-      // Renumber the source column.
-      const sourceIds = (await orderedIds(oldStatus)).filter((tid) => tid !== id)
-      for (let i = 0; i < sourceIds.length; i++) {
-        await tx
-          .update(schema.tasks)
-          .set({ position: i })
-          .where(eq(schema.tasks.id, sourceIds[i]))
-      }
-    }
-    // Renumber the destination column.
-    for (let i = 0; i < destIds.length; i++) {
-      await tx
+    const sourceIds = (await orderedIds(oldStatus)).filter((tid) => tid !== id)
+    for (let i = 0; i < sourceIds.length; i++) {
+      await db
         .update(schema.tasks)
         .set({ position: i })
-        .where(eq(schema.tasks.id, destIds[i]))
+        .where(eq(schema.tasks.id, sourceIds[i]))
     }
-  })
+  }
+  for (let i = 0; i < destIds.length; i++) {
+    await db
+      .update(schema.tasks)
+      .set({ position: i })
+      .where(eq(schema.tasks.id, destIds[i]))
+  }
 }
 
 export async function updateTask(id: number, input: z.infer<typeof TaskUpdate>, organizationId: string) {

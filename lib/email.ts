@@ -156,6 +156,42 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
   })
 }
 
+export interface IntakeRequestEmailData {
+  patientFirstName: string
+  clinicName: string
+  intakeFormUrl: string
+}
+
+/**
+ * Sent when staff hits "Send intake" on a patient detail page. Direct
+ * link to the public intake form; the form's submission lands as a
+ * `form_submission` row attached to the patient (matched by email).
+ */
+export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmailData) {
+  const resend = getResend()
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `${data.clinicName} — quick intake form before your visit`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
+        <h2 style="margin:0 0 16px;font-size:20px">Hi ${escapeHtml(data.patientFirstName)},</h2>
+        <p style="margin:0 0 16px;line-height:1.55">
+          Before your visit at ${escapeHtml(data.clinicName)}, please take a few minutes
+          to fill out our intake form. It saves time at the front desk and helps us
+          take better care of you.
+        </p>
+        <a href="${data.intakeFormUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
+          Fill out intake form
+        </a>
+        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">
+          Have questions? Just reply to this email — it goes straight to our front desk.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendVerificationEmail(to: string, verifyUrl: string) {
   const resend = getResend()
   await resend.emails.send({

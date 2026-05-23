@@ -9,7 +9,7 @@ import { GlyphCluster } from '../glyph-cluster'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
-import { archivePatientAction } from '../actions'
+import { archivePatientAction, openPatientThreadAction, sendIntakeRequestAction } from '../actions'
 
 function money(cents: number): string {
   if (cents === 0) return '$0'
@@ -140,12 +140,15 @@ export default function PatientDetail({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/messages`}
-              className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50"
-            >
-              Send message
-            </Link>
+            <form action={openPatientThreadAction}>
+              <input type="hidden" name="patientId" value={header.id} />
+              <button
+                type="submit"
+                className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50"
+              >
+                Send message
+              </button>
+            </form>
             <button
               type="button"
               onClick={() => setBookOpen(true)}
@@ -153,12 +156,7 @@ export default function PatientDetail({
             >
               Book appointment
             </button>
-            <Link
-              href={`/intake-forms`}
-              className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50"
-            >
-              Send intake
-            </Link>
+            <SendIntakeButton patientId={header.id} />
             <button
               onClick={() => setEditOpen(true)}
               className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800"
@@ -255,6 +253,41 @@ export default function PatientDetail({
           patientName={header.fullName}
           onClose={() => setBookOpen(false)}
         />
+      )}
+    </div>
+  )
+}
+
+function SendIntakeButton({ patientId }: { patientId: string }) {
+  const [pending, startTransition] = useTransition()
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  function onClick() {
+    setFeedback(null)
+    startTransition(async () => {
+      const r = await sendIntakeRequestAction(patientId)
+      if (r.ok) setFeedback({ kind: 'ok', msg: `Intake link sent to ${r.sentTo}` })
+      else setFeedback({ kind: 'err', msg: r.error })
+      setTimeout(() => setFeedback(null), 4000)
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={pending}
+        className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 disabled:opacity-50"
+      >
+        {pending ? 'Sending…' : 'Send intake'}
+      </button>
+      {feedback && (
+        <span
+          className={`text-[11px] ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+        >
+          {feedback.msg}
+        </span>
       )}
     </div>
   )

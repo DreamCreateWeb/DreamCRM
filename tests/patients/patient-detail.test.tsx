@@ -10,6 +10,8 @@ vi.mock('@/app/(default)/patients/actions', () => ({
   updatePatientAction: vi.fn(),
   addPatientNoteAction: vi.fn(),
   deletePatientNoteAction: vi.fn(),
+  openPatientThreadAction: vi.fn(),
+  sendIntakeRequestAction: vi.fn(async () => ({ ok: true, sentTo: 'mia@example.com' })),
 }))
 
 import PatientDetail from '@/app/(default)/patients/[id]/patient-detail'
@@ -70,10 +72,14 @@ describe('PatientDetail header', () => {
 
   it('renders the primary CTA buttons in the header', () => {
     render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} />)
-    expect(screen.getByRole('link', { name: /Send message/i })).toBeInTheDocument()
-    // "Book appointment" now opens an in-place drawer (not a navigation link)
+    // "Send message" is a form-submit button (server action resolves the
+    // patient's thread + redirects to /messages?thread=<id>), not a bare link.
+    expect(screen.getByRole('button', { name: /Send message/i })).toBeInTheDocument()
+    // "Book appointment" opens an in-place drawer (not a navigation link).
     expect(screen.getByRole('button', { name: /Book appointment/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Send intake/i })).toBeInTheDocument()
+    // "Send intake" is now a button that fires the send-intake server action
+    // (was a dead link to /intake-forms that didn't send anything).
+    expect(screen.getByRole('button', { name: /Send intake/i })).toBeInTheDocument()
   })
 
   it('shows lifetime spend and next-visit stats', () => {

@@ -231,73 +231,81 @@ export interface ConvertLeadResult { leadId: string; patientId: string }
  * 'lead_form'` so the Patients module's source filter can identify
  * lead-converted rows. Idempotent: if the lead is already converted,
  * returns the existing patient id.
+ *
+ * Implementation note — we previously wrapped these writes in
+ * `db.transaction()`, but the Neon HTTP driver does not support
+ * transactions (calls fail with "No transactions support in neon-http
+ * driver"). Instead we order the writes so a mid-flight failure leaves
+ * the lead row in a recoverable state:
+ *   1. Look up / insert the patient (no lead mutation yet).
+ *   2. Only after the patient row exists, update the lead.
+ * If step 1 succeeds and step 2 fails, a retry resolves to the same
+ * patient via the dedupe lookup — idempotent.
  */
 export async function convertLeadToPatient(
   organizationId: string,
   id: string,
 ): Promise<ConvertLeadResult> {
-  return db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select()
-      .from(schema.lead)
-      .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
-      .limit(1)
-    if (!existing) throw new Error('Lead not found')
-    if (existing.convertedToPatientId) {
-      return { leadId: existing.id, patientId: existing.convertedToPatientId }
-    }
+  const [existing] = await db
+    .select()
+    .from(schema.lead)
+    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
+    .limit(1)
+  if (!existing) throw new Error('Lead not found')
+  if (existing.convertedToPatientId) {
+    return { leadId: existing.id, patientId: existing.convertedToPatientId }
+  }
 
-    const trimmed = existing.name.trim()
-    const firstSpace = trimmed.indexOf(' ')
-    const firstName = firstSpace >= 0 ? trimmed.slice(0, firstSpace) : trimmed
-    const lastName = firstSpace >= 0 ? trimmed.slice(firstSpace + 1).trim() : ''
+  const trimmed = existing.name.trim()
+  const firstSpace = trimmed.indexOf(' ')
+  const firstName = firstSpace >= 0 ? trimmed.slice(0, firstSpace) : trimmed
+  const lastName = firstSpace >= 0 ? trimmed.slice(firstSpace + 1).trim() : ''
 
-    // If a patient already exists with this email or phone, reuse them
-    // rather than creating a duplicate.
-    const dupes = await tx
-      .select({ id: schema.patient.id })
-      .from(schema.patient)
-      .where(
-        and(
-          eq(schema.patient.organizationId, organizationId),
-          or(
-            existing.email ? eq(schema.patient.email, existing.email) : sql`false`,
-            eq(schema.patient.phone, existing.phone),
-          )!,
-        ),
-      )
-      .limit(1)
+  // If a patient already exists with this email or phone, reuse them
+  // rather than creating a duplicate.
+  const dupes = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        or(
+          existing.email ? eq(schema.patient.email, existing.email) : sql`false`,
+          eq(schema.patient.phone, existing.phone),
+        )!,
+      ),
+    )
+    .limit(1)
 
-    const patientId = dupes[0]?.id ?? `pat_${randomBytes(10).toString('hex')}`
-    if (!dupes[0]) {
-      const now = new Date()
-      await tx.insert(schema.patient).values({
-        id: patientId,
-        organizationId,
-        firstName: firstName || 'Unknown',
-        lastName: lastName || '',
-        email: existing.email,
-        phone: existing.phone,
-        isActive: 1,
-        source: 'lead_form',
-        lifecycle: 'new',
-        firstSeenAt: existing.createdAt,
-        lastActivityAt: now,
-      })
-    }
+  const patientId = dupes[0]?.id ?? `pat_${randomBytes(10).toString('hex')}`
+  if (!dupes[0]) {
+    const now = new Date()
+    await db.insert(schema.patient).values({
+      id: patientId,
+      organizationId,
+      firstName: firstName || 'Unknown',
+      lastName: lastName || '',
+      email: existing.email,
+      phone: existing.phone,
+      isActive: 1,
+      source: 'lead_form',
+      lifecycle: 'new',
+      firstSeenAt: existing.createdAt,
+      lastActivityAt: now,
+    })
+  }
 
-    await tx
-      .update(schema.lead)
-      .set({
-        status: 'converted',
-        convertedToPatientId: patientId,
-        convertedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.lead.id, id))
+  await db
+    .update(schema.lead)
+    .set({
+      status: 'converted',
+      convertedToPatientId: patientId,
+      convertedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.lead.id, id))
 
-    return { leadId: existing.id, patientId }
-  })
+  return { leadId: existing.id, patientId }
 }
 
 // ----- Insert (called from the public contact form) --------------------
