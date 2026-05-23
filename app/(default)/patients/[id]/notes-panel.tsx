@@ -59,7 +59,7 @@ export default function NotesPanel({
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
                 <span>{n.authorName ?? 'Staff'}</span>
                 <span>·</span>
-                <span>{fmtRel(n.createdAt)}</span>
+                <span suppressHydrationWarning>{fmtRel(n.createdAt)}</span>
                 <button
                   onClick={() => remove(n.id)}
                   className="ml-auto text-gray-400 hover:text-red-500"

@@ -37,7 +37,7 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-import { getAvailableSlots, isSlotAvailable, SLOT_MINUTES } from '@/lib/services/booking'
+import { getAvailableSlots, getSlotsForDay, isSlotAvailable, SLOT_MINUTES } from '@/lib/services/booking'
 
 beforeEach(() => {
   state.hours = null
@@ -190,5 +190,68 @@ describe('isSlotAvailable', () => {
 
   it('SLOT_MINUTES is 30 (sanity check for downstream callers)', () => {
     expect(SLOT_MINUTES).toBe(30)
+  })
+})
+
+describe('getSlotsForDay (rich empty-state reasons)', () => {
+  it('reports closedReason="day_closed" on a day with hours.closed=true', async () => {
+    setMon9to5()
+    const sunday = new Date(FUTURE)
+    while (sunday.getDay() !== 0) sunday.setDate(sunday.getDate() + 1)
+    const result = await getSlotsForDay('org_1', sunday)
+    expect(result.slots).toEqual([])
+    expect(result.closedReason).toBe('day_closed')
+  })
+
+  it('reports closedReason="day_closed" when hours has no entry for that day', async () => {
+    state.hours = { mon: { open: '09:00', close: '17:00' } }
+    const tuesday = new Date(FUTURE)
+    while (tuesday.getDay() !== 2) tuesday.setDate(tuesday.getDate() + 1)
+    const result = await getSlotsForDay('org_1', tuesday)
+    expect(result.slots).toEqual([])
+    expect(result.closedReason).toBe('day_closed')
+  })
+
+  it('reports closedReason="past_closing" when clinic was open today but all slots are past', async () => {
+    setMon9to5()
+    const monday = new Date(FUTURE)
+    while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1)
+    // Pretend "now" is after the 17:00 close
+    const eveningSameDay = new Date(monday)
+    eveningSameDay.setHours(18, 30, 0, 0)
+    vi.useFakeTimers()
+    vi.setSystemTime(eveningSameDay)
+    const result = await getSlotsForDay('org_1', monday)
+    expect(result.slots).toEqual([])
+    expect(result.closedReason).toBe('past_closing')
+  })
+
+  it('reports closedReason=null when slots are non-empty', async () => {
+    setMon9to5()
+    const monday = new Date(FUTURE)
+    while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1)
+    const result = await getSlotsForDay('org_1', monday)
+    expect(result.slots.length).toBeGreaterThan(0)
+    expect(result.closedReason).toBeNull()
+  })
+
+  it('reports closedReason="invalid_hours" on malformed hour strings', async () => {
+    state.hours = { mon: { open: 'not-a-time', close: '17:00' } }
+    const monday = new Date(FUTURE)
+    while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1)
+    const result = await getSlotsForDay('org_1', monday)
+    expect(result.slots).toEqual([])
+    expect(result.closedReason).toBe('invalid_hours')
+  })
+})
+
+describe('getAvailableSlots back-compat wrapper', () => {
+  it('returns the same slot array that getSlotsForDay returns', async () => {
+    setMon9to5()
+    const monday = new Date(FUTURE)
+    while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1)
+    const wrapper = await getAvailableSlots('org_1', monday)
+    const rich = await getSlotsForDay('org_1', monday)
+    expect(wrapper).toEqual(rich.slots)
   })
 })

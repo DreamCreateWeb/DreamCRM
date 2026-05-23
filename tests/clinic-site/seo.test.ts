@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { publicSiteUrl, clinicJsonLd } from '@/lib/services/clinic-site'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 
@@ -51,17 +51,39 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
 }
 
 describe('publicSiteUrl', () => {
-  it('returns subdomain URL when no custom domain is set', () => {
+  // We mutate process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN per case; reset
+  // afterwards so we don't leak state across the suite.
+  const ORIGINAL = process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN
+    else process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN = ORIGINAL
+  })
+
+  it('defaults to a path-based URL when no custom domain + no subdomain opt-in', () => {
+    delete process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN
+    expect(publicSiteUrl(makeData())).toBe('https://dreamcreatestudio.com/site/test-dental')
+  })
+
+  it('returns subdomain URL when NEXT_PUBLIC_SITE_USE_SUBDOMAIN=true', () => {
+    process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN = 'true'
     expect(publicSiteUrl(makeData())).toBe('https://test-dental.dreamcreatestudio.com')
   })
 
-  it('prefers a custom domain when configured', () => {
+  it('prefers a custom domain regardless of subdomain flag', () => {
+    process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN = 'true'
+    expect(publicSiteUrl(makeData({ websiteDomain: 'acmedental.com' }))).toBe(
+      'https://acmedental.com',
+    )
+    delete process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN
     expect(publicSiteUrl(makeData({ websiteDomain: 'acmedental.com' }))).toBe(
       'https://acmedental.com',
     )
   })
 
-  it('does not return a trailing slash', () => {
+  it('does not return a trailing slash in either mode', () => {
+    delete process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN
+    expect(publicSiteUrl(makeData())).not.toMatch(/\/$/)
+    process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN = 'true'
     expect(publicSiteUrl(makeData())).not.toMatch(/\/$/)
   })
 })
@@ -72,8 +94,10 @@ describe('clinicJsonLd', () => {
     expect(ld['@context']).toBe('https://schema.org')
     expect(ld['@type']).toBe('Dentist')
     expect(ld.name).toBe('Test Dental')
-    expect(ld.url).toBe('https://test-dental.dreamcreatestudio.com')
-    expect(ld['@id']).toBe('https://test-dental.dreamcreatestudio.com/#dentist')
+    // JSON-LD `url` and `@id` follow whatever publicSiteUrl returns —
+    // path-based by default, subdomain when NEXT_PUBLIC_SITE_USE_SUBDOMAIN=true.
+    expect(ld.url).toBe('https://dreamcreatestudio.com/site/test-dental')
+    expect(ld['@id']).toBe('https://dreamcreatestudio.com/site/test-dental/#dentist')
     expect(ld.telephone).toBe('(555) 123-4567')
     expect(ld.email).toBe('hello@test.com')
   })

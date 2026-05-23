@@ -21,6 +21,31 @@ import { db, schema } from '@/lib/db'
  *     and let a follow-up wire the actual delivery.
  */
 
+// ── Shared filters ───────────────────────────────────────────────────
+
+/**
+ * The "Open" inbox filter — what shows in the default thread list and
+ * what the "Open N" badge counts. Used by both `listPatientThreads` and
+ * `getInboxStats` so the count never drifts from the rendered list.
+ *
+ * Includes:
+ *   - threads with `status='open'`
+ *   - threads with `status='snoozed'` whose `snoozedUntil` has passed
+ *     (the auto-resurface behavior — the snooze timer expired, the
+ *     thread is back in the inbox, but `status` hasn't been flipped
+ *     to 'open' yet because nobody's opened it post-resurface)
+ */
+function openThreadFilter(now: Date) {
+  return or(
+    eq(schema.patientThread.status, 'open'),
+    and(
+      eq(schema.patientThread.status, 'snoozed'),
+      isNotNull(schema.patientThread.snoozedUntil),
+      lte(schema.patientThread.snoozedUntil, now),
+    ),
+  )!
+}
+
 // ── Types ────────────────────────────────────────────────────────────
 
 export type ThreadStatus = 'open' | 'snoozed' | 'archived'
@@ -108,18 +133,7 @@ export async function listPatientThreads(
   } else if (filters.status === 'snoozed') {
     where.push(eq(schema.patientThread.status, 'snoozed'))
   } else if (filters.status === 'open' || filters.status === undefined) {
-    // Default: open + ready-to-resurface snoozed (snoozedUntil <= now)
-    const now = new Date()
-    where.push(
-      or(
-        eq(schema.patientThread.status, 'open'),
-        and(
-          eq(schema.patientThread.status, 'snoozed'),
-          isNotNull(schema.patientThread.snoozedUntil),
-          lte(schema.patientThread.snoozedUntil, now),
-        ),
-      )!,
-    )
+    where.push(openThreadFilter(new Date()))
   }
   // 'all' = no status filter
 
@@ -203,6 +217,7 @@ export async function getInboxStats(
   currentUserId: string,
 ): Promise<InboxStats> {
   const now = new Date()
+  const openFilter = openThreadFilter(now)
   const [openCount, unreadCount, snoozedAvail, archivedCount] = await Promise.all([
     db
       .select({ c: count() })
@@ -210,7 +225,7 @@ export async function getInboxStats(
       .where(
         and(
           eq(schema.patientThread.organizationId, organizationId),
-          eq(schema.patientThread.status, 'open'),
+          openFilter,
         ),
       )
       .then((rows) => rows[0]?.c ?? 0),
@@ -220,7 +235,7 @@ export async function getInboxStats(
       .where(
         and(
           eq(schema.patientThread.organizationId, organizationId),
-          eq(schema.patientThread.status, 'open'),
+          openFilter,
           sql`${schema.patientThread.unreadCountForClinic} > 0`,
         ),
       )

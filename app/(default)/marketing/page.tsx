@@ -158,7 +158,10 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
                     <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${accent.bg} ${accent.text}`}>
                       {stage?.label ?? r.pipelineStage}
                     </span>
-                    <span className="text-[10px] text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
+                    <span
+                      className="text-[10px] text-stone-400 dark:text-stone-500 tabular-nums shrink-0"
+                      suppressHydrationWarning
+                    >
                       {formatRelativeDate(r.lastActivityAt ?? r.createdAt)}
                     </span>
                   </li>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { listBookingSlots, submitBookingRequest } from '../actions'
-import type { BookingSlot } from '@/lib/services/booking'
+import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
 
 const APPT_TYPES = [
   { value: 'checkup', label: 'Checkup / Exam' },
@@ -56,6 +56,23 @@ function fmtDayLabel(d: Date): string {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 }
 
+/**
+ * Pick the right empty-slot-grid copy. Honest about WHY there's nothing
+ * to pick: genuinely-closed days say so; days where the clinic was open
+ * but we missed the cutoff say so; "every slot booked" stands on its own.
+ *
+ * Exported for unit testing — the BookForm is the only render-side caller.
+ */
+export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedReason | null): string {
+  if (closedReason === 'day_closed') return "We're closed this day. Try another day."
+  if (closedReason === 'past_closing') {
+    return "We're done seeing patients for today. Try tomorrow or later this week."
+  }
+  if (closedReason === 'invalid_hours') return "Online booking isn't available for this day — give us a call."
+  if (slots.length === 0) return "We're closed this day. Try another day."
+  return 'Every slot is taken for this day. Try another day.'
+}
+
 export default function BookForm({ orgId, brand, clinicName }: Props) {
   const days = useMemo(() => {
     const today = startOfDay(new Date())
@@ -69,6 +86,7 @@ export default function BookForm({ orgId, brand, clinicName }: Props) {
   const [selectedDate, setSelectedDate] = useState<Date>(days[0])
   const [selectedSlotIso, setSelectedSlotIso] = useState<string | null>(null)
   const [slots, setSlots] = useState<BookingSlot[]>([])
+  const [closedReason, setClosedReason] = useState<SlotsClosedReason | null>(null)
   const [slotsPending, startSlotsTransition] = useTransition()
   const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -76,14 +94,18 @@ export default function BookForm({ orgId, brand, clinicName }: Props) {
   useEffect(() => {
     startSlotsTransition(() => {
       listBookingSlots(orgId, isoDate(selectedDate))
-        .then((next) => {
+        .then(({ slots: next, closedReason: reason }) => {
           setSlots(next)
+          setClosedReason(reason)
           // Clear the selected slot if the date changed and it's no longer in the new grid.
           setSelectedSlotIso((cur) =>
             cur && next.some((s) => s.startIso === cur && s.available) ? cur : null,
           )
         })
-        .catch(() => setSlots([]))
+        .catch(() => {
+          setSlots([])
+          setClosedReason(null)
+        })
     })
   }, [orgId, selectedDate])
 
@@ -195,9 +217,7 @@ export default function BookForm({ orgId, brand, clinicName }: Props) {
             className="text-sm leading-relaxed rounded-xl px-4 py-6 text-center"
             style={{ backgroundColor: SURFACE, border: `1px dashed ${BORDER}`, color: INK_MUTED }}
           >
-            {slots.length === 0
-              ? "We're closed this day. Try another day."
-              : 'Every slot is taken for this day. Try another day.'}
+            {emptySlotsCopy(slots, closedReason)}
           </p>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">

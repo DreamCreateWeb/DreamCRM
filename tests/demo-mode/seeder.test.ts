@@ -173,12 +173,19 @@ describe('createDemoClinic', () => {
     expect(state.inserts).toHaveLength(0)
   })
 
-  it('self-heals stats / testimonials / officePhotos when the existing demo has nulls', async () => {
+  it('self-heals stats / testimonials / officePhotos / logoUrl / heroImageUrl when the existing demo has nulls', async () => {
     state.selectQueue.push([
       { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
     ])
     state.selectQueue.push([
-      { brandColor: '#9CAF9F', stats: null, testimonials: null, officePhotos: null },
+      {
+        brandColor: '#9CAF9F',
+        stats: null,
+        testimonials: null,
+        officePhotos: null,
+        logoUrl: null,
+        heroImageUrl: null,
+      },
     ])
     state.selectQueue.push([{ id: 'form_existing' }]) // form template lookup
     state.selectQueue.push([]) // existing patients for self-heal (none → skip notes + submissions)
@@ -231,11 +238,15 @@ describe('createDemoClinic', () => {
       testimonials?: unknown
       officePhotos?: unknown
       brandColor?: unknown
+      logoUrl?: string
+      heroImageUrl?: string
     }
     expect(patch.stats).toBeDefined()
     expect(patch.testimonials).toBeDefined()
     expect(patch.officePhotos).toBeDefined()
     expect(patch.brandColor).toBeUndefined() // already current
+    expect(patch.logoUrl).toMatch(/^https?:\/\//)
+    expect(patch.heroImageUrl).toMatch(/^https?:\/\//)
     // Second update is the appointment.source backfill.
     expect((state.updates[1].set as { source?: string }).source).toBe('manual')
   })
@@ -358,6 +369,51 @@ describe('createDemoClinic', () => {
     // 6 curated leads: 3 new (fresh / aging / stale), 1 contacted, 1 converted
     // (linked to Emma Lopez, persona 6), 1 archived (spam example).
     expect(counts.lead).toBe(6)
+  })
+
+  it('seeds logoUrl + heroImageUrl so the website-editor checklist reads "Set" on both', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'tmpl' }])
+    state.selectQueue.push([])
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ])
+    state.selectQueue.push([{ id: 'appt_aiden_recall' }])
+    await createDemoClinic()
+    const profileInsert = state.inserts.find((i) => i.table === 'clinic_profile')!
+    const v = profileInsert.values as { logoUrl: string | null; heroImageUrl: string | null }
+    expect(v.logoUrl).toBeTruthy()
+    expect(v.logoUrl).toMatch(/^https?:\/\//)
+    expect(v.heroImageUrl).toBeTruthy()
+    expect(v.heroImageUrl).toMatch(/^https?:\/\//)
+  })
+
+  it('snaps every seeded appointment start time to a :00 or :30 boundary', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'tmpl' }])
+    state.selectQueue.push([])
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ])
+    state.selectQueue.push([{ id: 'appt_aiden_recall' }])
+    await createDemoClinic()
+    const apptInserts = state.inserts.filter((i) => i.table === 'appointment')
+    for (const a of apptInserts) {
+      const start = (a.values as { startTime: Date }).startTime
+      const minutes = start.getMinutes()
+      // Must land on a 30-minute boundary so demo appointments read like
+      // a real clinic schedule (9:00, 9:30) rather than inheriting
+      // whatever minute `now` happened to be when the seeder ran.
+      expect(minutes === 0 || minutes === 30).toBe(true)
+      expect(start.getSeconds()).toBe(0)
+      expect(start.getMilliseconds()).toBe(0)
+    }
   })
 
   it('seeded org has type=clinic and a premium plan tier', async () => {

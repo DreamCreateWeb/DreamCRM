@@ -222,7 +222,7 @@ export default async function ClinicDetailPage({
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {m.email}
                     </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5" suppressHydrationWarning>
                       {m.role} · joined {formatRelativeDate(m.joinedAt)}
                     </div>
                   </div>
@@ -258,7 +258,7 @@ export default async function ClinicDetailPage({
                   <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
                     {p.title}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate" suppressHydrationWarning>
                     {AGENCY_PROJECT_TYPE_LABELS[p.type as AgencyProjectType]}
                     {p.dueDate &&
                       ` · Due ${p.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}

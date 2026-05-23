@@ -264,7 +264,7 @@ export default async function PlatformRevenue() {
                   <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
                     {tx.description}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate" suppressHydrationWarning>
                     {tx.clinicName ?? 'Unknown clinic'} · {formatRelativeDate(tx.occurredAt)}
                   </div>
                 </div>
