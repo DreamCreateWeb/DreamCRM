@@ -185,7 +185,13 @@ export async function getAttentionItems(opts: { perKind?: number } = {}): Promis
         createdAt: organization.createdAt,
       })
       .from(organization)
-      .where(and(eq(organization.type, 'clinic'), gte(organization.createdAt, since7)))
+      .where(
+        and(
+          eq(organization.type, 'clinic'),
+          gte(organization.createdAt, since7),
+          eq(organization.isDemo, false),
+        ),
+      )
       .orderBy(desc(organization.createdAt))
       .limit(perKind + 10)
 
@@ -246,7 +252,7 @@ export async function getRecentPlatformActivity(limit = 12): Promise<{ rows: Act
         createdAt: organization.createdAt,
       })
       .from(organization)
-      .where(eq(organization.type, 'clinic'))
+      .where(and(eq(organization.type, 'clinic'), eq(organization.isDemo, false)))
       .orderBy(desc(organization.createdAt))
       .limit(limit)
     for (const s of signups) {

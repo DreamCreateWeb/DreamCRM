@@ -53,6 +53,7 @@ vi.mock('@/lib/db', async () => {
     const obj: any = {}
     obj.from = () => obj
     obj.leftJoin = () => obj
+    obj.innerJoin = () => obj
     obj.where = () => obj
     obj.groupBy = () => obj
     obj.orderBy = () => obj

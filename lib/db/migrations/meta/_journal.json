@@ -169,6 +169,13 @@
       "when": 1779402697453,
       "tag": "0023_reviews_v1",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779605457865,
+      "tag": "0024_add_org_is_demo",
+      "breakpoints": true
     }
   ]
 }

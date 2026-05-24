@@ -412,14 +412,23 @@ export async function getSubscriptionStats(): Promise<SubscriptionStats> {
 async function getSubscriptionStatsRaw(): Promise<SubscriptionStats> {
   const { clinicProfile } = await import('@/lib/db/schema/platform')
 
-  // Count clinics with an active subscription, grouped by plan tier
+  // Count clinics with an active subscription, grouped by plan tier.
+  // Excludes the seeded demo clinic — it's flagged active/premium to
+  // showcase features but isn't real revenue, so it must not inflate MRR
+  // or the active-subscriber count on the platform dashboards.
   const rows = await db
     .select({
       planTier: clinicProfile.planTier,
       count: sql<number>`count(${clinicProfile.organizationId})::int`,
     })
     .from(clinicProfile)
-    .where(sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`)
+    .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
+    .where(
+      and(
+        sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`,
+        eq(organization.isDemo, false),
+      ),
+    )
     .groupBy(clinicProfile.planTier)
 
   const byTier = { basic: 0, pro: 0, premium: 0 }
@@ -439,7 +448,13 @@ async function getSubscriptionStatsRaw(): Promise<SubscriptionStats> {
   const [newCount] = await db
     .select({ count: sql<number>`count(${organization.id})::int` })
     .from(organization)
-    .where(and(eq(organization.type, 'clinic'), gte(organization.createdAt, since30)))
+    .where(
+      and(
+        eq(organization.type, 'clinic'),
+        gte(organization.createdAt, since30),
+        eq(organization.isDemo, false),
+      ),
+    )
 
   return {
     activeClinics,

@@ -11,8 +11,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { createDemoClinic } from '@/lib/services/demo-clinic'
 import { cancelSubscriptionNow } from '@/lib/services/stripe-admin'
 import type { Role } from '@/lib/modules/types'
-
-const DEMO_CLINIC_SLUG = 'acme-dental-demo'
+import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 
 const DEMO_COOKIE = 'demo_context'
 const DEMO_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days

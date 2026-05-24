@@ -66,6 +66,10 @@ export const organization = pgTable('organization', {
   //   clinic   — a customer dental clinic
   type: text('type').notNull().default('clinic'),
   metadata: text('metadata'),
+  // Demo/seed orgs (e.g. "Acme Dental Demo" for platform-admin "view as
+  // clinic" previews). Excluded from platform business metrics so they
+  // never inflate the platform owner's real MRR / clinic counts.
+  isDemo: boolean('is_demo').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
