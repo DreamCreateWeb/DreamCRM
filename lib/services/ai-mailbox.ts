@@ -1,5 +1,5 @@
 import 'server-only'
-import Anthropic from '@anthropic-ai/sdk'
+import { runClaudeText, aiConfigured } from '@/lib/ai'
 import { z } from 'zod'
 import type { InboxPatientContext } from '@/lib/types/patient-context'
 import { EMAIL_CATEGORIES, EMAIL_INTENTS, type EmailCategory, type EmailIntent } from '@/lib/db/schema/email'
@@ -11,13 +11,6 @@ import { EMAIL_CATEGORIES, EMAIL_INTENTS, type EmailCategory, type EmailIntent }
  * return null so the calling path (ingest, UI) never blocks on AI
  * availability.
  */
-
-function getClient(): Anthropic | null {
-  // Lazy-construct so the module can be imported during `next build` even
-  // when the env var isn't set (e.g. preview deploys without the key).
-  if (!process.env.ANTHROPIC_API_KEY) return null
-  return new Anthropic()
-}
 
 // ============================================================
 // Classification (Haiku 4.5 + structured output)
@@ -83,24 +76,21 @@ ${body}`
 }
 
 export async function classifyMessage(args: ClassifyInput): Promise<EmailClassification | null> {
-  const client = getClient()
-  if (!client) {
-    console.warn('[ai.classify] ANTHROPIC_API_KEY not set — skipping')
+  if (!aiConfigured()) {
+    console.warn('[ai.classify] AI driver not configured — skipping')
     return null
   }
   try {
     // Plain-text completion + JSON.parse turned out to be more reliable than
-    // messages.parse() with output_config.format — the latter occasionally
-    // produced empty parsed_output with no error. Haiku follows the "respond
-    // with only JSON" instruction faithfully.
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 64,
+    // structured output, which occasionally produced empty parsed output with
+    // no error. Haiku follows the "respond with only JSON" instruction well.
+    const out = await runClaudeText({
+      model: 'haiku',
+      maxTokens: 64,
       system: CLASSIFY_SYSTEM,
       messages: [{ role: 'user', content: buildClassifyUserPrompt(args) }],
     })
-    const block = response.content.find((b) => b.type === 'text')
-    const raw = block && block.type === 'text' ? block.text.trim() : ''
+    const raw = out ? out.trim() : ''
     if (!raw) {
       console.warn('[ai.classify] empty response from haiku')
       return null
@@ -191,8 +181,7 @@ interface DraftReplyInput {
 }
 
 export async function draftReply(args: DraftReplyInput): Promise<string | null> {
-  const client = getClient()
-  if (!client) return null
+  if (!aiConfigured()) return null
 
   const isPlatform = args.tenantType === 'platform'
   const ctx = args.patientContext
@@ -236,17 +225,14 @@ Draft a reply now. Output only the email body — no preamble, no explanation.`
     // Stream internally to avoid SDK HTTP timeouts on slow generations;
     // collect into a single string before returning. Adaptive thinking
     // lets the model dial up reasoning when the reply is non-trivial.
-    const stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      thinking: { type: 'adaptive' },
+    const out = await runClaudeText({
+      model: 'sonnet',
+      maxTokens: 4000,
+      thinking: true,
       system: isPlatform ? REPLY_SYSTEM_PLATFORM : REPLY_SYSTEM_CLINIC,
       messages: [{ role: 'user', content: userText }],
     })
-    const final = await stream.finalMessage()
-    const block = final.content.find((b) => b.type === 'text')
-    if (block && block.type === 'text') return block.text.trim()
-    return null
+    return out ? out.trim() : null
   } catch (err) {
     console.warn('[ai.draft] failed:', (err as Error).message)
     return null
