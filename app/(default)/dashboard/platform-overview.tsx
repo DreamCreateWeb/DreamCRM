@@ -73,7 +73,7 @@ export default async function PlatformOverview() {
         <Kpi
           label="MRR"
           value={formatMoneyShort(subs.monthlyRecurringCents)}
-          hint="Subscriptions only"
+          hint="From active plan tiers"
         />
         <Kpi
           label="Open Projects"
