@@ -152,7 +152,7 @@ type InternalSendOpts = SendOptions & {
  * but we double-check at send time so a downgraded audience definition can't
  * leak an opted-out recipient.
  */
-function eligibleForChannel(
+export function eligibleForChannel(
   recipient: ResolvedRecipient,
   channel: 'resend' | 'gmail' | 'twilio_sms',
 ): boolean {

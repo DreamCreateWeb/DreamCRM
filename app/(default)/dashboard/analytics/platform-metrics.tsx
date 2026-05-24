@@ -130,6 +130,11 @@ export default async function PlatformMetrics() {
           <PlanCell tier="Pro" count={mrr.byTier.pro} price="$149" color="bg-sky-500" />
           <PlanCell tier="Premium" count={mrr.byTier.premium} price="$199" color="bg-violet-500" />
         </div>
+        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
+          Based on clinic plan assignments (synced from Stripe via webhook). For
+          live billing — actual charges, trials, and past-due — see{' '}
+          <a href="/ecommerce/invoices" className="underline hover:text-gray-600 dark:hover:text-gray-300">Subscriptions</a>.
+        </p>
       </div>
 
       {/* ── Service mix — what kinds of project work do we sell? ─────── */}
