@@ -317,8 +317,15 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     .where(eq(schema.organization.slug, slug))
     .limit(1)
   if (existing) {
-    // Self-heal: keep the demo on the current template defaults so it
-    // always showcases the latest visual direction. Runs every time the
+    // Self-heal: flag legacy demos (seeded before the is_demo column
+    // existed) so they're excluded from platform business metrics.
+    await db
+      .update(schema.organization)
+      .set({ isDemo: true })
+      .where(eq(schema.organization.id, existing.id))
+
+    // Keep the demo on the current template defaults so it always
+    // showcases the latest visual direction. Runs every time the
     // "Create demo clinic" button is hit on an already-seeded demo.
     //
     // - bump sky-blue brand to sage if still on the pre-warm-neutral default
@@ -606,6 +613,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     name,
     slug,
     type: 'clinic',
+    isDemo: true,
     createdAt: now,
   })
 

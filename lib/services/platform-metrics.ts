@@ -85,7 +85,7 @@ export async function getClinicGrowth(weeks = 12): Promise<ClinicGrowth> {
         count: sql<number>`count(${organization.id})::int`,
       })
       .from(organization)
-      .where(and(eq(organization.type, 'clinic'), gte(organization.createdAt, earliest)))
+      .where(and(eq(organization.type, 'clinic'), gte(organization.createdAt, earliest), eq(organization.isDemo, false)))
       .groupBy(sql`date_trunc('week', ${organization.createdAt})`)
 
     const counts = new Map<string, number>(rows.map((r) => [r.bucket, Number(r.count)]))
@@ -94,7 +94,7 @@ export async function getClinicGrowth(weeks = 12): Promise<ClinicGrowth> {
     const [totalRow] = await db
       .select({ count: sql<number>`count(${organization.id})::int` })
       .from(organization)
-      .where(eq(organization.type, 'clinic'))
+      .where(and(eq(organization.type, 'clinic'), eq(organization.isDemo, false)))
 
     const newThisWeek = buckets[buckets.length - 1]?.value ?? 0
     const newPrevWeek = buckets[buckets.length - 2]?.value ?? 0
@@ -138,7 +138,8 @@ export async function getMrrSnapshot(): Promise<MrrSnapshot> {
         count: sql<number>`count(${clinicProfile.organizationId})::int`,
       })
       .from(clinicProfile)
-      .where(sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`)
+      .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
+      .where(and(sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`, eq(organization.isDemo, false)))
       .groupBy(clinicProfile.planTier)
 
     const byTier = { basic: 0, pro: 0, premium: 0 }
@@ -187,22 +188,26 @@ export async function getChurnStats(): Promise<ChurnStats> {
     const [canceled] = await db
       .select({ count: sql<number>`count(${clinicProfile.organizationId})::int` })
       .from(clinicProfile)
+      .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
       .where(
         and(
           eq(clinicProfile.subscriptionStatus, 'canceled'),
           gte(clinicProfile.updatedAt, since30),
+          eq(organization.isDemo, false),
         ),
       )
 
     const [pastDue] = await db
       .select({ count: sql<number>`count(${clinicProfile.organizationId})::int` })
       .from(clinicProfile)
-      .where(sql`${clinicProfile.subscriptionStatus} in ('past_due','unpaid','incomplete_expired')`)
+      .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
+      .where(and(sql`${clinicProfile.subscriptionStatus} in ('past_due','unpaid','incomplete_expired')`, eq(organization.isDemo, false)))
 
     const [activeRow] = await db
       .select({ count: sql<number>`count(${clinicProfile.organizationId})::int` })
       .from(clinicProfile)
-      .where(sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`)
+      .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
+      .where(and(sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`, eq(organization.isDemo, false)))
 
     const active = activeRow?.count ?? 0
     const cancel = canceled?.count ?? 0

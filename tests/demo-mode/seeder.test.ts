@@ -230,10 +230,16 @@ describe('createDemoClinic', () => {
     // Capture the update call by hooking the mock — we already track via state.updates
     state.updates.length = 0
     await createDemoClinic()
-    // Self-heal triggers 2 updates: clinicProfile patch (stats/testimonials/officePhotos)
-    // + appointment.source backfill ("set source='manual' where source is null").
-    expect(state.updates).toHaveLength(2)
-    const patch = state.updates[0].set as {
+    // Self-heal triggers 3 updates (identified by content, not order):
+    //   1. organization.isDemo = true (flag legacy demos out of platform metrics)
+    //   2. clinicProfile patch (stats / testimonials / officePhotos / logo / hero)
+    //   3. appointment.source backfill ("set source='manual' where source is null")
+    expect(state.updates).toHaveLength(3)
+
+    const isDemoUpdate = state.updates.find((u) => (u.set as { isDemo?: boolean }).isDemo === true)
+    expect(isDemoUpdate, 'expected an organization.isDemo backfill update').toBeTruthy()
+
+    const patch = state.updates.find((u) => (u.set as { stats?: unknown }).stats !== undefined)!.set as {
       stats?: unknown
       testimonials?: unknown
       officePhotos?: unknown
@@ -247,8 +253,8 @@ describe('createDemoClinic', () => {
     expect(patch.brandColor).toBeUndefined() // already current
     expect(patch.logoUrl).toMatch(/^https?:\/\//)
     expect(patch.heroImageUrl).toMatch(/^https?:\/\//)
-    // Second update is the appointment.source backfill.
-    expect((state.updates[1].set as { source?: string }).source).toBe('manual')
+    // appointment.source backfill present
+    expect(state.updates.some((u) => (u.set as { source?: string }).source === 'manual')).toBe(true)
   })
 
   it('self-heal seeds patient_note + form_submission when missing', async () => {
@@ -431,6 +437,9 @@ describe('createDemoClinic', () => {
     await createDemoClinic()
     const orgInsert = state.inserts.find((i) => i.table === 'organization')!
     expect((orgInsert.values as { type: string }).type).toBe('clinic')
+    // Flagged isDemo so it's excluded from platform business metrics (MRR,
+    // active-subscriber counts) — it's active/premium for showcase, not revenue.
+    expect((orgInsert.values as { isDemo: boolean }).isDemo).toBe(true)
     const profileInsert = state.inserts.find((i) => i.table === 'clinic_profile')!
     expect((profileInsert.values as { planTier: string }).planTier).toBe('premium')
     expect((profileInsert.values as { subscriptionStatus: string }).subscriptionStatus).toBe('active')

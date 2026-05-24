@@ -8,6 +8,8 @@ vi.mock('@/lib/db', () => {
   const chain = () => {
     const obj: any = {}
     obj.from = () => obj
+    obj.innerJoin = () => obj
+    obj.leftJoin = () => obj
     obj.where = () => obj
     obj.groupBy = () => obj
     obj.orderBy = () => obj
