@@ -12,9 +12,6 @@ const PUBLIC_PATHS = [
   '/api/hello',
   '/api/webhooks',
   '/api/cron',
-  // One-shot migration apply for 0024 (is_demo). Token-gated by
-  // ADMIN_BOOTSTRAP_TOKEN; removed in the follow-up cleanup PR.
-  '/api/admin/bootstrap',
   // Public review-request landing pages — patient lands here from
   // the email link. Token in the URL is the auth.
   '/r',
