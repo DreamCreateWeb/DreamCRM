@@ -1,12 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Standalone server output so the container image (App Runner) ships a
+  // minimal self-contained server.js.
+  output: 'standalone',
+
   // Allow Next/Image to optimize images served from:
   //   - Vercel Blob (avatars, product images, clinic logos uploaded via /api/upload)
   //   - The wildcard clinic domains (clinic-uploaded brand assets)
+  //   - The S3 uploads bucket (once STORAGE_DRIVER=s3)
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
       { protocol: 'https', hostname: '**.dreamcreatestudio.com' },
+      { protocol: 'https', hostname: 'dreamcrm-uploads-prod.s3.us-east-1.amazonaws.com' },
     ],
   },
 
