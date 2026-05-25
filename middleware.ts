@@ -13,6 +13,8 @@ const PUBLIC_PATHS = [
   '/api/webhooks',
   '/api/cron',
   '/api/health',
+  // CRON_SECRET-guarded one-shot migration runner (run from inside the VPC).
+  '/api/admin/migrate',
   // Public review-request landing pages — patient lands here from
   // the email link. Token in the URL is the auth.
   '/r',

@@ -29,7 +29,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
 RUN groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs
 # Standalone output bundles a minimal server + traced node_modules.
@@ -38,4 +37,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 EXPOSE 3000
-CMD ["node", "server.js"]
+# App Runner / ECS inject their own HOSTNAME env; Next standalone binds to it,
+# so force 0.0.0.0 at exec time or the health check can't reach the server.
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 node server.js"]
