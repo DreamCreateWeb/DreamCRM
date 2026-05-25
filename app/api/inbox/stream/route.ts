@@ -1,5 +1,6 @@
-import { Pool } from '@neondatabase/serverless'
+import { Pool } from 'pg'
 import { requireTenant } from '@/lib/auth/context'
+import { pgSsl } from '@/lib/db'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ export async function GET(): Promise<Response> {
   // Hold a dedicated WebSocket connection to Postgres so LISTEN works
   // (the HTTP driver is request/response only). One connection per
   // open inbox tab — fine at our scale, would need pooling later.
-  const pool = new Pool({ connectionString })
+  const pool = new Pool({ connectionString, ssl: pgSsl(connectionString) })
   const client = await pool.connect()
 
   const encoder = new TextEncoder()
