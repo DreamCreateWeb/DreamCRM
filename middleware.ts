@@ -37,6 +37,16 @@ export function middleware(request: NextRequest) {
   const hostname = host.split(':')[0]
   const { pathname } = request.nextUrl
 
+  // app.<domain> is a legacy alias; send it to the canonical www host.
+  // Exempt /api/health so the App Runner health check is never redirected.
+  if (hostname === `app.${SITE_DOMAIN}` && pathname !== '/api/health') {
+    const url = request.nextUrl.clone()
+    url.hostname = `www.${SITE_DOMAIN}`
+    url.port = ''
+    url.protocol = 'https:'
+    return NextResponse.redirect(url, 308)
+  }
+
   if (hostname.endsWith(`.${SITE_DOMAIN}`)) {
     const slug = hostname.slice(0, hostname.length - SITE_DOMAIN.length - 1)
     if (slug && !RESERVED_SUBDOMAINS.has(slug)) {
