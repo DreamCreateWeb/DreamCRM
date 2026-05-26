@@ -525,6 +525,10 @@ export const blogPost = pgTable(
     // Pageview counter, incremented by a client beacon on the public post so
     // SSR / bot renders don't inflate it. Powers the "N reads" adoption signal.
     viewCount: integer('view_count').notNull().default(0),
+    // When set + status='scheduled', the publish-scheduled-posts cron flips the
+    // (already review-approved) post live at this time. Never auto-publishes
+    // unreviewed AI — scheduling requires passing the publish gate first.
+    scheduledFor: timestamp('scheduled_for'),
     publishedAt: timestamp('published_at'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

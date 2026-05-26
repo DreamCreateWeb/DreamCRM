@@ -74,6 +74,10 @@ import {
   listRelatedPosts,
   resolvePostPeople,
   incrementViewCount,
+  scheduleBlogPost,
+  unscheduleBlogPost,
+  publishDueScheduledPosts,
+  createTopicStubs,
   seedStarterBlogPosts,
   STARTER_BLOG_TOPICS,
   BlogPublishError,
@@ -255,12 +259,83 @@ describe('getBlogStats', () => {
       { status: 'published', source: 'seed', publishedAt: d2 },
       { status: 'draft', source: 'ai_draft', publishedAt: null },
       { status: 'draft', source: 'manual', publishedAt: null },
+      { status: 'scheduled', source: 'manual', publishedAt: null },
     ])
     const stats = await getBlogStats('org_1')
     expect(stats.published).toBe(2)
     expect(stats.drafts).toBe(2)
+    expect(stats.scheduled).toBe(1)
     expect(stats.aiDraftsPending).toBe(1)
     expect(stats.lastPublishedAt).toEqual(d2)
+  })
+})
+
+describe('scheduleBlogPost (gate + future date)', () => {
+  const ok = { id: 'p1', title: 'Real', bodyHtml: '<p>x</p>', authorStaffId: 'p1', publishedAt: null }
+  const future = new Date(Date.now() + 86_400_000)
+
+  it('refuses a post that fails the publish gate', async () => {
+    state.selectQueue.push([{ ...ok, authorStaffId: null }])
+    await expect(scheduleBlogPost('org_1', 'p1', future)).rejects.toThrow(/author/i)
+  })
+
+  it('refuses a past date', async () => {
+    state.selectQueue.push([ok])
+    await expect(scheduleBlogPost('org_1', 'p1', new Date(Date.now() - 86_400_000))).rejects.toThrow(/future/i)
+  })
+
+  it('sets status=scheduled + scheduledFor on success', async () => {
+    state.selectQueue.push([ok])
+    await scheduleBlogPost('org_1', 'p1', future)
+    const set = updateOp()!.set as { status: string; scheduledFor: Date }
+    expect(set.status).toBe('scheduled')
+    expect(set.scheduledFor).toBeInstanceOf(Date)
+  })
+})
+
+describe('unscheduleBlogPost', () => {
+  it('returns the post to draft + clears scheduledFor', async () => {
+    await unscheduleBlogPost('org_1', 'p1')
+    const set = updateOp()!.set as { status: string; scheduledFor: Date | null }
+    expect(set.status).toBe('draft')
+    expect(set.scheduledFor).toBeNull()
+  })
+})
+
+describe('publishDueScheduledPosts', () => {
+  it('publishes each due scheduled post', async () => {
+    const past = new Date(Date.now() - 3_600_000)
+    state.selectQueue.push([
+      { id: 'a', publishedAt: null, scheduledFor: past },
+      { id: 'b', publishedAt: null, scheduledFor: past },
+    ])
+    const result = await publishDueScheduledPosts()
+    expect(result.published).toBe(2)
+    expect(state.ops.filter((o) => o.kind === 'update' && o.table === 'blog_post').length).toBe(2)
+  })
+})
+
+describe('createTopicStubs', () => {
+  it('inserts one review-gated stub per idea (empty body, ai_draft)', async () => {
+    state.selectQueue.push([]) // uniqueSlug idea 1
+    state.selectQueue.push([]) // uniqueSlug idea 2
+    const created = await createTopicStubs('org_1', [
+      { title: 'Why crowns last', angle: 'a', category: 'Treatments' },
+      { title: 'Flossing 101', angle: 'b', category: 'Oral Health' },
+    ])
+    expect(created).toBe(2)
+    const inserts = state.ops.filter((o) => o.kind === 'insert' && o.table === 'blog_post')
+    expect(inserts.length).toBe(2)
+    const v = inserts[0].values as { status: string; source: string; bodyHtml: string }
+    expect(v.status).toBe('draft')
+    expect(v.source).toBe('ai_draft')
+    expect(v.bodyHtml).toBe('')
+  })
+
+  it('skips ideas with no title', async () => {
+    state.selectQueue.push([]) // uniqueSlug for the one real idea
+    const created = await createTopicStubs('org_1', [{ title: '  ' }, { title: 'Real one' }])
+    expect(created).toBe(1)
   })
 })
 

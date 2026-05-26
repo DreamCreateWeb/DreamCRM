@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lte, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { blogPost } from '@/lib/db/schema/clinic'
@@ -53,6 +53,7 @@ export type BlogPostInputT = z.infer<typeof BlogPostInput>
 export interface BlogStats {
   published: number
   drafts: number
+  scheduled: number
   aiDraftsPending: number
   lastPublishedAt: Date | null
 }
@@ -148,6 +149,7 @@ export async function getBlogStats(organizationId: string): Promise<BlogStats> {
 
   let published = 0
   let drafts = 0
+  let scheduled = 0
   let aiDraftsPending = 0
   let lastPublishedAt: Date | null = null
   for (const r of rows) {
@@ -156,12 +158,14 @@ export async function getBlogStats(organizationId: string): Promise<BlogStats> {
       if (r.publishedAt && (!lastPublishedAt || r.publishedAt > lastPublishedAt)) {
         lastPublishedAt = r.publishedAt
       }
+    } else if (r.status === 'scheduled') {
+      scheduled += 1
     } else {
       drafts += 1
       if (r.source === 'ai_draft') aiDraftsPending += 1
     }
   }
-  return { published, drafts, aiDraftsPending, lastPublishedAt }
+  return { published, drafts, scheduled, aiDraftsPending, lastPublishedAt }
 }
 
 // ── Public reads ────────────────────────────────────────────────────────────
@@ -326,31 +330,71 @@ export async function updateBlogPost(
 
 export class BlogPublishError extends Error {}
 
-/** Flip a draft live. Enforces the publish gate: title, body, and an author
- * byline (E-E-A-T) must all be present. publishedAt is stamped once, on the
- * first publish, so re-publishing keeps the original date. */
+/** The publish/schedule gate: a real title, body, and author byline (E-E-A-T)
+ * must all be present before a post can go live or be scheduled to. */
+function assertPublishable(post: BlogPost): void {
+  if (!post.title.trim() || post.title === 'Untitled post') {
+    throw new BlogPublishError('Give the post a title first.')
+  }
+  if (!post.bodyHtml || post.bodyHtml.replace(/<[^>]*>/g, '').trim().length < 1) {
+    throw new BlogPublishError('Write some content first.')
+  }
+  if (!post.authorStaffId) {
+    throw new BlogPublishError('Choose an author first — every post needs a real byline.')
+  }
+}
+
+/** Flip a post live now. Enforces the gate. publishedAt is stamped once, on
+ * the first publish, so re-publishing keeps the original date. */
 export async function publishBlogPost(organizationId: string, id: string): Promise<BlogPost> {
   const post = await getBlogPost(organizationId, id)
   if (!post) throw new BlogPublishError('Post not found.')
-  if (!post.title.trim() || post.title === 'Untitled post') {
-    throw new BlogPublishError('Give the post a title before publishing.')
-  }
-  if (!post.bodyHtml || post.bodyHtml.replace(/<[^>]*>/g, '').trim().length < 1) {
-    throw new BlogPublishError('Write some content before publishing.')
-  }
-  if (!post.authorStaffId) {
-    throw new BlogPublishError('Choose an author before publishing — every post needs a real byline.')
-  }
+  assertPublishable(post)
   const [row] = await db
     .update(blogPost)
     .set({
       status: 'published',
       publishedAt: post.publishedAt ?? new Date(),
+      scheduledFor: null,
       updatedAt: new Date(),
     })
     .where(and(eq(blogPost.id, id), eq(blogPost.organizationId, organizationId)))
     .returning()
   return row
+}
+
+/** Schedule an already-review-approved post to auto-publish at a future time.
+ * Enforces the same gate as publishing — unreviewed AI is never scheduled. */
+export async function scheduleBlogPost(
+  organizationId: string,
+  id: string,
+  scheduledFor: Date,
+): Promise<BlogPost> {
+  const post = await getBlogPost(organizationId, id)
+  if (!post) throw new BlogPublishError('Post not found.')
+  assertPublishable(post)
+  if (!(scheduledFor instanceof Date) || Number.isNaN(scheduledFor.getTime())) {
+    throw new BlogPublishError('Pick a valid date to schedule.')
+  }
+  if (scheduledFor.getTime() <= Date.now()) {
+    throw new BlogPublishError('Pick a future date to schedule.')
+  }
+  const [row] = await db
+    .update(blogPost)
+    .set({ status: 'scheduled', scheduledFor, updatedAt: new Date() })
+    .where(and(eq(blogPost.id, id), eq(blogPost.organizationId, organizationId)))
+    .returning()
+  return row
+}
+
+/** Pull a scheduled post back to a draft (clears the scheduled time). */
+export async function unscheduleBlogPost(organizationId: string, id: string): Promise<BlogPost | null> {
+  const [row] = await db
+    .update(blogPost)
+    .set({ status: 'draft', scheduledFor: null, updatedAt: new Date() })
+    .where(and(eq(blogPost.id, id), eq(blogPost.organizationId, organizationId)))
+    .returning()
+  return row ?? null
 }
 
 export async function unpublishBlogPost(organizationId: string, id: string): Promise<BlogPost | null> {
@@ -367,8 +411,56 @@ export async function unpublishBlogPost(organizationId: string, id: string): Pro
 export async function archiveBlogPost(organizationId: string, id: string): Promise<void> {
   await db
     .update(blogPost)
-    .set({ archivedAt: new Date(), status: 'draft', updatedAt: new Date() })
+    .set({ archivedAt: new Date(), status: 'draft', scheduledFor: null, updatedAt: new Date() })
     .where(and(eq(blogPost.id, id), eq(blogPost.organizationId, organizationId)))
+}
+
+/** Turn AI topic ideas into review-gated draft stubs (title + category + the
+ * angle as a starting excerpt, empty body). The clinic drafts each into a full
+ * post on demand. Returns how many were created. */
+export async function createTopicStubs(
+  organizationId: string,
+  ideas: Array<{ title: string; angle?: string | null; category?: string | null }>,
+): Promise<number> {
+  let created = 0
+  for (const idea of ideas) {
+    const title = (idea.title ?? '').trim()
+    if (!title) continue
+    const slug = await uniqueSlug(organizationId, title)
+    await db.insert(blogPost).values({
+      id: newId('post'),
+      organizationId,
+      title: title.slice(0, 160),
+      slug,
+      excerpt: idea.angle?.trim().slice(0, 400) || null,
+      bodyHtml: '',
+      category: idea.category?.trim().slice(0, 80) || null,
+      status: 'draft',
+      source: 'ai_draft',
+    })
+    created += 1
+  }
+  return created
+}
+
+/** Cron: publish every scheduled post whose time has arrived. Global (all
+ * orgs). Idempotent — only flips status='scheduled' rows. */
+export async function publishDueScheduledPosts(now: Date = new Date()): Promise<{ published: number }> {
+  const due = await db
+    .select()
+    .from(blogPost)
+    .where(
+      and(eq(blogPost.status, 'scheduled'), isNull(blogPost.archivedAt), lte(blogPost.scheduledFor, now)),
+    )
+  let published = 0
+  for (const p of due) {
+    await db
+      .update(blogPost)
+      .set({ status: 'published', publishedAt: p.publishedAt ?? p.scheduledFor ?? now, updatedAt: new Date() })
+      .where(eq(blogPost.id, p.id))
+    published += 1
+  }
+  return { published }
 }
 
 // ── Starter content (onboarding + demo) ─────────────────────────────────────
@@ -445,6 +537,34 @@ export const STARTER_BLOG_TOPICS: StarterTopic[] = [
       '<h2>What we do on our end</h2>' +
       '<p>We move at the child’s pace, explain everything in friendly terms, and let them touch the tools so nothing feels like a surprise. There is never any pressure.</p>' +
       '<p>Ready to bring the family in? <strong>Book a visit</strong> and let us know it is their first time — we will take extra care.</p>',
+  },
+  {
+    slug: 'sensitive-teeth-what-helps',
+    title: 'Sensitive teeth? Here’s what actually helps',
+    excerpt:
+      'That zing from cold or sweet foods is common and usually manageable. Here’s what causes it and the simple things that bring relief.',
+    category: 'Oral Health',
+    bodyHtml:
+      '<p>If a sip of iced water or a bite of ice cream makes you wince, you are far from alone — tooth sensitivity is one of the most common things we hear about, and it is usually very manageable.</p>' +
+      '<h2>What’s behind it</h2>' +
+      '<p>Sensitivity happens when the protective layers of a tooth wear thin or the gum line recedes, exposing the tiny channels that lead to the nerve. Common culprits are hard brushing, grinding, acidic foods, or a cracked filling.</p>' +
+      '<h2>What helps</h2>' +
+      '<ul><li>Switch to a soft-bristled brush and ease up on pressure</li><li>Try a sensitivity toothpaste for a few weeks</li><li>Go easy on acidic drinks, and rinse with water afterward</li></ul>' +
+      '<p>If it lingers or it is sharp and sudden, it is worth a look — that can point to something we can fix quickly. <strong>Book a visit</strong> and we will get to the bottom of it.</p>',
+  },
+  {
+    slug: 'do-you-need-a-night-guard',
+    title: 'Do you grind your teeth? Signs you might need a night guard',
+    excerpt:
+      'Morning jaw soreness or headaches can be signs of night-time grinding. Here’s how to tell, and how a simple guard protects your smile.',
+    category: 'Treatments',
+    bodyHtml:
+      '<p>A lot of people grind or clench their teeth at night without realizing it — often during stress. Over time it can wear teeth down, but the good news is that it is easy to protect against.</p>' +
+      '<h2>Signs to watch for</h2>' +
+      '<ul><li>Waking up with a sore jaw or a dull headache</li><li>Teeth that look flatter or feel more sensitive</li><li>A partner who hears grinding at night</li></ul>' +
+      '<h2>How a night guard helps</h2>' +
+      '<p>A custom night guard is a thin, comfortable shield that takes the force instead of your teeth. It is one of the simplest ways to prevent expensive wear down the road.</p>' +
+      '<p>Not sure if you grind? Mention it at your next cleaning, or <strong>book a visit</strong> and we will check for the tell-tale signs.</p>',
   },
 ]
 

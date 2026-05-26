@@ -14,6 +14,7 @@ import {
   updateBlogPostAction,
   publishBlogPostAction,
   unpublishBlogPostAction,
+  unscheduleBlogPostAction,
   archiveBlogPostAction,
   draftBlogPostAction,
   draftSocialCaptionAction,
@@ -36,6 +37,7 @@ export interface BlogEditorPost {
   seoTitle: string
   seoDescription: string
   publishedAt: string | null
+  scheduledFor: string | null
   viewCount: number
 }
 
@@ -183,6 +185,14 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
     })
   }
 
+  function unschedule() {
+    startTransition(async () => {
+      await unscheduleBlogPostAction(post.id)
+      setStatus('draft')
+      router.refresh()
+    })
+  }
+
   function destroy() {
     if (!confirm('Archive this post? It will be removed from your website. You can’t undo this from here.')) return
     startTransition(async () => {
@@ -191,6 +201,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   }
 
   const published = status === 'published'
+  const scheduled = status === 'scheduled'
   const liveUrl = baseUrl ? `${baseUrl}/blog/${draft.slug}` : ''
   const derivedExcerpt = excerptFromHtml(draft.bodyHtml)
 
@@ -290,10 +301,12 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   'text-[10px] font-medium px-1.5 py-0.5 rounded',
                   published
                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-                    : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
+                    : scheduled
+                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+                      : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
                 )}
               >
-                {published ? 'Published' : 'Draft'}
+                {published ? 'Published' : scheduled ? 'Scheduled' : 'Draft'}
               </span>
               {published && liveUrl && (
                 <a
@@ -319,6 +332,30 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               >
                 Unpublish
               </button>
+            ) : scheduled ? (
+              <>
+                {post.scheduledFor && (
+                  <p className="text-[12px] text-amber-700 dark:text-amber-300 mb-2 tabular-nums">
+                    Goes live{' '}
+                    {new Date(post.scheduledFor).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                )}
+                <button
+                  onClick={unschedule}
+                  disabled={pending}
+                  className="w-full text-sm font-medium py-2 rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 disabled:opacity-50"
+                >
+                  Unschedule
+                </button>
+                <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2 leading-snug">
+                  Reschedule from the content calendar.
+                </p>
+              </>
             ) : (
               <button
                 onClick={publish}
@@ -331,7 +368,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             {publishError && (
               <p className="text-[12px] text-rose-600 dark:text-rose-400 mt-2">{publishError}</p>
             )}
-            {!published && (
+            {!published && !scheduled && (
               <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2 leading-snug">
                 Publishing needs a title, some content, and an author byline.
               </p>
@@ -511,6 +548,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       {showAi && (
         <AiDraftModal
           busy={aiBusy}
+          defaultTopic={
+            draft.bodyHtml.replace(/<[^>]*>/g, '').trim()
+              ? ''
+              : [draft.title, draft.excerpt].filter(Boolean).join(' — ')
+          }
           onClose={() => setShowAi(false)}
           onApply={async (topic) => {
             setAiBusy(true)
@@ -554,14 +596,16 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
 function AiDraftModal({
   busy,
+  defaultTopic,
   onClose,
   onApply,
 }: {
   busy: boolean
+  defaultTopic?: string
   onClose: () => void
   onApply: (topic: string) => void | Promise<void>
 }) {
-  const [topic, setTopic] = useState('')
+  const [topic, setTopic] = useState(defaultTopic ?? '')
   return (
     <div
       className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
