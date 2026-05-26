@@ -43,8 +43,15 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Migrations + the startup migrate script (run before the server boots so each
+# deploy auto-applies its own pending migrations). pg + drizzle resolve from
+# the standalone node_modules bundled above.
+COPY --from=builder --chown=nextjs:nodejs /app/lib/db/migrations ./lib/db/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/db-migrate.mjs ./scripts/db-migrate.mjs
 USER nextjs
 EXPOSE 3000
 # App Runner / ECS inject their own HOSTNAME env; Next standalone binds to it,
 # so force 0.0.0.0 at exec time or the health check can't reach the server.
-CMD ["sh", "-c", "HOSTNAME=0.0.0.0 node server.js"]
+# Apply pending DB migrations first; a failure here stops boot so App Runner
+# rolls back to the previous version instead of serving a half-migrated DB.
+CMD ["sh", "-c", "node scripts/db-migrate.mjs && HOSTNAME=0.0.0.0 node server.js"]
