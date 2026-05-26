@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth/server'
 import { db } from '@/lib/db'
-import { user, organization, member } from '@/lib/db/schema/auth'
+import { user, organization, member, account } from '@/lib/db/schema/auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,6 +34,30 @@ export async function POST(request: Request) {
   } else {
     const res = await auth.api.signUpEmail({ body: { email: body.email, password: body.password, name } })
     userId = res.user.id
+  }
+
+  // 1b. (Re)set the credential password on every run, so this route also
+  // resets the admin password for an existing user — not just on creation.
+  const ctx = await auth.$context
+  const hashedPassword = await ctx.password.hash(body.password)
+  const cred = await db
+    .select({ id: account.id })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
+    .limit(1)
+  if (cred.length > 0) {
+    await db
+      .update(account)
+      .set({ password: hashedPassword, updatedAt: new Date() })
+      .where(eq(account.id, cred[0].id))
+  } else {
+    await db.insert(account).values({
+      id: randomUUID(),
+      accountId: userId,
+      providerId: 'credential',
+      userId,
+      password: hashedPassword,
+    })
   }
 
   // 2. Promote to platform admin.
