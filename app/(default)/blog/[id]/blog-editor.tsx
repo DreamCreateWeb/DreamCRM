@@ -18,6 +18,8 @@ import {
   archiveBlogPostAction,
   draftBlogPostAction,
   draftSocialCaptionAction,
+  generateFaqsAction,
+  emailThisPostAction,
 } from '../actions'
 
 export interface BlogEditorPost {
@@ -28,8 +30,10 @@ export interface BlogEditorPost {
   bodyHtml: string
   bodyJson: Record<string, unknown> | null
   coverImageUrl: string
+  coverImageAlt: string
   category: string
   tags: string[]
+  faq: { q: string; a: string }[]
   status: string
   source: string
   authorStaffId: string
@@ -65,8 +69,10 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
     bodyHtml: post.bodyHtml,
     bodyJson: post.bodyJson,
     coverImageUrl: post.coverImageUrl,
+    coverImageAlt: post.coverImageAlt,
     category: post.category,
     tagsText: post.tags.join(', '),
+    faq: post.faq,
     authorStaffId: post.authorStaffId,
     medicallyReviewedByStaffId: post.medicallyReviewedByStaffId,
     seoTitle: post.seoTitle,
@@ -122,11 +128,13 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       bodyHtml: draft.bodyHtml,
       bodyJson: draft.bodyJson,
       coverImageUrl: draft.coverImageUrl || null,
+      coverImageAlt: draft.coverImageAlt || null,
       category: draft.category || null,
       tags: draft.tagsText
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean),
+      faq: draft.faq.filter((f) => f.q.trim() && f.a.trim()),
       authorStaffId: draft.authorStaffId || null,
       medicallyReviewedByStaffId: draft.medicallyReviewedByStaffId || null,
       seoTitle: draft.seoTitle || null,
@@ -233,6 +241,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-4">
         {/* ── Editor column ── */}
+        <div className="space-y-4">
         <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
           <div className="px-5 py-4 border-b border-stone-100 dark:border-stone-700/40 space-y-3">
             <input
@@ -289,6 +298,15 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               </p>
             </label>
           </div>
+        </div>
+
+        <FaqEditor
+          faq={draft.faq}
+          title={draft.title}
+          bodyHtml={draft.bodyHtml}
+          pending={pending}
+          onChange={(f) => field('faq', f)}
+        />
         </div>
 
         {/* ── Sidebar ── */}
@@ -479,6 +497,22 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               hint="Shown at the top of the post + as the social share image."
               onChange={(url) => field('coverImageUrl', url ?? '')}
             />
+            {draft.coverImageUrl && (
+              <label className="block mt-3">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+                  Image description (alt text)
+                </span>
+                <input
+                  value={draft.coverImageAlt}
+                  onChange={(e) => field('coverImageAlt', e.target.value)}
+                  placeholder="e.g. A dental hygienist smiling with a patient"
+                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                />
+                <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">
+                  Describe the photo for screen readers + image search.
+                </p>
+              </label>
+            )}
           </div>
 
           {/* SEO */}
@@ -522,6 +556,17 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
           {/* Tools */}
           <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 space-y-2">
+            {published && (
+              <button
+                type="button"
+                onClick={() => startTransition(async () => { await emailThisPostAction(post.id) })}
+                disabled={pending}
+                className="w-full text-[12px] font-medium px-2 py-1.5 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 disabled:opacity-50"
+                title="Create a Recall & Outreach email from this post"
+              >
+                ✉️ Email to patients
+              </button>
+            )}
             <button
               type="button"
               onClick={async () => {
@@ -762,6 +807,105 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
       <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
       {btn(editor.isActive('link'), 'Link', setLink)}
       {btn(false, 'Image', addImage)}
+    </div>
+  )
+}
+
+function FaqEditor({
+  faq,
+  title,
+  bodyHtml,
+  pending,
+  onChange,
+}: {
+  faq: { q: string; a: string }[]
+  title: string
+  bodyHtml: string
+  pending: boolean
+  onChange: (faq: { q: string; a: string }[]) => void
+}) {
+  const [busy, setBusy] = useState(false)
+
+  function update(i: number, key: 'q' | 'a', val: string) {
+    onChange(faq.map((f, idx) => (idx === i ? { ...f, [key]: val } : f)))
+  }
+
+  async function generate() {
+    setBusy(true)
+    try {
+      const result = await generateFaqsAction(title, bodyHtml)
+      if (!result || !result.length) {
+        alert('AI is unavailable right now — try again in a moment.')
+        return
+      }
+      const existing = faq.filter((f) => f.q.trim() && f.a.trim())
+      onChange([...existing, ...result])
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-100">FAQ</h3>
+        <button
+          type="button"
+          onClick={generate}
+          disabled={busy || pending}
+          className="text-[11px] font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+        >
+          {busy ? 'Generating…' : '✨ Generate with AI'}
+        </button>
+      </div>
+      <p className="text-[11px] text-stone-400 dark:text-stone-500 mb-3">
+        Common questions about this topic. Shown on the post + added as FAQ structured data — helps you appear in
+        Google and AI answers.
+      </p>
+      {faq.length === 0 ? (
+        <p className="text-[12px] text-stone-400 dark:text-stone-500 italic mb-3">
+          No FAQs yet — add your own or generate them.
+        </p>
+      ) : (
+        <div className="space-y-3 mb-3">
+          {faq.map((f, i) => (
+            <div key={i} className="rounded-lg border border-stone-200 dark:border-stone-700 p-3">
+              <div className="flex items-start gap-2">
+                <div className="flex-1 space-y-2 min-w-0">
+                  <input
+                    value={f.q}
+                    onChange={(e) => update(i, 'q', e.target.value)}
+                    placeholder="Question"
+                    className="w-full text-sm font-medium px-2 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                  />
+                  <textarea
+                    value={f.a}
+                    onChange={(e) => update(i, 'a', e.target.value)}
+                    rows={2}
+                    placeholder="Answer"
+                    className="w-full text-sm px-2 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 resize-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onChange(faq.filter((_, idx) => idx !== i))}
+                  className="text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 text-sm shrink-0 px-1"
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => onChange([...faq, { q: '', a: '' }])}
+        className="text-[12px] font-medium text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-100"
+      >
+        + Add question
+      </button>
     </div>
   )
 }

@@ -1772,6 +1772,8 @@ interface BlogPostSeed {
   publishedDaysAgo: number | null
   scheduledInDays: number | null
   coverImageUrl: string | null
+  coverImageAlt?: string | null
+  faq?: Array<{ q: string; a: string }>
   viewCount: number
   // idea-to-draft stub: empty body so it lands in the calendar's "Ideas" lane.
   isStub?: boolean
@@ -1788,6 +1790,7 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     publishedDaysAgo: 9,
     scheduledInDays: null,
     coverImageUrl: DEMO_OFFICE_PHOTOS[0].url,
+    coverImageAlt: 'A bright, modern dental treatment room with natural light',
     viewCount: 142,
   },
   {
@@ -1800,6 +1803,21 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     publishedDaysAgo: 28,
     scheduledInDays: null,
     coverImageUrl: DEMO_OFFICE_PHOTOS[2].url,
+    coverImageAlt: 'A dental hygienist reviewing gum health with a smiling patient',
+    faq: [
+      {
+        q: 'Is it normal for my gums to bleed when I floss?',
+        a: 'A little bleeding when you first start flossing is common and usually settles within a week or two. If it keeps happening, mention it at your next visit.',
+      },
+      {
+        q: 'How often should I have my gums checked?',
+        a: 'For most people, a check-up and cleaning every six months keeps gums healthy and catches any early changes.',
+      },
+      {
+        q: 'Can gum problems be reversed?',
+        a: 'Early gum inflammation (gingivitis) is very reversible with good home care and a professional cleaning. More advanced issues are managed rather than fully reversed — so earlier is always better.',
+      },
+    ],
     viewCount: 87,
   },
   {
@@ -1825,6 +1843,7 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     publishedDaysAgo: null,
     scheduledInDays: 6,
     coverImageUrl: DEMO_OFFICE_PHOTOS[1].url,
+    coverImageAlt: 'A calm dental reception area with warm wood and plants',
     viewCount: 0,
   },
   {
@@ -1875,6 +1894,8 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
           medicallyReviewedByStaffId: plan.medicallyReviewedByStaffId,
           medicallyReviewedAt: reviewedAt,
           viewCount: plan.viewCount,
+          coverImageAlt: plan.coverImageAlt ?? null,
+          faq: plan.faq ?? null,
         })
         .where(and(eq(schema.blogPost.organizationId, orgId), eq(schema.blogPost.slug, plan.slug)))
       continue
@@ -1896,6 +1917,8 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
       medicallyReviewedByStaffId: plan.medicallyReviewedByStaffId,
       medicallyReviewedAt: reviewedAt,
       coverImageUrl: plan.coverImageUrl,
+      coverImageAlt: plan.coverImageAlt ?? null,
+      faq: plan.faq ?? null,
       viewCount: plan.viewCount,
       scheduledFor,
       publishedAt,

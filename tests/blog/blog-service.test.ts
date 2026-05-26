@@ -469,3 +469,40 @@ describe('updateBlogPost — medical reviewer', () => {
     expect(set.medicallyReviewedAt).toBeNull()
   })
 })
+
+describe('updateBlogPost — FAQ + cover alt', () => {
+  const current = {
+    id: 'post_1',
+    organizationId: 'org_1',
+    title: 'T',
+    slug: 's',
+    bodyHtml: '',
+    status: 'draft',
+    source: 'manual',
+    authorStaffId: null,
+    authorName: null,
+    medicallyReviewedAt: null,
+  }
+
+  it('stores cover alt + FAQ, dropping blank FAQ rows', async () => {
+    state.selectQueue.push([current]) // getBlogPost
+    await updateBlogPost('org_1', 'post_1', {
+      coverImageAlt: 'A smiling patient',
+      faq: [
+        { q: 'Q1', a: 'A1' },
+        { q: '', a: '' },
+        { q: 'Q2', a: 'A2' },
+      ],
+    })
+    const set = updateOp()!.set as { coverImageAlt: string; faq: Array<{ q: string }> }
+    expect(set.coverImageAlt).toBe('A smiling patient')
+    expect(set.faq.length).toBe(2)
+    expect(set.faq.map((f) => f.q)).toEqual(['Q1', 'Q2'])
+  })
+
+  it('stores null when all FAQ rows are blank', async () => {
+    state.selectQueue.push([current])
+    await updateBlogPost('org_1', 'post_1', { faq: [{ q: '  ', a: '' }] })
+    expect((updateOp()!.set as { faq: unknown }).faq).toBeNull()
+  })
+})

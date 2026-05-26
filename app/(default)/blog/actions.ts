@@ -6,10 +6,12 @@ import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { organization } from '@/lib/db/schema/auth'
 import {
   BlogPostInput,
   type BlogPostInputT,
   createBlankBlogPost,
+  getBlogPost,
   updateBlogPost,
   publishBlogPost,
   unpublishBlogPost,
@@ -19,7 +21,9 @@ import {
   createTopicStubs,
   BlogPublishError,
 } from '@/lib/services/blog'
-import { draftBlogPost, draftSocialCaption, suggestBlogTopics } from '@/lib/services/ai-blog'
+import { draftBlogPost, draftSocialCaption, suggestBlogTopics, suggestFaqs } from '@/lib/services/ai-blog'
+import { createMarketingCampaign } from '@/lib/services/marketing-campaigns'
+import { publicSiteUrl } from '@/lib/services/clinic-site'
 import type { ClinicService } from '@/lib/types/clinic-content'
 
 function ensureClinicAdmin(ctx: { tenantType: string; role: string }) {
@@ -161,4 +165,59 @@ export async function unscheduleBlogPostAction(id: string) {
   revalidatePath('/blog')
   revalidatePath('/blog/calendar')
   revalidatePath(`/blog/${id}`)
+}
+
+/** AI-generate 3-5 FAQs grounded in the post (the editor previews them
+ * before they're saved). */
+export async function generateFaqsAction(title: string, bodyHtml: string) {
+  const ctx = await requireTenant()
+  ensureClinicAdmin(ctx)
+  if (!title.trim() && !bodyHtml.trim()) return null
+  return suggestFaqs(title.slice(0, 200), bodyHtml.slice(0, 60_000))
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** Repurpose a published post into a Recall & Outreach email: creates a draft
+ * campaign pre-filled with the post, then drops the user in the campaign
+ * editor to pick a patient audience + send (reuses the existing send path). */
+export async function emailThisPostAction(id: string) {
+  const ctx = await requireTenant()
+  ensureClinicAdmin(ctx)
+  const post = await getBlogPost(ctx.organizationId, id)
+  if (!post || post.status !== 'published') {
+    throw new Error('Only a published post can be emailed.')
+  }
+  const [profile] = await db
+    .select({ websiteDomain: clinicProfile.websiteDomain })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, ctx.organizationId))
+    .limit(1)
+  const [org] = await db
+    .select({ slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, ctx.organizationId))
+    .limit(1)
+  const base = org
+    ? publicSiteUrl({ slug: org.slug, profile: { websiteDomain: profile?.websiteDomain ?? null } as never })
+    : ''
+  const url = base ? `${base}/blog/${post.slug}` : ''
+  const excerpt = post.excerpt?.trim() ?? ''
+  const bodyHtml =
+    `<p>${escapeHtml(excerpt) || 'We just published a new post you might find helpful.'}</p>` +
+    (url ? `<p><a href="${url}">Read the full post →</a></p>` : '')
+  const campaign = await createMarketingCampaign(
+    ctx.organizationId,
+    {
+      name: `Blog: ${post.title}`.slice(0, 200),
+      subject: post.title.slice(0, 200),
+      previewText: excerpt.slice(0, 200) || null,
+      bodyHtml,
+      sendChannel: 'resend',
+    },
+    ctx.userId,
+  )
+  redirect(`/marketing/campaigns/${campaign.id}`)
 }

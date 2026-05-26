@@ -7,7 +7,7 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { newId, slugify } from '@/lib/utils'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
-import type { ClinicStaff } from '@/lib/types/clinic-content'
+import type { ClinicStaff, BlogFaqItem } from '@/lib/types/clinic-content'
 
 /**
  * Blog service. Posts are clinic-owned, live on the public site by slug, and
@@ -38,8 +38,14 @@ export const BlogPostInput = z.object({
   bodyHtml: z.string().max(200_000).optional().nullable(),
   bodyJson: z.any().optional().nullable(),
   coverImageUrl: z.string().max(2000).optional().nullable(),
+  coverImageAlt: z.string().max(300).optional().nullable(),
   category: z.string().max(80).optional().nullable(),
   tags: z.array(z.string().max(40)).max(20).optional().nullable(),
+  faq: z
+    .array(z.object({ q: z.string().max(300), a: z.string().max(2000) }))
+    .max(20)
+    .optional()
+    .nullable(),
   authorStaffId: z.string().max(120).optional().nullable(),
   medicallyReviewedByStaffId: z.string().max(120).optional().nullable(),
   seoTitle: z.string().max(160).optional().nullable(),
@@ -303,8 +309,14 @@ export async function updateBlogPost(
   if (data.bodyHtml !== undefined) patch.bodyHtml = sanitizeBlogHtml(data.bodyHtml ?? '')
   if (data.bodyJson !== undefined) patch.bodyJson = data.bodyJson ?? null
   if (data.coverImageUrl !== undefined) patch.coverImageUrl = data.coverImageUrl || null
+  if (data.coverImageAlt !== undefined) patch.coverImageAlt = data.coverImageAlt || null
   if (data.category !== undefined) patch.category = data.category || null
   if (data.tags !== undefined) patch.tags = data.tags && data.tags.length ? data.tags : null
+  if (data.faq !== undefined) {
+    // Drop blank rows from the editor so we don't persist or render empties.
+    const cleaned = (data.faq ?? []).filter((f) => f.q?.trim() && f.a?.trim())
+    patch.faq = cleaned.length ? (cleaned as BlogFaqItem[]) : null
+  }
   if (data.seoTitle !== undefined) patch.seoTitle = data.seoTitle || null
   if (data.seoDescription !== undefined) patch.seoDescription = data.seoDescription || null
   if (data.source !== undefined) patch.source = data.source

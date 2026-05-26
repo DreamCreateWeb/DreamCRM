@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { getPublishedPostBySlug, resolvePostPeople, listRelatedPosts } from '@/lib/services/blog'
 import { excerptFromHtml } from '@/lib/utils'
+import type { BlogFaqItem } from '@/lib/types/clinic-content'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 import BlogArticle from '@/components/clinic-site/blog-article'
 import BlogViewBeacon from '@/components/clinic-site/blog-view-beacon'
@@ -83,9 +84,27 @@ export default async function ClinicBlogPostPage({ params }: Props) {
     url,
   }
 
+  // FAQPage JSON-LD — a strong AI-Overview / voice-search signal for YMYL.
+  const faq = ((post.faq as BlogFaqItem[] | null) ?? []).filter((f) => f?.q && f?.a)
+  const faqLd =
+    faq.length > 0
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faq.map((f) => ({
+            '@type': 'Question',
+            name: f.q,
+            acceptedAnswer: { '@type': 'Answer', text: f.a },
+          })),
+        }
+      : null
+
   return (
     <BlogChrome data={data} basePath={basePath}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {faqLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+      )}
       <BlogViewBeacon postId={post.id} />
       <BlogArticle
         post={post}
