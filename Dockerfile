@@ -19,6 +19,14 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# NEXT_PUBLIC_* values are inlined into the bundle at build time (App Runner
+# runtime env vars are too late), so they must be present as build args here.
+# Without NEXT_PUBLIC_APP_URL, invite links + Stripe return URLs fall back to
+# localhost. Defaults keep a no-arg build working locally.
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG NEXT_PUBLIC_SITE_DOMAIN=dreamcreatestudio.com
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_SITE_DOMAIN=$NEXT_PUBLIC_SITE_DOMAIN
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN --mount=type=secret,id=cacert,target=/tmp/proxy-ca.crt \
     sh -c '[ -s /tmp/proxy-ca.crt ] && export NODE_EXTRA_CA_CERTS=/tmp/proxy-ca.crt; pnpm build'
