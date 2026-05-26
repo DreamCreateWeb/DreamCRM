@@ -12,19 +12,23 @@ aesthetic — keep it; wire logic to it rather than replacing components.
 
 ## Stack
 - **Next.js 16** (App Router, Turbopack), TypeScript, Tailwind 4
-- **Drizzle ORM** on **Neon Postgres** (US-East, `iad1`)
+- **Drizzle ORM** on **AWS RDS Postgres** (`us-east-1`; node-postgres driver, private/VPC-only)
 - **better-auth** with Organizations plugin (multi-tenant)
-- **Stripe** for billing (Checkout + Customer Portal + webhooks)
-- **Currently: Resend** for email + **Vercel Blob** for uploads + planned
-  **Twilio** for SMS + direct **Anthropic API** for Claude calls
-- **Migration in flight: replacing the above with AWS-native services
-  under a single BAA** — SES (email), AWS End User Messaging SMS,
-  S3 (storage), Bedrock (Claude). Gmail OAuth + Stripe + Neon stay.
-  See the "Vercel + third-party → AWS migration" section below.
-- **Currently deployed on Vercel**, production URL:
-  **https://dreamcreatestudio.com**
-  - Wildcard `*.dreamcreatestudio.com` reserved for clinic public sites
-  - Every push to `main` aliases there — refresh, don't open per-deploy URLs
+- **Stripe** for billing (Checkout + Customer Portal + webhooks) — unchanged (own BAA)
+- **Email: AWS SES** (`EMAIL_DRIVER=ses`; verified domain `dreamcreateweb.com`
+  with DKIM + DMARC). Resend kept as a fallback driver. **SES is still in the
+  sandbox — production-access request pending AWS review**, so outbound to
+  non-verified recipients is held until approved.
+- **Storage: AWS S3** (`STORAGE_DRIVER=s3`, bucket `dreamcrm-uploads-prod`).
+  Vercel Blob kept as a fallback driver.
+- **AI: Anthropic API (direct)**. A Bedrock driver exists (`AI_DRIVER=bedrock`,
+  inert) for a future single-BAA move — blocked on the Bedrock Anthropic
+  use-case form + a tokens/day quota bump.
+- **SMS: not wired** (future: AWS End User Messaging + A2P 10DLC). Gmail OAuth unchanged.
+- **Deployed on AWS App Runner** (`us-east-1`). Canonical URL:
+  **https://www.dreamcreatestudio.com**; `app.dreamcreatestudio.com` + the bare
+  apex redirect to `www`. Clinic public sites at `{slug}.dreamcreatestudio.com`
+  still need wildcard DNS (see "Deployment & operations").
 
 ## Repo layout
 ```
@@ -479,13 +483,12 @@ Public clinic surfaces also live:
 
 ## What's NOT yet wired (priorities for next session)
 
-### Imminent: AWS migration (next session)
+### AWS migration — DONE (see "Vercel → AWS migration" below for status)
 
-The platform is currently deployed on Vercel. Migration to AWS is the
-next session's focus. See **"Vercel surfaces to replace"** below for
-the full surface inventory. Do that work *before* layering on new
-feature work — the AWS deployment shape will inform decisions like
-"how do we run cron?" that affect Phase B Twilio + Reviews auto-trigger.
+The Vercel → AWS migration is complete: the app runs on App Runner + RDS +
+S3 + SES, canonical at https://www.dreamcreatestudio.com. Remaining loose ends
+(SES production access, optional Bedrock, moving the domain off Replit, the
+eventual App Runner → ECS move) are tracked in that section.
 
 ### Feature work, post-migration
 
@@ -550,7 +553,31 @@ feature work — the AWS deployment shape will inform decisions like
     Careers (job postings + applicant tracking), Integrations
     (Open Dental + Dentrix two-way sync).
 
-## Vercel + third-party → AWS migration (next session)
+## Vercel → AWS migration (LARGELY COMPLETE)
+
+**Status:** the app runs on **AWS App Runner** (`us-east-1`) from an **ECR**
+image, on **RDS Postgres** (private/VPC), with **S3** storage and **SES** email
+live. Canonical domain **https://www.dreamcreatestudio.com**.
+
+**Done:** containerized (Dockerfile + standalone output) → ECR → App Runner;
+RDS via node-postgres; S3 storage (`STORAGE_DRIVER=s3`); SES email
+(`EMAIL_DRIVER=ses`, domain verified + DKIM + DMARC); security headers moved
+into `next.config.js`; VPC NAT egress route + free S3 gateway endpoint;
+CloudWatch alarms + SNS + 30-day log retention; RDS hardening (deletion
+protection, storage autoscaling, Performance Insights); ECR lifecycle policy;
+third-party secrets recovered from Vercel into Secrets Manager; Stripe webhook
+repointed to the App Runner domain; `www` made canonical with `app.`/bare
+redirecting to it.
+
+**Remaining:** SES production access (appeal pending AWS review); optional AI →
+Bedrock (needs the Bedrock Anthropic use-case form + quota bump); move the
+domain off Replit so the bare apex can point straight at AWS and the Vercel
+redirector can be retired; SMS (future). **App Runner is closing to new
+customers (Apr 2026)** — existing workloads keep running + patched, but plan an
+eventual move to **ECS** (Express Mode or Fargate+ALB), which also unblocks a
+static-IP/apex without the redirect workaround.
+
+**Original plan + inventory below (kept for reference):**
 
 **Strategic decision driving the migration**: consolidate every PHI-
 touching dependency under the single AWS Business Associate Agreement
@@ -613,41 +640,41 @@ To-do in the AWS migration session (rough order):
 
 ## Deployment & operations
 
-- **Production (current)**: `main` branch auto-deploys to `https://dreamcreatestudio.com` via Vercel.
-- **Region**: `iad1` (matches Neon Postgres).
-- **AWS migration is the next planned change** — see "Vercel surfaces
-  to replace" above. The migration workflow below is the
-  *current-Vercel* procedure; it gets restated post-migration once the
-  new env-management API is in place.
-- **Vercel API token** (rotate-aware): tokens passed through chat in
-  past sessions have already been used + should be rotated. Don't
-  re-use stale tokens from prior conversation transcripts — ask the
-  user for a fresh one when prod operations are needed. Used for:
-  reading project envs (`DATABASE_URL` is "sensitive" type and can't
-  be pulled), setting/deleting `ADMIN_BOOTSTRAP_TOKEN` for migration
-  runs, polling deployment status.
-- **DB migration workflow** (latest applied: 0023):
-  1. Generate migration via `pnpm db:generate --name foo`
-  2. Generate a random `ADMIN_BOOTSTRAP_TOKEN` and POST it to
-     `https://api.vercel.com/v10/projects/prj_HK0PWpVYjcDPZNUUoxIQ5UptBFMS/env`
-     with target `["production"]`, type `encrypted`.
-  3. Add `app/api/admin/bootstrap/route.ts` (copy from any prior
-     `claude/cleanup-bootstrap-*` PR — the canonical implementation
-     ships an idempotent ledger `_dreamcrm_migrations_applied` and
-     tolerates `42P07/42701/42710` mid-migration).
-  4. Add `/api/admin/bootstrap` to `middleware.ts` `PUBLIC_PATHS`.
-  5. Commit + push + auto-merge the PR. Wait for deploy
-     (poll `/v6/deployments?...&target=production&limit=1` until
-     `readyState=READY`).
-  6. `curl -X POST -H "Authorization: Bearer $TOKEN"
-     https://dreamcreatestudio.com/api/admin/bootstrap`. Verify response
-     shows the new migration's status as `applied`.
-  7. DELETE the `ADMIN_BOOTSTRAP_TOKEN` env var via the Vercel API.
-  8. Open a follow-up PR (`claude/cleanup-bootstrap-NNNN`) removing
-     the bootstrap route + middleware allowlist. Auto-merge.
-- **Webhook secret rotation**: same pattern — `/api/admin/bootstrap` with
-  `stripe-setup` action returns the new whsec; PATCH the
-  `STRIPE_WEBHOOK_SECRET` env var via Vercel API.
+- **Production**: AWS **App Runner** service `dreamcrm` (`us-east-1`) serving
+  ECR `…/dreamcrm:latest`. Public ingress; egress via a VPC connector (subnets
+  route `0.0.0.0/0` → NAT + a free S3 gateway endpoint) so it reaches private
+  RDS in-VPC *and* the internet (Stripe / Google / SES / Anthropic). Health
+  check `/api/health`. Auto-deploy off.
+- **Canonical URL**: `https://www.dreamcreatestudio.com`. `app.` + the bare apex
+  redirect to www — `app.` via `middleware.ts`, the bare apex via a Vercel
+  redirect (its DNS is at name.com/Replit and a bare apex can't CNAME to App
+  Runner). Retire the Vercel redirect once the domain moves to a registrar with
+  apex CNAME-flattening (e.g. Cloudflare) and the bare apex points at AWS.
+- **Build + deploy** (no CI) — CodeBuild project `dreamcrm-image-build` builds
+  from an S3 source zip, pushes ECR `:latest` + `:build-N`, then runs
+  `aws apprunner start-deployment`. To ship a change:
+  ```
+  git archive --format=zip HEAD -o /tmp/src.zip
+  aws s3 cp /tmp/src.zip s3://dreamcrm-codebuild-952078552817/source/dreamcrm-src.zip
+  aws codebuild start-build --project-name dreamcrm-image-build
+  ```
+  `NEXT_PUBLIC_*` bake at build time (CodeBuild env → Docker build args), so
+  changing them needs a rebuild, not just a redeploy.
+- **Secrets / config**: Secrets Manager `dreamcrm/app-secrets` (one JSON) →
+  injected as App Runner `RuntimeEnvironmentSecrets`. Driver switches + non-
+  secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
+  are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
+  effect (instances read them at startup).
+- **DB migrations** (latest applied: 0024): RDS is private, so apply from inside
+  the VPC via the running app — `POST /api/admin/migrate` with
+  `Authorization: Bearer $CRON_SECRET` (idempotent; drizzle applies pending).
+  Generate with `pnpm db:generate`, commit, build + deploy, then curl the route.
+  `/api/admin/seed-platform` (same auth) seeds the platform org on a fresh DB.
+- **Monitoring**: CloudWatch alarms (RDS CPU/storage/connections/memory; App
+  Runner 5xx/CPU/memory) → SNS topic `dreamcrm-alerts` (email). Logs retain 30d.
+- **Webhook secrets**: rotate by editing `dreamcrm/app-secrets` in Secrets
+  Manager, repointing the vendor (e.g. the Stripe webhook → App Runner domain),
+  then redeploying.
 
 ## PR / merge workflow (this session's convention)
 
@@ -658,12 +685,22 @@ To-do in the AWS migration session (rough order):
 - Migration PRs are paired: one PR ships the route + migration + code,
   the follow-up PR removes the route after migration is applied.
 
-## Vercel project facts
-- `accountId: team_JCkmr9YSdUoHDEI9kLvznwCc`
-- `projectId: prj_HK0PWpVYjcDPZNUUoxIQ5UptBFMS`
-- 32 env vars; **no** `ADMIN_BOOTSTRAP_TOKEN` should be present (rotated out
-  after each use)
-- Speed Insights + Web Analytics enabled
+## AWS resource facts (`us-east-1`, account `952078552817`)
+- App Runner service `dreamcrm` (default URL `hq7ygyvjdp.us-east-1.awsapprunner.com`);
+  active custom domains `dreamcreatestudio.com`(+www) and `app.dreamcreatestudio.com`
+- RDS `dreamcrm-db` (Postgres, `db.t4g.micro`, gp3, encrypted, 7-day backups,
+  deletion protection on, storage autoscaling → 100GB, Performance Insights on)
+- ECR repo `dreamcrm` (scan-on-push; lifecycle: expire untagged 3d / keep last 10)
+- S3 `dreamcrm-uploads-prod` (public-read website assets) + `dreamcrm-codebuild-952078552817` (build source)
+- Secrets Manager `dreamcrm/app-secrets`; SNS topic `dreamcrm-alerts`
+- VPC `vpc-066acff3800b34067`, connector `dreamcrm-vpc-priv`, NAT gateway, S3 gateway endpoint
+- CodeBuild `dreamcrm-image-build`; IAM roles `DreamCRMAppRunnerInstanceRole` /
+  `DreamCRMAppRunnerECRAccessRole` / `DreamCRMCodeBuildRole`
+- **Vercel** project `prj_HK0PWpVYjcDPZNUUoxIQ5UptBFMS` now hosts *only* the
+  bare-domain → www redirect; retire it once the domain moves off Replit
+
+> Note: long-lived AWS keys / Vercel tokens shared via chat must be rotated
+> after use. Prefer short-lived (SSO/STS) credentials for prod ops.
 
 ## Branches
 - `main` — production
