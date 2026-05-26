@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { runClaudeText, aiConfigured } from '@/lib/ai'
+import { runClaudeText, runClaudeJson, aiConfigured } from '@/lib/ai'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 
 /**
@@ -47,46 +47,68 @@ export type DraftedBlogPost = z.infer<typeof DraftSchema>
 
 const DRAFT_SYSTEM = `${BLOG_VOICE}
 
-You produce a single blog post as JSON. Six fields:
+Write a single blog post on the user's topic and return it by calling the emit_blog_post tool with every field filled in. Follow each field's description exactly. The body must be valid semantic HTML using only the allowed tags, and must end with a calm call to action inviting the reader to book a visit or call with questions.`
 
-1. "title" — a clear, specific, non-clickbait headline. Sentence case. Under 70 characters. No "Welcome to our practice", no "The Ultimate Guide".
-2. "excerpt" — a one-to-two-sentence summary for the blog index card and meta description. Under 280 characters. Concrete, not teasing.
-3. "bodyHtml" — the post body as semantic HTML, roughly 350-650 words. Use <p>, <h2>, <h3>, <ul>/<li>, <ol>/<li>, <strong>, <em>, and <a href="..."> only. No <h1> (the page renders the title separately). No inline styles, no class attributes, no <img>, no <script>, no <table>. Open with a short, reassuring paragraph. Use one or two <h2> subheads to break it up. End with a calm call to action inviting the reader to book a visit or call with questions.
-4. "category" — one short label that fits the topic, e.g. "Oral Health", "Treatments", "Cosmetic", "Kids & Family", "Patient Resources".
-5. "seoTitle" — title optimized for search, may append the kind of clinic, under 60 characters. Plain text.
-6. "seoDescription" — meta description for search results, 120-160 characters, includes the main idea + a gentle reason to read.
-
-OUTPUT FORMAT — respond with ONLY a single JSON object, nothing else, no markdown fence, no preamble:
-{"title":"...","excerpt":"...","bodyHtml":"<p>...</p>","category":"...","seoTitle":"...","seoDescription":"..."}`
+// JSON schema for the tool input. Using tool use (structured output) instead
+// of asking for raw JSON means the SDK returns a parsed object — no hand-
+// parsing, so HTML with embedded quotes in bodyHtml can't break it.
+const BLOG_TOOL_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    title: {
+      type: 'string',
+      description:
+        'Clear, specific, non-clickbait headline. Sentence case, under 70 characters. No "Welcome to our practice", no "The Ultimate Guide".',
+    },
+    excerpt: {
+      type: 'string',
+      description:
+        'A one-to-two-sentence summary for the blog index card and meta description. Under 280 characters. Concrete, not teasing.',
+    },
+    bodyHtml: {
+      type: 'string',
+      description:
+        'The post body as semantic HTML, roughly 350-650 words. Use only these tags: <p>, <h2>, <h3>, <ul>/<li>, <ol>/<li>, <strong>, <em>, <a href>. No <h1> (the page renders the title separately). No inline styles, no class attributes, no <img>, no <script>, no <table>. Open with a short, reassuring paragraph and use one or two <h2> subheads.',
+    },
+    category: {
+      type: 'string',
+      description:
+        'One short label that fits the topic, e.g. "Oral Health", "Treatments", "Cosmetic", "Kids & Family", "Patient Resources".',
+    },
+    seoTitle: {
+      type: 'string',
+      description: 'Title optimized for search, under 60 characters. Plain text.',
+    },
+    seoDescription: {
+      type: 'string',
+      description:
+        'Meta description for search results, 120-160 characters, includes the main idea plus a gentle reason to read.',
+    },
+  },
+  required: ['title', 'excerpt', 'bodyHtml', 'category', 'seoTitle', 'seoDescription'],
+}
 
 export async function draftBlogPost(topic: string): Promise<DraftedBlogPost | null> {
   if (!aiConfigured()) return null
   if (!topic.trim()) return null
 
   try {
-    const out = await runClaudeText({
+    const input = await runClaudeJson({
       model: 'sonnet',
       maxTokens: 3500,
-      // Non-streaming + no extended thinking: a blog draft is a moderate,
-      // structured output. Thinking inflated latency (~27s) and could spend
-      // the whole token budget on the thinking block, returning no text block
-      // (a silent null that surfaced as "AI unavailable"). One request/
-      // response reliably returns the full JSON in ~20s.
-      stream: false,
       system: DRAFT_SYSTEM,
       messages: [
         {
           role: 'user',
-          content: `Write a blog post on the topic below for our dental clinic. Output JSON only.\n\n<topic>\n${topic.slice(0, 2000)}\n</topic>`,
+          content: `Write a blog post on the topic below for our dental clinic.\n\n<topic>\n${topic.slice(0, 2000)}\n</topic>`,
         },
       ],
+      toolName: 'emit_blog_post',
+      toolDescription: 'Return the finished blog post for the clinic website.',
+      inputSchema: BLOG_TOOL_SCHEMA,
     })
-    if (!out) return null
-    const raw = out.trim()
-    const start = raw.indexOf('{')
-    const end = raw.lastIndexOf('}')
-    if (start < 0 || end <= start) return null
-    const parsed = DraftSchema.parse(JSON.parse(raw.slice(start, end + 1)))
+    if (!input) return null
+    const parsed = DraftSchema.parse(input)
     // Sanitize before it ever reaches the editor — defense in depth (the
     // service sanitizes again on save).
     return { ...parsed, bodyHtml: sanitizeBlogHtml(parsed.bodyHtml) }
