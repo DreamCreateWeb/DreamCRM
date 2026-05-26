@@ -2,16 +2,26 @@ import { Resend } from 'resend'
 
 const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
 
-function getResend() {
+function emailDriver(): 'ses' | 'resend' {
+  return process.env.EMAIL_DRIVER === 'ses' ? 'ses' : 'resend'
+}
+
+// Single delivery path for all transactional email. Defaults to Resend;
+// set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
+// AWS SDK never loads on the Resend path).
+async function deliver(msg: { to: string; subject: string; html: string }): Promise<void> {
+  if (emailDriver() === 'ses') {
+    const { sendEmailViaSes } = await import('./ses')
+    await sendEmailViaSes({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
+    return
+  }
   const key = process.env.RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY env var is not set')
-  return new Resend(key)
+  await new Resend(key).emails.send({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
 }
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string) {
-  const resend = getResend()
-  await resend.emails.send({
-    from: FROM,
+  await deliver({
     to,
     subject: 'Reset your DreamCRM password',
     html: `
@@ -42,10 +52,8 @@ export interface InvitationEmailData {
 }
 
 export async function sendInvitationEmail(to: string, data: InvitationEmailData) {
-  const resend = getResend()
   const roleLabel = data.role.charAt(0).toUpperCase() + data.role.slice(1)
-  await resend.emails.send({
-    from: FROM,
+  await deliver({
     to,
     subject: `${data.inviterName} invited you to join ${data.orgName} on DreamCRM`,
     html: `
@@ -75,9 +83,7 @@ export interface ContactRequestData {
 }
 
 export async function sendContactRequestEmail(to: string, data: ContactRequestData) {
-  const resend = getResend()
-  await resend.emails.send({
-    from: FROM,
+  await deliver({
     to,
     subject: `New appointment request from ${data.patientName}`,
     html: `
@@ -111,7 +117,6 @@ export interface BookingConfirmationData {
 }
 
 export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData) {
-  const resend = getResend()
   const typeLabel = data.appointmentType.replace('_', ' ').replace(/^\w/, c => c.toUpperCase())
   const timeStr = data.startTime.toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -132,8 +137,7 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
           </a>
         </div>`
     : ''
-  await resend.emails.send({
-    from: FROM,
+  await deliver({
     to,
     subject: `Appointment confirmed at ${data.clinicName}`,
     html: `
@@ -168,9 +172,7 @@ export interface IntakeRequestEmailData {
  * `form_submission` row attached to the patient (matched by email).
  */
 export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmailData) {
-  const resend = getResend()
-  await resend.emails.send({
-    from: FROM,
+  await deliver({
     to,
     subject: `${data.clinicName} — quick intake form before your visit`,
     html: `
@@ -193,9 +195,7 @@ export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmai
 }
 
 export async function sendVerificationEmail(to: string, verifyUrl: string) {
-  const resend = getResend()
-  await resend.emails.send({
-    from: FROM,
+  await deliver({
     to,
     subject: 'Verify your DreamCRM email address',
     html: `
@@ -228,11 +228,9 @@ export interface NotificationEmailInput {
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dreamcreatestudio.com'
 
 export async function sendNotificationEmail(input: NotificationEmailInput) {
-  const resend = getResend()
   const link = input.linkPath ? `${APP_URL}${input.linkPath}` : null
   const greeting = input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'
-  await resend.emails.send({
-    from: FROM,
+  await deliver({
     to: input.to,
     subject: input.title,
     html: `

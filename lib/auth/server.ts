@@ -86,9 +86,10 @@ function build() {
       const origin = request?.headers.get('origin') ?? ''
       const fixed = [
         process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+        process.env.BETTER_AUTH_URL ?? '',
         'http://localhost:3000',
         'https://dreamcrm-dreamcreatewebs-projects.vercel.app',
-      ]
+      ].filter(Boolean)
       if (/^https:\/\/dreamcrm-[a-z0-9]+-dreamcreatewebs-projects\.vercel\.app$/.test(origin)) {
         fixed.push(origin)
       }

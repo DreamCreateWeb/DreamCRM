@@ -3,6 +3,10 @@ import { getSessionCookie } from 'better-auth/cookies'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
+// Subdomains that serve the platform app itself, never a clinic public site.
+// `app` is the authenticated dashboard host; `www` is the apex alias.
+const RESERVED_SUBDOMAINS = new Set(['www', 'app'])
+
 const PUBLIC_PATHS = [
   '/signin',
   '/signup',
@@ -12,6 +16,10 @@ const PUBLIC_PATHS = [
   '/api/hello',
   '/api/webhooks',
   '/api/cron',
+  '/api/health',
+  // CRON_SECRET-guarded one-shot admin routes (run from inside the VPC).
+  '/api/admin/migrate',
+  '/api/admin/seed-platform',
   // Public review-request landing pages — patient lands here from
   // the email link. Token in the URL is the auth.
   '/r',
@@ -25,13 +33,33 @@ function isPublicPath(pathname: string) {
 }
 
 export function middleware(request: NextRequest) {
-  const host = (request.nextUrl.host || request.headers.get('host') || '').toLowerCase()
+  // Behind App Runner's proxy the public host arrives in x-forwarded-host;
+  // fall back to the Host header, then the parsed URL. (nextUrl.host alone is
+  // the internal address, which broke host-based routing.)
+  const host = (
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    request.nextUrl.host ||
+    ''
+  ).split(',')[0].trim().toLowerCase()
   const hostname = host.split(':')[0]
   const { pathname } = request.nextUrl
 
+  // Health check is always served (never redirected) so App Runner stays green.
+  if (pathname === '/api/health') return NextResponse.next()
+
+  // app.<domain> is a legacy alias; send it to the canonical www host.
+  if (hostname === `app.${SITE_DOMAIN}`) {
+    const url = request.nextUrl.clone()
+    url.hostname = `www.${SITE_DOMAIN}`
+    url.port = ''
+    url.protocol = 'https:'
+    return NextResponse.redirect(url, 308)
+  }
+
   if (hostname.endsWith(`.${SITE_DOMAIN}`)) {
     const slug = hostname.slice(0, hostname.length - SITE_DOMAIN.length - 1)
-    if (slug && slug !== 'www') {
+    if (slug && !RESERVED_SUBDOMAINS.has(slug)) {
       const url = request.nextUrl.clone()
       url.pathname = `/site/${slug}${pathname === '/' ? '' : pathname}`
       return NextResponse.rewrite(url)

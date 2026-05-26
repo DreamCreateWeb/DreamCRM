@@ -1,0 +1,65 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  resendSend: vi.fn<(msg: unknown) => Promise<unknown>>(),
+  sesSend: vi.fn<(msg: unknown) => Promise<unknown>>(),
+}))
+
+vi.mock('resend', () => ({
+  Resend: class {
+    emails = { send: mocks.resendSend }
+  },
+}))
+vi.mock('@/lib/ses', () => ({ sendEmailViaSes: mocks.sesSend }))
+
+import { sendPasswordResetEmail, sendInvitationEmail } from '@/lib/email'
+
+const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
+
+beforeEach(() => {
+  mocks.resendSend.mockReset()
+  mocks.sesSend.mockReset()
+  process.env.RESEND_API_KEY = 'test-key'
+  delete process.env.EMAIL_DRIVER
+})
+
+describe('transactional email driver dispatch', () => {
+  it('sends via Resend by default', async () => {
+    await sendPasswordResetEmail('u@x.com', 'https://reset')
+    expect(mocks.resendSend).toHaveBeenCalledOnce()
+    expect(mocks.sesSend).not.toHaveBeenCalled()
+    expect(mocks.resendSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: FROM,
+        to: 'u@x.com',
+        subject: expect.stringMatching(/reset/i),
+        html: expect.stringContaining('Reset password'),
+      })
+    )
+  })
+
+  it('routes to SES when EMAIL_DRIVER=ses, preserving from/to/subject/html', async () => {
+    process.env.EMAIL_DRIVER = 'ses'
+    await sendInvitationEmail('u@x.com', {
+      inviterName: 'Dr. Reyes',
+      orgName: 'Acme Dental',
+      role: 'admin',
+      inviteUrl: 'https://invite',
+    })
+    expect(mocks.sesSend).toHaveBeenCalledOnce()
+    expect(mocks.resendSend).not.toHaveBeenCalled()
+    expect(mocks.sesSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: FROM,
+        to: 'u@x.com',
+        subject: expect.stringContaining('Acme Dental'),
+        html: expect.stringContaining('Accept invitation'),
+      })
+    )
+  })
+
+  it('still throws if RESEND_API_KEY is missing on the Resend path', async () => {
+    delete process.env.RESEND_API_KEY
+    await expect(sendPasswordResetEmail('u@x.com', 'https://reset')).rejects.toThrow(/RESEND_API_KEY/)
+  })
+})

@@ -46,6 +46,27 @@ describe('middleware subdomain rewrite', () => {
     expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
   })
 
+  it('redirects app subdomain → canonical www host (preserving path)', () => {
+    const req = makeRequest(
+      'https://app.dreamcreatestudio.com/dashboard',
+      'app.dreamcreatestudio.com',
+    )
+    const res = middleware(req) as NextResponse
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull()
+    expect(res.status).toBe(308)
+    expect(res.headers.get('location')).toBe('https://www.dreamcreatestudio.com/dashboard')
+  })
+
+  it('does NOT redirect the health check on the app subdomain', () => {
+    const req = makeRequest(
+      'https://app.dreamcreatestudio.com/api/health',
+      'app.dreamcreatestudio.com',
+    )
+    const res = middleware(req) as NextResponse
+    // /api/health is exempt so the App Runner health check always gets 200
+    expect(res.headers.get('location')).toBeNull()
+  })
+
   it('does NOT rewrite apex domain', () => {
     const req = makeRequest('https://dreamcreatestudio.com/', 'dreamcreatestudio.com')
     const res = middleware(req) as NextResponse

@@ -1,5 +1,5 @@
 import 'server-only'
-import Anthropic from '@anthropic-ai/sdk'
+import { runClaudeText, aiConfigured } from '@/lib/ai'
 import { z } from 'zod'
 import type { TenantType } from '@/lib/inbox-terminology'
 
@@ -20,11 +20,6 @@ import type { TenantType } from '@/lib/inbox-terminology'
  * B2B SaaS, talking to dental clinic owners; clinic = healthcare
  * provider, talking to patients.
  */
-
-function getClient(): Anthropic | null {
-  if (!process.env.ANTHROPIC_API_KEY) return null
-  return new Anthropic()
-}
 
 const PLATFORM_VOICE = `You write marketing emails for Dream Create, a small SaaS that sells DreamCRM (a multi-tenant practice management platform) to dental clinics. The audience is dental clinic owners and office managers — busy small-business people who want patient management, scheduling, billing, recall, and a public website without juggling five tools.
 
@@ -62,22 +57,19 @@ OUTPUT FORMAT — respond with ONLY a single JSON object, nothing else, no markd
 {"subject": "...", "previewText": "...", "bodyHtml": "<p>...</p>"}`
 
 export async function draftCampaign(brief: string, tenantType: TenantType): Promise<DraftedCampaign | null> {
-  const client = getClient()
-  if (!client) return null
+  if (!aiConfigured()) return null
   if (!brief.trim()) return null
 
   try {
-    const stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
-      thinking: { type: 'adaptive' },
+    const out = await runClaudeText({
+      model: 'sonnet',
+      maxTokens: 3000,
+      thinking: true,
       system: DRAFT_SYSTEM(tenantType),
       messages: [{ role: 'user', content: `Write the campaign described below. Output JSON only.\n\n<brief>\n${brief.slice(0, 4000)}\n</brief>` }],
     })
-    const final = await stream.finalMessage()
-    const text = final.content.find((b) => b.type === 'text')
-    if (!text || text.type !== 'text') return null
-    const raw = text.text.trim()
+    if (!out) return null
+    const raw = out.trim()
     const start = raw.indexOf('{')
     const end = raw.lastIndexOf('}')
     if (start < 0 || end <= start) return null
@@ -106,15 +98,14 @@ RULES:
 - If the instruction is unsafe or asks for something off-brand, return the input unchanged.`
 
 export async function improveCopy(html: string, instruction: string, tenantType: TenantType): Promise<string | null> {
-  const client = getClient()
-  if (!client) return null
+  if (!aiConfigured()) return null
   if (!html.trim() || !instruction.trim()) return null
 
   try {
-    const stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      thinking: { type: 'adaptive' },
+    const out = await runClaudeText({
+      model: 'sonnet',
+      maxTokens: 2000,
+      thinking: true,
       system: IMPROVE_SYSTEM(tenantType),
       messages: [
         {
@@ -123,10 +114,7 @@ export async function improveCopy(html: string, instruction: string, tenantType:
         },
       ],
     })
-    const final = await stream.finalMessage()
-    const text = final.content.find((b) => b.type === 'text')
-    if (!text || text.type !== 'text') return null
-    return text.text.trim()
+    return out ? out.trim() : null
   } catch (err) {
     console.warn('[ai.marketing.improve] failed:', (err as Error).message)
     return null
