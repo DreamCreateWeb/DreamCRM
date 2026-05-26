@@ -11,6 +11,12 @@ export interface ClaudeRequest {
   /** Higher-quality reasoning for long generations. Maps to adaptive
    * thinking on Anthropic and a bounded thinking budget on Bedrock. */
   thinking?: boolean
+  /** Stream the response (default true). Streaming avoids the SDK HTTP
+   * timeout on very long generations, but the streamed SSE can come back
+   * without a usable text block over some egress paths; set false for
+   * moderate-length structured outputs (e.g. a blog draft) to use one
+   * request/response that reliably returns the full message. */
+  stream?: boolean
 }
 
 function driver(): 'anthropic' | 'bedrock' {
@@ -51,7 +57,31 @@ function anthropic(): Anthropic {
   return cachedAnthropic
 }
 
+function extractText(final: Anthropic.Message): string | null {
+  const block = final.content.find((b) => b.type === 'text')
+  if (!block || block.type !== 'text') {
+    // No text block — e.g. the budget was spent on a thinking block, or the
+    // stream returned incomplete. Log it so this can never be a silent null.
+    console.warn('[ai] response had no text block', {
+      stopReason: final.stop_reason,
+      blockTypes: final.content.map((b) => b.type),
+    })
+    return null
+  }
+  return block.text
+}
+
 async function runViaAnthropic(req: ClaudeRequest): Promise<string | null> {
+  if (req.stream === false) {
+    const final = await anthropic().messages.create({
+      model: ANTHROPIC_MODEL_IDS[req.model],
+      max_tokens: req.maxTokens,
+      system: req.system,
+      messages: req.messages,
+      ...(req.thinking ? { thinking: { type: 'adaptive' as const } } : {}),
+    })
+    return extractText(final)
+  }
   const stream = anthropic().messages.stream({
     model: ANTHROPIC_MODEL_IDS[req.model],
     max_tokens: req.maxTokens,
@@ -59,7 +89,5 @@ async function runViaAnthropic(req: ClaudeRequest): Promise<string | null> {
     messages: req.messages,
     ...(req.thinking ? { thinking: { type: 'adaptive' as const } } : {}),
   })
-  const final = await stream.finalMessage()
-  const block = final.content.find((b) => b.type === 'text')
-  return block && block.type === 'text' ? block.text : null
+  return extractText(await stream.finalMessage())
 }
