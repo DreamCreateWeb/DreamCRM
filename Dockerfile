@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22-slim AS base
+FROM public.ecr.aws/docker/library/node:22-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
@@ -24,7 +24,7 @@ RUN --mount=type=secret,id=cacert,target=/tmp/proxy-ca.crt \
     sh -c '[ -s /tmp/proxy-ca.crt ] && export NODE_EXTRA_CA_CERTS=/tmp/proxy-ca.crt; pnpm build'
 
 # ---- runtime ----
-FROM node:22-slim AS runner
+FROM public.ecr.aws/docker/library/node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
