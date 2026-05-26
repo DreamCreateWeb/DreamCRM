@@ -650,9 +650,12 @@ To-do in the AWS migration session (rough order):
   redirect (its DNS is at name.com/Replit and a bare apex can't CNAME to App
   Runner). Retire the Vercel redirect once the domain moves to a registrar with
   apex CNAME-flattening (e.g. Cloudflare) and the bare apex points at AWS.
-- **Build + deploy** (no CI) — CodeBuild project `dreamcrm-image-build` builds
-  from an S3 source zip, pushes ECR `:latest` + `:build-N`, then runs
-  `aws apprunner start-deployment`. To ship a change:
+- **Deploy = merge to `main`** (automatic, like Vercel was). A GitHub Actions
+  workflow (`.github/workflows/deploy.yml`, keyless via the OIDC role
+  `DreamCRMGitHubActionsDeploy`) uploads the source and triggers the CodeBuild
+  project `dreamcrm-image-build`, which builds the image, pushes ECR
+  `:latest` + `:build-N`, and runs `aws apprunner start-deployment`. Watch it in
+  the repo's **Actions** tab (~8 min end to end). Manual fallback (no GitHub):
   ```
   git archive --format=zip HEAD -o /tmp/src.zip
   aws s3 cp /tmp/src.zip s3://dreamcrm-codebuild-952078552817/source/dreamcrm-src.zip
@@ -739,6 +742,26 @@ To-do in the AWS migration session (rough order):
       on the next platform-admin "View as clinic" entry. This keeps the
       demo as the single source of truth that the platform showcases
       every module's full functionality.
+
+## Working in a new session (Claude Code on the web)
+
+- **Dependencies are automatic.** A SessionStart hook
+  (`.claude/hooks/session-start.sh`, registered in `.claude/settings.json`) runs
+  `pnpm install` and creates the gitignored `next-env.d.ts` on session start, so
+  `pnpm dev` / `pnpm test` / `pnpm typecheck` work immediately. (If `tsc` ever
+  complains about `@/public/images/*`, that generated file is missing — the hook
+  handles it; `pnpm build` also regenerates it.)
+- **Deploys are automatic** — merge to `main` ships it (see Deployment above);
+  watch the repo's Actions tab.
+- **AWS CLI is not preinstalled.** For infra/ops work, install on demand:
+  ```
+  cd /tmp && curl -sS https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o a.zip \
+    && unzip -q a.zip && sudo ./aws/install --update
+  ```
+- **AWS credentials**: set `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` /
+  `AWS_REGION=us-east-1` as environment variables in the Claude Code web
+  environment settings so every session is pre-authed (no pasting keys into
+  chat). Use a scoped, rotatable key; rotate anything ever shared via chat.
 
 ## Useful commands
 

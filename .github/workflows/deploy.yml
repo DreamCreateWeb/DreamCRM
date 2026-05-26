@@ -1,0 +1,54 @@
+name: Deploy to AWS App Runner
+
+# Auto-deploy on merge to main (replaces Vercel's git-push deploy). Reuses the
+# existing CodeBuild project, which builds the image, pushes it to ECR, and
+# triggers the App Runner deployment. Auth is keyless via GitHub OIDC — no AWS
+# credentials are stored in GitHub.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, keyless)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::952078552817:role/DreamCRMGitHubActionsDeploy
+          aws-region: us-east-1
+
+      - name: Package the committed source
+        run: git archive --format=zip HEAD -o /tmp/src.zip
+
+      - name: Upload source to the CodeBuild bucket
+        run: aws s3 cp /tmp/src.zip s3://dreamcrm-codebuild-952078552817/source/dreamcrm-src.zip
+
+      - name: Build image + deploy (CodeBuild -> ECR -> App Runner)
+        run: |
+          set -euo pipefail
+          BID=$(aws codebuild start-build --project-name dreamcrm-image-build --query 'build.id' --output text)
+          echo "CodeBuild started: $BID"
+          while true; do
+            ST=$(aws codebuild batch-get-builds --ids "$BID" --query 'builds[0].buildStatus' --output text)
+            echo "build status: $ST"
+            [ "$ST" != "IN_PROGRESS" ] && break
+            sleep 15
+          done
+          if [ "$ST" != "SUCCEEDED" ]; then
+            echo "::error::CodeBuild finished with status $ST"
+            exit 1
+          fi
+          echo "Build succeeded — App Runner deployment triggered by the buildspec (start-deployment)."
