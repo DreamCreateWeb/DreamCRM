@@ -33,13 +33,30 @@ function isPublicPath(pathname: string) {
 }
 
 export function middleware(request: NextRequest) {
-  const host = (request.nextUrl.host || request.headers.get('host') || '').toLowerCase()
+  // Behind App Runner's proxy the public host arrives in x-forwarded-host;
+  // fall back to the Host header, then the parsed URL. (nextUrl.host alone is
+  // the internal address, which broke host-based routing.)
+  const host = (
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    request.nextUrl.host ||
+    ''
+  ).split(',')[0].trim().toLowerCase()
   const hostname = host.split(':')[0]
   const { pathname } = request.nextUrl
 
+  // Health check is always served (never redirected) so App Runner stays green.
+  if (pathname === '/api/health') {
+    const r = NextResponse.next()
+    r.headers.set('x-host-seen', hostname)
+    r.headers.set('x-xfh', request.headers.get('x-forwarded-host') ?? '')
+    r.headers.set('x-host-hdr', request.headers.get('host') ?? '')
+    r.headers.set('x-nexturl-host', request.nextUrl.host ?? '')
+    return r
+  }
+
   // app.<domain> is a legacy alias; send it to the canonical www host.
-  // Exempt /api/health so the App Runner health check is never redirected.
-  if (hostname === `app.${SITE_DOMAIN}` && pathname !== '/api/health') {
+  if (hostname === `app.${SITE_DOMAIN}`) {
     const url = request.nextUrl.clone()
     url.hostname = `www.${SITE_DOMAIN}`
     url.port = ''
