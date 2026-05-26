@@ -166,7 +166,9 @@ describe('createDemoClinic', () => {
       { slug: 'what-to-expect-at-your-first-visit' },
       { slug: 'why-your-gums-matter' },
       { slug: 'teeth-whitening-what-actually-works' },
+      { slug: 'sensitive-teeth-what-helps' },
       { slug: 'bringing-your-kids-to-the-dentist' },
+      { slug: 'do-you-need-a-night-guard' },
     ])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])

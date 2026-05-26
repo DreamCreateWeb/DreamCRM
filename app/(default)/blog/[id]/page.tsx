@@ -64,6 +64,7 @@ export default async function BlogPostEditorPage({ params, searchParams }: Props
         seoTitle: post.seoTitle ?? '',
         seoDescription: post.seoDescription ?? '',
         publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
+        scheduledFor: post.scheduledFor ? post.scheduledFor.toISOString() : null,
         viewCount: post.viewCount,
       }}
       authors={authors.map((s) => ({ id: s.id, name: s.name, title: s.title ?? null }))}

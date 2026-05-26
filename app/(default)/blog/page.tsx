@@ -92,6 +92,12 @@ export default async function BlogPage() {
               View live blog ↗
             </a>
           )}
+          <Link
+            href="/blog/calendar"
+            className="text-[13px] font-medium px-3 py-2 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            Calendar
+          </Link>
           <form action={createAiBlogPostAction}>
             <button
               type="submit"
@@ -115,7 +121,11 @@ export default async function BlogPage() {
       {/* ── Stat row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         <Kpi label="Published" value={stats.published} />
-        <Kpi label="Drafts" value={stats.drafts} />
+        <Kpi
+          label="Drafts"
+          value={stats.drafts}
+          hint={stats.scheduled > 0 ? `${stats.scheduled} scheduled` : undefined}
+        />
         <Kpi
           label="AI drafts to review"
           value={stats.aiDraftsPending}
@@ -155,7 +165,7 @@ export default async function BlogPage() {
             </thead>
             <tbody>
               {posts.map((p) => {
-                const isAiPending = p.status !== 'published' && p.source === 'ai_draft'
+                const isAiPending = p.status === 'draft' && p.source === 'ai_draft'
                 return (
                   <tr
                     key={p.id}
@@ -181,10 +191,12 @@ export default async function BlogPage() {
                         className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
                           p.status === 'published'
                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-                            : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
+                            : p.status === 'scheduled'
+                              ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+                              : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
                         }`}
                       >
-                        {p.status === 'published' ? 'Published' : 'Draft'}
+                        {p.status === 'published' ? 'Published' : p.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-[12px] text-stone-500 dark:text-stone-400 hidden md:table-cell">

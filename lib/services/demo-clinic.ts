@@ -1762,7 +1762,7 @@ async function seedReviewsForOrg(
 // idempotent on slug.
 interface BlogPostSeed {
   slug: string
-  status: 'draft' | 'published'
+  status: 'draft' | 'scheduled' | 'published'
   source: 'manual' | 'ai_draft'
   authorStaffId: string | null
   authorName: string | null
@@ -1770,8 +1770,11 @@ interface BlogPostSeed {
   // Reyes) — exercises the public "Medically reviewed by" byline line.
   medicallyReviewedByStaffId: string | null
   publishedDaysAgo: number | null
+  scheduledInDays: number | null
   coverImageUrl: string | null
   viewCount: number
+  // idea-to-draft stub: empty body so it lands in the calendar's "Ideas" lane.
+  isStub?: boolean
 }
 
 const DEMO_BLOG_PLAN: BlogPostSeed[] = [
@@ -1783,6 +1786,7 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     authorName: 'Dr. Jordan Reyes',
     medicallyReviewedByStaffId: null,
     publishedDaysAgo: 9,
+    scheduledInDays: null,
     coverImageUrl: DEMO_OFFICE_PHOTOS[0].url,
     viewCount: 142,
   },
@@ -1794,6 +1798,7 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     authorName: 'Maria Vega, RDH',
     medicallyReviewedByStaffId: 'p1',
     publishedDaysAgo: 28,
+    scheduledInDays: null,
     coverImageUrl: DEMO_OFFICE_PHOTOS[2].url,
     viewCount: 87,
   },
@@ -1805,10 +1810,25 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     authorName: null,
     medicallyReviewedByStaffId: null,
     publishedDaysAgo: null,
+    scheduledInDays: null,
     coverImageUrl: null,
     viewCount: 0,
   },
   {
+    // Scheduled to auto-publish — exercises the Content Engine cron path.
+    slug: 'sensitive-teeth-what-helps',
+    status: 'scheduled',
+    source: 'manual',
+    authorStaffId: 'p1',
+    authorName: 'Dr. Jordan Reyes',
+    medicallyReviewedByStaffId: null,
+    publishedDaysAgo: null,
+    scheduledInDays: 6,
+    coverImageUrl: DEMO_OFFICE_PHOTOS[1].url,
+    viewCount: 0,
+  },
+  {
+    // AI draft pending review (full body, awaiting an author + publish).
     slug: 'bringing-your-kids-to-the-dentist',
     status: 'draft',
     source: 'ai_draft',
@@ -1816,8 +1836,23 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     authorName: null,
     medicallyReviewedByStaffId: null,
     publishedDaysAgo: null,
+    scheduledInDays: null,
     coverImageUrl: null,
     viewCount: 0,
+  },
+  {
+    // Idea stub — lands in the calendar's "Ideas to draft" lane.
+    slug: 'do-you-need-a-night-guard',
+    status: 'draft',
+    source: 'ai_draft',
+    authorStaffId: null,
+    authorName: null,
+    medicallyReviewedByStaffId: null,
+    publishedDaysAgo: null,
+    scheduledInDays: null,
+    coverImageUrl: null,
+    viewCount: 0,
+    isStub: true,
   },
 ]
 
@@ -1828,6 +1863,8 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
   for (const plan of DEMO_BLOG_PLAN) {
     const publishedAt =
       plan.publishedDaysAgo != null ? new Date(now.getTime() - plan.publishedDaysAgo * dayMs) : null
+    const scheduledFor =
+      plan.scheduledInDays != null ? new Date(now.getTime() + plan.scheduledInDays * dayMs) : null
     const reviewedAt = plan.medicallyReviewedByStaffId ? publishedAt ?? now : null
     if (existingSlugs.has(plan.slug)) {
       // Backfill Track-A fields (reviewer + view count) on legacy demo posts
@@ -1850,7 +1887,7 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
       title: topic.title,
       slug: topic.slug,
       excerpt: topic.excerpt,
-      bodyHtml: sanitizeBlogHtml(topic.bodyHtml),
+      bodyHtml: plan.isStub ? '' : sanitizeBlogHtml(topic.bodyHtml),
       category: topic.category,
       status: plan.status,
       source: plan.source,
@@ -1860,6 +1897,7 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
       medicallyReviewedAt: reviewedAt,
       coverImageUrl: plan.coverImageUrl,
       viewCount: plan.viewCount,
+      scheduledFor,
       publishedAt,
       createdAt: publishedAt ?? now,
       updatedAt: publishedAt ?? now,

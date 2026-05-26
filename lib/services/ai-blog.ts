@@ -154,3 +154,108 @@ export async function draftSocialCaption(title: string, excerpt: string): Promis
     return null
   }
 }
+
+// ============================================================
+// Topic ideation — the Content Engine's "never stare at a blank page" engine
+// ============================================================
+
+const TopicIdeaSchema = z.object({
+  title: z.string().min(1).max(160),
+  angle: z.string().max(300),
+  category: z.string().max(80),
+  targetQuery: z.string().max(160).optional().default(''),
+})
+export type BlogTopicIdea = z.infer<typeof TopicIdeaSchema>
+
+const IDEATION_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    ideas: {
+      type: 'array',
+      description: 'The list of distinct blog post ideas.',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'A specific, non-generic headline (not "10 Tips"). Sentence case, under 70 chars.' },
+          angle: { type: 'string', description: 'One sentence on what the post covers + why it helps this clinic’s patients.' },
+          category: { type: 'string', description: 'e.g. "Oral Health", "Treatments", "Cosmetic", "Kids & Family", "Patient Resources".' },
+          targetQuery: { type: 'string', description: 'The patient search query this post should answer.' },
+        },
+        required: ['title', 'angle', 'category'],
+      },
+    },
+  },
+  required: ['ideas'],
+}
+
+const IDEATION_SYSTEM = `${BLOG_VOICE}
+
+You propose a batch of ORIGINAL blog post ideas tailored to one specific dental clinic — tied to the services they actually offer, their town, and the time of year. These must be ideas a real local practice would write, not generic syndicated filler.
+
+Rules:
+- Every idea must be distinct and specific. No duplicates, no "10 Tips for a Healthy Smile" listicle filler.
+- Bias toward real patient questions, seasonal/awareness hooks, and the clinic's specific services and locality.
+- Keep titles concrete and human. Each idea answers a real search query.
+Return them by calling the emit_topic_ideas tool.`
+
+// A light seasonal / dental-awareness hint so ideas feel timely.
+function seasonHint(now = new Date()): string {
+  const m = now.getMonth() // 0-11
+  const hints = [
+    'January — New Year fresh-start + dental-resolution season',
+    'February — National Children’s Dental Health Month',
+    'March — spring, ahead of summer smiles',
+    'April — spring cleaning + Oral Cancer Awareness Month',
+    'May — graduation + wedding season (cosmetic interest)',
+    'June — summer break, good time for kids’ visits',
+    'July — mid-summer',
+    'August — back-to-school checkups',
+    'September — back-to-school + Dental Hygiene Month soon',
+    'October — Halloween candy + National Dental Hygiene Month',
+    'November — end-of-year insurance benefits expiring',
+    'December — holidays + use-your-benefits-before-they-reset',
+  ]
+  return hints[m]
+}
+
+export async function suggestBlogTopics(input: {
+  services: string[]
+  city?: string | null
+  state?: string | null
+  count?: number
+}): Promise<BlogTopicIdea[] | null> {
+  if (!aiConfigured()) return null
+  const count = Math.min(Math.max(input.count ?? 6, 1), 10)
+  const where = [input.city, input.state].filter(Boolean).join(', ')
+  const services = input.services.filter(Boolean).length
+    ? input.services.filter(Boolean).join(', ')
+    : 'general, cosmetic, and family dentistry'
+
+  try {
+    const result = await runClaudeJson({
+      model: 'sonnet',
+      maxTokens: 2500,
+      system: IDEATION_SYSTEM,
+      messages: [
+        {
+          role: 'user',
+          content:
+            `Propose ${count} original blog post ideas for our dental clinic.\n` +
+            `Services we offer: ${services}.\n` +
+            (where ? `We're located in ${where}.\n` : '') +
+            `Right now it's ${seasonHint()}.\n` +
+            `Return them with the emit_topic_ideas tool.`,
+        },
+      ],
+      toolName: 'emit_topic_ideas',
+      toolDescription: 'Return a list of original, clinic-specific blog post ideas.',
+      inputSchema: IDEATION_SCHEMA,
+    })
+    if (!result) return null
+    const parsed = z.object({ ideas: z.array(TopicIdeaSchema) }).parse(result)
+    return parsed.ideas.slice(0, count)
+  } catch (err) {
+    console.warn('[ai.blog.ideas] failed:', (err as Error).message)
+    return null
+  }
+}

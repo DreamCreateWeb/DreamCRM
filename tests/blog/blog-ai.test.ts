@@ -12,7 +12,7 @@ vi.mock('@/lib/ai', () => ({
   runClaudeText: async () => state.text,
 }))
 
-import { draftBlogPost, draftSocialCaption } from '@/lib/services/ai-blog'
+import { draftBlogPost, draftSocialCaption, suggestBlogTopics } from '@/lib/services/ai-blog'
 
 beforeEach(() => {
   state.configured = true
@@ -84,5 +84,36 @@ describe('draftSocialCaption', () => {
 
   it('returns null on an empty title', async () => {
     expect(await draftSocialCaption('', 'E')).toBeNull()
+  })
+})
+
+describe('suggestBlogTopics', () => {
+  it('returns the parsed list of ideas', async () => {
+    state.toolInput = {
+      ideas: [
+        { title: 'Why crowns last', angle: 'How crowns protect a tooth.', category: 'Treatments', targetQuery: 'how long do crowns last' },
+        { title: 'Flossing 101', angle: 'The easy way to floss.', category: 'Oral Health' },
+      ],
+    }
+    const out = await suggestBlogTopics({ services: ['Cleanings', 'Crowns'], city: 'Austin', state: 'TX' })
+    expect(out?.length).toBe(2)
+    expect(out?.[0].title).toBe('Why crowns last')
+  })
+
+  it('works with no services configured', async () => {
+    state.toolInput = { ideas: [{ title: 'A', angle: 'b', category: 'Oral Health' }] }
+    const out = await suggestBlogTopics({ services: [] })
+    expect(out?.length).toBe(1)
+  })
+
+  it('returns null when AI is not configured', async () => {
+    state.configured = false
+    state.toolInput = { ideas: [{ title: 'A', angle: 'b', category: 'c' }] }
+    expect(await suggestBlogTopics({ services: ['X'] })).toBeNull()
+  })
+
+  it('returns null when the model returns no tool input', async () => {
+    state.toolInput = null
+    expect(await suggestBlogTopics({ services: ['X'] })).toBeNull()
   })
 })
