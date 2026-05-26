@@ -67,7 +67,12 @@ export async function draftBlogPost(topic: string): Promise<DraftedBlogPost | nu
     const out = await runClaudeText({
       model: 'sonnet',
       maxTokens: 3500,
-      thinking: true,
+      // Non-streaming + no extended thinking: a blog draft is a moderate,
+      // structured output. Thinking inflated latency (~27s) and could spend
+      // the whole token budget on the thinking block, returning no text block
+      // (a silent null that surfaced as "AI unavailable"). One request/
+      // response reliably returns the full JSON in ~20s.
+      stream: false,
       system: DRAFT_SYSTEM,
       messages: [
         {
