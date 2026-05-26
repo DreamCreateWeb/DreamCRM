@@ -476,6 +476,59 @@ export const reviewRequest = pgTable('review_request', {
   index('review_request_patient_idx').on(t.organizationId, t.patientId),
 ])
 
+// Blog & content marketing v1 — original, clinician-approved posts that live
+// on the clinic's own public website (the "trunk"). Deliberately NOT a shared
+// content library (the ProSites / RevenueWell model that recycles the same
+// boilerplate across hundreds of practices, which Google discounts as
+// duplicate content) — every post is the clinic's own, AI-drafted-then-
+// reviewed. Dental is YMYL, so the author byline references a
+// clinicProfile.staff[] entry by id and carries the same name / title /
+// photo / bio the clinic already curates for "Meet the Team" (E-E-A-T).
+export const blogPost = pgTable(
+  'blog_post',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    // Stable per-org slug; used in the public URL /site/[slug]/blog/[postSlug].
+    slug: text('slug').notNull(),
+    // Short summary for index cards + the meta-description fallback.
+    excerpt: text('excerpt'),
+    // Sanitized HTML rendered on the public page — re-sanitized on every write
+    // (see lib/blog-sanitize.ts). bodyJson keeps the exact Tiptap ProseMirror
+    // doc for lossless re-editing in the admin editor.
+    bodyHtml: text('body_html').notNull().default(''),
+    bodyJson: jsonb('body_json'),
+    coverImageUrl: text('cover_image_url'),
+    // Single free-text category (e.g. 'Oral Health'); tags is a string[] for
+    // finer topical grouping. Strings, not enums, so we can iterate without a
+    // migration.
+    category: text('category'),
+    tags: jsonb('tags'),
+    // 'draft' | 'published'. Soft-deleted rows carry archivedAt.
+    status: text('status').notNull().default('draft'),
+    // Provenance — drives the "AI draft · needs review" badge and keeps the
+    // clinician-review gate honest. 'manual' | 'ai_draft' | 'seed'.
+    source: text('source').notNull().default('manual'),
+    // Author byline. authorStaffId is a soft pointer into clinicProfile.staff
+    // (a jsonb array — no FK is possible); authorName is snapshotted at write
+    // time so the byline survives a later staff-list edit.
+    authorStaffId: text('author_staff_id'),
+    authorName: text('author_name'),
+    // Per-post SEO overrides; fall back to title / excerpt when null.
+    seoTitle: text('seo_title'),
+    seoDescription: text('seo_description'),
+    publishedAt: timestamp('published_at'),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('blog_post_org_slug_idx').on(t.organizationId, t.slug),
+    index('blog_post_org_status_published_idx').on(t.organizationId, t.status, t.publishedAt),
+  ],
+)
+
 export type Patient = typeof patient.$inferSelect
 export type NewPatient = typeof patient.$inferInsert
 export type PatientNote = typeof patientNote.$inferSelect
@@ -502,3 +555,5 @@ export type ClinicReviewConfig = typeof clinicReviewConfig.$inferSelect
 export type NewClinicReviewConfig = typeof clinicReviewConfig.$inferInsert
 export type ReviewRequest = typeof reviewRequest.$inferSelect
 export type NewReviewRequest = typeof reviewRequest.$inferInsert
+export type BlogPost = typeof blogPost.$inferSelect
+export type NewBlogPost = typeof blogPost.$inferInsert

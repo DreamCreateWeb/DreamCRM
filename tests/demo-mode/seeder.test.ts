@@ -161,6 +161,13 @@ describe('createDemoClinic', () => {
     // inserts.
     state.selectQueue.push([{ id: 'org_existing' }]) // existingReviewConfigRows
     state.selectQueue.push([{ patientId: 'pat_existing_1' }]) // existingReviewRequestRows
+    // Blog self-heal: all curated demo posts already present → no inserts.
+    state.selectQueue.push([
+      { slug: 'what-to-expect-at-your-first-visit' },
+      { slug: 'why-your-gums-matter' },
+      { slug: 'teeth-whitening-what-actually-works' },
+      { slug: 'bringing-your-kids-to-the-dentist' },
+    ])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
 

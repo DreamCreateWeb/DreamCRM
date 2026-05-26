@@ -47,9 +47,11 @@ interface Props {
   data: ClinicSiteData
   /** Base path for internal links — used so server renders correctly under /site/[slug] */
   basePath: string
+  /** Whether the clinic has at least one published blog post — gates the Blog nav link. */
+  hasBlog?: boolean
 }
 
-export default function ModernTemplate({ data, basePath }: Props) {
+export default function ModernTemplate({ data, basePath, hasBlog = false }: Props) {
   const { profile, primaryLocation, locations } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -101,6 +103,15 @@ export default function ModernTemplate({ data, basePath }: Props) {
             </span>
           </a>
           <div className="flex items-center gap-2 sm:gap-4">
+            {hasBlog && (
+              <a
+                href={`${basePath}/blog`}
+                className="hidden sm:inline-flex items-center text-sm font-medium px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
+                style={{ color: INK_MUTED }}
+              >
+                Blog
+              </a>
+            )}
             {profile.phone && (
               <a
                 href={`tel:${profile.phone}`}
