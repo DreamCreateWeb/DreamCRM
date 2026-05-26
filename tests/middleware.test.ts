@@ -46,6 +46,17 @@ describe('middleware subdomain rewrite', () => {
     expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
   })
 
+  it('does NOT rewrite app subdomain (platform dashboard host)', () => {
+    const req = makeRequest(
+      'https://app.dreamcreatestudio.com/',
+      'app.dreamcreatestudio.com',
+    )
+    const res = middleware(req) as NextResponse
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull()
+    // app.* serves the authenticated app → unauthenticated lands on signin
+    expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
+  })
+
   it('does NOT rewrite apex domain', () => {
     const req = makeRequest('https://dreamcreatestudio.com/', 'dreamcreatestudio.com')
     const res = middleware(req) as NextResponse

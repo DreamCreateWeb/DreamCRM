@@ -3,6 +3,10 @@ import { getSessionCookie } from 'better-auth/cookies'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
+// Subdomains that serve the platform app itself, never a clinic public site.
+// `app` is the authenticated dashboard host; `www` is the apex alias.
+const RESERVED_SUBDOMAINS = new Set(['www', 'app'])
+
 const PUBLIC_PATHS = [
   '/signin',
   '/signup',
@@ -35,7 +39,7 @@ export function middleware(request: NextRequest) {
 
   if (hostname.endsWith(`.${SITE_DOMAIN}`)) {
     const slug = hostname.slice(0, hostname.length - SITE_DOMAIN.length - 1)
-    if (slug && slug !== 'www') {
+    if (slug && !RESERVED_SUBDOMAINS.has(slug)) {
       const url = request.nextUrl.clone()
       url.pathname = `/site/${slug}${pathname === '/' ? '' : pathname}`
       return NextResponse.rewrite(url)
