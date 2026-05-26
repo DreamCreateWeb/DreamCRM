@@ -12,7 +12,7 @@ vi.mock('@/lib/ai', () => ({
   runClaudeText: async () => state.text,
 }))
 
-import { draftBlogPost, draftSocialCaption, suggestBlogTopics } from '@/lib/services/ai-blog'
+import { draftBlogPost, draftSocialCaption, suggestBlogTopics, suggestFaqs } from '@/lib/services/ai-blog'
 
 beforeEach(() => {
   state.configured = true
@@ -115,5 +115,29 @@ describe('suggestBlogTopics', () => {
   it('returns null when the model returns no tool input', async () => {
     state.toolInput = null
     expect(await suggestBlogTopics({ services: ['X'] })).toBeNull()
+  })
+})
+
+describe('suggestFaqs', () => {
+  it('returns the parsed FAQ list', async () => {
+    state.toolInput = {
+      faqs: [
+        { q: 'Does it hurt?', a: 'No — we keep it comfortable.' },
+        { q: 'How long does it take?', a: 'About an hour.' },
+      ],
+    }
+    const out = await suggestFaqs('Root canals', '<p>About root canals.</p>')
+    expect(out?.length).toBe(2)
+    expect(out?.[0].q).toBe('Does it hurt?')
+  })
+
+  it('returns null when AI is not configured', async () => {
+    state.configured = false
+    state.toolInput = { faqs: [{ q: 'a', a: 'b' }] }
+    expect(await suggestFaqs('T', '<p>x</p>')).toBeNull()
+  })
+
+  it('returns null with no title or body', async () => {
+    expect(await suggestFaqs('', '')).toBeNull()
   })
 })

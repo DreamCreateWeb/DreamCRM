@@ -518,6 +518,11 @@ export const blogPost = pgTable(
     // Per-post SEO overrides; fall back to title / excerpt when null.
     seoTitle: text('seo_title'),
     seoDescription: text('seo_description'),
+    // Optional FAQ section: Array<{ q, a }>. Rendered on the post + emitted as
+    // FAQPage JSON-LD (a strong AI-Overview / voice-search signal for dental).
+    faq: jsonb('faq'),
+    // Alt text for the cover image (accessibility + image SEO).
+    coverImageAlt: text('cover_image_alt'),
     // Optional second byline for clinical posts (E-E-A-T): a soft pointer into
     // clinicProfile.staff, surfaced publicly as "Medically reviewed by".
     medicallyReviewedByStaffId: text('medically_reviewed_by_staff_id'),

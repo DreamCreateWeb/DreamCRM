@@ -51,6 +51,12 @@ export interface ClinicOfficePhoto {
   caption?: string | null
 }
 
+/** A blog post FAQ entry — rendered on the post + emitted as FAQPage JSON-LD. */
+export interface BlogFaqItem {
+  q: string
+  a: string
+}
+
 export const DEFAULT_SERVICES: ClinicService[] = [
   { id: 'cleanings', name: 'Cleanings & Exams', icon: '🦷' },
   { id: 'cosmetic', name: 'Cosmetic Dentistry', icon: '✨' },

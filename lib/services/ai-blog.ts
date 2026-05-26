@@ -2,6 +2,7 @@ import 'server-only'
 import { z } from 'zod'
 import { runClaudeText, runClaudeJson, aiConfigured } from '@/lib/ai'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
+import type { BlogFaqItem } from '@/lib/types/clinic-content'
 
 /**
  * AI assist for the clinic blog. Two surfaces, both clinician-gated — the
@@ -256,6 +257,66 @@ export async function suggestBlogTopics(input: {
     return parsed.ideas.slice(0, count)
   } catch (err) {
     console.warn('[ai.blog.ideas] failed:', (err as Error).message)
+    return null
+  }
+}
+
+// ============================================================
+// FAQ generation — feeds FAQPage JSON-LD + AI Overviews
+// ============================================================
+
+const FaqItemSchema = z.object({ q: z.string().min(1).max(300), a: z.string().min(1).max(2000) })
+
+const FAQ_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    faqs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          q: { type: 'string', description: 'A question phrased the way a patient would actually search or ask it.' },
+          a: { type: 'string', description: 'A short, accurate, plain-language answer (1-3 sentences) grounded in the post.' },
+        },
+        required: ['q', 'a'],
+      },
+    },
+  },
+  required: ['faqs'],
+}
+
+const FAQ_SYSTEM = `${BLOG_VOICE}
+
+Given a blog post, write 3 to 5 frequently-asked questions a patient would search for about this topic, each with a short answer. Rules:
+- Questions phrased naturally, the way a real person types or asks them.
+- Answers 1-3 sentences, grounded in the post — do not introduce new medical claims, and defer specifics to a visit when appropriate.
+Return them by calling the emit_faqs tool.`
+
+export async function suggestFaqs(title: string, bodyHtml: string): Promise<BlogFaqItem[] | null> {
+  if (!aiConfigured()) return null
+  const text = (bodyHtml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!title.trim() && !text) return null
+
+  try {
+    const result = await runClaudeJson({
+      model: 'sonnet',
+      maxTokens: 1500,
+      system: FAQ_SYSTEM,
+      messages: [
+        {
+          role: 'user',
+          content: `Post title: ${title.slice(0, 200)}\n\nPost body:\n${text.slice(0, 8000)}\n\nWrite the FAQs with the emit_faqs tool.`,
+        },
+      ],
+      toolName: 'emit_faqs',
+      toolDescription: 'Return 3-5 FAQ entries grounded in the post.',
+      inputSchema: FAQ_SCHEMA,
+    })
+    if (!result) return null
+    const parsed = z.object({ faqs: z.array(FaqItemSchema) }).parse(result)
+    return parsed.faqs.slice(0, 6)
+  } catch (err) {
+    console.warn('[ai.blog.faqs] failed:', (err as Error).message)
     return null
   }
 }

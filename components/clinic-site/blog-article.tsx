@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { BlogPost } from '@/lib/db/schema/clinic'
-import type { ClinicStaff } from '@/lib/types/clinic-content'
+import type { ClinicStaff, BlogFaqItem } from '@/lib/types/clinic-content'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { readingTimeMinutes } from '@/lib/utils'
 
@@ -55,6 +55,7 @@ function bylineSuffix(person: ClinicStaff): string {
 export default function BlogArticle({ post, author, reviewer, related, brand, basePath, isPro }: Props) {
   const clean = sanitizeBlogHtml(post.bodyHtml)
   const [firstHalf, secondHalf] = splitForCta(clean)
+  const faq = ((post.faq as BlogFaqItem[] | null) ?? []).filter((f) => f?.q && f?.a)
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
   const proseStyle = { ['--tw-prose-links' as keyof CSSProperties]: brand } as CSSProperties
   const readMin = readingTimeMinutes(clean)
@@ -120,7 +121,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
 
       {post.coverImageUrl && (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={post.coverImageUrl} alt="" className="w-full aspect-[16/9] object-cover rounded-2xl mb-10" />
+        <img src={post.coverImageUrl} alt={post.coverImageAlt ?? ''} className="w-full aspect-[16/9] object-cover rounded-2xl mb-10" />
       )}
 
       <div className="prose prose-lg prose-stone max-w-none" style={proseStyle} dangerouslySetInnerHTML={{ __html: firstHalf }} />
@@ -142,6 +143,26 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
           </div>
           <div className="prose prose-lg prose-stone max-w-none" style={proseStyle} dangerouslySetInnerHTML={{ __html: secondHalf }} />
         </>
+      )}
+
+      {faq.length > 0 && (
+        <section className="mt-12 pt-8 border-t" style={{ borderColor: BORDER }}>
+          <h2 className="text-2xl font-bold tracking-[-0.01em] mb-5" style={{ color: INK }}>
+            Frequently asked questions
+          </h2>
+          <div className="space-y-6">
+            {faq.map((f, i) => (
+              <div key={i}>
+                <h3 className="text-[17px] font-semibold mb-1.5" style={{ color: INK }}>
+                  {f.q}
+                </h3>
+                <p className="text-[15px] leading-[1.6]" style={{ color: INK_MUTED }}>
+                  {f.a}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {author?.bio && (
