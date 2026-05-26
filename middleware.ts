@@ -46,14 +46,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Health check is always served (never redirected) so App Runner stays green.
-  if (pathname === '/api/health') {
-    const r = NextResponse.next()
-    r.headers.set('x-host-seen', hostname)
-    r.headers.set('x-xfh', request.headers.get('x-forwarded-host') ?? '')
-    r.headers.set('x-host-hdr', request.headers.get('host') ?? '')
-    r.headers.set('x-nexturl-host', request.nextUrl.host ?? '')
-    return r
-  }
+  if (pathname === '/api/health') return NextResponse.next()
 
   // app.<domain> is a legacy alias; send it to the canonical www host.
   if (hostname === `app.${SITE_DOMAIN}`) {
