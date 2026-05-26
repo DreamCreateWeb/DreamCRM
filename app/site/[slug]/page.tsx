@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   clinicJsonLd,
 } from '@/lib/services/clinic-site'
+import { listPublishedPosts } from '@/lib/services/blog'
 import ModernTemplate from '@/components/clinic-site/modern-template'
 
 interface Props {
@@ -56,6 +57,7 @@ export default async function ClinicSitePage({ params }: Props) {
 
   const basePath = `/site/${slug}`
   const jsonLd = clinicJsonLd(data)
+  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
 
   return (
     <>
@@ -66,7 +68,7 @@ export default async function ClinicSitePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ModernTemplate data={data} basePath={basePath} />
+      <ModernTemplate data={data} basePath={basePath} hasBlog={publishedPosts.length > 0} />
     </>
   )
 }

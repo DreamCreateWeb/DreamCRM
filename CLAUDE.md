@@ -668,10 +668,15 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest applied: 0024): RDS is private, so apply from inside
-  the VPC via the running app — `POST /api/admin/migrate` with
-  `Authorization: Bearer $CRON_SECRET` (idempotent; drizzle applies pending).
-  Generate with `pnpm db:generate`, commit, build + deploy, then curl the route.
+- **DB migrations** (latest applied: 0025): **auto-applied on deploy.** The
+  container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
+  the server boots, so each deploy applies its own pending migrations from
+  inside the VPC. A migration failure exits non-zero → the container fails its
+  health check → App Runner keeps the previous version serving (the app never
+  goes down on a bad migration; the deploy just shows failed). Workflow:
+  `pnpm db:generate`, commit, merge to `main` — the deploy applies it. The
+  manual route `POST /api/admin/migrate` (`Authorization: Bearer $CRON_SECRET`,
+  same idempotent migrate) stays as a fallback for out-of-band applies.
   `/api/admin/seed-platform` (same auth) seeds the platform org on a fresh DB.
 - **Monitoring**: CloudWatch alarms (RDS CPU/storage/connections/memory; App
   Runner 5xx/CPU/memory) → SNS topic `dreamcrm-alerts` (email). Logs retain 30d.

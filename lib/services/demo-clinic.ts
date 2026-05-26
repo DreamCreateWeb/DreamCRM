@@ -4,6 +4,8 @@ import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-templates'
+import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
+import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 
 /**
  * Demo-clinic seeder. Creates a fully-populated clinic org so platform
@@ -586,6 +588,14 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       existingReviewPatients,
     )
 
+    // Blog self-heal: top up the curated post set. Additive + idempotent —
+    // checks existing slugs so legacy demos pick up the blog on next entry.
+    const existingBlogRows = await db
+      .select({ slug: schema.blogPost.slug })
+      .from(schema.blogPost)
+      .where(eq(schema.blogPost.organizationId, existing.id))
+    await seedBlogPostsForOrg(existing.id, new Date(), new Set(existingBlogRows.map((r) => r.slug)))
+
     const patientCount = (
       await db.select({ id: schema.patient.id }).from(schema.patient).where(eq(schema.patient.organizationId, existing.id))
     ).length
@@ -1103,6 +1113,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // real completed visits. Mix of funnel states so the dashboard shows
   // every status pill + the per-platform breakdown.
   await seedReviewsForOrg(orgId, now, patientIds, false, new Set())
+
+  // ── Blog — curated posts covering every state ───────────────────────
+  // 2 published (bylined to demo staff), 1 plain draft, 1 AI draft pending
+  // review — so /blog + the public blog index both show real content.
+  await seedBlogPostsForOrg(orgId, now, new Set())
 
   return {
     organizationId: orgId,
@@ -1735,4 +1750,93 @@ async function seedReviewsForOrg(
   }
 
   return { configAdded, requestsAdded }
+}
+
+// ── Blog seeding (shared by new-clinic-seed + self-heal) ────────────────
+// Curated set covering every state the /blog dashboard + public blog show:
+// two published posts bylined to demo staff (p1 = Dr. Jordan Reyes,
+// p3 = Maria Vega, RDH — the ids seeded into clinicProfile.staff), one plain
+// draft, and one AI-drafted post still awaiting review (drives the
+// "AI · review" badge + the publish gate). Content comes from the shared
+// STARTER_BLOG_TOPICS so there's a single source of truth. Additive +
+// idempotent on slug.
+interface BlogPostSeed {
+  slug: string
+  status: 'draft' | 'published'
+  source: 'manual' | 'ai_draft'
+  authorStaffId: string | null
+  authorName: string | null
+  publishedDaysAgo: number | null
+  coverImageUrl: string | null
+}
+
+const DEMO_BLOG_PLAN: BlogPostSeed[] = [
+  {
+    slug: 'what-to-expect-at-your-first-visit',
+    status: 'published',
+    source: 'manual',
+    authorStaffId: 'p1',
+    authorName: 'Dr. Jordan Reyes',
+    publishedDaysAgo: 9,
+    coverImageUrl: DEMO_OFFICE_PHOTOS[0].url,
+  },
+  {
+    slug: 'why-your-gums-matter',
+    status: 'published',
+    source: 'manual',
+    authorStaffId: 'p3',
+    authorName: 'Maria Vega, RDH',
+    publishedDaysAgo: 28,
+    coverImageUrl: DEMO_OFFICE_PHOTOS[2].url,
+  },
+  {
+    slug: 'teeth-whitening-what-actually-works',
+    status: 'draft',
+    source: 'manual',
+    authorStaffId: null,
+    authorName: null,
+    publishedDaysAgo: null,
+    coverImageUrl: null,
+  },
+  {
+    slug: 'bringing-your-kids-to-the-dentist',
+    status: 'draft',
+    source: 'ai_draft',
+    authorStaffId: null,
+    authorName: null,
+    publishedDaysAgo: null,
+    coverImageUrl: null,
+  },
+]
+
+async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<string>) {
+  const topicBySlug = new Map(STARTER_BLOG_TOPICS.map((t) => [t.slug, t]))
+  const dayMs = 24 * 60 * 60 * 1000
+  let added = 0
+  for (const plan of DEMO_BLOG_PLAN) {
+    if (existingSlugs.has(plan.slug)) continue
+    const topic = topicBySlug.get(plan.slug)
+    if (!topic) continue
+    const publishedAt =
+      plan.publishedDaysAgo != null ? new Date(now.getTime() - plan.publishedDaysAgo * dayMs) : null
+    await db.insert(schema.blogPost).values({
+      id: newId('post'),
+      organizationId: orgId,
+      title: topic.title,
+      slug: topic.slug,
+      excerpt: topic.excerpt,
+      bodyHtml: sanitizeBlogHtml(topic.bodyHtml),
+      category: topic.category,
+      status: plan.status,
+      source: plan.source,
+      authorStaffId: plan.authorStaffId,
+      authorName: plan.authorName,
+      coverImageUrl: plan.coverImageUrl,
+      publishedAt,
+      createdAt: publishedAt ?? now,
+      updatedAt: publishedAt ?? now,
+    })
+    added++
+  }
+  return { added }
 }

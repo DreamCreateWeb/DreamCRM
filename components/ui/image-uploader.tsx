@@ -17,6 +17,10 @@ interface Props {
   previewClass?: string
   /** Max upload size in bytes (default 5MB). */
   maxBytes?: number
+  /** Optional callback fired whenever the resolved URL changes (upload or
+   * remove). Lets callers that autosave (rather than submit a form) keep the
+   * value in React state. Form-based callers can ignore it. */
+  onChange?: (url: string | null) => void
 }
 
 export default function ImageUploader({
@@ -27,8 +31,13 @@ export default function ImageUploader({
   hint,
   previewClass = 'aspect-[3/1]',
   maxBytes = 5 * 1024 * 1024,
+  onChange,
 }: Props) {
-  const [url, setUrl] = useState<string | null>(defaultValue ?? null)
+  const [url, setUrlState] = useState<string | null>(defaultValue ?? null)
+  const setUrl = (next: string | null) => {
+    setUrlState(next)
+    onChange?.(next)
+  }
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)

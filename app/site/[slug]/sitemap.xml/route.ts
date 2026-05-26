@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { listPublishedPosts } from '@/lib/services/blog'
 
 interface Params {
   slug: string
@@ -54,6 +55,20 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   ]
   if (isPro) {
     urls.push({ loc: `${base}/book`, lastmod, changefreq: 'monthly', priority: '0.8' })
+  }
+
+  // Published blog posts + the blog index (only when there's something to show).
+  const posts = await listPublishedPosts(data.orgId)
+  if (posts.length > 0) {
+    urls.push({ loc: `${base}/blog`, lastmod, changefreq: 'weekly', priority: '0.7' })
+    for (const p of posts) {
+      urls.push({
+        loc: `${base}/blog/${p.slug}`,
+        lastmod: (p.publishedAt ?? p.updatedAt).toISOString().slice(0, 10),
+        changefreq: 'monthly',
+        priority: '0.6',
+      })
+    }
   }
 
   return new NextResponse(buildSitemap(urls), {
