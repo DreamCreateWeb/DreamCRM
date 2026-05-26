@@ -71,6 +71,9 @@ import {
   getPublishedPostBySlug,
   getBlogStats,
   getPostAuthor,
+  listRelatedPosts,
+  resolvePostPeople,
+  incrementViewCount,
   seedStarterBlogPosts,
   STARTER_BLOG_TOPICS,
   BlogPublishError,
@@ -302,5 +305,92 @@ describe('seedStarterBlogPosts', () => {
     }
     await seedStarterBlogPosts('org_1')
     expect(state.ops.filter((o) => o.kind === 'insert').length).toBe(0)
+  })
+})
+
+describe('listRelatedPosts', () => {
+  const rows = [
+    { id: '1', category: 'Oral Health' },
+    { id: '2', category: 'Cosmetic' },
+    { id: '3', category: 'Oral Health' },
+    { id: 'cur', category: 'Oral Health' },
+  ]
+
+  it('excludes the current post, same category first then recent fill-ins', async () => {
+    state.selectQueue.push(rows)
+    const out = await listRelatedPosts('org_1', 'cur', 'Oral Health', 3)
+    expect(out.map((r) => r.id)).toEqual(['1', '3', '2'])
+  })
+
+  it('respects the limit', async () => {
+    state.selectQueue.push(rows)
+    const out = await listRelatedPosts('org_1', 'cur', 'Oral Health', 1)
+    expect(out.map((r) => r.id)).toEqual(['1'])
+  })
+})
+
+describe('resolvePostPeople', () => {
+  const staffRow = [
+    { staff: [{ id: 'p1', name: 'Dr. Reyes', title: 'Dentist' }, { id: 'p3', name: 'Maria', title: 'RDH' }] },
+  ]
+
+  it('resolves author + medical reviewer from the staff list', async () => {
+    state.selectQueue.push(staffRow)
+    const { author, reviewer } = await resolvePostPeople('org_1', {
+      authorStaffId: 'p3',
+      authorName: 'Maria',
+      medicallyReviewedByStaffId: 'p1',
+    })
+    expect(author?.name).toBe('Maria')
+    expect(reviewer?.name).toBe('Dr. Reyes')
+  })
+
+  it('falls back to the author snapshot, no reviewer when unset', async () => {
+    state.selectQueue.push([{ staff: [] }])
+    const { author, reviewer } = await resolvePostPeople('org_1', {
+      authorStaffId: 'gone',
+      authorName: 'Dr. Removed',
+      medicallyReviewedByStaffId: null,
+    })
+    expect(author?.name).toBe('Dr. Removed')
+    expect(reviewer).toBeNull()
+  })
+})
+
+describe('incrementViewCount', () => {
+  it('issues a scoped update on blog_post', async () => {
+    await incrementViewCount('post_1')
+    expect(updateOp()).toBeDefined()
+  })
+})
+
+describe('updateBlogPost — medical reviewer', () => {
+  const current = {
+    id: 'post_1',
+    organizationId: 'org_1',
+    title: 'T',
+    slug: 's',
+    bodyHtml: '',
+    status: 'draft',
+    source: 'manual',
+    authorStaffId: null,
+    authorName: null,
+    medicallyReviewedAt: null,
+  }
+
+  it('sets the reviewer + stamps medicallyReviewedAt', async () => {
+    state.selectQueue.push([current]) // getBlogPost
+    await updateBlogPost('org_1', 'post_1', { medicallyReviewedByStaffId: 'p1' })
+    const set = updateOp()!.set as { medicallyReviewedByStaffId: string; medicallyReviewedAt: Date }
+    expect(set.medicallyReviewedByStaffId).toBe('p1')
+    expect(set.medicallyReviewedAt).toBeInstanceOf(Date)
+  })
+
+  it('clears the reviewer + timestamp when removed', async () => {
+    state.selectQueue.push([{ ...current, medicallyReviewedAt: new Date() }])
+    await updateBlogPost('org_1', 'post_1', { medicallyReviewedByStaffId: '' })
+    const set = updateOp()!.set as { medicallyReviewedByStaffId: string | null; medicallyReviewedAt: Date | null }
+    expect(set.medicallyReviewedByStaffId).toBeNull()
+    expect(set.medicallyReviewedAt).toBeNull()
   })
 })

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts, listPublishedCategories, getPostAuthor } from '@/lib/services/blog'
 import type { BlogPost } from '@/lib/db/schema/clinic'
-import BlogChrome from './blog-chrome'
+import BlogChrome from '@/components/clinic-site/blog-chrome'
 
 const BG = '#FAF7F2'
 const INK = '#1C1A17'

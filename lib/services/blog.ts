@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { blogPost } from '@/lib/db/schema/clinic'
@@ -41,6 +41,7 @@ export const BlogPostInput = z.object({
   category: z.string().max(80).optional().nullable(),
   tags: z.array(z.string().max(40)).max(20).optional().nullable(),
   authorStaffId: z.string().max(120).optional().nullable(),
+  medicallyReviewedByStaffId: z.string().max(120).optional().nullable(),
   seoTitle: z.string().max(160).optional().nullable(),
   seoDescription: z.string().max(320).optional().nullable(),
   // Only ever set forward to 'ai_draft' (when the editor applies an AI draft).
@@ -214,6 +215,44 @@ export async function getPublishedPostBySlug(
   return row ?? null
 }
 
+/** Up to `limit` other published posts to show as "Related" — same category
+ * first, then most-recent fill-ins. In-memory (clinic post volumes are small). */
+export async function listRelatedPosts(
+  organizationId: string,
+  currentPostId: string,
+  category: string | null,
+  limit = 3,
+): Promise<BlogPost[]> {
+  const all = (await listPublishedPosts(organizationId)).filter((p) => p.id !== currentPostId)
+  const sameCat = category ? all.filter((p) => p.category === category) : []
+  const sameCatIds = new Set(sameCat.map((p) => p.id))
+  const rest = all.filter((p) => !sameCatIds.has(p.id))
+  return [...sameCat, ...rest].slice(0, limit)
+}
+
+/** Resolve a post's author + medical reviewer in one staff load. Author falls
+ * back to its snapshotted name if the staff entry was removed. */
+export async function resolvePostPeople(
+  organizationId: string,
+  post: Pick<BlogPost, 'authorStaffId' | 'authorName' | 'medicallyReviewedByStaffId'>,
+): Promise<{ author: ClinicStaff | null; reviewer: ClinicStaff | null }> {
+  const staff = await loadStaff(organizationId)
+  const byId = (id: string | null) => (id ? staff.find((s) => s.id === id) ?? null : null)
+  let author = byId(post.authorStaffId)
+  if (!author && post.authorName) author = { id: 'snapshot', name: post.authorName }
+  return { author, reviewer: byId(post.medicallyReviewedByStaffId) }
+}
+
+/** Increment a published post's pageview counter. Called fire-and-forget from
+ * a client beacon on the public post page (so SSR / bot renders don't count).
+ * No-ops on drafts / archived / preview. */
+export async function incrementViewCount(id: string): Promise<void> {
+  await db
+    .update(blogPost)
+    .set({ viewCount: sql`${blogPost.viewCount} + 1` })
+    .where(and(eq(blogPost.id, id), eq(blogPost.status, 'published'), isNull(blogPost.archivedAt)))
+}
+
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 /** Create an empty draft and return it — the "New post" entry point. The
@@ -268,6 +307,13 @@ export async function updateBlogPost(
   if (data.authorStaffId !== undefined) {
     patch.authorStaffId = data.authorStaffId || null
     patch.authorName = await snapshotAuthorName(organizationId, data.authorStaffId)
+  }
+  if (data.medicallyReviewedByStaffId !== undefined) {
+    patch.medicallyReviewedByStaffId = data.medicallyReviewedByStaffId || null
+    // Stamp the review time when a reviewer is set; clear it when removed.
+    patch.medicallyReviewedAt = data.medicallyReviewedByStaffId
+      ? current.medicallyReviewedAt ?? new Date()
+      : null
   }
 
   const [row] = await db

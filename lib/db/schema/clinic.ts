@@ -518,6 +518,13 @@ export const blogPost = pgTable(
     // Per-post SEO overrides; fall back to title / excerpt when null.
     seoTitle: text('seo_title'),
     seoDescription: text('seo_description'),
+    // Optional second byline for clinical posts (E-E-A-T): a soft pointer into
+    // clinicProfile.staff, surfaced publicly as "Medically reviewed by".
+    medicallyReviewedByStaffId: text('medically_reviewed_by_staff_id'),
+    medicallyReviewedAt: timestamp('medically_reviewed_at'),
+    // Pageview counter, incremented by a client beacon on the public post so
+    // SSR / bot renders don't inflate it. Powers the "N reads" adoption signal.
+    viewCount: integer('view_count').notNull().default(0),
     publishedAt: timestamp('published_at'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

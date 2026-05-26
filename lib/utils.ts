@@ -68,3 +68,19 @@ export function newId(prefix?: string): string {
   const r = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
   return prefix ? `${prefix}_${r}` : r
 }
+
+/** Plain-text excerpt derived from HTML — the smart-default summary used on
+ * blog cards + meta descriptions when a post has no explicit excerpt. */
+export function excerptFromHtml(html: string, max = 180): string {
+  const text = (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
+  const lastSpace = cut.lastIndexOf(' ')
+  return `${(lastSpace > 40 ? cut.slice(0, lastSpace) : cut).trim()}…`
+}
+
+/** Rough reading time in minutes from HTML body (~200 wpm, min 1). */
+export function readingTimeMinutes(html: string, wpm = 200): number {
+  const words = (html || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length
+  return Math.max(1, Math.round(words / wpm))
+}

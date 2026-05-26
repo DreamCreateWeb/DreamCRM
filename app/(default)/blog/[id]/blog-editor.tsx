@@ -8,7 +8,7 @@ import StarterKit from '@tiptap/starter-kit'
 import TiptapLink from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
-import { cn } from '@/lib/utils'
+import { cn, excerptFromHtml } from '@/lib/utils'
 import ImageUploader from '@/components/ui/image-uploader'
 import {
   updateBlogPostAction,
@@ -32,9 +32,11 @@ export interface BlogEditorPost {
   status: string
   source: string
   authorStaffId: string
+  medicallyReviewedByStaffId: string
   seoTitle: string
   seoDescription: string
   publishedAt: string | null
+  viewCount: number
 }
 
 interface AuthorOption {
@@ -64,6 +66,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
     category: post.category,
     tagsText: post.tags.join(', '),
     authorStaffId: post.authorStaffId,
+    medicallyReviewedByStaffId: post.medicallyReviewedByStaffId,
     seoTitle: post.seoTitle,
     seoDescription: post.seoDescription,
     source: post.source,
@@ -123,6 +126,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
         .map((t) => t.trim())
         .filter(Boolean),
       authorStaffId: draft.authorStaffId || null,
+      medicallyReviewedByStaffId: draft.medicallyReviewedByStaffId || null,
       seoTitle: draft.seoTitle || null,
       seoDescription: draft.seoDescription || null,
     }
@@ -172,6 +176,13 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
     })
   }
 
+  function preview() {
+    startTransition(async () => {
+      if (dirty) await save()
+      window.open(`/blog/${post.id}/preview`, '_blank', 'noopener')
+    })
+  }
+
   function destroy() {
     if (!confirm('Archive this post? It will be removed from your website. You can’t undo this from here.')) return
     startTransition(async () => {
@@ -181,6 +192,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
   const published = status === 'published'
   const liveUrl = baseUrl ? `${baseUrl}/blog/${draft.slug}` : ''
+  const derivedExcerpt = excerptFromHtml(draft.bodyHtml)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
@@ -192,8 +204,19 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
         >
           ← All posts
         </Link>
-        <div className="flex items-center gap-2 text-[11px] text-stone-400 dark:text-stone-500">
-          {pending ? 'Saving…' : dirty ? 'Editing…' : savedAt ? 'Saved' : 'Up to date'}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={preview}
+            disabled={pending}
+            className="text-[12px] font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 disabled:opacity-50"
+            title="See exactly how this looks on your live site"
+          >
+            Preview ↗
+          </button>
+          <span className="text-[11px] text-stone-400 dark:text-stone-500">
+            {pending ? 'Saving…' : dirty ? 'Editing…' : savedAt ? 'Saved' : 'Up to date'}
+          </span>
         </div>
       </div>
 
@@ -247,9 +270,12 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 value={draft.excerpt}
                 onChange={(e) => field('excerpt', e.target.value)}
                 rows={2}
-                placeholder="One or two sentences shown on the blog index + used as the search description."
+                placeholder={derivedExcerpt || 'One or two sentences shown on the blog index + used as the search description.'}
                 className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
               />
+              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">
+                Leave blank and we&apos;ll use the opening of your post.
+              </p>
             </label>
           </div>
         </div>
@@ -280,6 +306,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 </a>
               )}
             </div>
+            {published && (
+              <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3 tabular-nums">
+                {post.viewCount} {post.viewCount === 1 ? 'read' : 'reads'}
+              </p>
+            )}
             {published ? (
               <button
                 onClick={unpublish}
@@ -341,6 +372,32 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               </>
             )}
           </div>
+
+          {/* Medically reviewed by (optional) */}
+          {authors.length > 0 && (
+            <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
+              <h3 className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+                Medically reviewed by{' '}
+                <span className="normal-case font-normal text-stone-400 dark:text-stone-500">· optional</span>
+              </h3>
+              <select
+                value={draft.medicallyReviewedByStaffId}
+                onChange={(e) => field('medicallyReviewedByStaffId', e.target.value)}
+                className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              >
+                <option value="">No reviewer</option>
+                {authors.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                    {a.title ? ` — ${a.title}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+                Adds a &ldquo;Medically reviewed by&rdquo; line — a strong trust signal on clinical posts.
+              </p>
+            </div>
+          )}
 
           {/* Category + tags */}
           <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 space-y-3">

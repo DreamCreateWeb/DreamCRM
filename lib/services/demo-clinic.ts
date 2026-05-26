@@ -1766,8 +1766,12 @@ interface BlogPostSeed {
   source: 'manual' | 'ai_draft'
   authorStaffId: string | null
   authorName: string | null
+  // p3 = Maria (hygienist) writes the gum-health post, reviewed by p1 (Dr.
+  // Reyes) — exercises the public "Medically reviewed by" byline line.
+  medicallyReviewedByStaffId: string | null
   publishedDaysAgo: number | null
   coverImageUrl: string | null
+  viewCount: number
 }
 
 const DEMO_BLOG_PLAN: BlogPostSeed[] = [
@@ -1777,8 +1781,10 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     source: 'manual',
     authorStaffId: 'p1',
     authorName: 'Dr. Jordan Reyes',
+    medicallyReviewedByStaffId: null,
     publishedDaysAgo: 9,
     coverImageUrl: DEMO_OFFICE_PHOTOS[0].url,
+    viewCount: 142,
   },
   {
     slug: 'why-your-gums-matter',
@@ -1786,8 +1792,10 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     source: 'manual',
     authorStaffId: 'p3',
     authorName: 'Maria Vega, RDH',
+    medicallyReviewedByStaffId: 'p1',
     publishedDaysAgo: 28,
     coverImageUrl: DEMO_OFFICE_PHOTOS[2].url,
+    viewCount: 87,
   },
   {
     slug: 'teeth-whitening-what-actually-works',
@@ -1795,8 +1803,10 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     source: 'manual',
     authorStaffId: null,
     authorName: null,
+    medicallyReviewedByStaffId: null,
     publishedDaysAgo: null,
     coverImageUrl: null,
+    viewCount: 0,
   },
   {
     slug: 'bringing-your-kids-to-the-dentist',
@@ -1804,8 +1814,10 @@ const DEMO_BLOG_PLAN: BlogPostSeed[] = [
     source: 'ai_draft',
     authorStaffId: null,
     authorName: null,
+    medicallyReviewedByStaffId: null,
     publishedDaysAgo: null,
     coverImageUrl: null,
+    viewCount: 0,
   },
 ]
 
@@ -1814,11 +1826,24 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
   const dayMs = 24 * 60 * 60 * 1000
   let added = 0
   for (const plan of DEMO_BLOG_PLAN) {
-    if (existingSlugs.has(plan.slug)) continue
-    const topic = topicBySlug.get(plan.slug)
-    if (!topic) continue
     const publishedAt =
       plan.publishedDaysAgo != null ? new Date(now.getTime() - plan.publishedDaysAgo * dayMs) : null
+    const reviewedAt = plan.medicallyReviewedByStaffId ? publishedAt ?? now : null
+    if (existingSlugs.has(plan.slug)) {
+      // Backfill Track-A fields (reviewer + view count) on legacy demo posts
+      // that predate them, so the demo always showcases the latest module.
+      await db
+        .update(schema.blogPost)
+        .set({
+          medicallyReviewedByStaffId: plan.medicallyReviewedByStaffId,
+          medicallyReviewedAt: reviewedAt,
+          viewCount: plan.viewCount,
+        })
+        .where(and(eq(schema.blogPost.organizationId, orgId), eq(schema.blogPost.slug, plan.slug)))
+      continue
+    }
+    const topic = topicBySlug.get(plan.slug)
+    if (!topic) continue
     await db.insert(schema.blogPost).values({
       id: newId('post'),
       organizationId: orgId,
@@ -1831,7 +1856,10 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
       source: plan.source,
       authorStaffId: plan.authorStaffId,
       authorName: plan.authorName,
+      medicallyReviewedByStaffId: plan.medicallyReviewedByStaffId,
+      medicallyReviewedAt: reviewedAt,
       coverImageUrl: plan.coverImageUrl,
+      viewCount: plan.viewCount,
       publishedAt,
       createdAt: publishedAt ?? now,
       updatedAt: publishedAt ?? now,
