@@ -91,3 +91,54 @@ async function runViaAnthropic(req: ClaudeRequest): Promise<string | null> {
   })
   return extractText(await stream.finalMessage())
 }
+
+export interface ClaudeJsonRequest {
+  model: ClaudeModel
+  maxTokens: number
+  system: string
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  /** The single tool the model is forced to call. */
+  toolName: string
+  toolDescription: string
+  /** JSON schema describing the structured output shape (the tool input). */
+  inputSchema: Record<string, unknown>
+}
+
+/**
+ * Structured-output call via Anthropic tool use. The model is forced to call a
+ * single tool whose input matches `inputSchema`, and the SDK hands that input
+ * back as a parsed object — so we never hand-parse model-emitted JSON, which
+ * breaks when a string field contains HTML with unescaped quotes. Returns the
+ * tool input object (validate it with zod at the call site), or null. Throws on
+ * transport/API errors so callers can degrade. Anthropic-only — the inert
+ * Bedrock driver returns null.
+ */
+export async function runClaudeJson(req: ClaudeJsonRequest): Promise<unknown | null> {
+  if (driver() !== 'anthropic') {
+    console.warn('[ai] runClaudeJson is only supported on the anthropic driver')
+    return null
+  }
+  const final = await anthropic().messages.create({
+    model: ANTHROPIC_MODEL_IDS[req.model],
+    max_tokens: req.maxTokens,
+    system: req.system,
+    messages: req.messages,
+    tools: [
+      {
+        name: req.toolName,
+        description: req.toolDescription,
+        input_schema: req.inputSchema as Anthropic.Tool.InputSchema,
+      },
+    ],
+    tool_choice: { type: 'tool', name: req.toolName },
+  })
+  const block = final.content.find((b) => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') {
+    console.warn('[ai] no tool_use block in response', {
+      stopReason: final.stop_reason,
+      blockTypes: final.content.map((b) => b.type),
+    })
+    return null
+  }
+  return block.input
+}
