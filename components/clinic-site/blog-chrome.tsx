@@ -7,9 +7,10 @@ const INK_MUTED = '#6B635A'
 const BORDER = '#E8E2D9'
 
 /**
- * Minimal public chrome for the blog index + post pages. Mirrors the intake
- * page's self-contained header/footer rather than embedding the full
- * ModernTemplate, so blog pages stay light and consistent across the site.
+ * Minimal public chrome for the blog index + post pages (and the auth-gated
+ * editor preview). Mirrors the intake page's self-contained header/footer
+ * rather than embedding the full ModernTemplate, so blog pages stay light and
+ * consistent across the site.
  */
 export default function BlogChrome({
   data,

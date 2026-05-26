@@ -196,7 +196,12 @@ export default async function BlogPage() {
                     <td className="px-3 py-3 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums">
                       {fmtDate(p.updatedAt)}
                     </td>
-                    <td className="px-3 py-3 text-right">
+                    <td className="px-3 py-3 text-right whitespace-nowrap">
+                      {p.status === 'published' && (
+                        <span className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums mr-3">
+                          {p.viewCount} {p.viewCount === 1 ? 'read' : 'reads'}
+                        </span>
+                      )}
                       {p.status === 'published' && liveBlogUrl && (
                         <a
                           href={`${liveBlogUrl}/${p.slug}`}

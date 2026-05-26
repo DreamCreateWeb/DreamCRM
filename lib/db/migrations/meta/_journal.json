@@ -183,6 +183,13 @@
       "when": 1779819634174,
       "tag": "0025_gifted_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779830519243,
+      "tag": "0026_careless_swarm",
+      "breakpoints": true
     }
   ]
 }
