@@ -85,12 +85,15 @@ export default async function SeoPage({ searchParams }: Props) {
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
-          Search · {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          {isManage ? 'Platform · Search Console' : `Search · ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
         </p>
-        <h1 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">SEO</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
+          {isManage ? 'Search Console' : 'SEO'}
+        </h1>
         <p className="text-[13px] text-stone-500 dark:text-stone-400 mt-1 max-w-2xl">
-          Straight answers, not impression graphs: how healthy your site is, and how much organic search actually
-          turns into leads and booked visits — the number agencies can&apos;t show you.
+          {isManage
+            ? 'Connect once with the dreamcreatestudio.com Domain property. Every clinic’s SEO tab then reads it scoped to their own pages — clinics connect nothing.'
+            : 'Straight answers, not impression graphs: how healthy your site is, and how much organic search actually turns into leads and booked visits — the number agencies can’t show you.'}
         </p>
       </div>
 
@@ -105,7 +108,8 @@ export default async function SeoPage({ searchParams }: Props) {
         </div>
       )}
 
-      {/* ── Site Health + Organic attribution ─────────────────────────── */}
+      {/* ── Site Health + Organic attribution (clinic only) ───────────── */}
+      {!isManage && (
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4 mb-8">
         <section className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
           <div className="flex items-baseline justify-between mb-4">
@@ -158,6 +162,7 @@ export default async function SeoPage({ searchParams }: Props) {
           </p>
         </section>
       </div>
+      )}
 
       {/* ── Search Console ────────────────────────────────────────────── */}
       <section className="mb-8 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
@@ -268,6 +273,8 @@ export default async function SeoPage({ searchParams }: Props) {
         )}
       </section>
 
+      {!isManage && (
+      <>
       {/* ── Reviews as a ranking signal ───────────────────────────────── */}
       <section className="mb-8 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
         <div className="flex items-center justify-between mb-2">
@@ -300,6 +307,8 @@ export default async function SeoPage({ searchParams }: Props) {
           </ul>
         </div>
       </section>
+      </>
+      )}
     </div>
   )
 }
