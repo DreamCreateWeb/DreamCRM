@@ -177,9 +177,26 @@ export default async function SeoPage({ searchParams }: Props) {
           <div>
             <p className="text-[13px] text-stone-600 dark:text-stone-300 mb-3">Connected. Pick the property to track:</p>
             {sites.length === 0 ? (
-              <p className="text-[12px] text-stone-400 dark:text-stone-500 italic">
-                No verified properties found on this Google account.
-              </p>
+              <div className="text-[12px] text-stone-500 dark:text-stone-400 max-w-md space-y-1.5">
+                <p className="font-medium text-stone-600 dark:text-stone-300">
+                  No verified properties on this Google account yet.
+                </p>
+                <p>
+                  Add your site at{' '}
+                  <a
+                    href="https://search.google.com/search-console"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Google Search Console
+                  </a>{' '}
+                  and verify ownership — a DNS TXT record on your domain is easiest, and verifying{' '}
+                  <strong>dreamcreatestudio.com</strong> as a Domain property covers every clinic subdomain at once.
+                  Then reload this page.
+                </p>
+                <p>Make sure you verify with the same Google account you just connected here.</p>
+              </div>
             ) : (
               <form action={setGscSiteAction} className="flex items-center gap-2">
                 <select
