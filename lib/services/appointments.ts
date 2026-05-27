@@ -2,6 +2,7 @@ import 'server-only'
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
+import { queueAppointmentWriteBack } from '@/lib/services/pms'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -812,6 +813,8 @@ export async function rescheduleAppointment(input: RescheduleInput) {
     })
     .where(eq(schema.appointment.id, input.appointmentId))
 
+  // Two-way PMS: the rescheduled slot is a new DreamCRM-originated booking.
+  await queueAppointmentWriteBack(input.organizationId, newId)
   return newId
 }
 
@@ -881,6 +884,9 @@ export async function createInternalAppointment(input: CreateInternalAppointment
     .update(schema.patient)
     .set({ lastActivityAt: new Date() })
     .where(eq(schema.patient.id, input.patientId))
+  // Two-way PMS: queue this booking to be written into the clinic's PMS on the
+  // next sync (best-effort, never blocks booking).
+  await queueAppointmentWriteBack(input.organizationId, id)
   return id
 }
 

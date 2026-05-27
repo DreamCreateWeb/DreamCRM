@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { appointment } from '@/lib/db/schema/clinic'
 import { requireTenant } from '@/lib/auth/context'
+import { queueAppointmentWriteBack } from '@/lib/services/pms'
 
 export async function bookAppointment(formData: FormData) {
   const ctx = await requireTenant()
@@ -21,8 +22,9 @@ export async function bookAppointment(formData: FormData) {
   const type = formData.get('type')?.toString() || 'checkup'
   const notes = formData.get('notes')?.toString().trim() || null
 
+  const apptId = randomUUID()
   await db.insert(appointment).values({
-    id: randomUUID(),
+    id: apptId,
     organizationId: ctx.organizationId,
     patientId: ctx.patientId,
     title: `${type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')} - ${ctx.userName}`,
@@ -32,6 +34,9 @@ export async function bookAppointment(formData: FormData) {
     notes,
     source: 'portal',
   })
+
+  // Two-way PMS: queue this portal booking to be written to the clinic's PMS.
+  await queueAppointmentWriteBack(ctx.organizationId, apptId)
 
   revalidatePath('/patient/dashboard')
   revalidatePath('/patient/appointments')

@@ -6,6 +6,7 @@ import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-templates'
 import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
+import { seedDemoPms } from '@/lib/services/pms'
 
 /**
  * Demo-clinic seeder. Creates a fully-populated clinic org so platform
@@ -644,6 +645,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       await seedDemoMemberships(existing.id, new Date(), memberPatients.map((p) => p.id))
     }
 
+    // PMS Integrations self-heal: seed the sandbox connection + entity maps +
+    // sync/write-back history once (idempotent — no-op if already connected).
+    await seedDemoPms(existing.id)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -1169,6 +1174,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // 2 published (bylined to demo staff), 1 plain draft, 1 AI draft pending
   // review — so /blog + the public blog index both show real content.
   await seedBlogPostsForOrg(orgId, now, new Set())
+
+  // ── PMS Integrations — sandbox Open Dental connection ───────────────
+  // Seeded last so every provider/patient/appointment exists to map. Builds
+  // the connection + entity maps + sync history + write-back log (every state)
+  // so /integrations showcases two-way sync without a live PMS.
+  await seedDemoPms(orgId)
 
   return {
     organizationId: orgId,
