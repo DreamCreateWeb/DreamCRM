@@ -580,3 +580,26 @@ export type ReviewRequest = typeof reviewRequest.$inferSelect
 export type NewReviewRequest = typeof reviewRequest.$inferInsert
 export type BlogPost = typeof blogPost.$inferSelect
 export type NewBlogPost = typeof blogPost.$inferInsert
+
+// One Google Search Console connection per clinic org (OAuth, user-delegated —
+// mirrors email_account). Stores the encrypted refresh token + the selected
+// verified property. The clinic connects their OWN Search Console; a single
+// service account can't read every clinic's data.
+export const gscConnection = pgTable('gsc_connection', {
+  organizationId: text('organization_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  connectedByUserId: text('connected_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  // The chosen GSC property, e.g. 'sc-domain:example.com' or 'https://example.com/'.
+  siteUrl: text('site_url'),
+  refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
+  accessToken: text('access_token'),
+  accessExpiresAt: timestamp('access_expires_at'),
+  scope: text('scope'),
+  // 'needs_site' = connected but no property picked yet | 'connected' | 'error'
+  status: text('status').notNull().default('needs_site'),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+export type GscConnection = typeof gscConnection.$inferSelect

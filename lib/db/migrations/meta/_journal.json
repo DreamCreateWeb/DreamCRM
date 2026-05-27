@@ -211,6 +211,13 @@
       "when": 1779847922817,
       "tag": "0029_happy_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1779850470710,
+      "tag": "0030_conscious_jean_grey",
+      "breakpoints": true
     }
   ]
 }
