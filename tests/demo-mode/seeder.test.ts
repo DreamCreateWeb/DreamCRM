@@ -43,6 +43,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.shopOrderItem) return 'shop_order_item'
     if (t === schema.membershipPlan) return 'membership_plan'
     if (t === schema.membership) return 'membership'
+    if (t === schema.shopCoupon) return 'shop_coupon'
     return 'unknown'
   }
   const chain = () => {
@@ -415,6 +416,8 @@ describe('createDemoClinic', () => {
     // Memberships: 2 plans + 3 members (personas 0/1/4).
     expect(counts.membership_plan).toBe(2)
     expect(counts.membership).toBe(3)
+    // Coupons: 2 manual + 1 birthday (persona 0 exists).
+    expect(counts.shop_coupon).toBe(3)
   })
 
   it('seeds logoUrl + heroImageUrl so the website-editor checklist reads "Set" on both', async () => {

@@ -152,6 +152,9 @@ export default function ShopClient({ config, products, stats, orderStats, member
             <Link href="/shop/memberships" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
               Membership plans{membershipStats.activeMembers > 0 ? ` · ${membershipStats.activeMembers} active (${formatCents(membershipStats.mrrCents)}/mo)` : ''} →
             </Link>
+            <Link href="/shop/coupons" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
+              Coupons &amp; birthday codes →
+            </Link>
           </div>
         </div>
         <div className="rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 p-4">

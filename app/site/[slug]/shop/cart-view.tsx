@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { formatCents, type CartLine } from '@/lib/types/shop'
 import { getCart, setQty, removeLine } from './cart-store'
-import { startCheckout } from './actions'
+import { startCheckout, applyCoupon } from './actions'
 
 const INK = '#1C1A17'
 const INK_MUTED = '#6B635A'
@@ -28,6 +28,10 @@ export default function CartView({
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [code, setCode] = useState('')
+  const [discountCents, setDiscountCents] = useState(0)
+  const [couponMsg, setCouponMsg] = useState<string | null>(null)
+  const [applyingCoupon, startCoupon] = useTransition()
 
   useEffect(() => {
     const refresh = () => setLines(getCart(slug))
@@ -61,6 +65,7 @@ export default function CartView({
       email: email.trim(),
       name: name.trim() || null,
       phone: phone.trim() || null,
+      couponCode: discountCents > 0 ? code.trim() : null,
     })
       .then(({ url }) => {
         window.location.href = url
@@ -102,9 +107,44 @@ export default function CartView({
         ))}
       </div>
 
-      <div className="flex items-center justify-between text-[15px] mb-6 pb-6 border-b" style={{ borderColor: BORDER, color: INK }}>
-        <span>Subtotal</span>
-        <span className="font-bold">{formatCents(subtotal)}</span>
+      {/* Promo code */}
+      <div className="flex gap-2 mb-4">
+        <input
+          value={code}
+          onChange={(e) => { setCode(e.target.value); setCouponMsg(null) }}
+          placeholder="Promo code"
+          className="flex-1 text-[14px] px-3 py-2 rounded-lg border bg-white uppercase"
+          style={{ borderColor: BORDER }}
+        />
+        <button
+          disabled={applyingCoupon || !code.trim()}
+          onClick={() => {
+            setCouponMsg(null)
+            startCoupon(async () => {
+              const res = await applyCoupon(slug, code.trim(), subtotal)
+              if (res.ok) {
+                setDiscountCents(res.discountCents ?? 0)
+                setCouponMsg(`Applied — ${formatCents(res.discountCents ?? 0)} off`)
+              } else {
+                setDiscountCents(0)
+                setCouponMsg(res.error ?? 'Invalid code')
+              }
+            })
+          }}
+          className="text-[14px] font-semibold px-4 py-2 rounded-lg border"
+          style={{ borderColor: BORDER, color: INK }}
+        >
+          {applyingCoupon ? '…' : 'Apply'}
+        </button>
+      </div>
+      {couponMsg && <p className="text-[13px] mb-3" style={{ color: discountCents > 0 ? '#15803d' : '#dc2626' }}>{couponMsg}</p>}
+
+      <div className="text-[15px] mb-6 pb-6 border-b space-y-1" style={{ borderColor: BORDER, color: INK }}>
+        <div className="flex items-center justify-between"><span>Subtotal</span><span>{formatCents(subtotal)}</span></div>
+        {discountCents > 0 && (
+          <div className="flex items-center justify-between" style={{ color: '#15803d' }}><span>Discount</span><span>−{formatCents(discountCents)}</span></div>
+        )}
+        <div className="flex items-center justify-between font-bold pt-1"><span>{fulfillment === 'ship' ? 'Total before shipping/tax' : 'Total'}</span><span>{formatCents(Math.max(subtotal - discountCents, 0))}</span></div>
       </div>
 
       {/* Fulfillment */}
