@@ -629,6 +629,21 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       .limit(1)
     if (!existingProduct) await seedDemoShop(existing.id, new Date())
 
+    // Membership self-heal: seed plans (+ members for existing patients) once.
+    const [existingPlan] = await db
+      .select({ id: schema.membershipPlan.id })
+      .from(schema.membershipPlan)
+      .where(eq(schema.membershipPlan.organizationId, existing.id))
+      .limit(1)
+    if (!existingPlan) {
+      const memberPatients = await db
+        .select({ id: schema.patient.id })
+        .from(schema.patient)
+        .where(eq(schema.patient.organizationId, existing.id))
+        .limit(3)
+      await seedDemoMemberships(existing.id, new Date(), memberPatients.map((p) => p.id))
+    }
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -1128,6 +1143,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Shop: catalog of dental products + sample orders (pure inserts).
   await seedDemoShop(orgId, now, patientIds)
+
+  // Membership plans + members.
+  await seedDemoMemberships(orgId, now, patientIds)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to
@@ -2181,6 +2199,7 @@ async function seedDemoShop(orgId: string, now: Date, patientIds: string[] = [])
       shippingEnabled: 1,
       taxEnabled: 0,
       storefrontEnabled: 1,
+      membershipEnabled: 1,
       stripeAccountStatus: 'none',
     })
     .onConflictDoNothing({ target: schema.shopConfig.organizationId })
@@ -2354,4 +2373,75 @@ async function seedDemoShop(orgId: string, now: Date, patientIds: string[] = [])
     { id: `oi_${newId('x')}`, orderId: o2, organizationId: orgId, variantId: flosserVar, productName: 'Cordless Water Flosser', variantName: null, unitPriceCents: 5900, quantity: 1 },
     { id: `oi_${newId('x')}`, orderId: o3, organizationId: orgId, variantId: pensVar, productName: 'Whitening Touch-Up Pens (3-pack)', variantName: null, unitPriceCents: 2900, quantity: 1 },
   ])
+}
+
+// ── Membership plans + members (pure inserts) ───────────────────────────────
+// Memberships need a patient (NOT NULL FK), so members are seeded only for the
+// patientIds passed in. Plans seed regardless.
+async function seedDemoMemberships(orgId: string, now: Date, patientIds: string[]) {
+  const dayMs = 24 * 60 * 60 * 1000
+  const smileId = newId('mplan')
+  const liteId = newId('mplan')
+  await db.insert(schema.membershipPlan).values([
+    {
+      id: smileId,
+      organizationId: orgId,
+      name: 'Smile Club',
+      slug: 'smile-club',
+      description:
+        'No insurance? No problem. Your preventive care for one simple yearly fee — plus 15% off everything else. No deductibles, no claim forms, no waiting periods.',
+      billingInterval: 'annual',
+      priceCents: 39900,
+      benefits: [
+        { label: '2 cleanings per year', qty: 2 },
+        { label: '2 exams per year', qty: 2 },
+        { label: 'Routine X-rays' },
+        { label: '1 emergency visit', qty: 1 },
+      ],
+      discountPercent: 15,
+      status: 'active',
+      featured: 1,
+      position: 0,
+    },
+    {
+      id: liteId,
+      organizationId: orgId,
+      name: 'Smile Club Monthly',
+      slug: 'smile-club-monthly',
+      description: 'The same coverage, spread across the year.',
+      billingInterval: 'monthly',
+      priceCents: 3900,
+      benefits: [
+        { label: '2 cleanings per year', qty: 2 },
+        { label: '2 exams per year', qty: 2 },
+        { label: 'Routine X-rays' },
+      ],
+      discountPercent: 15,
+      status: 'active',
+      featured: 0,
+      position: 1,
+    },
+  ])
+
+  const members: Array<{ patientId: string | undefined; status: string; benefitsUsed: Record<string, number>; offset: number }> = [
+    { patientId: patientIds[0], status: 'active', benefitsUsed: { '2 cleanings per year': 1 } as Record<string, number>, offset: 250 },
+    { patientId: patientIds[1], status: 'active', benefitsUsed: {} as Record<string, number>, offset: 320 },
+    { patientId: patientIds[4], status: 'past_due', benefitsUsed: { '2 cleanings per year': 2, '2 exams per year': 1 } as Record<string, number>, offset: 12 },
+  ].filter((m) => Boolean(m.patientId))
+  if (members.length > 0) {
+    await db.insert(schema.membership).values(
+      members.map((m) => ({
+        id: newId('mem'),
+        organizationId: orgId,
+        planId: smileId,
+        patientId: m.patientId as string,
+        status: m.status,
+        stripeSubscriptionId: `sub_demo_${newId('x')}`,
+        benefitsUsed: m.benefitsUsed,
+        currentPeriodStart: new Date(now.getTime() - (365 - m.offset) * dayMs),
+        currentPeriodEnd: new Date(now.getTime() + m.offset * dayMs),
+        startedAt: new Date(now.getTime() - (365 - m.offset) * dayMs),
+      })),
+    )
+  }
 }

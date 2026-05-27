@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
+import { finalizeMembershipFromSession, handleSubscriptionEvent } from '@/lib/services/membership'
 
 /**
  * Webhook for CONNECTED-ACCOUNT events (registered separately in Stripe for
@@ -31,7 +32,17 @@ export async function POST(request: Request) {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object
       const orgId = session.metadata?.organizationId as string | undefined
-      if (orgId && session.id) await finalizeOrderFromSession(orgId, session.id as string)
+      if (orgId && session.id) {
+        // Subscriptions are membership joins; one-time payments are shop orders.
+        if (session.mode === 'subscription') await finalizeMembershipFromSession(orgId, session.id as string)
+        else await finalizeOrderFromSession(orgId, session.id as string)
+      }
+    } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+      const sub = event.data.object
+      const orgId = sub.metadata?.organizationId as string | undefined
+      if (orgId && sub.id) {
+        await handleSubscriptionEvent(orgId, sub.id as string, sub.status as string, (sub.current_period_end as number) ?? null)
+      }
     }
   } catch (err) {
     console.error('[stripe-connect webhook] handler error', err)

@@ -31,12 +31,13 @@ interface Props {
   products: ProductRow[]
   stats: ShopStats
   orderStats: OrderStatsView
+  membershipStats: { activeMembers: number; mrrCents: number }
   publicBase: string | null
   connectConfigured: boolean
   connectBanner: string | null
 }
 
-export default function ShopClient({ config, products, stats, orderStats, publicBase, connectConfigured, connectBanner }: Props) {
+export default function ShopClient({ config, products, stats, orderStats, membershipStats, publicBase, connectConfigured, connectBanner }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -144,9 +145,14 @@ export default function ShopClient({ config, products, stats, orderStats, public
             <Stat label="Paid orders" value={orderStats.paidCount} />
             <Stat label="Revenue" value={formatCents(orderStats.revenueCents)} tone={orderStats.revenueCents > 0 ? 'ok' : undefined} />
           </div>
-          <Link href="/shop/orders" className="inline-block mt-2 text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
-            View orders{orderStats.unfulfilledCount > 0 ? ` · ${orderStats.unfulfilledCount} to fulfill` : ''} →
-          </Link>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <Link href="/shop/orders" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
+              View orders{orderStats.unfulfilledCount > 0 ? ` · ${orderStats.unfulfilledCount} to fulfill` : ''} →
+            </Link>
+            <Link href="/shop/memberships" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
+              Membership plans{membershipStats.activeMembers > 0 ? ` · ${membershipStats.activeMembers} active (${formatCents(membershipStats.mrrCents)}/mo)` : ''} →
+            </Link>
+          </div>
         </div>
         <div className="rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 p-4">
           <p className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">Fulfillment &amp; storefront</p>
