@@ -1,34 +1,30 @@
 import { redirect } from 'next/navigation'
+import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
-import ComingSoon from '@/components/ui/coming-soon'
+import { db } from '@/lib/db'
+import { organization } from '@/lib/db/schema/auth'
+import { listJobs, listApplications, getApplicationCounts, getCareersStats } from '@/lib/services/careers'
+import CareersClient from './careers-client'
 
-export const metadata = {
-  title: 'Careers - DreamCRM',
-}
-
+export const metadata = { title: 'Careers - DreamCRM' }
 export const dynamic = 'force-dynamic'
 
 export default async function CareersPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+
+  const [jobs, applications, counts, stats, orgRow] = await Promise.all([
+    listJobs(ctx.organizationId),
+    listApplications(ctx.organizationId),
+    getApplicationCounts(ctx.organizationId),
+    getCareersStats(ctx.organizationId),
+    db.select({ slug: organization.slug }).from(organization).where(eq(organization.id, ctx.organizationId)).limit(1),
+  ])
+
+  const publicBase = orgRow[0] ? `/site/${orgRow[0].slug}/careers` : null
 
   return (
-    <ComingSoon
-      title="Careers Page"
-      phase="Phase 1 (website CMS)"
-      oneLiner="Post hygienist, assistant, and front-desk openings on your own site. Replace the $400/mo dental-jobs board with a built-in hiring page."
-      features={[
-        'Job postings with structured data so Google for Jobs indexes them',
-        'Application form with resume upload (Vercel Blob)',
-        'Reviewer workflow: new / phone-screen / interview / hired / passed',
-        'Per-role optional video pitch from the practice owner',
-        'Automatic share to Indeed + DentalPost via integrations (Phase 4)',
-      ]}
-      matching="DentalPost, Cloud Dentistry, ZipRecruiter — except those are paid job boards. Yours is a private hiring channel."
-      todayAlternative={{
-        label: 'Add team members under your clinic profile',
-        href: '/settings/clinic',
-      }}
-    />
+    <CareersClient jobs={jobs} applications={applications} counts={counts} stats={stats} publicBase={publicBase} />
   )
 }

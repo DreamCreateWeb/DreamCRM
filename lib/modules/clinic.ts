@@ -65,7 +65,7 @@ export const clinicModules: ModuleRegistry = {
     { id: 'website',           path: '/website',           label: 'Website Editor',   section: 'Website',  icon: 'globe',    status: 'live' },
     { id: 'blog',              path: '/blog',              label: 'Blog Posts',       section: 'Website',  icon: 'pen',      status: 'live', minPlan: 'pro' },
     { id: 'seo',               path: '/seo',               label: 'SEO',              section: 'Website',  icon: 'search',   status: 'live', minPlan: 'pro' },
-    { id: 'careers',           path: '/careers',           label: 'Careers',          section: 'Website',  icon: 'briefcase',status: 'soon', minPlan: 'premium' },
+    { id: 'careers',           path: '/careers',           label: 'Careers',          section: 'Website',  icon: 'briefcase',status: 'live', minPlan: 'premium' },
 
     // ── Business ───────────────────────────────────────────────────────
     { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'soon', minPlan: 'premium' },

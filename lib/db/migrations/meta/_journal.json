@@ -218,6 +218,13 @@
       "when": 1779850470710,
       "tag": "0030_conscious_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1779862920296,
+      "tag": "0031_powerful_zaladane",
+      "breakpoints": true
     }
   ]
 }
