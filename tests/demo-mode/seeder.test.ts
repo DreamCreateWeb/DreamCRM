@@ -34,6 +34,8 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.clinicProvider) return 'clinic_provider'
     if (t === schema.appointmentReminderLog) return 'appointment_reminder_log'
     if (t === schema.lead) return 'lead'
+    if (t === schema.jobPosting) return 'job_posting'
+    if (t === schema.jobApplication) return 'job_application'
     return 'unknown'
   }
   const chain = () => {
@@ -173,6 +175,8 @@ describe('createDemoClinic', () => {
     ])
     state.selectQueue.push([{ id: 'pat_1' }, { id: 'pat_2' }, { id: 'pat_3' }])
     state.selectQueue.push([{ id: 'appt_1' }])
+    // Careers self-heal: a job already exists → seed loop short-circuits.
+    state.selectQueue.push([{ id: 'job_existing' }])
 
     const out = await createDemoClinic()
 
@@ -387,6 +391,9 @@ describe('createDemoClinic', () => {
     // 6 curated leads: 3 new (fresh / aging / stale), 1 contacted, 1 converted
     // (linked to Emma Lopez, persona 6), 1 archived (spam example).
     expect(counts.lead).toBe(6)
+    // Careers: 2 open roles + 1 draft; 7 applicants across the pipeline.
+    expect(counts.job_posting).toBe(3)
+    expect(counts.job_application).toBe(7)
   })
 
   it('seeds logoUrl + heroImageUrl so the website-editor checklist reads "Set" on both', async () => {

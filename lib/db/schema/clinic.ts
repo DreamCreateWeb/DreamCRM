@@ -603,3 +603,76 @@ export const gscConnection = pgTable('gsc_connection', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 export type GscConnection = typeof gscConnection.$inferSelect
+
+// ── Careers: job postings on the clinic's own site (the trunk) ──────────────
+// Each open role renders on {slug}.../careers with JobPosting JSON-LD so
+// Google for Jobs + Indeed index it for free (no partner API needed).
+export const jobPosting = pgTable(
+  'job_posting',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    locationId: text('location_id').references(() => clinicLocation.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    slug: text('slug').notNull(),
+    // 'hygienist' | 'dental_assistant' | 'front_desk' | 'office_manager'
+    //   | 'associate_dentist' | 'treatment_coordinator' | 'other'
+    role: text('role').notNull().default('other'),
+    // 'full_time' | 'part_time' | 'contract' | 'temporary' | 'per_diem'
+    employmentType: text('employment_type').notNull().default('full_time'),
+    description: text('description').notNull().default(''),
+    responsibilities: text('responsibilities'),
+    requirements: text('requirements'),
+    benefits: text('benefits'),
+    // Optional compensation display, stored in cents.
+    compMinCents: integer('comp_min_cents'),
+    compMaxCents: integer('comp_max_cents'),
+    compPeriod: text('comp_period').notNull().default('hour'), // 'hour' | 'year'
+    showComp: integer('show_comp').notNull().default(1),
+    // 'draft' | 'open' | 'closed' | 'filled'
+    status: text('status').notNull().default('draft'),
+    // 'in_app' (apply form → job_application) | 'external' (externalApplyUrl)
+    applyMethod: text('apply_method').notNull().default('in_app'),
+    externalApplyUrl: text('external_apply_url'),
+    validThrough: timestamp('valid_through'), // JobPosting JSON-LD expiry
+    postedAt: timestamp('posted_at'),
+    closedAt: timestamp('closed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('job_posting_org_slug_idx').on(t.organizationId, t.slug),
+    index('job_posting_org_status_idx').on(t.organizationId, t.status),
+  ],
+)
+export type JobPosting = typeof jobPosting.$inferSelect
+
+export const jobApplication = pgTable(
+  'job_application',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    jobPostingId: text('job_posting_id').notNull().references(() => jobPosting.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    phone: text('phone'),
+    resumeUrl: text('resume_url'),
+    linkedinUrl: text('linkedin_url'),
+    coverNote: text('cover_note'),
+    // 'new' | 'reviewing' | 'interview' | 'offer' | 'hired' | 'rejected' | 'archived'
+    status: text('status').notNull().default('new'),
+    // 'career_site' | 'indeed' | 'referral' | 'manual'
+    source: text('source').notNull().default('career_site'),
+    rating: integer('rating'), // optional internal 1-5
+    reviewedAt: timestamp('reviewed_at'),
+    decidedAt: timestamp('decided_at'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('job_application_org_status_idx').on(t.organizationId, t.status),
+    index('job_application_job_idx').on(t.jobPostingId),
+  ],
+)
+export type JobApplication = typeof jobApplication.$inferSelect
