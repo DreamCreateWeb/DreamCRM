@@ -676,3 +676,223 @@ export const jobApplication = pgTable(
   ],
 )
 export type JobApplication = typeof jobApplication.$inferSelect
+
+// ── Shop: dental product retail + membership plans on the clinic's site ─────
+// Purpose-built dental commerce (separate from the generic Mosaic
+// products/orders tables). Revenue lands in the clinic's own Stripe via
+// Connect Standard — the platform only facilitates.
+
+// One commerce config per org: Stripe Connect account + fulfillment/tax toggles.
+export const shopConfig = pgTable('shop_config', {
+  organizationId: text('organization_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  stripeAccountId: text('stripe_account_id'),
+  // 'none' | 'pending' | 'active' | 'restricted'
+  stripeAccountStatus: text('stripe_account_status').notNull().default('none'),
+  chargesEnabled: integer('charges_enabled').notNull().default(0),
+  payoutsEnabled: integer('payouts_enabled').notNull().default(0),
+  pickupEnabled: integer('pickup_enabled').notNull().default(1),
+  shippingEnabled: integer('shipping_enabled').notNull().default(0),
+  flatShippingCents: integer('flat_shipping_cents'),
+  freeShippingThresholdCents: integer('free_shipping_threshold_cents'),
+  taxEnabled: integer('tax_enabled').notNull().default(0),
+  // Optional platform fee (basis points) skimmed via Connect application fee.
+  platformFeeBps: integer('platform_fee_bps').notNull().default(0),
+  currency: text('currency').notNull().default('usd'),
+  storefrontEnabled: integer('storefront_enabled').notNull().default(0),
+  membershipEnabled: integer('membership_enabled').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+export type ShopConfig = typeof shopConfig.$inferSelect
+
+export const shopProduct = pgTable(
+  'shop_product',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    description: text('description'),
+    // 'whitening' | 'brushes' | 'flossers' | 'kids' | 'merch' | 'other'
+    category: text('category').notNull().default('other'),
+    images: jsonb('images').$type<string[]>().notNull().default([]),
+    // 'draft' | 'active' | 'archived'
+    status: text('status').notNull().default('draft'),
+    // 'pickup' | 'ship' | 'both' — per-product fulfillment availability
+    fulfillment: text('fulfillment').notNull().default('both'),
+    fsaEligible: integer('fsa_eligible').notNull().default(0),
+    featured: integer('featured').notNull().default(0),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('shop_product_org_slug_idx').on(t.organizationId, t.slug),
+    index('shop_product_org_status_idx').on(t.organizationId, t.status),
+  ],
+)
+export type ShopProduct = typeof shopProduct.$inferSelect
+
+// Every product has >= 1 variant (a "Default" one when there are no options).
+// Price + inventory live here.
+export const shopProductVariant = pgTable(
+  'shop_product_variant',
+  {
+    id: text('id').primaryKey(),
+    productId: text('product_id').notNull().references(() => shopProduct.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull().default('Default'),
+    sku: text('sku'),
+    priceCents: integer('price_cents').notNull(),
+    compareAtCents: integer('compare_at_cents'),
+    // null = inventory not tracked (unlimited)
+    inventoryQty: integer('inventory_qty'),
+    options: jsonb('options').$type<Record<string, string>>().notNull().default({}),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('shop_variant_product_idx').on(t.productId)],
+)
+export type ShopProductVariant = typeof shopProductVariant.$inferSelect
+
+export const shopCoupon = pgTable(
+  'shop_coupon',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    code: text('code').notNull(),
+    // 'percent' | 'amount'
+    discountType: text('discount_type').notNull().default('percent'),
+    discountValue: integer('discount_value').notNull(), // percent (1-100) or cents
+    // Targeted coupons (e.g. birthday) bind to a patient; null = open code.
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    // 'manual' | 'birthday' | 'loyalty'
+    source: text('source').notNull().default('manual'),
+    singleUse: integer('single_use').notNull().default(1),
+    minSubtotalCents: integer('min_subtotal_cents'),
+    active: integer('active').notNull().default(1),
+    expiresAt: timestamp('expires_at'),
+    usedAt: timestamp('used_at'),
+    usedOrderId: text('used_order_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('shop_coupon_org_code_idx').on(t.organizationId, t.code)],
+)
+export type ShopCoupon = typeof shopCoupon.$inferSelect
+
+export const shopOrder = pgTable(
+  'shop_order',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    // Guest checkout allowed → patientId nullable; linked when email/phone matches.
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    email: text('email').notNull(),
+    name: text('name'),
+    phone: text('phone'),
+    // 'pickup' | 'ship'
+    fulfillmentType: text('fulfillment_type').notNull().default('pickup'),
+    shippingAddress: jsonb('shipping_address').$type<Record<string, string>>(),
+    // 'pending' | 'paid' | 'cancelled' | 'refunded'
+    status: text('status').notNull().default('pending'),
+    // 'unfulfilled' | 'ready_for_pickup' | 'picked_up' | 'shipped' | 'delivered'
+    fulfillmentStatus: text('fulfillment_status').notNull().default('unfulfilled'),
+    subtotalCents: integer('subtotal_cents').notNull().default(0),
+    shippingCents: integer('shipping_cents').notNull().default(0),
+    taxCents: integer('tax_cents').notNull().default(0),
+    discountCents: integer('discount_cents').notNull().default(0),
+    totalCents: integer('total_cents').notNull().default(0),
+    couponId: text('coupon_id').references(() => shopCoupon.id, { onDelete: 'set null' }),
+    stripeCheckoutSessionId: text('stripe_checkout_session_id'),
+    stripePaymentIntentId: text('stripe_payment_intent_id'),
+    trackingNumber: text('tracking_number'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    paidAt: timestamp('paid_at'),
+    fulfilledAt: timestamp('fulfilled_at'),
+    cancelledAt: timestamp('cancelled_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('shop_order_org_status_idx').on(t.organizationId, t.status),
+    index('shop_order_patient_idx').on(t.patientId),
+  ],
+)
+export type ShopOrder = typeof shopOrder.$inferSelect
+
+export const shopOrderItem = pgTable(
+  'shop_order_item',
+  {
+    id: text('id').primaryKey(),
+    orderId: text('order_id').notNull().references(() => shopOrder.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    variantId: text('variant_id'), // snapshot pointer — variant may be deleted later
+    productName: text('product_name').notNull(),
+    variantName: text('variant_name'),
+    sku: text('sku'),
+    unitPriceCents: integer('unit_price_cents').notNull(),
+    quantity: integer('quantity').notNull().default(1),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('shop_order_item_order_idx').on(t.orderId)],
+)
+export type ShopOrderItem = typeof shopOrderItem.$inferSelect
+
+// ── Membership plans (recurring, cash-pay alternative to insurance) ─────────
+export const membershipPlan = pgTable(
+  'membership_plan',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    description: text('description'),
+    // 'monthly' | 'annual'
+    billingInterval: text('billing_interval').notNull().default('annual'),
+    priceCents: integer('price_cents').notNull(),
+    // [{ label: '2 cleanings / yr', qty: 2 }, { label: '2 exams / yr', qty: 2 }, …]
+    benefits: jsonb('benefits').$type<Array<{ label: string; qty?: number }>>().notNull().default([]),
+    discountPercent: integer('discount_percent').notNull().default(0), // % off other treatment
+    stripeProductId: text('stripe_product_id'),
+    stripePriceId: text('stripe_price_id'),
+    // 'draft' | 'active' | 'archived'
+    status: text('status').notNull().default('draft'),
+    featured: integer('featured').notNull().default(0),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('membership_plan_org_slug_idx').on(t.organizationId, t.slug)],
+)
+export type MembershipPlan = typeof membershipPlan.$inferSelect
+
+// A patient's enrollment in a plan.
+export const membership = pgTable(
+  'membership',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    planId: text('plan_id').notNull().references(() => membershipPlan.id, { onDelete: 'restrict' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    // 'pending' | 'active' | 'past_due' | 'cancelled'
+    status: text('status').notNull().default('pending'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    // Benefit redemption this period, e.g. { cleanings: 1 }
+    benefitsUsed: jsonb('benefits_used').$type<Record<string, number>>().notNull().default({}),
+    currentPeriodStart: timestamp('current_period_start'),
+    currentPeriodEnd: timestamp('current_period_end'),
+    startedAt: timestamp('started_at'),
+    cancelledAt: timestamp('cancelled_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('membership_org_status_idx').on(t.organizationId, t.status),
+    index('membership_patient_idx').on(t.patientId),
+  ],
+)
+export type Membership = typeof membership.$inferSelect
