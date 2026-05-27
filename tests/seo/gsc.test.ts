@@ -19,7 +19,7 @@ vi.mock('@/lib/crypto', () => ({
   decryptSecret: (s: string) => s.replace(/^enc:/, ''),
 }))
 
-import { getGscAuthUrl, getGscPerformance, gscOAuthConfigured } from '@/lib/services/gsc'
+import { getGscAuthUrl, getGscPerformance, getClinicSeoPerformance, gscOAuthConfigured } from '@/lib/services/gsc'
 
 beforeEach(() => {
   state.selectQueue.length = 0
@@ -77,5 +77,60 @@ describe('getGscPerformance', () => {
     expect(out?.topQueries).toHaveLength(1)
     expect(out?.topQueries[0].query).toBe('dentist near me')
     vi.unstubAllGlobals()
+  })
+})
+
+describe('getClinicSeoPerformance (shared platform connection, scoped per clinic)', () => {
+  function jsonResponse(obj: unknown) {
+    return { ok: true, json: async () => obj, text: async () => JSON.stringify(obj) } as Response
+  }
+
+  it('reads the platform connection scoped to the clinic pages via a page filter', async () => {
+    state.selectQueue.push([{ id: 'org_platform' }]) // getPlatformOrgId
+    state.selectQueue.push([{ status: 'connected', siteUrl: 'sc-domain:dreamcreatestudio.com' }]) // platform conn view
+    state.selectQueue.push([{ slug: 'acme-dental-demo' }]) // clinic org slug
+    state.selectQueue.push([{ websiteDomain: null }]) // clinic profile (no custom domain)
+    state.selectQueue.push([
+      { accessToken: 'tok', accessExpiresAt: new Date(Date.now() + 3_600_000), refreshTokenEncrypted: 'enc:r' },
+    ]) // platform token
+
+    const bodies: Array<Record<string, any>> = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string)
+      bodies.push(body)
+      if (body.dimensions?.includes('query')) return jsonResponse({ rows: [] })
+      return jsonResponse({ rows: [{ clicks: 7, impressions: 70, ctr: 0.1, position: 4 }] })
+    })
+
+    const out = await getClinicSeoPerformance('org_acme', 28)
+    expect(out.platformConnected).toBe(true)
+    expect(out.customDomain).toBe(false)
+    expect(out.perf?.clicks).toBe(7)
+    expect(out.scopeLabel).toBe('/site/acme-dental-demo')
+
+    const totals = bodies.find((b) => !b.dimensions)!
+    expect(totals.dimensionFilterGroups[0].filters[0].dimension).toBe('page')
+    expect(totals.dimensionFilterGroups[0].filters[0].operator).toBe('contains')
+    expect(totals.dimensionFilterGroups[0].filters[0].expression).toBe('/site/acme-dental-demo')
+    vi.unstubAllGlobals()
+  })
+
+  it('reports not-connected when the platform has not connected Search Console', async () => {
+    state.selectQueue.push([{ id: 'org_platform' }]) // getPlatformOrgId
+    state.selectQueue.push([]) // getGscConnectionView → no row
+    const out = await getClinicSeoPerformance('org_acme')
+    expect(out.platformConnected).toBe(false)
+    expect(out.perf).toBeNull()
+  })
+
+  it('flags custom-domain clinics (not covered by the shared property)', async () => {
+    state.selectQueue.push([{ id: 'org_platform' }])
+    state.selectQueue.push([{ status: 'connected', siteUrl: 'sc-domain:dreamcreatestudio.com' }])
+    state.selectQueue.push([{ slug: 'smileco' }])
+    state.selectQueue.push([{ websiteDomain: 'smileco.com' }])
+    const out = await getClinicSeoPerformance('org_smileco')
+    expect(out.customDomain).toBe(true)
+    expect(out.platformConnected).toBe(true)
+    expect(out.perf).toBeNull()
   })
 })

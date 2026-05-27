@@ -2,12 +2,20 @@ import 'server-only'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { gscConnection } from '@/lib/db/schema/clinic'
+import { organization } from '@/lib/db/schema/auth'
+import { clinicProfile } from '@/lib/db/schema/platform'
 import { encryptSecret, decryptSecret } from '@/lib/crypto'
 
 /**
- * Google Search Console OAuth + API. User-delegated (each clinic connects
- * their OWN verified property) — mirrors the Gmail integration. Talks to
- * Google directly via fetch; no SDK. Read-only scope.
+ * Google Search Console OAuth + API. Talks to Google directly via fetch; no
+ * SDK. Read-only scope.
+ *
+ * Connection model: the platform connects ONCE with a Domain property
+ * (`sc-domain:dreamcreatestudio.com`), which covers the apex + www + every
+ * `*.dreamcreatestudio.com` clinic subdomain. Each clinic's SEO tab then
+ * reads that single shared connection, scoped to its own pages via a `page`
+ * filter — clinics connect nothing. Custom-domain clinics aren't covered by
+ * the shared property (future: their own connection).
  */
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -171,23 +179,30 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-/** Search-analytics totals + top queries for the connected property. Returns
- * null when no property is selected. Note: GSC data lags ~2-3 days. */
-export async function getGscPerformance(organizationId: string, days = 28): Promise<GscPerformance | null> {
-  const view = await getGscConnectionView(organizationId)
-  if (!view.connected || !view.siteUrl) return null
-  const token = await getGscAccessToken(organizationId)
+/** Internal: search-analytics totals + top queries for a connection
+ * (`tokenOrgId` owns the OAuth tokens) against `siteUrl`, optionally scoped to
+ * a subset of pages via a `page contains` filter. GSC data lags ~2-3 days. */
+async function queryGscPerformance(
+  tokenOrgId: string,
+  siteUrl: string,
+  days: number,
+  pageFilter: string | null,
+): Promise<GscPerformance> {
+  const token = await getGscAccessToken(tokenOrgId)
   const endDate = ymd(new Date())
   const startDate = ymd(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
-  const base = `${WEBMASTERS_API}/sites/${encodeURIComponent(view.siteUrl)}/searchAnalytics/query`
+  const base = `${WEBMASTERS_API}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  const filter = pageFilter
+    ? { dimensionFilterGroups: [{ filters: [{ dimension: 'page', operator: 'contains', expression: pageFilter }] }] }
+    : {}
 
   const [totalsRes, queriesRes] = await Promise.all([
-    fetch(base, { method: 'POST', headers, body: JSON.stringify({ startDate, endDate }) }),
+    fetch(base, { method: 'POST', headers, body: JSON.stringify({ startDate, endDate, ...filter }) }),
     fetch(base, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ startDate, endDate, dimensions: ['query'], rowLimit: 10 }),
+      body: JSON.stringify({ startDate, endDate, dimensions: ['query'], rowLimit: 10, ...filter }),
     }),
   ])
   if (!totalsRes.ok) throw new Error(`GSC query failed: ${totalsRes.status}`)
@@ -208,4 +223,66 @@ export async function getGscPerformance(organizationId: string, days = 28): Prom
       position: r.position,
     })),
   }
+}
+
+/** Whole-property performance for an org's own connection (platform manage view). */
+export async function getGscPerformance(organizationId: string, days = 28): Promise<GscPerformance | null> {
+  const view = await getGscConnectionView(organizationId)
+  if (!view.connected || !view.siteUrl) return null
+  return queryGscPerformance(organizationId, view.siteUrl, days, null)
+}
+
+/** The single platform org that owns the shared Search Console connection. */
+export async function getPlatformOrgId(): Promise<string | null> {
+  const [org] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.type, 'platform'))
+    .limit(1)
+  return org?.id ?? null
+}
+
+/** The `page contains` substring scoping the shared domain property to one
+ * clinic. Path-based sites match `/site/<slug>`; subdomain sites match
+ * `<slug>.`. Custom-domain clinics aren't covered (handled by the caller). */
+function clinicPageFilter(slug: string): string {
+  return process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN === 'true' ? `${slug}.` : `/site/${slug}`
+}
+
+export interface ClinicSeoResult {
+  perf: GscPerformance | null
+  platformConnected: boolean
+  customDomain: boolean
+  scopeLabel: string | null
+}
+
+/** Zero-config per-clinic SEO: read the platform's shared Search Console
+ * connection, scoped to this clinic's pages. The clinic connects nothing. */
+export async function getClinicSeoPerformance(clinicOrgId: string, days = 28): Promise<ClinicSeoResult> {
+  const empty = { perf: null, platformConnected: false, customDomain: false, scopeLabel: null }
+  const platformOrgId = await getPlatformOrgId()
+  if (!platformOrgId) return empty
+  const view = await getGscConnectionView(platformOrgId)
+  if (!view.connected || !view.siteUrl) return empty
+
+  const [org] = await db
+    .select({ slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, clinicOrgId))
+    .limit(1)
+  const [profile] = await db
+    .select({ websiteDomain: clinicProfile.websiteDomain })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, clinicOrgId))
+    .limit(1)
+
+  // Custom-domain clinics live outside dreamcreatestudio.com → the shared
+  // property has no data for them.
+  if (profile?.websiteDomain) {
+    return { perf: null, platformConnected: true, customDomain: true, scopeLabel: profile.websiteDomain }
+  }
+
+  const pageFilter = clinicPageFilter(org?.slug ?? '')
+  const perf = await queryGscPerformance(platformOrgId, view.siteUrl, days, pageFilter)
+  return { perf, platformConnected: true, customDomain: false, scopeLabel: pageFilter }
 }
