@@ -3,13 +3,18 @@ import { requireTenant } from '@/lib/auth/context'
 import { exchangeCodeForTokens, saveConnectedAccount } from '@/lib/services/gmail'
 import { registerWatch, syncAccount } from '@/lib/services/mailbox'
 
+// Behind App Runner, req.url resolves to the container's internal bind host
+// (0.0.0.0) — never use it for browser-facing redirects. Use the public origin.
+function appBase(req: NextRequest): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
+}
+
 function redirectUri(req: NextRequest): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
-  return `${base}/api/oauth/gmail/callback`
+  return `${appBase(req)}/api/oauth/gmail/callback`
 }
 
 function errorRedirect(req: NextRequest, message: string): NextResponse {
-  const url = new URL('/inbox/settings', req.url)
+  const url = new URL('/inbox/settings', appBase(req))
   url.searchParams.set('error', message)
   return NextResponse.redirect(url)
 }
@@ -80,7 +85,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const url = new URL('/inbox/settings', req.url)
+  const url = new URL('/inbox/settings', appBase(req))
   url.searchParams.set('connected', saved.emailAddress)
   const res = NextResponse.redirect(url)
   res.cookies.delete('gmail_oauth_state')

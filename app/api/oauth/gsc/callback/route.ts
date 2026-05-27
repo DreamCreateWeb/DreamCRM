@@ -3,13 +3,18 @@ import { requireTenant } from '@/lib/auth/context'
 import { exchangeCodeForTokens } from '@/lib/services/gmail'
 import { saveGscConnection, listGscSites, setGscSite } from '@/lib/services/gsc'
 
+// Behind App Runner, req.url resolves to the container's internal bind host
+// (0.0.0.0) — never use it for browser-facing redirects. Use the public origin.
+function appBase(req: NextRequest): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
+}
+
 function redirectUri(req: NextRequest): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
-  return `${base}/api/oauth/gsc/callback`
+  return `${appBase(req)}/api/oauth/gsc/callback`
 }
 
 function backTo(req: NextRequest, params: Record<string, string>): NextResponse {
-  const url = new URL('/seo', req.url)
+  const url = new URL('/seo', appBase(req))
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   const res = NextResponse.redirect(url)
   res.cookies.delete('gsc_oauth_state')
