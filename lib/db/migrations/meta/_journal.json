@@ -225,6 +225,13 @@
       "when": 1779862920296,
       "tag": "0031_powerful_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1779890585424,
+      "tag": "0032_clammy_ultimates",
+      "breakpoints": true
     }
   ]
 }
