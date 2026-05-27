@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/context'
 import { exchangeCodeForTokens } from '@/lib/services/gmail'
-import { saveGscConnection, listGscSites, setGscSite } from '@/lib/services/gsc'
+import { saveGscConnection, listGscSites, setGscSite, getPlatformOrgId } from '@/lib/services/gsc'
 
 // Behind App Runner, req.url resolves to the container's internal bind host
 // (0.0.0.0) — never use it for browser-facing redirects. Use the public origin.
@@ -41,24 +41,27 @@ export async function GET(req: NextRequest) {
   }
 
   const ctx = await requireTenant()
-  if (ctx.organizationId !== decoded.orgId) {
-    return backTo(req, { gscError: 'Active organization changed during the connection' })
+  if (!ctx.platformAdmin) {
+    return backTo(req, { gscError: 'Only the platform admin can connect Search Console' })
   }
-  if (ctx.tenantType !== 'clinic') {
-    return backTo(req, { gscError: 'Only clinic accounts can connect Search Console' })
+  // The connection is owned by the platform org (shared across all clinics).
+  // Confirm the state's target still resolves to it.
+  const targetOrgId = await getPlatformOrgId()
+  if (!targetOrgId || decoded.orgId !== targetOrgId) {
+    return backTo(req, { gscError: 'Connection target mismatch — please try again' })
   }
 
   try {
     const tokens = await exchangeCodeForTokens(code, redirectUri(req))
-    await saveGscConnection({ organizationId: ctx.organizationId, connectedByUserId: ctx.userId, tokens })
+    await saveGscConnection({ organizationId: targetOrgId, connectedByUserId: ctx.userId, tokens })
   } catch (err) {
     return backTo(req, { gscError: (err as Error).message })
   }
 
   // Auto-select the property when the account has exactly one verified site.
   try {
-    const sites = await listGscSites(ctx.organizationId)
-    if (sites.length === 1) await setGscSite(ctx.organizationId, sites[0].siteUrl)
+    const sites = await listGscSites(targetOrgId)
+    if (sites.length === 1) await setGscSite(targetOrgId, sites[0].siteUrl)
   } catch (err) {
     console.warn('[gsc.callback] site list/auto-select failed', err)
   }

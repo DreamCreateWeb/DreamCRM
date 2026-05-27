@@ -27,7 +27,12 @@ vi.mock('@/lib/services/patients', () => ({
   listPatients: vi.fn(async () => [{ recallStatus: 'due' }, { recallStatus: 'overdue' }, { recallStatus: 'na' }]),
 }))
 vi.mock('@/lib/services/gsc', () => ({
-  getGscPerformance: vi.fn(async () => ({ clicks: 120, impressions: 0, ctr: 0, position: 0, topQueries: [] })),
+  getClinicSeoPerformance: vi.fn(async () => ({
+    perf: { clicks: 120, impressions: 0, ctr: 0, position: 0, topQueries: [] },
+    platformConnected: true,
+    customDomain: false,
+    scopeLabel: '/site/acme',
+  })),
 }))
 
 import { getClinicAnalytics, weeklyTrend } from '@/lib/services/analytics'

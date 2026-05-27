@@ -3,7 +3,7 @@ import { and, count, eq, gte, inArray, isNotNull, lt, lte, ne, sql } from 'drizz
 import { db, schema } from '@/lib/db'
 import { getReviewStats } from '@/lib/services/reviews'
 import { listPatients } from '@/lib/services/patients'
-import { getGscPerformance } from '@/lib/services/gsc'
+import { getClinicSeoPerformance } from '@/lib/services/gsc'
 
 /**
  * Clinic Analytics. The honest split: a CRM can measure the *relationship,
@@ -131,10 +131,12 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
   const leadsContacted = leadRows.filter((l) => l.contactedAt || l.status === 'contacted' || l.status === 'converted').length
   const leadsConverted = leadRows.filter((l) => l.status === 'converted' || l.convertedAt).length
 
+  // Clinics read the platform's shared Search Console connection, scoped to
+  // their own pages — they connect nothing. (Matches the SEO tab.)
   let gscClicks: number | null = null
   try {
-    const perf = await getGscPerformance(organizationId, windowDays)
-    gscClicks = perf ? perf.clicks : null
+    const res = await getClinicSeoPerformance(organizationId, windowDays)
+    gscClicks = res.perf ? res.perf.clicks : null
   } catch {
     gscClicks = null
   }
