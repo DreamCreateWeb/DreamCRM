@@ -46,6 +46,7 @@ const WRITE_PILL: Record<WriteOpStatus, string> = {
   pending: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
   success: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
   error: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+  skipped: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
 }
 
 function fmtRelative(d: Date | null): string {

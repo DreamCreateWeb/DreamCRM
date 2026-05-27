@@ -2,7 +2,7 @@ import 'server-only'
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
-import { queueAppointmentWriteBack } from '@/lib/services/pms'
+import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack } from '@/lib/services/pms'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -742,6 +742,8 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
     status: 'cancelled',
     cancelledAt: new Date(),
   })
+  // Two-way PMS: cancel it in the PMS too, so the old slot stops reminding.
+  await queueAppointmentStatusWriteBack(organizationId, appointmentId, 'cancelled')
 }
 
 export async function markNoShow(organizationId: string, appointmentId: string) {
@@ -749,6 +751,7 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
     status: 'no_show',
     noShowedAt: new Date(),
   })
+  await queueAppointmentStatusWriteBack(organizationId, appointmentId, 'no_show')
 }
 
 export async function markCompleted(organizationId: string, appointmentId: string) {
@@ -813,7 +816,9 @@ export async function rescheduleAppointment(input: RescheduleInput) {
     })
     .where(eq(schema.appointment.id, input.appointmentId))
 
-  // Two-way PMS: the rescheduled slot is a new DreamCRM-originated booking.
+  // Two-way PMS: cancel the original in the PMS (so the old time stops
+  // reminding), then push the new slot as a fresh booking.
+  await queueAppointmentStatusWriteBack(input.organizationId, input.appointmentId, 'cancelled')
   await queueAppointmentWriteBack(input.organizationId, newId)
   return newId
 }

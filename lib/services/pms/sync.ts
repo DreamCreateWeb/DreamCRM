@@ -429,6 +429,80 @@ export async function queueAppointmentWriteBack(organizationId: string, appointm
   }
 }
 
+/**
+ * Queue a status change (cancellation / no-show) to push to the PMS for an
+ * appointment that already exists there — so a cancel on our side cancels it in
+ * the PMS too (the #1 clinic complaint: reminders to already-cancelled
+ * patients). If the appointment was created in DreamCRM but its create-write
+ * hasn't flushed yet, supersede that pending create instead, so we never push
+ * an appointment that's already cancelled. Best-effort + idempotent; no-op
+ * unless two-way connected.
+ */
+export async function queueAppointmentStatusWriteBack(
+  organizationId: string,
+  appointmentId: string,
+  status: 'cancelled' | 'no_show' | 'completed',
+): Promise<void> {
+  try {
+    const conn = await getPmsConnection(organizationId)
+    if (!conn || conn.status !== 'connected' || conn.syncDirection !== 'two_way') return
+
+    const externalId = await mapInternalToExternal(organizationId, 'appointment', appointmentId)
+    if (externalId) {
+      const [dup] = await db
+        .select({ id: schema.pmsWriteOp.id })
+        .from(schema.pmsWriteOp)
+        .where(
+          and(
+            eq(schema.pmsWriteOp.organizationId, organizationId),
+            eq(schema.pmsWriteOp.entityType, 'appointment'),
+            eq(schema.pmsWriteOp.internalId, appointmentId),
+            eq(schema.pmsWriteOp.operation, 'update'),
+            eq(schema.pmsWriteOp.status, 'pending'),
+          ),
+        )
+        .limit(1)
+      if (dup) return
+      await db.insert(schema.pmsWriteOp).values({
+        id: randomUUID(),
+        organizationId,
+        entityType: 'appointment',
+        internalId: appointmentId,
+        operation: 'update',
+        status: 'pending',
+        attempts: 0,
+        requestPayload: { status },
+      })
+      return
+    }
+
+    // Not yet in the PMS — supersede a queued create so we don't push a dead appt.
+    if (status === 'cancelled' || status === 'no_show') {
+      const [createOp] = await db
+        .select({ id: schema.pmsWriteOp.id })
+        .from(schema.pmsWriteOp)
+        .where(
+          and(
+            eq(schema.pmsWriteOp.organizationId, organizationId),
+            eq(schema.pmsWriteOp.entityType, 'appointment'),
+            eq(schema.pmsWriteOp.internalId, appointmentId),
+            eq(schema.pmsWriteOp.operation, 'create'),
+            eq(schema.pmsWriteOp.status, 'pending'),
+          ),
+        )
+        .limit(1)
+      if (createOp) {
+        await db
+          .update(schema.pmsWriteOp)
+          .set({ status: 'skipped', error: 'Superseded by cancellation before sync', completedAt: new Date() })
+          .where(eq(schema.pmsWriteOp.id, createOp.id))
+      }
+    }
+  } catch {
+    // Best-effort: never block a cancellation on PMS write-back.
+  }
+}
+
 const MAX_WRITE_ATTEMPTS = 6
 
 export async function retryPendingWrites(organizationId: string, client: PmsProviderClient): Promise<void> {
@@ -445,7 +519,35 @@ export async function retryPendingWrites(organizationId: string, client: PmsProv
     .limit(100)
   for (const op of ops) {
     if (op.attempts >= MAX_WRITE_ATTEMPTS) continue
-    await processAppointmentWriteOp(organizationId, client, op)
+    if (op.operation === 'update') await processAppointmentUpdateOp(organizationId, client, op)
+    else await processAppointmentWriteOp(organizationId, client, op)
+  }
+}
+
+// Push a cancellation/no-show status change to an already-mapped appointment.
+async function processAppointmentUpdateOp(
+  organizationId: string,
+  client: PmsProviderClient,
+  op: typeof schema.pmsWriteOp.$inferSelect,
+) {
+  try {
+    const externalId = await mapInternalToExternal(organizationId, 'appointment', op.internalId)
+    if (!externalId) {
+      await failOp(op.id, op.attempts + 1, 'Appointment is not linked in the PMS')
+      return
+    }
+    const status = ((op.requestPayload as { status?: string } | null)?.status ?? 'cancelled') as
+      | 'cancelled'
+      | 'no_show'
+      | 'completed'
+    await db.update(schema.pmsWriteOp).set({ attempts: op.attempts + 1, externalId }).where(eq(schema.pmsWriteOp.id, op.id))
+    await client.updateAppointment(externalId, { status })
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ status: 'success', externalId, error: null, completedAt: new Date() })
+      .where(eq(schema.pmsWriteOp.id, op.id))
+  } catch (e) {
+    await failOp(op.id, op.attempts + 1, (e as Error).message)
   }
 }
 

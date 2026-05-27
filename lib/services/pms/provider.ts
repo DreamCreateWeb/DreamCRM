@@ -60,6 +60,12 @@ export interface CreateAppointmentPayload {
   note?: string | null
 }
 
+// A status change pushed back to the PMS (Phase 1: cancellations). We push
+// only status — reschedules are modeled as cancel-original + create-new.
+export interface AppointmentStatusChange {
+  status: 'cancelled' | 'no_show' | 'completed'
+}
+
 export interface PmsTestResult {
   ok: boolean
   practiceTitle?: string
@@ -85,4 +91,6 @@ export interface PmsProviderClient {
   listAppointments(opts?: { since?: Date }): Promise<NormalizedAppointment[]>
   createPatient(payload: CreatePatientPayload): Promise<PmsWriteResult>
   createAppointment(payload: CreateAppointmentPayload): Promise<PmsWriteResult>
+  /** Push a status change for an existing PMS appointment (cancel/no-show). */
+  updateAppointment(externalId: string, changes: AppointmentStatusChange): Promise<void>
 }

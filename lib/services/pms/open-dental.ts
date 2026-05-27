@@ -9,6 +9,7 @@ import type {
   NormalizedProvider,
   CreatePatientPayload,
   CreateAppointmentPayload,
+  AppointmentStatusChange,
 } from './provider'
 
 /**
@@ -44,6 +45,12 @@ function mapAptStatus(raw: unknown): NormalizedAppointment['status'] {
   if (s === 'complete' || s === '2') return 'completed'
   if (s === 'broken' || s === '5') return 'cancelled'
   return 'scheduled'
+}
+
+// Our status → Open Dental AptStatus for write-back. cancelled + no_show both
+// become a "Broken" appointment (OD's representation); completed → Complete.
+function statusToAptStatus(status: AppointmentStatusChange['status']): string {
+  return status === 'completed' ? 'Complete' : 'Broken'
 }
 
 function dollarsToCents(v: unknown): number | null {
@@ -270,5 +277,14 @@ export class OpenDentalProvider implements PmsProviderClient {
     if (payload.note) body.Note = payload.note
     const res = await this.req<{ AptNum: number }>('POST', '/appointments', body)
     return { externalId: String(res.AptNum), raw: res as unknown as Record<string, unknown> }
+  }
+
+  // Push a status change (cancellation/no-show) to an existing OD appointment.
+  // Verified: PUT /appointments/{AptNum} { AptStatus: 'Broken' } → 200.
+  async updateAppointment(externalId: string, changes: AppointmentStatusChange): Promise<void> {
+    const body: Record<string, unknown> = {}
+    if (changes.status) body.AptStatus = statusToAptStatus(changes.status)
+    if (Object.keys(body).length === 0) return
+    await this.req('PUT', `/appointments/${encodeURIComponent(externalId)}`, body)
   }
 }

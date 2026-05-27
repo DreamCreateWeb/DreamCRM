@@ -11,6 +11,7 @@ import type {
   NormalizedProvider,
   CreateAppointmentPayload,
   CreatePatientPayload,
+  AppointmentStatusChange,
 } from './provider'
 
 /**
@@ -116,5 +117,9 @@ export class DemoProvider implements PmsProviderClient {
 
   async createAppointment(_payload: CreateAppointmentPayload): Promise<PmsWriteResult> {
     return { externalId: `od-sbx-apt-${randomUUID().slice(0, 8)}` }
+  }
+
+  async updateAppointment(_externalId: string, _changes: AppointmentStatusChange): Promise<void> {
+    // Sandbox — no real PMS to update; the write-back op just flips to success.
   }
 }

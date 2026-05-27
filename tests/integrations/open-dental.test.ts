@@ -186,4 +186,25 @@ describe('OpenDentalProvider writes (sanctioned API)', () => {
     expect(body.AptDateTime).toBe('2026-07-01 09:00:00')
     expect(body.Op).toBe(2)
   })
+
+  it('PUTs a cancellation (AptStatus=Broken) to an existing appointment', async () => {
+    const f = mockFetch({ AptNum: 57, AptStatus: 'Broken' })
+    vi.stubGlobal('fetch', f)
+    await new OpenDentalProvider('k').updateAppointment('57', { status: 'cancelled' })
+    const url = f.mock.calls[0][0] as string
+    const init = f.mock.calls[0][1] as RequestInit
+    expect(init.method).toBe('PUT')
+    expect(url).toContain('/appointments/57')
+    expect(JSON.parse(init.body as string).AptStatus).toBe('Broken')
+  })
+
+  it('maps no_show → Broken and completed → Complete on update', async () => {
+    const f = mockFetch({})
+    vi.stubGlobal('fetch', f)
+    const od = new OpenDentalProvider('k')
+    await od.updateAppointment('1', { status: 'no_show' })
+    await od.updateAppointment('2', { status: 'completed' })
+    expect(JSON.parse((f.mock.calls[0][1] as RequestInit).body as string).AptStatus).toBe('Broken')
+    expect(JSON.parse((f.mock.calls[1][1] as RequestInit).body as string).AptStatus).toBe('Complete')
+  })
 })

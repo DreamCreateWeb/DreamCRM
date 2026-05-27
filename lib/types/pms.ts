@@ -20,7 +20,7 @@ export type PmsProviderId =
 export type PmsConnectionStatus = 'not_connected' | 'connected' | 'error'
 export type SyncDirection = 'import' | 'two_way'
 export type SyncRunStatus = 'running' | 'success' | 'partial' | 'error'
-export type WriteOpStatus = 'pending' | 'success' | 'error'
+export type WriteOpStatus = 'pending' | 'success' | 'error' | 'skipped'
 export type WriteOpOperation = 'create' | 'update'
 export type PmsEntityType = 'patient' | 'appointment' | 'provider'
 
@@ -116,6 +116,7 @@ export const WRITE_OP_STATUS_LABELS: Record<WriteOpStatus, string> = {
   pending: 'Queued',
   success: 'Written to PMS',
   error: 'Failed',
+  skipped: 'Skipped',
 }
 
 export const ENTITY_LABELS: Record<PmsEntityType, string> = {

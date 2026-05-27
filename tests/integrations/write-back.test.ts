@@ -70,7 +70,7 @@ vi.mock('@/lib/db', () => {
   return { db: makeDb(), schema }
 })
 
-import { queueAppointmentWriteBack, retryPendingWrites } from '@/lib/services/pms/sync'
+import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack, retryPendingWrites } from '@/lib/services/pms/sync'
 
 function queue(table: string, ...results: Row[][]) {
   ;(state.selects[table] ??= []).push(...results)
@@ -87,6 +87,7 @@ function makeFakeClient() {
     listAppointments: vi.fn(async () => []),
     createPatient: vi.fn(async (_p: unknown) => ({ externalId: 'od-pat-X' })),
     createAppointment: vi.fn(async (_p: unknown) => ({ externalId: 'od-apt-X' })),
+    updateAppointment: vi.fn(async (_e: unknown, _c: unknown) => {}),
   }
 }
 // Cast the mock to the provider-client param type only at the call boundary,
@@ -193,5 +194,52 @@ describe('retryPendingWrites — pushing into the PMS', () => {
     queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'error', attempts: 6 }])
     await retryPendingWrites('org1', asClient(client))
     expect(client.createAppointment).not.toHaveBeenCalled()
+  })
+
+  it('flushes an update op via client.updateAppointment', async () => {
+    const client = makeFakeClient()
+    queue('pmsWriteOp', [
+      { id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', operation: 'update', status: 'pending', attempts: 0, requestPayload: { status: 'cancelled' } },
+    ])
+    queue('pmsEntityMap', [{ externalId: 'od-apt-1' }]) // appt is mapped
+
+    await retryPendingWrites('org1', asClient(client))
+
+    expect(client.createAppointment).not.toHaveBeenCalled()
+    expect(client.updateAppointment).toHaveBeenCalledTimes(1)
+    expect(client.updateAppointment.mock.calls[0][0]).toBe('od-apt-1')
+    expect((client.updateAppointment.mock.calls[0][1] as { status: string }).status).toBe('cancelled')
+    expect(state.updates.some((u) => u.table === 'pmsWriteOp' && u.set.status === 'success')).toBe(true)
+  })
+})
+
+describe('queueAppointmentStatusWriteBack — cancellation', () => {
+  it('enqueues an update op when the appointment is already mapped', async () => {
+    queue('pmsConnection', [{ provider: 'open_dental', status: 'connected', syncDirection: 'two_way' }])
+    queue('pmsEntityMap', [{ externalId: 'od-apt-1' }]) // mapped
+    queue('pmsWriteOp', []) // no dup pending update
+    await queueAppointmentStatusWriteBack('org1', 'apt1', 'cancelled')
+    const ops = writeOpInserts()
+    expect(ops).toHaveLength(1)
+    const v = ops[0].values as Row
+    expect(v.operation).toBe('update')
+    expect((v.requestPayload as Row).status).toBe('cancelled')
+  })
+
+  it('supersedes a still-pending create when cancelled before it syncs', async () => {
+    queue('pmsConnection', [{ provider: 'open_dental', status: 'connected', syncDirection: 'two_way' }])
+    queue('pmsEntityMap', []) // not yet mapped
+    queue('pmsWriteOp', [{ id: 'create1' }]) // a pending create exists
+    await queueAppointmentStatusWriteBack('org1', 'apt1', 'cancelled')
+    expect(writeOpInserts()).toHaveLength(0) // no new op
+    const skip = state.updates.find((u) => u.table === 'pmsWriteOp' && u.set.status === 'skipped')
+    expect(skip).toBeTruthy()
+  })
+
+  it('no-ops on an import-only connection', async () => {
+    queue('pmsConnection', [{ provider: 'open_dental', status: 'connected', syncDirection: 'import' }])
+    await queueAppointmentStatusWriteBack('org1', 'apt1', 'cancelled')
+    expect(writeOpInserts()).toHaveLength(0)
+    expect(state.updates).toHaveLength(0)
   })
 })
