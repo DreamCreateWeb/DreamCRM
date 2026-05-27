@@ -9,6 +9,7 @@ import {
   updateShopConfig,
   type ShopConfigPatch,
 } from '@/lib/services/shop'
+import { disconnectShopStripe } from '@/lib/services/shop-connect'
 import type { ProductInput, ProductStatus } from '@/lib/types/shop'
 
 async function ensureClinicAdmin() {
@@ -42,5 +43,11 @@ export async function deleteProductAction(id: string) {
 export async function updateShopConfigAction(patch: ShopConfigPatch) {
   const ctx = await ensureClinicAdmin()
   await updateShopConfig(ctx.organizationId, patch)
+  revalidatePath('/shop')
+}
+
+export async function disconnectStripeAction() {
+  const ctx = await ensureClinicAdmin()
+  await disconnectShopStripe(ctx.organizationId)
   revalidatePath('/shop')
 }

@@ -11,7 +11,7 @@ import {
   type ShopConfigView,
   type ShopStats,
 } from '@/lib/types/shop'
-import { setProductStatusAction, deleteProductAction, updateShopConfigAction } from './actions'
+import { setProductStatusAction, deleteProductAction, updateShopConfigAction, disconnectStripeAction } from './actions'
 
 const STATUS_STYLE: Record<ProductStatus, string> = {
   active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
@@ -25,9 +25,10 @@ interface Props {
   stats: ShopStats
   publicBase: string | null
   connectConfigured: boolean
+  connectBanner: string | null
 }
 
-export default function ShopClient({ config, products, stats, publicBase, connectConfigured }: Props) {
+export default function ShopClient({ config, products, stats, publicBase, connectConfigured, connectBanner }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -58,6 +59,17 @@ export default function ShopClient({ config, products, stats, publicBase, connec
           + New product
         </Link>
       </div>
+
+      {connectBanner === 'connected' && (
+        <div className="mb-4 text-[13px] px-4 py-2.5 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+          Stripe connected — payouts will go to your bank account.
+        </div>
+      )}
+      {connectBanner?.startsWith('error:') && (
+        <div className="mb-4 text-[13px] px-4 py-2.5 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+          Couldn&apos;t connect Stripe: {connectBanner.slice(6)}
+        </div>
+      )}
 
       <div className="mb-6 text-[13px] px-4 py-2.5 rounded-lg bg-violet-50 text-violet-800 dark:bg-violet-500/10 dark:text-violet-300">
         Build your catalog now — the public storefront + checkout{publicBase ? ` at ${publicBase}` : ''} go live in the next update.
@@ -91,8 +103,18 @@ export default function ShopClient({ config, products, stats, publicBase, connec
             href="/api/connect/shop/start"
             className="inline-flex items-center mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
           >
-            Connect Stripe
+            {config.stripeAccountStatus === 'pending' ? 'Finish Stripe setup' : 'Connect Stripe'}
           </a>
+        )}
+        {connectReady && (
+          <div className="flex items-center gap-3 mt-3">
+            <a href="https://dashboard.stripe.com" target="_blank" rel="noopener" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
+              Manage payouts in Stripe →
+            </a>
+            <button disabled={isPending} onClick={() => { if (confirm('Disconnect Stripe? You won’t be able to take payments until you reconnect.')) run(() => disconnectStripeAction()) }} className="text-[12px] text-stone-400 hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400">
+              Disconnect
+            </button>
+          </div>
         )}
       </div>
 
