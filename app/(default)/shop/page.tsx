@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
-import { getShopConfig, listProducts, getShopStats, shopConnectConfigured } from '@/lib/services/shop'
+import { getShopConfig, listProducts, getShopStats, getOrderStats, shopConnectConfigured } from '@/lib/services/shop'
 import { refreshConnectStatus } from '@/lib/services/shop-connect'
 import ShopClient from './shop-client'
 
@@ -19,10 +19,11 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   // Flip pending → active without a manual reconnect once onboarding finishes.
   await refreshConnectStatus(ctx.organizationId)
 
-  const [config, products, stats, orgRow] = await Promise.all([
+  const [config, products, stats, orderStats, orgRow] = await Promise.all([
     getShopConfig(ctx.organizationId),
     listProducts(ctx.organizationId),
     getShopStats(ctx.organizationId),
+    getOrderStats(ctx.organizationId),
     db.select({ slug: organization.slug }).from(organization).where(eq(organization.id, ctx.organizationId)).limit(1),
   ])
 
@@ -33,6 +34,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       config={config}
       products={products}
       stats={stats}
+      orderStats={orderStats}
       publicBase={publicBase}
       connectConfigured={shopConnectConfigured()}
       connectBanner={connected ? 'connected' : connectError ? `error:${connectError}` : null}

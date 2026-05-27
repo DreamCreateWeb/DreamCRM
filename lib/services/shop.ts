@@ -13,6 +13,10 @@ import type {
   ProductStatus,
   Fulfillment,
   StripeAccountStatus,
+  OrderRow,
+  OrderItemRow,
+  OrderStatus,
+  FulfillmentStatus,
 } from '@/lib/types/shop'
 
 /**
@@ -27,6 +31,10 @@ export type {
   ProductInput,
   ShopConfigView,
   ShopStats,
+  OrderRow,
+  OrderItemRow,
+  OrderStatus,
+  FulfillmentStatus,
 } from '@/lib/types/shop'
 
 export function newProductId(): string {
@@ -307,4 +315,183 @@ export async function getShopStats(organizationId: string): Promise<ShopStats> {
     if (r.status === 'active') activeCount = n
   }
   return { productCount, activeCount }
+}
+
+// ── Orders ────────────────────────────────────────────────────────────────
+
+export function newOrderId(): string {
+  return `ord_${randomBytes(10).toString('hex')}`
+}
+
+export interface PricedLine {
+  variantId: string
+  productId: string
+  productName: string
+  productSlug: string
+  variantName: string
+  unitPriceCents: number
+  qty: number
+  inventoryQty: number | null
+}
+
+/** Re-price a client cart against the DB (never trust client prices). Drops
+ * variants that don't exist / aren't active. Clamps quantity 1..99. */
+export async function priceCart(
+  organizationId: string,
+  items: Array<{ variantId: string; qty: number }>,
+): Promise<{ lines: PricedLine[]; subtotalCents: number }> {
+  const ids = items.map((i) => i.variantId)
+  if (ids.length === 0) return { lines: [], subtotalCents: 0 }
+  const rows = await db
+    .select({
+      variantId: schema.shopProductVariant.id,
+      priceCents: schema.shopProductVariant.priceCents,
+      variantName: schema.shopProductVariant.name,
+      inventoryQty: schema.shopProductVariant.inventoryQty,
+      productId: schema.shopProduct.id,
+      productName: schema.shopProduct.name,
+      productSlug: schema.shopProduct.slug,
+      status: schema.shopProduct.status,
+    })
+    .from(schema.shopProductVariant)
+    .innerJoin(schema.shopProduct, eq(schema.shopProductVariant.productId, schema.shopProduct.id))
+    .where(and(eq(schema.shopProductVariant.organizationId, organizationId), inArray(schema.shopProductVariant.id, ids)))
+  const byId = new Map(rows.map((r) => [r.variantId, r]))
+  const lines: PricedLine[] = []
+  let subtotalCents = 0
+  for (const it of items) {
+    const r = byId.get(it.variantId)
+    if (!r || r.status !== 'active') continue
+    const qty = Math.max(1, Math.min(Math.floor(it.qty) || 1, 99))
+    lines.push({
+      variantId: r.variantId,
+      productId: r.productId,
+      productName: r.productName,
+      productSlug: r.productSlug,
+      variantName: r.variantName,
+      unitPriceCents: r.priceCents,
+      qty,
+      inventoryQty: r.inventoryQty,
+    })
+    subtotalCents += r.priceCents * qty
+  }
+  return { lines, subtotalCents }
+}
+
+function toOrderRow(
+  o: typeof schema.shopOrder.$inferSelect,
+  items: OrderItemRow[],
+  patientName: string | null,
+): OrderRow {
+  const now = Date.now()
+  return {
+    id: o.id,
+    email: o.email,
+    name: o.name,
+    phone: o.phone,
+    patientId: o.patientId,
+    patientName,
+    fulfillmentType: o.fulfillmentType as 'pickup' | 'ship',
+    status: o.status as OrderStatus,
+    fulfillmentStatus: o.fulfillmentStatus as FulfillmentStatus,
+    subtotalCents: o.subtotalCents,
+    shippingCents: o.shippingCents,
+    taxCents: o.taxCents,
+    discountCents: o.discountCents,
+    totalCents: o.totalCents,
+    trackingNumber: o.trackingNumber,
+    shippingAddress: o.shippingAddress ?? null,
+    items,
+    createdAt: o.createdAt,
+    paidAt: o.paidAt,
+    ageHours: Math.round((now - o.createdAt.getTime()) / 3_600_000),
+  }
+}
+
+async function itemsByOrder(orderIds: string[]): Promise<Map<string, OrderItemRow[]>> {
+  const out = new Map<string, OrderItemRow[]>()
+  if (orderIds.length === 0) return out
+  const rows = await db
+    .select()
+    .from(schema.shopOrderItem)
+    .where(inArray(schema.shopOrderItem.orderId, orderIds))
+  for (const r of rows) {
+    const list = out.get(r.orderId) ?? []
+    list.push({ productName: r.productName, variantName: r.variantName, sku: r.sku, unitPriceCents: r.unitPriceCents, quantity: r.quantity })
+    out.set(r.orderId, list)
+  }
+  return out
+}
+
+export async function listOrders(
+  organizationId: string,
+  filters: { status?: OrderStatus | 'all' } = {},
+): Promise<OrderRow[]> {
+  const where = [eq(schema.shopOrder.organizationId, organizationId)]
+  if (filters.status && filters.status !== 'all') where.push(eq(schema.shopOrder.status, filters.status))
+  const orders = await db
+    .select({ o: schema.shopOrder, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.shopOrder)
+    .leftJoin(schema.patient, eq(schema.shopOrder.patientId, schema.patient.id))
+    .where(and(...where))
+    .orderBy(desc(schema.shopOrder.createdAt))
+  const items = await itemsByOrder(orders.map((r) => r.o.id))
+  return orders.map((r) =>
+    toOrderRow(
+      r.o,
+      items.get(r.o.id) ?? [],
+      r.firstName ? `${r.firstName} ${r.lastName ?? ''}`.trim() : null,
+    ),
+  )
+}
+
+export async function getOrder(organizationId: string, id: string): Promise<OrderRow | null> {
+  const [r] = await db
+    .select({ o: schema.shopOrder, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.shopOrder)
+    .leftJoin(schema.patient, eq(schema.shopOrder.patientId, schema.patient.id))
+    .where(and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.id, id)))
+    .limit(1)
+  if (!r) return null
+  const items = await itemsByOrder([r.o.id])
+  return toOrderRow(r.o, items.get(r.o.id) ?? [], r.firstName ? `${r.firstName} ${r.lastName ?? ''}`.trim() : null)
+}
+
+export async function setOrderFulfillment(
+  organizationId: string,
+  id: string,
+  fulfillmentStatus: FulfillmentStatus,
+  trackingNumber?: string | null,
+): Promise<void> {
+  const set: Record<string, unknown> = { fulfillmentStatus, updatedAt: new Date() }
+  if (trackingNumber !== undefined) set.trackingNumber = trackingNumber
+  if (fulfillmentStatus === 'picked_up' || fulfillmentStatus === 'delivered') set.fulfilledAt = new Date()
+  await db
+    .update(schema.shopOrder)
+    .set(set)
+    .where(and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.id, id)))
+}
+
+export interface OrderStats {
+  paidCount: number
+  unfulfilledCount: number
+  revenueCents: number
+}
+
+export async function getOrderStats(organizationId: string): Promise<OrderStats> {
+  const orders = await db
+    .select({ status: schema.shopOrder.status, fulfillmentStatus: schema.shopOrder.fulfillmentStatus, totalCents: schema.shopOrder.totalCents })
+    .from(schema.shopOrder)
+    .where(eq(schema.shopOrder.organizationId, organizationId))
+  let paidCount = 0
+  let unfulfilledCount = 0
+  let revenueCents = 0
+  for (const o of orders) {
+    if (o.status === 'paid') {
+      paidCount++
+      revenueCents += o.totalCents
+      if (o.fulfillmentStatus === 'unfulfilled' || o.fulfillmentStatus === 'ready_for_pickup') unfulfilledCount++
+    }
+  }
+  return { paidCount, unfulfilledCount, revenueCents }
 }

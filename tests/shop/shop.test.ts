@@ -12,6 +12,8 @@ vi.mock('@/lib/db', () => {
     const obj: any = {}
     obj.from = () => obj
     obj.where = () => obj
+    obj.innerJoin = () => obj
+    obj.leftJoin = () => obj
     obj.orderBy = () => obj
     obj.groupBy = () => obj
     obj.limit = async () => state.selectQueue.shift() ?? []
@@ -34,7 +36,7 @@ vi.mock('@/lib/db', () => {
   }
 })
 
-import { getShopConfig, saveProduct } from '@/lib/services/shop'
+import { getShopConfig, saveProduct, priceCart } from '@/lib/services/shop'
 
 beforeEach(() => {
   state.selectQueue.length = 0
@@ -102,5 +104,30 @@ describe('saveProduct', () => {
     const variants = state.inserts.find((i) => i.table === 'shop_product_variant')!.values as Array<{ name: string }>
     expect(variants).toHaveLength(1)
     expect(variants[0].name).toBe('Default')
+  })
+})
+
+describe('priceCart', () => {
+  it('re-prices from the DB, drops inactive products, clamps qty, and sums the subtotal', async () => {
+    state.selectQueue.push([
+      { variantId: 'v1', priceCents: 14900, variantName: 'Standard', inventoryQty: 10, productId: 'p1', productName: 'Whitening Kit', productSlug: 'whitening-kit', status: 'active' },
+      { variantId: 'v2', priceCents: 8900, variantName: 'Default', inventoryQty: null, productId: 'p2', productName: 'Toothbrush', productSlug: 'toothbrush', status: 'active' },
+      { variantId: 'v3', priceCents: 9999, variantName: 'Default', inventoryQty: 5, productId: 'p3', productName: 'Archived', productSlug: 'archived', status: 'archived' },
+    ])
+    const { lines, subtotalCents } = await priceCart('org_1', [
+      { variantId: 'v1', qty: 200 }, // clamps to 99
+      { variantId: 'v2', qty: 1 },
+      { variantId: 'v3', qty: 1 }, // dropped (archived)
+      { variantId: 'ghost', qty: 1 }, // dropped (not found)
+    ])
+    expect(lines.map((l) => l.variantId)).toEqual(['v1', 'v2'])
+    expect(lines[0].qty).toBe(99)
+    expect(subtotalCents).toBe(14900 * 99 + 8900)
+  })
+
+  it('returns empty for an empty cart', async () => {
+    const out = await priceCart('org_1', [])
+    expect(out.lines).toHaveLength(0)
+    expect(out.subtotalCents).toBe(0)
   })
 })

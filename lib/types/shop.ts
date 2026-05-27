@@ -104,3 +104,64 @@ export interface ProductInput {
   featured: boolean
   variants: VariantInput[]
 }
+
+// ── Orders ────────────────────────────────────────────────────────────────
+export type OrderStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
+export type FulfillmentStatus = 'unfulfilled' | 'ready_for_pickup' | 'picked_up' | 'shipped' | 'delivered'
+
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: 'Pending payment',
+  paid: 'Paid',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
+}
+export const FULFILLMENT_STATUS_LABELS: Record<FulfillmentStatus, string> = {
+  unfulfilled: 'Unfulfilled',
+  ready_for_pickup: 'Ready for pickup',
+  picked_up: 'Picked up',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+}
+
+export interface OrderItemRow {
+  productName: string
+  variantName: string | null
+  sku: string | null
+  unitPriceCents: number
+  quantity: number
+}
+
+export interface OrderRow {
+  id: string
+  email: string
+  name: string | null
+  phone: string | null
+  patientId: string | null
+  patientName: string | null
+  fulfillmentType: 'pickup' | 'ship'
+  status: OrderStatus
+  fulfillmentStatus: FulfillmentStatus
+  subtotalCents: number
+  shippingCents: number
+  taxCents: number
+  discountCents: number
+  totalCents: number
+  trackingNumber: string | null
+  shippingAddress: Record<string, string> | null
+  items: OrderItemRow[]
+  createdAt: Date
+  paidAt: Date | null
+  ageHours: number
+}
+
+// Client-side cart line (localStorage). Price is display-only — the server
+// always re-prices from the DB at checkout.
+export interface CartLine {
+  variantId: string
+  productSlug: string
+  productName: string
+  variantName: string
+  priceCents: number
+  image: string | null
+  qty: number
+}

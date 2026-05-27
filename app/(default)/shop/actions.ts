@@ -7,10 +7,11 @@ import {
   setProductStatus,
   deleteProduct,
   updateShopConfig,
+  setOrderFulfillment,
   type ShopConfigPatch,
 } from '@/lib/services/shop'
 import { disconnectShopStripe } from '@/lib/services/shop-connect'
-import type { ProductInput, ProductStatus } from '@/lib/types/shop'
+import type { ProductInput, ProductStatus, FulfillmentStatus } from '@/lib/types/shop'
 
 async function ensureClinicAdmin() {
   const ctx = await requireTenant()
@@ -50,4 +51,10 @@ export async function disconnectStripeAction() {
   const ctx = await ensureClinicAdmin()
   await disconnectShopStripe(ctx.organizationId)
   revalidatePath('/shop')
+}
+
+export async function setOrderFulfillmentAction(id: string, status: FulfillmentStatus, trackingNumber?: string | null) {
+  const ctx = await ensureClinicAdmin()
+  await setOrderFulfillment(ctx.organizationId, id, status, trackingNumber)
+  revalidatePath('/shop/orders')
 }

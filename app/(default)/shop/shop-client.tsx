@@ -6,12 +6,19 @@ import Link from 'next/link'
 import {
   CATEGORY_LABELS,
   priceRangeLabel,
+  formatCents,
   type ProductRow,
   type ProductStatus,
   type ShopConfigView,
   type ShopStats,
 } from '@/lib/types/shop'
 import { setProductStatusAction, deleteProductAction, updateShopConfigAction, disconnectStripeAction } from './actions'
+
+interface OrderStatsView {
+  paidCount: number
+  unfulfilledCount: number
+  revenueCents: number
+}
 
 const STATUS_STYLE: Record<ProductStatus, string> = {
   active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
@@ -23,12 +30,13 @@ interface Props {
   config: ShopConfigView
   products: ProductRow[]
   stats: ShopStats
+  orderStats: OrderStatsView
   publicBase: string | null
   connectConfigured: boolean
   connectBanner: string | null
 }
 
-export default function ShopClient({ config, products, stats, publicBase, connectConfigured, connectBanner }: Props) {
+export default function ShopClient({ config, products, stats, orderStats, publicBase, connectConfigured, connectBanner }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -71,9 +79,18 @@ export default function ShopClient({ config, products, stats, publicBase, connec
         </div>
       )}
 
-      <div className="mb-6 text-[13px] px-4 py-2.5 rounded-lg bg-violet-50 text-violet-800 dark:bg-violet-500/10 dark:text-violet-300">
-        Build your catalog now — the public storefront + checkout{publicBase ? ` at ${publicBase}` : ''} go live in the next update.
-      </div>
+      {config.storefrontEnabled ? (
+        <div className="mb-6 text-[13px] px-4 py-2.5 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300 flex items-center justify-between gap-3">
+          <span>Your storefront is live{publicBase ? '.' : '.'}</span>
+          {publicBase && (
+            <a href={publicBase} target="_blank" rel="noopener" className="font-semibold underline shrink-0">View storefront →</a>
+          )}
+        </div>
+      ) : (
+        <div className="mb-6 text-[13px] px-4 py-2.5 rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+          Your storefront is off — turn on “Publish storefront” below once you’ve added products and connected Stripe.
+        </div>
+      )}
 
       {/* Stripe Connect status */}
       <div className="mb-6 rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 p-5">
@@ -120,16 +137,24 @@ export default function ShopClient({ config, products, stats, publicBase, connec
 
       {/* Stats + fulfillment config */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4 mb-6">
-        <div className="grid grid-cols-2 gap-3">
-          <Stat label="Products" value={stats.productCount} />
-          <Stat label="Live" value={stats.activeCount} tone={stats.activeCount > 0 ? 'ok' : undefined} />
+        <div>
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="Products" value={stats.productCount} />
+            <Stat label="Live" value={stats.activeCount} tone={stats.activeCount > 0 ? 'ok' : undefined} />
+            <Stat label="Paid orders" value={orderStats.paidCount} />
+            <Stat label="Revenue" value={formatCents(orderStats.revenueCents)} tone={orderStats.revenueCents > 0 ? 'ok' : undefined} />
+          </div>
+          <Link href="/shop/orders" className="inline-block mt-2 text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
+            View orders{orderStats.unfulfilledCount > 0 ? ` · ${orderStats.unfulfilledCount} to fulfill` : ''} →
+          </Link>
         </div>
         <div className="rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 p-4">
-          <p className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">Fulfillment</p>
+          <p className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">Fulfillment &amp; storefront</p>
           <div className="flex flex-wrap gap-2">
             <Toggle label="In-office pickup" on={config.pickupEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ pickupEnabled: !config.pickupEnabled }))} />
             <Toggle label="Ship to patient" on={config.shippingEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ shippingEnabled: !config.shippingEnabled }))} />
             <Toggle label="Collect sales tax" on={config.taxEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ taxEnabled: !config.taxEnabled }))} />
+            <Toggle label="Publish storefront" on={config.storefrontEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ storefrontEnabled: !config.storefrontEnabled }))} />
           </div>
         </div>
       </div>
@@ -179,7 +204,7 @@ export default function ShopClient({ config, products, stats, publicBase, connec
   )
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: 'ok' }) {
+function Stat({ label, value, tone }: { label: string; value: number | string; tone?: 'ok' }) {
   return (
     <div className="px-3 py-2.5 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/60">
       <p className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">{label}</p>

@@ -39,6 +39,8 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.shopConfig) return 'shop_config'
     if (t === schema.shopProduct) return 'shop_product'
     if (t === schema.shopProductVariant) return 'shop_product_variant'
+    if (t === schema.shopOrder) return 'shop_order'
+    if (t === schema.shopOrderItem) return 'shop_order_item'
     return 'unknown'
   }
   const chain = () => {
@@ -400,10 +402,12 @@ describe('createDemoClinic', () => {
     // Careers: 2 open roles + 1 draft; 7 applicants across the pipeline.
     expect(counts.job_posting).toBe(3)
     expect(counts.job_application).toBe(7)
-    // Shop: catalog of 6 products (7 variants) + 1 config row.
+    // Shop: catalog of 6 products (7 variants) + 1 config row + 3 demo orders (4 items).
     expect(counts.shop_config).toBe(1)
     expect(counts.shop_product).toBe(6)
     expect(counts.shop_product_variant).toBe(7)
+    expect(counts.shop_order).toBe(3)
+    expect(counts.shop_order_item).toBe(4)
   })
 
   it('seeds logoUrl + heroImageUrl so the website-editor checklist reads "Set" on both', async () => {
