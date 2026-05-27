@@ -142,6 +142,16 @@ export default function BookForm({ orgId, brand, clinicName }: Props) {
     const fd = new FormData(e.currentTarget)
     fd.set('orgId', orgId)
     fd.set('startTime', selectedSlotIso)
+    // Source-attribution snapshot (mirrors the contact form) so the SEO
+    // module can attribute organic-search traffic to booked appointments.
+    if (typeof window !== 'undefined') {
+      fd.set('sourcePage', window.location.pathname)
+      fd.set('referrer', document.referrer || '')
+      const params = new URLSearchParams(window.location.search)
+      fd.set('utm_source', params.get('utm_source') || '')
+      fd.set('utm_medium', params.get('utm_medium') || '')
+      fd.set('utm_campaign', params.get('utm_campaign') || '')
+    }
     try {
       await submitBookingRequest(fd)
       setSubmitState('success')

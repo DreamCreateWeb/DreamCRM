@@ -134,6 +134,13 @@ export const appointment = pgTable('appointment', {
   // Where the booking originated. Mirrors patient.source.
   // 'booking_widget' | 'manual' | 'recall_campaign' | 'phone' | 'invite'
   source: text('source'),
+  // Source attribution captured at booking time on the public widget (mirrors
+  // the lead table) so the SEO module can attribute organic search → bookings.
+  sourcePage: text('source_page'),
+  referrer: text('referrer'),
+  utmSource: text('utm_source'),
+  utmMedium: text('utm_medium'),
+  utmCampaign: text('utm_campaign'),
 
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

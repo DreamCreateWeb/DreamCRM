@@ -479,6 +479,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         ),
       )
 
+    // SEO module: give the demo's public-booking visits a realistic
+    // traffic-source mix so the organic→booking funnel is populated.
+    await backfillDemoBookingAttribution(existing.id)
+
     // Seed one reminder log row against an existing future appointment so
     // the drawer's reminder-activity stripe isn't empty.
     const [reminderFound] = await db
@@ -1095,6 +1099,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // (shouldn't happen — Emma is persona 6 — but defensive).
   const emmaPatientId = patientIds[6] ?? null
   await seedLeadsForOrg(orgId, now, emmaPatientId, new Set())
+
+  // SEO: realistic traffic-source mix on the public-booking appointments.
+  await backfillDemoBookingAttribution(orgId)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to
@@ -1928,4 +1935,31 @@ async function seedBlogPostsForOrg(orgId: string, now: Date, existingSlugs: Set<
     added++
   }
   return { added }
+}
+
+// ── Booking attribution backfill (demo) ─────────────────────────────────────
+// Populates referrer/UTM on the demo's public-booking appointments so the SEO
+// module's organic→booking funnel shows a realistic mix. Idempotent (only
+// touches booking_widget rows that have no referrer yet). Runs on both the
+// fresh-seed and self-heal paths.
+async function backfillDemoBookingAttribution(orgId: string) {
+  const rows = await db
+    .select({ id: schema.appointment.id })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, orgId),
+        eq(schema.appointment.source, 'booking_widget'),
+        isNull(schema.appointment.referrer),
+      ),
+    )
+  const mix = [
+    { sourcePage: '/', referrer: 'https://www.google.com/', utmSource: 'google', utmMedium: 'organic' },
+    { sourcePage: '/book', referrer: 'https://www.google.com/', utmSource: 'google', utmMedium: 'organic' },
+    { sourcePage: '/', referrer: 'https://www.instagram.com/', utmSource: 'instagram', utmMedium: 'social' },
+    { sourcePage: '/book', referrer: null, utmSource: null, utmMedium: null },
+  ]
+  for (let i = 0; i < rows.length; i++) {
+    await db.update(schema.appointment).set(mix[i % mix.length]).where(eq(schema.appointment.id, rows[i].id))
+  }
 }
