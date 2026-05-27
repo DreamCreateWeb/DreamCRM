@@ -73,6 +73,10 @@ function metaFromTest(test: PmsTestResult): Record<string, unknown> {
   return m
 }
 
+// Default office timezone until the clinic sets one. OD datetimes are
+// office-local wall-clock with no TZ, so we must convert against this.
+const PMS_DEFAULT_TZ = 'America/New_York'
+
 /**
  * Validate an Open Dental Customer Key against the live API and, on success,
  * persist the connection (key AES-encrypted). Throws with a human message on
@@ -90,9 +94,22 @@ export async function connectOpenDental(
   const key = customerKey.trim()
   if (!key) throw new Error('Enter your Open Dental Customer Key.')
 
-  const test = await new OpenDentalProvider(key).testConnection()
+  const provider = new OpenDentalProvider(key)
+  const test = await provider.testConnection()
   if (!test.ok) {
     throw new Error(test.error || 'Could not reach Open Dental with that Customer Key. Check the key and that your eConnector is running.')
+  }
+
+  // Auto-pick a default operatory — Open Dental REQUIRES an Op on appointment
+  // creates. Prefer a web-scheduling op, else the first visible one. The clinic
+  // can change it later in settings.
+  let defaultOperatoryNum: number | undefined
+  try {
+    const ops = await provider.listOperatories()
+    const pick = ops.find((o) => !o.isHidden && o.isWebSched) ?? ops.find((o) => !o.isHidden) ?? ops[0]
+    defaultOperatoryNum = pick?.num
+  } catch {
+    // Non-fatal: write-back surfaces "no operatory configured" until one is set.
   }
 
   await upsertPmsConnection(organizationId, {
@@ -100,7 +117,11 @@ export async function connectOpenDental(
     status: 'connected',
     connectedByUserId: userId,
     customerKeyEncrypted: encryptSecret(key),
-    meta: metaFromTest(test),
+    meta: {
+      ...metaFromTest(test),
+      timeZone: PMS_DEFAULT_TZ,
+      ...(defaultOperatoryNum != null ? { defaultOperatoryNum } : {}),
+    },
     lastError: null,
   })
   return test

@@ -15,7 +15,11 @@ export function getProviderClient(connection: PmsConnection): PmsProviderClient 
   if (connection.provider === 'demo') return new DemoProvider(connection.organizationId)
   if (connection.provider === 'open_dental') {
     if (!connection.customerKeyEncrypted) throw new Error('No Open Dental Customer Key on file — reconnect.')
-    return new OpenDentalProvider(decryptSecret(connection.customerKeyEncrypted))
+    const meta = (connection.meta ?? {}) as Record<string, unknown>
+    return new OpenDentalProvider(decryptSecret(connection.customerKeyEncrypted), {
+      timeZone: typeof meta.timeZone === 'string' ? meta.timeZone : undefined,
+      defaultOperatoryNum: typeof meta.defaultOperatoryNum === 'number' ? meta.defaultOperatoryNum : undefined,
+    })
   }
   throw new Error(`The ${connection.provider} integration isn’t available yet.`)
 }
@@ -104,6 +108,13 @@ export async function runImport(
   if (!connection || connection.status !== 'connected') throw new Error('No PMS is connected.')
   const client = getProviderClient(connection)
 
+  // Appointment delta high-water (DateTStamp). Captured at run start so the
+  // next run picks up anything changed during this one; only advanced on a
+  // non-error run so a failure re-reads the same window.
+  const meta = (connection.meta ?? {}) as Record<string, unknown>
+  const since = typeof meta.highWaterAppointments === 'string' ? new Date(meta.highWaterAppointments) : undefined
+  const runStart = new Date()
+
   const runId = randomUUID()
   await db.insert(schema.pmsSyncRun).values({
     id: runId,
@@ -123,7 +134,7 @@ export async function runImport(
 
     await reconcileProviders(organizationId, await client.listProviders(), counts.providers)
     await reconcilePatients(organizationId, await client.listPatients(), counts.patients)
-    await reconcileAppointments(organizationId, await client.listAppointments(), counts.appointments)
+    await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments)
   } catch (e) {
     error = (e as Error).message
   }
@@ -134,7 +145,14 @@ export async function runImport(
   await db.update(schema.pmsSyncRun).set({ status, finishedAt: now, counts, error }).where(eq(schema.pmsSyncRun.id, runId))
   await db
     .update(schema.pmsConnection)
-    .set({ lastSyncAt: now, lastSyncStatus: status, lastError: error, updatedAt: now })
+    .set({
+      lastSyncAt: now,
+      lastSyncStatus: status,
+      lastError: error,
+      // Advance the appointment high-water only on a clean/partial run.
+      ...(status === 'error' ? {} : { meta: { ...meta, highWaterAppointments: runStart.toISOString() } }),
+      updatedAt: now,
+    })
     .where(eq(schema.pmsConnection.organizationId, organizationId))
 
   return { runId, status, counts, error }

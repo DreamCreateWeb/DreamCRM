@@ -1,4 +1,5 @@
 import 'server-only'
+import { formatOdDateTime, parseOdDateTime } from './datetime'
 import type {
   PmsProviderClient,
   PmsTestResult,
@@ -14,45 +15,35 @@ import type {
  * Open Dental adapter — the one PMS with a truly open, self-serve API.
  *
  * Auth: `Authorization: ODFHIR {DeveloperKey}/{CustomerKey}`.
- *   - Developer Key  = platform-level secret (PMS_OPEN_DENTAL_DEVELOPER_KEY),
- *                      identifies DreamCRM as a registered developer.
- *   - Customer Key   = per-office, the clinic generates it in Open Dental and
- *                      pastes it in; stored AES-encrypted per org.
+ *   - Developer Key  = platform-level secret (PMS_OPEN_DENTAL_DEVELOPER_KEY).
+ *   - Customer Key   = per-office, pasted by the clinic, stored AES-encrypted.
  *
  * Sanctioned + audit-clean: every read/write goes through the official API, so
- * writes land in the clinic's Open Dental Audit Trail. We never touch the DB
- * directly (the pattern Open Dental publicly warns its customers against).
+ * writes land in the clinic's Open Dental Audit Trail — never the DB directly.
  *
- * NOTE: like Stripe Connect, this can't be exercised against a live Open Dental
- * in CI — we have no instance + Open Dental charges the office $30/mo to enable
- * the API. The request/response shapes below follow Open Dental's published API
- * spec and are covered by unit tests with a mocked `fetch`; the live wire format
- * (esp. appointment Pattern/Op requirements) needs validation against a real
- * office before GA. The demo provider is what exercises the engine end-to-end.
+ * VALIDATED against Open Dental's hosted developer sandbox (shared test DB):
+ * read shapes (patients via /patients/Simple incl. EstBalance, appointments,
+ * providers, operatories, schedules), the DateTStamp delta + Offset/Limit
+ * pagination, and writes (createPatient; createAppointment which REQUIRES an
+ * Op/operatory). Still unit-tested with a mocked `fetch`; the demo provider
+ * exercises the engine end-to-end. Note OD also supports sanctioned webhook
+ * Subscriptions (POST /subscriptions) for near-real-time — a Phase 2 add-on
+ * that needs an office-side service; this adapter is the Phase 1 polling path.
  */
 
 const DEFAULT_BASE_URL = 'https://api.opendental.com/api/v1'
+const PAGE = 1000 // Remote API caps pages ~1000 elements; loop with Offset.
 
 export function openDentalConfigured(): boolean {
   return Boolean(process.env.PMS_OPEN_DENTAL_DEVELOPER_KEY)
 }
 
-// Open Dental AptStatus enum → our appointment.status vocabulary.
+// Open Dental AptStatus → our appointment.status vocabulary.
 function mapAptStatus(raw: unknown): NormalizedAppointment['status'] {
   const s = String(raw ?? '').toLowerCase()
   if (s === 'complete' || s === '2') return 'completed'
   if (s === 'broken' || s === '5') return 'cancelled'
-  // Scheduled / ASAP / Planned / UnschedList all map to our 'scheduled'.
   return 'scheduled'
-}
-
-// Map an Open Dental provider Specialty/ProvType to our clinic_provider.role.
-function mapProviderRole(specialty: unknown): string {
-  const s = String(specialty ?? '').toLowerCase()
-  if (s.includes('hygien')) return 'hygienist'
-  if (s.includes('assist')) return 'assistant'
-  if (s) return 'specialist'
-  return 'dentist'
 }
 
 function dollarsToCents(v: unknown): number | null {
@@ -61,21 +52,10 @@ function dollarsToCents(v: unknown): number | null {
   return Math.round(n * 100)
 }
 
-// Open Dental wants 5-minute pattern chars ('X' = provider time). 30 min → 6.
+// 5-minute pattern chars ('X' = provider time). 30 min → 6.
 function durationToPattern(start: Date, end: Date | null | undefined): string {
   const mins = end ? Math.max(5, Math.round((end.getTime() - start.getTime()) / 60000)) : 30
   return 'X'.repeat(Math.max(1, Math.round(mins / 5)))
-}
-
-// Open Dental expects 'yyyy-MM-dd HH:mm:ss' local-ish datetimes.
-function fmtDateTime(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
-
-function fmtDate(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 interface ODPatient {
@@ -105,19 +85,45 @@ interface ODProvider {
   ProvNum: number
   FName?: string
   LName?: string
-  Specialty?: string
 }
+interface ODOperatory {
+  OperatoryNum: number
+  OpName?: string
+  Abbrev?: string
+  IsHidden?: string | boolean
+  IsWebSched?: string | boolean
+}
+
+export interface OdOperatory {
+  num: number
+  name: string
+  isWebSched: boolean
+  isHidden: boolean
+}
+
+export interface OpenDentalOptions {
+  /** Office IANA timezone (AptDateTime is office-local wall-clock, no TZ). */
+  timeZone?: string
+  /** Operatory to book DreamCRM-originated appointments into (Op is required). */
+  defaultOperatoryNum?: number
+}
+
+const DEFAULT_TZ = 'America/New_York'
 
 export class OpenDentalProvider implements PmsProviderClient {
   readonly id = 'open_dental' as const
   private baseUrl: string
   private authHeader: string
+  private timeZone: string
+  private defaultOperatoryNum: number | undefined
 
-  constructor(customerKey: string) {
+  constructor(customerKey: string, opts?: OpenDentalOptions) {
     const devKey = process.env.PMS_OPEN_DENTAL_DEVELOPER_KEY
     if (!devKey) throw new Error('PMS_OPEN_DENTAL_DEVELOPER_KEY is not set')
     this.baseUrl = (process.env.PMS_OPEN_DENTAL_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '')
     this.authHeader = `ODFHIR ${devKey}/${customerKey}`
+    this.timeZone = opts?.timeZone || DEFAULT_TZ
+    this.defaultOperatoryNum = opts?.defaultOperatoryNum
   }
 
   private async req<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -137,10 +143,28 @@ export class OpenDentalProvider implements PmsProviderClient {
     return (await res.json()) as T
   }
 
+  // Paginated GET via Offset/Limit. Stops on a short page; guards against an
+  // ignored Offset (page repeats) and runaway loops.
+  private async getAll<T extends Record<string, unknown>>(path: string, idKey: string): Promise<T[]> {
+    const out: T[] = []
+    let offset = 0
+    let lastFirstId: unknown
+    for (let i = 0; i < 200; i++) {
+      const sep = path.includes('?') ? '&' : '?'
+      const page = await this.req<T[]>('GET', `${path}${sep}Limit=${PAGE}&Offset=${offset}`)
+      if (!page || page.length === 0) break
+      const firstId = page[0]?.[idKey]
+      if (firstId !== undefined && firstId === lastFirstId) break // Offset not honored
+      lastFirstId = firstId
+      out.push(...page)
+      if (page.length < PAGE) break
+      offset += PAGE
+    }
+    return out
+  }
+
   async testConnection(): Promise<PmsTestResult> {
     try {
-      // /practice is a cheap, always-present resource that confirms auth +
-      // eConnector reachability in one call.
       const data = await this.req<Record<string, unknown> | Array<Record<string, unknown>>>('GET', '/practice')
       const row = Array.isArray(data) ? data[0] : data
       return {
@@ -154,21 +178,36 @@ export class OpenDentalProvider implements PmsProviderClient {
     }
   }
 
+  async listOperatories(): Promise<OdOperatory[]> {
+    const rows = await this.req<ODOperatory[]>('GET', '/operatories')
+    return (rows || []).map((o) => ({
+      num: o.OperatoryNum,
+      name: o.OpName || o.Abbrev || `Operatory ${o.OperatoryNum}`,
+      isWebSched: String(o.IsWebSched) === 'true',
+      isHidden: String(o.IsHidden) === 'true',
+    }))
+  }
+
   async listProviders(): Promise<NormalizedProvider[]> {
     const rows = await this.req<ODProvider[]>('GET', '/providers')
     return (rows || []).map((p) => ({
       externalId: String(p.ProvNum),
       displayName: [p.FName, p.LName].filter(Boolean).join(' ').trim() || `Provider ${p.ProvNum}`,
-      role: mapProviderRole(p.Specialty),
+      // OD's Specialty is an office-specific numeric DefNum, not a label, so we
+      // can't portably derive a role from it. role is a cosmetic agenda label
+      // ("Cleaning with …") — default to 'dentist'; refining hygienist/etc. via
+      // operatory ProvHygienist or /definitions is a later nicety.
+      role: 'dentist',
     }))
   }
 
   async listPatients(): Promise<NormalizedPatient[]> {
-    // The office's full active patient list. Open Dental paginates via
-    // Offset/Limit; v1 pulls the first large page (pagination is a v1.1
-    // refinement once validated against a live office).
-    const rows = await this.req<ODPatient[]>('GET', '/patients?Limit=5000')
-    return (rows || []).map((p) => ({
+    // /patients/Simple carries EstBalance inline (the plain /patients list does
+    // NOT) and supports Offset/Limit — so one paginated pass gets profile +
+    // balance. No DateTStamp filter exists on patients, so this is a full pull;
+    // the engine's content-hash skip means unchanged rows don't re-write.
+    const rows = await this.getAll<ODPatient & Record<string, unknown>>('/patients/Simple', 'PatNum')
+    return rows.map((p) => ({
       externalId: String(p.PatNum),
       firstName: p.FName?.trim() || '',
       lastName: p.LName?.trim() || '',
@@ -184,17 +223,16 @@ export class OpenDentalProvider implements PmsProviderClient {
   }
 
   async listAppointments(opts?: { since?: Date }): Promise<NormalizedAppointment[]> {
-    const from = opts?.since ?? new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
-    const to = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-    const rows = await this.req<ODAppointment[]>(
-      'GET',
-      `/appointments?dateStart=${fmtDate(from)}&dateEnd=${fmtDate(to)}`,
-    )
-    return (rows || [])
+    // Incremental "changed-since" via DateTStamp (office-local wall-clock).
+    // First sync (no high-water) bounds to the last year so we don't pull
+    // ancient history; future appts still come in (their DateTStamp is recent).
+    const since = opts?.since ?? new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+    const dt = encodeURIComponent(formatOdDateTime(since, this.timeZone))
+    const rows = await this.getAll<ODAppointment & Record<string, unknown>>(`/appointments?DateTStamp=${dt}`, 'AptNum')
+    return rows
       .filter((a) => a.AptDateTime)
       .map((a) => {
-        const start = new Date(String(a.AptDateTime).replace(' ', 'T'))
-        // Derive end from the 5-min Pattern length when present.
+        const start = parseOdDateTime(String(a.AptDateTime), this.timeZone)
         const patternMins = a.Pattern ? a.Pattern.length * 5 : 30
         return {
           externalId: String(a.AptNum),
@@ -209,22 +247,23 @@ export class OpenDentalProvider implements PmsProviderClient {
   }
 
   async createPatient(payload: CreatePatientPayload): Promise<PmsWriteResult> {
-    const body: Record<string, unknown> = {
-      LName: payload.lastName,
-      FName: payload.firstName,
-    }
+    const body: Record<string, unknown> = { LName: payload.lastName, FName: payload.firstName }
     if (payload.email) body.Email = payload.email
     if (payload.phone) body.WirelessPhone = payload.phone
-    if (payload.dateOfBirth) body.Birthdate = payload.dateOfBirth
+    if (payload.dateOfBirth) body.Birthdate = payload.dateOfBirth // date, not datetime — no TZ
     const res = await this.req<{ PatNum: number }>('POST', '/patients', body)
     return { externalId: String(res.PatNum), raw: res as unknown as Record<string, unknown> }
   }
 
   async createAppointment(payload: CreateAppointmentPayload): Promise<PmsWriteResult> {
+    if (this.defaultOperatoryNum == null) {
+      throw new Error('No operatory configured for write-back — set a default operatory in Integrations settings.')
+    }
     const body: Record<string, unknown> = {
       PatNum: Number(payload.patientExternalId),
-      AptDateTime: fmtDateTime(payload.startTime),
+      AptDateTime: formatOdDateTime(payload.startTime, this.timeZone),
       AptStatus: 'Scheduled',
+      Op: this.defaultOperatoryNum,
       Pattern: durationToPattern(payload.startTime, payload.endTime),
     }
     if (payload.providerExternalId) body.ProvNum = Number(payload.providerExternalId)

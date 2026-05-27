@@ -79,7 +79,9 @@ export interface PmsProviderClient {
   /** Cheap reachability + auth check; never throws (returns ok:false). */
   testConnection(): Promise<PmsTestResult>
   listProviders(): Promise<NormalizedProvider[]>
-  listPatients(opts?: { since?: Date }): Promise<NormalizedPatient[]>
+  // Patients have no DateTStamp delta on the OD list endpoint → full paginated
+  // pull (the engine's content-hash skip avoids redundant writes).
+  listPatients(): Promise<NormalizedPatient[]>
   listAppointments(opts?: { since?: Date }): Promise<NormalizedAppointment[]>
   createPatient(payload: CreatePatientPayload): Promise<PmsWriteResult>
   createAppointment(payload: CreateAppointmentPayload): Promise<PmsWriteResult>

@@ -46,32 +46,49 @@ describe('OpenDentalProvider auth', () => {
 })
 
 describe('OpenDentalProvider reads (normalization)', () => {
-  it('normalizes patients — phone preference + dollars→cents + birthdate', async () => {
-    vi.stubGlobal(
-      'fetch',
-      mockFetch([
-        {
-          PatNum: 42,
-          FName: 'Mia',
-          LName: 'Chen',
-          Birthdate: '1990-04-15T00:00:00',
-          Email: 'mia@example.com',
-          WirelessPhone: '555-0001',
-          HmPhone: '555-9999',
-          Address: '1 Elm',
-          City: 'Austin',
-          State: 'TX',
-          Zip: '78701',
-          EstBalance: 125.5,
-        },
-      ]),
-    )
+  it('normalizes patients via /patients/Simple — phone pref + balance + birthdate', async () => {
+    const f = mockFetch([
+      {
+        PatNum: 42,
+        FName: 'Mia',
+        LName: 'Chen',
+        Birthdate: '1990-04-15T00:00:00',
+        Email: 'mia@example.com',
+        WirelessPhone: '555-0001',
+        HmPhone: '555-9999',
+        Address: '1 Elm',
+        City: 'Austin',
+        State: 'TX',
+        Zip: '78701',
+        EstBalance: 125.5,
+      },
+    ])
+    vi.stubGlobal('fetch', f)
     const [p] = await new OpenDentalProvider('k').listPatients()
+    // Balance lives on /patients/Simple, not the plain /patients list.
+    expect(f.mock.calls[0][0] as string).toContain('/patients/Simple')
     expect(p.externalId).toBe('42')
     expect(p.phone).toBe('555-0001') // wireless preferred over home
     expect(p.dateOfBirth).toBe('1990-04-15')
     expect(p.balanceCents).toBe(12550)
     expect(p.city).toBe('Austin')
+  })
+
+  it('paginates via Offset/Limit and stops on a short page', async () => {
+    let call = 0
+    const f = vi.fn(async (..._args: unknown[]) => {
+      call++
+      const body =
+        call === 1
+          ? Array.from({ length: 1000 }, (_, i) => ({ PatNum: i + 1, FName: 'A', LName: 'B' }))
+          : [{ PatNum: 9999, FName: 'Z', LName: 'Z' }]
+      return { ok: true, status: 200, json: async () => body, text: async () => '' }
+    })
+    vi.stubGlobal('fetch', f)
+    const rows = await new OpenDentalProvider('k').listPatients()
+    expect(rows).toHaveLength(1001)
+    expect(f).toHaveBeenCalledTimes(2)
+    expect(f.mock.calls[1][0] as string).toContain('Offset=1000')
   })
 
   it('maps appointment status + derives end time from the pattern', async () => {
@@ -92,12 +109,12 @@ describe('OpenDentalProvider reads (normalization)', () => {
     expect(rows[2].status).toBe('scheduled')
   })
 
-  it('maps provider specialty to our role vocabulary', async () => {
-    vi.stubGlobal('fetch', mockFetch([{ ProvNum: 3, FName: 'Sara', LName: 'Reyes', Specialty: 'Dental Hygienist' }]))
+  it('builds the provider display name and defaults role (Specialty is an office-specific DefNum)', async () => {
+    vi.stubGlobal('fetch', mockFetch([{ ProvNum: 3, FName: 'Sara', LName: 'Reyes', Specialty: 264 }]))
     const [p] = await new OpenDentalProvider('k').listProviders()
     expect(p.externalId).toBe('3')
     expect(p.displayName).toBe('Sara Reyes')
-    expect(p.role).toBe('hygienist')
+    expect(p.role).toBe('dentist') // numeric Specialty isn't a portable label
   })
 
   it('throws on a non-200 response', async () => {
@@ -129,11 +146,11 @@ describe('OpenDentalProvider writes (sanctioned API)', () => {
     expect(body.Email).toBe('n@p.com')
   })
 
-  it('POSTs an appointment with a 5-min pattern + returns the AptNum', async () => {
+  it('POSTs an appointment with the required Op, a 5-min pattern, and returns the AptNum', async () => {
     const f = mockFetch({ AptNum: 5005 })
     vi.stubGlobal('fetch', f)
-    const start = new Date('2026-06-01T09:00:00')
-    const res = await new OpenDentalProvider('k').createAppointment({
+    const start = new Date('2026-06-01T09:00:00Z')
+    const res = await new OpenDentalProvider('k', { defaultOperatoryNum: 5, timeZone: 'UTC' }).createAppointment({
       patientExternalId: '42',
       startTime: start,
       endTime: new Date(start.getTime() + 30 * 60 * 1000),
@@ -141,12 +158,32 @@ describe('OpenDentalProvider writes (sanctioned API)', () => {
       note: 'checkup',
     })
     expect(res.externalId).toBe('5005')
-    const init = f.mock.calls[0][1] as RequestInit
-    const body = JSON.parse(init.body as string)
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
     expect(body.PatNum).toBe(42)
     expect(body.AptStatus).toBe('Scheduled')
+    expect(body.Op).toBe(5) // required by Open Dental
     expect(body.Pattern).toBe('XXXXXX') // 30 min → 6 chars
     expect(body.ProvNum).toBe(3)
-    expect(body.AptDateTime).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/)
+    expect(body.AptDateTime).toBe('2026-06-01 09:00:00')
+  })
+
+  it('refuses to create an appointment when no operatory is configured', async () => {
+    vi.stubGlobal('fetch', mockFetch({ AptNum: 1 }))
+    await expect(
+      new OpenDentalProvider('k').createAppointment({ patientExternalId: '42', startTime: new Date() }),
+    ).rejects.toThrow(/operatory/i)
+  })
+
+  it('formats AptDateTime in the office timezone (wall-clock, no TZ)', async () => {
+    const f = mockFetch({ AptNum: 1 })
+    vi.stubGlobal('fetch', f)
+    // 13:00 UTC in America/New_York (EDT, summer) is 09:00 local.
+    await new OpenDentalProvider('k', { defaultOperatoryNum: 2, timeZone: 'America/New_York' }).createAppointment({
+      patientExternalId: '1',
+      startTime: new Date('2026-07-01T13:00:00Z'),
+    })
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.AptDateTime).toBe('2026-07-01 09:00:00')
+    expect(body.Op).toBe(2)
   })
 })
