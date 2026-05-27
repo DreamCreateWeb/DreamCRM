@@ -1126,8 +1126,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Careers: open roles + applicants across the pipeline (pure inserts).
   await seedDemoCareers(orgId, locationId, now)
 
-  // Shop: catalog of dental products (pure inserts).
-  await seedDemoShop(orgId, now)
+  // Shop: catalog of dental products + sample orders (pure inserts).
+  await seedDemoShop(orgId, now, patientIds)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to
@@ -2172,8 +2172,7 @@ async function seedDemoCareers(orgId: string, locationId: string | null, now: Da
 // ── Shop seeding (catalog only; orders/coupons/memberships in later slices) ──
 // Pure inserts (no selects) so the new-seed path doesn't shift the seeder
 // test's select queue. 6 products across categories + statuses, 7 variants.
-async function seedDemoShop(orgId: string, now: Date) {
-  void now
+async function seedDemoShop(orgId: string, now: Date, patientIds: string[] = []) {
   await db
     .insert(schema.shopConfig)
     .values({
@@ -2281,13 +2280,78 @@ async function seedDemoShop(orgId: string, now: Date) {
     },
   ])
 
+  const whiteningStdVar = newId('var')
+  const brushVar = newId('var')
+  const flosserVar = newId('var')
+  const pensVar = newId('var')
   await db.insert(schema.shopProductVariant).values([
-    { id: newId('var'), productId: whiteningId, organizationId: orgId, name: 'Standard', priceCents: 14900, inventoryQty: 25, position: 0 },
+    { id: whiteningStdVar, productId: whiteningId, organizationId: orgId, name: 'Standard', priceCents: 14900, inventoryQty: 25, position: 0 },
     { id: newId('var'), productId: whiteningId, organizationId: orgId, name: 'Sensitive formula', priceCents: 14900, inventoryQty: 12, position: 1 },
-    { id: newId('var'), productId: brushId, organizationId: orgId, name: 'Default', priceCents: 8900, compareAtCents: 11900, inventoryQty: 40, position: 0 },
-    { id: newId('var'), productId: flosserId, organizationId: orgId, name: 'Default', priceCents: 5900, inventoryQty: 18, position: 0 },
-    { id: newId('var'), productId: pensId, organizationId: orgId, name: 'Default', priceCents: 2900, inventoryQty: null, position: 0 },
+    { id: brushVar, productId: brushId, organizationId: orgId, name: 'Default', priceCents: 8900, compareAtCents: 11900, inventoryQty: 40, position: 0 },
+    { id: flosserVar, productId: flosserId, organizationId: orgId, name: 'Default', priceCents: 5900, inventoryQty: 18, position: 0 },
+    { id: pensVar, productId: pensId, organizationId: orgId, name: 'Default', priceCents: 2900, inventoryQty: null, position: 0 },
     { id: newId('var'), productId: kidsId, organizationId: orgId, name: 'Default', priceCents: 1900, inventoryQty: 30, position: 0 },
     { id: newId('var'), productId: merchId, organizationId: orgId, name: 'Default', priceCents: 1500, inventoryQty: null, position: 0 },
+  ])
+
+  // Orders covering pickup/ship + paid/pending states. First linked to a
+  // patient when one is available (new-seed path); the rest are guest orders.
+  const dayMs = 24 * 60 * 60 * 1000
+  const o1 = newId('ord')
+  const o2 = newId('ord')
+  const o3 = newId('ord')
+  await db.insert(schema.shopOrder).values([
+    {
+      id: o1,
+      organizationId: orgId,
+      patientId: patientIds[2] ?? null,
+      email: 'sophia.martinez@example.com',
+      name: 'Sophia Martinez',
+      fulfillmentType: 'pickup',
+      status: 'paid',
+      fulfillmentStatus: 'ready_for_pickup',
+      subtotalCents: 14900,
+      shippingCents: 0,
+      taxCents: 0,
+      totalCents: 14900,
+      paidAt: new Date(now.getTime() - 2 * dayMs),
+      createdAt: new Date(now.getTime() - 2 * dayMs),
+    },
+    {
+      id: o2,
+      organizationId: orgId,
+      email: 'guest.buyer@example.com',
+      name: 'Daniel Park',
+      fulfillmentType: 'ship',
+      status: 'paid',
+      fulfillmentStatus: 'shipped',
+      subtotalCents: 14800,
+      shippingCents: 600,
+      taxCents: 0,
+      totalCents: 15400,
+      trackingNumber: '9400110200000000000000',
+      shippingAddress: { line1: '500 Cedar St', city: 'Austin', state: 'TX', postal_code: '78704', country: 'US' },
+      paidAt: new Date(now.getTime() - 5 * dayMs),
+      createdAt: new Date(now.getTime() - 5 * dayMs),
+    },
+    {
+      id: o3,
+      organizationId: orgId,
+      email: 'window.shopper@example.com',
+      fulfillmentType: 'pickup',
+      status: 'pending',
+      fulfillmentStatus: 'unfulfilled',
+      subtotalCents: 2900,
+      shippingCents: 0,
+      taxCents: 0,
+      totalCents: 2900,
+      createdAt: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+    },
+  ])
+  await db.insert(schema.shopOrderItem).values([
+    { id: `oi_${newId('x')}`, orderId: o1, organizationId: orgId, variantId: whiteningStdVar, productName: 'Professional Whitening Kit', variantName: 'Standard', unitPriceCents: 14900, quantity: 1 },
+    { id: `oi_${newId('x')}`, orderId: o2, organizationId: orgId, variantId: brushVar, productName: 'Sonic Electric Toothbrush', variantName: null, unitPriceCents: 8900, quantity: 1 },
+    { id: `oi_${newId('x')}`, orderId: o2, organizationId: orgId, variantId: flosserVar, productName: 'Cordless Water Flosser', variantName: null, unitPriceCents: 5900, quantity: 1 },
+    { id: `oi_${newId('x')}`, orderId: o3, organizationId: orgId, variantId: pensVar, productName: 'Whitening Touch-Up Pens (3-pack)', variantName: null, unitPriceCents: 2900, quantity: 1 },
   ])
 }
