@@ -116,6 +116,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'sub_existing' }]) // submissions already present
     // Appointments-module self-heal: provider present, reminder log present
     state.selectQueue.push([{ id: 'prov_existing' }])
+    state.selectQueue.push([]) // backfillDemoBookingAttribution — no booking_widget appts
     state.selectQueue.push([{ id: 'rem_existing' }])
     // Leads self-heal: all 6 curated leads already present → nothing to top up
     state.selectQueue.push([
@@ -200,6 +201,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([]) // existing patients for self-heal (none → skip notes + submissions)
     // Appointments self-heal: provider present, reminder present → skip
     state.selectQueue.push([{ id: 'prov_existing' }])
+    state.selectQueue.push([]) // backfillDemoBookingAttribution — no booking_widget appts
     state.selectQueue.push([{ id: 'rem_existing' }])
     // Leads self-heal: all 6 already present → no-op
     state.selectQueue.push([
@@ -290,6 +292,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'tmpl_1' }]) // form template lookup for submission self-heal
     // Appointments self-heal: provider absent + reminder absent → seeds
     state.selectQueue.push([]) // no clinic_provider yet
+    state.selectQueue.push([]) // backfillDemoBookingAttribution — no booking_widget appts
     state.selectQueue.push([]) // no reminder log yet
     state.selectQueue.push([{ id: 'appt_future_a' }]) // future appointment lookup for reminder
     // Leads self-heal: no leads yet → tops up to all 6
@@ -607,6 +610,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'form_existing' }])
     state.selectQueue.push([]) // existing patients (none) → notes/submissions skipped
     state.selectQueue.push([{ id: 'prov_existing' }]) // provider present → skip
+    state.selectQueue.push([]) // backfillDemoBookingAttribution — no booking_widget appts
     state.selectQueue.push([{ id: 'rem_existing' }]) // reminder present → skip
     // Leads: 3 of the 6 already exist (Olivia, Daniel, spam test from the
     // prior self-heal). Top-up should add 3 more (Rachel, Marcus, Emma).
@@ -646,6 +650,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'form_existing' }])
     state.selectQueue.push([])
     state.selectQueue.push([{ id: 'prov_existing' }])
+    state.selectQueue.push([]) // backfillDemoBookingAttribution — no booking_widget appts
     state.selectQueue.push([{ id: 'rem_existing' }])
     state.selectQueue.push([]) // existingLeads (none)
     state.selectQueue.push([]) // Emma patient lookup — NOT FOUND

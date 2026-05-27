@@ -90,6 +90,14 @@ export async function submitBookingRequest(formData: FormData) {
   const startTimeRaw = formData.get('startTime')?.toString()
   const notes = formData.get('notes')?.toString().trim() || null
 
+  // Source attribution (mirrors the contact form) — powers SEO organic→booking
+  // attribution. All optional.
+  const sourcePage = formData.get('sourcePage')?.toString().trim() || null
+  const referrer = formData.get('referrer')?.toString().trim() || null
+  const utmSource = formData.get('utm_source')?.toString().trim() || null
+  const utmMedium = formData.get('utm_medium')?.toString().trim() || null
+  const utmCampaign = formData.get('utm_campaign')?.toString().trim() || null
+
   if (!orgId) throw new Error('Missing organization')
   if (!firstName || !lastName) throw new Error('Name is required')
   if (!startTimeRaw) throw new Error('Appointment date and time are required')
@@ -164,6 +172,11 @@ export async function submitBookingRequest(formData: FormData) {
     status: 'scheduled',
     notes,
     source: 'booking_widget',
+    sourcePage,
+    referrer,
+    utmSource,
+    utmMedium,
+    utmCampaign,
   })
 
   const [profile] = await db

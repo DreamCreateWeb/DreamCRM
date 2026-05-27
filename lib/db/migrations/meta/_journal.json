@@ -204,6 +204,13 @@
       "when": 1779835157865,
       "tag": "0028_normal_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1779847922817,
+      "tag": "0029_happy_zarda",
+      "breakpoints": true
     }
   ]
 }
