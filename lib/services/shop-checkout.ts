@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { priceCart, newOrderId } from './shop'
+import { validateCoupon, markCouponUsed } from './coupons'
 
 /**
  * Shop checkout — creates a Stripe Checkout Session ON THE CLINIC'S CONNECTED
@@ -20,6 +21,7 @@ export interface CheckoutInput {
   email: string
   name?: string | null
   phone?: string | null
+  couponCode?: string | null
 }
 
 async function connectedAccount(organizationId: string) {
@@ -68,6 +70,16 @@ export async function createShopCheckoutSession(
         : cfg.flatShippingCents ?? 0
       : 0
 
+  // Validate any promo code against the cart subtotal.
+  let discountCents = 0
+  let couponId: string | null = null
+  if (input.couponCode?.trim()) {
+    const v = await validateCoupon(organizationId, input.couponCode, subtotalCents)
+    if (!v.ok) throw new Error(v.error ?? 'That code isn’t valid.')
+    discountCents = v.discountCents ?? 0
+    couponId = v.couponId ?? null
+  }
+
   // Persist the order BEFORE redirecting to Stripe; finalize on payment.
   const orderId = newOrderId()
   await db.insert(schema.shopOrder).values({
@@ -82,8 +94,9 @@ export async function createShopCheckoutSession(
     subtotalCents,
     shippingCents,
     taxCents: 0,
-    discountCents: 0,
-    totalCents: subtotalCents + shippingCents,
+    discountCents,
+    couponId,
+    totalCents: Math.max(subtotalCents + shippingCents - discountCents, 0),
   })
   await db.insert(schema.shopOrderItem).values(
     lines.map((l) => ({
@@ -135,6 +148,15 @@ export async function createShopCheckoutSession(
         },
       },
     ]
+  }
+  // Apply the discount as a one-time Stripe coupon on the connected account
+  // (exact computed amount, so percent/amount codes behave identically).
+  if (discountCents > 0) {
+    const stripeCoupon = await stripe.coupons.create(
+      { amount_off: discountCents, currency, duration: 'once', max_redemptions: 1 },
+      { stripeAccount: cfg.accountId },
+    )
+    params.discounts = [{ coupon: stripeCoupon.id }]
   }
 
   const session = await stripe.checkout.sessions.create(params as never, { stripeAccount: cfg.accountId })
@@ -203,6 +225,9 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
       updatedAt: new Date(),
     })
     .where(eq(schema.shopOrder.id, order.id))
+
+  // Burn a single-use coupon now that the order is paid.
+  if (order.couponId) await markCouponUsed(order.couponId, order.id)
 
   // Decrement tracked inventory.
   const items = await db.select().from(schema.shopOrderItem).where(eq(schema.shopOrderItem.orderId, order.id))

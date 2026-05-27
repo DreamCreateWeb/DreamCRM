@@ -154,6 +154,30 @@ export interface OrderRow {
   ageHours: number
 }
 
+// ── Coupons ───────────────────────────────────────────────────────────────
+export type DiscountType = 'percent' | 'amount'
+export type CouponSource = 'manual' | 'birthday' | 'loyalty'
+
+export interface CouponRow {
+  id: string
+  code: string
+  discountType: DiscountType
+  discountValue: number // percent (1-100) or cents
+  source: CouponSource
+  singleUse: boolean
+  minSubtotalCents: number | null
+  patientId: string | null
+  patientName: string | null
+  active: boolean
+  expiresAt: Date | null
+  usedAt: Date | null
+  createdAt: Date
+}
+
+export function formatDiscount(c: Pick<CouponRow, 'discountType' | 'discountValue'>): string {
+  return c.discountType === 'percent' ? `${c.discountValue}% off` : `${formatCents(c.discountValue)} off`
+}
+
 // Client-side cart line (localStorage). Price is display-only — the server
 // always re-prices from the DB at checkout.
 export interface CartLine {

@@ -2373,6 +2373,17 @@ async function seedDemoShop(orgId: string, now: Date, patientIds: string[] = [])
     { id: `oi_${newId('x')}`, orderId: o2, organizationId: orgId, variantId: flosserVar, productName: 'Cordless Water Flosser', variantName: null, unitPriceCents: 5900, quantity: 1 },
     { id: `oi_${newId('x')}`, orderId: o3, organizationId: orgId, variantId: pensVar, productName: 'Whitening Touch-Up Pens (3-pack)', variantName: null, unitPriceCents: 2900, quantity: 1 },
   ])
+
+  // Coupons: 2 open promo codes + (when a patient exists) a single-use
+  // birthday code, so the coupons page shows manual + birthday sources.
+  const coupons: Array<typeof schema.shopCoupon.$inferInsert> = [
+    { id: newId('coupon'), organizationId: orgId, code: 'WELCOME10', discountType: 'percent', discountValue: 10, source: 'manual', singleUse: 0 },
+    { id: newId('coupon'), organizationId: orgId, code: 'SUMMER25', discountType: 'amount', discountValue: 2500, source: 'manual', singleUse: 0, minSubtotalCents: 10000, expiresAt: new Date(now.getTime() + 60 * dayMs) },
+  ]
+  if (patientIds[0]) {
+    coupons.push({ id: newId('coupon'), organizationId: orgId, code: 'BDAY-7F3A2C', discountType: 'percent', discountValue: 15, source: 'birthday', singleUse: 1, patientId: patientIds[0], expiresAt: new Date(now.getTime() + 45 * dayMs) })
+  }
+  await db.insert(schema.shopCoupon).values(coupons)
 }
 
 // ── Membership plans + members (pure inserts) ───────────────────────────────
