@@ -4,15 +4,20 @@ import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { getShopConfig, listProducts, getShopStats, shopConnectConfigured } from '@/lib/services/shop'
+import { refreshConnectStatus } from '@/lib/services/shop-connect'
 import ShopClient from './shop-client'
 
 export const metadata = { title: 'Shop - DreamCRM' }
 export const dynamic = 'force-dynamic'
 
-export default async function ShopPage() {
+export default async function ShopPage({ searchParams }: { searchParams: Promise<{ connected?: string; connectError?: string }> }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+
+  const { connected, connectError } = await searchParams
+  // Flip pending → active without a manual reconnect once onboarding finishes.
+  await refreshConnectStatus(ctx.organizationId)
 
   const [config, products, stats, orgRow] = await Promise.all([
     getShopConfig(ctx.organizationId),
@@ -30,6 +35,7 @@ export default async function ShopPage() {
       stats={stats}
       publicBase={publicBase}
       connectConfigured={shopConnectConfigured()}
+      connectBanner={connected ? 'connected' : connectError ? `error:${connectError}` : null}
     />
   )
 }

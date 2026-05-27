@@ -36,11 +36,8 @@ export function newVariantId(): string {
   return `var_${randomBytes(10).toString('hex')}`
 }
 
-/** True when the platform has wired Stripe Connect (client id present). Gates
- * the onboarding UI the same way gscOAuthConfigured() gates Search Console. */
-export function shopConnectConfigured(): boolean {
-  return Boolean(process.env.STRIPE_CONNECT_CLIENT_ID)
-}
+// Stripe Connect onboarding lives in lib/services/shop-connect.ts.
+export { shopConnectConfigured } from './shop-connect'
 
 // ── Config ────────────────────────────────────────────────────────────────
 
