@@ -36,6 +36,9 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.lead) return 'lead'
     if (t === schema.jobPosting) return 'job_posting'
     if (t === schema.jobApplication) return 'job_application'
+    if (t === schema.shopConfig) return 'shop_config'
+    if (t === schema.shopProduct) return 'shop_product'
+    if (t === schema.shopProductVariant) return 'shop_product_variant'
     return 'unknown'
   }
   const chain = () => {
@@ -58,6 +61,7 @@ vi.mock('@/lib/db', async () => {
               const rows = Array.isArray(vals) ? vals : [vals]
               return rows.map((r, i) => ({ id: i + 1, ...(r as object) }))
             },
+            onConflictDoNothing: () => ({ then: (resolve: (v: unknown) => void) => resolve(undefined) }),
             then: (resolve: (v: unknown) => void) => resolve(undefined),
           }
         },
@@ -177,6 +181,8 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'appt_1' }])
     // Careers self-heal: a job already exists → seed loop short-circuits.
     state.selectQueue.push([{ id: 'job_existing' }])
+    // Shop self-heal: a product already exists → seed loop short-circuits.
+    state.selectQueue.push([{ id: 'prod_existing' }])
 
     const out = await createDemoClinic()
 
@@ -394,6 +400,10 @@ describe('createDemoClinic', () => {
     // Careers: 2 open roles + 1 draft; 7 applicants across the pipeline.
     expect(counts.job_posting).toBe(3)
     expect(counts.job_application).toBe(7)
+    // Shop: catalog of 6 products (7 variants) + 1 config row.
+    expect(counts.shop_config).toBe(1)
+    expect(counts.shop_product).toBe(6)
+    expect(counts.shop_product_variant).toBe(7)
   })
 
   it('seeds logoUrl + heroImageUrl so the website-editor checklist reads "Set" on both', async () => {

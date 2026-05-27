@@ -621,6 +621,14 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       .limit(1)
     if (!existingJob) await seedDemoCareers(existing.id, null, new Date())
 
+    // Shop self-heal: seed the catalog once if the legacy demo has none.
+    const [existingProduct] = await db
+      .select({ id: schema.shopProduct.id })
+      .from(schema.shopProduct)
+      .where(eq(schema.shopProduct.organizationId, existing.id))
+      .limit(1)
+    if (!existingProduct) await seedDemoShop(existing.id, new Date())
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -1117,6 +1125,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Careers: open roles + applicants across the pipeline (pure inserts).
   await seedDemoCareers(orgId, locationId, now)
+
+  // Shop: catalog of dental products (pure inserts).
+  await seedDemoShop(orgId, now)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to
@@ -2155,5 +2166,128 @@ async function seedDemoCareers(orgId: string, locationId: string | null, now: Da
       decidedAt: new Date(now.getTime() - 9 * dayMs),
       createdAt: new Date(now.getTime() - 12 * dayMs),
     },
+  ])
+}
+
+// ── Shop seeding (catalog only; orders/coupons/memberships in later slices) ──
+// Pure inserts (no selects) so the new-seed path doesn't shift the seeder
+// test's select queue. 6 products across categories + statuses, 7 variants.
+async function seedDemoShop(orgId: string, now: Date) {
+  void now
+  await db
+    .insert(schema.shopConfig)
+    .values({
+      organizationId: orgId,
+      pickupEnabled: 1,
+      shippingEnabled: 1,
+      taxEnabled: 0,
+      storefrontEnabled: 1,
+      stripeAccountStatus: 'none',
+    })
+    .onConflictDoNothing({ target: schema.shopConfig.organizationId })
+
+  const whiteningId = newId('prod')
+  const brushId = newId('prod')
+  const flosserId = newId('prod')
+  const pensId = newId('prod')
+  const kidsId = newId('prod')
+  const merchId = newId('prod')
+
+  await db.insert(schema.shopProduct).values([
+    {
+      id: whiteningId,
+      organizationId: orgId,
+      name: 'Professional Whitening Kit',
+      slug: 'professional-whitening-kit',
+      description:
+        'Dentist-dispensed take-home whitening with professional-strength gel and a comfortable tray. Noticeably whiter in about two weeks — far stronger than anything off the shelf.',
+      category: 'whitening',
+      images: [],
+      status: 'active',
+      fulfillment: 'both',
+      fsaEligible: 0,
+      featured: 1,
+      position: 0,
+    },
+    {
+      id: brushId,
+      organizationId: orgId,
+      name: 'Sonic Electric Toothbrush',
+      slug: 'sonic-electric-toothbrush',
+      description: 'The brush we recommend to every patient — sonic cleaning, 2-minute timer, and a pressure sensor so you do not brush too hard.',
+      category: 'brushes',
+      images: [],
+      status: 'active',
+      fulfillment: 'both',
+      fsaEligible: 1,
+      featured: 1,
+      position: 1,
+    },
+    {
+      id: flosserId,
+      organizationId: orgId,
+      name: 'Cordless Water Flosser',
+      slug: 'cordless-water-flosser',
+      description: 'Great for braces, implants, and anyone who finds string floss a chore. Rechargeable and travel-friendly.',
+      category: 'flossers',
+      images: [],
+      status: 'active',
+      fulfillment: 'both',
+      fsaEligible: 0,
+      featured: 0,
+      position: 2,
+    },
+    {
+      id: pensId,
+      organizationId: orgId,
+      name: 'Whitening Touch-Up Pens (3-pack)',
+      slug: 'whitening-touch-up-pens',
+      description: 'Keep your results bright between visits. Pop one in your bag for quick touch-ups.',
+      category: 'whitening',
+      images: [],
+      status: 'active',
+      fulfillment: 'both',
+      fsaEligible: 0,
+      featured: 0,
+      position: 3,
+    },
+    {
+      id: kidsId,
+      organizationId: orgId,
+      name: 'Kids Brush + 2-Minute Timer Set',
+      slug: 'kids-brush-timer-set',
+      description: 'Makes brushing fun and gets them to the full two minutes. Soft bristles sized for little mouths.',
+      category: 'kids',
+      images: [],
+      status: 'draft',
+      fulfillment: 'both',
+      fsaEligible: 0,
+      featured: 0,
+      position: 4,
+    },
+    {
+      id: merchId,
+      organizationId: orgId,
+      name: 'Branded Travel Care Kit',
+      slug: 'branded-travel-care-kit',
+      description: 'Travel toothbrush, mini paste, and floss in a clinic-branded zip pouch.',
+      category: 'merch',
+      images: [],
+      status: 'archived',
+      fulfillment: 'pickup',
+      fsaEligible: 0,
+      featured: 0,
+      position: 5,
+    },
+  ])
+
+  await db.insert(schema.shopProductVariant).values([
+    { id: newId('var'), productId: whiteningId, organizationId: orgId, name: 'Standard', priceCents: 14900, inventoryQty: 25, position: 0 },
+    { id: newId('var'), productId: whiteningId, organizationId: orgId, name: 'Sensitive formula', priceCents: 14900, inventoryQty: 12, position: 1 },
+    { id: newId('var'), productId: brushId, organizationId: orgId, name: 'Default', priceCents: 8900, compareAtCents: 11900, inventoryQty: 40, position: 0 },
+    { id: newId('var'), productId: flosserId, organizationId: orgId, name: 'Default', priceCents: 5900, inventoryQty: 18, position: 0 },
+    { id: newId('var'), productId: pensId, organizationId: orgId, name: 'Default', priceCents: 2900, inventoryQty: null, position: 0 },
+    { id: newId('var'), productId: kidsId, organizationId: orgId, name: 'Default', priceCents: 1900, inventoryQty: 30, position: 0 },
+    { id: newId('var'), productId: merchId, organizationId: orgId, name: 'Default', priceCents: 1500, inventoryQty: null, position: 0 },
   ])
 }

@@ -68,7 +68,7 @@ export const clinicModules: ModuleRegistry = {
     { id: 'careers',           path: '/careers',           label: 'Careers',          section: 'Website',  icon: 'briefcase',status: 'live', minPlan: 'premium' },
 
     // ── Business ───────────────────────────────────────────────────────
-    { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'soon', minPlan: 'premium' },
+    { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', minPlan: 'premium' },
     { id: 'integrations',      path: '/integrations',      label: 'Integrations',     section: 'Business', icon: 'plug',     status: 'soon', minPlan: 'premium' },
 
     // ── Settings ───────────────────────────────────────────────────────
