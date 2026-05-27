@@ -41,6 +41,8 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.shopProductVariant) return 'shop_product_variant'
     if (t === schema.shopOrder) return 'shop_order'
     if (t === schema.shopOrderItem) return 'shop_order_item'
+    if (t === schema.membershipPlan) return 'membership_plan'
+    if (t === schema.membership) return 'membership'
     return 'unknown'
   }
   const chain = () => {
@@ -185,6 +187,8 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'job_existing' }])
     // Shop self-heal: a product already exists → seed loop short-circuits.
     state.selectQueue.push([{ id: 'prod_existing' }])
+    // Membership self-heal: a plan already exists → seed loop short-circuits.
+    state.selectQueue.push([{ id: 'plan_existing' }])
 
     const out = await createDemoClinic()
 
@@ -408,6 +412,9 @@ describe('createDemoClinic', () => {
     expect(counts.shop_product_variant).toBe(7)
     expect(counts.shop_order).toBe(3)
     expect(counts.shop_order_item).toBe(4)
+    // Memberships: 2 plans + 3 members (personas 0/1/4).
+    expect(counts.membership_plan).toBe(2)
+    expect(counts.membership).toBe(3)
   })
 
   it('seeds logoUrl + heroImageUrl so the website-editor checklist reads "Set" on both', async () => {
