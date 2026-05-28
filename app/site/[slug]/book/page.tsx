@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import BookForm from './book-form'
 
 interface Props {
@@ -33,7 +33,7 @@ export default async function BookPage({ params }: Props) {
 
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
 
   // Template-level warm-neutral palette (mirrors modern-template.tsx).
   const BG = '#FAF7F2'

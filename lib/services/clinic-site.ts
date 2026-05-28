@@ -1,4 +1,5 @@
 import 'server-only'
+import { headers } from 'next/headers'
 import { eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
@@ -6,6 +7,54 @@ import { clinicProfile, clinicLocation } from '@/lib/db/schema/platform'
 import type { ClinicProfile, ClinicLocation } from '@/lib/db/schema/platform'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
+
+/** Canonical base URL of the authenticated app (sign-in, dashboard, portal).
+ *  Used for cross-domain links FROM a clinic public site (which may live on a
+ *  subdomain or custom domain) back INTO the app. Always absolute. */
+export function appBaseUrl(): string {
+  const env = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '')
+  return env || `https://www.${SITE_DOMAIN}`
+}
+
+/**
+ * Resolve the prefix for in-page links on a clinic public site.
+ *
+ * The same `/site/[slug]` route is reachable two ways:
+ *   • path-based — `www.<domain>/site/<slug>` — links need the `/site/<slug>`
+ *     prefix.
+ *   • subdomain / custom domain — `<slug>.<domain>/` (middleware rewrites it
+ *     to `/site/<slug>`) — the site lives at the host ROOT, so links must be
+ *     root-relative (`''` prefix).
+ *
+ * Hardcoding `/site/<slug>` broke every internal link on the subdomain: the
+ * browser appended it to the subdomain host, re-entered the middleware rewrite
+ * (`/site/<slug>/site/<slug>/…`) and 404'd. This reads the request host to pick
+ * the correct prefix. Returns `''` (root) for subdomain/custom-domain serving,
+ * `/site/<slug>` for path-based serving (apex, www, local dev).
+ */
+export async function resolveSiteBasePath(slug: string): Promise<string> {
+  const h = await headers()
+  const host = (h.get('x-forwarded-host') || h.get('host') || '')
+    .split(',')[0]
+    .split(':')[0]
+    .trim()
+    .toLowerCase()
+  const pathBasedHosts = new Set([
+    SITE_DOMAIN,
+    `www.${SITE_DOMAIN}`,
+    `app.${SITE_DOMAIN}`,
+  ])
+  if (
+    host === '' ||
+    host.startsWith('localhost') ||
+    host.startsWith('127.0.0.1') ||
+    pathBasedHosts.has(host)
+  ) {
+    return `/site/${slug}`
+  }
+  // Subdomain (`<slug>.<domain>`) or a clinic's custom domain — site is at root.
+  return ''
+}
 
 export interface ClinicSiteData {
   orgId: string

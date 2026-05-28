@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { finalizeMembershipFromSession } from '@/lib/services/membership'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 
@@ -19,6 +19,7 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  const basePath = await resolveSiteBasePath(slug)
 
   let active = false
   let planName = 'membership'
@@ -35,7 +36,7 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
   }
 
   return (
-    <BlogChrome data={data} basePath={`/site/${slug}`}>
+    <BlogChrome data={data} basePath={basePath}>
       <div className="max-w-[560px] mx-auto px-5 sm:px-8 py-20 text-center">
         <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center text-2xl text-white" style={{ backgroundColor: brand }}>✓</div>
         <h1 className="text-3xl font-bold tracking-[-0.02em] mt-5" style={{ color: INK }}>
@@ -46,7 +47,7 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
             ? `Welcome to the ${planName}. Your preventive care is covered and your member savings apply from today. A receipt is on its way to your email.`
             : 'Your payment is being confirmed — you’ll get a receipt by email shortly.'}
         </p>
-        <a href={`/site/${slug}`} className="inline-block mt-6 text-[15px] font-semibold underline" style={{ color: brand }}>
+        <a href={`${basePath || '/'}`} className="inline-block mt-6 text-[15px] font-semibold underline" style={{ color: brand }}>
           Back to home →
         </a>
       </div>

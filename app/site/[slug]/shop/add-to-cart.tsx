@@ -14,10 +14,12 @@ interface VariantOpt {
 export default function AddToCart({
   slug,
   brand,
+  basePath,
   product,
 }: {
   slug: string
   brand: string
+  basePath: string
   product: { slug: string; name: string; image: string | null; variants: VariantOpt[] }
 }) {
   const [variantId, setVariantId] = useState(product.variants[0]?.id ?? '')
@@ -81,7 +83,7 @@ export default function AddToCart({
         {outOfStock ? 'Sold out' : added ? 'Added ✓ — add more?' : 'Add to cart'}
       </button>
       {added && (
-        <a href={`/site/${slug}/shop/cart`} className="block text-center text-[14px] font-medium mt-3 underline" style={{ color: brand }}>
+        <a href={`${basePath}/shop/cart`} className="block text-center text-[14px] font-medium mt-3 underline" style={{ color: brand }}>
           Go to cart →
         </a>
       )}

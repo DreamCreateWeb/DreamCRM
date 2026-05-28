@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import {
   getClinicSiteBySlug,
   publicSiteUrl,
+  resolveSiteBasePath,
 } from '@/lib/services/clinic-site'
 import { getFormTemplateBySlug } from '@/lib/services/forms'
 import type { FormTemplateSchema } from '@/lib/types/forms'
@@ -39,7 +40,7 @@ export default async function IntakeFormPage({ params }: Props) {
 
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
   const schema = template.schema as FormTemplateSchema
 
   const BG = '#FAF7F2'

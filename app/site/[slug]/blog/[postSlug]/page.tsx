@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { getPublishedPostBySlug, resolvePostPeople, listRelatedPosts } from '@/lib/services/blog'
 import { excerptFromHtml } from '@/lib/utils'
 import type { BlogFaqItem } from '@/lib/types/clinic-content'
@@ -51,7 +51,7 @@ export default async function ClinicBlogPostPage({ params }: Props) {
   const post = await getPublishedPostBySlug(data.orgId, postSlug)
   if (!post) notFound()
 
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
