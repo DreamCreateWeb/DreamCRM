@@ -242,6 +242,74 @@ describe('featureReviewAsTestimonial', () => {
   })
 })
 
+describe('demo review distribution', () => {
+  // Defends the seed shape against drift. The /reviews/received surface
+  // needs enough completed rows to feel populated, AND a mix of featured
+  // vs. unfeatured so the "Add to website" CTA has visible targets when
+  // staff first opens the page. A future PR that trims these (e.g. someone
+  // dropping a seed thinking it's noise) breaks the demo experience the
+  // user explicitly asked for — these tests pin it.
+
+  it('demo seeds at least 5 completed review_requests across multiple platforms', async () => {
+    // We grep the source rather than running the seeder; the file is a
+    // pure-config block.
+    const src = await import('node:fs').then((fs) =>
+      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
+    )
+    const completedLines = src
+      .split('\n')
+      .filter((l) => l.includes("status: 'completed'") && l.includes('selectedSite'))
+    expect(completedLines.length).toBeGreaterThanOrEqual(5)
+
+    const platforms = new Set<string>()
+    for (const l of completedLines) {
+      const m = l.match(/selectedSite: '(google|healthgrades|facebook|yelp)'/)
+      if (m) platforms.add(m[1])
+    }
+    // Realistic demo means more than one review platform shows up.
+    expect(platforms.size).toBeGreaterThanOrEqual(3)
+  })
+
+  it('demo seeds at least 4 patient-linked testimonials (for the "Featured" state)', async () => {
+    const src = await import('node:fs').then((fs) =>
+      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
+    )
+    // Count entries in DEMO_TESTIMONIAL_SEEDS with a numeric patientIdx.
+    const block = src.match(/DEMO_TESTIMONIAL_SEEDS[^=]*=\s*\[([\s\S]*?)\n\]/)?.[1] ?? ''
+    const linkedSeeds = block.match(/patientIdx:\s*\d+/g) ?? []
+    expect(linkedSeeds.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('keeps at least one free-text testimonial so the legacy unlinked path stays exercised', async () => {
+    const src = await import('node:fs').then((fs) =>
+      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
+    )
+    const block = src.match(/DEMO_TESTIMONIAL_SEEDS[^=]*=\s*\[([\s\S]*?)\n\]/)?.[1] ?? ''
+    const freeTextSeeds = block.match(/patientIdx:\s*null/g) ?? []
+    expect(freeTextSeeds.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('leaves at least 2 completed reviews unfeatured so /reviews/received demos the CTA', async () => {
+    // Read the seed shape and confirm that completed-review patientIdx set
+    // is NOT fully contained in the testimonial-seed patientIdx set.
+    const src = await import('node:fs').then((fs) =>
+      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
+    )
+    const reviewBlock = src.match(/REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? ''
+    const completedIdxs = new Set<number>()
+    for (const m of reviewBlock.matchAll(/patientIdx:\s*(\d+),\s*status:\s*'completed'/g)) {
+      completedIdxs.add(Number(m[1]))
+    }
+    const testimonialBlock = src.match(/DEMO_TESTIMONIAL_SEEDS[^=]*=\s*\[([\s\S]*?)\n\]/)?.[1] ?? ''
+    const featuredIdxs = new Set<number>()
+    for (const m of testimonialBlock.matchAll(/patientIdx:\s*(\d+)/g)) {
+      featuredIdxs.add(Number(m[1]))
+    }
+    const unfeatured = [...completedIdxs].filter((i) => !featuredIdxs.has(i))
+    expect(unfeatured.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
 describe('unfeatureReviewTestimonial', () => {
   it('removes only the patient-linked entry', async () => {
     state.profile = {

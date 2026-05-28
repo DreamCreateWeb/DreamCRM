@@ -255,8 +255,8 @@ const DEMO_TESTIMONIAL_SEEDS: Array<{
   freeTextAuthor?: { name: string; location: string | null }
 }> = [
   {
-    // Mia Hayes — patientIdx 0. She completed a Google review_request in the
-    // seed (REVIEW_SEEDS); promoting her is the natural workflow the new
+    // Mia Hayes — patientIdx 0. Completed a Google review_request 5 days ago.
+    // Promoting her on the public site is the natural workflow the new
     // /reviews/received surface guides staff through.
     patientIdx: 0,
     quote:
@@ -264,15 +264,39 @@ const DEMO_TESTIMONIAL_SEEDS: Array<{
     authorPhotoUrl: null,
   },
   {
-    // Noah Mitchell — patientIdx 7. He completed a Healthgrades review.
+    // Noah Mitchell — patientIdx 7. Completed a Healthgrades review 12 days ago.
     patientIdx: 7,
     quote:
       "Booked online at 11pm on a Sunday, sat in the chair Tuesday morning. The team explained every step of my treatment plan before any work — no surprises, no upsells.",
     authorPhotoUrl: null,
   },
   {
-    // A free-text testimonial — no patientId linkage. Demonstrates the
-    // legacy path is still supported alongside the new linked one.
+    // Charlotte Diaz — patientIdx 2. Completed a Google review 18 days ago.
+    patientIdx: 2,
+    quote:
+      "My six-year-old used to cry on the way to her old dentist. After two visits with the hygiene team here she now ASKS when her next cleaning is. Whatever you're doing, please keep doing it.",
+    authorPhotoUrl: null,
+  },
+  {
+    // Emma Lopez — patientIdx 6. Completed a Facebook review 22 days ago.
+    patientIdx: 6,
+    quote:
+      "I came in scared after a bad experience years ago. Dr. Reyes walked me through every step before doing anything. The crown they placed feels exactly like my real tooth. No exaggeration — best dental visit of my life.",
+    authorPhotoUrl: null,
+  },
+  {
+    // Mason Garza — patientIdx 11 (one of the filler personas). Completed a
+    // Google review 35 days ago — older, but still on the dashboard's 30+ day
+    // history so it demos the "featured-from-older-review" case.
+    patientIdx: 11,
+    quote:
+      "Front desk got my insurance pre-auth back in 48 hours after my old office took three weeks to lose the paperwork twice. They actually do what they say they will. That alone is worth switching.",
+    authorPhotoUrl: null,
+  },
+  {
+    // Free-text testimonial — no patientId linkage. Demonstrates the legacy
+    // path is still supported alongside the patient-linked ones (clinics
+    // may have entered hand-curated testimonials before this feature shipped).
     patientIdx: null,
     freeTextAuthor: { name: 'Jen R.', location: 'Cedar Park, TX' },
     quote:
@@ -1887,8 +1911,11 @@ async function topUpLinkedDemoTestimonials(
     .limit(1)
   if (!profile) return
   const current = (profile.testimonials ?? []) as Array<{ patientId?: string | null }>
-  const hasAnyLinked = current.some((t) => !!t.patientId)
-  if (hasAnyLinked) return // already healed (or a real clinic curated their own)
+  const expectedLinked = DEMO_TESTIMONIAL_SEEDS.filter((s) => s.patientIdx !== null).length
+  const currentLinked = current.filter((t) => !!t.patientId).length
+  // Skip when the demo is already up to date OR when a real clinic has
+  // curated more linked testimonials than the seed defines (don't clobber).
+  if (currentLinked >= expectedLinked) return
 
   // Re-fetch the seeded patients by their canonical name so we can build the
   // "First L." + city display labels. We match by (firstName, lastName)
@@ -1904,18 +1931,25 @@ async function topUpLinkedDemoTestimonials(
     })
     .from(schema.patient)
     .where(eq(schema.patient.organizationId, orgId))
-  const personaTargets = [
-    { firstName: 'Mia', lastName: 'Hayes' },
-    { firstName: 'Liam', lastName: 'Brooks' },
-    { firstName: 'Charlotte', lastName: 'Diaz' },
-    { firstName: 'Marcus', lastName: 'Johnson' },
-    { firstName: 'Sophia', lastName: 'Iverson' },
-    { firstName: 'Aiden', lastName: 'Kim' },
-    { firstName: 'Emma', lastName: 'Lopez' },
-    { firstName: 'Noah', lastName: 'Mitchell' },
+  // Index-aligned to DEMO_TESTIMONIAL_SEEDS.patientIdx — keep this in sync
+  // when adding new linked seeds. Slots that aren't referenced by any seed
+  // can stay null-filled; buildDemoTestimonials guards on a missing match.
+  const personaTargets: Array<{ firstName: string; lastName: string } | null> = [
+    { firstName: 'Mia', lastName: 'Hayes' },          // [0]
+    { firstName: 'Liam', lastName: 'Brooks' },        // [1]
+    { firstName: 'Charlotte', lastName: 'Diaz' },     // [2]
+    { firstName: 'Marcus', lastName: 'Johnson' },     // [3]
+    { firstName: 'Sophia', lastName: 'Iverson' },     // [4]
+    { firstName: 'Aiden', lastName: 'Kim' },          // [5]
+    { firstName: 'Emma', lastName: 'Lopez' },         // [6]
+    { firstName: 'Noah', lastName: 'Mitchell' },      // [7]
+    null,                                             // [8]  Olivia Anderson — unused by seeds
+    null,                                             // [9]  Ethan Carter   — unused
+    null,                                             // [10] Isabella Evans — unused
+    { firstName: 'Mason', lastName: 'Garza' },        // [11]
   ]
   const matched = personaTargets.map((t) =>
-    rows.find((r) => r.firstName === t.firstName && r.lastName === t.lastName) ?? null,
+    t ? rows.find((r) => r.firstName === t.firstName && r.lastName === t.lastName) ?? null : null,
   )
   const orderedIds = matched.map((m) => m?.id ?? '')
   const orderedPersonas = matched.map((m) => ({
@@ -1969,14 +2003,25 @@ async function seedReviewsForOrg(
     configAdded = true
   }
 
-  // Curated review_request seeds covering every funnel state.
-  // Index-aligned to demo personas:
-  //   [0] Mia        — completed (picked Google, 5d ago)
-  //   [3] Marcus     — sent + clicked (3d ago) — bouncing back
-  //   [4] Sophia     — sent yesterday, not opened
-  //   [7] Noah       — completed (picked Healthgrades, 12d ago)
-  //   [8] filler     — skipped (staff decided not to ask)
-  //   [9] filler     — failed (email bounced)
+  // Curated review_request seeds covering every funnel state, with seven
+  // `completed` rows so /reviews/received demos a realistically populated
+  // table. The persona/site/timing mix below is index-aligned to demo
+  // personas. Five of the seven completed rows have matching entries in
+  // DEMO_TESTIMONIAL_SEEDS (so they render as "✓ Featured"); the other
+  // two stay unfeatured so the "Add to website →" CTA on /reviews/received
+  // has live targets to demo.
+  //
+  //   [0] Mia        — completed Google      · 5d ago   (featured)
+  //   [7] Noah       — completed Healthgrades · 12d ago (featured)
+  //   [2] Charlotte  — completed Google      · 18d ago  (featured)
+  //   [6] Emma       — completed Facebook    · 22d ago  (featured)
+  //   [11] Mason     — completed Google      · 35d ago  (featured)
+  //   [1] Liam       — completed Healthgrades · 8d ago  (NOT featured — demo CTA target)
+  //   [12] Ava       — completed Google      · 28d ago  (NOT featured — demo CTA target)
+  //   [3] Marcus     — sent + clicked        · 3d ago   (bouncing back)
+  //   [4] Sophia     — sent                  · 1d ago   (not opened yet)
+  //   [8] Olivia     — skipped (staff opted out)
+  //   [9] Ethan      — failed (email bounce)
   interface ReviewSeed {
     patientIdx: number
     status: 'sent' | 'clicked' | 'completed' | 'skipped' | 'failed'
@@ -1984,8 +2029,16 @@ async function seedReviewsForOrg(
     selectedSite?: 'google' | 'healthgrades' | 'facebook' | 'yelp'
   }
   const REVIEW_SEEDS: ReviewSeed[] = [
+    // Completed — featured on the public site
     { patientIdx: 0, status: 'completed', daysAgo: 5, selectedSite: 'google' },
     { patientIdx: 7, status: 'completed', daysAgo: 12, selectedSite: 'healthgrades' },
+    { patientIdx: 2, status: 'completed', daysAgo: 18, selectedSite: 'google' },
+    { patientIdx: 6, status: 'completed', daysAgo: 22, selectedSite: 'facebook' },
+    { patientIdx: 11, status: 'completed', daysAgo: 35, selectedSite: 'google' },
+    // Completed — NOT yet featured (demo targets for the "Add to website" flow)
+    { patientIdx: 1, status: 'completed', daysAgo: 8, selectedSite: 'healthgrades' },
+    { patientIdx: 12, status: 'completed', daysAgo: 28, selectedSite: 'google' },
+    // Earlier funnel stages
     { patientIdx: 3, status: 'clicked', daysAgo: 3 },
     { patientIdx: 4, status: 'sent', daysAgo: 1 },
     { patientIdx: 8, status: 'skipped', daysAgo: 7 },
