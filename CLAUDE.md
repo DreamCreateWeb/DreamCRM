@@ -788,7 +788,7 @@ the third-party integrations that aren't AWS-native. Inventory below.
 ### Pre-migration code hygiene
 
 Already done (no action needed):
-- All current migrations applied to prod through 0023 (`_dreamcrm_migrations_applied` ledger reflects 0000–0023)
+- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0034 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; until then they're queued on `claude/epic-darwin-tJEsE`)
 - Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108)
 - 627/627 tests passing, typecheck clean
 - No uncommitted changes on `main`
@@ -834,7 +834,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0033): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0034): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its
