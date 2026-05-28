@@ -140,7 +140,11 @@ describe('clinicJsonLd', () => {
     expect(ld.openingHoursSpecification).toBeUndefined()
   })
 
-  it('derives aggregateRating reviewCount when a stat row mentions reviews', () => {
+  it('never emits a fabricated aggregateRating — even when a stat mentions reviews', () => {
+    // We don't store a real star rating, so we must not emit one. The code
+    // previously hardcoded ratingValue: '4.9' here — a fake-review/SEO
+    // violation. A "8,000+ five-star reviews" stat is marketing copy on the
+    // page, NOT a structured-data rating claim to Google.
     const ld = clinicJsonLd(
       makeData({
         stats: [
@@ -148,10 +152,7 @@ describe('clinicJsonLd', () => {
         ] as never,
       }),
     )
-    const rating = ld.aggregateRating as Record<string, unknown>
-    expect(rating['@type']).toBe('AggregateRating')
-    expect(rating.reviewCount).toBe('8000')
-    expect(rating.ratingValue).toBeDefined()
+    expect(ld.aggregateRating).toBeUndefined()
   })
 
   it('does not invent an aggregateRating when no stat row mentions reviews', () => {
