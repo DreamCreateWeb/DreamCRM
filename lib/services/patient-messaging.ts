@@ -114,6 +114,72 @@ function newMessageId(): string {
   return `pmsg_${randomBytes(10).toString('hex')}`
 }
 
+// ── Validation helpers ───────────────────────────────────────────────
+
+/**
+ * Defensive cross-tenant check. Several entry points take a patientId
+ * from a caller-supplied value (sendMessageAction, future SMS webhooks)
+ * — if the patientId belongs to a different org we'd silently create a
+ * thread for that foreign patient inside this org, leaking the patient's
+ * name/email/phone back to the caller via the inbox JOINs. Every write
+ * path that takes a caller-supplied patientId runs this first.
+ */
+async function assertPatientInOrg(organizationId: string, patientId: string): Promise<void> {
+  const [row] = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.id, patientId),
+        eq(schema.patient.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  if (!row) throw new Error('Patient not found in this organization')
+}
+
+/**
+ * Same shape as assertPatientInOrg, but for the `member` table. Used to
+ * gate thread assignment so a clinic admin can't assign a thread to a
+ * user from a different org (which would surface that user's name via
+ * the inbox JOIN).
+ */
+async function assertUserInOrg(organizationId: string, userId: string): Promise<void> {
+  const [row] = await db
+    .select({ id: schema.member.userId })
+    .from(schema.member)
+    .where(
+      and(
+        eq(schema.member.userId, userId),
+        eq(schema.member.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  if (!row) throw new Error('Assignee is not a member of this organization')
+}
+
+const VALID_CHANNELS: ReadonlySet<MessageChannel> = new Set<MessageChannel>(['in_app', 'email', 'sms'])
+
+function assertValidChannel(channel: string): asserts channel is MessageChannel {
+  if (!VALID_CHANNELS.has(channel as MessageChannel)) {
+    throw new Error(`Invalid channel: ${channel}`)
+  }
+}
+
+/**
+ * Generous upper bound on a single message body. Patient + staff text
+ * runs at most a few paragraphs in practice; this is a defensive cap
+ * against pathological / accidental megabyte-sized inputs hitting the
+ * DB. Real SMS will need its own per-segment limit at the send adapter.
+ */
+const MAX_MESSAGE_LENGTH = 8000
+
+function assertBodyWithinLimit(body: string): void {
+  if (body.length > MAX_MESSAGE_LENGTH) {
+    throw new Error(`Message body exceeds ${MAX_MESSAGE_LENGTH} character limit`)
+  }
+}
+
 // ── Inbox list ───────────────────────────────────────────────────────
 
 /**
@@ -181,12 +247,17 @@ export async function listPatientThreads(
   let filtered = rows
   if (filters.search && filters.search.trim().length > 0) {
     const q = filters.search.trim().toLowerCase()
+    // Strip non-digits from the phone for a forgiving phone search —
+    // "(512) 555-9117" should match a query of "5125559117" or "9117".
+    const qDigits = q.replace(/\D/g, '')
     filtered = rows.filter((r) => {
       const name = `${r.patientFirstName} ${r.patientLastName}`.toLowerCase()
       const preview = (r.lastMessagePreview ?? '').toLowerCase()
+      const phoneDigits = (r.patientPhone ?? '').replace(/\D/g, '')
       return name.includes(q)
         || (r.patientEmail ?? '').toLowerCase().includes(q)
         || preview.includes(q)
+        || (qDigits.length > 0 && phoneDigits.includes(qDigits))
     })
   }
 
@@ -421,13 +492,43 @@ export async function listMessagesInThread(
 // ── Send + mutations ─────────────────────────────────────────────────
 
 /**
+ * Lookup-only variant of getOrCreatePatientThread. Returns the thread id
+ * if one exists, otherwise null — DOES NOT create. Used by patient-side
+ * /patient/messages renders so an unauthenticated visit doesn't write
+ * an empty patient_thread row that then surfaces on the staff inbox as
+ * "No messages yet".
+ */
+export async function findPatientThread(
+  organizationId: string,
+  patientId: string,
+): Promise<string | null> {
+  const [existing] = await db
+    .select({ id: schema.patientThread.id })
+    .from(schema.patientThread)
+    .where(
+      and(
+        eq(schema.patientThread.organizationId, organizationId),
+        eq(schema.patientThread.patientId, patientId),
+      ),
+    )
+    .limit(1)
+  return existing?.id ?? null
+}
+
+/**
  * Get an existing thread for a (org, patient) pair, or create one. Used
- * by sendMessageToPatient + "open thread from patient detail" entry points.
+ * by sendMessageToPatient + "open thread from patient detail" entry
+ * points. Centralizes the cross-tenant validation: every write path
+ * that materializes a thread for a patient runs assertPatientInOrg
+ * first, so callers can't accidentally create a thread in this org
+ * for a patientId that belongs to a different one.
  */
 export async function getOrCreatePatientThread(
   organizationId: string,
   patientId: string,
 ): Promise<string> {
+  await assertPatientInOrg(organizationId, patientId)
+
   const existing = await db
     .select({ id: schema.patientThread.id })
     .from(schema.patientThread)
@@ -468,9 +569,12 @@ export async function sendMessageToPatient(input: {
   sentByUserId: string
 }): Promise<{ threadId: string; messageId: string }> {
   if (!input.body.trim()) throw new Error('Message body cannot be empty')
+  assertBodyWithinLimit(input.body)
+  assertValidChannel(input.channel)
   if (input.channel === 'sms') {
     throw new Error('SMS channel is not enabled in this build (Phase B). Use email or in-app.')
   }
+  // Cross-tenant patient check lives inside getOrCreatePatientThread.
 
   const threadId = await getOrCreatePatientThread(input.organizationId, input.patientId)
   const messageId = newMessageId()
@@ -519,6 +623,11 @@ export async function recordInboundMessage(input: {
   channel: MessageChannel
   externalId?: string
 }): Promise<{ threadId: string; messageId: string }> {
+  if (!input.body.trim()) throw new Error('Message body cannot be empty')
+  assertBodyWithinLimit(input.body)
+  assertValidChannel(input.channel)
+  // Cross-tenant patient check lives inside getOrCreatePatientThread.
+
   const threadId = await getOrCreatePatientThread(input.organizationId, input.patientId)
   const messageId = newMessageId()
   const now = new Date()
@@ -556,6 +665,11 @@ export async function assignThread(
   threadId: string,
   assigneeUserId: string | null,
 ): Promise<void> {
+  if (assigneeUserId) {
+    // Reject assignment to a user outside this org — would leak their
+    // display name into the inbox via the user JOIN on the thread list.
+    await assertUserInOrg(organizationId, assigneeUserId)
+  }
   await db
     .update(schema.patientThread)
     .set({ assignedUserId: assigneeUserId, updatedAt: new Date() })
@@ -649,13 +763,18 @@ export const CANNED_TEMPLATES = [
   },
 ]
 
-/** Substitute {{firstName}} etc. in a template against a patient record. */
+/**
+ * Substitute {{firstName}} etc. in a template against a patient record.
+ * Uses the function-form of String#replace so `$` characters in the
+ * patient's name (rare but possible — surname like "O'$tone" or a typo)
+ * aren't interpreted as regex backreferences in the replacement string.
+ */
 export function renderTemplate(
   template: string,
   patient: { firstName: string; lastName: string },
 ): string {
   return template
-    .replace(/\{\{firstName\}\}/g, patient.firstName)
-    .replace(/\{\{lastName\}\}/g, patient.lastName)
-    .replace(/\{\{fullName\}\}/g, `${patient.firstName} ${patient.lastName}`)
+    .replace(/\{\{firstName\}\}/g, () => patient.firstName)
+    .replace(/\{\{lastName\}\}/g, () => patient.lastName)
+    .replace(/\{\{fullName\}\}/g, () => `${patient.firstName} ${patient.lastName}`)
 }

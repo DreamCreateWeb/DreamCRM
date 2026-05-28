@@ -238,7 +238,7 @@ export default function ThreadDetailPanel({
                       {m.channel === 'in_app' ? 'In-app' : m.channel === 'email' ? 'Email' : 'SMS'}
                     </span>
                   </div>
-                  <div className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed whitespace-pre-wrap ${
+                  <div className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed whitespace-pre-wrap break-words ${
                     m.direction === 'outbound'
                       ? 'bg-stone-900 text-stone-50 dark:bg-stone-100 dark:text-stone-900 rounded-tr-sm'
                       : 'bg-white border border-stone-200 dark:bg-stone-800 dark:border-stone-700 text-stone-800 dark:text-stone-100 rounded-tl-sm'

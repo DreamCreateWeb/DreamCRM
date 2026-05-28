@@ -13,7 +13,7 @@ import {
 } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import {
-  getOrCreatePatientThread,
+  findPatientThread,
   listMessagesInThread,
   recordInboundMessage,
   type ThreadMessage,
@@ -349,7 +349,8 @@ export async function getMyRecords(
 // messages live in.
 
 export interface MyThreadView {
-  threadId: string
+  /** Null until the patient sends their first message (lazy create). */
+  threadId: string | null
   messages: ThreadMessage[]
 }
 
@@ -357,7 +358,11 @@ export async function getMyThread(
   organizationId: string,
   patientId: string,
 ): Promise<MyThreadView> {
-  const threadId = await getOrCreatePatientThread(organizationId, patientId)
+  // Read-only lookup: visiting the portal shouldn't write a thread row.
+  // The thread is materialized on first patient send via
+  // sendMessageFromPatient → recordInboundMessage → getOrCreatePatientThread.
+  const threadId = await findPatientThread(organizationId, patientId)
+  if (!threadId) return { threadId: null, messages: [] }
   const messages = await listMessagesInThread(organizationId, threadId)
   return { threadId, messages }
 }
