@@ -8,6 +8,8 @@ import {
   shopOrderItem,
   membership,
   membershipPlan,
+  formSubmission,
+  formTemplate,
 } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import {
@@ -213,6 +215,126 @@ export async function getMyBills(
       createdAt: o.createdAt,
       paidAt: o.paidAt,
       items: itemsByOrder.get(o.id) ?? [],
+    })),
+  }
+}
+
+// ── Records ──────────────────────────────────────────────────────────
+//
+// What's on file at the clinic from a CRM perspective — what's in their
+// chart at OD is OD's problem (we don't read or render dental records,
+// charting, perio, claims, Rx, etc per DESIGN.md). What we DO have:
+//   • Personal + insurance + contact + DOB — the identity block staff
+//     keep on each patient row.
+//   • Form submissions — every intake/medical-history/HIPAA form the
+//     patient has filled out, with submitted timestamp and form title.
+//   • Completed-visit history — appointment rows with status='completed'.
+
+export interface MyPatientRecord {
+  firstName: string
+  lastName: string
+  email: string | null
+  phone: string | null
+  dateOfBirth: string | null
+  addressLine1: string | null
+  city: string | null
+  state: string | null
+  postalCode: string | null
+  insuranceProvider: string | null
+  insurancePolicyNumber: string | null
+  insuranceGroupNumber: string | null
+}
+
+export interface MyFormOnFile {
+  submissionId: string
+  formTitle: string
+  submittedAt: Date
+}
+
+export interface MyVisitHistoryRow {
+  id: string
+  type: string
+  startTime: Date
+  notes: string | null
+}
+
+export interface MyRecords {
+  patient: MyPatientRecord
+  forms: MyFormOnFile[]
+  visits: MyVisitHistoryRow[]
+}
+
+export async function getMyRecords(
+  patientId: string,
+  organizationId: string,
+): Promise<MyRecords | null> {
+  const [patientRow] = await db
+    .select({
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      email: patient.email,
+      phone: patient.phone,
+      dateOfBirth: patient.dateOfBirth,
+      addressLine1: patient.addressLine1,
+      city: patient.city,
+      state: patient.state,
+      postalCode: patient.postalCode,
+      insuranceProvider: patient.insuranceProvider,
+      insurancePolicyNumber: patient.insurancePolicyNumber,
+      insuranceGroupNumber: patient.insuranceGroupNumber,
+    })
+    .from(patient)
+    .where(and(eq(patient.id, patientId), eq(patient.organizationId, organizationId)))
+    .limit(1)
+  if (!patientRow) return null
+
+  const [formRows, visitRows] = await Promise.all([
+    db
+      .select({
+        submissionId: formSubmission.id,
+        formTitle: formTemplate.title,
+        submittedAt: formSubmission.submittedAt,
+      })
+      .from(formSubmission)
+      .innerJoin(formTemplate, eq(formSubmission.formTemplateId, formTemplate.id))
+      .where(
+        and(
+          eq(formSubmission.patientId, patientId),
+          eq(formSubmission.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(formSubmission.submittedAt)),
+    db
+      .select({
+        id: appointment.id,
+        type: appointment.type,
+        startTime: appointment.startTime,
+        notes: appointment.notes,
+      })
+      .from(appointment)
+      .where(
+        and(
+          eq(appointment.patientId, patientId),
+          eq(appointment.organizationId, organizationId),
+          eq(appointment.status, 'completed'),
+        ),
+      )
+      .orderBy(desc(appointment.startTime))
+      .limit(50),
+  ])
+
+  return {
+    patient: patientRow,
+    forms: formRows.map((f) => ({
+      submissionId: f.submissionId,
+      formTitle: f.formTitle,
+      submittedAt: f.submittedAt,
+    })),
+    visits: visitRows.map((v) => ({
+      id: v.id,
+      type: v.type,
+      startTime: v.startTime,
+      notes: v.notes,
     })),
   }
 }
