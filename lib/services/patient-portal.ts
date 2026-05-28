@@ -10,6 +10,12 @@ import {
   membershipPlan,
 } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import {
+  getOrCreatePatientThread,
+  listMessagesInThread,
+  recordInboundMessage,
+  type ThreadMessage,
+} from '@/lib/services/patient-messaging'
 
 export async function getMyPatientRecord(patientId: string) {
   const [row] = await db
@@ -209,6 +215,48 @@ export async function getMyBills(
       items: itemsByOrder.get(o.id) ?? [],
     })),
   }
+}
+
+// ── Messages ─────────────────────────────────────────────────────────
+//
+// Patient-side view of the same unified conversation the clinic sees in
+// `/messages`. Reuses the clinic-side service: the thread is created
+// lazily if it doesn't exist yet, and the message stream merges both
+// patient_message rows and patient-linked email_message rows so a
+// portal-side reply slots into the same history Gmail-ingested
+// messages live in.
+
+export interface MyThreadView {
+  threadId: string
+  messages: ThreadMessage[]
+}
+
+export async function getMyThread(
+  organizationId: string,
+  patientId: string,
+): Promise<MyThreadView> {
+  const threadId = await getOrCreatePatientThread(organizationId, patientId)
+  const messages = await listMessagesInThread(organizationId, threadId)
+  return { threadId, messages }
+}
+
+/**
+ * Send a message from the patient → clinic, in-app channel. Increments
+ * the clinic-side unread counter and flips the thread to 'open' so it
+ * surfaces on the front desk's queue. Caller (server action) gates on
+ * tenant + patient identity; this function takes both at face value.
+ */
+export async function sendMessageFromPatient(
+  organizationId: string,
+  patientId: string,
+  body: string,
+): Promise<{ threadId: string; messageId: string }> {
+  return recordInboundMessage({
+    organizationId,
+    patientId,
+    body,
+    channel: 'in_app',
+  })
 }
 
 export async function getMyClinicHeader(organizationId: string) {
