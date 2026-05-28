@@ -489,6 +489,15 @@ export const reviewRequest = pgTable('review_request', {
   // For Phase 2 NPS triage: 1-5 rating + private feedback body.
   rating: integer('rating'),
   privateFeedback: text('private_feedback'),
+  /**
+   * The full review text the patient wrote in DreamCRM. Populated when the
+   * patient submits the review form on `/r/<token>`. NULL when the request
+   * hasn't been completed yet OR when the patient went straight to a
+   * third-party platform without leaving a copy here. Staff can READ this
+   * on /reviews/received but CANNOT edit it — only the patient owns their
+   * own words.
+   */
+  reviewText: text('review_text'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [
