@@ -641,14 +641,22 @@ eventual App Runner → ECS move) are tracked in that section.
    stays disabled in UI until `clinic_sms_config.a2p_status='approved'`.
    Twilio creds from prior conversation transcripts can be rotated +
    discarded — they're no longer the target integration.
-2. **Reviews auto-trigger (v1.1)** — cron-driven send 24h after
-   `appointment.status='completed'` for orgs with
-   `clinic_review_config.autoSendEnabled=true`. The schema bit is
-   already there; needs a cron entry + handler that queries
-   `appointment completed AND completedAt < now - autoSendDelayHours
-   AND no review_request in last minDaysBetweenRequests`. Wire
-   alongside the AWS migration so the cron mechanism (EventBridge /
-   Lambda scheduler / etc.) is decided once.
+2. **Reviews auto-trigger (v1.1)** — code shipped, **needs an
+   EventBridge schedule rule to start firing.** Handler at
+   `/api/cron/auto-send-reviews` (Bearer `CRON_SECRET`, same pattern as
+   `publish-scheduled-posts`). Service `autoSendDueReviewRequests` in
+   `lib/services/reviews.ts` finds every org with
+   `clinic_review_config.autoSendEnabled=1` + a complete platform
+   config, scans `appointment.status='completed'` past the per-org
+   `autoSendDelayHours` cutoff (default 24h), and fires one send per
+   appointment with no existing `review_request` row pointing at it
+   (per-appointment idempotency means hourly is safe). Expected
+   guard misses (opted out / no email / rate limit / no platforms) are
+   classified as `skipped`; unexpected errors land in `result.errors`
+   for ops alerting. **To activate:** add an EventBridge schedule rule
+   (`cron(0 * * * ? *)` for hourly) that POSTs to
+   `https://www.dreamcreatestudio.com/api/cron/auto-send-reviews` with
+   `Authorization: Bearer ${CRON_SECRET}`.
 3. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard isn't set.
    Apex resolves to platform but subdomains NXDOMAIN. Required record
    on the registrar: `CNAME *` pointing at the new hosting target
@@ -660,9 +668,13 @@ eventual App Runner → ECS move) are tracked in that section.
    custom landing pages, blog posts. Template switcher with preview
    (Cosmetic / Pediatric variants per DESIGN.md). Custom domain wiring
    for the `websiteDomain` column. Per-page SEO controls.
-6. **Patient portal completion** — `/patient/*` exists but bills is
-   placeholder; records, messages, intake-fill, refill-request still
-   marked 'soon' in the patient sidebar.
+6. **Patient portal completion** — Bills (PR #145), Messages (PR
+   #146), and My Records (PR #147) all shipped 2026-05-28; sidebar now
+   flags them `live`. Remaining `'soon'` items: **intake-fill**
+   (authenticated entry into the existing public form at
+   `/site/[slug]/intake/[formSlug]`) and **refill-request** (single-
+   form patient-side request that lands as an inbound `patient_message`
+   tagged 'refill' for the front desk).
 7. **Patients module v2** — per-patient tags + audience targeting;
    comms preferences granularity; household linkage table for
    pediatric/family clinics; per-view audit log for Premium tier;

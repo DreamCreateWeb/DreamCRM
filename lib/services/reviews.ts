@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, count, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { Resend } from 'resend'
@@ -350,7 +350,10 @@ export async function createAndSendReviewRequest(input: {
   patientId: string
   appointmentId?: string
   channel: ReviewChannel
-  requestedByUserId: string
+  /** User who clicked Send (manual flow), or null for system-initiated
+   *  sends (auto-trigger cron). The column is nullable; we record null
+   *  rather than impersonating a staff user. */
+  requestedByUserId: string | null
 }): Promise<{ id: string; token: string }> {
   if (input.channel === 'sms') {
     throw new Error('SMS channel is not enabled in this build (Phase B). Use email.')
@@ -409,7 +412,7 @@ export async function createAndSendReviewRequest(input: {
     organizationId: input.organizationId,
     patientId: input.patientId,
     appointmentId: input.appointmentId ?? null,
-    requestedByUserId: input.requestedByUserId,
+    requestedByUserId: input.requestedByUserId ?? null,
     channel: input.channel,
     status: 'pending',
     token,
@@ -733,6 +736,118 @@ export async function listReviewRequests(
   }))
 }
 
+// ── Auto-send (v1.1, cron-driven) ────────────────────────────────────
+//
+// Triggered by the EventBridge → /api/cron/auto-send-reviews schedule
+// (hourly is fine; the per-appointment idempotency guard means running
+// multiple times is safe — only the FIRST visit to a completed
+// appointment fires a send).
+//
+// Per-appointment idempotency: we left-join reviewRequest on
+// appointmentId and only attempt sends where no review_request row
+// already points at the appointment. So a failed send (Resend down,
+// patient bounced, etc) doesn't block a manual retry from the staff
+// dashboard — but it DOES block the cron from re-firing on the next
+// hourly tick, which is the right call (the front desk knows their
+// patient + the failure mode better than the cron does).
+
+export interface AutoSendResult {
+  scanned: number
+  sent: number
+  /** Skipped per the createAndSendReviewRequest guards (opted out,
+   *  no email, rate-limited, no platforms configured). Expected, fine. */
+  skipped: number
+  /** Send actually failed (Resend error, DB error). Worth alerting on. */
+  failed: number
+  errors: Array<{ organizationId: string; appointmentId: string; error: string }>
+}
+
+export async function autoSendDueReviewRequests(opts?: {
+  now?: Date
+  /** Optional override for the actual send call. Production passes
+   *  nothing (defaults to the in-module createAndSendReviewRequest);
+   *  tests inject a stub to assert orchestration without exercising the
+   *  full send path (which has its own dedicated test file). */
+  sendFn?: typeof createAndSendReviewRequest
+}): Promise<AutoSendResult> {
+  const now = opts?.now ?? new Date()
+  const send = opts?.sendFn ?? createAndSendReviewRequest
+
+  const orgs = await db
+    .select({
+      organizationId: schema.clinicReviewConfig.organizationId,
+      autoSendDelayHours: schema.clinicReviewConfig.autoSendDelayHours,
+    })
+    .from(schema.clinicReviewConfig)
+    .where(eq(schema.clinicReviewConfig.autoSendEnabled, 1))
+
+  const result: AutoSendResult = { scanned: 0, sent: 0, skipped: 0, failed: 0, errors: [] }
+
+  for (const org of orgs) {
+    const config = await getReviewConfig(org.organizationId)
+    if (!isReviewConfigComplete(config)) {
+      // Auto-send is on but no platform is set up — staff misconfig;
+      // skip silently. They'll see Sent=0 on the dashboard.
+      continue
+    }
+
+    const cutoff = new Date(now.getTime() - (org.autoSendDelayHours ?? 24) * 60 * 60 * 1000)
+
+    const candidates = await db
+      .select({
+        appointmentId: schema.appointment.id,
+        patientId: schema.appointment.patientId,
+      })
+      .from(schema.appointment)
+      .leftJoin(
+        schema.reviewRequest,
+        eq(schema.reviewRequest.appointmentId, schema.appointment.id),
+      )
+      .where(
+        and(
+          eq(schema.appointment.organizationId, org.organizationId),
+          eq(schema.appointment.status, 'completed'),
+          lte(schema.appointment.completedAt, cutoff),
+          isNull(schema.reviewRequest.id),
+        ),
+      )
+      .limit(100)
+
+    for (const c of candidates) {
+      result.scanned++
+      try {
+        await send({
+          organizationId: org.organizationId,
+          patientId: c.patientId,
+          appointmentId: c.appointmentId,
+          channel: 'email',
+          requestedByUserId: null,
+        })
+        result.sent++
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'unknown'
+        // Expected user-state guard misses — record as skip, not failure.
+        if (
+          msg.includes('opted out') ||
+          msg.includes('no email') ||
+          msg.includes('already asked') ||
+          msg.includes('No review platforms')
+        ) {
+          result.skipped++
+        } else {
+          result.failed++
+          result.errors.push({
+            organizationId: org.organizationId,
+            appointmentId: c.appointmentId,
+            error: msg,
+          })
+        }
+      }
+    }
+  }
+
+  return result
+}
+
 // Suppress unused-warning imports
-void lte
 void ne
