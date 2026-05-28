@@ -95,6 +95,19 @@ export async function seedDemoPms(organizationId: string): Promise<void> {
       .where(eq(schema.patient.id, patients[i].id))
   }
 
+  // PMS recall dates on a different slice — overdue / due-soon / future so the
+  // recall pill on the patients list demos every state (the recall sync source).
+  const recallOffsetsDays = [-45, 5, 21, 95]
+  for (let i = 0; i < Math.min(recallOffsetsDays.length, Math.max(0, patients.length - 5)); i++) {
+    const target = patients[i + 5]
+    if (!target) break
+    const dueAt = new Date(now + recallOffsetsDays[i] * 24 * 60 * 60 * 1000)
+    await db
+      .update(schema.patient)
+      .set({ pmsRecallDueAt: dueAt, pmsRecallInterval: '6m' })
+      .where(eq(schema.patient.id, target.id))
+  }
+
   // Inbound sync history.
   const runs: (typeof schema.pmsSyncRun.$inferInsert)[] = [
     {

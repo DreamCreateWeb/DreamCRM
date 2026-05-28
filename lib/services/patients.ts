@@ -2,6 +2,7 @@ import 'server-only'
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
+import { derivePatientRecallStatus } from '@/lib/services/recall-status'
 
 /**
  * Patients service — the CRM-side relationship view.
@@ -389,13 +390,16 @@ export async function listPatients(
     const newPatient = p.lifecycle === 'new' || !lastVisitAt
     const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !next
     const missingIntakeBeforeAppt = !!next && next.startTime <= in7d && !intakeSet.has(p.id)
-    const recallStatus: PatientListRow['recallStatus'] = recallSet.has(p.id)
-      ? 'scheduled'
-      : lapsed
-        ? 'overdue'
-        : lastVisitAt && lastVisitAt < new Date(now.getTime() - 6 * 30 * 24 * 60 * 60 * 1000) && !next
-          ? 'due'
-          : 'na'
+    // Prefer the PMS recall date when present (Integrations); otherwise fall
+    // back to the appointment-derived heuristic so unconnected clinics behave
+    // exactly as before.
+    const recallStatus = derivePatientRecallStatus({
+      pmsRecallDueAt: p.pmsRecallDueAt,
+      hasUpcomingAppt: recallSet.has(p.id),
+      hasAnyFutureAppt: !!next,
+      lastVisitAt,
+      now,
+    })
     return {
       id: p.id,
       firstName: p.firstName,

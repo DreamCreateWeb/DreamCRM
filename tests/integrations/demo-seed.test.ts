@@ -134,7 +134,10 @@ describe('seedDemoPms — idempotent self-heal', () => {
     const statuses = ops.map((o) => o.status).sort()
     expect(statuses).toEqual(['error', 'pending', 'success', 'success'])
 
-    // PMS balances written onto the first few patients
-    expect(state.updates.filter((u) => u.table === 'patient')).toHaveLength(5)
+    // PMS balances on the first 5 patients + PMS recall on at least the 6th
+    // (the recall loop fires Math.min(4, patients.length - 5) times — with 6
+    // patients in this fixture that's 1 recall update on top of 5 balances).
+    expect(state.updates.filter((u) => u.table === 'patient')).toHaveLength(6)
+    expect(state.updates.some((u) => u.table === 'patient' && 'pmsRecallDueAt' in u.set)).toBe(true)
   })
 })

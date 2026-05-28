@@ -42,6 +42,18 @@ export interface NormalizedProvider {
   role?: string | null
 }
 
+// PMS recall entry. The PMS owns the recall engine; we sync due dates onto
+// patient.pmsRecallDueAt so Recall & Outreach + the patients list prefer the
+// authoritative PMS date over our appointment-derived heuristic.
+export interface NormalizedRecall {
+  externalId: string // RecallNum
+  patientExternalId: string // PatNum
+  dueDate: Date | null // null when the PMS reports its no-date sentinel
+  previousDate: Date | null
+  interval: string | null // e.g. "6m"
+  isDisabled: boolean
+}
+
 // ── Write-back payloads (DreamCRM → PMS, via the official API only) ──────────
 
 export interface CreatePatientPayload {
@@ -89,6 +101,9 @@ export interface PmsProviderClient {
   // pull (the engine's content-hash skip avoids redundant writes).
   listPatients(): Promise<NormalizedPatient[]>
   listAppointments(opts?: { since?: Date }): Promise<NormalizedAppointment[]>
+  /** PMS recall list — OD doesn't honor a DateTStamp filter on /recalls,
+   *  so this is a full paginated pull (small N + content-skip per-patient). */
+  listRecalls(): Promise<NormalizedRecall[]>
   createPatient(payload: CreatePatientPayload): Promise<PmsWriteResult>
   createAppointment(payload: CreateAppointmentPayload): Promise<PmsWriteResult>
   /** Push a status change for an existing PMS appointment (cancel/no-show). */

@@ -7,7 +7,7 @@ import type { PmsConnection } from '@/lib/db/schema/clinic'
 import { OpenDentalProvider } from './open-dental'
 import { DemoProvider } from './demo'
 import { getPmsConnection } from './connection'
-import type { NormalizedAppointment, NormalizedPatient, NormalizedProvider, PmsProviderClient } from './provider'
+import type { NormalizedAppointment, NormalizedPatient, NormalizedProvider, NormalizedRecall, PmsProviderClient } from './provider'
 
 const VALID_ROLES = ['dentist', 'hygienist', 'assistant', 'specialist', 'admin']
 
@@ -124,7 +124,7 @@ export async function runImport(
     triggeredByUserId: opts.triggeredByUserId ?? null,
   })
 
-  const counts: Record<string, Tally> = { providers: tally(), patients: tally(), appointments: tally() }
+  const counts: Record<string, Tally> = { providers: tally(), patients: tally(), appointments: tally(), recalls: tally() }
   let error: string | null = null
 
   try {
@@ -135,6 +135,7 @@ export async function runImport(
     await reconcileProviders(organizationId, await client.listProviders(), counts.providers)
     await reconcilePatients(organizationId, await client.listPatients(), counts.patients)
     await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments)
+    await reconcileRecalls(organizationId, await client.listRecalls(), counts.recalls)
   } catch (e) {
     error = (e as Error).message
   }
@@ -382,6 +383,39 @@ function appointmentStatusFields(status: NormalizedAppointment['status']): Recor
   if (status === 'no_show') return { noShowedAt: new Date() }
   if (status === 'confirmed') return { confirmedAt: new Date() }
   return {}
+}
+
+// Recall reconcile — the PMS owns the recall engine. We write each mapped
+// patient's soonest active due date onto patient.pmsRecallDueAt, which the
+// shared recall-status helper (lib/services/recall-status.ts) prefers over the
+// appointment-derived heuristic.
+async function reconcileRecalls(organizationId: string, rows: NormalizedRecall[], t: Tally) {
+  const byPat = new Map<string, NormalizedRecall>()
+  for (const r of rows) {
+    if (r.isDisabled || !r.dueDate) continue
+    const existing = byPat.get(r.patientExternalId)
+    if (!existing || r.dueDate.getTime() < existing.dueDate!.getTime()) {
+      byPat.set(r.patientExternalId, r)
+    }
+  }
+  if (byPat.size === 0) return
+  const patMap = await loadMap(organizationId, 'patient')
+  for (const [patExt, recall] of Array.from(byPat.entries())) {
+    const m = patMap.get(patExt)
+    if (!m) {
+      t.skipped++
+      continue
+    }
+    await db
+      .update(schema.patient)
+      .set({
+        pmsRecallDueAt: recall.dueDate,
+        pmsRecallInterval: recall.interval,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, m.internalId)))
+    t.updated++
+  }
 }
 
 // ── Outbound write-back (DreamCRM → PMS, official API only) ──────────────────

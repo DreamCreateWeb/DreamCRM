@@ -69,6 +69,13 @@ export const patient = pgTable(
     pmsBalanceCents: integer('pms_balance_cents'),
     pmsBalanceUpdatedAt: timestamp('pms_balance_updated_at'),
 
+    // PMS-synced recall (Integrations Phase 1). The clinic's PMS owns the
+    // recall engine; when present we prefer it for "who's due" over our
+    // appointment-derived heuristic. pmsRecallDueAt = next due date,
+    // pmsRecallInterval = cadence string (e.g. "6m").
+    pmsRecallDueAt: timestamp('pms_recall_due_at'),
+    pmsRecallInterval: text('pms_recall_interval'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

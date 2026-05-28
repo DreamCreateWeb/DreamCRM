@@ -9,6 +9,7 @@ import type {
   NormalizedPatient,
   NormalizedAppointment,
   NormalizedProvider,
+  NormalizedRecall,
   CreateAppointmentPayload,
   CreatePatientPayload,
   AppointmentStatusChange,
@@ -109,6 +110,12 @@ export class DemoProvider implements PmsProviderClient {
         type: r.type,
         note: r.notes ?? null,
       }))
+  }
+
+  async listRecalls(): Promise<NormalizedRecall[]> {
+    // The demo seeder writes pmsRecallDueAt directly onto its sample patients,
+    // so the sandbox doesn't return a recall set here (a re-sync is a no-op).
+    return []
   }
 
   async createPatient(_payload: CreatePatientPayload): Promise<PmsWriteResult> {

@@ -117,6 +117,25 @@ describe('OpenDentalProvider reads (normalization)', () => {
     expect(p.role).toBe('dentist') // numeric Specialty isn't a portable label
   })
 
+  it('listRecalls — maps fields, treats 0001-01-01 as null, surfaces IsDisabled', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch([
+        { RecallNum: 1, PatNum: 20, DateDue: '0001-01-01', DatePrevious: '0001-01-01', RecallInterval: '6m', IsDisabled: 'false' },
+        { RecallNum: 2, PatNum: 15, DateDue: '2026-09-30', DatePrevious: '2026-03-30', RecallInterval: '6m', IsDisabled: 'false' },
+        { RecallNum: 3, PatNum: 10, DateDue: '2026-09-30', RecallInterval: '4m', IsDisabled: 'true' },
+      ]),
+    )
+    const rows = await new OpenDentalProvider('k').listRecalls()
+    expect(rows).toHaveLength(3)
+    expect(rows[0].dueDate).toBeNull()
+    expect(rows[0].previousDate).toBeNull()
+    expect(rows[1].dueDate?.toISOString().slice(0, 10)).toBe('2026-09-30')
+    expect(rows[1].patientExternalId).toBe('15')
+    expect(rows[1].interval).toBe('6m')
+    expect(rows[2].isDisabled).toBe(true)
+  })
+
   it('throws on a non-200 response', async () => {
     vi.stubGlobal('fetch', mockFetch('Unauthorized', false, 401))
     await expect(new OpenDentalProvider('k').listPatients()).rejects.toThrow(/401/)

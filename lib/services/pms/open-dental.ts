@@ -7,6 +7,7 @@ import type {
   NormalizedPatient,
   NormalizedAppointment,
   NormalizedProvider,
+  NormalizedRecall,
   CreatePatientPayload,
   CreateAppointmentPayload,
   AppointmentStatusChange,
@@ -92,6 +93,23 @@ interface ODProvider {
   ProvNum: number
   FName?: string
   LName?: string
+}
+interface ODRecall {
+  RecallNum: number
+  PatNum: number
+  DateDue?: string
+  DatePrevious?: string
+  RecallInterval?: string
+  IsDisabled?: string | boolean
+}
+
+// OD uses '0001-01-01' as its no-date sentinel; map to null.
+function parseRecallDate(s: string | undefined): Date | null {
+  if (!s) return null
+  if (s.startsWith('0001-')) return null
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return null
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))
 }
 interface ODOperatory {
   OperatoryNum: number
@@ -251,6 +269,20 @@ export class OpenDentalProvider implements PmsProviderClient {
           note: a.Note?.trim() || null,
         }
       })
+  }
+
+  async listRecalls(): Promise<NormalizedRecall[]> {
+    // /recalls doesn't honor DateTStamp — full paginated pull; the engine's
+    // per-patient upsert is cheap (one UPDATE per patient with a real due date).
+    const rows = await this.getAll<ODRecall & Record<string, unknown>>('/recalls', 'RecallNum')
+    return rows.map((r) => ({
+      externalId: String(r.RecallNum),
+      patientExternalId: String(r.PatNum),
+      dueDate: parseRecallDate(r.DateDue),
+      previousDate: parseRecallDate(r.DatePrevious),
+      interval: r.RecallInterval?.trim() || null,
+      isDisabled: String(r.IsDisabled) === 'true',
+    }))
   }
 
   async createPatient(payload: CreatePatientPayload): Promise<PmsWriteResult> {
