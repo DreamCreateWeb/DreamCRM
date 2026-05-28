@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   clinicJsonLd,
   resolveSiteBasePath,
+  appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import ModernTemplate from '@/components/clinic-site/modern-template'
@@ -69,7 +70,12 @@ export default async function ClinicSitePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ModernTemplate data={data} basePath={basePath} hasBlog={publishedPosts.length > 0} />
+      <ModernTemplate
+        data={data}
+        basePath={basePath}
+        signInUrl={`${appBaseUrl()}/signin`}
+        hasBlog={publishedPosts.length > 0}
+      />
     </>
   )
 }
