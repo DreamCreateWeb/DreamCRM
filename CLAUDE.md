@@ -27,8 +27,9 @@ aesthetic — keep it; wire logic to it rather than replacing components.
 - **SMS: not wired** (future: AWS End User Messaging + A2P 10DLC). Gmail OAuth unchanged.
 - **Deployed on AWS App Runner** (`us-east-1`). Canonical URL:
   **https://www.dreamcreatestudio.com**; `app.dreamcreatestudio.com` + the bare
-  apex redirect to `www`. Clinic public sites at `{slug}.dreamcreatestudio.com`
-  still need wildcard DNS (see "Deployment & operations").
+  apex redirect to `www`. Clinic public sites serve live at
+  `{slug}.dreamcreatestudio.com` (wildcard DNS + cert wired — see
+  "Deployment & operations").
 
 ## Repo layout
 ```
@@ -660,11 +661,22 @@ eventual App Runner → ECS move) are tracked in that section.
    (`cron(0 * * * ? *)` for hourly) that POSTs to
    `https://www.dreamcreatestudio.com/api/cron/auto-send-reviews` with
    `Authorization: Bearer ${CRON_SECRET}`.
-3. **Subdomain DNS** — `*.dreamcreatestudio.com` wildcard isn't set.
-   Apex resolves to platform but subdomains NXDOMAIN. Required record
-   on the registrar: `CNAME *` pointing at the new hosting target
-   post-AWS-migration. Path-based URLs (`/site/[slug]/...`) work today
-   as a workaround.
+3. ~~**Subdomain DNS**~~ — **DONE (2026-05-28).** `*.dreamcreatestudio.com`
+   is wired and serving: clinic sites are live at
+   `{slug}.dreamcreatestudio.com` (verified `acme-dental-demo.…` → 200
+   homepage + `/book`). App Runner holds a third custom-domain
+   association `*.dreamcreatestudio.com` (`active`, wildcard ACM cert
+   CN `*.dreamcreatestudio.com`) alongside the apex+www and `app.`
+   associations. **3 CNAME records at name.com** make it work:
+   `*` → `hq7ygyvjdp.us-east-1.awsapprunner.com` (routing) + two ACM
+   validation CNAMEs (`_4345…` → `_cc91….acm-validations.aws` and
+   `_f8f4….r9ex…` → `_5914….acm-validations.aws`). `www`/`app`/apex stay
+   on their explicit, more-specific records (they win over `*`); unknown
+   subdomains rewrite to `/site/<slug>` and 404 cleanly. To add the
+   wildcard on a fresh service: `aws apprunner associate-custom-domain
+   --domain-name "*.dreamcreatestudio.com" --no-enable-www-subdomain`,
+   then add the returned validation records + the `*` routing CNAME.
+   Path-based URLs (`/site/[slug]/...`) still work as before.
 4. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL`
    envs (they currently point to the same monthly prices).
 5. **Multi-page Website editor (v1.1)** — about page, services detail,
@@ -803,7 +815,7 @@ the third-party integrations that aren't AWS-native. Inventory below.
 | **Speed Insights + Web Analytics** | Vercel-managed RUM + page-view analytics | CloudWatch RUM, or self-host Plausible/PostHog |
 | **`next/image` optimization** | Automatic image optimization on Vercel CDN | `next.config.ts` `images.loader: 'custom'` pointing at a Lambda + CloudFront image pipeline, OR pre-process at upload time and skip runtime optimization |
 | **`next/og` `ImageResponse`** | Dynamic OG image rendering for clinic sites at `/site/[slug]/opengraph-image` | Runs on any Node runtime; works on Lambda + container deploys. Confirm Edge runtime isn't required |
-| **Domain config** | apex `dreamcreatestudio.com` + wildcard `*.dreamcreatestudio.com` + auto SSL | Route 53 hosted zone + ACM cert (wildcard) + CloudFront distribution. Wildcard DNS still pending |
+| **Domain config** | apex `dreamcreatestudio.com` + wildcard `*.dreamcreatestudio.com` + auto SSL | App Runner custom-domain associations (apex+www, `app.`, and `*.` wildcard) w/ App-Runner-managed ACM certs; DNS (CNAMEs) at name.com. Wildcard live as of 2026-05-28 |
 | **Subdomain rewrite in `middleware.ts`** | `{slug}.dreamcreatestudio.com` → `/site/{slug}` | Same code works wherever middleware runs; verify Lambda@Edge / CloudFront Functions compatibility |
 | **Env var management** | Encrypted envs per project + per env target | AWS Secrets Manager (PHI-touching secrets) OR Systems Manager Parameter Store (config), surfaced into Lambda env vars or container task definitions |
 | **Webhook endpoints registered with vendors** | Stripe + Gmail Pub/Sub all point at `dreamcreatestudio.com/api/webhooks/*` | Same URL post-migration (domain stays). New: `/api/webhooks/ses` for SES bounce/complaint events; `/api/webhooks/aws-sms` for inbound SMS. Rotate **every** signing secret as part of the cutover |
@@ -840,6 +852,12 @@ To-do in the AWS migration session (rough order):
   redirect (its DNS is at name.com/Replit and a bare apex can't CNAME to App
   Runner). Retire the Vercel redirect once the domain moves to a registrar with
   apex CNAME-flattening (e.g. Cloudflare) and the bare apex points at AWS.
+- **Clinic public sites**: `{slug}.dreamcreatestudio.com` serve live via the
+  `*.dreamcreatestudio.com` App Runner wildcard association (ACM wildcard cert).
+  `middleware.ts` rewrites the subdomain → `/site/<slug>`; `www`/`app` are
+  reserved (more-specific DNS records win over `*`), unknown slugs 404. DNS:
+  `*` CNAME → `hq7ygyvjdp.us-east-1.awsapprunner.com` + two ACM validation
+  CNAMEs at name.com (see priority-list item #3 for the exact records).
 - **Deploy = merge to `main`** (automatic, like Vercel was). A GitHub Actions
   workflow (`.github/workflows/deploy.yml`, keyless via the OIDC role
   `DreamCRMGitHubActionsDeploy`) uploads the source and triggers the CodeBuild
@@ -885,7 +903,8 @@ To-do in the AWS migration session (rough order):
 
 ## AWS resource facts (`us-east-1`, account `952078552817`)
 - App Runner service `dreamcrm` (default URL `hq7ygyvjdp.us-east-1.awsapprunner.com`);
-  active custom domains `dreamcreatestudio.com`(+www) and `app.dreamcreatestudio.com`
+  active custom domains `dreamcreatestudio.com`(+www), `app.dreamcreatestudio.com`,
+  and `*.dreamcreatestudio.com` (wildcard, for clinic public sites)
 - RDS `dreamcrm-db` (Postgres, `db.t4g.micro`, gp3, encrypted, 7-day backups,
   deletion protection on, storage autoscaling → 100GB, Performance Insights on)
 - ECR repo `dreamcrm` (scan-on-push; lifecycle: expire untagged 3d / keep last 10)
