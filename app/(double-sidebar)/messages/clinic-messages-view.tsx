@@ -7,13 +7,13 @@ import {
   getPatientThreadById,
   listMessagesInThread,
   listPatientThreads,
+  markThreadRead,
   renderTemplate,
   type MessageChannel,
   type ThreadFilters,
   type ThreadMessage,
   type ThreadRow,
 } from '@/lib/services/patient-messaging'
-import { markReadAction } from './clinic-actions'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
 
 /**
@@ -112,9 +112,15 @@ export default async function ClinicMessagesView({
     : []
 
   // Mark the active thread read when it has unread messages on the
-  // staff side. Fire-and-forget — the next render will reflect zero.
+  // staff side. Call the service directly (NOT the server action wrapper):
+  // markReadAction calls revalidatePath('/messages') which Next.js
+  // disallows during render — the route would throw with a server-side
+  // exception every time a staff member clicked a thread with unread
+  // messages, then succeed on reload (because the unreadCount was 0 by
+  // then). The page is `force-dynamic` so explicit revalidation is
+  // redundant anyway; the next click already triggers a fresh render.
   if (activeThread && activeThread.unreadCount > 0) {
-    await markReadAction(activeThread.id)
+    await markThreadRead(ctx.organizationId, activeThread.id)
   }
 
   return (
