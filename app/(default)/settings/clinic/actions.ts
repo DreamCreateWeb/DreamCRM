@@ -113,6 +113,7 @@ function parseTestimonials(raw: string | undefined): ClinicTestimonial[] | null 
           typeof obj.authorLocation === 'string' ? obj.authorLocation.trim() || null : null,
         authorPhotoUrl:
           typeof obj.authorPhotoUrl === 'string' ? obj.authorPhotoUrl || null : null,
+        patientId: typeof obj.patientId === 'string' && obj.patientId ? obj.patientId : null,
       })
     }
     return out.length ? out : null

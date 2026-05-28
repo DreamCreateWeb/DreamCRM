@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
 import {
   createAndSendReviewRequest,
+  featureReviewAsTestimonial,
   skipReviewRequest,
+  unfeatureReviewTestimonial,
   updateReviewConfig,
   type ReviewChannel,
   type ReviewConfig,
@@ -49,4 +51,56 @@ export async function updateReviewConfigAction(updates: Partial<Omit<ReviewConfi
   ensureClinicAdmin(ctx)
   await updateReviewConfig(ctx.organizationId, updates)
   revalidatePath('/reviews')
+}
+
+/**
+ * Promote a received review into a public-site testimonial. Mirrors
+ * sendReviewRequestAction's { ok, error } shape so the capture modal can
+ * render inline feedback. Revalidates the dashboard surface, the deep
+ * editor at /settings/clinic, and the public clinic site so the new
+ * testimonial appears without a manual reload.
+ */
+export async function featureReviewAsTestimonialAction(input: {
+  patientId: string
+  quote: string
+  authorNameOverride?: string | null
+  authorPhotoUrl?: string | null
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot feature reviews.' }
+  try {
+    await featureReviewAsTestimonial({
+      organizationId: ctx.organizationId,
+      patientId: input.patientId,
+      quote: input.quote,
+      authorNameOverride: input.authorNameOverride ?? null,
+      authorPhotoUrl: input.authorPhotoUrl ?? null,
+    })
+    revalidatePath('/reviews')
+    revalidatePath('/reviews/received')
+    revalidatePath('/settings/clinic')
+    revalidatePath(`/site/${ctx.organizationSlug}`)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
+export async function unfeatureReviewTestimonialAction(
+  patientId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot edit testimonials.' }
+  try {
+    await unfeatureReviewTestimonial(ctx.organizationId, patientId)
+    revalidatePath('/reviews')
+    revalidatePath('/reviews/received')
+    revalidatePath('/settings/clinic')
+    revalidatePath(`/site/${ctx.organizationSlug}`)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
 }

@@ -20,6 +20,16 @@ export interface ClinicStaff {
  * Long-form patient testimonial card. Tend pattern — quote + first name +
  * neighborhood + optional photo. Long quotes (2–4 sentences) beat star
  * counts; first-name + city beats "Mary B., happy patient."
+ *
+ * `patientId` is the optional link back to a real CRM patient — set when a
+ * testimonial was promoted from a completed `review_request`. `authorName`
+ * and `authorLocation` are denormalized at promotion time (privacy-first
+ * format `"First L."` + city), so the public site doesn't query patient on
+ * every render and a renamed patient doesn't silently change their public
+ * label. If the clinic wants the testimonial to track patient-record edits,
+ * they can re-link from the editor; if they want a freeform display name
+ * (e.g. they have permission to use a full name), they can edit it after
+ * linking.
  */
 export interface ClinicTestimonial {
   id: string
@@ -27,6 +37,10 @@ export interface ClinicTestimonial {
   authorName: string
   authorLocation?: string | null
   authorPhotoUrl?: string | null
+  /** FK to `patient.id`. Optional — legacy / handcrafted testimonials live
+   *  as free-text only. When set, the Reviews module's "received" surface
+   *  shows this testimonial as "Featured ✓" and avoids double-promotion. */
+  patientId?: string | null
 }
 
 /**

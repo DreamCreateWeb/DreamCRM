@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { Resend } from 'resend'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
+import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 
 /**
  * Reviews & Reputation service. Post-visit review requests routed
@@ -734,6 +735,220 @@ export async function listReviewRequests(
     rating: r.rating,
     createdAt: r.createdAt,
   }))
+}
+
+// ── Reviews received → website testimonials ──────────────────────────
+//
+// The "review you received" loop the dashboard is missing without this:
+// a patient completes a `review_request` (they tap a public-review
+// platform on the /r/<token> landing — Google / Healthgrades / etc),
+// and now the clinic wants to feature that review on their public site.
+//
+// We DON'T have the review text — the patient writes it on the external
+// platform, where DreamCRM can't see it (Google Business Profile API +
+// equivalents are the GBP-integration roadmap, not v1). So "featuring"
+// means: staff browses their received reviews here, copies the quote
+// from the public platform, pastes it into a small capture form, and we
+// promote it into the `clinic_profile.testimonials` JSON array with the
+// patient linked. The privacy-first display label ("First L." + city)
+// is denormalized at promotion time — see `formatLinkedTestimonialAuthor`.
+
+export interface ReviewReceivedRow {
+  /** review_request id. */
+  id: string
+  patientId: string
+  patientFirstName: string
+  patientLastName: string
+  patientCity: string | null
+  patientState: string | null
+  completedAt: Date | null
+  selectedSite: ReviewSite | null
+}
+
+/**
+ * Every review_request for this org that the patient completed (tapped a
+ * public-platform CTA on the landing page). Most recent first. Joined
+ * to patient so the surface can render names + cities without N+1.
+ */
+export async function listReviewsReceived(
+  organizationId: string,
+  limit = 100,
+): Promise<ReviewReceivedRow[]> {
+  const rows = await db
+    .select({
+      id: schema.reviewRequest.id,
+      patientId: schema.reviewRequest.patientId,
+      patientFirstName: schema.patient.firstName,
+      patientLastName: schema.patient.lastName,
+      patientCity: schema.patient.city,
+      patientState: schema.patient.state,
+      completedAt: schema.reviewRequest.completedAt,
+      selectedSite: schema.reviewRequest.selectedSite,
+    })
+    .from(schema.reviewRequest)
+    .innerJoin(schema.patient, eq(schema.reviewRequest.patientId, schema.patient.id))
+    .where(
+      and(
+        eq(schema.reviewRequest.organizationId, organizationId),
+        eq(schema.reviewRequest.status, 'completed'),
+      ),
+    )
+    .orderBy(desc(schema.reviewRequest.completedAt))
+    .limit(limit)
+  return rows.map((r) => ({
+    id: r.id,
+    patientId: r.patientId,
+    patientFirstName: r.patientFirstName,
+    patientLastName: r.patientLastName,
+    patientCity: r.patientCity,
+    patientState: r.patientState,
+    completedAt: r.completedAt,
+    selectedSite: r.selectedSite as ReviewSite | null,
+  }))
+}
+
+/** Privacy-first author label for a linked testimonial: "First L." + city. */
+export function formatLinkedTestimonialAuthor(p: {
+  patientFirstName: string
+  patientLastName: string
+}): string {
+  const initial = (p.patientLastName.trim()[0] ?? '').toUpperCase()
+  return initial ? `${p.patientFirstName} ${initial}.` : p.patientFirstName
+}
+
+export function formatLinkedTestimonialLocation(p: {
+  patientCity: string | null
+  patientState: string | null
+}): string | null {
+  const city = p.patientCity?.trim()
+  const state = p.patientState?.trim()
+  if (city && state) return `${city}, ${state}`
+  return city || state || null
+}
+
+/**
+ * Patient ids already represented in clinic_profile.testimonials. Used to
+ * badge the "Reviews received" rows as "Featured ✓" + prevent
+ * double-promotion of the same patient.
+ */
+export async function listFeaturedTestimonialPatientIds(
+  organizationId: string,
+): Promise<Set<string>> {
+  const [profile] = await db
+    .select({ testimonials: schema.clinicProfile.testimonials })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const list = (profile?.testimonials ?? []) as ClinicTestimonial[]
+  const out = new Set<string>()
+  for (const t of list) {
+    if (t.patientId) out.add(t.patientId)
+  }
+  return out
+}
+
+export interface FeatureReviewInput {
+  organizationId: string
+  patientId: string
+  quote: string
+  /** Optional override of the auto-generated "First L." label — for the case
+   *  where the clinic has written permission to use the patient's full name. */
+  authorNameOverride?: string | null
+  authorPhotoUrl?: string | null
+}
+
+/**
+ * Promote a received review into a public-site testimonial. Idempotent on
+ * (orgId, patientId): a second call replaces the prior linked testimonial
+ * rather than stacking duplicates. The author label + city are
+ * denormalized so a patient rename / move doesn't silently change the
+ * public page until the clinic re-links.
+ */
+export async function featureReviewAsTestimonial(
+  input: FeatureReviewInput,
+): Promise<void> {
+  const quote = input.quote.trim()
+  if (!quote) throw new Error('Quote cannot be empty')
+  if (quote.length > 500) throw new Error('Quote must be 500 characters or fewer')
+
+  const [patient] = await db
+    .select({
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      city: schema.patient.city,
+      state: schema.patient.state,
+    })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.id, input.patientId),
+        eq(schema.patient.organizationId, input.organizationId),
+      ),
+    )
+    .limit(1)
+  if (!patient) throw new Error('Patient not found in this organization')
+
+  const [profile] = await db
+    .select({ testimonials: schema.clinicProfile.testimonials })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, input.organizationId))
+    .limit(1)
+  if (!profile) throw new Error('Clinic profile not found')
+
+  const current = (profile.testimonials ?? []) as ClinicTestimonial[]
+  // Replace any existing entry linked to this patient — keeps re-promotion
+  // a no-op on identity rather than producing duplicates.
+  const filtered = current.filter((t) => t.patientId !== input.patientId)
+
+  const authorName =
+    (input.authorNameOverride?.trim() || null) ??
+    formatLinkedTestimonialAuthor({
+      patientFirstName: patient.firstName,
+      patientLastName: patient.lastName,
+    })
+  const authorLocation = formatLinkedTestimonialLocation({
+    patientCity: patient.city,
+    patientState: patient.state,
+  })
+
+  const next: ClinicTestimonial[] = [
+    ...filtered,
+    {
+      id: `tst_${randomBytes(6).toString('hex')}`,
+      quote,
+      authorName,
+      authorLocation,
+      authorPhotoUrl: input.authorPhotoUrl?.trim() || null,
+      patientId: input.patientId,
+    },
+  ]
+
+  await db
+    .update(schema.clinicProfile)
+    .set({ testimonials: next, updatedAt: new Date() })
+    .where(eq(schema.clinicProfile.organizationId, input.organizationId))
+}
+
+/** Remove a patient-linked testimonial from the website. Free-text
+ *  testimonials (no patientId) are left alone — they're edited via the
+ *  /settings/clinic testimonials editor. */
+export async function unfeatureReviewTestimonial(
+  organizationId: string,
+  patientId: string,
+): Promise<void> {
+  const [profile] = await db
+    .select({ testimonials: schema.clinicProfile.testimonials })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  if (!profile) return
+  const current = (profile.testimonials ?? []) as ClinicTestimonial[]
+  const next = current.filter((t) => t.patientId !== patientId)
+  if (next.length === current.length) return
+  await db
+    .update(schema.clinicProfile)
+    .set({ testimonials: next, updatedAt: new Date() })
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
 // ── Auto-send (v1.1, cron-driven) ────────────────────────────────────

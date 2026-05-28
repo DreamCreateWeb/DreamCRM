@@ -6,6 +6,7 @@ import {
   getReviewStats,
   isReviewConfigComplete,
   listEligiblePatients,
+  listFeaturedTestimonialPatientIds,
   listReviewRequests,
   PLATFORM_LABEL,
   type ReviewSite,
@@ -72,11 +73,12 @@ export default async function ReviewsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [config, stats, eligible, recent] = await Promise.all([
+  const [config, stats, eligible, recent, featuredIds] = await Promise.all([
     getReviewConfig(ctx.organizationId),
     getReviewStats(ctx.organizationId),
     listEligiblePatients(ctx.organizationId, 25),
     listReviewRequests(ctx.organizationId, 30),
+    listFeaturedTestimonialPatientIds(ctx.organizationId),
   ])
 
   const configured = isReviewConfigComplete(config)
@@ -98,6 +100,15 @@ export default async function ReviewsPage() {
             as Birdeye / Weave / Podium, without the $300/mo separate subscription or the gating-the-FTC-just-banned tradeoff.
           </p>
         </div>
+        {stats.completed30d > 0 && (
+          <Link
+            href="/reviews/received"
+            className="shrink-0 inline-flex items-center gap-2 text-[12px] font-semibold px-3 py-2 rounded-md bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
+          >
+            Browse received reviews
+            <span aria-hidden="true">→</span>
+          </Link>
+        )}
       </div>
 
       {/* ── Config gate ───────────────────────────────────────────── */}
@@ -221,9 +232,20 @@ export default async function ReviewsPage() {
                       <p className="text-[11px] text-stone-400 dark:text-stone-500">{r.patientEmail ?? 'no email'}</p>
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${STATUS_PILL[r.status]}`}>
-                        {STATUS_LABEL[r.status]}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${STATUS_PILL[r.status]}`}>
+                          {STATUS_LABEL[r.status]}
+                        </span>
+                        {r.status === 'completed' && featuredIds.has(r.patientId) && (
+                          <Link
+                            href="/reviews/received"
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300 hover:underline"
+                            title="This patient is featured on your website"
+                          >
+                            ✓ Featured
+                          </Link>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 text-[11px] text-stone-500 dark:text-stone-400 tabular-nums">
                       {fmtRelative(r.sentAt)}

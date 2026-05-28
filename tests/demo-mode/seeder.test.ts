@@ -168,6 +168,9 @@ describe('createDemoClinic', () => {
     // Returns 'pat_existing_1' so the seed for persona [0] skips (no
     // thread insert), keeping this test's state.inserts === 0 assertion.
     state.selectQueue.push([{ patientId: 'pat_existing_1' }])
+    // Testimonials self-heal: no profile row returned → topUpLinkedDemoTestimonials
+    // returns early without touching the patient table or producing updates.
+    state.selectQueue.push([])
     // Reviews self-heal: pretend config exists + seed has already been
     // run for pat_existing_1 so the seed loop short-circuits with 0
     // inserts.
@@ -260,8 +263,13 @@ describe('createDemoClinic', () => {
     await createDemoClinic()
     // Self-heal triggers 3 updates (identified by content, not order):
     //   1. organization.isDemo = true (flag legacy demos out of platform metrics)
-    //   2. clinicProfile patch (stats / testimonials / officePhotos / logo / hero)
+    //   2. clinicProfile patch (stats / officePhotos / logo / hero)
     //   3. appointment.source backfill ("set source='manual' where source is null")
+    //
+    // Note: testimonials are handled by a separate self-heal block lower
+    // down (topUpLinkedDemoTestimonials) that needs patientIds to link the
+    // seeded testimonials to real CRM patients — it doesn't fire here
+    // because the mocked patient query returns no rows.
     expect(state.updates).toHaveLength(3)
 
     const isDemoUpdate = state.updates.find((u) => (u.set as { isDemo?: boolean }).isDemo === true)
@@ -276,7 +284,6 @@ describe('createDemoClinic', () => {
       heroImageUrl?: string
     }
     expect(patch.stats).toBeDefined()
-    expect(patch.testimonials).toBeDefined()
     expect(patch.officePhotos).toBeDefined()
     expect(patch.brandColor).toBeUndefined() // already current
     expect(patch.logoUrl).toMatch(/^https?:\/\//)
