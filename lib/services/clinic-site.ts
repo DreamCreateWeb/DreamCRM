@@ -194,26 +194,14 @@ export function clinicJsonLd(data: ClinicSiteData): Record<string, unknown> {
     })
   }
 
-  // Pull a review count out of a stat row if one looks numeric — we don't
-  // claim a star rating since we don't store one, but volume alone is a
-  // valid schema.org `reviewCount`-only signal when paired with ratingValue.
-  let aggregateRating: Record<string, unknown> | undefined
-  const stats = (profile.stats ?? []) as Array<{ value: string; label: string }>
-  for (const s of stats) {
-    const looksLikeReviewCount =
-      /review|rating|star/i.test(s.label) && /\d/.test(s.value)
-    if (looksLikeReviewCount) {
-      const digits = parseInt(s.value.replace(/[^0-9]/g, ''), 10)
-      if (Number.isFinite(digits) && digits > 0) {
-        aggregateRating = {
-          '@type': 'AggregateRating',
-          ratingValue: '4.9',
-          reviewCount: String(digits),
-        }
-        break
-      }
-    }
-  }
+  // We deliberately do NOT emit an aggregateRating. There is no real star
+  // rating stored anywhere — the Reviews module tracks review *requests*, not
+  // a published aggregate — and schema.org / Google require a `ratingValue`
+  // for a valid AggregateRating. Emitting a fabricated value (this code used
+  // to hardcode `ratingValue: '4.9'`) is exactly the fake-review violation the
+  // Reviews module is built to avoid (FTC 2024 Fake Reviews Rule + Google's
+  // review-snippet guidelines). Real star rich-results arrive with the Google
+  // Business Profile integration (roadmap), sourced from actual review data.
 
   const ld: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -238,7 +226,6 @@ export function clinicJsonLd(data: ClinicSiteData): Record<string, unknown> {
         }
       : {}),
     ...(openingHoursSpecification.length ? { openingHoursSpecification } : {}),
-    ...(aggregateRating ? { aggregateRating } : {}),
     priceRange: '$$',
   }
 
