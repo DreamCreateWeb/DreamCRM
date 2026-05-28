@@ -300,7 +300,7 @@ describe('demo review distribution', () => {
     const reviewTextsBlock = src.match(/DEMO_REVIEW_TEXTS[^=]*=\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
     const keys = Array.from(reviewTextsBlock.matchAll(/^\s*(\d+):/gm)).map((m) => Number(m[1]))
     const completedIdxs = Array.from(
-      (src.match(/REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? '').matchAll(
+      (src.match(/const REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? '').matchAll(
         /patientIdx:\s*(\d+),\s*status:\s*'completed'/g,
       ),
     ).map((m) => Number(m[1]))
@@ -314,7 +314,7 @@ describe('demo review distribution', () => {
       fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
     )
     const completedIdxs = new Set<number>()
-    const reviewBlock = src.match(/REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? ''
+    const reviewBlock = src.match(/const REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? ''
     for (const m of Array.from(reviewBlock.matchAll(/patientIdx:\s*(\d+),\s*status:\s*'completed'/g))) {
       completedIdxs.add(Number(m[1]))
     }

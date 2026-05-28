@@ -50,6 +50,9 @@ vi.mock('@/lib/db', async () => {
     const obj: any = {}
     obj.from = () => obj
     obj.where = () => obj
+    obj.innerJoin = () => obj
+    obj.leftJoin = () => obj
+    obj.orderBy = () => obj
     obj.limit = async () => state.selectQueue.shift() ?? []
     // count-style queries skip .limit(); they're awaited directly off .where().
     obj.then = (resolve: (v: unknown) => void) => resolve(state.selectQueue.shift() ?? [])
@@ -176,6 +179,9 @@ describe('createDemoClinic', () => {
     // inserts.
     state.selectQueue.push([{ id: 'org_existing' }]) // existingReviewConfigRows
     state.selectQueue.push([{ patientId: 'pat_existing_1' }]) // existingReviewRequestRows
+    // topUpDemoReviewText: no completed review_requests with NULL reviewText
+    // → backfill loop is a no-op, no updates fired.
+    state.selectQueue.push([])
     // Blog self-heal: all curated demo posts already present → no inserts.
     state.selectQueue.push([
       { slug: 'what-to-expect-at-your-first-visit' },

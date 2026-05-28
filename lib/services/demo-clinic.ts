@@ -289,6 +289,15 @@ const DEMO_REVIEW_TEXTS: Record<number, { text: string; rating: number }> = {
       "Came in for what I thought would be a routine cleaning and the hygienist caught a small cavity I had no idea about. Caught it early, painless filling, in and out under an hour. Grateful.",
     rating: 5,
   },
+  // Aiden Kim (idx 5) — fallback text for legacy demos that seeded him as a
+  // completed review before this PR. Not in current REVIEW_SEEDS as completed
+  // (he's the lapsed persona), but the backfill self-heal picks him up if a
+  // legacy seed put a completed review on his row.
+  5: {
+    text:
+      "It had been a while since I'd been to the dentist and I was honestly dreading the lecture. There wasn't one. They just cleaned my teeth, answered my questions, and booked me back in. That's exactly what I needed.",
+    rating: 5,
+  },
 }
 
 /** Patient indices whose reviews are pre-featured on the public site. The
@@ -695,6 +704,14 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       existingReviewConfigRows.length > 0,
       existingReviewPatients,
     )
+
+    // Review-text backfill: legacy demos seeded review_request rows before
+    // migration 0035 added `review_text`, so completed reviews show "no copy
+    // here" on /reviews/received even though the public testimonials have
+    // the text. Backfills review_text + rating on any completed review_request
+    // whose patient matches a DEMO_REVIEW_TEXTS entry. Idempotent —
+    // skips rows that already have non-null text.
+    await topUpDemoReviewText(existing.id)
 
     // Blog self-heal: top up the curated post set. Additive + idempotent —
     // checks existing slugs so legacy demos pick up the blog on next entry.
@@ -1978,6 +1995,74 @@ async function topUpLinkedDemoTestimonials(
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, orgId))
+}
+
+/**
+ * Idempotent backfill of review_request.review_text + rating on legacy
+ * demos that were seeded before migration 0035 added the column. Without
+ * this, every card on /reviews/received shows "this patient went straight
+ * to a third-party platform" even though the public site has the text —
+ * because the text lives in clinic_profile.testimonials JSON, never on
+ * the review_request row that the dashboard reads from.
+ *
+ * Joins review_request → patient, matches the patient name to a
+ * DEMO_REVIEW_TEXTS entry (via the well-known persona ordering: Mia at 0,
+ * Liam at 1, …), and updates the row when review_text is currently null.
+ * Real-clinic data is never touched: this only runs in the demo-clinic
+ * self-heal path, and only modifies rows whose patient name exactly
+ * matches a seeded persona.
+ */
+async function topUpDemoReviewText(orgId: string): Promise<void> {
+  const rows = await db
+    .select({
+      reviewRequestId: schema.reviewRequest.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+    })
+    .from(schema.reviewRequest)
+    .innerJoin(schema.patient, eq(schema.reviewRequest.patientId, schema.patient.id))
+    .where(
+      and(
+        eq(schema.reviewRequest.organizationId, orgId),
+        eq(schema.reviewRequest.status, 'completed'),
+        isNull(schema.reviewRequest.reviewText),
+      ),
+    )
+  if (rows.length === 0) return
+
+  // Persona name → index, matching buildPatientPersonas's order so we can
+  // look up the DEMO_REVIEW_TEXTS entry by name.
+  const personaIdxByName = new Map<string, number>([
+    ['Mia Hayes', 0],
+    ['Liam Brooks', 1],
+    ['Charlotte Diaz', 2],
+    ['Marcus Johnson', 3],
+    ['Sophia Iverson', 4],
+    ['Aiden Kim', 5],
+    ['Emma Lopez', 6],
+    ['Noah Mitchell', 7],
+    ['Olivia Anderson', 8],
+    ['Ethan Carter', 9],
+    ['Isabella Evans', 10],
+    ['Mason Garza', 11],
+    ['Ava Fischer', 12],
+    ['James Owens', 13],
+  ])
+
+  for (const row of rows) {
+    const idx = personaIdxByName.get(`${row.firstName} ${row.lastName}`)
+    if (idx == null) continue
+    const entry = DEMO_REVIEW_TEXTS[idx]
+    if (!entry) continue
+    await db
+      .update(schema.reviewRequest)
+      .set({
+        reviewText: entry.text,
+        rating: entry.rating,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.reviewRequest.id, row.reviewRequestId))
+  }
 }
 
 /**
