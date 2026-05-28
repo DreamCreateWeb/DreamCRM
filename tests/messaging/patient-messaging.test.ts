@@ -91,4 +91,21 @@ describe('renderTemplate', () => {
       expect(rendered).not.toContain('{{firstName}}')
     }
   })
+
+  it('does NOT interpret $ characters in names as regex backreferences', () => {
+    // Function-form String#replace was adopted so a (rare) name with a
+    // $ character — surname like "$tone" or an arbitrary form-fill from
+    // a webhook — gets substituted literally instead of triggering JS's
+    // $1 / $& replacement-string semantics.
+    const out = renderTemplate('Hi {{firstName}}, see you {{lastName}}', {
+      firstName: '$1',
+      lastName: '$&',
+    })
+    expect(out).toBe('Hi $1, see you $&')
+  })
+
+  it('handles ampersand and pipe characters cleanly', () => {
+    const out = renderTemplate('From {{fullName}}', { firstName: 'A & B', lastName: 'C|D' })
+    expect(out).toBe('From A & B C|D')
+  })
 })
