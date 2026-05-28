@@ -299,6 +299,76 @@ Phased by what unlocks the most platform value with the least dependent work.
 
 ---
 
+## PMS integration architecture (Open Dental first; wrap, never replace)
+
+Verified against Open Dental's live API sandbox + competitor/clinic research.
+This is the durable shape; `CLAUDE.md` tracks what's shipped.
+
+**Positioning (research-corrected).** Clinics don't consciously value the
+official-API-vs-database-scraping distinction — they value *behavior*: it
+doesn't break, no duplicate patients, no reminders to cancelled patients, it
+doesn't die silently. The official API is *how we earn that reliability*
+(survives OD version updates, can't corrupt the DB, OD will actually support
+it, and OD publicly warns customers off the DB-scrapers — NexHealth, Adit).
+Audit-cleanliness is the trust layer, not the headline. Be honest:
+near-real-time on OD needs an office-side service (eConnector + OD API Service)
+like every competitor — but via OD's *sanctioned* webhook Subscriptions, in the
+Audit Trail, not a DB-scraping agent. The polling tier needs zero office
+install (at the cost of lag). Never claim "real-time, no footprint."
+
+**Layered architecture.** Connectors (per-PMS `PmsProviderClient` + a capability
+model) → normalization (provider-agnostic DTOs) → sync engine (reconcile via a
+durable entity-map + dedupe + content-hash; high-water `DateTStamp`; write-back
+queue `pms_write_op` + retry; sync-health monitor) → modules. Ingress tiers:
+Phase-1 scheduled `DateTStamp` delta polling (no office install); Phase-2 OD
+webhook Subscriptions → `/api/webhooks/pms/[provider]`. The connector interface
++ capability flags are the seam that lets a new PMS slot in without touching the
+engine.
+
+**Entity scope (relationship layer only; clinical stays in the PMS).**
+
+| Entity | Direction | Notes |
+|---|---|---|
+| Patients | two-way | PMS owns edits; we originate. Dedupe email/phone → name/DOB |
+| Appointments | two-way | originate + **write back cancels/reschedules** |
+| Providers / Operatories / Appt types | import | mapping + write targets (Op is required on writes) |
+| Schedules / blockouts | import | real availability + which Op to write into |
+| Recalls | import | feeds Recall & Outreach from the PMS's own recall engine |
+| CommLogs | two-way | mirror our sends into OD's communication log |
+| Balances | import | per-patient (absent from the list endpoint) |
+| Procedures / claims / payments | **never** | clinical/financial boundary (payments only for a future text-to-pay) |
+
+**Failure modes we design against** (from clinic reviews of
+NexHealth/Weave/Modento): duplicate patients (strict match keys + entity-map);
+reminders to cancelled patients (cancel/reschedule write-back + PMS-status
+wins); silent sync stops (sync-health monitor + proactive alert — visible
+status is itself the differentiator); stale availability (schedule-aware
+booking); breaks-after-update (official API + version-pinned behavior); TZ
+offsets (`AptDateTime` is office-local wall-clock with no timezone — store +
+convert in the clinic's timezone).
+
+**Multi-PMS roadmap.** Open Dental direct (wired). Dentrix Ascend direct next
+(cloud REST, ~$47/mo/loc, no agent). Dentrix desktop / Eaglesoft / Curve via an
+**aggregator connector** (Kolla at the low end, NexHealth for real-time) — one
+integration for the painful long tail vs. per-PMS partner gates (~$3–5k
+Eaglesoft PIC, etc.). Aggregators implement the same `PmsProviderClient`.
+
+**Phasing.** Phase 0 correctness (`DateTStamp` delta + Offset/Limit pagination,
+Op via schedules + default-op config, clinic-TZ datetimes, provider role via
+`/definitions`, per-patient balance). Phase 1 depth (schedule-driven
+availability, recall sync, cancel/reschedule write-back, CommLog mirroring,
+sync-health alerts). Phase 2 real-time (webhook Subscriptions). Phase 3
+multi-PMS.
+
+**API facts (verified).** REST `api.opendental.com/api/v1` (the `ODFHIR` auth
+scheme is a misnomer — not FHIR; the real FHIR endpoint is legacy/abandoned).
+Permission tiers per location: Free read-only (1 req/5s), $30/mo writes (no
+payments), $35/mo payments. Throttle is per CustomerKey (429 on over-limit);
+Remote caps ~1000 elements/page → Offset/Limit loop. Developer Key is a
+platform secret; per-office Customer Key (~15-min activation).
+
+---
+
 ## Discipline / process
 
 Before designing any new module:

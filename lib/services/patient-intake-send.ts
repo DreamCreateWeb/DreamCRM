@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { sendIntakeRequestEmail } from '@/lib/email'
+import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 
@@ -65,6 +66,11 @@ export async function sendIntakeRequestToPatient(
     patientFirstName: patient.firstName,
     clinicName: profile?.displayName ?? 'Your dental clinic',
     intakeFormUrl,
+  })
+
+  await queueCommLogWriteBack(organizationId, patient.id, {
+    note: `Intake form "${form.title}" sent to ${patient.email}.`,
+    mode: 'Email',
   })
 
   return { sentTo: patient.email }

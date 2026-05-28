@@ -81,6 +81,65 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         </div>
       </div>
 
+      {/* ── Integrations sync-health banner (renders only when unhealthy) ── */}
+      {data.integrationsHealth && data.integrationsHealth.severity !== 'info' && (
+        <section className="mb-6">
+          <div
+            className={[
+              'rounded-xl border p-4 flex items-start gap-3',
+              data.integrationsHealth.severity === 'error'
+                ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30'
+                : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
+            ].join(' ')}
+          >
+            <div
+              className={[
+                'w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold',
+                data.integrationsHealth.severity === 'error'
+                  ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300'
+                  : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+              ].join(' ')}
+              aria-hidden="true"
+            >
+              !
+            </div>
+            <div className="flex-1 min-w-0">
+              <p
+                className={[
+                  'text-sm font-semibold',
+                  data.integrationsHealth.severity === 'error'
+                    ? 'text-rose-900 dark:text-rose-200'
+                    : 'text-amber-900 dark:text-amber-200',
+                ].join(' ')}
+              >
+                Integrations: sync needs attention
+              </p>
+              <p
+                className={[
+                  'text-[12px] mt-0.5',
+                  data.integrationsHealth.severity === 'error'
+                    ? 'text-rose-800/80 dark:text-rose-300/80'
+                    : 'text-amber-800/80 dark:text-amber-300/80',
+                ].join(' ')}
+              >
+                {data.integrationsHealth.message}
+              </p>
+            </div>
+            <Link
+              href="/integrations"
+              className={[
+                'text-[12px] font-medium px-3 py-1.5 rounded-lg shrink-0 self-center',
+                data.integrationsHealth.severity === 'error'
+                  ? 'bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-200 dark:hover:bg-rose-500/30'
+                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30',
+              ].join(' ')}
+            >
+              Open Integrations
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
       <section className="mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

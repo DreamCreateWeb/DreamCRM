@@ -61,6 +61,21 @@ export const patient = pgTable(
     // 'backfill' | 'booking' | 'form' | 'invite' | 'manual' | 'lead_form'
     marketingOptInSource: text('marketing_opt_in_source'),
 
+    // PMS-synced estimated patient balance (Integrations v1). Populated by the
+    // Open Dental import; null = no PMS connected (or balance not yet synced).
+    // The PMS owns clinical AR truth, so this is read-only here — surfaced on
+    // the patient detail page as "Balance (from your PMS)", never merged with
+    // DreamCRM's own shop/invoice totals.
+    pmsBalanceCents: integer('pms_balance_cents'),
+    pmsBalanceUpdatedAt: timestamp('pms_balance_updated_at'),
+
+    // PMS-synced recall (Integrations Phase 1). The clinic's PMS owns the
+    // recall engine; when present we prefer it for "who's due" over our
+    // appointment-derived heuristic. pmsRecallDueAt = next due date,
+    // pmsRecallInterval = cadence string (e.g. "6m").
+    pmsRecallDueAt: timestamp('pms_recall_due_at'),
+    pmsRecallInterval: text('pms_recall_interval'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -896,3 +911,143 @@ export const membership = pgTable(
   ],
 )
 export type Membership = typeof membership.$inferSelect
+
+// ── PMS Integrations (Phase 4 — wrap, don't replace) ────────────────────────
+// DreamCRM is the orbital layer over the clinic's existing Practice Management
+// System (Open Dental first). We sync the RELATIONSHIP layer only — patients,
+// appointments, providers, balances — and deliberately never touch clinical
+// data (charting, treatment plans, procedures, claims) which the PMS owns.
+//
+// The whole design is "sanctioned, audit-clean": we read + write ONLY through
+// the PMS's official API, so every write lands in the clinic's own PMS Audit
+// Trail. This is the explicit opposite of direct-database scrapers (the
+// pattern Open Dental publicly warns its customers against). pms_write_op is
+// the durable record of every record we created in their PMS, via the API.
+
+// One PMS connection per clinic org (keyed on org id, like gsc_connection).
+export const pmsConnection = pgTable('pms_connection', {
+  organizationId: text('organization_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  connectedByUserId: text('connected_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  // 'open_dental' | 'dentrix_ascend' | 'dentrix_desktop' | 'eaglesoft' | 'curve' | 'demo'
+  // Only 'open_dental' (real) and 'demo' (Acme sandbox) are wired in v1; the
+  // others render as honest "roadmap / request access" rows in the catalog.
+  provider: text('provider').notNull(),
+  // 'not_connected' | 'connected' | 'error'
+  status: text('status').notNull().default('not_connected'),
+  // Open Dental Customer Key (per-office), AES-256-GCM encrypted at rest
+  // (mirrors gsc_connection.refresh_token_encrypted). The Developer Key is a
+  // platform-level secret in env (PMS_OPEN_DENTAL_DEVELOPER_KEY), never stored
+  // per-org.
+  customerKeyEncrypted: text('customer_key_encrypted'),
+  // 'import' (PMS → DreamCRM only) | 'two_way' (also push DreamCRM-originated
+  // bookings into the PMS). Default two_way per the v1 decision.
+  syncDirection: text('sync_direction').notNull().default('two_way'),
+  autoSyncEnabled: integer('auto_sync_enabled').notNull().default(1),
+  // Last inbound sync attempt.
+  lastSyncAt: timestamp('last_sync_at'),
+  // 'success' | 'partial' | 'error'
+  lastSyncStatus: text('last_sync_status'),
+  lastError: text('last_error'),
+  // testConnection diagnostics surfaced in the status card:
+  // { practiceTitle?, version?, eConnectorReachable?, scopeNote? }
+  meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+export type PmsConnection = typeof pmsConnection.$inferSelect
+export type NewPmsConnection = typeof pmsConnection.$inferInsert
+
+// Durable 1:1 link between a PMS-side record and our row. Lets re-syncs be
+// idempotent (upsert on external id) and lets write-back record the external
+// id the PMS assigned to a DreamCRM-originated booking. internalId is a soft
+// pointer (no FK) because it spans patient/appointment/clinic_provider tables
+// by entityType, and deleting our row shouldn't erase the sync audit.
+export const pmsEntityMap = pgTable(
+  'pms_entity_map',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    // 'patient' | 'appointment' | 'provider'
+    entityType: text('entity_type').notNull(),
+    // PMS primary key as text (Open Dental PatNum / AptNum / ProvNum).
+    externalId: text('external_id').notNull(),
+    // Our row id (patient.id / appointment.id / clinic_provider.id).
+    internalId: text('internal_id').notNull(),
+    // 'pms' (imported from the PMS) | 'dreamcrm' (we created it, then pushed).
+    origin: text('origin').notNull().default('pms'),
+    // Hash of the last-synced profile fields → skip no-op updates on re-sync.
+    contentHash: text('content_hash'),
+    lastSyncedAt: timestamp('last_synced_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('pms_entity_map_external_idx').on(t.organizationId, t.entityType, t.externalId),
+    uniqueIndex('pms_entity_map_internal_idx').on(t.organizationId, t.entityType, t.internalId),
+    index('pms_entity_map_org_type_idx').on(t.organizationId, t.entityType),
+  ],
+)
+export type PmsEntityMap = typeof pmsEntityMap.$inferSelect
+export type NewPmsEntityMap = typeof pmsEntityMap.$inferInsert
+
+// Audit header for each inbound sync job (PMS → DreamCRM).
+export const pmsSyncRun = pgTable(
+  'pms_sync_run',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    // 'manual' | 'scheduled' | 'initial'
+    trigger: text('trigger').notNull().default('manual'),
+    // 'running' | 'success' | 'partial' | 'error'
+    status: text('status').notNull().default('running'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    finishedAt: timestamp('finished_at'),
+    // { patients: { created, updated, skipped }, appointments: {…}, providers: {…} }
+    counts: jsonb('counts').$type<Record<string, { created: number; updated: number; skipped: number }>>().notNull().default({}),
+    error: text('error'),
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  },
+  (t) => [index('pms_sync_run_org_started_idx').on(t.organizationId, t.startedAt)],
+)
+export type PmsSyncRun = typeof pmsSyncRun.$inferSelect
+export type NewPmsSyncRun = typeof pmsSyncRun.$inferInsert
+
+// Outbound write audit + retry queue (DreamCRM → PMS). One row per attempt to
+// create/update a record in the PMS via its API. This IS the "every record we
+// created in your PMS, all via the API" trust log. Best-effort writes that
+// fail (PMS unreachable at booking time) stay 'pending'/'error' and get
+// retried by the next sync run.
+export const pmsWriteOp = pgTable(
+  'pms_write_op',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    // 'patient' | 'appointment'
+    entityType: text('entity_type').notNull(),
+    // Our row id being pushed.
+    internalId: text('internal_id').notNull(),
+    // The id the PMS assigned, once confirmed.
+    externalId: text('external_id'),
+    // 'create' | 'update'
+    operation: text('operation').notNull().default('create'),
+    // 'pending' | 'success' | 'error'
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    // Full request/response for traceability (PHI-light: ids + scheduling, no
+    // clinical data ever leaves to/from these endpoints).
+    requestPayload: jsonb('request_payload').$type<Record<string, unknown>>(),
+    responseBody: jsonb('response_body').$type<Record<string, unknown>>(),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (t) => [
+    index('pms_write_op_org_status_idx').on(t.organizationId, t.status),
+    index('pms_write_op_org_created_idx').on(t.organizationId, t.createdAt),
+    index('pms_write_op_internal_idx').on(t.organizationId, t.entityType, t.internalId),
+  ],
+)
+export type PmsWriteOp = typeof pmsWriteOp.$inferSelect
+export type NewPmsWriteOp = typeof pmsWriteOp.$inferInsert

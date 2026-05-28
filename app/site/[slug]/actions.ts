@@ -6,10 +6,12 @@ import { db } from '@/lib/db'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
+import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
+import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { organization } from '@/lib/db/schema/auth'
 
 export async function submitContactRequest(formData: FormData) {
@@ -161,8 +163,9 @@ export async function submitBookingRequest(formData: FormData) {
   // and conflict detection both work without a separate end-time field.
   const endTime = new Date(startTime.getTime() + SLOT_MINUTES * 60_000)
 
+  const apptId = randomUUID()
   await db.insert(appointment).values({
-    id: randomUUID(),
+    id: apptId,
     organizationId: orgId,
     patientId,
     title: `${appointmentType.charAt(0).toUpperCase() + appointmentType.slice(1).replace('_', ' ')} – ${firstName} ${lastName}`,
@@ -178,6 +181,10 @@ export async function submitBookingRequest(formData: FormData) {
     utmMedium,
     utmCampaign,
   })
+
+  // Two-way PMS: queue this public booking to be written to the clinic's PMS on
+  // the next sync (best-effort; never blocks the booking confirmation).
+  await queueAppointmentWriteBack(orgId, apptId)
 
   const [profile] = await db
     .select({
@@ -219,5 +226,10 @@ export async function submitBookingRequest(formData: FormData) {
     }).catch((err) => {
       console.error('[clinic-site] booking email failed', err)
     })
+    // Mirror the booking confirmation into OD's CommLog (best-effort).
+    queueCommLogWriteBack(orgId, patientId, {
+      note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+      mode: 'Email',
+    }).catch(() => {})
   }
 }

@@ -2,6 +2,7 @@ import 'server-only'
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
+import { derivePatientRecallStatus } from '@/lib/services/recall-status'
 
 /**
  * Marketing service: lead pipeline (customers table extended with stage/source),
@@ -444,6 +445,7 @@ export async function resolvePatientAudience(
       lifecycle: schema.patient.lifecycle,
       marketingEmailOptIn: schema.patient.marketingEmailOptIn,
       marketingSmsOptIn: schema.patient.marketingSmsOptIn,
+      pmsRecallDueAt: schema.patient.pmsRecallDueAt,
     })
     .from(schema.patient)
     .where(and(...where))
@@ -550,25 +552,21 @@ export async function resolvePatientAudience(
     balanceByPatient.set(pid, (balanceByPatient.get(pid) ?? 0) + Number(r.totalCents ?? 0))
   }
 
-  // Recall status: mirrors listPatients exactly. Lapsed = > 9mo + no future booking.
-  const LAPSED_MS = 9 * 30 * 24 * 60 * 60 * 1000
-  const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000
-  const lapsedCutoff = new Date(now.getTime() - LAPSED_MS)
-  const sixMonthCutoff = new Date(now.getTime() - SIX_MONTHS_MS)
-
+  // Recall status: shared helper with the patients list. Prefers the PMS
+  // recall date when present (Integrations sync); falls back to the
+  // appointment-derived heuristic otherwise.
   return patients
     .map((p) => {
       const lastVisitAt = lastVisitMap.get(p.id) ?? null
       const upcoming = upcomingMap.get(p.id) ?? null
       const balance = balanceByPatient.get(p.id) ?? 0
-      const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !upcoming
-      const recallStatus: 'due' | 'overdue' | 'scheduled' | 'na' = upcoming
-        ? 'scheduled'
-        : lapsed
-          ? 'overdue'
-          : lastVisitAt && lastVisitAt < sixMonthCutoff
-            ? 'due'
-            : 'na'
+      const recallStatus = derivePatientRecallStatus({
+        pmsRecallDueAt: p.pmsRecallDueAt,
+        hasUpcomingAppt: !!upcoming,
+        hasAnyFutureAppt: !!upcoming,
+        lastVisitAt,
+        now,
+      })
 
       return {
         p,

@@ -69,7 +69,7 @@ export const clinicModules: ModuleRegistry = {
 
     // ── Business ───────────────────────────────────────────────────────
     { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', minPlan: 'premium' },
-    { id: 'integrations',      path: '/integrations',      label: 'Integrations',     section: 'Business', icon: 'plug',     status: 'soon', minPlan: 'premium' },
+    { id: 'integrations',      path: '/integrations',      label: 'Integrations',     section: 'Business', icon: 'plug',     status: 'live', minPlan: 'premium' },
 
     // ── Settings ───────────────────────────────────────────────────────
     { id: 'settings',          path: '/settings/account',  label: 'Settings',         section: 'Settings', icon: 'gear',     status: 'live' },

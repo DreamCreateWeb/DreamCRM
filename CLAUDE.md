@@ -434,6 +434,135 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   Manual send in v1; auto-trigger 24h after `appointment.status='
   completed'` is v1.1 (cron-driven; `autoSendEnabled` schema bit ready).
   Demo seeder pump: 6 review_request rows covering every funnel state.
+- **PMS Integrations v1 (Open Dental, two-way)** — the orbital layer
+  wrapping the clinic's existing PMS. Schema (migration 0033):
+  `pms_connection` (per-org: provider, status, AES-encrypted Customer
+  Key, sync direction, auto-sync, last-sync audit) + `pms_entity_map`
+  (durable 1:1 PMS↔DreamCRM link by externalId, origin pms/dreamcrm,
+  content hash for skip-on-unchanged) + `pms_sync_run` (inbound audit
+  header w/ per-entity counts) + `pms_write_op` (outbound audit + retry
+  queue — the "every record we created in your PMS, via the API" log) +
+  `patient.pms_balance_cents`/`pms_balance_updated_at`. Provider
+  abstraction in `lib/services/pms/`: a `PmsProviderClient` interface
+  (read + write), `open-dental.ts` real adapter (REST, auth header
+  `ODFHIR {DeveloperKey}/{CustomerKey}` — Developer Key is a platform
+  env secret `PMS_OPEN_DENTAL_DEVELOPER_KEY`, per-office Customer Key
+  pasted by the clinic + stored encrypted), `demo.ts` DB-backed sandbox,
+  `sync.ts` engine (pull→reconcile via entity-map w/ email/phone dedupe→
+  upsert + write a sync_run; queue/flush/retry write-backs). **Two-way**:
+  imports patients/appointments/providers/balances; pushes
+  DreamCRM-originated bookings (widget / portal / front-desk /
+  reschedule) into Open Dental — `queueAppointmentWriteBack` enqueues a
+  `pms_write_op` on booking (best-effort, never blocks the booking),
+  flushed via the API on the next sync. Source of truth = PMS for edits;
+  DreamCRM pushes only the records it originates (sidesteps bidirectional
+  merge for v1). **Positioning is sanctioned + audit-clean**: official
+  API only, every write lands in the clinic's Open Dental Audit Trail —
+  the explicit opposite of the direct-DB scrapers Open Dental publicly
+  warns its customers against (NexHealth by name). UI at `/integrations`
+  (morning-huddle): trust banner, status hero + Sync-now/direction/
+  auto-sync/disconnect controls, KPIs, transparent fixed field map,
+  what-we-sync / never-touch scope card, inbound sync log + outbound
+  write-back log; unconnected state shows the Open Dental connect form
+  ($30/mo office API fee surfaced honestly) + an honest catalog of the
+  others (Dentrix Ascend = request-access pending HSOne approval;
+  Dentrix desktop / Eaglesoft / Curve = roadmap, need a signed local
+  agent per office). Client-safe catalog/labels/field-map in
+  `lib/types/pms.ts`. **Validated against Open Dental's hosted developer
+  sandbox** (shared test DB at `api.opendental.com` — no office install,
+  no $30/mo fee): read shapes, `DateTStamp` delta + `Offset/Limit`
+  pagination, and writes (createPatient; createAppointment **requires an
+  `Op`/operatory**). Still unit-tested with a mocked `fetch`; the demo
+  provider exercises the engine end-to-end. **Phase 0 hardening shipped
+  (sandbox-driven):** `DateTStamp` high-water delta for appointments +
+  paginated `/patients/Simple` (which carries `EstBalance`, unlike the
+  plain `/patients` list) for bulk balance import; appointment write-back
+  now sends a clinic-default operatory (auto-picked from `/operatories`,
+  prefer web-sched, stored in `pms_connection.meta`); office-local
+  wall-clock datetimes converted against the clinic's IANA timezone
+  (`lib/services/pms/datetime.ts`, dependency-free `Intl`); provider role
+  defaults to `dentist` (OD `Specialty` is an office-specific numeric
+  DefNum, not a portable label). Open Dental also supports sanctioned
+  webhook **Subscriptions** (`POST /subscriptions`) for near-real-time —
+  a Phase 2 add-on that needs an office-side service; v1 is `DateTStamp`
+  polling (zero office install). **Phase 1 status (as of 2026-05-28):
+  4 of 5 items shipped; #5 (schedule-driven availability) is blocked on
+  OD vendor portal access — see the "OD vendor portal approval"
+  priority item below for the full unblocking workflow.** (1)
+  **cancellation/reschedule write-back** — cancel/no-show/reschedule on
+  our side now PUTs `AptStatus=Broken` to OD (verified vs sandbox) so the
+  old slot stops reminding (the #1 clinic complaint from the research);
+  new `pms_write_op.operation='update'` + `status='skipped'` (supersedes
+  a still-pending create on book-then-cancel-before-sync); triggers wired
+  into `cancelAppointment`, `markNoShow`, `rescheduleAppointment(original)`.
+  (2) **Recall sync** — migration 0034 added `patient.pms_recall_due_at`
+  + `pms_recall_interval`; the OD adapter `listRecalls` pulls `/recalls`
+  paginated (no `DateTStamp` support there) and reconciles the soonest
+  active due date per patient; a shared
+  `lib/services/recall-status.ts::derivePatientRecallStatus` helper now
+  drives the recall pill on the patients list AND the recall audience in
+  Recall & Outreach — **preferring the PMS due date when present**,
+  falling back to the appointment-derived heuristic otherwise.
+  (3) **Sync-health alerts** — addresses the #1 reliability complaint in
+  the research (syncs silently stop). New `lib/services/pms/health.ts`
+  computes an `IntegrationsHealth` snapshot per org from
+  `pms_connection.{lastSyncAt,lastSyncStatus,lastError}` + the last 5
+  `pms_sync_run` rows; surfaces `ok | never_synced | stale | partial |
+  errored | repeated_failure` with `info | warn | error` severity. A
+  proactive warn/error attention banner now renders on the **Overview**
+  (just above the existing attention-cards row) and on the
+  **Integrations page** (above the status card), with severity-colored
+  styling and an "Open Integrations" CTA on Overview. Thresholds:
+  staleness fires after 36h with no successful sync (auto-sync-only —
+  manual-only clinics are silent), repeated-failure fires at 3+
+  consecutive non-success runs. No new schema — read-only over what we
+  already capture. Deterministic pure helper `deriveIntegrationsHealth`
+  is unit-tested across every branch.
+  (4) **CommLog mirroring** — the top "I wish it did this" from the
+  integrations research. Every DreamCRM-originated patient message
+  (booking confirmation / appointment reminder / reschedule notice /
+  review request / intake form send) is now mirrored as a CommLog entry
+  in Open Dental's chart via `POST /commlogs` (verified vs sandbox: 201
+  with `Note / Mode_ / SentOrReceived / CommDateTime / PatNum`), so the
+  front desk sees the full comms history without leaving OD. Mirrors
+  ride the same `pms_write_op` queue + flush as appointment write-backs:
+  `queueCommLogWriteBack` enqueues on the send path (best-effort, never
+  blocks the send), and `retryPendingWrites` dispatches via
+  `processCommLogWriteOp`. Skips silently if patient isn't mapped (front-
+  desk-added patients with no PMS link) or the connection isn't two-way.
+  Wired into 5 send sites: `reviews.ts::createAndSendReviewRequest`,
+  `appointments/actions.ts` (reminder + reschedule notification),
+  `site/[slug]/actions.ts` (public booking confirmation),
+  `patient-intake-send.ts`. Marketing campaign sends + Patient
+  Communications in-app replies are intentionally skipped in v1
+  (campaigns would flood OD's chart; in-app reply has no email/SMS hop
+  to log). Client-safe `WRITE_OP_ENTITY_LABELS` adds the "Comm log"
+  label so the Integrations write-back log renders the new rows
+  alongside appointment writes. Demo seeder pump: 3 commlog write-op
+  rows (2 success, 1 pending) so the write-back log demos every state.
+  No new schema — `pms_write_op.entityType` is `text` and already
+  accepts the new value.
+  (5) **Schedule-driven availability — BLOCKED on OD vendor approval.**
+  The booking slot picker (`lib/services/booking.ts`) currently
+  subtracts existing `appointment` rows from clinic hours but doesn't
+  respect provider out-of-office blocks, lunch breaks, time-off, or
+  operatory-level limits. Fix is reading OD's `/schedules` resource
+  (provider blocks + clinic schedule entries) and intersecting it with
+  the slot generator. Same Phase-0 discipline as the rest of the
+  integration (validate every endpoint shape against a live office
+  before shipping) means we can't merge until we have a Customer Key
+  against a real office — OD's shared sandbox doesn't carry per-office
+  provider schedules to validate against. Unblocks the moment vendor
+  approval lands; no DreamCRM code is written against `/schedules`
+  until then. See the "OD vendor portal approval" priority item for
+  the workflow.
+  Demo seeder pump: a sandbox "Open Dental
+  (Sandbox)" connection +
+  entity maps over the 15 patients / 17 appointments / 2 providers + 3
+  sync runs + a write-back log covering every state (2 pushed-success /
+  1 errored-will-retry / 1 pending-next-sync) + PMS balances on a few
+  patients; self-heal seeds it on legacy demos (and re-activates the
+  sandbox if a platform admin disconnected it mid-session).
 
 ## Module status snapshot (clinic dashboard)
 
@@ -463,7 +592,7 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Website | SEO | `/seo` | **Live (v1)** | Base SEO (sitemap / robots / JSON-LD / OG images / canonicals) is live. Dashboard surfaces site-health checks, an organic→leads→bookings funnel, real Search Console clicks + top queries, and reviews as a ranking signal. **Search Console is a single shared platform connection, zero-config for clinics**: the platform admin connects ONCE with the `sc-domain:dreamcreatestudio.com` Domain property (covers apex + www + every clinic subdomain); each clinic's SEO tab reads that connection scoped to its own pages via a `page contains '/site/<slug>'` (or `<slug>.` in subdomain mode) filter — clinics connect nothing. OAuth routes a platform-admin's connect to the platform org even from demo mode (`getPlatformOrgId`); `getClinicSeoPerformance` does the scoped read (also feeds the Analytics website funnel). Platform context (`tenantType==='platform'`) shows the manage view (connect / pick property / whole-domain perf); clinic/demo shows the scoped read. Custom-domain clinics aren't covered by the shared property (future: their own connection). Rank tracking + page-speed + GBP still roadmap |
 | Website | Careers | `/careers` | **Live (v1)** | Premium-tier. Job postings on the clinic's own site + a built-in ATS — replaces the $400/mo DentalPost board. **The "Indeed integration" is structured-data, not a partner API**: each open role renders at `{slug}.../careers/[jobSlug]` with `JobPosting` JSON-LD so **Google for Jobs + Indeed index it for free** (Indeed's Job Sync API is ATS-partner-only; the direct-employer path is the `/site/[slug]/jobs.xml` feed we also generate). Schema (migration 0031): `job_posting` (role/employment/comp/status/apply-method) + `job_application`. Admin `/careers`: Roles tab (create/edit via `/careers/new` + `/careers/[id]`, publish/close/delete) + Applicants tab (triage pipeline new→reviewing→interview→offer→hired/passed, aging-color rot border on un-reviewed, drawer with résumé download + rating + notes). Public apply form uploads résumé to S3 via a public server action (auth-gated upload route can't serve unauthenticated applicants). Client-safe types/labels/JSON-LD in `lib/types/careers.ts`; DB functions in `lib/services/careers.ts`. Demo seeder: 2 open roles + 1 draft + 7 applicants across every pipeline state (aging spread). Scope = permanent/part-time hires for one practice, NOT a temp/gig marketplace (Cloud Dentistry's lane). Full one-click *Indeed Apply* is a future partner track |
 | Business | Shop | `/shop` | **Live (v1 — complete)** | Premium-tier. Phase 3 differentiator (no orbital-layer competitor ships a storefront — confirmed Weave/NexHealth/RevenueWell have none). Built in slices: **(1 shipped)** migration 0032 = 8 purpose-built `shop_*`/`membership*` tables (separate from the generic Mosaic products/orders), Connect *Standard* designed so payouts land in the clinic's own bank. **(2 shipped)** `/shop` admin: product/variant catalog CRUD (`/shop/products/new` + `/shop/products/[id]`, image upload to S3, multi-variant pricing + inventory, FSA-with-Rx flag, draft/active/archived), fulfillment + tax config toggles, Stripe Connect status card. **(3a shipped)** Stripe Connect *Standard* OAuth onboarding — per-clinic (each clinic connects its OWN account so payouts hit their bank; `lib/services/shop-connect.ts` + `/api/connect/shop/start`+`/callback`, mirrors the GSC code-exchange), status auto-refresh on `/shop` load (pending→active), disconnect/deauthorize. `STRIPE_CONNECT_CLIENT_ID` is set in `dreamcrm/app-secrets` + mapped on App Runner; Connect config = Standard accounts · hosted onboarding · Stripe Dashboard. Client-safe types/labels in `lib/types/shop.ts`; DB in `lib/services/shop.ts`. **(3b shipped)** public storefront `/site/[slug]/shop` (+ `[productSlug]` detail, localStorage cart namespaced per slug, `/cart` review+checkout) → Stripe Connect **direct-charge** Checkout Session on the clinic's account (`lib/services/shop-checkout.ts`; pickup or ship + flat-rate shipping + Stripe Tax on ship only; optional platform application fee via `platformFeeBps`), idempotent order finalize via the `/shop/success` page **and** a `/api/webhooks/stripe-connect` backstop (needs `STRIPE_CONNECT_WEBHOOK_SECRET` + a Connect webhook endpoint for `checkout.session.completed`) — inventory decrement + patient linkage by email/phone on payment. Orders admin at `/shop/orders` (fulfillment pipeline unfulfilled→ready/shipped→picked-up/delivered + tracking). `storefrontEnabled` gates the public pages. Demo seeder: 6 products (7 variants) + config + 3 orders (paid pickup / paid shipped+tracking / pending). **(5 shipped)** membership plans — `lib/services/membership.ts` + `lib/types/membership.ts`: plan CRUD at `/shop/memberships` (+ `/new`+`/[id]` builder: name/interval/price/benefits/discount), **lazy Stripe price sync** (product+recurring price created on the connected account on first join, so no Stripe call until an account exists), public `/site/[slug]/membership` (plan cards + join) → **subscription** Checkout Session on the clinic's connected account, members tab with benefit-redemption tracking (`benefitsUsed`), subscription lifecycle (`customer.subscription.updated/deleted`) handled by the same `/api/webhooks/stripe-connect` (branches on `session.mode`). `membershipEnabled` gates the public page. Dashboard shows active-member count + MRR. Demo seeder: 2 plans (Smile Club annual $399 + monthly $39) + 3 members (active/active/past-due). `membership.patientId` is required, so a join matches/creates a patient (`source='membership'`). Self-heal seeds plans (+ members for existing patients) on legacy demos. **(4 shipped)** coupons — `lib/services/coupons.ts`: manual promo codes (% or $ off, optional min-subtotal / expiry / single-use) + one-click **birthday codes** (single-use, auto-generated off `patient.dateOfBirth` month, idempotent per month). Admin `/shop/coupons` (create + list + deactivate + generate-birthday). Applied at checkout via a one-time Stripe coupon on the connected account (`discounts:[{coupon}]`, exact computed cents so %/$ behave the same); cart has a promo field with live validate; single-use burns on order finalize. Demo seeder: WELCOME10 + SUMMER25 + a birthday code. **Shop module is feature-complete for v1** (catalog · Connect · storefront+checkout · orders · memberships · coupons). **Research-grounded:** FSA/HSA is mostly a myth (cosmetic whitening + plain brushes ineligible; electric brushes only with an Rx) so it's an optional per-product flag, not a headline. **Stripe Connect can't be fully sandbox-tested** (no connected accounts/cards) — logic is unit-tested; money flow verified in Stripe test mode. Connect onboarding uses **OAuth** (`/oauth/authorize`, `scope=read_write`) and works — verified the live authorize link resolves. **Resolved bug (2026-05-27):** "Connect Stripe" briefly returned *"No application matches the supplied client identifier"* because the stored `STRIPE_CONNECT_CLIENT_ID` had a 1-char transcription typo (`ca_UavHzM`**`S`**`I2…` instead of the correct `ca_UavHzM`**`5`**`I2…` — an `S`/`5` misread); corrected in `dreamcrm/app-secrets` + redeployed. OAuth flow, redirect URI, and code are all correct — **no code change needed** |
-| Business | Integrations | `/integrations` | Soon | Phase 4 — Open Dental first, Dentrix second. Two-way PMS sync |
+| Business | Integrations | `/integrations` | **Live (v1)** | Premium-tier. PMS bridge — **Open Dental wired, two-way**, through its official REST API (`ODFHIR {dev}/{customer}` auth; platform Developer Key in env `PMS_OPEN_DENTAL_DEVELOPER_KEY` (currently OD's *public sandbox* Developer Key while real vendor approval is in flight — application sent 2026-05-28), per-clinic Customer Key AES-encrypted). Imports patients/appointments/providers/balances; pushes DreamCRM-originated bookings back via the API (best-effort `pms_write_op` queue on booking → flushed on sync). **Sanctioned + audit-clean positioning** — official API only, every write in the clinic's Audit Trail (the opposite of the DB-scrapers Open Dental warns against, incl. NexHealth by name). Morning-huddle UI: trust banner · status + Sync-now/direction/auto-sync/disconnect · KPIs · transparent fixed field map · what-we-sync/never-touch scope card · inbound sync log + outbound write-back log; unconnected = OD connect form + honest catalog (Dentrix Ascend request-access, Dentrix desktop/Eaglesoft/Curve roadmap — need a signed local agent per office). Migrations 0033 (`pms_connection`/`pms_entity_map`/`pms_sync_run`/`pms_write_op` + `patient.pms_balance_cents`) + 0034 (`patient.pms_recall_due_at`/`pms_recall_interval`). Service in `lib/services/pms/`, client-safe types in `lib/types/pms.ts`. Validated against OD's hosted developer sandbox; also unit-tested w/ mocked fetch; demo provider exercises the engine end-to-end. **Phase 0 hardening:** DateTStamp delta + Offset/Limit pagination, write-back default operatory, clinic-timezone datetimes, role defaults to dentist, balance via `/patients/Simple`. **Phase 1 (4/5 shipped, #5 blocked on OD vendor approval — sent 2026-05-28):** (1) cancellation/reschedule write-back (PUT AptStatus=Broken; supersede pending-create on book-then-cancel); (2) recall sync (PMS recall due dates feed `derivePatientRecallStatus` shared helper used by patients list + Recall & Outreach audience); (3) sync-health alerts (`deriveIntegrationsHealth` snapshot, Overview + Integrations warn/error banners, staleness 36h / repeated-failure 3+); (4) CommLog mirroring (5 send sites pipe outbound comms into the OD chart); (5) **blocked** — schedule-driven availability awaits a real-office Customer Key to validate `/schedules` against per-office provider blocks. Webhook Subscriptions are Phase 2 (needs office-side service). Demo seeds a sandbox connection covering every state |
 | Settings | Settings | `/settings/account` | Live | + `/settings/clinic` for site editor, `/settings/locations` for multi-location |
 
 **Dropped from clinic sidebar** (route files may still exist for
@@ -546,12 +675,49 @@ eventual App Runner → ECS move) are tracked in that section.
 9. **Patient detail "Send review request" button** — quick row action
    directly on the patient detail page; today the only entry point is
    the Reviews dashboard's Ready-to-ask list.
-10. **Coming-soon clinic modules to build out** — Analytics (dental
-    KPIs: recall conversion, no-show, hygiene reappt, schedule
-    utilization), Blog (Tiptap + SEO + AI drafts), SEO dashboard
-    (rankings + page health on top of the already-live base SEO),
-    Careers (job postings + applicant tracking), Integrations
-    (Open Dental + Dentrix two-way sync).
+10. **Clinic module build-out — COMPLETE.** Analytics, Blog, SEO,
+    Careers, and Integrations have all shipped — the clinic sidebar has
+    **no remaining `status:'soon'` modules**. Integrations Phase 1 is
+    4/5 shipped (cancellation/reschedule write-back + recall sync +
+    sync-health alerts + CommLog mirroring). Remaining v1.1 deepenings:
+    schedule-driven availability (Phase 1 item #5, blocked — see #11
+    below); scheduled auto-sync on a cron (manual Sync-now + best-effort
+    write-back ship today); Dentrix Ascend (pending Henry Schein One
+    partner approval); configurable field mapping (today fixed + shown
+    in full); webhook Subscriptions (Phase 2 — needs office-side service).
+11. **OD vendor portal approval (in flight, sent 2026-05-28, SLA 1-3
+    business days)** — gates Phase 1 item #5 and any real-office testing
+    of the integration. The current `PMS_OPEN_DENTAL_DEVELOPER_KEY` env
+    is OD's *public sandbox* Developer Key (works against the hosted
+    test DB only; can't issue Customer Keys for real offices).
+    Application emailed to `vendor.relations@opendental.com` on
+    2026-05-28 with the standard fields (company name + mailing address
+    + developer contact + application description + requested API
+    resources: patients/appointments/operatories/providers/recalls
+    read+create+update, commlogs create, schedules read). **Once
+    approved:** (a) log into the developer portal at
+    https://api.opendental.com/portal/gwt/fhirportal.html with the new
+    vendor credentials; (b) replace `PMS_OPEN_DENTAL_DEVELOPER_KEY` in
+    Secrets Manager (`dreamcrm/app-secrets`) with the issued vendor key
+    and redeploy; (c) for each clinic onboarded, generate a Customer
+    Key from the portal naming that office; (d) the office installs
+    **eConnector** (https://www.opendental.com/manual/econnector.html)
+    on a Windows machine and pastes the Customer Key into OD: **Setup
+    → Advanced Setup → API → Add Key**; (e) same Customer Key pasted
+    into DreamCRM at `/integrations`. **No adapter code change needed**
+    — we keep hitting `https://api.opendental.com/api/v1/` (Remote API
+    mode) with `Authorization: ODFHIR {DeveloperKey}/{CustomerKey}`. OD
+    has three API modes (https://www.opendental.com/site/apilocal.html):
+    **Local** (each workstation, `localhost:30222`, no eConnector),
+    **API Service** (DB server, `localhost:30223`, eConnector required),
+    **Remote** (`api.opendental.com`, eConnector required). DreamCRM
+    uses **Remote** — the only mode that lets a cloud-hosted SaaS reach
+    the office. eConnector itself is a free Windows service from OD;
+    office API access may carry a monthly fee (CLAUDE.md previously
+    cited ~$30/mo from prior research; the live docs read on 2026-05-28
+    don't surface a price — will appear during eConnector signup). Once
+    approval lands, the first concrete deliverable is wiring
+    `/schedules` into `lib/services/booking.ts` to close Phase 1.
 
 ## Vercel → AWS migration (LARGELY COMPLETE)
 
@@ -622,7 +788,7 @@ the third-party integrations that aren't AWS-native. Inventory below.
 ### Pre-migration code hygiene
 
 Already done (no action needed):
-- All current migrations applied to prod through 0023 (`_dreamcrm_migrations_applied` ledger reflects 0000–0023)
+- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0034 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; until then they're queued on `claude/epic-darwin-tJEsE`)
 - Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108)
 - 627/627 tests passing, typecheck clean
 - No uncommitted changes on `main`
@@ -668,7 +834,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest applied: 0025): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0034): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its
