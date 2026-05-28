@@ -3,6 +3,7 @@ import { and, count, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from 'dri
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { Resend } from 'resend'
+import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 
 /**
  * Reviews & Reputation service. Post-visit review requests routed
@@ -431,6 +432,11 @@ export async function createAndSendReviewRequest(input: {
       patientFirstName: patient.firstName,
       clinicName,
       reviewUrl,
+    })
+    // Mirror into OD's CommLog so the front desk sees the ask in the chart.
+    await queueCommLogWriteBack(input.organizationId, input.patientId, {
+      note: `Review request sent: ${reviewUrl}`,
+      mode: 'Email',
     })
     await db
       .update(schema.reviewRequest)

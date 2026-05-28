@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/appointments'
 import { getSlotsForDay } from '@/lib/services/booking'
 import { sendNotificationEmail } from '@/lib/email'
+import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 
 async function requireClinicTenant() {
   const ctx = await requireTenant()
@@ -104,6 +105,10 @@ export async function rescheduleAppointmentAction(input: {
           title: 'Your appointment was rescheduled',
           body: `Hi ${detail.patient.fullName.split(' ')[0]} — your ${detail.type.replace(/_/g, ' ')} at ${ctx.organizationName} has been moved to ${start.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Reply or call if this doesn't work.`,
         })
+        await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
+          note: `Appointment rescheduled to ${start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} — patient notified by email.`,
+          mode: 'Email',
+        })
       }
     } catch (err) {
       console.warn('[reschedule] notify failed', err)
@@ -141,6 +146,10 @@ export async function sendReminderAction(
       name: detail.patient.fullName,
       title: `Reminder: your ${detail.type.replace(/_/g, ' ')} on ${detail.startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}`,
       body: `Hi ${detail.patient.fullName.split(' ')[0]} — just a quick reminder of your ${detail.type.replace(/_/g, ' ')} appointment at ${ctx.organizationName} on ${startStr}. Reply CONFIRM or call us back to confirm. Thanks!`,
+    })
+    await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
+      note: `Appointment reminder sent for ${startStr}.`,
+      mode: 'Email',
     })
     await logReminderSent({
       organizationId: ctx.organizationId,

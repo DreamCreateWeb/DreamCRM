@@ -11,6 +11,7 @@ import {
   PROVIDER_LABELS,
   SYNCED_ENTITIES,
   SYNC_STATUS_LABELS,
+  WRITE_OP_ENTITY_LABELS,
   WRITE_OP_STATUS_LABELS,
   type PmsAvailability,
   type SyncedEntity,
@@ -286,7 +287,7 @@ export default async function IntegrationsPage() {
                           {w.error && <p className="text-[11px] text-rose-500 dark:text-rose-400">{w.error}</p>}
                         </td>
                         <td className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400">
-                          {ENTITY_LABELS[w.entityType as keyof typeof ENTITY_LABELS] ?? w.entityType}
+                          {WRITE_OP_ENTITY_LABELS[w.entityType as keyof typeof WRITE_OP_ENTITY_LABELS] ?? w.entityType}
                         </td>
                         <td className="px-3 py-2.5">
                           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${WRITE_PILL[w.status]}`}>

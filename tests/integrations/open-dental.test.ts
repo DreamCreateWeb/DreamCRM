@@ -193,6 +193,31 @@ describe('OpenDentalProvider writes (sanctioned API)', () => {
     ).rejects.toThrow(/operatory/i)
   })
 
+  it('POSTs a CommLog with PatNum/Note/Mode_/SentOrReceived/CommDateTime, returns CommlogNum', async () => {
+    const f = mockFetch({ CommlogNum: 7104 })
+    vi.stubGlobal('fetch', f)
+    const when = new Date('2026-06-01T13:00:00Z') // → 09:00 EDT
+    const res = await new OpenDentalProvider('k', { timeZone: 'America/New_York' }).createCommLog({
+      externalPatientId: '15',
+      note: 'Review request sent',
+      mode: 'Email',
+      sentOrReceived: 'Sent',
+      commDateTime: when,
+    })
+    expect(res.externalId).toBe('7104')
+    const call = f.mock.calls[0]
+    expect((call[1] as RequestInit).method).toBe('POST')
+    expect((call[0] as string).endsWith('/commlogs')).toBe(true)
+    const body = JSON.parse((call[1] as RequestInit).body as string)
+    expect(body).toMatchObject({
+      PatNum: 15,
+      Note: 'Review request sent',
+      Mode_: 'Email',
+      SentOrReceived: 'Sent',
+      CommDateTime: '2026-06-01 09:00:00',
+    })
+  })
+
   it('formats AptDateTime in the office timezone (wall-clock, no TZ)', async () => {
     const f = mockFetch({ AptNum: 1 })
     vi.stubGlobal('fetch', f)

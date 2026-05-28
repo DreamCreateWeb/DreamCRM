@@ -7,7 +7,15 @@ import type { PmsConnection } from '@/lib/db/schema/clinic'
 import { OpenDentalProvider } from './open-dental'
 import { DemoProvider } from './demo'
 import { getPmsConnection } from './connection'
-import type { NormalizedAppointment, NormalizedPatient, NormalizedProvider, NormalizedRecall, PmsProviderClient } from './provider'
+import type {
+  CommLogDirection,
+  CommLogMode,
+  NormalizedAppointment,
+  NormalizedPatient,
+  NormalizedProvider,
+  NormalizedRecall,
+  PmsProviderClient,
+} from './provider'
 
 const VALID_ROLES = ['dentist', 'hygienist', 'assistant', 'specialist', 'admin']
 
@@ -537,6 +545,52 @@ export async function queueAppointmentStatusWriteBack(
   }
 }
 
+/**
+ * Queue a commlog mirror — every DreamCRM-originated patient message
+ * (booking confirmation, reminder, review request, intake send, reply) gets
+ * pushed to OD's CommLog so the front desk sees the full comms history in the
+ * patient's chart. Top "I wish it did this" from the integrations research;
+ * audit-clean (official API, lands in OD's Audit Trail). Best-effort + silent:
+ * skipped if not connected, not two-way, or the patient isn't mapped to OD.
+ */
+export async function queueCommLogWriteBack(
+  organizationId: string,
+  patientId: string,
+  args: {
+    note: string
+    mode: CommLogMode
+    sentOrReceived?: CommLogDirection
+    commDateTime?: Date
+  },
+): Promise<void> {
+  try {
+    const conn = await getPmsConnection(organizationId)
+    if (!conn || conn.status !== 'connected' || conn.syncDirection !== 'two_way') return
+    const externalPatientId = await mapInternalToExternal(organizationId, 'patient', patientId)
+    if (!externalPatientId) return
+    await db.insert(schema.pmsWriteOp).values({
+      id: randomUUID(),
+      organizationId,
+      entityType: 'commlog',
+      // Commlogs aren't a DreamCRM-side row, so internalId is synthetic. Keeps
+      // the column NOT NULL constraint happy + each enqueue idempotently unique.
+      internalId: `commlog_${randomUUID()}`,
+      operation: 'create',
+      status: 'pending',
+      attempts: 0,
+      requestPayload: {
+        externalPatientId,
+        note: args.note,
+        mode: args.mode,
+        sentOrReceived: args.sentOrReceived ?? 'Sent',
+        commDateTime: (args.commDateTime ?? new Date()).toISOString(),
+      },
+    })
+  } catch {
+    // Best-effort: never block a comms send on PMS mirroring.
+  }
+}
+
 const MAX_WRITE_ATTEMPTS = 6
 
 export async function retryPendingWrites(organizationId: string, client: PmsProviderClient): Promise<void> {
@@ -546,15 +600,57 @@ export async function retryPendingWrites(organizationId: string, client: PmsProv
     .where(
       and(
         eq(schema.pmsWriteOp.organizationId, organizationId),
-        eq(schema.pmsWriteOp.entityType, 'appointment'),
+        inArray(schema.pmsWriteOp.entityType, ['appointment', 'commlog']),
         inArray(schema.pmsWriteOp.status, ['pending', 'error']),
       ),
     )
     .limit(100)
   for (const op of ops) {
     if (op.attempts >= MAX_WRITE_ATTEMPTS) continue
-    if (op.operation === 'update') await processAppointmentUpdateOp(organizationId, client, op)
-    else await processAppointmentWriteOp(organizationId, client, op)
+    if (op.entityType === 'commlog') {
+      await processCommLogWriteOp(organizationId, client, op)
+    } else if (op.operation === 'update') {
+      await processAppointmentUpdateOp(organizationId, client, op)
+    } else {
+      await processAppointmentWriteOp(organizationId, client, op)
+    }
+  }
+}
+
+async function processCommLogWriteOp(
+  _organizationId: string,
+  client: PmsProviderClient,
+  op: typeof schema.pmsWriteOp.$inferSelect,
+) {
+  try {
+    const payload = op.requestPayload as {
+      externalPatientId: string
+      note: string
+      mode: CommLogMode
+      sentOrReceived: CommLogDirection
+      commDateTime: string
+    } | null
+    if (!payload) {
+      await failOp(op.id, op.attempts + 1, 'CommLog write-op missing requestPayload')
+      return
+    }
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ attempts: op.attempts + 1 })
+      .where(eq(schema.pmsWriteOp.id, op.id))
+    const result = await client.createCommLog({
+      externalPatientId: payload.externalPatientId,
+      note: payload.note,
+      mode: payload.mode,
+      sentOrReceived: payload.sentOrReceived,
+      commDateTime: new Date(payload.commDateTime),
+    })
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ status: 'success', externalId: result.externalId ?? null, error: null, completedAt: new Date() })
+      .where(eq(schema.pmsWriteOp.id, op.id))
+  } catch (e) {
+    await failOp(op.id, op.attempts + 1, (e as Error).message)
   }
 }
 

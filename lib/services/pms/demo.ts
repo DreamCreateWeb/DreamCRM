@@ -12,6 +12,7 @@ import type {
   NormalizedRecall,
   CreateAppointmentPayload,
   CreatePatientPayload,
+  CreateCommLogPayload,
   AppointmentStatusChange,
 } from './provider'
 
@@ -116,6 +117,11 @@ export class DemoProvider implements PmsProviderClient {
     // The demo seeder writes pmsRecallDueAt directly onto its sample patients,
     // so the sandbox doesn't return a recall set here (a re-sync is a no-op).
     return []
+  }
+
+  async createCommLog(_payload: CreateCommLogPayload): Promise<PmsWriteResult> {
+    // Demo sandbox accepts every commlog — surfaces 'success' in the write-back log.
+    return { externalId: `demo-commlog-${Math.floor(Math.random() * 1_000_000)}` }
   }
 
   async createPatient(_payload: CreatePatientPayload): Promise<PmsWriteResult> {

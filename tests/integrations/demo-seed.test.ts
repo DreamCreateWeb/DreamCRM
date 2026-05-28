@@ -129,10 +129,14 @@ describe('seedDemoPms — idempotent self-heal', () => {
     // 3 inbound sync runs
     expect((insertsFor('pmsSyncRun')[0].values as Row[]).length).toBe(3)
 
-    // write-back log covers every state
+    // write-back log covers every state — 4 appointment ops + 3 commlog ops
+    // (2 success, 1 pending) for the Phase 1 commlog mirroring demo.
     const ops = insertsFor('pmsWriteOp')[0].values as Row[]
     const statuses = ops.map((o) => o.status).sort()
-    expect(statuses).toEqual(['error', 'pending', 'success', 'success'])
+    expect(statuses).toEqual(['error', 'pending', 'pending', 'success', 'success', 'success', 'success'])
+    const commlogOps = ops.filter((o) => o.entityType === 'commlog')
+    expect(commlogOps).toHaveLength(3)
+    expect(commlogOps.every((o) => (o.requestPayload as { mode?: string }).mode === 'Email')).toBe(true)
 
     // PMS balances on the first 5 patients + PMS recall on at least the 6th
     // (the recall loop fires Math.min(4, patients.length - 5) times — with 6

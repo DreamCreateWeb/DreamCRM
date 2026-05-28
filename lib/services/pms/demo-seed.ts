@@ -207,6 +207,69 @@ export async function seedDemoPms(organizationId: string): Promise<void> {
       createdAt: new Date(now - 30 * 60 * 1000),
     })
   }
+  // CommLog mirrors — Phase 1 audit-clean trail of patient comms pushed into
+  // OD's chart. Pump a mix of states so the write-back log demos every branch.
+  if (patients[0]) {
+    ops.push({
+      id: randomUUID(),
+      organizationId,
+      entityType: 'commlog',
+      internalId: `commlog_${randomUUID()}`,
+      externalId: 'od-commlog-7104',
+      operation: 'create',
+      status: 'success',
+      attempts: 1,
+      requestPayload: {
+        externalPatientId: 'od-pat-1001',
+        note: `Review request sent: https://www.dreamcreatestudio.com/r/demo-token`,
+        mode: 'Email',
+        sentOrReceived: 'Sent',
+        commDateTime: new Date(now - 4 * 60 * 60 * 1000).toISOString(),
+      },
+      createdAt: new Date(now - 4 * 60 * 60 * 1000),
+      completedAt: new Date(now - 4 * 60 * 60 * 1000 + 800),
+    })
+  }
+  if (patients[1]) {
+    ops.push({
+      id: randomUUID(),
+      organizationId,
+      entityType: 'commlog',
+      internalId: `commlog_${randomUUID()}`,
+      externalId: 'od-commlog-7105',
+      operation: 'create',
+      status: 'success',
+      attempts: 1,
+      requestPayload: {
+        externalPatientId: 'od-pat-1002',
+        note: 'Appointment reminder sent for Tue, Jun 9, 10:00 AM.',
+        mode: 'Email',
+        sentOrReceived: 'Sent',
+        commDateTime: new Date(now - 90 * 60 * 1000).toISOString(),
+      },
+      createdAt: new Date(now - 90 * 60 * 1000),
+      completedAt: new Date(now - 90 * 60 * 1000 + 750),
+    })
+  }
+  if (patients[2]) {
+    ops.push({
+      id: randomUUID(),
+      organizationId,
+      entityType: 'commlog',
+      internalId: `commlog_${randomUUID()}`,
+      operation: 'create',
+      status: 'pending',
+      attempts: 0,
+      requestPayload: {
+        externalPatientId: 'od-pat-1003',
+        note: 'Intake form "New patient intake" sent.',
+        mode: 'Email',
+        sentOrReceived: 'Sent',
+        commDateTime: new Date(now - 10 * 60 * 1000).toISOString(),
+      },
+      createdAt: new Date(now - 10 * 60 * 1000),
+    })
+  }
   if (ops.length) await db.insert(schema.pmsWriteOp).values(ops)
 }
 

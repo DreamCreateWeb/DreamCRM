@@ -23,6 +23,9 @@ export type SyncRunStatus = 'running' | 'success' | 'partial' | 'error'
 export type WriteOpStatus = 'pending' | 'success' | 'error' | 'skipped'
 export type WriteOpOperation = 'create' | 'update'
 export type PmsEntityType = 'patient' | 'appointment' | 'provider'
+// Write-op entity types extend PmsEntityType with audit-only entries that
+// aren't kept in the entity_map (commlog mirrors are write-only).
+export type PmsWriteOpEntityType = PmsEntityType | 'commlog'
 
 // Availability in the provider catalog:
 //   'live'           — wired now (Open Dental)
@@ -123,6 +126,14 @@ export const ENTITY_LABELS: Record<PmsEntityType, string> = {
   patient: 'Patient',
   appointment: 'Appointment',
   provider: 'Provider',
+}
+
+// Superset of ENTITY_LABELS for the write-back audit log — commlog is a
+// write-only audit entry that doesn't appear in entity_map but does show in
+// the Integrations write-back log row alongside patient/appointment writes.
+export const WRITE_OP_ENTITY_LABELS: Record<PmsWriteOpEntityType, string> = {
+  ...ENTITY_LABELS,
+  commlog: 'Comm log',
 }
 
 // ── Transparent fixed field map ─────────────────────────────────────────────

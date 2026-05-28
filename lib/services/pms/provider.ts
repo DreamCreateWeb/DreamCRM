@@ -54,6 +54,20 @@ export interface NormalizedRecall {
   isDisabled: boolean
 }
 
+// Commlog write-back payload — every DreamCRM-originated patient message
+// (booking confirmation, reminder, review request, intake send, reply) gets
+// mirrored as a CommLog entry in OD so the front desk sees the full comms
+// history in the patient's chart. Write-only (we never import OD's commlogs).
+export type CommLogMode = 'Email' | 'Text' | 'Phone' | 'Mailed' | 'In Person'
+export type CommLogDirection = 'Sent' | 'Received'
+export interface CreateCommLogPayload {
+  externalPatientId: string // OD PatNum
+  note: string // body / summary that shows in the chart
+  mode: CommLogMode
+  sentOrReceived: CommLogDirection
+  commDateTime: Date // adapter converts to office-local wall-clock
+}
+
 // ── Write-back payloads (DreamCRM → PMS, via the official API only) ──────────
 
 export interface CreatePatientPayload {
@@ -105,6 +119,9 @@ export interface PmsProviderClient {
    *  so this is a full paginated pull (small N + content-skip per-patient). */
   listRecalls(): Promise<NormalizedRecall[]>
   createPatient(payload: CreatePatientPayload): Promise<PmsWriteResult>
+  /** CommLog write — mirrors a DreamCRM-originated message into OD's
+   *  patient chart so the front desk sees the full comms history. */
+  createCommLog(payload: CreateCommLogPayload): Promise<PmsWriteResult>
   createAppointment(payload: CreateAppointmentPayload): Promise<PmsWriteResult>
   /** Push a status change for an existing PMS appointment (cancel/no-show). */
   updateAppointment(externalId: string, changes: AppointmentStatusChange): Promise<void>

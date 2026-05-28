@@ -515,6 +515,30 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   consecutive non-success runs. No new schema — read-only over what we
   already capture. Deterministic pure helper `deriveIntegrationsHealth`
   is unit-tested across every branch.
+  (4) **CommLog mirroring** — the top "I wish it did this" from the
+  integrations research. Every DreamCRM-originated patient message
+  (booking confirmation / appointment reminder / reschedule notice /
+  review request / intake form send) is now mirrored as a CommLog entry
+  in Open Dental's chart via `POST /commlogs` (verified vs sandbox: 201
+  with `Note / Mode_ / SentOrReceived / CommDateTime / PatNum`), so the
+  front desk sees the full comms history without leaving OD. Mirrors
+  ride the same `pms_write_op` queue + flush as appointment write-backs:
+  `queueCommLogWriteBack` enqueues on the send path (best-effort, never
+  blocks the send), and `retryPendingWrites` dispatches via
+  `processCommLogWriteOp`. Skips silently if patient isn't mapped (front-
+  desk-added patients with no PMS link) or the connection isn't two-way.
+  Wired into 5 send sites: `reviews.ts::createAndSendReviewRequest`,
+  `appointments/actions.ts` (reminder + reschedule notification),
+  `site/[slug]/actions.ts` (public booking confirmation),
+  `patient-intake-send.ts`. Marketing campaign sends + Patient
+  Communications in-app replies are intentionally skipped in v1
+  (campaigns would flood OD's chart; in-app reply has no email/SMS hop
+  to log). Client-safe `WRITE_OP_ENTITY_LABELS` adds the "Comm log"
+  label so the Integrations write-back log renders the new rows
+  alongside appointment writes. Demo seeder pump: 3 commlog write-op
+  rows (2 success, 1 pending) so the write-back log demos every state.
+  No new schema — `pms_write_op.entityType` is `text` and already
+  accepts the new value.
   Demo seeder pump: a sandbox "Open Dental
   (Sandbox)" connection +
   entity maps over the 15 patients / 17 appointments / 2 providers + 3

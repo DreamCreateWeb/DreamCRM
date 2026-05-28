@@ -10,6 +10,7 @@ import type {
   NormalizedRecall,
   CreatePatientPayload,
   CreateAppointmentPayload,
+  CreateCommLogPayload,
   AppointmentStatusChange,
 } from './provider'
 
@@ -318,5 +319,24 @@ export class OpenDentalProvider implements PmsProviderClient {
     if (changes.status) body.AptStatus = statusToAptStatus(changes.status)
     if (Object.keys(body).length === 0) return
     await this.req('PUT', `/appointments/${encodeURIComponent(externalId)}`, body)
+  }
+
+  // CommLog write. Verified against the sandbox: POST /commlogs → 201 with
+  // CommlogNum back. Fields: PatNum (required), Note, Mode_ ('Email'/'Text'/
+  // 'Phone'/'Mailed'/'In Person'), SentOrReceived ('Sent'/'Received'),
+  // CommDateTime (office-local wall-clock, formatted via formatOdDateTime).
+  // CommType defaults to 'Misc' server-side; CommSource is OD-assigned (always
+  // 'User' on API writes — still audit-clean since every row lands in the
+  // Audit Trail tagged to the API user).
+  async createCommLog(payload: CreateCommLogPayload): Promise<PmsWriteResult> {
+    const body: Record<string, unknown> = {
+      PatNum: Number(payload.externalPatientId),
+      Note: payload.note,
+      Mode_: payload.mode,
+      SentOrReceived: payload.sentOrReceived,
+      CommDateTime: formatOdDateTime(payload.commDateTime, this.timeZone),
+    }
+    const res = await this.req<{ CommlogNum: number }>('POST', '/commlogs', body)
+    return { externalId: String(res.CommlogNum), raw: res as unknown as Record<string, unknown> }
   }
 }
