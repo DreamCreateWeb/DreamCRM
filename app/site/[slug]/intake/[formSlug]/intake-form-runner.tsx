@@ -1,13 +1,21 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { submitIntakeForm } from './actions'
 import type {
   FormField,
   FormFieldValue,
   FormSubmissionData,
   FormTemplateSchema,
 } from '@/lib/types/forms'
+
+export interface IntakeSubmitPayload {
+  orgId: string
+  templateId: string
+  data: FormSubmissionData
+  submitterName: string | null
+  submitterEmail: string | null
+  submitterPhone: string | null
+}
 
 const INK = '#1C1A17'
 const INK_MUTED = '#6B635A'
@@ -21,9 +29,13 @@ interface Props {
   schema: FormTemplateSchema
   brand: string
   clinicName: string
+  /** Server action that persists the submission. Public form passes the
+   *  unauthenticated action; the patient portal passes one that attaches
+   *  `patientId` from the session. */
+  action: (payload: IntakeSubmitPayload) => Promise<void>
 }
 
-export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName }: Props) {
+export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action }: Props) {
   const [values, setValues] = useState<FormSubmissionData>({})
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -75,7 +87,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
     setStatus('pending')
     setErrorMsg('')
     try {
-      await submitIntakeForm({
+      await action({
         orgId,
         templateId,
         data: values,

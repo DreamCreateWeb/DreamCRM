@@ -41,6 +41,7 @@ const icons: Record<string, (p: IconProps) => React.ReactElement> = {
   star:     (p) => <Icon className={p.className}><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></Icon>,
   plug:     (p) => <Icon className={p.className}><path d="M16 7V3h-2v4h-4V3H8v4H7v5c0 2.42 1.72 4.44 4 4.9V21h2v-4.1c2.28-.46 4-2.48 4-4.9V7z" /></Icon>,
   bag:      (p) => <Icon className={p.className}><path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm6 16H6V8h12z" /></Icon>,
+  doc:      (p) => <Icon className={p.className}><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7zm3-4H7v-2h10zm0-4H7V7h10z" /></Icon>,
 }
 
 export function NavIcon({ name, className }: { name?: string; className?: string }) {

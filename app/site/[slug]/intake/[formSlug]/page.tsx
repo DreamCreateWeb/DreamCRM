@@ -6,6 +6,7 @@ import {
 import { getFormTemplateBySlug } from '@/lib/services/forms'
 import type { FormTemplateSchema } from '@/lib/types/forms'
 import IntakeFormRunner from './intake-form-runner'
+import { submitIntakeForm } from './actions'
 
 interface Props {
   params: Promise<{ slug: string; formSlug: string }>
@@ -109,6 +110,7 @@ export default async function IntakeFormPage({ params }: Props) {
             schema={schema}
             brand={brand}
             clinicName={name}
+            action={submitIntakeForm}
           />
         </div>
       </main>

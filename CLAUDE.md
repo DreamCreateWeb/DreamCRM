@@ -668,13 +668,18 @@ eventual App Runner → ECS move) are tracked in that section.
    custom landing pages, blog posts. Template switcher with preview
    (Cosmetic / Pediatric variants per DESIGN.md). Custom domain wiring
    for the `websiteDomain` column. Per-page SEO controls.
-6. **Patient portal completion** — Bills (PR #145), Messages (PR
-   #146), and My Records (PR #147) all shipped 2026-05-28; sidebar now
-   flags them `live`. Remaining `'soon'` items: **intake-fill**
-   (authenticated entry into the existing public form at
-   `/site/[slug]/intake/[formSlug]`) and **refill-request** (single-
-   form patient-side request that lands as an inbound `patient_message`
-   tagged 'refill' for the front desk).
+6. **Patient portal completion — substantially complete.** Bills (PR
+   #145), Messages (PR #146), My Records (PR #147), and Intake forms
+   (PR #149) all shipped 2026-05-28; the patient sidebar has **no
+   remaining `'soon'` modules**. The Intake page shares the same
+   `IntakeFormRunner` component as the public `/site/[slug]/intake`
+   flow — refactored to take the submit action as a prop, so the
+   patient-portal version attaches `patientId` via session while the
+   public version stays unauthenticated. Future v1.1 additions (not
+   blocking): per-appointment form pre-fill, multi-form selection,
+   any patient-side request type beyond "send message" (dental doesn't
+   really have a "refill request" analog; the original CLAUDE.md
+   placeholder was a generic-CRM holdover).
 7. **Patients module v2** — per-patient tags + audience targeting;
    comms preferences granularity; household linkage table for
    pediatric/family clinics; per-view audit log for Premium tier;
