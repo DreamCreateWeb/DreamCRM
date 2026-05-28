@@ -12,11 +12,13 @@ const BORDER = '#E8E2D9'
 export default function CartView({
   slug,
   brand,
+  basePath,
   pickupEnabled,
   shippingEnabled,
 }: {
   slug: string
   brand: string
+  basePath: string
   pickupEnabled: boolean
   shippingEnabled: boolean
 }) {
@@ -48,7 +50,7 @@ export default function CartView({
     return (
       <div className="text-center py-16">
         <h1 className="text-2xl font-bold" style={{ color: INK }}>Your cart is empty</h1>
-        <a href={`/site/${slug}/shop`} className="inline-block mt-4 text-[15px] font-semibold underline" style={{ color: brand }}>
+        <a href={`${basePath}/shop`} className="inline-block mt-4 text-[15px] font-semibold underline" style={{ color: brand }}>
           Browse products →
         </a>
       </div>

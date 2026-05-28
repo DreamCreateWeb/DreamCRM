@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
@@ -34,7 +34,7 @@ export default async function ClinicCareersPage({ params }: Props) {
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
 
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
   const jobs = await getOpenJobs(data.orgId)

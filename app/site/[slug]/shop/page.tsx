@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { listActiveProducts, getShopConfig } from '@/lib/services/shop'
 import { CATEGORY_LABELS, priceRangeLabel } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
@@ -36,7 +36,7 @@ export default async function ClinicShopPage({ params }: Props) {
   const config = await getShopConfig(data.orgId)
   if (!config.storefrontEnabled) notFound()
 
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const products = await listActiveProducts(data.orgId)
 
@@ -54,7 +54,7 @@ export default async function ClinicShopPage({ params }: Props) {
               to your door.
             </p>
           </div>
-          <CartButton slug={slug} brand={brand} />
+          <CartButton slug={slug} brand={brand} basePath={basePath} />
         </div>
 
         {products.length === 0 ? (

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { getActiveProductBySlug, getShopConfig } from '@/lib/services/shop'
 import { CATEGORY_LABELS } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
@@ -38,7 +38,7 @@ export default async function ClinicProductPage({ params }: Props) {
   const product = await getActiveProductBySlug(data.orgId, productSlug)
   if (!product) notFound()
 
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
 
   return (
@@ -71,6 +71,7 @@ export default async function ClinicProductPage({ params }: Props) {
               <AddToCart
                 slug={slug}
                 brand={brand}
+                basePath={basePath}
                 product={{
                   slug: product.slug,
                   name: product.name,

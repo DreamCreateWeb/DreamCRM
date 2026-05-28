@@ -3,6 +3,7 @@ import {
   getClinicSiteBySlug,
   publicSiteUrl,
   clinicJsonLd,
+  resolveSiteBasePath,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import ModernTemplate from '@/components/clinic-site/modern-template'
@@ -55,7 +56,7 @@ export default async function ClinicSitePage({ params }: Props) {
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
 
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
   const jsonLd = clinicJsonLd(data)
   const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
 

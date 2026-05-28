@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { listPublishedPosts, listPublishedCategories, getPostAuthor } from '@/lib/services/blog'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
@@ -42,7 +42,7 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
 
-  const basePath = `/site/${slug}`
+  const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
 

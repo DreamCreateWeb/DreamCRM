@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { cartCount } from './cart-store'
 
-export default function CartButton({ slug, brand }: { slug: string; brand: string }) {
+export default function CartButton({ slug, brand, basePath }: { slug: string; brand: string; basePath: string }) {
   const [count, setCount] = useState(0)
   useEffect(() => {
     const update = () => setCount(cartCount(slug))
@@ -18,7 +18,7 @@ export default function CartButton({ slug, brand }: { slug: string; brand: strin
 
   return (
     <a
-      href={`/site/${slug}/shop/cart`}
+      href={`${basePath}/shop/cart`}
       className="shrink-0 inline-flex items-center gap-2 text-[14px] font-semibold px-4 py-2 rounded-full border"
       style={{ borderColor: brand, color: brand }}
     >

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { getShopConfig } from '@/lib/services/shop'
 import { listActivePlans } from '@/lib/services/membership'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
@@ -31,11 +31,12 @@ export default async function ClinicMembershipPage({ params }: Props) {
   if (!config.membershipEnabled) notFound()
   const plans = await listActivePlans(data.orgId)
 
+  const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
 
   return (
-    <BlogChrome data={data} basePath={`/site/${slug}`}>
+    <BlogChrome data={data} basePath={basePath}>
       <div className="max-w-[900px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: brand }}>Membership</p>

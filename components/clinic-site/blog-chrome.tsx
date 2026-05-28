@@ -34,7 +34,7 @@ export default function BlogChrome({
         style={{ backgroundColor: `${BG}EE`, borderColor: BORDER }}
       >
         <div className="max-w-[1100px] mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between gap-4">
-          <a href={basePath} className="flex items-center gap-3 min-w-0">
+          <a href={basePath || '/'} className="flex items-center gap-3 min-w-0">
             {profile.logoUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={profile.logoUrl} alt={name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
@@ -76,7 +76,7 @@ export default function BlogChrome({
           className="max-w-[1100px] mx-auto px-5 sm:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm"
           style={{ color: INK_MUTED }}
         >
-          <a href={basePath} className="font-medium hover:underline" style={{ color: INK }}>
+          <a href={basePath || '/'} className="font-medium hover:underline" style={{ color: INK }}>
             ← Back to {name}
           </a>
           <span>

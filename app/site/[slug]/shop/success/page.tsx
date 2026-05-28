@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
+import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
 import { formatCents } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
@@ -22,6 +22,7 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
   if (!data) notFound()
 
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  const basePath = await resolveSiteBasePath(slug)
   let paid = false
   let totalCents = 0
   let pickup = false
@@ -39,7 +40,7 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
   }
 
   return (
-    <BlogChrome data={data} basePath={`/site/${slug}`}>
+    <BlogChrome data={data} basePath={basePath}>
       <ClearCart slug={slug} />
       <div className="max-w-[560px] mx-auto px-5 sm:px-8 py-20 text-center">
         <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center text-2xl text-white" style={{ backgroundColor: brand }}>✓</div>
@@ -54,7 +55,7 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
             : 'Your payment is being confirmed — you’ll get a receipt by email shortly.'}
           {paid && pickup ? ' We’ll have it ready to pick up at your next visit.' : ''}
         </p>
-        <a href={`/site/${slug}/shop`} className="inline-block mt-6 text-[15px] font-semibold underline" style={{ color: brand }}>
+        <a href={`${basePath}/shop`} className="inline-block mt-6 text-[15px] font-semibold underline" style={{ color: brand }}>
           Continue shopping →
         </a>
       </div>
