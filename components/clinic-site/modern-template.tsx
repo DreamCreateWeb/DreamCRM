@@ -47,11 +47,16 @@ interface Props {
   data: ClinicSiteData
   /** Base path for internal links — used so server renders correctly under /site/[slug] */
   basePath: string
+  /** Absolute URL to the app's sign-in page. Patients + staff both auth here;
+   *  tenant context routes them to the right dashboard after login. Absolute
+   *  (not relative) because on a clinic subdomain a relative /signin would be
+   *  rewritten to /site/<slug>/signin and 404. */
+  signInUrl?: string
   /** Whether the clinic has at least one published blog post — gates the Blog nav link. */
   hasBlog?: boolean
 }
 
-export default function ModernTemplate({ data, basePath, hasBlog = false }: Props) {
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false }: Props) {
   const { profile, primaryLocation, locations } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -69,6 +74,22 @@ export default function ModernTemplate({ data, basePath, hasBlog = false }: Prop
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
   const bookLabel = 'Book a Visit'
+  // Logo / "home" links must never be an empty href on a subdomain (basePath='').
+  const homeHref = basePath || '/'
+  // Both patient + staff sign-in route through the app's /signin (tenant
+  // context decides the destination). Absolute so it survives the subdomain
+  // rewrite. Fall back to the canonical app host when no prop is supplied.
+  const signIn =
+    signInUrl ??
+    `${(process.env.NEXT_PUBLIC_APP_URL || 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')}/signin`
+  // In-page anchor nav — only surface sections that actually render.
+  const navLinks: Array<{ label: string; href: string }> = [
+    { label: 'Services', href: `${basePath}#services` },
+    ...(staff.length > 0 ? [{ label: 'Team', href: `${basePath}#team` }] : []),
+    ...(testimonials.length > 0 ? [{ label: 'Reviews', href: `${basePath}#reviews` }] : []),
+    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
+    { label: 'Contact', href: `${basePath}#contact` },
+  ]
 
   return (
     <div
@@ -81,52 +102,59 @@ export default function ModernTemplate({ data, basePath, hasBlog = false }: Prop
         className="sticky top-0 z-40 backdrop-blur-md border-b"
         style={{ backgroundColor: `${BG}EE`, borderColor: BORDER }}
       >
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between gap-4">
-          <a href={basePath} className="flex items-center gap-3 min-w-0">
+        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[64px] sm:h-[72px] flex items-center justify-between gap-3 sm:gap-4">
+          {/* Logo / wordmark */}
+          <a href={homeHref} className="flex items-center gap-2.5 min-w-0 shrink">
             {logoUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={logoUrl}
                 alt={name}
-                className="w-10 h-10 rounded-lg object-cover shrink-0"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg object-cover shrink-0"
               />
             ) : (
               <span
-                className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0"
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg text-white text-base font-bold shrink-0"
                 style={{ backgroundColor: brand }}
               >
                 {name.charAt(0).toUpperCase()}
               </span>
             )}
-            <span className="font-semibold text-[17px] leading-tight truncate" style={{ color: INK }}>
+            <span className="font-semibold text-[15px] sm:text-[17px] leading-tight truncate" style={{ color: INK }}>
               {name}
             </span>
           </a>
-          <div className="flex items-center gap-2 sm:gap-4">
-            {hasBlog && (
+
+          {/* Section nav — desktop only */}
+          <nav className="hidden lg:flex items-center gap-0.5">
+            {navLinks.map((l) => (
               <a
-                href={`${basePath}/blog`}
-                className="hidden sm:inline-flex items-center text-sm font-medium px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
+                key={l.label}
+                href={l.href}
+                className="text-sm font-medium px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
                 style={{ color: INK_MUTED }}
               >
-                Blog
+                {l.label}
               </a>
-            )}
-            {profile.phone && (
-              <a
-                href={`tel:${profile.phone}`}
-                className="hidden sm:inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
-                style={{ color: INK_MUTED }}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                </svg>
-                {profile.phone}
-              </a>
-            )}
+            ))}
+          </nav>
+
+          {/* Right-side actions */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            <a
+              href={signIn}
+              className="inline-flex items-center gap-1.5 text-[13px] sm:text-sm font-medium px-2.5 sm:px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
+              style={{ color: INK_MUTED }}
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              <span className="hidden sm:inline">Patient Login</span>
+              <span className="sm:hidden">Login</span>
+            </a>
             <a
               href={bookHref}
-              className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
+              className="hidden lg:inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
               style={{ backgroundColor: brand }}
             >
               {bookLabel}
@@ -251,7 +279,7 @@ export default function ModernTemplate({ data, basePath, hasBlog = false }: Prop
       )}
 
       {/* ── Services — numbered pillars ────────────────────────────────── */}
-      <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+      <section id="services" className="scroll-mt-20 py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-14">
             <p
@@ -292,7 +320,7 @@ export default function ModernTemplate({ data, basePath, hasBlog = false }: Prop
 
       {/* ── Meet the team ──────────────────────────────────────────────── */}
       {staff.length > 0 && (
-        <section className="py-20 sm:py-28">
+        <section id="team" className="scroll-mt-20 py-20 sm:py-28">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="max-w-[640px] mb-14">
               <p
@@ -356,7 +384,7 @@ export default function ModernTemplate({ data, basePath, hasBlog = false }: Prop
 
       {/* ── Testimonials — long-form, photo + first name + city ────────── */}
       {testimonials.length > 0 && (
-        <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+        <section id="reviews" className="scroll-mt-20 py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="max-w-[640px] mb-14">
               <p
@@ -671,22 +699,104 @@ export default function ModernTemplate({ data, basePath, hasBlog = false }: Prop
 
       {/* ── Footer ─────────────────────────────────────────────────────── */}
       <footer className="border-t" style={{ borderColor: BORDER }}>
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-          <div style={{ color: INK_MUTED }}>
-            © {new Date().getFullYear()} {name}.
-            {profile.phone && <span className="ml-2">{profile.phone}</span>}
+        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-14">
+          <div className="grid gap-10 sm:gap-8 sm:grid-cols-2 lg:grid-cols-12">
+            {/* Brand + contact */}
+            <div className="lg:col-span-5 max-w-sm">
+              <a href={homeHref} className="flex items-center gap-2.5 mb-4">
+                {logoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={logoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                ) : (
+                  <span
+                    className="flex items-center justify-center w-9 h-9 rounded-lg text-white text-sm font-bold shrink-0"
+                    style={{ backgroundColor: brand }}
+                  >
+                    {name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="font-semibold text-[16px]" style={{ color: INK }}>{name}</span>
+              </a>
+              {profile.tagline && (
+                <p className="text-sm leading-[1.6] mb-5" style={{ color: INK_MUTED }}>{profile.tagline}</p>
+              )}
+              <div className="space-y-1.5 text-sm">
+                {(profile.addressLine1 || profile.city) && (
+                  <p style={{ color: INK_MUTED }}>
+                    {[profile.addressLine1, [profile.city, profile.state].filter(Boolean).join(', ')]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
+                {profile.phone && (
+                  <a href={`tel:${profile.phone}`} className="block hover:underline" style={{ color: INK }}>
+                    {profile.phone}
+                  </a>
+                )}
+                {profile.email && (
+                  <a href={`mailto:${profile.email}`} className="block hover:underline" style={{ color: INK }}>
+                    {profile.email}
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Explore */}
+            <div className="lg:col-span-3 lg:col-start-7">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
+                Explore
+              </p>
+              <ul className="space-y-2.5">
+                {navLinks.map((l) => (
+                  <li key={l.label}>
+                    <a href={l.href} className="text-sm hover:underline" style={{ color: INK }}>{l.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Get started */}
+            <div className="lg:col-span-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
+                Get started
+              </p>
+              <ul className="space-y-2.5">
+                <li>
+                  <a href={bookHref} className="text-sm hover:underline" style={{ color: INK }}>{bookLabel}</a>
+                </li>
+                <li>
+                  <a href={signIn} className="text-sm hover:underline" style={{ color: INK }}>Patient Login</a>
+                </li>
+              </ul>
+            </div>
           </div>
-          <div style={{ color: INK_MUTED }}>
-            Powered by{' '}
-            <a
-              href="https://dreamcreateweb.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium hover:underline"
-              style={{ color: INK }}
-            >
-              DreamCreate
-            </a>
+
+          {/* Bottom bar — copyright · staff login · attribution */}
+          <div
+            className="mt-12 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm"
+            style={{ borderColor: BORDER }}
+          >
+            <span style={{ color: INK_MUTED }}>
+              © {new Date().getFullYear()} {name}. All rights reserved.
+            </span>
+            <div className="flex items-center gap-3" style={{ color: INK_MUTED }}>
+              <a href={signIn} className="hover:underline" style={{ color: INK_MUTED }}>
+                Staff login
+              </a>
+              <span aria-hidden="true">·</span>
+              <span>
+                Powered by{' '}
+                <a
+                  href="https://dreamcreateweb.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium hover:underline"
+                  style={{ color: INK }}
+                >
+                  DreamCreate
+                </a>
+              </span>
+            </div>
           </div>
         </div>
       </footer>

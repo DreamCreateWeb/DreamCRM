@@ -26,6 +26,7 @@ export default function BlogChrome({
   const brand = profile.brandColor ?? '#9CAF9F'
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
+  const signIn = `${(process.env.NEXT_PUBLIC_APP_URL || 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')}/signin`
 
   return (
     <div className="min-h-screen font-inter antialiased" style={{ backgroundColor: BG, color: INK }}>
@@ -50,7 +51,7 @@ export default function BlogChrome({
               {name}
             </span>
           </a>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-2">
             <a
               href={`${basePath}/blog`}
               className="hidden sm:inline-flex text-sm font-medium px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
@@ -59,8 +60,19 @@ export default function BlogChrome({
               Blog
             </a>
             <a
+              href={signIn}
+              className="inline-flex items-center gap-1.5 text-[13px] sm:text-sm font-medium px-2.5 sm:px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
+              style={{ color: INK_MUTED }}
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              <span className="hidden sm:inline">Patient Login</span>
+              <span className="sm:hidden">Login</span>
+            </a>
+            <a
               href={bookHref}
-              className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
+              className="inline-flex items-center px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
               style={{ backgroundColor: brand }}
             >
               Book a Visit
@@ -79,9 +91,15 @@ export default function BlogChrome({
           <a href={basePath || '/'} className="font-medium hover:underline" style={{ color: INK }}>
             ← Back to {name}
           </a>
-          <span>
-            © {new Date().getFullYear()} {name}
-          </span>
+          <div className="flex items-center gap-3">
+            <a href={signIn} className="hover:underline" style={{ color: INK_MUTED }}>
+              Staff login
+            </a>
+            <span aria-hidden="true">·</span>
+            <span>
+              © {new Date().getFullYear()} {name}
+            </span>
+          </div>
         </div>
       </footer>
     </div>

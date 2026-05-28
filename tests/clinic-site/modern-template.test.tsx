@@ -140,6 +140,68 @@ describe('ModernTemplate', () => {
     expect(screen.getByRole('link', { name: /DreamCreate/ })).toBeInTheDocument()
   })
 
+  // ── Sign-in links + section nav ─────────────────────────────────────
+
+  it('exposes sign-in links pointing to the absolute app sign-in URL', () => {
+    render(
+      <ModernTemplate data={makeData()} basePath="/site/test" signInUrl="https://app.example.com/signin" />,
+    )
+    const signinLinks = screen
+      .getAllByRole('link')
+      .filter((a) => a.getAttribute('href') === 'https://app.example.com/signin')
+    // header Patient Login + footer Patient Login + footer Staff login
+    expect(signinLinks.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('renders a discreet "Staff login" link in the footer → app sign-in', () => {
+    render(
+      <ModernTemplate data={makeData()} basePath="/site/test" signInUrl="https://app.example.com/signin" />,
+    )
+    expect(screen.getByRole('link', { name: /Staff login/i })).toHaveAttribute(
+      'href',
+      'https://app.example.com/signin',
+    )
+  })
+
+  it('falls back to the canonical app host when no signInUrl prop is given', () => {
+    render(<ModernTemplate data={makeData()} basePath="/site/test" />)
+    const signinLinks = screen
+      .getAllByRole('link')
+      .filter((a) => (a.getAttribute('href') ?? '').endsWith('/signin'))
+    expect(signinLinks.length).toBeGreaterThan(0)
+    expect(signinLinks[0].getAttribute('href')).toMatch(/^https?:\/\/.+\/signin$/)
+  })
+
+  it('renders in-page anchor nav (services + contact)', () => {
+    render(<ModernTemplate data={makeData()} basePath="/site/test" />)
+    const links = screen.getAllByRole('link')
+    expect(links.some((a) => a.getAttribute('href') === '/site/test#services')).toBe(true)
+    expect(links.some((a) => a.getAttribute('href') === '/site/test#contact')).toBe(true)
+  })
+
+  it('adds a Team nav anchor only when staff are present', () => {
+    const { rerender } = render(<ModernTemplate data={makeData({ staff: null as never })} basePath="/site/test" />)
+    expect(
+      screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test#team'),
+    ).toBe(false)
+    rerender(
+      <ModernTemplate
+        data={makeData({ staff: [{ id: 'p1', name: 'Dr. Jane' }] as never })}
+        basePath="/site/test"
+      />,
+    )
+    expect(
+      screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test#team'),
+    ).toBe(true)
+  })
+
+  it('logo links home (basePath), never an empty href', () => {
+    // Subdomain serving passes basePath='' — the logo must fall back to '/'.
+    render(<ModernTemplate data={makeData()} basePath="" signInUrl="https://app.example.com/signin" />)
+    const homeLinks = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/')
+    expect(homeLinks.length).toBeGreaterThan(0)
+  })
+
   it('renders default services when none are configured', () => {
     render(<ModernTemplate data={makeData({ services: null as never })} basePath="/site/test" />)
     expect(screen.getByText('Cleanings & Exams')).toBeInTheDocument()
