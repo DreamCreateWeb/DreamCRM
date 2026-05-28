@@ -672,9 +672,13 @@ eventual App Runner → ECS move) are tracked in that section.
    (whitening kits + branded merch via Stripe Connect, birthday
    coupons, loyalty mechanics, membership plans). `/shop` placeholder
    exists. Existing `/ecommerce/orders` route serves as interim view.
-9. **Patient detail "Send review request" button** — quick row action
-   directly on the patient detail page; today the only entry point is
-   the Reviews dashboard's Ready-to-ask list.
+9. ~~**Patient detail "Send review request" button**~~ — **shipped
+   2026-05-28 (PR #143).** "Request review" CTA lives in the patient
+   detail header next to Send intake / Book / Edit. Wraps
+   `createAndSendReviewRequest` with the same `{ ok | error }` shape as
+   `sendIntakeRequestAction`; the underlying service still enforces every
+   guard (no email, opted out, no platforms configured, within rate-limit
+   window) and we surface those messages verbatim under the button.
 10. **Clinic module build-out — COMPLETE.** Analytics, Blog, SEO,
     Careers, and Integrations have all shipped — the clinic sidebar has
     **no remaining `status:'soon'` modules**. Integrations Phase 1 is
