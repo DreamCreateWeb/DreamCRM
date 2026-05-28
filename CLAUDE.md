@@ -382,7 +382,10 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   only with live counts), 22rem thread list with aging-color rot border
   on inbound-unanswered (emerald < 4h, amber < 24h, rose > 24h
   mirroring Leads), channel-colored bubble stream, reply composer
-  pinned bottom with channel picker auto-defaulting to last-inbound +
+  pinned bottom with channel picker auto-defaulting to the patient's
+  historical preferred channel (≥3 inbound with ≥70% share → shows a
+  "{Patient} prefers {channel}" label next to the picker), falling back
+  to the most recent inbound channel otherwise, then in-app +
   template dropdown (3 canned: confirm visit / treatment follow-up /
   quick scheduling question) + ⌘+Enter to send. Sticky thread header
   with snooze (4h / tomorrow / next week) / archive / reopen + assign
