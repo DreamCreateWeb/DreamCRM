@@ -464,6 +464,114 @@ describe('ModernTemplate', () => {
     expect(screen.getByText('Brooklyn, NY')).toBeInTheDocument()
   })
 
+  // ── Looping marquee (> 3 testimonials) ─────────────────────────────
+
+  it('renders testimonials as a static grid when there are 3 or fewer', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({
+          testimonials: [
+            { id: 't1', quote: 'q1', authorName: 'A B.', authorLocation: null, authorPhotoUrl: null },
+            { id: 't2', quote: 'q2', authorName: 'C D.', authorLocation: null, authorPhotoUrl: null },
+            { id: 't3', quote: 'q3', authorName: 'E F.', authorLocation: null, authorPhotoUrl: null },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    // No marquee structures — the static grid is used.
+    expect(container.querySelector('[aria-roledescription="carousel"]')).toBeNull()
+    // Each testimonial is rendered exactly once (no duplication for the loop).
+    expect(screen.getAllByText(/q1/i)).toHaveLength(1)
+    expect(screen.getAllByText(/q2/i)).toHaveLength(1)
+    expect(screen.getAllByText(/q3/i)).toHaveLength(1)
+  })
+
+  it('switches to the looping marquee when > 3 testimonials are featured', () => {
+    const testimonials = Array.from({ length: 5 }, (_, i) => ({
+      id: `tm${i}`,
+      quote: `Quote ${i}`,
+      authorName: `Person ${i}`,
+      authorLocation: 'City, ST',
+      authorPhotoUrl: null,
+    }))
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({ testimonials: testimonials as never })}
+        basePath="/site/test"
+      />,
+    )
+    const marquee = container.querySelector('[aria-roledescription="carousel"]')
+    expect(marquee).not.toBeNull()
+    // Cards are duplicated for the seamless loop — each quote appears twice
+    // in the DOM. Screen readers only see one of each (aria-hidden on dupes).
+    expect(screen.getAllByText(/Quote 0/)).toHaveLength(2)
+    expect(screen.getAllByText(/Quote 4/)).toHaveLength(2)
+  })
+
+  it('hides duplicate marquee cards from assistive tech (aria-hidden on the second pass)', () => {
+    const testimonials = Array.from({ length: 4 }, (_, i) => ({
+      id: `tm${i}`,
+      quote: `Quote ${i}`,
+      authorName: `Person ${i}`,
+      authorLocation: null,
+      authorPhotoUrl: null,
+    }))
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({ testimonials: testimonials as never })}
+        basePath="/site/test"
+      />,
+    )
+    // 4 testimonials × 2 (visible + duplicate) = 8 list items.
+    const items = container.querySelectorAll('[aria-roledescription="carousel"] li')
+    expect(items).toHaveLength(8)
+    // Exactly half should be aria-hidden — the duplicates.
+    const hidden = Array.from(items).filter((el) => el.getAttribute('aria-hidden') === 'true')
+    expect(hidden).toHaveLength(4)
+  })
+
+  it('marquee handles a large set without throwing (50-cap defense)', () => {
+    const testimonials = Array.from({ length: 80 }, (_, i) => ({
+      id: `tm${i}`,
+      quote: `Q ${i}`,
+      authorName: `P ${i}`,
+      authorLocation: null,
+      authorPhotoUrl: null,
+    }))
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({ testimonials: testimonials as never })}
+        basePath="/site/test"
+      />,
+    )
+    // Pre-render cap at 50 testimonials × 2 for the loop = 100 items max.
+    const items = container.querySelectorAll('[aria-roledescription="carousel"] li')
+    expect(items.length).toBe(100)
+  })
+
+  it('marquee animation class names are deterministic (no Math.random — SSR-safe)', () => {
+    const testimonials = Array.from({ length: 5 }, (_, i) => ({
+      id: `stable-${i}`,
+      quote: `Q ${i}`,
+      authorName: `P ${i}`,
+      authorLocation: null,
+      authorPhotoUrl: null,
+    }))
+    const first = render(
+      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
+    )
+    const firstStyle = first.container.querySelector('style')?.textContent ?? ''
+    first.unmount()
+    const second = render(
+      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
+    )
+    const secondStyle = second.container.querySelector('style')?.textContent ?? ''
+    // Identical testimonial id list → identical generated class names → no
+    // hydration mismatch between SSR + client.
+    expect(firstStyle).toBe(secondStyle)
+  })
+
   it('renders an initial letter avatar when no testimonial photo is set', () => {
     render(
       <ModernTemplate

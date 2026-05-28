@@ -68,8 +68,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     ((profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES).slice(0, 6)
   const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
   const stats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
+  // Defensive cap — generous enough that real clinics with hundreds of
+  // featured testimonials still render them all, but bounded against
+  // pathological JSON. The marquee handles arbitrarily many.
   const testimonials: ClinicTestimonial[] =
-    ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 6)
+    ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 50)
   const officePhotos: ClinicOfficePhoto[] =
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
@@ -400,58 +403,27 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 Patients on the experience.
               </h2>
             </div>
-            <div
-              className={`grid gap-6 lg:gap-8 ${
-                testimonials.length >= 3
-                  ? 'md:grid-cols-3'
-                  : testimonials.length === 2
-                    ? 'md:grid-cols-2 max-w-4xl'
-                    : 'max-w-2xl'
-              }`}
-            >
-              {testimonials.slice(0, 3).map((t) => (
-                <figure
-                  key={t.id}
-                  className="rounded-2xl p-7 sm:p-8 flex flex-col"
-                  style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
-                >
-                  <blockquote
-                    className="text-[17px] leading-[1.55] flex-1 mb-6"
-                    style={{ color: INK }}
-                  >
-                    &ldquo;{t.quote}&rdquo;
-                  </blockquote>
-                  <figcaption className="flex items-center gap-3">
-                    {t.authorPhotoUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={t.authorPhotoUrl}
-                        alt=""
-                        className="w-11 h-11 rounded-full object-cover shrink-0"
-                      />
-                    ) : (
-                      <span
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0"
-                        style={{ backgroundColor: brand }}
-                        aria-hidden="true"
-                      >
-                        {t.authorName.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                    <div>
-                      <div className="text-sm font-semibold leading-tight" style={{ color: INK }}>
-                        {t.authorName}
-                      </div>
-                      {t.authorLocation && (
-                        <div className="text-xs mt-0.5" style={{ color: INK_MUTED }}>
-                          {t.authorLocation}
-                        </div>
-                      )}
-                    </div>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+            {testimonials.length > 3 ? (
+              <TestimonialsMarquee
+                testimonials={testimonials}
+                brand={brand}
+                surface={SURFACE}
+              />
+            ) : (
+              <div
+                className={`grid gap-6 lg:gap-8 ${
+                  testimonials.length === 3
+                    ? 'md:grid-cols-3'
+                    : testimonials.length === 2
+                      ? 'md:grid-cols-2 max-w-4xl'
+                      : 'max-w-2xl'
+                }`}
+              >
+                {testimonials.map((t) => (
+                  <TestimonialCard key={t.id} t={t} brand={brand} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -836,4 +808,159 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       <div className="lg:hidden h-20" aria-hidden="true" />
     </div>
   )
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Testimonial card — shared between the static row (≤3 testimonials) and
+// the marquee track (>3). Same warm-neutral card shape used pre-marquee.
+// ────────────────────────────────────────────────────────────────────────
+
+function TestimonialCard({ t, brand }: { t: ClinicTestimonial; brand: string }) {
+  return (
+    <figure
+      className="rounded-2xl p-7 sm:p-8 flex flex-col h-full"
+      style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+    >
+      <blockquote
+        className="text-[17px] leading-[1.55] flex-1 mb-6"
+        style={{ color: INK }}
+      >
+        &ldquo;{t.quote}&rdquo;
+      </blockquote>
+      <figcaption className="flex items-center gap-3">
+        {t.authorPhotoUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={t.authorPhotoUrl}
+            alt=""
+            className="w-11 h-11 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <span
+            className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0"
+            style={{ backgroundColor: brand }}
+            aria-hidden="true"
+          >
+            {t.authorName.charAt(0).toUpperCase()}
+          </span>
+        )}
+        <div>
+          <div className="text-sm font-semibold leading-tight" style={{ color: INK }}>
+            {t.authorName}
+          </div>
+          {t.authorLocation && (
+            <div className="text-xs mt-0.5" style={{ color: INK_MUTED }}>
+              {t.authorLocation}
+            </div>
+          )}
+        </div>
+      </figcaption>
+    </figure>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Looping marquee — kicks in when a clinic features more than 3
+// testimonials. CSS-only continuous scroll:
+//   • Cards are rendered twice in the same flex track, then translated
+//     from 0 → -50% so the visual cycle is seamless (when the first
+//     copy scrolls off, the second copy is exactly where the first
+//     started — no perceptible jump).
+//   • Duration scales with card count so the perceived scroll speed
+//     stays roughly constant whether the clinic features 4 reviews or
+//     50 — fast at low counts feels frenetic, slow at high counts
+//     feels broken; both anchored to ~8s/card with a 30s floor.
+//   • Pause on hover so a patient can stop and read.
+//   • Respects prefers-reduced-motion → falls back to a horizontally
+//     scrollable strip (touch-friendly, no animation).
+//   • Soft gradient edges so cards fade in/out of the viewport instead
+//     of clipping abruptly.
+// Stays server-renderable (no `'use client'`) — the animation is pure
+// CSS so we don't pay a hydration cost on what's otherwise a static page.
+// ────────────────────────────────────────────────────────────────────────
+
+function TestimonialsMarquee({
+  testimonials,
+  brand,
+  surface,
+}: {
+  testimonials: ClinicTestimonial[]
+  brand: string
+  surface: string
+}) {
+  // ~8 seconds of stage time per testimonial, with a 30s floor so 4-5
+  // testimonials still loop at a calm pace.
+  const durationSec = Math.max(30, testimonials.length * 8)
+  // Stable suffix so two clinic-site renders on the same page don't fight
+  // over CSS class names. Built from the testimonial id list — same data,
+  // same hash, so SSR + hydration agree.
+  const suffix = stableSuffix(testimonials.map((t) => t.id).join('|'))
+  const wrapperClass = `tm-wrap-${suffix}`
+  const trackClass = `tm-track-${suffix}`
+  // Render each card twice — first set for the visible scroll, second
+  // set to bridge the seam so translateX(-50%) lines up perfectly with
+  // translateX(0).
+  const doubled = [...testimonials, ...testimonials]
+
+  return (
+    <>
+      <style>{`
+        @keyframes ${trackClass} {
+          from { transform: translate3d(0, 0, 0); }
+          to   { transform: translate3d(-50%, 0, 0); }
+        }
+        .${trackClass} {
+          animation: ${trackClass} ${durationSec}s linear infinite;
+          will-change: transform;
+        }
+        .${wrapperClass}:hover .${trackClass} { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) {
+          .${trackClass} { animation: none; }
+          .${wrapperClass} { overflow-x: auto; }
+        }
+      `}</style>
+      <div
+        className={`${wrapperClass} relative overflow-hidden`}
+        aria-roledescription="carousel"
+        aria-label="Patient testimonials"
+      >
+        <ul className={`${trackClass} flex gap-6 lg:gap-8 w-max items-stretch`}>
+          {doubled.map((t, i) => (
+            <li
+              key={`${t.id}-${i}`}
+              className="w-[300px] sm:w-[340px] lg:w-[380px] shrink-0"
+              // The duplicates carry the same DOM but are visually identical;
+              // hide them from assistive tech so a screen reader only hears
+              // each testimonial once.
+              aria-hidden={i >= testimonials.length ? 'true' : undefined}
+            >
+              <TestimonialCard t={t} brand={brand} />
+            </li>
+          ))}
+        </ul>
+        {/* Edge fades — soften the in/out boundary against the section bg. */}
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 w-12 sm:w-20"
+          style={{ background: `linear-gradient(to right, ${surface}, ${surface}00)` }}
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 w-12 sm:w-20"
+          style={{ background: `linear-gradient(to left, ${surface}, ${surface}00)` }}
+          aria-hidden="true"
+        />
+      </div>
+    </>
+  )
+}
+
+/** Tiny stable hash so the marquee animation/class names are deterministic
+ *  across SSR + hydrate (we render in a server component; React would shout
+ *  about a mismatch if these names were Math.random()). */
+function stableSuffix(input: string): string {
+  let h = 0
+  for (let i = 0; i < input.length; i++) {
+    h = (h * 31 + input.charCodeAt(i)) | 0
+  }
+  return Math.abs(h).toString(36)
 }
