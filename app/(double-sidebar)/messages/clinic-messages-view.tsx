@@ -229,6 +229,13 @@ export default async function ClinicMessagesView({
         <section className="flex-1 min-w-0 flex flex-col">
           {activeThread ? (
             <ThreadDetailPanel
+              // Re-mount the panel per thread so its useState-initializer
+              // hooks (auto-picked channel, blank composer body) re-run
+              // with the new thread's messages. Without this React reuses
+              // the same instance across thread switches and the channel
+              // selector sticks on whatever the first-opened thread had —
+              // and any in-progress draft text leaks across patients.
+              key={activeThread.id}
               thread={{
                 id: activeThread.id,
                 patientId: activeThread.patientId,
