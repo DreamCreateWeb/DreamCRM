@@ -9,7 +9,13 @@ import { GlyphCluster } from '../glyph-cluster'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
-import { archivePatientAction, openPatientThreadAction, sendIntakeRequestAction, viewAsPatientAction } from '../actions'
+import {
+  archivePatientAction,
+  openPatientThreadAction,
+  sendIntakeRequestAction,
+  sendReviewRequestForPatientAction,
+  viewAsPatientAction,
+} from '../actions'
 
 function money(cents: number): string {
   if (cents === 0) return '$0'
@@ -159,6 +165,7 @@ export default function PatientDetail({
               Book appointment
             </button>
             <SendIntakeButton patientId={header.id} />
+            <SendReviewRequestButton patientId={header.id} />
             {isPlatformAdmin && (
               <form action={viewAsPatientAction}>
                 <input type="hidden" name="patientId" value={header.id} />
@@ -299,6 +306,41 @@ function SendIntakeButton({ patientId }: { patientId: string }) {
       {feedback && (
         <span
           className={`text-[11px] ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+        >
+          {feedback.msg}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function SendReviewRequestButton({ patientId }: { patientId: string }) {
+  const [pending, startTransition] = useTransition()
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  function onClick() {
+    setFeedback(null)
+    startTransition(async () => {
+      const r = await sendReviewRequestForPatientAction(patientId)
+      if (r.ok) setFeedback({ kind: 'ok', msg: 'Review request sent' })
+      else setFeedback({ kind: 'err', msg: r.error })
+      setTimeout(() => setFeedback(null), 6000)
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={pending}
+        className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 disabled:opacity-50"
+      >
+        {pending ? 'Sending…' : 'Request review'}
+      </button>
+      {feedback && (
+        <span
+          className={`text-[11px] max-w-[14rem] ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
         >
           {feedback.msg}
         </span>

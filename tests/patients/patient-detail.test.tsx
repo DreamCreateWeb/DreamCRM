@@ -12,6 +12,7 @@ vi.mock('@/app/(default)/patients/actions', () => ({
   deletePatientNoteAction: vi.fn(),
   openPatientThreadAction: vi.fn(),
   sendIntakeRequestAction: vi.fn(async () => ({ ok: true, sentTo: 'mia@example.com' })),
+  sendReviewRequestForPatientAction: vi.fn(async () => ({ ok: true })),
 }))
 
 import PatientDetail from '@/app/(default)/patients/[id]/patient-detail'
@@ -80,6 +81,9 @@ describe('PatientDetail header', () => {
     // "Send intake" is now a button that fires the send-intake server action
     // (was a dead link to /intake-forms that didn't send anything).
     expect(screen.getByRole('button', { name: /Send intake/i })).toBeInTheDocument()
+    // "Request review" fires the review-send server action — previously the
+    // only entry point was the /reviews dashboard's Ready-to-ask list.
+    expect(screen.getByRole('button', { name: /Request review/i })).toBeInTheDocument()
   })
 
   it('shows lifetime spend and next-visit stats', () => {
