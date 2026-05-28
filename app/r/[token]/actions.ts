@@ -6,26 +6,39 @@ import {
   recordReviewClick,
   recordReviewCompleted,
   reviewPlatformUrl,
+  submitReviewText,
   type ReviewSite,
 } from '@/lib/services/reviews'
 
 /**
- * Public-side action: patient picked a platform on the landing page.
- * Records the choice + redirects to the external review URL. No auth —
- * the signed-token query param IS the auth.
+ * PRIMARY completion path — patient wrote their review on /r/<token> and
+ * hit Submit. Captures the text + optional rating directly into our DB.
+ * Returns ok/error JSON so the form can show inline validation; on
+ * success the page UI flips to the thank-you state.
+ */
+export async function submitReviewAction(
+  token: string,
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const text = (formData.get('reviewText')?.toString() ?? '').trim()
+  const ratingRaw = formData.get('rating')?.toString()
+  const rating = ratingRaw ? Number(ratingRaw) : null
+  const result = await submitReviewText({ token, text, rating })
+  if (!result.ok) return { ok: false, error: result.error }
+  return { ok: true }
+}
+
+/**
+ * SECONDARY action: after submitting in DreamCRM, the patient can tap
+ * "Also share on {platform}" — opens the external review URL for them.
+ * Same recordReviewCompleted as the legacy direct-tap path so the
+ * dashboard's `selectedSite` field still gets populated.
  */
 export async function pickPlatformAction(token: string, site: ReviewSite): Promise<void> {
   const ctx = await getPublicReviewContext(token)
-  if (!ctx) {
-    // Token invalid / deleted — bounce to a generic page.
-    redirect('/')
-  }
+  if (!ctx) redirect('/')
   const url = reviewPlatformUrl(site, ctx.config)
-  if (!url) {
-    // Platform not configured — shouldn't happen since the UI only
-    // surfaces configured platforms. Defensive bounce.
-    redirect(`/r/${token}`)
-  }
+  if (!url) redirect(`/r/${token}`)
   await recordReviewCompleted(token, site)
   redirect(url)
 }

@@ -30,24 +30,31 @@ interface TestimonialShape {
 const state = {
   patient: null as Record<string, unknown> | null,
   profile: null as { testimonials: TestimonialShape[] | null } | null,
+  /** The reviewText lookup result. featureReviewAsTestimonial now sources the
+   *  quote from review_request rather than a caller-supplied parameter. */
+  review: null as { reviewText: string | null } | null,
   updates: [] as Array<{ table: string; set: Record<string, unknown> }>,
 }
 
 vi.mock('@/lib/db', () => ({
   db: {
-    select: (sel?: Record<string, unknown>) => ({
-      from: (t: unknown) => ({
-        where: () => ({
-          limit: async () => {
-            // Distinguish queries by which schema table the FROM points at;
-            // the mocked schema below uses string sentinels.
-            if (t === 'patient') return state.patient ? [state.patient] : []
-            if (t === 'clinicProfile') return state.profile ? [state.profile] : []
-            // listFeaturedTestimonialPatientIds queries clinicProfile too
-            return []
-          },
-        }),
-      }),
+    select: () => ({
+      from: (t: unknown) => {
+        // Chain that resolves on .limit(...) — works for queries with or
+        // without .orderBy() in between.
+        const result = (async () => {
+          if (t === 'patient') return state.patient ? [state.patient] : []
+          if (t === 'clinicProfile') return state.profile ? [state.profile] : []
+          if (t === 'reviewRequest') return state.review ? [state.review] : []
+          return []
+        })
+        const chain = {
+          where: () => chain,
+          orderBy: () => chain,
+          limit: async () => await result(),
+        }
+        return chain
+      },
     }),
     update: (t: unknown) => ({
       set: (set: Record<string, unknown>) => ({
@@ -90,6 +97,7 @@ vi.mock('resend', () => ({
 beforeEach(() => {
   state.patient = null
   state.profile = null
+  state.review = null
   state.updates = []
 })
 
@@ -157,45 +165,51 @@ describe('featureReviewAsTestimonial', () => {
   it('rejects when the patient does not belong to the org', async () => {
     state.patient = null
     state.profile = { testimonials: [] }
+    state.review = { reviewText: 'whatever' }
     const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
     await expect(
       featureReviewAsTestimonial({
         organizationId: 'org_1',
         patientId: 'pat_foreign',
-        quote: 'good',
       }),
     ).rejects.toThrow(/not found in this organization/i)
     expect(state.updates).toHaveLength(0)
   })
 
-  it('rejects an empty quote before touching the DB', async () => {
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await expect(
-      featureReviewAsTestimonial({ organizationId: 'org_1', patientId: 'pat_1', quote: '   ' }),
-    ).rejects.toThrow(/cannot be empty/i)
-    expect(state.updates).toHaveLength(0)
-  })
-
-  it('rejects a quote over 500 characters', async () => {
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await expect(
-      featureReviewAsTestimonial({
-        organizationId: 'org_1',
-        patientId: 'pat_1',
-        quote: 'x'.repeat(501),
-      }),
-    ).rejects.toThrow(/500 characters or fewer/i)
-    expect(state.updates).toHaveLength(0)
-  })
-
-  it('promotes with privacy-first "First L." + city defaults', async () => {
+  it('rejects when the patient has no review text submitted (the "nothing to feature" guard)', async () => {
+    // This is the honest replacement for the old "staff types the quote"
+    // path — when the patient never wrote anything in DreamCRM, there's
+    // nothing to feature. The error message guides staff to ask the
+    // patient for a review instead.
     state.patient = okPatient
     state.profile = { testimonials: [] }
+    state.review = null
+    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
+    await expect(
+      featureReviewAsTestimonial({ organizationId: 'org_1', patientId: 'pat_mia' }),
+    ).rejects.toThrow(/has not submitted a review/i)
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('rejects when the review row exists but reviewText is empty / whitespace', async () => {
+    state.patient = okPatient
+    state.profile = { testimonials: [] }
+    state.review = { reviewText: '   ' }
+    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
+    await expect(
+      featureReviewAsTestimonial({ organizationId: 'org_1', patientId: 'pat_mia' }),
+    ).rejects.toThrow(/has not submitted a review/i)
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('promotes with the patient-submitted quote and privacy-first "First L." + city defaults', async () => {
+    state.patient = okPatient
+    state.profile = { testimonials: [] }
+    state.review = { reviewText: 'Genuinely good experience — I felt heard.' }
     const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
     await featureReviewAsTestimonial({
       organizationId: 'org_1',
       patientId: 'pat_mia',
-      quote: 'Genuinely good experience.',
     })
     expect(state.updates).toHaveLength(1)
     const next = (state.updates[0].set as { testimonials: TestimonialShape[] }).testimonials
@@ -203,21 +217,9 @@ describe('featureReviewAsTestimonial', () => {
     expect(next[0].patientId).toBe('pat_mia')
     expect(next[0].authorName).toBe('Mia H.')
     expect(next[0].authorLocation).toBe('Austin, TX')
-    expect(next[0].quote).toBe('Genuinely good experience.')
-  })
-
-  it('honors an authorNameOverride when provided', async () => {
-    state.patient = okPatient
-    state.profile = { testimonials: [] }
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await featureReviewAsTestimonial({
-      organizationId: 'org_1',
-      patientId: 'pat_mia',
-      quote: 'q',
-      authorNameOverride: 'Mia Hayes',
-    })
-    const next = (state.updates[0].set as { testimonials: TestimonialShape[] }).testimonials
-    expect(next[0].authorName).toBe('Mia Hayes')
+    // The quote MUST come from the patient's submission, not a parameter —
+    // staff can't put words in the patient's mouth.
+    expect(next[0].quote).toBe('Genuinely good experience — I felt heard.')
   })
 
   it('idempotent on (orgId, patientId): re-promote replaces, does not duplicate', async () => {
@@ -228,11 +230,11 @@ describe('featureReviewAsTestimonial', () => {
         { id: 't_freetext', quote: 'free', authorName: 'Jen R.', authorLocation: null, authorPhotoUrl: null, patientId: null },
       ],
     }
+    state.review = { reviewText: 'fresh quote' }
     const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
     await featureReviewAsTestimonial({
       organizationId: 'org_1',
       patientId: 'pat_mia',
-      quote: 'fresh quote',
     })
     const next = (state.updates[0].set as { testimonials: TestimonialShape[] }).testimonials
     // free-text testimonial preserved, linked one replaced with the fresh quote
@@ -274,38 +276,51 @@ describe('demo review distribution', () => {
     const src = await import('node:fs').then((fs) =>
       fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
     )
-    // Count entries in DEMO_TESTIMONIAL_SEEDS with a numeric patientIdx.
-    const block = src.match(/DEMO_TESTIMONIAL_SEEDS[^=]*=\s*\[([\s\S]*?)\n\]/)?.[1] ?? ''
-    const linkedSeeds = block.match(/patientIdx:\s*\d+/g) ?? []
-    expect(linkedSeeds.length).toBeGreaterThanOrEqual(4)
+    // DEMO_FEATURED_PATIENT_IDXS is the source of truth for which patient
+    // reviews are pre-promoted onto the public site.
+    const block = src.match(/DEMO_FEATURED_PATIENT_IDXS[^=]*=\s*\[([^\]]+)\]/)?.[1] ?? ''
+    const numbers = (block.match(/\d+/g) ?? []).map(Number)
+    expect(numbers.length).toBeGreaterThanOrEqual(4)
   })
 
   it('keeps at least one free-text testimonial so the legacy unlinked path stays exercised', async () => {
     const src = await import('node:fs').then((fs) =>
       fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
     )
-    const block = src.match(/DEMO_TESTIMONIAL_SEEDS[^=]*=\s*\[([\s\S]*?)\n\]/)?.[1] ?? ''
-    const freeTextSeeds = block.match(/patientIdx:\s*null/g) ?? []
-    expect(freeTextSeeds.length).toBeGreaterThanOrEqual(1)
+    expect(src).toMatch(/DEMO_FREE_TEXT_TESTIMONIAL\s*=\s*\{[^}]*quote:/)
   })
 
-  it('leaves at least 2 completed reviews unfeatured so /reviews/received demos the CTA', async () => {
-    // Read the seed shape and confirm that completed-review patientIdx set
-    // is NOT fully contained in the testimonial-seed patientIdx set.
+  it('seeds review_text for every completed review (no more "type the quote" workflow)', async () => {
+    // The DEMO_REVIEW_TEXTS map keys every patientIdx whose review_request
+    // is seeded as `status='completed'`. Without this, /reviews/received
+    // would show empty cards — the bug the user reported.
     const src = await import('node:fs').then((fs) =>
       fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
     )
-    const reviewBlock = src.match(/REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? ''
+    const reviewTextsBlock = src.match(/DEMO_REVIEW_TEXTS[^=]*=\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
+    const keys = Array.from(reviewTextsBlock.matchAll(/^\s*(\d+):/gm)).map((m) => Number(m[1]))
+    const completedIdxs = Array.from(
+      (src.match(/REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? '').matchAll(
+        /patientIdx:\s*(\d+),\s*status:\s*'completed'/g,
+      ),
+    ).map((m) => Number(m[1]))
+    for (const idx of completedIdxs) {
+      expect(keys, `DEMO_REVIEW_TEXTS missing entry for completed patientIdx ${idx}`).toContain(idx)
+    }
+  })
+
+  it('leaves at least 2 completed reviews unfeatured so /reviews/received demos the CTA', async () => {
+    const src = await import('node:fs').then((fs) =>
+      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
+    )
     const completedIdxs = new Set<number>()
-    for (const m of reviewBlock.matchAll(/patientIdx:\s*(\d+),\s*status:\s*'completed'/g)) {
+    const reviewBlock = src.match(/REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? ''
+    for (const m of Array.from(reviewBlock.matchAll(/patientIdx:\s*(\d+),\s*status:\s*'completed'/g))) {
       completedIdxs.add(Number(m[1]))
     }
-    const testimonialBlock = src.match(/DEMO_TESTIMONIAL_SEEDS[^=]*=\s*\[([\s\S]*?)\n\]/)?.[1] ?? ''
-    const featuredIdxs = new Set<number>()
-    for (const m of testimonialBlock.matchAll(/patientIdx:\s*(\d+)/g)) {
-      featuredIdxs.add(Number(m[1]))
-    }
-    const unfeatured = [...completedIdxs].filter((i) => !featuredIdxs.has(i))
+    const featuredBlock = src.match(/DEMO_FEATURED_PATIENT_IDXS[^=]*=\s*\[([^\]]+)\]/)?.[1] ?? ''
+    const featuredIdxs = new Set<number>((featuredBlock.match(/\d+/g) ?? []).map(Number))
+    const unfeatured = Array.from(completedIdxs).filter((i) => !featuredIdxs.has(i))
     expect(unfeatured.length).toBeGreaterThanOrEqual(2)
   })
 })

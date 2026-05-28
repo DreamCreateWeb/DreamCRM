@@ -541,6 +541,11 @@ export interface PublicReviewContext {
   config: ReviewConfig
   sites: ReviewSite[]
   patientFirstName: string
+  /** Filled in when the patient already submitted on a prior visit, so the
+   *  landing page can show them their own words back instead of an empty
+   *  form. Null when they haven't written anything yet. */
+  existingReviewText: string | null
+  existingRating: number | null
 }
 
 /**
@@ -554,6 +559,8 @@ export async function getPublicReviewContext(token: string): Promise<PublicRevie
       organizationId: schema.reviewRequest.organizationId,
       status: schema.reviewRequest.status,
       selectedSite: schema.reviewRequest.selectedSite,
+      reviewText: schema.reviewRequest.reviewText,
+      rating: schema.reviewRequest.rating,
       patientFirstName: schema.patient.firstName,
       clinicName: schema.organization.name,
     })
@@ -576,6 +583,8 @@ export async function getPublicReviewContext(token: string): Promise<PublicRevie
     config,
     sites: availableSites(config),
     patientFirstName: row.patientFirstName,
+    existingReviewText: row.reviewText,
+    existingRating: row.rating,
   }
 }
 
@@ -592,6 +601,52 @@ export async function recordReviewClick(token: string): Promise<void> {
       updatedAt: now,
     })
     .where(eq(schema.reviewRequest.token, token))
+}
+
+/**
+ * Submit the actual review text + optional rating on the public landing
+ * page. This is the PRIMARY completion path (the old "tap a platform"
+ * path stays as a secondary action — "would you also share on Google?").
+ * Idempotent on second submit: overwrites the text + rating, keeps the
+ * earliest completedAt. Returns ok=false instead of throwing when the
+ * token is invalid so the public page can render a friendly state.
+ */
+export async function submitReviewText(input: {
+  token: string
+  text: string
+  rating?: number | null
+}): Promise<{ ok: true; organizationId: string; patientId: string } | { ok: false; error: string }> {
+  const text = input.text.trim()
+  if (!text) return { ok: false, error: 'Please write a review before submitting.' }
+  if (text.length > 2000) return { ok: false, error: 'Reviews must be 2000 characters or fewer.' }
+  if (input.rating != null && (input.rating < 1 || input.rating > 5)) {
+    return { ok: false, error: 'Rating must be 1–5.' }
+  }
+
+  const [row] = await db
+    .select({
+      id: schema.reviewRequest.id,
+      organizationId: schema.reviewRequest.organizationId,
+      patientId: schema.reviewRequest.patientId,
+    })
+    .from(schema.reviewRequest)
+    .where(eq(schema.reviewRequest.token, input.token))
+    .limit(1)
+  if (!row) return { ok: false, error: 'This review link is no longer valid.' }
+
+  const now = new Date()
+  await db
+    .update(schema.reviewRequest)
+    .set({
+      status: 'completed',
+      reviewText: text,
+      ...(input.rating != null ? { rating: input.rating } : {}),
+      completedAt: sql`COALESCE(${schema.reviewRequest.completedAt}, ${now})`,
+      updatedAt: now,
+    })
+    .where(eq(schema.reviewRequest.id, row.id))
+
+  return { ok: true, organizationId: row.organizationId, patientId: row.patientId }
 }
 
 /** Record that the patient picked a platform. */
@@ -763,12 +818,19 @@ export interface ReviewReceivedRow {
   patientState: string | null
   completedAt: Date | null
   selectedSite: ReviewSite | null
+  /** The full review text the patient submitted on /r/<token>. Null when
+   *  the patient went straight to a third-party platform without leaving
+   *  a copy here — that case stays unfeaturable (we can't quote what we
+   *  don't have). */
+  reviewText: string | null
+  /** Optional 1-5 rating the patient gave alongside their review. */
+  rating: number | null
 }
 
 /**
- * Every review_request for this org that the patient completed (tapped a
- * public-platform CTA on the landing page). Most recent first. Joined
- * to patient so the surface can render names + cities without N+1.
+ * Every review_request for this org that the patient completed. Most
+ * recent first. Joined to patient so the surface can render names +
+ * cities without N+1.
  */
 export async function listReviewsReceived(
   organizationId: string,
@@ -784,6 +846,8 @@ export async function listReviewsReceived(
       patientState: schema.patient.state,
       completedAt: schema.reviewRequest.completedAt,
       selectedSite: schema.reviewRequest.selectedSite,
+      reviewText: schema.reviewRequest.reviewText,
+      rating: schema.reviewRequest.rating,
     })
     .from(schema.reviewRequest)
     .innerJoin(schema.patient, eq(schema.reviewRequest.patientId, schema.patient.id))
@@ -804,6 +868,8 @@ export async function listReviewsReceived(
     patientState: r.patientState,
     completedAt: r.completedAt,
     selectedSite: r.selectedSite as ReviewSite | null,
+    reviewText: r.reviewText,
+    rating: r.rating,
   }))
 }
 
@@ -850,27 +916,26 @@ export async function listFeaturedTestimonialPatientIds(
 export interface FeatureReviewInput {
   organizationId: string
   patientId: string
-  quote: string
-  /** Optional override of the auto-generated "First L." label — for the case
-   *  where the clinic has written permission to use the patient's full name. */
-  authorNameOverride?: string | null
-  authorPhotoUrl?: string | null
 }
 
 /**
- * Promote a received review into a public-site testimonial. Idempotent on
- * (orgId, patientId): a second call replaces the prior linked testimonial
- * rather than stacking duplicates. The author label + city are
- * denormalized so a patient rename / move doesn't silently change the
- * public page until the clinic re-links.
+ * Promote a received review into a public-site testimonial. Sources the
+ * quote text from the patient's latest completed review_request.reviewText —
+ * staff CAN'T type words for the patient. Idempotent on (orgId, patientId):
+ * a second call replaces the prior linked testimonial rather than stacking
+ * duplicates. Author label + city + quote are denormalized so a patient
+ * rename / move / second review doesn't silently change the public page
+ * until the clinic re-features.
+ *
+ * Throws when:
+ *   - the patient is not in the org (cross-tenant guard)
+ *   - the patient has no completed review_request with a reviewText (you
+ *     can't feature what the patient didn't write — this is the honest
+ *     replacement for the old "type the quote" modal)
  */
 export async function featureReviewAsTestimonial(
   input: FeatureReviewInput,
 ): Promise<void> {
-  const quote = input.quote.trim()
-  if (!quote) throw new Error('Quote cannot be empty')
-  if (quote.length > 500) throw new Error('Quote must be 500 characters or fewer')
-
   const [patient] = await db
     .select({
       firstName: schema.patient.firstName,
@@ -888,6 +953,27 @@ export async function featureReviewAsTestimonial(
     .limit(1)
   if (!patient) throw new Error('Patient not found in this organization')
 
+  // Source the quote from the patient's most recent completed review.
+  const [review] = await db
+    .select({ reviewText: schema.reviewRequest.reviewText })
+    .from(schema.reviewRequest)
+    .where(
+      and(
+        eq(schema.reviewRequest.organizationId, input.organizationId),
+        eq(schema.reviewRequest.patientId, input.patientId),
+        eq(schema.reviewRequest.status, 'completed'),
+        isNotNull(schema.reviewRequest.reviewText),
+      ),
+    )
+    .orderBy(desc(schema.reviewRequest.completedAt))
+    .limit(1)
+  const quote = review?.reviewText?.trim() ?? ''
+  if (!quote) {
+    throw new Error(
+      'This patient has not submitted a review with text — there\'s nothing to feature. Ask them to leave a review first.',
+    )
+  }
+
   const [profile] = await db
     .select({ testimonials: schema.clinicProfile.testimonials })
     .from(schema.clinicProfile)
@@ -900,12 +986,10 @@ export async function featureReviewAsTestimonial(
   // a no-op on identity rather than producing duplicates.
   const filtered = current.filter((t) => t.patientId !== input.patientId)
 
-  const authorName =
-    (input.authorNameOverride?.trim() || null) ??
-    formatLinkedTestimonialAuthor({
-      patientFirstName: patient.firstName,
-      patientLastName: patient.lastName,
-    })
+  const authorName = formatLinkedTestimonialAuthor({
+    patientFirstName: patient.firstName,
+    patientLastName: patient.lastName,
+  })
   const authorLocation = formatLinkedTestimonialLocation({
     patientCity: patient.city,
     patientState: patient.state,
@@ -918,7 +1002,7 @@ export async function featureReviewAsTestimonial(
       quote,
       authorName,
       authorLocation,
-      authorPhotoUrl: input.authorPhotoUrl?.trim() || null,
+      authorPhotoUrl: null,
       patientId: input.patientId,
     },
   ]

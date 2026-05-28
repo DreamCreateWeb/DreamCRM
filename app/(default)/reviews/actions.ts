@@ -54,17 +54,15 @@ export async function updateReviewConfigAction(updates: Partial<Omit<ReviewConfi
 }
 
 /**
- * Promote a received review into a public-site testimonial. Mirrors
- * sendReviewRequestAction's { ok, error } shape so the capture modal can
- * render inline feedback. Revalidates the dashboard surface, the deep
- * editor at /settings/clinic, and the public clinic site so the new
- * testimonial appears without a manual reload.
+ * Promote a received review into a public-site testimonial. Pure toggle —
+ * the quote comes from review_request.reviewText (the patient's own
+ * words), not from the staff member typing. { ok, error } shape so the
+ * received-list buttons can surface inline feedback. Revalidates the
+ * dashboard surface, the deep editor at /settings/clinic, and the public
+ * clinic site so the new testimonial appears without a manual reload.
  */
 export async function featureReviewAsTestimonialAction(input: {
   patientId: string
-  quote: string
-  authorNameOverride?: string | null
-  authorPhotoUrl?: string | null
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
@@ -73,9 +71,6 @@ export async function featureReviewAsTestimonialAction(input: {
     await featureReviewAsTestimonial({
       organizationId: ctx.organizationId,
       patientId: input.patientId,
-      quote: input.quote,
-      authorNameOverride: input.authorNameOverride ?? null,
-      authorPhotoUrl: input.authorPhotoUrl ?? null,
     })
     revalidatePath('/reviews')
     revalidatePath('/reviews/received')

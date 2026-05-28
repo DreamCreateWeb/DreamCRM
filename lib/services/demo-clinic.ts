@@ -238,105 +238,117 @@ const DEMO_STATS = [
 ]
 
 /**
- * Demo testimonial seed shape — the quote + photo come pre-baked; the
- * patient identity (id, name, location) is filled in by `buildDemoTestimonials`
- * from the patient personas at insert time, so a testimonial appears under a
- * real CRM patient (Mia Hayes / Noah Mitchell) instead of fabricated "Sarah K."
- * shapes that don't exist anywhere else in the demo. `patientIdx` matches the
- * persona list (see the comment above the personas).
+ * SINGLE SOURCE OF TRUTH for demo review text. Keyed by patientIdx. Used
+ * to populate review_request.reviewText on completed seeds AND to build
+ * the featured-testimonial array on the public site — so the quote a
+ * staff member sees in /reviews/received exactly matches what the public
+ * shows once "Feature on website" is clicked (mirrors the production
+ * path: featureReviewAsTestimonial sources the quote from
+ * review_request.reviewText).
  */
-const DEMO_TESTIMONIAL_SEEDS: Array<{
-  patientIdx: number | null
-  quote: string
-  authorPhotoUrl: string | null
-  /** Override the "First L." default — used for the unlinked seed where no
-   *  CRM patient is referenced (kept so the demo still shows the free-text
-   *  testimonial path, which legacy clinics may have entered by hand). */
-  freeTextAuthor?: { name: string; location: string | null }
-}> = [
-  {
-    // Mia Hayes — patientIdx 0. Completed a Google review_request 5 days ago.
-    // Promoting her on the public site is the natural workflow the new
-    // /reviews/received surface guides staff through.
-    patientIdx: 0,
-    quote:
+const DEMO_REVIEW_TEXTS: Record<number, { text: string; rating: number }> = {
+  // Mia Hayes (idx 0) — completed Google · 5d ago
+  0: {
+    text:
       "I dreaded the dentist for years. Acme treated me like a person, not a tooth. I actually look forward to my cleanings now — I can't believe I'm saying that.",
-    authorPhotoUrl: null,
+    rating: 5,
   },
-  {
-    // Noah Mitchell — patientIdx 7. Completed a Healthgrades review 12 days ago.
-    patientIdx: 7,
-    quote:
-      "Booked online at 11pm on a Sunday, sat in the chair Tuesday morning. The team explained every step of my treatment plan before any work — no surprises, no upsells.",
-    authorPhotoUrl: null,
+  // Liam Brooks (idx 1) — completed Healthgrades · 8d ago. NOT pre-featured.
+  1: {
+    text:
+      "First visit and they made me feel like a regular. Hygienist explained every step before doing it. No upsells, no pressure to bleach my teeth, no pamphlet about implants. Just good dental care.",
+    rating: 5,
   },
-  {
-    // Charlotte Diaz — patientIdx 2. Completed a Google review 18 days ago.
-    patientIdx: 2,
-    quote:
+  // Charlotte Diaz (idx 2) — completed Google · 18d ago
+  2: {
+    text:
       "My six-year-old used to cry on the way to her old dentist. After two visits with the hygiene team here she now ASKS when her next cleaning is. Whatever you're doing, please keep doing it.",
-    authorPhotoUrl: null,
+    rating: 5,
   },
-  {
-    // Emma Lopez — patientIdx 6. Completed a Facebook review 22 days ago.
-    patientIdx: 6,
-    quote:
+  // Emma Lopez (idx 6) — completed Facebook · 22d ago
+  6: {
+    text:
       "I came in scared after a bad experience years ago. Dr. Reyes walked me through every step before doing anything. The crown they placed feels exactly like my real tooth. No exaggeration — best dental visit of my life.",
-    authorPhotoUrl: null,
+    rating: 5,
   },
-  {
-    // Mason Garza — patientIdx 11 (one of the filler personas). Completed a
-    // Google review 35 days ago — older, but still on the dashboard's 30+ day
-    // history so it demos the "featured-from-older-review" case.
-    patientIdx: 11,
-    quote:
+  // Noah Mitchell (idx 7) — completed Healthgrades · 12d ago
+  7: {
+    text:
+      "Booked online at 11pm on a Sunday, sat in the chair Tuesday morning. The team explained every step of my treatment plan before any work — no surprises, no upsells.",
+    rating: 5,
+  },
+  // Mason Garza (idx 11) — completed Google · 35d ago
+  11: {
+    text:
       "Front desk got my insurance pre-auth back in 48 hours after my old office took three weeks to lose the paperwork twice. They actually do what they say they will. That alone is worth switching.",
-    authorPhotoUrl: null,
+    rating: 4,
   },
-  {
-    // Free-text testimonial — no patientId linkage. Demonstrates the legacy
-    // path is still supported alongside the patient-linked ones (clinics
-    // may have entered hand-curated testimonials before this feature shipped).
-    patientIdx: null,
-    freeTextAuthor: { name: 'Jen R.', location: 'Cedar Park, TX' },
-    quote:
-      "My kids actually ASK to go to Acme. The hygienist remembered that Lily likes the bubblegum fluoride. Small thing — huge difference for a six-year-old.",
-    authorPhotoUrl: null,
+  // Ava Fischer (idx 12) — completed Google · 28d ago. NOT pre-featured.
+  12: {
+    text:
+      "Came in for what I thought would be a routine cleaning and the hygienist caught a small cavity I had no idea about. Caught it early, painless filling, in and out under an hour. Grateful.",
+    rating: 5,
   },
-]
+}
 
-/** Build the final testimonial JSON from the seed list + the seeded patients,
- *  applying the same "First L." + city denormalization that
+/** Patient indices whose reviews are pre-featured on the public site. The
+ *  rest of the DEMO_REVIEW_TEXTS entries stay as "received but not yet
+ *  featured" so /reviews/received has live targets for the Feature CTA. */
+const DEMO_FEATURED_PATIENT_IDXS: number[] = [0, 2, 6, 7, 11]
+
+/** One free-text testimonial — no patientId. Kept so the demo also exercises
+ *  the legacy unlinked path that hand-curated content uses. */
+const DEMO_FREE_TEXT_TESTIMONIAL = {
+  authorName: 'Jen R.',
+  authorLocation: 'Cedar Park, TX' as string | null,
+  quote:
+    "My kids actually ASK to go to Acme. The hygienist remembered that Lily likes the bubblegum fluoride. Small thing — huge difference for a six-year-old.",
+}
+
+/** Build the final testimonial JSON from DEMO_REVIEW_TEXTS + the seeded
+ *  patients, applying the same "First L." + city denormalization that
  *  featureReviewAsTestimonial uses in production. */
 function buildDemoTestimonials(
   patientIds: string[],
   personas: Array<{ firstName: string; lastName: string; city: string | null; state: string | null }>,
 ) {
-  return DEMO_TESTIMONIAL_SEEDS.map((seed, i) => {
-    if (seed.patientIdx === null || !patientIds[seed.patientIdx] || !personas[seed.patientIdx]) {
-      return {
-        id: `t${i + 1}`,
-        quote: seed.quote,
-        authorName: seed.freeTextAuthor?.name ?? 'Anonymous',
-        authorLocation: seed.freeTextAuthor?.location ?? null,
-        authorPhotoUrl: seed.authorPhotoUrl,
-        patientId: null,
-      }
-    }
-    const p = personas[seed.patientIdx]
+  const items: Array<{
+    id: string
+    quote: string
+    authorName: string
+    authorLocation: string | null
+    authorPhotoUrl: string | null
+    patientId: string | null
+  }> = []
+  let counter = 1
+  for (const patientIdx of DEMO_FEATURED_PATIENT_IDXS) {
+    if (!patientIds[patientIdx] || !personas[patientIdx]) continue
+    const review = DEMO_REVIEW_TEXTS[patientIdx]
+    if (!review) continue
+    const p = personas[patientIdx]
     const initial = (p.lastName.trim()[0] ?? '').toUpperCase()
     const authorName = initial ? `${p.firstName} ${initial}.` : p.firstName
     const authorLocation =
       p.city && p.state ? `${p.city}, ${p.state}` : p.city || p.state || null
-    return {
-      id: `t${i + 1}`,
-      quote: seed.quote,
+    items.push({
+      id: `t${counter++}`,
+      quote: review.text,
       authorName,
       authorLocation,
-      authorPhotoUrl: seed.authorPhotoUrl,
-      patientId: patientIds[seed.patientIdx],
-    }
+      authorPhotoUrl: null,
+      patientId: patientIds[patientIdx],
+    })
+  }
+  // Append the free-text legacy testimonial last (no patient link).
+  items.push({
+    id: `t${counter++}`,
+    quote: DEMO_FREE_TEXT_TESTIMONIAL.quote,
+    authorName: DEMO_FREE_TEXT_TESTIMONIAL.authorName,
+    authorLocation: DEMO_FREE_TEXT_TESTIMONIAL.authorLocation,
+    authorPhotoUrl: null,
+    patientId: null,
   })
+  return items
 }
 
 /**
@@ -1911,7 +1923,7 @@ async function topUpLinkedDemoTestimonials(
     .limit(1)
   if (!profile) return
   const current = (profile.testimonials ?? []) as Array<{ patientId?: string | null }>
-  const expectedLinked = DEMO_TESTIMONIAL_SEEDS.filter((s) => s.patientIdx !== null).length
+  const expectedLinked = DEMO_FEATURED_PATIENT_IDXS.length
   const currentLinked = current.filter((t) => !!t.patientId).length
   // Skip when the demo is already up to date OR when a real clinic has
   // curated more linked testimonials than the seed defines (don't clobber).
@@ -1931,7 +1943,7 @@ async function topUpLinkedDemoTestimonials(
     })
     .from(schema.patient)
     .where(eq(schema.patient.organizationId, orgId))
-  // Index-aligned to DEMO_TESTIMONIAL_SEEDS.patientIdx — keep this in sync
+  // Index-aligned to DEMO_FEATURED_PATIENT_IDXS — keep this in sync
   // when adding new linked seeds. Slots that aren't referenced by any seed
   // can stay null-filled; buildDemoTestimonials guards on a missing match.
   const personaTargets: Array<{ firstName: string; lastName: string } | null> = [
@@ -2006,10 +2018,12 @@ async function seedReviewsForOrg(
   // Curated review_request seeds covering every funnel state, with seven
   // `completed` rows so /reviews/received demos a realistically populated
   // table. The persona/site/timing mix below is index-aligned to demo
-  // personas. Five of the seven completed rows have matching entries in
-  // DEMO_TESTIMONIAL_SEEDS (so they render as "✓ Featured"); the other
-  // two stay unfeatured so the "Add to website →" CTA on /reviews/received
-  // has live targets to demo.
+  // personas. Five of the seven completed rows are pre-promoted to the
+  // public site via DEMO_FEATURED_PATIENT_IDXS (rendering as "✓ Featured");
+  // the other two stay unfeatured so the "Feature on website" CTA on
+  // /reviews/received has live targets. ALL completed rows carry full
+  // review text on review_request.reviewText (sourced from DEMO_REVIEW_TEXTS)
+  // so the staff member can read the patient's actual words.
   //
   //   [0] Mia        — completed Google      · 5d ago   (featured)
   //   [7] Noah       — completed Healthgrades · 12d ago (featured)
@@ -2029,13 +2043,17 @@ async function seedReviewsForOrg(
     selectedSite?: 'google' | 'healthgrades' | 'facebook' | 'yelp'
   }
   const REVIEW_SEEDS: ReviewSeed[] = [
-    // Completed — featured on the public site
+    // Completed — featured on the public site (review text comes from
+    // DEMO_REVIEW_TEXTS keyed by patientIdx — single source of truth)
     { patientIdx: 0, status: 'completed', daysAgo: 5, selectedSite: 'google' },
     { patientIdx: 7, status: 'completed', daysAgo: 12, selectedSite: 'healthgrades' },
     { patientIdx: 2, status: 'completed', daysAgo: 18, selectedSite: 'google' },
     { patientIdx: 6, status: 'completed', daysAgo: 22, selectedSite: 'facebook' },
     { patientIdx: 11, status: 'completed', daysAgo: 35, selectedSite: 'google' },
-    // Completed — NOT yet featured (demo targets for the "Add to website" flow)
+    // Completed with text — NOT yet featured (demo targets for the
+    // "Feature on website" CTA on /reviews/received). Their reviewText still
+    // gets seeded so the staff member can read the patient's words before
+    // deciding to feature.
     { patientIdx: 1, status: 'completed', daysAgo: 8, selectedSite: 'healthgrades' },
     { patientIdx: 12, status: 'completed', daysAgo: 28, selectedSite: 'google' },
     // Earlier funnel stages
@@ -2060,6 +2078,12 @@ async function seedReviewsForOrg(
       ? new Date(now.getTime() - (seed.daysAgo - 0.5) * dayMs)
       : null
 
+    // Patient's actual review words + rating, when this seed represents a
+    // completed-with-text submission. Sourced from DEMO_REVIEW_TEXTS so the
+    // /reviews/received UI shows real quote text staff can read (and the
+    // featured public-site testimonials use the SAME text after promotion —
+    // single source of truth).
+    const reviewEntry = seed.status === 'completed' ? DEMO_REVIEW_TEXTS[seed.patientIdx] : undefined
     await db.insert(schema.reviewRequest).values({
       id: newId('revreq'),
       organizationId: orgId,
@@ -2072,6 +2096,8 @@ async function seedReviewsForOrg(
       clickedAt,
       completedAt,
       selectedSite: seed.selectedSite ?? null,
+      reviewText: reviewEntry?.text ?? null,
+      rating: reviewEntry?.rating ?? null,
       token: `demo${seed.status.slice(0, 3)}${seed.patientIdx}_${Math.random().toString(36).slice(2, 10)}`,
       errorMessage: seed.status === 'failed' ? 'Email bounced (demo)' : null,
       createdAt: new Date(now.getTime() - seed.daysAgo * dayMs),
