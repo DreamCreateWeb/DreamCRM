@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getIntegrationsDashboard, openDentalConfigured } from '@/lib/services/pms'
+import { getIntegrationsHealth } from '@/lib/services/pms/health'
 import {
   ENTITY_LABELS,
   NEVER_TOUCHED,
@@ -83,9 +84,10 @@ export default async function IntegrationsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [dashboard, configured] = await Promise.all([
+  const [dashboard, configured, health] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),
     Promise.resolve(openDentalConfigured()),
+    getIntegrationsHealth(ctx.organizationId),
   ])
   const { connection, counts, totals, pendingWrites, recentRuns, recentWrites } = dashboard
   const connected = connection?.status === 'connected'
@@ -124,6 +126,52 @@ export default async function IntegrationsPage() {
 
       {connected ? (
         <>
+          {/* ── Sync-health alert (renders only when unhealthy) ───── */}
+          {health && health.severity !== 'info' && (
+            <div
+              className={[
+                'mb-6 rounded-xl border p-4 flex items-start gap-3',
+                health.severity === 'error'
+                  ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30'
+                  : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
+              ].join(' ')}
+            >
+              <div
+                className={[
+                  'w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold',
+                  health.severity === 'error'
+                    ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300'
+                    : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                ].join(' ')}
+                aria-hidden="true"
+              >
+                !
+              </div>
+              <div className="flex-1 min-w-0">
+                <p
+                  className={[
+                    'text-sm font-semibold',
+                    health.severity === 'error'
+                      ? 'text-rose-900 dark:text-rose-200'
+                      : 'text-amber-900 dark:text-amber-200',
+                  ].join(' ')}
+                >
+                  Sync needs attention
+                </p>
+                <p
+                  className={[
+                    'text-[12px] mt-0.5',
+                    health.severity === 'error'
+                      ? 'text-rose-800/80 dark:text-rose-300/80'
+                      : 'text-amber-800/80 dark:text-amber-300/80',
+                  ].join(' ')}
+                >
+                  {health.message}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ── Status card ───────────────────────────────────────── */}
           <section className="mb-6 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">

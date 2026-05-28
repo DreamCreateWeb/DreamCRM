@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, asc, between, count, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { getIntegrationsHealth, type IntegrationsHealth } from '@/lib/services/pms/health'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -51,6 +52,7 @@ export interface ClinicOverviewData {
     activeIntakeForms: number
   }
   recentActivity: ActivityRow[]
+  integrationsHealth: IntegrationsHealth | null
 }
 
 export interface TodayAppointmentRow {
@@ -556,6 +558,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   activity.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
   const recentActivity = activity.slice(0, 10)
 
+  const integrationsHealth = await getIntegrationsHealth(organizationId, now)
+
   return {
     date: now,
     todaysAppointments,
@@ -565,5 +569,6 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     newLeads,
     trends,
     recentActivity,
+    integrationsHealth,
   }
 }

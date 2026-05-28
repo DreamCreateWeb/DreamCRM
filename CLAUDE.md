@@ -500,6 +500,21 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   drives the recall pill on the patients list AND the recall audience in
   Recall & Outreach — **preferring the PMS due date when present**,
   falling back to the appointment-derived heuristic otherwise.
+  (3) **Sync-health alerts** — addresses the #1 reliability complaint in
+  the research (syncs silently stop). New `lib/services/pms/health.ts`
+  computes an `IntegrationsHealth` snapshot per org from
+  `pms_connection.{lastSyncAt,lastSyncStatus,lastError}` + the last 5
+  `pms_sync_run` rows; surfaces `ok | never_synced | stale | partial |
+  errored | repeated_failure` with `info | warn | error` severity. A
+  proactive warn/error attention banner now renders on the **Overview**
+  (just above the existing attention-cards row) and on the
+  **Integrations page** (above the status card), with severity-colored
+  styling and an "Open Integrations" CTA on Overview. Thresholds:
+  staleness fires after 36h with no successful sync (auto-sync-only —
+  manual-only clinics are silent), repeated-failure fires at 3+
+  consecutive non-success runs. No new schema — read-only over what we
+  already capture. Deterministic pure helper `deriveIntegrationsHealth`
+  is unit-tested across every branch.
   Demo seeder pump: a sandbox "Open Dental
   (Sandbox)" connection +
   entity maps over the 15 patients / 17 appointments / 2 providers + 3

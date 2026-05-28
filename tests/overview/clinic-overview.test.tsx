@@ -47,6 +47,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
       activeIntakeForms: 0,
     },
     recentActivity: [],
+    integrationsHealth: null,
     ...overrides,
   }
 }
@@ -63,6 +64,62 @@ describe('ClinicOverview hero', () => {
     expect(screen.getByText(/Morning huddle/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Acme Dental' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /\+ New booking/i })).toBeInTheDocument()
+  })
+})
+
+describe('Integrations sync-health banner', () => {
+  it('renders nothing when health is null (no PMS connection)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ integrationsHealth: null }))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/Integrations: sync needs attention/)).not.toBeInTheDocument()
+  })
+
+  it("renders nothing when health is 'ok'/'info' severity", async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        integrationsHealth: {
+          organizationId: 'org_1',
+          provider: 'open_dental',
+          status: 'ok',
+          severity: 'info',
+          message: 'Sync is healthy.',
+          lastSyncAt: new Date(),
+          lastSyncStatus: 'success',
+          lastError: null,
+          consecutiveFailures: 0,
+          staleAfterHours: 36,
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/Integrations: sync needs attention/)).not.toBeInTheDocument()
+  })
+
+  it("renders the alert banner with the helper's message + an Open Integrations link when warn/error", async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        integrationsHealth: {
+          organizationId: 'org_1',
+          provider: 'open_dental',
+          status: 'stale',
+          severity: 'warn',
+          message: 'No successful sync in the last 48 hours.',
+          lastSyncAt: new Date(),
+          lastSyncStatus: 'success',
+          lastError: null,
+          consecutiveFailures: 0,
+          staleAfterHours: 36,
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Integrations: sync needs attention/)).toBeInTheDocument()
+    expect(screen.getByText(/No successful sync in the last 48 hours/)).toBeInTheDocument()
+    const cta = screen.getByRole('link', { name: /Open Integrations/i })
+    expect(cta).toHaveAttribute('href', '/integrations')
   })
 })
 
