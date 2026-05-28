@@ -9,6 +9,7 @@ import {
   sendMessageAction,
   snoozeThreadAction,
 } from './clinic-actions'
+import { pickDefaultReplyChannel } from './pick-default-reply-channel'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -70,13 +71,15 @@ export default function ThreadDetailPanel({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [body, setBody] = useState('')
-  // Auto-pick the channel from last inbound, default to in-app
-  const [channel, setChannel] = useState<Channel>(() => {
-    if (thread.lastMessageChannel && thread.lastMessageChannel !== 'sms') {
-      return thread.lastMessageChannel
-    }
-    return 'in_app'
-  })
+  // Auto-pick the reply channel from the last INBOUND message — replying
+  // on the channel the patient wrote to us on is the right default. The
+  // prior heuristic used `thread.lastMessageChannel`, which reflects the
+  // last message of ANY direction; once staff replied via in-app to an
+  // emailed patient, that bumped the default and we'd silently drop off
+  // email even though that was still the patient's preferred channel.
+  const [channel, setChannel] = useState<Channel>(() =>
+    pickDefaultReplyChannel(messages, hasEmail),
+  )
   const [showSnooze, setShowSnooze] = useState(false)
   const streamRef = useRef<HTMLDivElement | null>(null)
 
