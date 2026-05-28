@@ -436,6 +436,34 @@ describe('ModernTemplate', () => {
     expect(screen.getByText('Brooklyn, NY')).toBeInTheDocument()
   })
 
+  it('renders patient-linked testimonials with the denormalized "First L." label', () => {
+    // Linked testimonials carry patientId + the privacy-first author label
+    // is already denormalized at promotion time, so the public template
+    // just renders authorName/authorLocation as-is. This locks in that the
+    // schema change (optional patientId on ClinicTestimonial) doesn't
+    // perturb rendering for linked entries.
+    render(
+      <ModernTemplate
+        data={makeData({
+          testimonials: [
+            {
+              id: 't1',
+              quote: 'Genuinely warm experience.',
+              authorName: 'Mia H.',
+              authorLocation: 'Brooklyn, NY',
+              authorPhotoUrl: null,
+              patientId: 'pat_mia',
+            },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText(/Genuinely warm experience/)).toBeInTheDocument()
+    expect(screen.getByText('Mia H.')).toBeInTheDocument()
+    expect(screen.getByText('Brooklyn, NY')).toBeInTheDocument()
+  })
+
   it('renders an initial letter avatar when no testimonial photo is set', () => {
     render(
       <ModernTemplate

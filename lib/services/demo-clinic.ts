@@ -237,32 +237,83 @@ const DEMO_STATS = [
   { id: 'st3', value: 'Most', label: 'insurance accepted' },
 ]
 
-const DEMO_TESTIMONIALS = [
+/**
+ * Demo testimonial seed shape — the quote + photo come pre-baked; the
+ * patient identity (id, name, location) is filled in by `buildDemoTestimonials`
+ * from the patient personas at insert time, so a testimonial appears under a
+ * real CRM patient (Mia Hayes / Noah Mitchell) instead of fabricated "Sarah K."
+ * shapes that don't exist anywhere else in the demo. `patientIdx` matches the
+ * persona list (see the comment above the personas).
+ */
+const DEMO_TESTIMONIAL_SEEDS: Array<{
+  patientIdx: number | null
+  quote: string
+  authorPhotoUrl: string | null
+  /** Override the "First L." default — used for the unlinked seed where no
+   *  CRM patient is referenced (kept so the demo still shows the free-text
+   *  testimonial path, which legacy clinics may have entered by hand). */
+  freeTextAuthor?: { name: string; location: string | null }
+}> = [
   {
-    id: 't1',
+    // Mia Hayes — patientIdx 0. She completed a Google review_request in the
+    // seed (REVIEW_SEEDS); promoting her is the natural workflow the new
+    // /reviews/received surface guides staff through.
+    patientIdx: 0,
     quote:
       "I dreaded the dentist for years. Acme treated me like a person, not a tooth. I actually look forward to my cleanings now — I can't believe I'm saying that.",
-    authorName: 'Sarah K.',
-    authorLocation: 'Austin, TX',
     authorPhotoUrl: null,
   },
   {
-    id: 't2',
+    // Noah Mitchell — patientIdx 7. He completed a Healthgrades review.
+    patientIdx: 7,
     quote:
       "Booked online at 11pm on a Sunday, sat in the chair Tuesday morning. The team explained every step of my treatment plan before any work — no surprises, no upsells.",
-    authorName: 'Marcus T.',
-    authorLocation: 'Round Rock, TX',
     authorPhotoUrl: null,
   },
   {
-    id: 't3',
+    // A free-text testimonial — no patientId linkage. Demonstrates the
+    // legacy path is still supported alongside the new linked one.
+    patientIdx: null,
+    freeTextAuthor: { name: 'Jen R.', location: 'Cedar Park, TX' },
     quote:
       "My kids actually ASK to go to Acme. The hygienist remembered that Lily likes the bubblegum fluoride. Small thing — huge difference for a six-year-old.",
-    authorName: 'Jen R.',
-    authorLocation: 'Cedar Park, TX',
     authorPhotoUrl: null,
   },
 ]
+
+/** Build the final testimonial JSON from the seed list + the seeded patients,
+ *  applying the same "First L." + city denormalization that
+ *  featureReviewAsTestimonial uses in production. */
+function buildDemoTestimonials(
+  patientIds: string[],
+  personas: Array<{ firstName: string; lastName: string; city: string | null; state: string | null }>,
+) {
+  return DEMO_TESTIMONIAL_SEEDS.map((seed, i) => {
+    if (seed.patientIdx === null || !patientIds[seed.patientIdx] || !personas[seed.patientIdx]) {
+      return {
+        id: `t${i + 1}`,
+        quote: seed.quote,
+        authorName: seed.freeTextAuthor?.name ?? 'Anonymous',
+        authorLocation: seed.freeTextAuthor?.location ?? null,
+        authorPhotoUrl: seed.authorPhotoUrl,
+        patientId: null,
+      }
+    }
+    const p = personas[seed.patientIdx]
+    const initial = (p.lastName.trim()[0] ?? '').toUpperCase()
+    const authorName = initial ? `${p.firstName} ${initial}.` : p.firstName
+    const authorLocation =
+      p.city && p.state ? `${p.city}, ${p.state}` : p.city || p.state || null
+    return {
+      id: `t${i + 1}`,
+      quote: seed.quote,
+      authorName,
+      authorLocation,
+      authorPhotoUrl: seed.authorPhotoUrl,
+      patientId: patientIds[seed.patientIdx],
+    }
+  })
+}
 
 /**
  * Round a Date down to the nearest :00 or :30 minute boundary. Used when
@@ -350,7 +401,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     const patch: Partial<typeof schema.clinicProfile.$inferInsert> = {}
     if (profile?.brandColor === '#0ea5e9') patch.brandColor = '#9CAF9F'
     if (!profile?.stats) patch.stats = DEMO_STATS
-    if (!profile?.testimonials) patch.testimonials = DEMO_TESTIMONIALS
+    // testimonials are handled by the dedicated self-heal below — it needs
+    // existingPatientIds (only available later in this block) so each
+    // seeded testimonial can link to a real CRM patient.
     if (!profile?.officePhotos) patch.officePhotos = DEMO_OFFICE_PHOTOS
     if (!profile?.logoUrl) patch.logoUrl = DEMO_LOGO_URL
     if (!profile?.heroImageUrl) patch.heroImageUrl = DEMO_HERO_IMAGE_URL
@@ -581,6 +634,14 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // inserts when count is still below the threshold.
     await topUpSophiaPreferenceMessages(existing.id, existingPatientIds, new Date())
 
+    // Testimonials self-heal: legacy demos seeded fabricated "Sarah K."
+    // testimonials with no patientId — they don't correspond to any CRM
+    // patient. Idempotent: only patches when none of the existing
+    // testimonials are linked to a real patient yet. We rebuild from seed
+    // so the rendered testimonials match the patients who actually
+    // completed reviews (Mia, Noah) plus one free-text legacy entry.
+    await topUpLinkedDemoTestimonials(existing.id, existingPatientIds)
+
     // Reviews self-heal: top up config + review requests for legacy demos.
     const existingReviewConfigRows = await db
       .select({ id: schema.clinicReviewConfig.organizationId })
@@ -716,7 +777,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       { id: 'p3', name: 'Maria Vega, RDH', title: 'Lead Hygienist' },
     ],
     stats: DEMO_STATS,
-    testimonials: DEMO_TESTIMONIALS,
+    // testimonials are patched in below, after patient IDs are known, so
+    // the seeded testimonials can reference real patient records.
+    testimonials: [],
     officePhotos: DEMO_OFFICE_PHOTOS,
     planTier: 'premium',
     subscriptionStatus: 'active',
@@ -796,6 +859,22 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       marketingOptInSource: marketingEmailOptIn === 1 ? 'backfill' : 'manual',
     })
   }
+
+  // Now that patient IDs exist, build the testimonials so each one references
+  // a real CRM patient (Mia Hayes / Noah Mitchell — the same patients whose
+  // review_request rows get seeded as `status='completed'` further down). The
+  // free-text testimonial stays unlinked so the demo also covers the legacy
+  // path. Production uses featureReviewAsTestimonial() for the same shape.
+  await db
+    .update(schema.clinicProfile)
+    .set({
+      testimonials: buildDemoTestimonials(
+        patientIds,
+        personas.map((p) => ({ firstName: p.firstName, lastName: p.lastName, city: p.city, state: p.state })),
+      ),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.clinicProfile.organizationId, orgId))
 
   // Staff members for the Appointments module — CRM-side display labels.
   // NOT clinical providers (per DESIGN.md out-of-scope). Each appointment
@@ -1786,6 +1865,73 @@ async function topUpSophiaPreferenceMessages(
       sentAt: new Date(now.getTime() - f.hoursAgo * hourMs),
     })
   }
+}
+
+/**
+ * Idempotent self-heal for legacy demos whose `clinic_profile.testimonials`
+ * still hold the original free-text "Sarah K. / Marcus T. / Jen R." shapes
+ * (no `patientId` link). Reads the seeded patient personas, rebuilds the
+ * testimonial array via `buildDemoTestimonials`, and writes only when no
+ * existing testimonial is patient-linked yet. Skips when the clinic has
+ * already promoted any review (so a hand-curated set isn't clobbered).
+ */
+async function topUpLinkedDemoTestimonials(
+  orgId: string,
+  patientIds: string[],
+): Promise<void> {
+  if (patientIds.length === 0) return
+  const [profile] = await db
+    .select({ testimonials: schema.clinicProfile.testimonials })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, orgId))
+    .limit(1)
+  if (!profile) return
+  const current = (profile.testimonials ?? []) as Array<{ patientId?: string | null }>
+  const hasAnyLinked = current.some((t) => !!t.patientId)
+  if (hasAnyLinked) return // already healed (or a real clinic curated their own)
+
+  // Re-fetch the seeded patients by their canonical name so we can build the
+  // "First L." + city display labels. We match by (firstName, lastName)
+  // rather than insertion order — the personas at indices 0/1/2/3/4/5/6/7
+  // are the well-known seeded shapes (Mia Hayes, Liam Brooks, …).
+  const rows = await db
+    .select({
+      id: schema.patient.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      city: schema.patient.city,
+      state: schema.patient.state,
+    })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+  const personaTargets = [
+    { firstName: 'Mia', lastName: 'Hayes' },
+    { firstName: 'Liam', lastName: 'Brooks' },
+    { firstName: 'Charlotte', lastName: 'Diaz' },
+    { firstName: 'Marcus', lastName: 'Johnson' },
+    { firstName: 'Sophia', lastName: 'Iverson' },
+    { firstName: 'Aiden', lastName: 'Kim' },
+    { firstName: 'Emma', lastName: 'Lopez' },
+    { firstName: 'Noah', lastName: 'Mitchell' },
+  ]
+  const matched = personaTargets.map((t) =>
+    rows.find((r) => r.firstName === t.firstName && r.lastName === t.lastName) ?? null,
+  )
+  const orderedIds = matched.map((m) => m?.id ?? '')
+  const orderedPersonas = matched.map((m) => ({
+    firstName: m?.firstName ?? '',
+    lastName: m?.lastName ?? '',
+    city: m?.city ?? null,
+    state: m?.state ?? null,
+  }))
+
+  await db
+    .update(schema.clinicProfile)
+    .set({
+      testimonials: buildDemoTestimonials(orderedIds, orderedPersonas),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.clinicProfile.organizationId, orgId))
 }
 
 /**

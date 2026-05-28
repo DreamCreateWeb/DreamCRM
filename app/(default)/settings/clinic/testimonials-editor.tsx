@@ -88,6 +88,14 @@ function TestimonialRow({
 
   return (
     <div className="p-3 border border-gray-100 dark:border-gray-700/60 rounded-lg space-y-3">
+      {value.patientId && (
+        <div className="flex items-center gap-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+          <span>🔗 Linked to a patient record</span>
+          <span className="text-gray-400 dark:text-gray-500 font-normal">
+            (promoted from /reviews/received — edits here override the display label)
+          </span>
+        </div>
+      )}
       <textarea
         value={value.quote}
         onChange={(e) => onChange({ quote: e.target.value })}
