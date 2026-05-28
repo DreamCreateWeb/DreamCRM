@@ -575,6 +575,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     const existingThreadPatientIds = new Set(existingThreadRows.map((r) => r.patientId))
     await seedPatientMessagesForOrg(existing.id, new Date(), existingPatientIds, existingThreadPatientIds)
 
+    // Top up Sophia's thread with historical in-app inbounds so legacy
+    // demos exercise the "{patient} prefers {channel}" composer label
+    // (which needs ≥3 inbound messages on one channel). Idempotent: only
+    // inserts when count is still below the threshold.
+    await topUpSophiaPreferenceMessages(existing.id, existingPatientIds, new Date())
+
     // Reviews self-heal: top up config + review requests for legacy demos.
     const existingReviewConfigRows = await db
       .select({ id: schema.clinicReviewConfig.organizationId })
@@ -1633,11 +1639,17 @@ async function seedPatientMessagesForOrg(
         { direction: 'inbound', channel: 'in_app', body: 'Also can I bring my partner along for the consultation? She had some questions about her own treatment.', hoursAgo: 74 },
       ],
     },
-    // Sophia — confirmed appointment, recently closed
+    // Sophia — confirmed appointment, recently closed.
+    // Three+ historical inbound in-app messages so the composer
+    // surfaces a "Sophia prefers in-app" preference label.
     {
       patientIdx: 4,
       status: 'open',
       messages: [
+        { direction: 'outbound', channel: 'in_app', body: 'Hi Sophia — friendly reminder your cleaning is Friday at 3pm. Reply YES to confirm.', hoursAgo: 240 },
+        { direction: 'inbound', channel: 'in_app', body: 'Yes, got it! See you Friday.', hoursAgo: 238 },
+        { direction: 'inbound', channel: 'in_app', body: 'Quick question — should I avoid coffee that morning or just brush after?', hoursAgo: 168 },
+        { direction: 'outbound', channel: 'in_app', body: 'Either is fine! Just no coffee in the chair 😄', hoursAgo: 167 },
         { direction: 'outbound', channel: 'in_app', body: 'Hi Sophia — confirming your cleaning tomorrow at 3pm with Maria. Reply YES to confirm or let us know if you need to reschedule.', hoursAgo: 6 },
         { direction: 'inbound', channel: 'in_app', body: 'Yes! See you tomorrow.', hoursAgo: 4 },
       ],
@@ -1716,6 +1728,64 @@ async function seedPatientMessagesForOrg(
   }
 
   return { threadsAdded, messagesAdded }
+}
+
+/**
+ * Idempotent top-up: ensures Sophia's thread has at least 3 inbound
+ * in-app messages so the composer's "prefers in-app" label demos in
+ * legacy demos (the original seed only put 1 inbound on her thread,
+ * below the preference threshold). Inserts the missing historicals
+ * only — running this twice is a no-op.
+ */
+async function topUpSophiaPreferenceMessages(
+  orgId: string,
+  patientIds: string[],
+  now: Date,
+): Promise<void> {
+  const hourMs = 60 * 60 * 1000
+  const sophiaId = patientIds[4]
+  if (!sophiaId) return
+
+  const [thread] = await db
+    .select({ id: schema.patientThread.id })
+    .from(schema.patientThread)
+    .where(
+      and(
+        eq(schema.patientThread.organizationId, orgId),
+        eq(schema.patientThread.patientId, sophiaId),
+      ),
+    )
+    .limit(1)
+  if (!thread) return
+
+  const existingMessages = await db
+    .select({ direction: schema.patientMessage.direction, channel: schema.patientMessage.channel })
+    .from(schema.patientMessage)
+    .where(eq(schema.patientMessage.threadId, thread.id))
+  const inboundInApp = existingMessages.filter(
+    (m) => m.direction === 'inbound' && m.channel === 'in_app',
+  ).length
+  if (inboundInApp >= 3) return // already topped up
+
+  const fills = [
+    { direction: 'outbound' as const, body: 'Hi Sophia — friendly reminder your cleaning is Friday at 3pm. Reply YES to confirm.', hoursAgo: 240 },
+    { direction: 'inbound' as const, body: 'Yes, got it! See you Friday.', hoursAgo: 238 },
+    { direction: 'inbound' as const, body: 'Quick question — should I avoid coffee that morning or just brush after?', hoursAgo: 168 },
+    { direction: 'outbound' as const, body: 'Either is fine! Just no coffee in the chair 😄', hoursAgo: 167 },
+  ]
+  for (const f of fills) {
+    await db.insert(schema.patientMessage).values({
+      id: newId('pmsg'),
+      threadId: thread.id,
+      organizationId: orgId,
+      patientId: sophiaId,
+      channel: 'in_app',
+      direction: f.direction,
+      body: f.body,
+      sentByUserId: null,
+      sentAt: new Date(now.getTime() - f.hoursAgo * hourMs),
+    })
+  }
 }
 
 /**

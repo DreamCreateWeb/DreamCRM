@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -9,7 +9,7 @@ import {
   sendMessageAction,
   snoozeThreadAction,
 } from './clinic-actions'
-import { pickDefaultReplyChannel } from './pick-default-reply-channel'
+import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-reply-channel'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -61,6 +61,12 @@ const SNOOZE_OPTIONS = [
   { label: 'Next week', hours: 24 * 7 },
 ]
 
+const CHANNEL_LABEL: Record<Channel, string> = {
+  in_app: 'in-app',
+  email: 'email',
+  sms: 'SMS',
+}
+
 export default function ThreadDetailPanel({
   thread,
   messages,
@@ -71,12 +77,11 @@ export default function ThreadDetailPanel({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [body, setBody] = useState('')
-  // Auto-pick the reply channel from the last INBOUND message — replying
-  // on the channel the patient wrote to us on is the right default. The
-  // prior heuristic used `thread.lastMessageChannel`, which reflects the
-  // last message of ANY direction; once staff replied via in-app to an
-  // emailed patient, that bumped the default and we'd silently drop off
-  // email even though that was still the patient's preferred channel.
+  // Auto-pick the reply channel using the patient's historical inbound
+  // distribution (when a strong majority exists) or the channel of the
+  // most recent inbound otherwise. See pick-default-reply-channel.ts
+  // for the rationale.
+  const preferred = useMemo(() => detectPreferredChannel(messages), [messages])
   const [channel, setChannel] = useState<Channel>(() =>
     pickDefaultReplyChannel(messages, hasEmail),
   )
@@ -280,6 +285,14 @@ export default function ThreadDetailPanel({
                     <option key={t.key} value={t.key}>{t.label}</option>
                   ))}
                 </select>
+              )}
+              {preferred && (
+                <span
+                  className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                  title={`${preferred.count} of ${preferred.totalInbound} inbound messages on ${CHANNEL_LABEL[preferred.channel]} (${Math.round(preferred.share * 100)}%)`}
+                >
+                  {thread.patientFirstName} prefers {CHANNEL_LABEL[preferred.channel]}
+                </span>
               )}
               <span className="text-[10px] text-stone-400 dark:text-stone-500 ml-auto">
                 ⌘ + Enter to send
