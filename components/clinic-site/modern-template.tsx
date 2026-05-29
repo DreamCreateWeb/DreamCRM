@@ -7,7 +7,19 @@ import type {
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
+import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import {
+  DAYS,
+  DAY_LABEL,
+  fmt12,
+  firstSentence,
+  staffInitials,
+  type HoursMap,
+} from '@/lib/clinic-site-helpers'
 import ContactForm from '@/app/site/[slug]/contact-form'
+import SiteHeader from '@/components/clinic-site/site-header'
+import SiteFooter from '@/components/clinic-site/site-footer'
+import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 
 /**
  * Modern Family/Wellness template — the default clinic site.
@@ -18,36 +30,7 @@ import ContactForm from '@/app/site/[slug]/contact-form'
  * design language.
  */
 
-const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
-const DAY_LABEL: Record<string, string> = {
-  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
-  fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
-}
-
-// Template-level warm-neutral palette. Brand color (set by the clinic) is
-// layered on top for CTAs + small accents only — the overall feel is
-// warm-neutral regardless of what color the clinic picks.
-const BG = '#FAF7F2'
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const SURFACE = '#FFFFFF'
-const BORDER = '#E8E2D9'
-
-function fmt12(time: string): string {
-  const [h, m] = time.split(':').map(Number)
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
-  return `${h12}:${String(m).padStart(2, '0')} ${period}`
-}
-
-/** First sentence of a longer about paragraph — used as the hero subhead so
- *  the H1 stays a clean value-prop statement and the warm context lives one
- *  beat below it. Falls back to the whole string when no terminator is
- *  found. */
-function firstSentence(text: string): string {
-  const m = text.trim().match(/^[\s\S]+?[.!?](?=\s|$)/)
-  return m ? m[0] : text.trim()
-}
+const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
 /** Top-strip rotating-style chips. Static for v1 — we just inline 3 chips
  *  separated by middots so the patient scans the value props without
@@ -64,39 +47,6 @@ function announcementChips(tagline: string | null): string[] {
   }
   return base
 }
-
-/** "Open today · 8:00 AM – 5:00 PM" or "Closed today" — the footer's
- *  at-a-glance availability blurb. Uses the same `mon`/`tue`/... key
- *  ordering as the hours grid so today's lookup is straightforward. */
-function todaysHoursLabel(hours: Record<string, { open?: string; close?: string; closed?: boolean }>): string {
-  const KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-  const todayKey = KEY[new Date().getDay()]
-  const entry = hours[todayKey]
-  if (!entry || entry.closed) return 'Closed today'
-  if (!entry.open || !entry.close) return 'Hours by appointment'
-  return `Open today · ${fmt12(entry.open)} – ${fmt12(entry.close)}`
-}
-
-const HONORIFICS = new Set(['dr.', 'dr', 'mr.', 'mr', 'mrs.', 'mrs', 'ms.', 'ms'])
-const POST_NOMINALS = /(,\s*)?(rdh|dds|dmd|md|np|rn|phd)\.?$/i
-
-/** Initials chip for staff who haven't uploaded a photo yet. Strips common
- *  honorifics ("Dr. Jane Lee" → "JL", not "DJ") + post-nominals
- *  ("Maria Vega, RDH" → "MV", not "MR") so the chip reads as the person's
- *  actual name rather than their credentials. */
-function staffInitials(fullName: string): string {
-  const cleaned = fullName.trim().replace(POST_NOMINALS, '').trim()
-  const words = cleaned
-    .split(/\s+/)
-    .filter((w) => w && !HONORIFICS.has(w.toLowerCase()))
-  if (words.length === 0) return '?'
-  const first = words[0][0]
-  const last = words.length > 1 ? words[words.length - 1][0] : ''
-  return (first + last).toUpperCase()
-}
-
-interface HourEntry { open?: string; close?: string; closed?: boolean }
-type HoursMap = Record<string, HourEntry>
 
 interface Props {
   data: ClinicSiteData
@@ -117,7 +67,6 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
   const hours = profile.hours as HoursMap | null
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const logoUrl = profile.logoUrl ?? null
   const heroImageUrl = profile.heroImageUrl ?? null
   const services: ClinicService[] =
     ((profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES).slice(0, 6)
@@ -132,19 +81,18 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
   const bookLabel = 'Book a Visit'
-  // Logo / "home" links must never be an empty href on a subdomain (basePath='').
-  const homeHref = basePath || '/'
   // Both patient + staff sign-in route through the app's /signin (tenant
   // context decides the destination). Absolute so it survives the subdomain
   // rewrite. Fall back to the canonical app host when no prop is supplied.
   const signIn =
     signInUrl ??
     `${(process.env.NEXT_PUBLIC_APP_URL || 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')}/signin`
-  // In-page anchor nav — only surface sections that actually render.
+  // Page-path nav so visitors land on the dedicated /about, /services, /faq
+  // routes. Contact stays an anchor since there is no /contact page.
   const navLinks: Array<{ label: string; href: string }> = [
-    { label: 'Services', href: `${basePath}#services` },
-    ...(staff.length > 0 ? [{ label: 'Team', href: `${basePath}#team` }] : []),
-    ...(testimonials.length > 0 ? [{ label: 'Reviews', href: `${basePath}#reviews` }] : []),
+    { label: 'Services', href: `${basePath}/services` },
+    { label: 'About', href: `${basePath}/about` },
+    { label: 'FAQ', href: `${basePath}/faq` },
     ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
     { label: 'Contact', href: `${basePath}#contact` },
   ]
@@ -192,86 +140,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         </div>
       </div>
 
-      {/* ── Floating pill header ───────────────────────────────────────── */}
-      {/* Tend-shaped nav: a white pill floating inside the warm-neutral page
-          rather than a full-width bar. Sticks to the top with a small
-          breathing margin. Backdrop blur keeps it legible over scrolling
-          content. The pill never spans the full width so the eye reads the
-          page edge as the warm BG color, not as the nav. */}
-      <header className="sticky top-0 z-40 px-3 sm:px-5 pt-3 sm:pt-4">
-        <div className="max-w-[1240px] mx-auto">
-          <div
-            className="rounded-full backdrop-blur-md flex items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 py-2 sm:py-2.5"
-            style={{
-              backgroundColor: '#FFFFFFE6',
-              border: `1px solid ${BORDER}`,
-              boxShadow: '0 2px 12px rgba(28, 26, 23, 0.06)',
-            }}
-          >
-            {/* Logo / wordmark */}
-            <a href={homeHref} className="flex items-center gap-2 min-w-0 shrink pl-1.5 sm:pl-2">
-              {logoUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={logoUrl}
-                  alt={name}
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover shrink-0"
-                />
-              ) : (
-                <span
-                  className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-white text-sm font-bold shrink-0"
-                  style={{ backgroundColor: brand }}
-                >
-                  {name.charAt(0).toUpperCase()}
-                </span>
-              )}
-              <span
-                className="font-semibold text-[15px] sm:text-[17px] leading-tight truncate"
-                style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
-              >
-                {name}
-              </span>
-            </a>
+      <SiteHeader
+        data={data}
+        basePath={basePath}
+        navLinks={navLinks}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
+        signInUrl={signIn}
+      />
 
-            {/* Section nav — desktop only */}
-            <nav className="hidden lg:flex items-center gap-0.5">
-              {navLinks.map((l) => (
-                <a
-                  key={l.label}
-                  href={l.href}
-                  className="text-sm font-medium px-3 py-1.5 rounded-full transition hover:bg-[#F1ECE3]"
-                  style={{ color: INK_MUTED }}
-                >
-                  {l.label}
-                </a>
-              ))}
-            </nav>
-
-            {/* Right-side actions */}
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-              <a
-                href={signIn}
-                className="inline-flex items-center gap-1.5 text-[13px] sm:text-sm font-medium px-2.5 sm:px-3 py-1.5 rounded-full transition hover:bg-[#F1ECE3]"
-                style={{ color: INK_MUTED }}
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-                <span className="hidden sm:inline">Patient Login</span>
-                <span className="sm:hidden">Login</span>
-              </a>
-              <a
-                href={bookHref}
-                className="inline-flex items-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-[13px] sm:text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
-                style={{ backgroundColor: brand }}
-              >
-                {bookLabel}
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
-
+      <main>
       {/* ── Hero — centered text with two flanking blob photos ─────────── */}
       {/* Composition cribs Tend's symmetric hero — a center text column
           with two organic-blob photos floating to the left and right. The
@@ -401,20 +279,6 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           )}
         </div>
       </section>
-
-      {/* ── Floating phone CTA — desktop only ──────────────────────────── */}
-      {profile.phone && (
-        <a
-          href={`tel:${profile.phone}`}
-          className="hidden lg:flex fixed bottom-8 right-8 z-30 w-14 h-14 rounded-full items-center justify-center shadow-lg transition hover:shadow-xl hover:-translate-y-0.5"
-          style={{ backgroundColor: brand }}
-          aria-label={`Call ${name} at ${profile.phone}`}
-        >
-          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-          </svg>
-        </a>
-      )}
 
       {/* ── Trust anchors — stat card right under the hero ─────────────── */}
       {stats.length > 0 && (
@@ -874,171 +738,23 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="border-t" style={{ borderColor: BORDER }}>
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
-          <div className="grid gap-12 sm:gap-8 sm:grid-cols-2 lg:grid-cols-12">
-            {/* Brand + contact */}
-            <div className="lg:col-span-5 max-w-sm">
-              <a href={homeHref} className="flex items-center gap-2.5 mb-5">
-                {logoUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={logoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
-                ) : (
-                  <span
-                    className="flex items-center justify-center w-9 h-9 rounded-lg text-white text-sm font-bold shrink-0"
-                    style={{ backgroundColor: brand }}
-                  >
-                    {name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <span className="font-semibold text-[16px]" style={{ color: INK }}>{name}</span>
-              </a>
-              {profile.tagline && (
-                <p className="text-sm leading-[1.6] mb-6" style={{ color: INK_MUTED }}>{profile.tagline}</p>
-              )}
-              <div className="space-y-1.5 text-sm">
-                {(profile.addressLine1 || profile.city) && (
-                  <p style={{ color: INK_MUTED }}>
-                    {[profile.addressLine1, [profile.city, profile.state].filter(Boolean).join(', ')]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                )}
-                {profile.phone && (
-                  <a href={`tel:${profile.phone}`} className="block hover:underline" style={{ color: INK }}>
-                    {profile.phone}
-                  </a>
-                )}
-                {profile.email && (
-                  <a href={`mailto:${profile.email}`} className="block hover:underline" style={{ color: INK }}>
-                    {profile.email}
-                  </a>
-                )}
-              </div>
-            </div>
+      </main>
 
-            {/* Explore */}
-            <div className="lg:col-span-2 lg:col-start-7">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
-                Explore
-              </p>
-              <ul className="space-y-2.5">
-                {navLinks.map((l) => (
-                  <li key={l.label}>
-                    <a href={l.href} className="text-sm hover:underline" style={{ color: INK }}>{l.label}</a>
-                  </li>
-                ))}
-              </ul>
-            </div>
+      <SiteFooter
+        data={data}
+        basePath={basePath}
+        navLinks={navLinks}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
+        signInUrl={signIn}
+      />
 
-            {/* Patients */}
-            <div className="lg:col-span-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
-                Patients
-              </p>
-              <ul className="space-y-2.5">
-                <li>
-                  <a href={bookHref} className="text-sm hover:underline" style={{ color: INK }}>{bookLabel}</a>
-                </li>
-                <li>
-                  <a href={signIn} className="text-sm hover:underline" style={{ color: INK }}>Patient Login</a>
-                </li>
-                {profile.phone && (
-                  <li>
-                    <a href={`tel:${profile.phone}`} className="text-sm hover:underline" style={{ color: INK_MUTED }}>
-                      Call to book
-                    </a>
-                  </li>
-                )}
-              </ul>
-            </div>
-
-            {/* Today's hours — short, scannable: "Open today · 8 AM – 5 PM"
-                or "Closed today". Avoids forcing the patient to scroll back
-                up to the hours grid to know if they can drop in now. */}
-            {hours && Object.keys(hours).length > 0 && (
-              <div className="lg:col-span-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
-                  Today
-                </p>
-                <p className="text-sm leading-[1.55]" style={{ color: INK }}>
-                  {todaysHoursLabel(hours)}
-                </p>
-                <a
-                  href={`${basePath}#hours`}
-                  className="inline-block mt-2 text-[13px] font-medium hover:underline"
-                  style={{ color: brand }}
-                >
-                  See all hours →
-                </a>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom bar — copyright · accessibility · staff login · attribution */}
-          <div
-            className="mt-14 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm"
-            style={{ borderColor: BORDER }}
-          >
-            <span style={{ color: INK_MUTED }}>
-              © {new Date().getFullYear()} {name}. All rights reserved.
-            </span>
-            <div className="flex items-center gap-3" style={{ color: INK_MUTED }}>
-              <a href={signIn} className="hover:underline" style={{ color: INK_MUTED }}>
-                Staff login
-              </a>
-              <span aria-hidden="true">·</span>
-              <span>
-                Powered by{' '}
-                <a
-                  href="https://dreamcreateweb.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium hover:underline"
-                  style={{ color: INK }}
-                >
-                  DreamCreate
-                </a>
-              </span>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* ── Sticky mobile booking bar — Book + Call ────────────────────── */}
-      {/* Always-visible bottom bar on small screens. Two equal buttons.    */}
-      <div
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3"
-        style={{
-          background: `linear-gradient(to top, ${BG} 60%, ${BG}00)`,
-        }}
-      >
-        <div className="flex gap-2 max-w-md mx-auto">
-          <a
-            href={bookHref}
-            className="flex-1 inline-flex items-center justify-center px-4 py-3.5 rounded-full text-sm font-semibold text-white shadow-lg"
-            style={{ backgroundColor: brand }}
-          >
-            {bookLabel}
-          </a>
-          {profile.phone && (
-            <a
-              href={`tel:${profile.phone}`}
-              className="inline-flex items-center justify-center w-14 h-[52px] rounded-full shadow-lg"
-              style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}`, color: INK }}
-              aria-label={`Call ${name}`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-              </svg>
-            </a>
-          )}
-        </div>
-      </div>
-
-      {/* Bottom padding to keep content above sticky bar on mobile */}
-      <div className="lg:hidden h-20" aria-hidden="true" />
+      <SiteMobileActions
+        data={data}
+        basePath={basePath}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
+      />
     </div>
   )
 }
@@ -1090,7 +806,7 @@ function BlobPhoto({
   )
 }
 
-function TestimonialCard({ t, brand }: { t: ClinicTestimonial; brand: string }) {
+export function TestimonialCard({ t, brand }: { t: ClinicTestimonial; brand: string }) {
   return (
     <figure
       className="rounded-2xl p-7 sm:p-8 flex flex-col h-full transition-transform duration-300 hover:-translate-y-0.5"
@@ -1154,7 +870,7 @@ function TestimonialCard({ t, brand }: { t: ClinicTestimonial; brand: string }) 
 // CSS so we don't pay a hydration cost on what's otherwise a static page.
 // ────────────────────────────────────────────────────────────────────────
 
-function TestimonialsMarquee({
+export function TestimonialsMarquee({
   testimonials,
   brand,
   surface,

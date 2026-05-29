@@ -182,26 +182,25 @@ describe('ModernTemplate', () => {
     expect(signinLinks[0].getAttribute('href')).toMatch(/^https?:\/\/.+\/signin$/)
   })
 
-  it('renders in-page anchor nav (services + contact)', () => {
+  it('renders header nav using page paths (services + about + faq) plus #contact anchor', () => {
     render(<ModernTemplate data={makeData()} basePath="/site/test" />)
     const links = screen.getAllByRole('link')
-    expect(links.some((a) => a.getAttribute('href') === '/site/test#services')).toBe(true)
+    // Page-path nav: /services, /about, /faq each render. Contact stays
+    // an anchor (there is no /contact page).
+    expect(links.some((a) => a.getAttribute('href') === '/site/test/services')).toBe(true)
+    expect(links.some((a) => a.getAttribute('href') === '/site/test/about')).toBe(true)
+    expect(links.some((a) => a.getAttribute('href') === '/site/test/faq')).toBe(true)
     expect(links.some((a) => a.getAttribute('href') === '/site/test#contact')).toBe(true)
   })
 
-  it('adds a Team nav anchor only when staff are present', () => {
-    const { rerender } = render(<ModernTemplate data={makeData({ staff: null as never })} basePath="/site/test" />)
+  it('surfaces a Blog nav link only when hasBlog is true', () => {
+    const { rerender } = render(<ModernTemplate data={makeData()} basePath="/site/test" hasBlog={false} />)
     expect(
-      screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test#team'),
+      screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test/blog'),
     ).toBe(false)
-    rerender(
-      <ModernTemplate
-        data={makeData({ staff: [{ id: 'p1', name: 'Dr. Jane' }] as never })}
-        basePath="/site/test"
-      />,
-    )
+    rerender(<ModernTemplate data={makeData()} basePath="/site/test" hasBlog />)
     expect(
-      screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test#team'),
+      screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test/blog'),
     ).toBe(true)
   })
 
@@ -394,14 +393,19 @@ describe('ModernTemplate', () => {
   })
 
   it('uses the logo image in the header when provided', () => {
-    render(
+    const { container } = render(
       <ModernTemplate
         data={makeData({ logoUrl: 'https://example.com/logo.png' })}
         basePath="/site/test"
       />,
     )
-    const logo = screen.getByAltText('Test Dental') as HTMLImageElement
-    expect(logo.src).toBe('https://example.com/logo.png')
+    // Logo lives in both the SiteHeader and SiteFooter — both render alt=""
+    // (decorative, since adjacent text carries the clinic name). Find by src.
+    const logos = container.querySelectorAll<HTMLImageElement>(
+      'img[src="https://example.com/logo.png"]',
+    )
+    expect(logos.length).toBeGreaterThan(0)
+    expect(logos[0].src).toBe('https://example.com/logo.png')
   })
 
   it('uses letter mark when no logo is set', () => {
