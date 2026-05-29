@@ -48,14 +48,20 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
 }
 
 describe('ModernTemplate', () => {
-  it('renders the clinic display name as the H1', () => {
+  it('renders the tagline as the H1 (value-prop first, brand name in eyebrow)', () => {
+    // The Tend-style hero pattern: H1 carries the value statement, not the
+    // brand name. The clinic name + city sit in the small eyebrow above
+    // so the hero reads as "here's why you should come in" rather than
+    // "we exist and we are called X" (which every clinic site already does).
     render(<ModernTemplate data={makeData()} basePath="/site/test" />)
-    expect(screen.getByRole('heading', { level: 1, name: /Test Dental/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /Caring for smiles/ })).toBeInTheDocument()
   })
 
-  it('renders the tagline', () => {
+  it('puts the clinic name + city in the hero eyebrow', () => {
     render(<ModernTemplate data={makeData()} basePath="/site/test" />)
-    expect(screen.getAllByText('Caring for smiles').length).toBeGreaterThan(0)
+    // Both the name and the city appear in the eyebrow row.
+    const eyebrowMatches = screen.getAllByText(/Test Dental/)
+    expect(eyebrowMatches.length).toBeGreaterThan(0)
   })
 
   it('shows phone number and tel link', () => {
@@ -109,8 +115,12 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
+    // The about block keeps its eyebrow + full paragraph.
     expect(screen.getByText(/About Test Dental/)).toBeInTheDocument()
-    expect(screen.getByText(/friendly local dentist office/)).toBeInTheDocument()
+    // The about text appears in TWO places now — its first sentence as the
+    // hero subhead + the full paragraph in the about section. Both are fine
+    // for the single-sentence about above, but use getAllByText to allow it.
+    expect(screen.getAllByText(/friendly local dentist office/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('formats hours in 12-hour format', () => {
@@ -255,6 +265,37 @@ describe('ModernTemplate', () => {
     expect(screen.getByText('Dr. John Lee')).toBeInTheDocument()
   })
 
+  it('replaces the emoji avatar with an initial mark when a staff member has no photo', () => {
+    // The prior 👤 emoji read as "unfinished site." This pins the gradient
+    // initial chip as the replacement so a future regression can't silently
+    // bring back the emoji.
+    render(
+      <ModernTemplate
+        data={makeData({
+          staff: [{ id: 'p1', name: 'Dr. Jane Lee', title: 'Lead Dentist', photoUrl: null }] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    // "Dr." is stripped → first name + last name initials = "JL" (not "DJ").
+    expect(screen.getAllByLabelText('Dr. Jane Lee').some((el) => el.textContent === 'JL')).toBe(true)
+    // Belt-and-braces: the emoji must not be present anywhere on the page.
+    expect(screen.queryByText('👤')).not.toBeInTheDocument()
+  })
+
+  it('strips post-nominals from the initials chip too', () => {
+    // "Maria Vega, RDH" → "MV" (the RDH credential doesn't show up as "MR").
+    render(
+      <ModernTemplate
+        data={makeData({
+          staff: [{ id: 'p1', name: 'Maria Vega, RDH', title: 'Hygienist', photoUrl: null }] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getAllByLabelText('Maria Vega, RDH').some((el) => el.textContent === 'MV')).toBe(true)
+  })
+
   it('uses the staff photo when provided', () => {
     render(
       <ModernTemplate
@@ -305,9 +346,11 @@ describe('ModernTemplate', () => {
     expect(hero).toBeDefined()
   })
 
-  it('falls back to anti-shame default subhead when tagline is null', () => {
+  it('falls back to a confident default H1 when no tagline is set', () => {
+    // Tagline is the H1 now, so the fallback IS the headline. Voice
+    // stays warm + value-prop-led, matching the Tend-style hero pattern.
     render(<ModernTemplate data={makeData({ tagline: null })} basePath="/site/test" />)
-    expect(screen.getByText(/No judgment, ever/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /finally feels human/i })).toBeInTheDocument()
   })
 
   it('renders numbered service pillars (01, 02, …)', () => {
@@ -548,6 +591,26 @@ describe('ModernTemplate', () => {
     // Pre-render cap at 50 testimonials × 2 for the loop = 100 items max.
     const items = container.querySelectorAll('[aria-roledescription="carousel"] li')
     expect(items.length).toBe(100)
+  })
+
+  it('marquee duration scales with testimonial count for a calm cadence', () => {
+    // 5 testimonials × 12s/card minimum is 60s — the 60s floor ALSO gives us
+    // 60s for any count ≤ 5. The pin is "at least 60s on the floor" so a
+    // future refactor doesn't accidentally make the loop frantic again.
+    const testimonials = Array.from({ length: 5 }, (_, i) => ({
+      id: `tm${i}`,
+      quote: `Q ${i}`,
+      authorName: `P ${i}`,
+      authorLocation: null,
+      authorPhotoUrl: null,
+    }))
+    const { container } = render(
+      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
+    )
+    const styleText = container.querySelector('style')?.textContent ?? ''
+    const m = styleText.match(/animation:\s*\S+\s+(\d+)s\s/)
+    expect(m, 'expected the marquee style block to declare an animation duration').toBeTruthy()
+    expect(Number(m![1])).toBeGreaterThanOrEqual(60)
   })
 
   it('marquee animation class names are deterministic (no Math.random — SSR-safe)', () => {

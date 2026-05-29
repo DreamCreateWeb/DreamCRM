@@ -433,6 +433,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     const [profile] = await db
       .select({
         brandColor: schema.clinicProfile.brandColor,
+        about: schema.clinicProfile.about,
+        tagline: schema.clinicProfile.tagline,
         stats: schema.clinicProfile.stats,
         testimonials: schema.clinicProfile.testimonials,
         officePhotos: schema.clinicProfile.officePhotos,
@@ -445,6 +447,20 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
     const patch: Partial<typeof schema.clinicProfile.$inferInsert> = {}
     if (profile?.brandColor === '#0ea5e9') patch.brandColor = '#9CAF9F'
+    // About + tagline upgrade: legacy demos shipped with a meta-disclosure
+    // "this is a demonstration clinic seeded by..." paragraph that broke the
+    // public-site immersion. Replace it with real warm copy so the demo looks
+    // like a real clinic site. Skips when the demo has been hand-edited.
+    if (
+      !profile?.about ||
+      profile.about.startsWith('Acme Dental is a demonstration clinic')
+    ) {
+      patch.about =
+        'We started Acme to make going to the dentist feel like going to any other thoughtful, modern place. Calm rooms, plain-English explanations, no judgment about how long it\'s been. Whether it\'s your first cleaning in years or a routine check-up, you\'ll be in good hands — and out the door knowing exactly what happened and why.'
+    }
+    if (!profile?.tagline || profile.tagline === 'Bright smiles, gentle care') {
+      patch.tagline = 'Dental care that finally feels human.'
+    }
     if (!profile?.stats) patch.stats = DEMO_STATS
     // testimonials are handled by the dedicated self-heal below — it needs
     // existingPatientIds (only available later in this block) so each
@@ -795,9 +811,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     organizationId: orgId,
     legalName: 'Acme Dental, PLLC',
     displayName: 'Acme Dental',
-    tagline: 'Bright smiles, gentle care',
+    // Tagline is now the hero H1, so it carries the real value-prop weight.
+    tagline: 'Dental care that finally feels human.',
     about:
-      'Acme Dental is a demonstration clinic seeded by the DreamCRM platform admin to preview the clinic dashboard. All patient data shown is fictional.',
+      'We started Acme to make going to the dentist feel like going to any other thoughtful, modern place. Calm rooms, plain-English explanations, no judgment about how long it\'s been. Whether it\'s your first cleaning in years or a routine check-up, you\'ll be in good hands — and out the door knowing exactly what happened and why.',
     brandColor: '#9CAF9F',
     template: 'modern',
     phone: '(512) 555-0100',
