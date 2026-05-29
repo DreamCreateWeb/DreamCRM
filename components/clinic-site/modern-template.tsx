@@ -49,6 +49,18 @@ function firstSentence(text: string): string {
   return m ? m[0] : text.trim()
 }
 
+/** "Open today · 8:00 AM – 5:00 PM" or "Closed today" — the footer's
+ *  at-a-glance availability blurb. Uses the same `mon`/`tue`/... key
+ *  ordering as the hours grid so today's lookup is straightforward. */
+function todaysHoursLabel(hours: Record<string, { open?: string; close?: string; closed?: boolean }>): string {
+  const KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+  const todayKey = KEY[new Date().getDay()]
+  const entry = hours[todayKey]
+  if (!entry || entry.closed) return 'Closed today'
+  if (!entry.open || !entry.close) return 'Hours by appointment'
+  return `Open today · ${fmt12(entry.open)} – ${fmt12(entry.close)}`
+}
+
 const HONORIFICS = new Set(['dr.', 'dr', 'mr.', 'mr', 'mrs.', 'mrs', 'ms.', 'ms'])
 const POST_NOMINALS = /(,\s*)?(rdh|dds|dmd|md|np|rn|phd)\.?$/i
 
@@ -270,61 +282,64 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </a>
-              {profile.phone && (
-                <a
-                  href={`tel:${profile.phone}`}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border transition hover:bg-white"
-                  style={{ color: INK, borderColor: BORDER, backgroundColor: 'transparent' }}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                  </svg>
-                  {profile.phone}
-                </a>
-              )}
+              {/* Hero deliberately drops the secondary phone CTA — Tend's
+                  pattern is a single Book button to anchor intent. The
+                  phone number lives in the sticky header on desktop and in
+                  the sticky bottom bar on mobile, so it stays one tap
+                  away without competing for attention here. */}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Stat anchors — trust signals immediately after hero ────────── */}
+      {/* ── Trust anchors — stat card right under the hero ─────────────── */}
       {stats.length > 0 && (
-        <section className="py-12 sm:py-16 border-y" style={{ borderColor: BORDER }}>
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+        <section className="pt-14 pb-20 sm:pt-16 sm:pb-24">
+          <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <div
-              className={`grid gap-8 sm:gap-12 ${
-                stats.length === 4
-                  ? 'grid-cols-2 lg:grid-cols-4'
-                  : stats.length === 3
-                    ? 'grid-cols-1 sm:grid-cols-3'
-                    : stats.length === 2
-                      ? 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto'
-                      : 'grid-cols-1 max-w-md mx-auto'
-              }`}
+              className="rounded-2xl overflow-hidden"
+              style={{
+                backgroundColor: SURFACE,
+                border: `1px solid ${BORDER}`,
+                boxShadow: '0 1px 2px rgba(28, 26, 23, 0.04)',
+              }}
             >
-              {stats.map((s) => (
-                <div key={s.id} className="text-center sm:text-left">
-                  <div
-                    className="text-3xl sm:text-4xl font-bold leading-none mb-2 tracking-[-0.02em]"
-                    style={{ color: brand }}
-                  >
-                    {s.value}
-                  </div>
-                  <div
-                    className="text-sm sm:text-[15px] leading-snug"
-                    style={{ color: INK_MUTED }}
-                  >
-                    {s.label}
-                  </div>
-                </div>
-              ))}
+              <ul
+                className={`grid divide-y sm:divide-y-0 sm:divide-x ${
+                  stats.length === 4
+                    ? 'sm:grid-cols-2 lg:grid-cols-4'
+                    : stats.length === 3
+                      ? 'sm:grid-cols-3'
+                      : stats.length === 2
+                        ? 'sm:grid-cols-2'
+                        : 'grid-cols-1'
+                }`}
+                style={{ borderColor: BORDER }}
+              >
+                {stats.map((s) => (
+                  <li key={s.id} className="text-center px-6 py-7 sm:py-9" style={{ borderColor: BORDER }}>
+                    <div
+                      className="text-[40px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
+                      style={{ color: brand }}
+                    >
+                      {s.value}
+                    </div>
+                    <div
+                      className="text-[13px] sm:text-sm leading-snug font-medium"
+                      style={{ color: INK_MUTED }}
+                    >
+                      {s.label}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>
       )}
 
       {/* ── Services — numbered pillars ────────────────────────────────── */}
-      <section id="services" className="scroll-mt-20 py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+      <section id="services" className="scroll-mt-20 py-24 sm:py-32" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-14">
             <p
@@ -340,13 +355,17 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               Comprehensive dental care, gently delivered.
             </h2>
           </div>
-          <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Soft warm-neutral tiles give the numbered services a card shape
+              without losing the magazine column feel — the cream BG against
+              the white surface creates a quiet visual rhythm with the rest
+              of the page. */}
+          <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
             {services.map((s, i) => (
-              <div key={s.id} className="flex flex-col group">
-                {/* Numbered eyebrow doubles as a hover-affordance hint — the
-                    thin underline reveal mirrors the Tend service-card
-                    interaction without us needing a real link wrapping the
-                    item (services aren't pages yet). */}
+              <div
+                key={s.id}
+                className="flex flex-col group rounded-2xl p-7 sm:p-8 transition-transform duration-300 hover:-translate-y-0.5"
+                style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+              >
                 <span
                   className="text-sm font-semibold tracking-[0.12em] mb-4 inline-flex items-center gap-2"
                   style={{ color: brand }}
@@ -374,7 +393,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── Meet the team ──────────────────────────────────────────────── */}
       {staff.length > 0 && (
-        <section id="team" className="scroll-mt-20 py-20 sm:py-28">
+        <section id="team" className="scroll-mt-20 py-24 sm:py-32">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="max-w-[640px] mb-14">
               <p
@@ -449,7 +468,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── Testimonials — long-form, photo + first name + city ────────── */}
       {testimonials.length > 0 && (
-        <section id="reviews" className="scroll-mt-20 py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+        <section id="reviews" className="scroll-mt-20 py-24 sm:py-32" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="max-w-[640px] mb-14">
               <p
@@ -492,7 +511,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── About ──────────────────────────────────────────────────────── */}
       {profile.about && (
-        <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+        <section className="py-24 sm:py-32" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-start">
               <div className="lg:col-span-4">
@@ -518,7 +537,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── Office tour — magazine-rhythm photo gallery ─────────────────── */}
       {officePhotos.length > 0 && (
-        <section className="py-20 sm:py-28">
+        <section className="py-24 sm:py-32">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="max-w-[640px] mb-14">
               <p
@@ -559,9 +578,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                       loading="lazy"
                     />
                   </div>
-                  {p.caption && (
+                  {(p.caption || p.alt) && (
                     <figcaption className="mt-3 text-sm" style={{ color: INK_MUTED }}>
-                      {p.caption}
+                      {p.caption ?? p.alt}
                     </figcaption>
                   )}
                 </figure>
@@ -573,7 +592,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── Hours + Location ───────────────────────────────────────────── */}
       {(hours || primaryLocation || profile.city) && (
-        <section className="py-20 sm:py-28">
+        <section id="hours" className="scroll-mt-20 py-24 sm:py-32">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
               {/* Hours */}
@@ -733,11 +752,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── Footer ─────────────────────────────────────────────────────── */}
       <footer className="border-t" style={{ borderColor: BORDER }}>
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-14">
-          <div className="grid gap-10 sm:gap-8 sm:grid-cols-2 lg:grid-cols-12">
+        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
+          <div className="grid gap-12 sm:gap-8 sm:grid-cols-2 lg:grid-cols-12">
             {/* Brand + contact */}
             <div className="lg:col-span-5 max-w-sm">
-              <a href={homeHref} className="flex items-center gap-2.5 mb-4">
+              <a href={homeHref} className="flex items-center gap-2.5 mb-5">
                 {logoUrl ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={logoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
@@ -752,7 +771,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <span className="font-semibold text-[16px]" style={{ color: INK }}>{name}</span>
               </a>
               {profile.tagline && (
-                <p className="text-sm leading-[1.6] mb-5" style={{ color: INK_MUTED }}>{profile.tagline}</p>
+                <p className="text-sm leading-[1.6] mb-6" style={{ color: INK_MUTED }}>{profile.tagline}</p>
               )}
               <div className="space-y-1.5 text-sm">
                 {(profile.addressLine1 || profile.city) && (
@@ -776,7 +795,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             </div>
 
             {/* Explore */}
-            <div className="lg:col-span-3 lg:col-start-7">
+            <div className="lg:col-span-2 lg:col-start-7">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
                 Explore
               </p>
@@ -789,10 +808,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </ul>
             </div>
 
-            {/* Get started */}
-            <div className="lg:col-span-3">
+            {/* Patients */}
+            <div className="lg:col-span-2">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
-                Get started
+                Patients
               </p>
               <ul className="space-y-2.5">
                 <li>
@@ -801,13 +820,41 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <li>
                   <a href={signIn} className="text-sm hover:underline" style={{ color: INK }}>Patient Login</a>
                 </li>
+                {profile.phone && (
+                  <li>
+                    <a href={`tel:${profile.phone}`} className="text-sm hover:underline" style={{ color: INK_MUTED }}>
+                      Call to book
+                    </a>
+                  </li>
+                )}
               </ul>
             </div>
+
+            {/* Today's hours — short, scannable: "Open today · 8 AM – 5 PM"
+                or "Closed today". Avoids forcing the patient to scroll back
+                up to the hours grid to know if they can drop in now. */}
+            {hours && Object.keys(hours).length > 0 && (
+              <div className="lg:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
+                  Today
+                </p>
+                <p className="text-sm leading-[1.55]" style={{ color: INK }}>
+                  {todaysHoursLabel(hours)}
+                </p>
+                <a
+                  href={`${basePath}#hours`}
+                  className="inline-block mt-2 text-[13px] font-medium hover:underline"
+                  style={{ color: brand }}
+                >
+                  See all hours →
+                </a>
+              </div>
+            )}
           </div>
 
-          {/* Bottom bar — copyright · staff login · attribution */}
+          {/* Bottom bar — copyright · accessibility · staff login · attribution */}
           <div
-            className="mt-12 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm"
+            className="mt-14 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm"
             style={{ borderColor: BORDER }}
           >
             <span style={{ color: INK_MUTED }}>

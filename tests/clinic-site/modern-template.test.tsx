@@ -283,6 +283,28 @@ describe('ModernTemplate', () => {
     expect(screen.queryByText('👤')).not.toBeInTheDocument()
   })
 
+  it('drops the redundant phone CTA from the hero (single Book button anchors intent)', () => {
+    render(<ModernTemplate data={makeData({ phone: '(555) 123-4567' })} basePath="/site/test" />)
+    // The phone still lives in the header + sticky mobile bar; it's removed
+    // ONLY from the hero CTA row so it doesn't compete with Book.
+    const heroSection = document.querySelector('section.relative.overflow-hidden')
+    expect(heroSection).not.toBeNull()
+    const phoneInHero = heroSection!.querySelector('a[href^="tel:"]')
+    expect(phoneInHero, 'hero should not have a phone CTA — only Book').toBeNull()
+    // Header phone link still present (separate sticky element).
+    const allTelLinks = Array.from(document.querySelectorAll('a[href^="tel:"]'))
+    expect(allTelLinks.length).toBeGreaterThan(0)
+  })
+
+  it("renders today's-hours blurb in the footer when hours are configured", () => {
+    const hours = { mon: { open: '09:00', close: '17:00' } } as never
+    render(<ModernTemplate data={makeData({ hours })} basePath="/site/test" />)
+    // The footer "Today" column reads "Open today · 9:00 AM – 5:00 PM" on
+    // weekdays where the clinic has open hours, "Closed today" otherwise.
+    const todayMatches = screen.queryAllByText(/Open today|Closed today|Hours by appointment/)
+    expect(todayMatches.length).toBeGreaterThanOrEqual(1)
+  })
+
   it('strips post-nominals from the initials chip too', () => {
     // "Maria Vega, RDH" → "MV" (the RDH credential doesn't show up as "MR").
     render(
