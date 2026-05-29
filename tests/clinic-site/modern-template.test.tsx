@@ -214,8 +214,10 @@ describe('ModernTemplate', () => {
 
   it('renders default services when none are configured', () => {
     render(<ModernTemplate data={makeData({ services: null as never })} basePath="/site/test" />)
-    expect(screen.getByText('Cleanings & Exams')).toBeInTheDocument()
-    expect(screen.getByText('Cosmetic Dentistry')).toBeInTheDocument()
+    // Services now appear in two places: the pill carousel under the hero
+    // AND the full services section below. Use getAllByText.
+    expect(screen.getAllByText('Cleanings & Exams').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Cosmetic Dentistry').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders configured services with descriptions', () => {
@@ -230,9 +232,11 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
-    expect(screen.getByText('Teeth Whitening')).toBeInTheDocument()
+    // Names appear in BOTH the hero pill carousel + the services section.
+    // The DESCRIPTION only renders in the services section.
+    expect(screen.getAllByText('Teeth Whitening').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Brighter in one visit')).toBeInTheDocument()
-    expect(screen.getByText('Implants')).toBeInTheDocument()
+    expect(screen.getAllByText('Implants').length).toBeGreaterThanOrEqual(1)
   })
 
   it('omits the staff section when no staff configured', () => {
@@ -283,17 +287,69 @@ describe('ModernTemplate', () => {
     expect(screen.queryByText('👤')).not.toBeInTheDocument()
   })
 
-  it('drops the redundant phone CTA from the hero (single Book button anchors intent)', () => {
+  it('renders both Book and Phone CTAs in the centered hero (Tend pattern)', () => {
     render(<ModernTemplate data={makeData({ phone: '(555) 123-4567' })} basePath="/site/test" />)
-    // The phone still lives in the header + sticky mobile bar; it's removed
-    // ONLY from the hero CTA row so it doesn't compete with Book.
+    // Tend's hero has Book + phone side-by-side under the H1, centered. We
+    // match that — both CTAs anchor different commit levels (Book = ready,
+    // Phone = needs to ask).
     const heroSection = document.querySelector('section.relative.overflow-hidden')
     expect(heroSection).not.toBeNull()
-    const phoneInHero = heroSection!.querySelector('a[href^="tel:"]')
-    expect(phoneInHero, 'hero should not have a phone CTA — only Book').toBeNull()
-    // Header phone link still present (separate sticky element).
-    const allTelLinks = Array.from(document.querySelectorAll('a[href^="tel:"]'))
-    expect(allTelLinks.length).toBeGreaterThan(0)
+    expect(heroSection!.querySelector('a[href^="tel:"]')).not.toBeNull()
+    expect(heroSection!.querySelector('a[href$="#contact"], a[href$="/book"]')).not.toBeNull()
+  })
+
+  it('floats a phone-circle CTA on the right edge (desktop)', () => {
+    render(<ModernTemplate data={makeData({ phone: '(555) 123-4567' })} basePath="/site/test" />)
+    // The fixed circle CTA on the right edge mirrors Tend's pinned phone
+    // affordance. Identified by the aria-label "at" pattern (includes the
+    // phone number) — the sticky mobile bar uses a shorter label.
+    const floatingPhone = document.querySelector(
+      'a[aria-label*="(555) 123-4567"][class*="fixed"]',
+    )
+    expect(floatingPhone).not.toBeNull()
+  })
+
+  it('shows the top announcement strip with the tagline + universal trust chips', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ tagline: 'Caring for smiles' })}
+        basePath="/site/test"
+      />,
+    )
+    // Tagline appears in both the strip AND the hero H1, so accept ≥1.
+    expect(screen.getAllByText(/Caring for smiles/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/No judgment, ever/i)).toBeInTheDocument()
+    expect(screen.getByText(/Same-week visits/i)).toBeInTheDocument()
+  })
+
+  it('renders the Tend-style centered hero composition with the H1 in the brand color', () => {
+    render(<ModernTemplate data={makeData()} basePath="/site/test" />)
+    const h1 = screen.getByRole('heading', { level: 1 })
+    // H1 uses the brand color (sage default in tests = #6d28d9 from makeData)
+    // via inline style.
+    expect(h1.getAttribute('style')).toMatch(/color: ?(rgb\(109, ?40, ?217\)|#6d28d9)/i)
+    // Display serif via the next/font CSS var (or Georgia fallback).
+    expect(h1.getAttribute('style')).toMatch(/font-family/i)
+  })
+
+  it('renders service pills below the hero linking to #services', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          services: [
+            { id: 's1', name: 'Quick Cleaning', description: null, icon: null },
+            { id: 's2', name: 'Emergency', description: null, icon: null },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    // Each pill is a link with href ending in #services. Both names should
+    // be reachable as links.
+    const pillLinks = screen
+      .getAllByRole('link')
+      .filter((a) => a.getAttribute('href') === '/site/test#services')
+    expect(pillLinks.length).toBeGreaterThanOrEqual(2)
   })
 
   it("renders today's-hours blurb in the footer when hours are configured", () => {
@@ -402,9 +458,10 @@ describe('ModernTemplate', () => {
     render(
       <ModernTemplate data={makeData({ services: services as never })} basePath="/site/test" />,
     )
-    expect(screen.getByText('Service 0')).toBeInTheDocument()
-    expect(screen.getByText('Service 5')).toBeInTheDocument()
-    // 7+ should not render
+    // Services 0-5 each appear in the hero pill carousel + the services
+    // section below = 2 nodes each. 6+ aren't rendered anywhere.
+    expect(screen.getAllByText('Service 0').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Service 5').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText('Service 6')).not.toBeInTheDocument()
     expect(screen.queryByText('Service 9')).not.toBeInTheDocument()
   })
@@ -416,10 +473,11 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
-    // The sticky bar lives in a fixed container — look for its Call aria-label
-    expect(
-      screen.getByRole('link', { name: /Call Test Dental/i }),
-    ).toHaveAttribute('href', 'tel:(555) 123-4567')
+    // Both the floating desktop circle CTA and the mobile sticky bar share
+    // a "Call Test Dental" aria-label prefix — getAllByRole catches both.
+    const callLinks = screen.getAllByRole('link', { name: /Call Test Dental/i })
+    expect(callLinks.length).toBeGreaterThan(0)
+    expect(callLinks[0]).toHaveAttribute('href', 'tel:(555) 123-4567')
   })
 
   it('uses the sage-default brand color when none is set', () => {

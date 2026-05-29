@@ -49,6 +49,22 @@ function firstSentence(text: string): string {
   return m ? m[0] : text.trim()
 }
 
+/** Top-strip rotating-style chips. Static for v1 — we just inline 3 chips
+ *  separated by middots so the patient scans the value props without
+ *  needing JS-driven rotation. The clinic's tagline (when not the default)
+ *  becomes the leading chip; the other two are universal trust signals. */
+function announcementChips(tagline: string | null): string[] {
+  const base = ['No judgment, ever', 'Same-week visits', 'Most insurance accepted']
+  if (!tagline) return base
+  const trimmed = tagline.trim()
+  // Don't repeat the H1 verbatim in the strip — only surface the tagline
+  // here when it's short enough to feel like a chip (≤ 40 chars).
+  if (trimmed.length > 0 && trimmed.length <= 40) {
+    return [trimmed, ...base.slice(0, 2)]
+  }
+  return base
+}
+
 /** "Open today · 8:00 AM – 5:00 PM" or "Closed today" — the footer's
  *  at-a-glance availability blurb. Uses the same `mon`/`tue`/... key
  *  ordering as the hours grid so today's lookup is straightforward. */
@@ -133,164 +149,272 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     { label: 'Contact', href: `${basePath}#contact` },
   ]
 
+  // Two side-flanking photos for the centered hero blob composition. Use
+  // the clinic's hero image as the LEFT blob, and the first office photo
+  // (when seeded) as the RIGHT blob. Graceful degradation: if either is
+  // missing, the blob renders as a solid warm-color panel — keeping the
+  // hero's three-column rhythm even on a brand-new clinic with no photos.
+  const leftBlobImage = heroImageUrl ?? null
+  const rightBlobImage = officePhotos[0]?.url ?? null
+  const leftBlobBg = `${brand}33` // warm panel fallback
+  const rightBlobBg = '#E9D6BF'
+
+  // Service pill carousel (right under hero) — up to 6 service names as
+  // pills the patient can scan instantly. Carries an anchor to the full
+  // services section further down the page.
+  const heroServicePills = services.slice(0, 6)
+
   return (
     <div
-      className="min-h-screen font-inter antialiased"
-      style={{ backgroundColor: BG, color: INK }}
+      className="min-h-screen antialiased"
+      style={{
+        backgroundColor: BG,
+        color: INK,
+        fontFamily: 'var(--font-sans, Inter, sans-serif)',
+      }}
     >
-
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header
-        className="sticky top-0 z-40 backdrop-blur-md border-b"
-        style={{ backgroundColor: `${BG}EE`, borderColor: BORDER }}
+      {/* ── Top announcement strip ─────────────────────────────────────── */}
+      {/* Tend-style thin strip carrying the clinic's value-prop tagline +
+          rotating chips. Static for v1 (no JS); the chips just sit
+          inline with separators so the patient gets the gist without a
+          carousel that fights with the rest of the page. */}
+      <div
+        className="text-[12px] sm:text-[13px] font-medium"
+        style={{ backgroundColor: brand, color: '#FFFFFF' }}
       >
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[64px] sm:h-[72px] flex items-center justify-between gap-3 sm:gap-4">
-          {/* Logo / wordmark */}
-          <a href={homeHref} className="flex items-center gap-2.5 min-w-0 shrink">
-            {logoUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={logoUrl}
-                alt={name}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg object-cover shrink-0"
-              />
-            ) : (
-              <span
-                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg text-white text-base font-bold shrink-0"
-                style={{ backgroundColor: brand }}
-              >
-                {name.charAt(0).toUpperCase()}
-              </span>
-            )}
-            <span className="font-semibold text-[15px] sm:text-[17px] leading-tight truncate" style={{ color: INK }}>
-              {name}
+        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-2.5 flex items-center justify-center gap-3 sm:gap-6 flex-wrap text-center">
+          {announcementChips(profile.tagline).map((chip, i) => (
+            <span key={i} className="flex items-center gap-3 sm:gap-6">
+              {i > 0 && <span aria-hidden="true" className="opacity-50">·</span>}
+              <span>{chip}</span>
             </span>
-          </a>
+          ))}
+        </div>
+      </div>
 
-          {/* Section nav — desktop only */}
-          <nav className="hidden lg:flex items-center gap-0.5">
-            {navLinks.map((l) => (
+      {/* ── Floating pill header ───────────────────────────────────────── */}
+      {/* Tend-shaped nav: a white pill floating inside the warm-neutral page
+          rather than a full-width bar. Sticks to the top with a small
+          breathing margin. Backdrop blur keeps it legible over scrolling
+          content. The pill never spans the full width so the eye reads the
+          page edge as the warm BG color, not as the nav. */}
+      <header className="sticky top-0 z-40 px-3 sm:px-5 pt-3 sm:pt-4">
+        <div className="max-w-[1240px] mx-auto">
+          <div
+            className="rounded-full backdrop-blur-md flex items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 py-2 sm:py-2.5"
+            style={{
+              backgroundColor: '#FFFFFFE6',
+              border: `1px solid ${BORDER}`,
+              boxShadow: '0 2px 12px rgba(28, 26, 23, 0.06)',
+            }}
+          >
+            {/* Logo / wordmark */}
+            <a href={homeHref} className="flex items-center gap-2 min-w-0 shrink pl-1.5 sm:pl-2">
+              {logoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={logoUrl}
+                  alt={name}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <span
+                  className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-white text-sm font-bold shrink-0"
+                  style={{ backgroundColor: brand }}
+                >
+                  {name.charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span
+                className="font-semibold text-[15px] sm:text-[17px] leading-tight truncate"
+                style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                {name}
+              </span>
+            </a>
+
+            {/* Section nav — desktop only */}
+            <nav className="hidden lg:flex items-center gap-0.5">
+              {navLinks.map((l) => (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  className="text-sm font-medium px-3 py-1.5 rounded-full transition hover:bg-[#F1ECE3]"
+                  style={{ color: INK_MUTED }}
+                >
+                  {l.label}
+                </a>
+              ))}
+            </nav>
+
+            {/* Right-side actions */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <a
-                key={l.label}
-                href={l.href}
-                className="text-sm font-medium px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
+                href={signIn}
+                className="inline-flex items-center gap-1.5 text-[13px] sm:text-sm font-medium px-2.5 sm:px-3 py-1.5 rounded-full transition hover:bg-[#F1ECE3]"
                 style={{ color: INK_MUTED }}
               >
-                {l.label}
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+                <span className="hidden sm:inline">Patient Login</span>
+                <span className="sm:hidden">Login</span>
               </a>
-            ))}
-          </nav>
-
-          {/* Right-side actions */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <a
-              href={signIn}
-              className="inline-flex items-center gap-1.5 text-[13px] sm:text-sm font-medium px-2.5 sm:px-3 py-2 rounded-lg transition hover:bg-[#F1ECE3]"
-              style={{ color: INK_MUTED }}
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
-              <span className="hidden sm:inline">Patient Login</span>
-              <span className="sm:hidden">Login</span>
-            </a>
-            <a
-              href={bookHref}
-              className="hidden lg:inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
-              style={{ backgroundColor: brand }}
-            >
-              {bookLabel}
-            </a>
+              <a
+                href={bookHref}
+                className="inline-flex items-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-[13px] sm:text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
+                style={{ backgroundColor: brand }}
+              >
+                {bookLabel}
+              </a>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* ── Hero — one viewport, photo + warm overlay or copy-primacy ──── */}
-      <section className="relative overflow-hidden">
-        {heroImageUrl ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={heroImageUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            {/* Warm gradient overlay that keeps the photo present but ensures copy contrast */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(105deg, ${BG} 0%, ${BG}F2 35%, ${BG}80 60%, transparent 100%)`,
-              }}
-            />
-          </>
-        ) : (
-          // No-photo state: warm panel + subtle radial accent in brand color
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `radial-gradient(ellipse at 80% 50%, ${brand}14 0%, transparent 60%)`,
-            }}
-          />
-        )}
-        <div className="relative max-w-[1240px] mx-auto px-5 sm:px-8 py-24 sm:py-32 lg:py-40">
-          <div className="max-w-[760px]">
-            {/* Eyebrow carries the clinic name + city so the H1 can do the
-                real work of stating WHY a patient should come in. The
-                logo + name in the sticky header already establish the
-                brand — repeating it as the headline buries the value
-                prop and reads as boilerplate (every clinic site does it). */}
-            <p
-              className="text-[13px] font-semibold uppercase tracking-[0.18em] mb-6 flex items-center gap-2 flex-wrap"
-              style={{ color: brand }}
-            >
-              <span>{name}</span>
-              {(primaryLocation?.city || profile.city) && (
-                <>
-                  <span aria-hidden="true" className="opacity-50">·</span>
-                  <span>
-                    {primaryLocation?.city
-                      ? `${primaryLocation.city}, ${primaryLocation.state}`
-                      : `${profile.city}, ${profile.state}`}
-                  </span>
-                </>
-              )}
-            </p>
-            {/* Tagline as H1 — confident, full-width statement type. The
-                fallback voice is anti-shame on purpose (matches DESIGN.md). */}
-            <h1
-              className="text-[44px] sm:text-[64px] lg:text-[80px] font-bold leading-[1.02] tracking-[-0.025em] mb-7"
-              style={{ color: INK }}
-            >
-              {profile.tagline ?? 'Dental care that finally feels human.'}
-            </h1>
-            {profile.about && (
+      {/* ── Hero — centered text with two flanking blob photos ─────────── */}
+      {/* Composition cribs Tend's symmetric hero — a center text column
+          with two organic-blob photos floating to the left and right. The
+          blob shape is achieved with asymmetric border-radius (no SVG
+          mask needed, server-renderable), and the photo lives inside a
+          colored panel so the whole shape stays present even when the
+          photo is small or fails to load. */}
+      <section className="relative overflow-hidden pt-10 pb-16 sm:pt-14 sm:pb-20 lg:pt-16 lg:pb-24">
+        <div className="relative max-w-[1240px] mx-auto px-5 sm:px-8">
+          <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-center">
+            {/* LEFT BLOB — heroImageUrl when present */}
+            <div className="hidden lg:block lg:col-span-3">
+              <BlobPhoto
+                src={leftBlobImage}
+                bg={leftBlobBg}
+                shape="left"
+                aspect="aspect-[4/5]"
+              />
+            </div>
+
+            {/* CENTER — text column */}
+            <div className="lg:col-span-6 text-center">
               <p
-                className="text-lg sm:text-xl leading-[1.5] mb-10 max-w-[560px]"
+                className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.22em] mb-5 sm:mb-6 flex items-center justify-center gap-2 flex-wrap"
                 style={{ color: INK_MUTED }}
               >
-                {firstSentence(profile.about)}
+                <span>{name}</span>
+                {(primaryLocation?.city || profile.city) && (
+                  <>
+                    <span aria-hidden="true" className="opacity-50">·</span>
+                    <span>
+                      {primaryLocation?.city
+                        ? `${primaryLocation.city}, ${primaryLocation.state}`
+                        : `${profile.city}, ${profile.state}`}
+                    </span>
+                  </>
+                )}
               </p>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
-              <a
-                href={bookHref}
-                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: brand }}
+              {/* H1 — serif display in brand color. Italic-bold inline
+                  emphasis on the value-prop phrase mirrors Tend's "no
+                  judgment, ever" treatment without copying the wording. */}
+              <h1
+                className="text-[40px] sm:text-[56px] lg:text-[68px] font-semibold leading-[1.05] tracking-[-0.015em] mb-7"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
-                {bookLabel}
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </a>
-              {/* Hero deliberately drops the secondary phone CTA — Tend's
-                  pattern is a single Book button to anchor intent. The
-                  phone number lives in the sticky header on desktop and in
-                  the sticky bottom bar on mobile, so it stays one tap
-                  away without competing for attention here. */}
+                {profile.tagline ?? 'Dental care that finally feels human.'}
+              </h1>
+              {profile.about && (
+                <p
+                  className="text-base sm:text-lg leading-[1.55] mb-9 max-w-[520px] mx-auto"
+                  style={{ color: INK }}
+                >
+                  {firstSentence(profile.about)}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href={bookHref}
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+                  style={{ backgroundColor: brand }}
+                >
+                  {bookLabel}
+                </a>
+                {profile.phone && (
+                  <a
+                    href={`tel:${profile.phone}`}
+                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-white transition hover:shadow-sm"
+                    style={{ color: INK, borderColor: BORDER }}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} style={{ color: brand }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                    </svg>
+                    {profile.phone}
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* RIGHT BLOB — officePhotos[0] when present */}
+            <div className="hidden lg:block lg:col-span-3">
+              <BlobPhoto
+                src={rightBlobImage}
+                bg={rightBlobBg}
+                shape="right"
+                aspect="aspect-[4/5]"
+              />
             </div>
           </div>
+
+          {/* Service pill carousel — sits just below the hero text/photos.
+              Quick-glance category navigation that double-links to the
+              full services section further down. Scrolls horizontally
+              on narrow viewports. */}
+          {heroServicePills.length > 0 && (
+            <>
+              <p
+                className="text-center text-sm sm:text-base mt-12 sm:mt-14 mb-5"
+                style={{ color: INK_MUTED }}
+              >
+                A full range of care for{' '}
+                <span className="font-semibold italic" style={{ color: INK }}>
+                  every visit
+                </span>
+                .
+              </p>
+              <ul
+                className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory sm:flex-wrap sm:justify-center sm:overflow-visible"
+                style={{ scrollbarWidth: 'none' }}
+              >
+                {heroServicePills.map((s) => (
+                  <li key={s.id} className="snap-start shrink-0">
+                    <a
+                      href={`${basePath}#services`}
+                      className="inline-flex items-center px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-sm sm:text-[15px] font-semibold transition hover:shadow-sm"
+                      style={{
+                        backgroundColor: `${brand}1F`,
+                        color: INK,
+                        border: `1px solid ${brand}40`,
+                      }}
+                    >
+                      {s.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       </section>
+
+      {/* ── Floating phone CTA — desktop only ──────────────────────────── */}
+      {profile.phone && (
+        <a
+          href={`tel:${profile.phone}`}
+          className="hidden lg:flex fixed bottom-8 right-8 z-30 w-14 h-14 rounded-full items-center justify-center shadow-lg transition hover:shadow-xl hover:-translate-y-0.5"
+          style={{ backgroundColor: brand }}
+          aria-label={`Call ${name} at ${profile.phone}`}
+        >
+          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+          </svg>
+        </a>
+      )}
 
       {/* ── Trust anchors — stat card right under the hero ─────────────── */}
       {stats.length > 0 && (
@@ -349,8 +473,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               What we do
             </p>
             <h2
-              className="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-[1.1] tracking-[-0.02em]"
-              style={{ color: INK }}
+              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
+              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Comprehensive dental care, gently delivered.
             </h2>
@@ -403,8 +527,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 Our team
               </p>
               <h2
-                className="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-[1.1] tracking-[-0.02em]"
-                style={{ color: INK }}
+                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 The people who care for you.
               </h2>
@@ -478,8 +602,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 In their words
               </p>
               <h2
-                className="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-[1.1] tracking-[-0.02em]"
-                style={{ color: INK }}
+                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Patients on the experience.
               </h2>
@@ -547,8 +671,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 Inside the office
               </p>
               <h2
-                className="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-[1.1] tracking-[-0.02em]"
-                style={{ color: INK }}
+                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 A space designed to put you at ease.
               </h2>
@@ -735,8 +859,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               {isPro ? 'Book online' : 'Get in touch'}
             </p>
             <h2
-              className="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-[1.1] tracking-[-0.02em] mb-5"
-              style={{ color: INK }}
+              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
+              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               {isPro ? "Let's get you on the schedule." : "We'd love to see you."}
             </h2>
@@ -923,6 +1047,48 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 // Testimonial card — shared between the static row (≤3 testimonials) and
 // the marquee track (>3). Same warm-neutral card shape used pre-marquee.
 // ────────────────────────────────────────────────────────────────────────
+
+// ────────────────────────────────────────────────────────────────────────
+// BlobPhoto — the organic-shape photo panel that flanks the hero's center
+// text column. Asymmetric border-radius (with a small per-side rotation
+// for the right blob) gives the pebble/blob feel without an SVG mask, so
+// the whole thing stays server-renderable and degrades cleanly when no
+// image is available (the colored panel still anchors the composition).
+// ────────────────────────────────────────────────────────────────────────
+
+function BlobPhoto({
+  src,
+  bg,
+  shape,
+  aspect,
+}: {
+  src: string | null
+  bg: string
+  shape: 'left' | 'right'
+  aspect: string
+}) {
+  // Two slightly different pebble shapes so the left/right blobs don't look
+  // like mirror copies — small asymmetry sells the organic vibe.
+  const radii =
+    shape === 'left'
+      ? '62% 38% 55% 45% / 50% 60% 40% 50%'
+      : '45% 55% 38% 62% / 60% 50% 50% 40%'
+  return (
+    <div
+      className={`relative overflow-hidden w-full ${aspect}`}
+      style={{ borderRadius: radii, backgroundColor: bg }}
+    >
+      {src ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={src}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : null}
+    </div>
+  )
+}
 
 function TestimonialCard({ t, brand }: { t: ClinicTestimonial; brand: string }) {
   return (
