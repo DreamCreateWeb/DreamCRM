@@ -40,6 +40,33 @@ function fmt12(time: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
+/** First sentence of a longer about paragraph — used as the hero subhead so
+ *  the H1 stays a clean value-prop statement and the warm context lives one
+ *  beat below it. Falls back to the whole string when no terminator is
+ *  found. */
+function firstSentence(text: string): string {
+  const m = text.trim().match(/^[\s\S]+?[.!?](?=\s|$)/)
+  return m ? m[0] : text.trim()
+}
+
+const HONORIFICS = new Set(['dr.', 'dr', 'mr.', 'mr', 'mrs.', 'mrs', 'ms.', 'ms'])
+const POST_NOMINALS = /(,\s*)?(rdh|dds|dmd|md|np|rn|phd)\.?$/i
+
+/** Initials chip for staff who haven't uploaded a photo yet. Strips common
+ *  honorifics ("Dr. Jane Lee" → "JL", not "DJ") + post-nominals
+ *  ("Maria Vega, RDH" → "MV", not "MR") so the chip reads as the person's
+ *  actual name rather than their credentials. */
+function staffInitials(fullName: string): string {
+  const cleaned = fullName.trim().replace(POST_NOMINALS, '').trim()
+  const words = cleaned
+    .split(/\s+/)
+    .filter((w) => w && !HONORIFICS.has(w.toLowerCase()))
+  if (words.length === 0) return '?'
+  const first = words[0][0]
+  const last = words.length > 1 ? words[words.length - 1][0] : ''
+  return (first + last).toUpperCase()
+}
+
 interface HourEntry { open?: string; close?: string; closed?: boolean }
 type HoursMap = Record<string, HourEntry>
 
@@ -194,29 +221,44 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           />
         )}
         <div className="relative max-w-[1240px] mx-auto px-5 sm:px-8 py-24 sm:py-32 lg:py-40">
-          <div className="max-w-[640px]">
-            {(primaryLocation?.city || profile.city) && (
-              <p
-                className="text-xs font-semibold uppercase tracking-[0.16em] mb-6"
-                style={{ color: brand }}
-              >
-                {primaryLocation?.city
-                  ? `${primaryLocation.city}, ${primaryLocation.state}`
-                  : `${profile.city}, ${profile.state}`}
-              </p>
-            )}
+          <div className="max-w-[760px]">
+            {/* Eyebrow carries the clinic name + city so the H1 can do the
+                real work of stating WHY a patient should come in. The
+                logo + name in the sticky header already establish the
+                brand — repeating it as the headline buries the value
+                prop and reads as boilerplate (every clinic site does it). */}
+            <p
+              className="text-[13px] font-semibold uppercase tracking-[0.18em] mb-6 flex items-center gap-2 flex-wrap"
+              style={{ color: brand }}
+            >
+              <span>{name}</span>
+              {(primaryLocation?.city || profile.city) && (
+                <>
+                  <span aria-hidden="true" className="opacity-50">·</span>
+                  <span>
+                    {primaryLocation?.city
+                      ? `${primaryLocation.city}, ${primaryLocation.state}`
+                      : `${profile.city}, ${profile.state}`}
+                  </span>
+                </>
+              )}
+            </p>
+            {/* Tagline as H1 — confident, full-width statement type. The
+                fallback voice is anti-shame on purpose (matches DESIGN.md). */}
             <h1
-              className="text-[44px] sm:text-[56px] lg:text-[64px] font-bold leading-[1.05] tracking-[-0.02em] mb-6"
+              className="text-[44px] sm:text-[64px] lg:text-[80px] font-bold leading-[1.02] tracking-[-0.025em] mb-7"
               style={{ color: INK }}
             >
-              {name}
+              {profile.tagline ?? 'Dental care that finally feels human.'}
             </h1>
-            <p
-              className="text-lg sm:text-xl leading-[1.55] mb-10 max-w-[520px]"
-              style={{ color: INK_MUTED }}
-            >
-              {profile.tagline ?? 'No judgment, ever. Just better dental care.'}
-            </p>
+            {profile.about && (
+              <p
+                className="text-lg sm:text-xl leading-[1.5] mb-10 max-w-[560px]"
+                style={{ color: INK_MUTED }}
+              >
+                {firstSentence(profile.about)}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-3">
               <a
                 href={bookHref}
@@ -300,12 +342,21 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           </div>
           <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
             {services.map((s, i) => (
-              <div key={s.id} className="flex flex-col">
+              <div key={s.id} className="flex flex-col group">
+                {/* Numbered eyebrow doubles as a hover-affordance hint — the
+                    thin underline reveal mirrors the Tend service-card
+                    interaction without us needing a real link wrapping the
+                    item (services aren't pages yet). */}
                 <span
-                  className="text-sm font-semibold tracking-[0.12em] mb-4"
+                  className="text-sm font-semibold tracking-[0.12em] mb-4 inline-flex items-center gap-2"
                   style={{ color: brand }}
                 >
-                  {String(i + 1).padStart(2, '0')}
+                  <span>{String(i + 1).padStart(2, '0')}</span>
+                  <span
+                    aria-hidden="true"
+                    className="h-px w-0 group-hover:w-8 transition-[width] duration-300"
+                    style={{ backgroundColor: brand }}
+                  />
                 </span>
                 <h3 className="text-xl font-semibold mb-3 leading-tight" style={{ color: INK }}>
                   {s.name}
@@ -351,17 +402,28 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               }`}
             >
               {staff.map((s) => (
-                <div key={s.id} className="flex flex-col">
+                <div key={s.id} className="flex flex-col group">
                   <div
-                    className="aspect-[4/5] w-full rounded-2xl overflow-hidden mb-5"
+                    className="aspect-[4/5] w-full rounded-2xl overflow-hidden mb-5 transition-transform duration-300 group-hover:-translate-y-0.5"
                     style={{ backgroundColor: BORDER }}
                   >
                     {s.photoUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={s.photoUrl} alt={s.name} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-5xl opacity-30">
-                        👤
+                      // No-photo state: warm gradient panel with the staff
+                      // member's initials. Replaces the prior emoji (👤),
+                      // which read as "unfinished site" rather than as a
+                      // deliberate placeholder.
+                      <div
+                        className="w-full h-full flex items-center justify-center text-5xl font-bold"
+                        style={{
+                          background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
+                          color: brand,
+                        }}
+                        aria-label={s.name}
+                      >
+                        {staffInitials(s.name)}
                       </div>
                     )}
                   </div>
@@ -484,7 +546,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               }`}
             >
               {officePhotos.slice(0, 4).map((p) => (
-                <figure key={p.id}>
+                <figure key={p.id} className="group">
                   <div
                     className="overflow-hidden rounded-2xl"
                     style={{ backgroundColor: BORDER }}
@@ -493,7 +555,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     <img
                       src={p.url}
                       alt={p.alt ?? ''}
-                      className="w-full aspect-[4/5] object-cover"
+                      className="w-full aspect-[4/5] object-cover transition-transform duration-500 ease-out group-hover:scale-[1.025]"
                       loading="lazy"
                     />
                   </div>
@@ -818,7 +880,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 function TestimonialCard({ t, brand }: { t: ClinicTestimonial; brand: string }) {
   return (
     <figure
-      className="rounded-2xl p-7 sm:p-8 flex flex-col h-full"
+      className="rounded-2xl p-7 sm:p-8 flex flex-col h-full transition-transform duration-300 hover:-translate-y-0.5"
       style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
     >
       <blockquote
@@ -888,9 +950,11 @@ function TestimonialsMarquee({
   brand: string
   surface: string
 }) {
-  // ~8 seconds of stage time per testimonial, with a 30s floor so 4-5
-  // testimonials still loop at a calm pace.
-  const durationSec = Math.max(30, testimonials.length * 8)
+  // ~12 seconds of stage time per testimonial, with a 60s floor so the
+  // perceived repetition stays subdued even at low counts (5 testimonials
+  // cycle in a full minute rather than 40 seconds, which felt frenetic
+  // and made the "wait, I've seen this one" sensation acute).
+  const durationSec = Math.max(60, testimonials.length * 12)
   // Stable suffix so two clinic-site renders on the same page don't fight
   // over CSS class names. Built from the testimonial id list — same data,
   // same hash, so SSR + hydration agree.
