@@ -1,10 +1,7 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 
-// Warm-neutral tokens shared with the modern template + intake pages.
-const BG = '#FAF7F2'
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
+const { BG, INK, INK_MUTED, BORDER } = CLINIC_THEME
 
 /**
  * Minimal public chrome for the blog index + post pages (and the auth-gated

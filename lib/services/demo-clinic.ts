@@ -7,6 +7,7 @@ import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-
 import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { seedDemoPms } from '@/lib/services/pms'
+import { DEFAULT_FAQ_ITEMS } from '@/lib/types/clinic-content'
 
 /**
  * Demo-clinic seeder. Creates a fully-populated clinic org so platform
@@ -440,6 +441,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         officePhotos: schema.clinicProfile.officePhotos,
         logoUrl: schema.clinicProfile.logoUrl,
         heroImageUrl: schema.clinicProfile.heroImageUrl,
+        faq: schema.clinicProfile.faq,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -468,6 +470,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (!profile?.officePhotos) patch.officePhotos = DEMO_OFFICE_PHOTOS
     if (!profile?.logoUrl) patch.logoUrl = DEMO_LOGO_URL
     if (!profile?.heroImageUrl) patch.heroImageUrl = DEMO_HERO_IMAGE_URL
+    // FAQ backfill: legacy demos seeded before migration 0036 added the
+    // faq column have null here, so the public /faq page falls back to the
+    // universal DEFAULT_FAQ_ITEMS but the demo is missing its "edited"
+    // state. Seed the defaults so the editor + render-from-DB path both
+    // exercise the column. Skips when the demo has been hand-edited.
+    if (!profile?.faq) patch.faq = DEFAULT_FAQ_ITEMS
     if (Object.keys(patch).length > 0) {
       await db
         .update(schema.clinicProfile)
@@ -851,6 +859,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // the seeded testimonials can reference real patient records.
     testimonials: [],
     officePhotos: DEMO_OFFICE_PHOTOS,
+    faq: DEFAULT_FAQ_ITEMS,
     planTier: 'premium',
     subscriptionStatus: 'active',
   })

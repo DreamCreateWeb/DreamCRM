@@ -28,11 +28,13 @@ export const clinicProfile = pgTable('clinic_profile', {
   // testimonials:  Array<{ id, quote, authorName, authorLocation?, authorPhotoUrl? }>
   // stats:         Array<{ id, value, label }>
   // officePhotos:  Array<{ id, url, alt?, caption? }>
+  // faq:           Array<{ id, category, question, answer }>
   services: jsonb('services'),
   staff: jsonb('staff'),
   testimonials: jsonb('testimonials'),
   stats: jsonb('stats'),
   officePhotos: jsonb('office_photos'),
+  faq: jsonb('faq'),
 
   // Contact
   phone: text('phone'),

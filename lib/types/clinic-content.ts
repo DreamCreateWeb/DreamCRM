@@ -71,9 +71,63 @@ export interface BlogFaqItem {
   a: string
 }
 
+/** A clinic-level FAQ entry — rendered on /faq and emitted as FAQPage JSON-LD.
+ *  Distinct from BlogFaqItem (which is per-post). Universal dental defaults
+ *  seeded by DEFAULT_FAQ_ITEMS; clinics edit in v1.1 via the settings UI. */
+export interface ClinicFaqItem {
+  id: string
+  category: string
+  question: string
+  answer: string
+}
+
+export const FAQ_CATEGORIES = [
+  'Booking',
+  'Your Visit',
+  'Insurance',
+  'Office',
+  'Billing',
+] as const
+export type ClinicFaqCategory = (typeof FAQ_CATEGORIES)[number]
+
 export const DEFAULT_SERVICES: ClinicService[] = [
   { id: 'cleanings', name: 'Cleanings & Exams', icon: '🦷' },
   { id: 'cosmetic', name: 'Cosmetic Dentistry', icon: '✨' },
   { id: 'restorations', name: 'Restorations', icon: '🔧' },
   { id: 'emergency', name: 'Emergency Care', icon: '😌' },
+]
+
+/** Universal dental FAQ defaults — seeded by demo + used as fallback on
+ *  /faq when a clinic hasn't customized. Written in the anti-shame,
+ *  warm voice per DESIGN.md. */
+export const DEFAULT_FAQ_ITEMS: ClinicFaqItem[] = [
+  // Booking
+  { id: 'faq-book-1', category: 'Booking', question: 'How do I book my first visit?',
+    answer: 'You can book online any time, or give us a call during office hours. New patients usually find a time within the same week.' },
+  { id: 'faq-book-2', category: 'Booking', question: 'What if I need to reschedule?',
+    answer: 'No problem — just call or email us. We ask for 24 hours notice when you can, but we understand life happens.' },
+  { id: 'faq-book-3', category: 'Booking', question: "It's been a while since I've seen a dentist — is that okay?",
+    answer: "Absolutely. Whether it's been six months or six years, you'll be met without judgment. We meet you where you are." },
+  // Your Visit
+  { id: 'faq-visit-1', category: 'Your Visit', question: 'What should I bring to my first appointment?',
+    answer: "A photo ID and your insurance card if you have one. We'll send any intake forms ahead of time so you can fill them out at home." },
+  { id: 'faq-visit-2', category: 'Your Visit', question: 'How long will my visit take?',
+    answer: 'A new-patient exam and cleaning usually runs about an hour. Routine cleanings after that take 45 minutes.' },
+  { id: 'faq-visit-3', category: 'Your Visit', question: "I'm nervous about the dentist. Can you help?",
+    answer: "You're not alone — dental anxiety is very common. Tell us when you book and at check-in; we'll go slowly, explain what's happening, and pause whenever you need." },
+  // Insurance
+  { id: 'faq-ins-1', category: 'Insurance', question: 'Do you take my insurance?',
+    answer: 'We accept most major PPO plans. Call or message us with your carrier and plan name and we can verify before you come in.' },
+  { id: 'faq-ins-2', category: 'Insurance', question: "What if I don't have insurance?",
+    answer: "No insurance? No problem. We offer affordable self-pay options and can talk through what makes sense before treatment begins." },
+  // Office
+  { id: 'faq-off-1', category: 'Office', question: 'Where are you located and where do I park?',
+    answer: 'You can find our address and directions in the footer of this page, along with parking details.' },
+  { id: 'faq-off-2', category: 'Office', question: 'Is your office wheelchair accessible?',
+    answer: 'Yes — our office is fully accessible. If there is anything we can do to make your visit easier, let us know when you book.' },
+  // Billing
+  { id: 'faq-bill-1', category: 'Billing', question: 'When do I pay?',
+    answer: 'Payment is due at the time of your visit. If your insurance covers a portion, we will bill them directly and let you know your patient responsibility before we start.' },
+  { id: 'faq-bill-2', category: 'Billing', question: 'Do you offer payment plans?',
+    answer: "For larger treatment plans we can work with you on payment options — including third-party financing like CareCredit. Just ask, we don't bite." },
 ]

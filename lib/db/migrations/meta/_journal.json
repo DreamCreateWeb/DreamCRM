@@ -253,6 +253,13 @@
       "when": 1780000293365,
       "tag": "0035_redundant_marvel_zombies",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1780036473216,
+      "tag": "0036_salty_tusk",
+      "breakpoints": true
     }
   ]
 }

@@ -52,6 +52,9 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 
   const urls: UrlEntry[] = [
     { loc: `${base}/`, lastmod, changefreq: 'weekly', priority: '1.0' },
+    { loc: `${base}/about`, lastmod, changefreq: 'monthly', priority: '0.8' },
+    { loc: `${base}/services`, lastmod, changefreq: 'monthly', priority: '0.8' },
+    { loc: `${base}/faq`, lastmod, changefreq: 'monthly', priority: '0.6' },
   ]
   if (isPro) {
     urls.push({ loc: `${base}/book`, lastmod, changefreq: 'monthly', priority: '0.8' })
