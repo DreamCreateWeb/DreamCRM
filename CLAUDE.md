@@ -42,7 +42,11 @@ app/
   (double-sidebar)/  inbox + messages (uses tenant-sidebar v2 + their own inner sidebar)
   (alternative)/     component library + finance demos + utility pages
   site/[slug]/       Public clinic homepage + /book (pro+) — served via
-                     subdomain rewrite from {slug}.dreamcreatestudio.com
+                     subdomain rewrite from {slug}.dreamcreatestudio.com.
+                     layout.tsx loads Fraunces display serif via a runtime
+                     <link> tag (NOT next/font — see Conventions).
+  r/[token]/         Patient review-submission landing (text-first per
+                     Reviews v2). Outside auth; token IS the auth.
   api/auth/[...all]  better-auth handler
   api/webhooks/stripe  Stripe webhook → updates clinic_profile
   api/upload         Vercel Blob upload (auth-gated)
@@ -176,15 +180,47 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   whenever the platform admin enters it, so the demo always showcases
   the latest template.
 - **Modern Family/Wellness clinic site template** (`/site/[slug]`) —
-  Tend-inspired warm off-white palette (`#FAF7F2` bg, `#1C1A17` ink,
-  brand color bounded to CTAs only). Sections: header, photo-driven
-  hero with copy-primacy fallback, stat anchor row, numbered service
-  pillars (01/02/03, capped at 6), team grid (4:5 headshots), long-
-  form testimonials, about, office-tour gallery, hours+location,
-  booking CTA, footer, sticky mobile Book+Call bar. "Book a Visit"
-  copy universal across tiers; anti-shame default subhead. Editable
-  via `/settings/clinic` (services, staff, stats, testimonials, office
-  photos, hours, brand, logo/hero uploads).
+  Tend-inspired composition (see `components/clinic-site/modern-
+  template.tsx`). Warm off-white palette (`#FAF7F2` bg, `#1C1A17` ink,
+  `#FFFFFF` surface, `#E8E2D9` border), clinic brand color drives all
+  CTAs + accent treatments. **Typography: Fraunces serif display
+  headings** in brand color (H1 + every section H2) loaded by
+  `app/site/[slug]/layout.tsx` via runtime `<link>` tag (NOT
+  `next/font/google` — build env doesn't reliably reach Google Fonts,
+  see "Build vs test" gotcha below); Inter for body.
+  **Composition top-down**:
+  (1) brand-colored announcement strip with rotating-style chips
+      (tagline · "No judgment, ever" · "Same-week visits");
+  (2) floating white pill-shaped sticky nav (rounded-full container
+      with backdrop blur, NOT edge-to-edge — warm page color shows at
+      viewport edges);
+  (3) centered hero: 12-col grid 3/6/3 with display-serif H1 in brand
+      color, organic blob photos flanking on desktop (asymmetric
+      border-radius, no SVG mask — left blob = heroImageUrl, right blob
+      = officePhotos[0]), Book + phone pill CTAs side-by-side;
+  (4) pill-shape service carousel right under the hero (horizontal
+      scroll on mobile, wrap on desktop, each links to #services);
+  (5) stats trust card (soft white card with vertical dividers between
+      stat items, brand-color 40-48px numerals);
+  (6) services as soft cream tiles with hover lift (still 01/02/03
+      numbered — our signature vs Tend's icons);
+  (7) team grid (4:5 portraits, gradient initial chip fallback that
+      strips honorifics + post-nominals — `Dr. Jane Lee → JL`,
+      `Maria Vega, RDH → MV`);
+  (8) testimonials → **static 3-card grid (≤3 featured)** OR
+      **continuous looping marquee (>3 featured)** with seamless loop,
+      pause-on-hover, prefers-reduced-motion fallback;
+  (9) about, office-tour gallery (captions always render, alt fallback),
+      hours+location (`id="hours"` anchor);
+  (10) booking CTA section, then 4-column footer (Brand · Explore ·
+       Patients · Today) with live "Open today · 9 AM – 5 PM" / "Closed
+       today" blurb; bottom bar carries © · Staff login · DreamCreate
+       attribution.
+  Plus a floating phone-circle CTA pinned bottom-right (desktop) and
+  the existing sticky Book+Call bar (mobile). "Book a Visit" copy is
+  universal across tiers; basic tier routes Book to `#contact`.
+  Editable via `/settings/clinic` (services, staff, stats, testimonials,
+  office photos, hours, brand, logo/hero uploads).
 - **SEO foundations for clinic sites** — `publicSiteUrl()` canonical
   URL helper (custom domain or subdomain). `clinicJsonLd()` builds a
   schema.org `Dentist` payload (name, address with primary-location
@@ -411,23 +447,44 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   footer with the v1.1 roadmap (multi-page editor, template switcher
   with preview, custom domain wiring, per-page SEO). Deep content
   editing stays at `/settings/clinic`.
-- **Reviews & Reputation v1** — Post-visit review requests across
-  Google / Healthgrades / Facebook. Schema (migration 0023):
-  `clinic_review_config` (per-org platform IDs, 365-day default rate
-  limit, NPS toggle off, auto-trigger toggle off) + `review_request`
-  (status funnel `pending → sent → clicked → completed | skipped |
-  failed`, signed opaque token, optional rating + private feedback
-  for v1.1 NPS path). Service (`lib/services/reviews.ts`):
-  `createAndSendReviewRequest` validates rate-limit + config + opt-in,
-  sends via Resend; `listEligiblePatients` for the "Ready to ask"
-  dashboard list (visit completed last 30d + email opt-in + no recent
-  ask); `getReviewStats` for the 4-KPI funnel. UI: `/reviews`
-  morning-huddle dashboard (Sent · Opened · Reviewed · Ready-to-ask
-  KPIs + platform-mix breakdown + Ready-to-ask one-click send list +
-  recent activity table + inline config panel). Public landing at
-  `/r/<token>` outside auth (token IS the auth, `/r` in middleware
-  PUBLIC_PATHS), platform-pick buttons are server-action forms
-  recording click + redirecting to external write-review URL.
+- **Reviews & Reputation v2** — Post-visit review collection where the
+  **patient writes the review inside DreamCRM**, the text persists,
+  staff just toggles featured/unfeatured on the public site. Patient
+  email/SMS link → `/r/<token>` → form with optional 1-5 stars + 2000-
+  char textarea → submit captures the review. After submit, optional
+  CTAs surface ("Also share on Google / Healthgrades / Facebook / Yelp")
+  so the SEO play stays — but DreamCRM now owns the text.
+  Schema (migration 0023 + 0035): `clinic_review_config` (per-org
+  platform IDs, 365-day default rate limit, NPS toggle off, auto-trigger
+  toggle off) + `review_request` (status funnel `pending → sent →
+  clicked → completed | skipped | failed`, signed opaque token, optional
+  rating, **`review_text` column added by 0035** carrying the patient's
+  actual words). Service (`lib/services/reviews.ts`):
+  `createAndSendReviewRequest` validates rate-limit + config + opt-in
+  and emails via Resend; `submitReviewText({token, text, rating})` is
+  the PRIMARY completion path (text-first); `recordReviewCompleted` is
+  the secondary platform-tap path; `featureReviewAsTestimonial({orgId,
+  patientId})` sources the quote from `review_request.reviewText` (staff
+  can't put words in the patient's mouth — throws "has not submitted a
+  review" when no text exists); `unfeatureReviewTestimonial` removes
+  the linked entry; `listFeaturedTestimonialPatientIds` + `listReviews
+  Received` drive the dashboards.
+  UI: `/reviews` morning-huddle dashboard (Sent · Opened · Reviewed ·
+  Ready-to-ask KPIs + platform-mix breakdown + Ready-to-ask one-click
+  send list + recent activity table with ✓ Featured pills + "Browse
+  received reviews →" CTA when there are completions + inline config
+  panel). `/reviews/received` (new) — read-only review cards with the
+  patient's actual quote in an italic blockquote, star rating, one-
+  click "Feature on website →" / "Remove from website" toggle. Staff
+  CANNOT edit the patient's words. Reviews where the patient went
+  straight to a third-party platform without leaving a copy here get a
+  calm "no text to feature" message and no Feature button.
+  `clinic_profile.testimonials` JSON gains optional `patientId` link so
+  featured testimonials know which CRM patient they're tied to;
+  privacy-first display label denormalized at feature time (`"First L."`
+  + city). Public clinic site testimonials section flips between static
+  3-card grid (≤3 featured) and a looping marquee (>3 — see Public
+  site composition below).
   Research-grounded: Google primary (~80% of dental review value),
   Healthgrades > Facebook for healthcare reputation, **Yelp opt-in
   only** (Yelp filters solicited reviews → prompts hurt more than help;
@@ -435,9 +492,15 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   every recipient, FTC-clean per the 2024 Fake Reviews Rule ($53k per
   violation; Podium is the cautionary tale). 365-day rate limit
   matches NiceJob lockout dialed conservative for dental visit cadence.
-  Manual send in v1; auto-trigger 24h after `appointment.status='
-  completed'` is v1.1 (cron-driven; `autoSendEnabled` schema bit ready).
-  Demo seeder pump: 6 review_request rows covering every funnel state.
+  Auto-trigger 24h after `appointment.status='completed'` is v1.1
+  scaffolded (handler exists, needs EventBridge schedule rule). Demo
+  seeder pump: 7 completed reviews (Mia / Liam / Charlotte / Emma /
+  Noah / Mason / Ava) with full text in `review_text` (`DEMO_REVIEW_
+  TEXTS` map is the single source of truth) + 5 pre-promoted as
+  testimonials (`DEMO_FEATURED_PATIENT_IDXS = [0, 2, 6, 7, 11]`); the
+  other 2 stay unfeatured as live CTA targets on `/reviews/received`.
+  Self-heal block backfills `review_text` on legacy demos seeded before
+  migration 0035 + relinks testimonials to real patients.
 - **PMS Integrations v1 (Open Dental, two-way)** — the orbital layer
   wrapping the clinic's existing PMS. Schema (migration 0033):
   `pms_connection` (per-org: provider, status, AES-encrypted Customer
@@ -589,7 +652,7 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Daily | Inbox | `/inbox` | Live | Gmail integration, real-time SSE, triage, threading |
 | Daily | Intake Forms | `/intake-forms` | **Live (v1)** | Builder + public fill at `{slug}.dreamcreatestudio.com/intake/[formSlug]` |
 | Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
-| Growth | Reviews | `/reviews` | **Live (v1)** | Post-visit review requests across Google / Healthgrades / Facebook (Yelp opt-in only per industry pattern — their solicited-review filter penalizes prompts). Morning-huddle dashboard: 4-stat funnel (Sent · Opened · Reviewed · Ready-to-ask) + platform mix breakdown + "Ready to ask" list with one-click send per eligible patient + recent activity table + inline config panel. Public landing at `/r/<token>` with multi-platform tap-through, no NPS gating (FTC-clean per the 2024 Fake Reviews Rule). 365-day default rate limit. Manual send in v1; auto-trigger on appointment completion is v1.1 (cron-driven). |
+| Growth | Reviews | `/reviews` + `/reviews/received` | **Live (v2)** | Post-visit review collection — **patient writes the review text inside DreamCRM** (`review_request.review_text`, migration 0035), staff just toggles featured/unfeatured on the public site. Morning-huddle dashboard: 4-stat funnel (Sent · Opened · Reviewed · Ready-to-ask) + platform mix breakdown + Ready-to-ask list + recent activity with ✓ Featured pills + Browse received CTA + inline config. `/reviews/received` shows the patient's actual quote in a read-only italic blockquote + star rating + one-click Feature/Unfeature (staff CANNOT edit). Public landing at `/r/<token>` is text-first: rating + textarea + Submit, then "Also share on Google/Healthgrades/Facebook/Yelp?" as a secondary action (SEO play preserved). `featureReviewAsTestimonial({orgId, patientId})` sources quote from `review_request.reviewText` — throws "has not submitted a review" when null. `clinic_profile.testimonials` gains `patientId` link; display label denormalized to "First L." + city. Featured testimonials surface on the public site (static 3-card grid ≤3, looping marquee >3). FTC-clean (2024 Fake Reviews Rule), no NPS gating, 365-day rate limit. Auto-trigger on appointment completion = v1.1 scaffolded (handler exists, needs EventBridge rule). |
 | Growth | Analytics | `/analytics` | **Live (v1)** | Premium-tier. The honest CRM-vs-PMS split: read-only aggregation (no new schema) over data other modules already capture. 5 bands — Acquisition (new patients via firstSeenAt + source mix + a real GSC-clicks→leads→contacted→converted website funnel), Schedule health (volume trend + no-show/cancellation/confirmation rates vs an industry benchmark, with a low-volume guard that shows counts instead of a misleading % on small samples), Recall & outreach (recall-due reuses listPatients + sent→opened→clicked→booked), Reputation (review funnel + platform mix, reuses getReviewStats), and an honest "Lives in your PMS" deferral block (production $, procedure mix, hygiene reappt %, AR aging) that arrives with Integrations rather than being faked. 30/90-day toggle. Aggregates existing demo data — no seeder change |
 | Website | Website Editor | `/website` | **Live (v1)** | Per DESIGN.md "the website is the trunk" — promoted out of Settings into a real dashboard. Hero with View-live-site CTA + public URL, 4-stat row (template / brand color / plan / setup completion), 12-item Setup checklist (required vs optional, with ✓ Set / ~ Partial / ⚠ Missing pills per item, each linking to /settings/clinic for the deep edit), Public surfaces list (homepage / book / intake forms / sitemap / robots / OG image — each with View link), Locations summary, "Coming next" footer with the v1.1 roadmap. Deep content editing remains at /settings/clinic |
 | Website | Blog | `/blog` | Soon | Phase 1 placeholder — Tiptap editor + SEO + AI-assisted drafts |
@@ -824,7 +887,7 @@ the third-party integrations that aren't AWS-native. Inventory below.
 ### Pre-migration code hygiene
 
 Already done (no action needed):
-- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0034 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; until then they're queued on `claude/epic-darwin-tJEsE`)
+- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0035 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; 0035 adds `review_request.review_text`)
 - Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108)
 - 627/627 tests passing, typecheck clean
 - No uncommitted changes on `main`
@@ -876,7 +939,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0034): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0035): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its
@@ -942,6 +1005,16 @@ To-do in the AWS migration session (rough order):
   + tenant context see the new state on the next request.
 - Stripe / DB / better-auth clients are lazy `Proxy` instances so
   `next build` can run without runtime envs.
+- **For UI / public-site / font / next-config PRs, run `pnpm build` —
+  not just `pnpm test` — before claiming the PR is shippable.** Tests
+  use happy-dom and never exercise the production build path, so they
+  miss whole classes of issues: `next/font/google` configs that the
+  build env can't fulfill (CodeBuild's outbound to fonts.googleapis.com
+  is unreliable — PR #166 broke prod this way, #167 fixed it by
+  switching to a runtime `<link>` tag), turbopack module-resolution
+  surprises, server/client boundary slips, etc. If the change touches
+  the template, layout, or anything font/build-related, `pnpm build`
+  is the only signal that proves it'll deploy.
 - **No fake content. Every UI placeholder must read from a real DB column,
   and the Acme demo seeder must populate every column shown anywhere in
   the UI.** "Coming soon" cards with `status: 'soon'` in the module
