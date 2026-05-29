@@ -139,4 +139,39 @@ describe('FaqPage', () => {
     // …and none of the default questions are shown when the clinic has its own.
     expect(screen.queryByText('How do I book my first visit?')).not.toBeInTheDocument()
   })
+
+  it('treats an empty faq array as "no custom faq" and renders the defaults', async () => {
+    // Edge case: an empty array is semantically the same as null — the clinic
+    // has no overrides — so the universal DEFAULT_FAQ_ITEMS must still surface
+    // instead of leaving the page empty.
+    await renderPage(makeData({ faq: [] as never }))
+    for (const item of DEFAULT_FAQ_ITEMS) {
+      expect(screen.getByText(item.question)).toBeInTheDocument()
+    }
+  })
+
+  it('emits FAQPage JSON-LD that mirrors the rendered FAQ items', async () => {
+    const { container } = await renderPage()
+    const scripts = container.querySelectorAll<HTMLScriptElement>(
+      'script[type="application/ld+json"]',
+    )
+    expect(scripts.length).toBeGreaterThan(0)
+    const payload = JSON.parse(scripts[0].textContent || '{}') as {
+      '@context'?: string
+      '@type'?: string
+      mainEntity?: Array<{
+        '@type'?: string
+        name?: string
+        acceptedAnswer?: { '@type'?: string; text?: string }
+      }>
+    }
+    expect(payload['@context']).toBe('https://schema.org')
+    expect(payload['@type']).toBe('FAQPage')
+    expect(payload.mainEntity).toBeInstanceOf(Array)
+    expect(payload.mainEntity!.length).toBe(DEFAULT_FAQ_ITEMS.length)
+    expect(payload.mainEntity![0]['@type']).toBe('Question')
+    expect(payload.mainEntity![0].name).toBe(DEFAULT_FAQ_ITEMS[0].question)
+    expect(payload.mainEntity![0].acceptedAnswer?.['@type']).toBe('Answer')
+    expect(payload.mainEntity![0].acceptedAnswer?.text).toBe(DEFAULT_FAQ_ITEMS[0].answer)
+  })
 })

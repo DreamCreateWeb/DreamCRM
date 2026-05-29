@@ -1,12 +1,19 @@
 import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
+import {
+  getClinicSiteBySlug,
+  publicSiteUrl,
+  resolveSiteBasePath,
+  appBaseUrl,
+} from '@/lib/services/clinic-site'
+import { listPublishedPosts } from '@/lib/services/blog'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
-import BlogChrome from '@/components/clinic-site/blog-chrome'
+import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import SiteHeader from '@/components/clinic-site/site-header'
+import SiteFooter from '@/components/clinic-site/site-footer'
+import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
+const { BG, INK, INK_MUTED, BORDER } = CLINIC_THEME
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -38,61 +45,110 @@ export default async function ClinicCareersPage({ params }: Props) {
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
   const jobs = await getOpenJobs(data.orgId)
+  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
+  const hasBlog = publishedPosts.length > 0
   const cityState = [data.primaryLocation?.city, data.primaryLocation?.state].filter(Boolean).join(', ')
 
-  return (
-    <BlogChrome data={data} basePath={basePath}>
-      <div className="max-w-[900px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
-        <div className="mb-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: brand }}>
-            Careers
-          </p>
-          <h1 className="text-4xl sm:text-5xl font-bold leading-[1.05] tracking-[-0.02em]" style={{ color: INK }}>
-            Join the {name} team
-          </h1>
-          <p className="text-lg leading-[1.55] mt-3 max-w-[560px]" style={{ color: INK_MUTED }}>
-            We&apos;re always looking for kind, talented people who care about patients. Here&apos;s what we&apos;re
-            hiring for right now.
-          </p>
-        </div>
+  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
+  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookLabel = 'Book a Visit'
+  const signIn = `${appBaseUrl()}/signin`
 
-        {jobs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed py-16 text-center" style={{ borderColor: BORDER, color: INK_MUTED }}>
-            <p className="text-base">No open positions at the moment — check back soon, or reach out to introduce yourself.</p>
+  const navLinks: Array<{ label: string; href: string }> = [
+    { label: 'Services', href: `${basePath}/services` },
+    { label: 'About', href: `${basePath}/about` },
+    { label: 'FAQ', href: `${basePath}/faq` },
+    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
+    { label: 'Contact', href: `${basePath || '/'}#contact` },
+  ]
+
+  return (
+    <div
+      className="min-h-screen antialiased"
+      style={{
+        backgroundColor: BG,
+        color: INK,
+        fontFamily: 'var(--font-sans, Inter, sans-serif)',
+      }}
+    >
+      <SiteHeader
+        data={data}
+        basePath={basePath}
+        navLinks={navLinks}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
+        signInUrl={signIn}
+      />
+
+      <main>
+        <div className="max-w-[900px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
+          <div className="mb-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: brand }}>
+              Careers
+            </p>
+            <h1 className="text-4xl sm:text-5xl font-bold leading-[1.05] tracking-[-0.02em]" style={{ color: INK }}>
+              Join the {name} team
+            </h1>
+            <p className="text-lg leading-[1.55] mt-3 max-w-[560px]" style={{ color: INK_MUTED }}>
+              We&apos;re always looking for kind, talented people who care about patients. Here&apos;s what we&apos;re
+              hiring for right now.
+            </p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {jobs.map((j) => {
-              const comp = formatComp(j)
-              return (
-                <a
-                  key={j.id}
-                  href={`${basePath}/careers/${j.slug}`}
-                  className="block rounded-2xl border p-5 sm:p-6 transition hover:shadow-sm"
-                  style={{ borderColor: BORDER, backgroundColor: '#fff' }}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-xl font-bold tracking-[-0.01em]" style={{ color: INK }}>{j.title}</h2>
-                      <p className="text-[14px] mt-1" style={{ color: INK_MUTED }}>
-                        {ROLE_LABELS[j.role]} · {EMPLOYMENT_LABELS[j.employmentType]}
-                        {comp ? ` · ${comp}` : ''}
-                        {cityState ? ` · ${cityState}` : ''}
-                      </p>
+
+          {jobs.length === 0 ? (
+            <div className="rounded-2xl border border-dashed py-16 text-center" style={{ borderColor: BORDER, color: INK_MUTED }}>
+              <p className="text-base">No open positions at the moment — check back soon, or reach out to introduce yourself.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {jobs.map((j) => {
+                const comp = formatComp(j)
+                return (
+                  <a
+                    key={j.id}
+                    href={`${basePath}/careers/${j.slug}`}
+                    className="block rounded-2xl border p-5 sm:p-6 transition hover:shadow-sm"
+                    style={{ borderColor: BORDER, backgroundColor: '#fff' }}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-xl font-bold tracking-[-0.01em]" style={{ color: INK }}>{j.title}</h2>
+                        <p className="text-[14px] mt-1" style={{ color: INK_MUTED }}>
+                          {ROLE_LABELS[j.role]} · {EMPLOYMENT_LABELS[j.employmentType]}
+                          {comp ? ` · ${comp}` : ''}
+                          {cityState ? ` · ${cityState}` : ''}
+                        </p>
+                      </div>
+                      <span
+                        className="shrink-0 text-[13px] font-semibold px-4 py-2 rounded-full"
+                        style={{ backgroundColor: brand, color: '#fff' }}
+                      >
+                        View &amp; apply
+                      </span>
                     </div>
-                    <span
-                      className="shrink-0 text-[13px] font-semibold px-4 py-2 rounded-full"
-                      style={{ backgroundColor: brand, color: '#fff' }}
-                    >
-                      View &amp; apply
-                    </span>
-                  </div>
-                </a>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </BlogChrome>
+                  </a>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </main>
+
+      <SiteFooter
+        data={data}
+        basePath={basePath}
+        navLinks={navLinks}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
+        signInUrl={signIn}
+      />
+
+      <SiteMobileActions
+        data={data}
+        basePath={basePath}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
+      />
+    </div>
   )
 }

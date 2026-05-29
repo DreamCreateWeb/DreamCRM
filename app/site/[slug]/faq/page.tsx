@@ -14,6 +14,7 @@ import {
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
+import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -101,6 +102,23 @@ export default async function FaqPage({ params }: Props) {
     ),
   ]
 
+  // FAQPage JSON-LD — strong AI-Overview / voice-search signal for YMYL
+  // health content (mirrors the BlogPosting FAQ payload pattern). Pulls
+  // from the same `faq` list that the page renders, so the schema and the
+  // visible content stay in sync.
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faq.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+    })),
+  }
+
   return (
     <div
       className="min-h-screen antialiased"
@@ -110,6 +128,7 @@ export default async function FaqPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -119,6 +138,7 @@ export default async function FaqPage({ params }: Props) {
         signInUrl={signIn}
       />
 
+      <main>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="pt-14 pb-12 sm:pt-20 sm:pb-16">
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
@@ -262,6 +282,8 @@ export default async function FaqPage({ params }: Props) {
         </div>
       </section>
 
+      </main>
+
       <SiteFooter
         data={data}
         basePath={basePath}
@@ -269,6 +291,13 @@ export default async function FaqPage({ params }: Props) {
         bookHref={bookHref}
         bookLabel={bookLabel}
         signInUrl={signIn}
+      />
+
+      <SiteMobileActions
+        data={data}
+        basePath={basePath}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
       />
     </div>
   )

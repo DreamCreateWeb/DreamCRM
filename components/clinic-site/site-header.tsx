@@ -52,11 +52,12 @@ export default function SiteHeader({
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={logoUrl}
-                alt={name}
+                alt=""
                 className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover shrink-0"
               />
             ) : (
               <span
+                aria-hidden="true"
                 className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-white text-sm font-bold shrink-0"
                 style={{ backgroundColor: brand }}
               >

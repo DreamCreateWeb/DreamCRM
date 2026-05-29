@@ -46,6 +46,7 @@ export default function SiteFooter({
                 <img src={logoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
               ) : (
                 <span
+                  aria-hidden="true"
                   className="flex items-center justify-center w-9 h-9 rounded-lg text-white text-sm font-bold shrink-0"
                   style={{ backgroundColor: brand }}
                 >
@@ -124,7 +125,7 @@ export default function SiteFooter({
                 {todaysHoursLabel(hours)}
               </p>
               <a
-                href={`${basePath}#hours`}
+                href={`${basePath || '/'}#hours`}
                 className="inline-block mt-2 text-[13px] font-medium hover:underline"
                 style={{ color: brand }}
               >

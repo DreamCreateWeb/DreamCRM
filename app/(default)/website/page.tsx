@@ -329,6 +329,9 @@ export default async function WebsiteEditorPage() {
         <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
           <ul className="divide-y divide-stone-100 dark:divide-stone-700/40">
             <PublicSurface label="Homepage" href={url} hint="The main /  landing page" />
+            <PublicSurface label="About" href={`${url}/about`} hint="Story, team, office tour, testimonials" />
+            <PublicSurface label="Services" href={`${url}/services`} hint="Full catalog of dental services" />
+            <PublicSurface label="FAQ" href={`${url}/faq`} hint="Category-grouped answers with FAQPage schema" />
             {(planTier === 'pro' || planTier === 'premium') && (
               <PublicSurface label="Book a Visit" href={`${url}/book`} hint="Online booking widget with slot picker" />
             )}
@@ -354,8 +357,8 @@ export default async function WebsiteEditorPage() {
             Coming next
           </p>
           <ul className="text-[12px] text-stone-600 dark:text-stone-300 space-y-1">
-            <li>· Multi-page editor — about page, service detail pages, custom landing pages</li>
-            <li>· <Link href="/blog" className="underline">Blog</Link> + <Link href="/seo" className="underline">SEO dashboard</Link> + <Link href="/careers" className="underline">careers page</Link></li>
+            <li>· Service detail pages, custom landing pages</li>
+            <li>· <Link href="/blog" className="underline">Blog editor</Link> + <Link href="/seo" className="underline">SEO dashboard</Link></li>
             <li>· Template switcher with live preview (Cosmetic / Pediatric variants per DESIGN.md)</li>
             <li>· Custom domain wiring — connect your own clinicname.com instead of the platform subdomain</li>
             <li>· Per-page SEO controls (title, meta, OG image overrides)</li>

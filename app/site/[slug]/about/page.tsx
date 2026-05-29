@@ -16,6 +16,7 @@ import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import { firstSentence, staffInitials } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
+import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import {
   TestimonialCard,
   TestimonialsMarquee,
@@ -114,6 +115,7 @@ export default async function AboutPage({ params }: Props) {
         signInUrl={signIn}
       />
 
+      <main>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="pt-14 pb-16 sm:pt-20 sm:pb-20">
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
@@ -434,6 +436,8 @@ export default async function AboutPage({ params }: Props) {
         </div>
       </section>
 
+      </main>
+
       <SiteFooter
         data={data}
         basePath={basePath}
@@ -441,6 +445,13 @@ export default async function AboutPage({ params }: Props) {
         bookHref={bookHref}
         bookLabel={bookLabel}
         signInUrl={signIn}
+      />
+
+      <SiteMobileActions
+        data={data}
+        basePath={basePath}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
       />
     </div>
   )

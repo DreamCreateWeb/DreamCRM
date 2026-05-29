@@ -11,6 +11,7 @@ import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
+import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -102,6 +103,7 @@ export default async function ServicesPage({ params }: Props) {
         signInUrl={signIn}
       />
 
+      <main>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="pt-14 pb-16 sm:pt-20 sm:pb-20">
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
@@ -151,6 +153,12 @@ export default async function ServicesPage({ params }: Props) {
       {/* ── Services grid ──────────────────────────────────────────────── */}
       <section className="pb-20 sm:pb-28" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-24">
+          <h2
+            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
+            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          >
+            The full catalog.
+          </h2>
           <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
             {services.map((s, i) => (
               <div
@@ -226,6 +234,8 @@ export default async function ServicesPage({ params }: Props) {
         </div>
       </section>
 
+      </main>
+
       <SiteFooter
         data={data}
         basePath={basePath}
@@ -233,6 +243,13 @@ export default async function ServicesPage({ params }: Props) {
         bookHref={bookHref}
         bookLabel={bookLabel}
         signInUrl={signIn}
+      />
+
+      <SiteMobileActions
+        data={data}
+        basePath={basePath}
+        bookHref={bookHref}
+        bookLabel={bookLabel}
       />
     </div>
   )

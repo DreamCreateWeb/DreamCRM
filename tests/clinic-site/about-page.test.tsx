@@ -117,4 +117,19 @@ describe('AboutPage', () => {
     const staffLinks = screen.getAllByRole('link', { name: /Staff login/i })
     expect(staffLinks.length).toBeGreaterThan(0)
   })
+
+  it('basic-tier bookHref routes back to the homepage #contact anchor', async () => {
+    // Pro+ gets the slot picker at /book; basic tier has no /book route so
+    // Book CTAs must route back to the homepage's #contact form anchor —
+    // and the `${basePath || '/'}` pattern lets subdomain mode (basePath='')
+    // still resolve to a valid path instead of a bare `#contact`.
+    await renderPage(makeData({ planTier: 'basic' }))
+    const contactLinks = screen
+      .getAllByRole('link')
+      .filter((a) => a.getAttribute('href') === '/site/acme-dental#contact')
+    expect(contactLinks.length).toBeGreaterThan(0)
+    expect(
+      screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/site/acme-dental/book'),
+    ).toHaveLength(0)
+  })
 })

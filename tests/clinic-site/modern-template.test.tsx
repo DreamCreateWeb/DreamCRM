@@ -393,14 +393,19 @@ describe('ModernTemplate', () => {
   })
 
   it('uses the logo image in the header when provided', () => {
-    render(
+    const { container } = render(
       <ModernTemplate
         data={makeData({ logoUrl: 'https://example.com/logo.png' })}
         basePath="/site/test"
       />,
     )
-    const logo = screen.getByAltText('Test Dental') as HTMLImageElement
-    expect(logo.src).toBe('https://example.com/logo.png')
+    // Logo lives in both the SiteHeader and SiteFooter — both render alt=""
+    // (decorative, since adjacent text carries the clinic name). Find by src.
+    const logos = container.querySelectorAll<HTMLImageElement>(
+      'img[src="https://example.com/logo.png"]',
+    )
+    expect(logos.length).toBeGreaterThan(0)
+    expect(logos[0].src).toBe('https://example.com/logo.png')
   })
 
   it('uses letter mark when no logo is set', () => {
