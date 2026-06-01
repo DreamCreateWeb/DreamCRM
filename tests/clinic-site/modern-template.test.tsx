@@ -304,6 +304,49 @@ describe('ModernTemplate', () => {
     expect(heroSection!.querySelector('a[href$="#contact"], a[href$="/book"]')).not.toBeNull()
   })
 
+  it('renders the hero phone CTA as an outline pill with no icon', () => {
+    render(<ModernTemplate data={makeData({ phone: '(555) 123-4567' })} basePath="/site/test" />)
+    const heroSection = document.querySelector('section.relative.overflow-hidden')
+    const heroPhoneCta = heroSection!.querySelector('a[href="tel:(555) 123-4567"]')
+    expect(heroPhoneCta).not.toBeNull()
+    // No icon SVG inside the hero phone CTA — Tend's pattern is text-only
+    // with a brand-color border + matching text.
+    expect(heroPhoneCta!.querySelector('svg')).toBeNull()
+    // White background (outline pill), not the prior tan fill.
+    expect(heroPhoneCta!.className).toMatch(/bg-white/)
+  })
+
+  it('renders the hero photo backdrops as the hardcoded neutral pastels (not brand color)', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({ brandColor: '#9CAF9F' })}
+        basePath="/site/test"
+      />,
+    )
+    const heroSection = container.querySelector('section.relative.overflow-hidden')!
+    // Walk the hero's hidden lg:block photo wrappers; their inner oval div
+    // carries the inline backgroundColor we hardcode (blue + peach).
+    const html = heroSection.innerHTML
+    expect(html).toMatch(/#B8D4E8/i) // light blue (left photo backdrop)
+    expect(html).toMatch(/#F0D9BD/i) // warm peach (right photo backdrop)
+  })
+
+  it('renders the secondary hero H2 with bold (not italic) emphasis on "all your needs"', () => {
+    render(<ModernTemplate data={makeData()} basePath="/site/test" />)
+    const heroSection = document.querySelector('section.relative.overflow-hidden')!
+    // The secondary H2 lives inside the hero text column.
+    const h2s = Array.from(heroSection.querySelectorAll('h2'))
+    const target = h2s.find((h) => /all your needs/i.test(h.textContent ?? ''))
+    expect(target).toBeDefined()
+    const strong = target!.querySelector('strong')
+    expect(strong).not.toBeNull()
+    expect(strong!.textContent).toMatch(/all your needs/i)
+    // <strong> must NOT carry the italic class — Tend's emphasis is bold-only.
+    expect(strong!.className).not.toMatch(/\bitalic\b/)
+    // Should carry a bold-weight class.
+    expect(strong!.className).toMatch(/font-(bold|semibold)/)
+  })
+
   it('pins the persistent sticky action bar (Book + Login + Phone) to the viewport bottom', () => {
     render(<ModernTemplate data={makeData({ phone: '(555) 123-4567' })} basePath="/site/test" />)
     // The Tend #sticky element — always visible at the bottom across all
