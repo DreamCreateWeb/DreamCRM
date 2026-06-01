@@ -1,8 +1,6 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import type { ClinicService } from '@/lib/types/clinic-content'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
-
-const { INK, INK_MUTED, BORDER } = CLINIC_THEME
 
 interface NavLink {
   label: string
@@ -18,7 +16,18 @@ interface Props {
   signInUrl: string
 }
 
-/** 4-column footer shared across the homepage, /about, /services, /faq. */
+/**
+ * Forest-teal 4-column footer — matches hellotend.com's verbatim footer
+ * composition. Dark `#36514c` background (hard-coded, NOT theme-driven —
+ * the forest-teal pairs cleanly with any clinic brand color, and Tend's
+ * own design holds it constant across regions); white text throughout.
+ *
+ * Columns (per Tend): About · Visit (was "Locations") · Services · Questions.
+ * "Visit" replaces Tend's metro-list with single-location address + hours
+ * (we don't support multi-location displayed in the footer; primary
+ * location only). Brand color is used for hover accents + the "back to
+ * top" link only.
+ */
 export default function SiteFooter({
   data,
   basePath,
@@ -27,139 +36,242 @@ export default function SiteFooter({
   bookLabel,
   signInUrl,
 }: Props) {
-  const { profile } = data
+  const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
   const logoUrl = profile.logoUrl ?? null
   const hours = profile.hours as Record<string, { open?: string; close?: string; closed?: boolean }> | null
   const homeHref = basePath || '/'
 
+  // Forest-teal hard-coded. Not theme-driven because it's visually neutral
+  // against essentially every brand color, mirrors Tend's verbatim, and
+  // keeps the footer as a constant grounding point across all clinics.
+  const FOOTER_BG = '#36514c'
+  const FOOTER_INK = '#FFFFFF'
+  const FOOTER_MUTED = '#C5CFCC'
+  const FOOTER_BORDER = '#476461'
+
+  // About column links — page paths first, blog/careers appended only if
+  // we know they exist (deduplicated against the nav). The nav links
+  // already cover the main pages so we lift those + add the universal
+  // ones that always live in the footer (Privacy, Accessibility) further
+  // down in the legal row, not here.
+  const aboutLinks = navLinks.filter((l) => l.label !== 'Contact')
+
+  const services: ClinicService[] =
+    ((profile.services as ClinicService[] | null) ?? []).slice(0, 8)
+
+  const locationCity = primaryLocation?.city ?? profile.city ?? null
+  const locationState = primaryLocation?.state ?? profile.state ?? null
+  const locationLine = primaryLocation?.addressLine1 ?? profile.addressLine1 ?? null
+  const cityState = [locationCity, locationState].filter(Boolean).join(', ')
+
   return (
-    <footer className="border-t" style={{ borderColor: BORDER }}>
-      <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
-        <div className="grid gap-12 sm:gap-8 sm:grid-cols-2 lg:grid-cols-12">
-          {/* Brand + contact */}
-          <div className="lg:col-span-5 max-w-sm">
-            <a href={homeHref} className="flex items-center gap-2.5 mb-5">
-              {logoUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={logoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className="flex items-center justify-center w-9 h-9 rounded-lg text-white text-sm font-bold shrink-0"
-                  style={{ backgroundColor: brand }}
-                >
-                  {name.charAt(0).toUpperCase()}
-                </span>
-              )}
-              <span className="font-semibold text-[16px]" style={{ color: INK }}>{name}</span>
-            </a>
-            {profile.tagline && (
-              <p className="text-sm leading-[1.6] mb-6" style={{ color: INK_MUTED }}>{profile.tagline}</p>
-            )}
-            <div className="space-y-1.5 text-sm">
-              {(profile.addressLine1 || profile.city) && (
-                <p style={{ color: INK_MUTED }}>
-                  {[profile.addressLine1, [profile.city, profile.state].filter(Boolean).join(', ')]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
-              )}
-              {profile.phone && (
-                <a href={`tel:${profile.phone}`} className="block hover:underline" style={{ color: INK }}>
-                  {profile.phone}
-                </a>
-              )}
-              {profile.email && (
-                <a href={`mailto:${profile.email}`} className="block hover:underline" style={{ color: INK }}>
-                  {profile.email}
-                </a>
-              )}
-            </div>
-          </div>
+    <footer style={{ backgroundColor: FOOTER_BG, color: FOOTER_INK }}>
+      <div className="max-w-[1400px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
+        {/* Logo + clinic name lockup, full-width above columns */}
+        <div className="flex items-center gap-3 mb-12">
+          {logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0"
+              style={{ backgroundColor: brand }}
+            >
+              {name.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <a
+            href={homeHref}
+            className="font-semibold text-xl"
+            style={{ color: FOOTER_INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          >
+            {name}
+          </a>
+        </div>
 
-          {/* Explore */}
-          <div className="lg:col-span-2 lg:col-start-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
-              Explore
-            </p>
-            <ul className="space-y-2.5">
-              {navLinks.map((l) => (
+        <div className="grid gap-12 sm:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          {/* About */}
+          <div>
+            <h2
+              className="text-[18px] sm:text-[20px] font-semibold mb-5"
+              style={{ color: FOOTER_INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              About {name}
+            </h2>
+            <ul className="space-y-3">
+              {aboutLinks.map((l) => (
                 <li key={l.label}>
-                  <a href={l.href} className="text-sm hover:underline" style={{ color: INK }}>{l.label}</a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Patients */}
-          <div className="lg:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
-              Patients
-            </p>
-            <ul className="space-y-2.5">
-              <li>
-                <a href={bookHref} className="text-sm hover:underline" style={{ color: INK }}>{bookLabel}</a>
-              </li>
-              <li>
-                <a href={signInUrl} className="text-sm hover:underline" style={{ color: INK }}>Patient Login</a>
-              </li>
-              {profile.phone && (
-                <li>
-                  <a href={`tel:${profile.phone}`} className="text-sm hover:underline" style={{ color: INK_MUTED }}>
-                    Call to book
+                  <a
+                    href={l.href}
+                    className="text-[15px] hover:underline transition"
+                    style={{ color: FOOTER_INK }}
+                  >
+                    {l.label}
                   </a>
                 </li>
-              )}
+              ))}
+              <li>
+                <a
+                  href={signInUrl}
+                  className="text-[15px] hover:underline transition"
+                  style={{ color: FOOTER_INK }}
+                >
+                  Patient Login
+                </a>
+              </li>
             </ul>
           </div>
 
-          {/* Today's hours — short, scannable */}
-          {hours && Object.keys(hours).length > 0 && (
-            <div className="lg:col-span-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: INK_MUTED }}>
-                Today
-              </p>
-              <p className="text-sm leading-[1.55]" style={{ color: INK }}>
-                {todaysHoursLabel(hours)}
-              </p>
+          {/* Visit */}
+          <div>
+            <h2
+              className="text-[18px] sm:text-[20px] font-semibold mb-5"
+              style={{ color: FOOTER_INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              Visit
+            </h2>
+            <div className="space-y-3 text-[15px]">
+              {locationLine && (
+                <p style={{ color: FOOTER_INK }}>{locationLine}</p>
+              )}
+              {cityState && (
+                <p style={{ color: FOOTER_MUTED }}>{cityState}</p>
+              )}
+              {hours && Object.keys(hours).length > 0 && (
+                <p style={{ color: FOOTER_MUTED }}>{todaysHoursLabel(hours)}</p>
+              )}
               <a
                 href={`${basePath || '/'}#hours`}
-                className="inline-block mt-2 text-[13px] font-medium hover:underline"
+                className="inline-block mt-1 text-[14px] font-medium hover:underline transition"
                 style={{ color: brand }}
               >
                 See all hours →
               </a>
             </div>
+          </div>
+
+          {/* Services */}
+          {services.length > 0 && (
+            <div>
+              <h2
+                className="text-[18px] sm:text-[20px] font-semibold mb-5"
+                style={{ color: FOOTER_INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                Services
+              </h2>
+              <ul className="space-y-3">
+                {services.map((s) => (
+                  <li key={s.id}>
+                    <a
+                      href={`${basePath}/services`}
+                      className="text-[15px] hover:underline transition"
+                      style={{ color: FOOTER_INK }}
+                    >
+                      {s.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
+
+          {/* Questions */}
+          <div>
+            <h2
+              className="text-[18px] sm:text-[20px] font-semibold mb-5"
+              style={{ color: FOOTER_INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              Questions?
+            </h2>
+            <div className="space-y-5 text-[15px]">
+              {profile.phone && (
+                <div>
+                  <p
+                    className="text-[13px] uppercase tracking-[0.14em] mb-1 font-medium"
+                    style={{ color: FOOTER_MUTED }}
+                  >
+                    Call
+                  </p>
+                  <a
+                    href={`tel:${profile.phone}`}
+                    className="hover:underline"
+                    style={{ color: FOOTER_INK }}
+                  >
+                    {profile.phone}
+                  </a>
+                </div>
+              )}
+              {profile.email && (
+                <div>
+                  <p
+                    className="text-[13px] uppercase tracking-[0.14em] mb-1 font-medium"
+                    style={{ color: FOOTER_MUTED }}
+                  >
+                    Email
+                  </p>
+                  <a
+                    href={`mailto:${profile.email}`}
+                    className="hover:underline break-all"
+                    style={{ color: FOOTER_INK }}
+                  >
+                    {profile.email}
+                  </a>
+                </div>
+              )}
+              <div>
+                <p
+                  className="text-[13px] uppercase tracking-[0.14em] mb-1 font-medium"
+                  style={{ color: FOOTER_MUTED }}
+                >
+                  Book
+                </p>
+                <a
+                  href={bookHref}
+                  className="hover:underline"
+                  style={{ color: FOOTER_INK }}
+                >
+                  {bookLabel}
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Bottom bar */}
+        {/* Bottom legal bar */}
         <div
-          className="mt-14 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm"
-          style={{ borderColor: BORDER }}
+          className="mt-16 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-[13px]"
+          style={{ borderColor: FOOTER_BORDER }}
         >
-          <span style={{ color: INK_MUTED }}>
-            © {new Date().getFullYear()} {name}. All rights reserved.
-          </span>
-          <div className="flex items-center gap-3" style={{ color: INK_MUTED }}>
-            <a href={signInUrl} className="hover:underline" style={{ color: INK_MUTED }}>
-              Staff login
-            </a>
-            <span aria-hidden="true">·</span>
-            <span>
-              Powered by{' '}
-              <a
-                href="https://dreamcreateweb.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium hover:underline"
-                style={{ color: INK }}
-              >
-                DreamCreate
+          <ul
+            className="flex flex-wrap items-center gap-x-5 gap-y-2"
+            style={{ color: FOOTER_MUTED }}
+          >
+            <li>
+              <a href={signInUrl} className="hover:underline" style={{ color: FOOTER_MUTED }}>
+                Staff login
               </a>
-            </span>
+            </li>
+            <li>
+              <a href={homeHref + '#top'} className="hover:underline" style={{ color: FOOTER_MUTED }}>
+                Back to top
+              </a>
+            </li>
+          </ul>
+          <div style={{ color: FOOTER_MUTED }}>
+            © {new Date().getFullYear()} {name}.{' '}
+            <span className="hidden sm:inline">Powered by </span>
+            <a
+              href="https://dreamcreateweb.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium hover:underline"
+              style={{ color: FOOTER_INK }}
+            >
+              DreamCreate
+            </a>
           </div>
         </div>
       </div>

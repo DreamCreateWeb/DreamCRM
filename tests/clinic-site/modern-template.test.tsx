@@ -105,7 +105,12 @@ describe('ModernTemplate', () => {
 
   it('omits about section when not provided', () => {
     render(<ModernTemplate data={makeData({ about: null })} basePath="/site/test" />)
-    expect(screen.queryByText(/^About Test Dental$/)).not.toBeInTheDocument()
+    // The about *section* eyebrow lives in a <p>. The footer also carries
+    // an "About {name}" H2 always — so we narrow to the section-eyebrow tag.
+    const aboutEyebrows = Array.from(document.querySelectorAll('p')).filter(
+      (p) => p.textContent === 'About Test Dental',
+    )
+    expect(aboutEyebrows).toHaveLength(0)
   })
 
   it('renders the about section with the clinic-name eyebrow when provided', () => {
@@ -115,11 +120,11 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
-    // The about block keeps its eyebrow + full paragraph.
-    expect(screen.getByText(/About Test Dental/)).toBeInTheDocument()
-    // The about text appears in TWO places now — its first sentence as the
-    // hero subhead + the full paragraph in the about section. Both are fine
-    // for the single-sentence about above, but use getAllByText to allow it.
+    // The about block keeps its eyebrow + full paragraph. Multiple matches
+    // are fine — the footer also carries an "About {name}" header.
+    expect(screen.getAllByText(/About Test Dental/).length).toBeGreaterThanOrEqual(1)
+    // The about text now appears in THREE places — hero subhead + the
+    // "difference" leadin + the full paragraph in the about section.
     expect(screen.getAllByText(/friendly local dentist office/).length).toBeGreaterThanOrEqual(1)
   })
 
@@ -130,7 +135,9 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
-    expect(screen.getByText(/9:00 AM – 5:00 PM/)).toBeInTheDocument()
+    // 9 AM–5 PM appears in the Hours section AND in the footer "today's
+    // hours" blurb when run on a Monday — accept multiple matches.
+    expect(screen.getAllByText(/9:00 AM – 5:00 PM/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows "Closed" for closed days', () => {
@@ -297,15 +304,15 @@ describe('ModernTemplate', () => {
     expect(heroSection!.querySelector('a[href$="#contact"], a[href$="/book"]')).not.toBeNull()
   })
 
-  it('floats a phone-circle CTA on the right edge (desktop)', () => {
+  it('pins the persistent sticky action bar (Book + Login + Phone) to the viewport bottom', () => {
     render(<ModernTemplate data={makeData({ phone: '(555) 123-4567' })} basePath="/site/test" />)
-    // The fixed circle CTA on the right edge mirrors Tend's pinned phone
-    // affordance. Identified by the aria-label "at" pattern (includes the
-    // phone number) — the sticky mobile bar uses a shorter label.
-    const floatingPhone = document.querySelector(
-      'a[aria-label*="(555) 123-4567"][class*="fixed"]',
+    // The Tend #sticky element — always visible at the bottom across all
+    // breakpoints (vs the prior mobile-only sticky + floating-circle pair).
+    // Carries the phone CTA tagged with the brand-aware Call aria-label.
+    const stickyPhone = document.querySelector(
+      'a[aria-label*="Call Test Dental"][href="tel:(555) 123-4567"]',
     )
-    expect(floatingPhone).not.toBeNull()
+    expect(stickyPhone).not.toBeNull()
   })
 
   it('shows the top announcement strip with the tagline + universal trust chips', () => {
@@ -317,8 +324,10 @@ describe('ModernTemplate', () => {
     )
     // Tagline appears in both the strip AND the hero H1, so accept ≥1.
     expect(screen.getAllByText(/Caring for smiles/i).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText(/No judgment, ever/i)).toBeInTheDocument()
-    expect(screen.getByText(/Same-week visits/i)).toBeInTheDocument()
+    // "No judgment, ever" and "Same-week visits" appear in the strip,
+    // the hero subhead, and the "difference" chip checklist — accept any.
+    expect(screen.getAllByText(/No judgment, ever/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/Same-week visits/i).length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders the Tend-style centered hero composition with the H1 in the brand color', () => {
@@ -453,21 +462,25 @@ describe('ModernTemplate', () => {
     expect(screen.getByText('03')).toBeInTheDocument()
   })
 
-  it('caps services at 6 on the homepage', () => {
+  it('caps services at 6 in the main body sections (hero pills + services grid)', () => {
     const services = Array.from({ length: 10 }, (_, i) => ({
       id: `s${i}`,
       name: `Service ${i}`,
       description: null,
     }))
-    render(
+    const { container } = render(
       <ModernTemplate data={makeData({ services: services as never })} basePath="/site/test" />,
     )
-    // Services 0-5 each appear in the hero pill carousel + the services
-    // section below = 2 nodes each. 6+ aren't rendered anywhere.
-    expect(screen.getAllByText('Service 0').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Service 5').length).toBeGreaterThanOrEqual(1)
-    expect(screen.queryByText('Service 6')).not.toBeInTheDocument()
-    expect(screen.queryByText('Service 9')).not.toBeInTheDocument()
+    // Main body = everything inside <main>. Services 0-5 each appear in
+    // the hero pill carousel + the services section. 6+ never appear
+    // inside <main>. The footer separately surfaces up to 8 entries.
+    const main = container.querySelector('main')
+    expect(main).not.toBeNull()
+    const mainText = main!.textContent ?? ''
+    expect(mainText).toContain('Service 0')
+    expect(mainText).toContain('Service 5')
+    expect(mainText).not.toContain('Service 6')
+    expect(mainText).not.toContain('Service 9')
   })
 
   it('renders the sticky mobile Book + Call bar', () => {
@@ -560,7 +573,7 @@ describe('ModernTemplate', () => {
     )
     expect(screen.getByText(/They made me feel at home/)).toBeInTheDocument()
     expect(screen.getByText('Sarah K.')).toBeInTheDocument()
-    expect(screen.getByText('Brooklyn, NY')).toBeInTheDocument()
+    expect(screen.getByText(/Brooklyn, NY/)).toBeInTheDocument()
   })
 
   it('renders patient-linked testimonials with the denormalized "First L." label', () => {
@@ -588,34 +601,14 @@ describe('ModernTemplate', () => {
     )
     expect(screen.getByText(/Genuinely warm experience/)).toBeInTheDocument()
     expect(screen.getByText('Mia H.')).toBeInTheDocument()
-    expect(screen.getByText('Brooklyn, NY')).toBeInTheDocument()
+    // Location reads inline with the strong author name, separated by '·'.
+    expect(screen.getByText(/Brooklyn, NY/)).toBeInTheDocument()
   })
 
-  // ── Looping marquee (> 3 testimonials) ─────────────────────────────
+  // ── Testimonials carousel (arrow-paginated, Tend-verbatim) ─────────
 
-  it('renders testimonials as a static grid when there are 3 or fewer', () => {
-    const { container } = render(
-      <ModernTemplate
-        data={makeData({
-          testimonials: [
-            { id: 't1', quote: 'q1', authorName: 'A B.', authorLocation: null, authorPhotoUrl: null },
-            { id: 't2', quote: 'q2', authorName: 'C D.', authorLocation: null, authorPhotoUrl: null },
-            { id: 't3', quote: 'q3', authorName: 'E F.', authorLocation: null, authorPhotoUrl: null },
-          ] as never,
-        })}
-        basePath="/site/test"
-      />,
-    )
-    // No marquee structures — the static grid is used.
-    expect(container.querySelector('[aria-roledescription="carousel"]')).toBeNull()
-    // Each testimonial is rendered exactly once (no duplication for the loop).
-    expect(screen.getAllByText(/q1/i)).toHaveLength(1)
-    expect(screen.getAllByText(/q2/i)).toHaveLength(1)
-    expect(screen.getAllByText(/q3/i)).toHaveLength(1)
-  })
-
-  it('switches to the looping marquee when > 3 testimonials are featured', () => {
-    const testimonials = Array.from({ length: 5 }, (_, i) => ({
+  it('uses the arrow-paginated carousel for testimonial sections (no marquee)', () => {
+    const testimonials = Array.from({ length: 3 }, (_, i) => ({
       id: `tm${i}`,
       quote: `Quote ${i}`,
       authorName: `Person ${i}`,
@@ -623,20 +616,16 @@ describe('ModernTemplate', () => {
       authorPhotoUrl: null,
     }))
     const { container } = render(
-      <ModernTemplate
-        data={makeData({ testimonials: testimonials as never })}
-        basePath="/site/test"
-      />,
+      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
     )
-    const marquee = container.querySelector('[aria-roledescription="carousel"]')
-    expect(marquee).not.toBeNull()
-    // Cards are duplicated for the seamless loop — each quote appears twice
-    // in the DOM. Screen readers only see one of each (aria-hidden on dupes).
-    expect(screen.getAllByText(/Quote 0/)).toHaveLength(2)
-    expect(screen.getAllByText(/Quote 4/)).toHaveLength(2)
+    // Carousel wrapper present — labelled by aria-roledescription.
+    expect(container.querySelector('[aria-roledescription="carousel"]')).not.toBeNull()
+    // Each testimonial renders exactly once (no marquee duplication).
+    expect(screen.getAllByText(/Quote 0/)).toHaveLength(1)
+    expect(screen.getAllByText(/Quote 2/)).toHaveLength(1)
   })
 
-  it('hides duplicate marquee cards from assistive tech (aria-hidden on the second pass)', () => {
+  it('exposes Previous and Next buttons for paging the carousel', () => {
     const testimonials = Array.from({ length: 4 }, (_, i) => ({
       id: `tm${i}`,
       quote: `Quote ${i}`,
@@ -644,21 +633,26 @@ describe('ModernTemplate', () => {
       authorLocation: null,
       authorPhotoUrl: null,
     }))
-    const { container } = render(
-      <ModernTemplate
-        data={makeData({ testimonials: testimonials as never })}
-        basePath="/site/test"
-      />,
+    render(
+      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
     )
-    // 4 testimonials × 2 (visible + duplicate) = 8 list items.
-    const items = container.querySelectorAll('[aria-roledescription="carousel"] li')
-    expect(items).toHaveLength(8)
-    // Exactly half should be aria-hidden — the duplicates.
-    const hidden = Array.from(items).filter((el) => el.getAttribute('aria-hidden') === 'true')
-    expect(hidden).toHaveLength(4)
+    expect(screen.getByRole('button', { name: /Previous testimonial/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Next testimonial/i })).toBeInTheDocument()
   })
 
-  it('marquee handles a large set without throwing (50-cap defense)', () => {
+  it('hides the carousel chrome for a single testimonial (buttons would page nothing)', () => {
+    const testimonials = [
+      { id: 't1', quote: 'Solo q', authorName: 'A', authorLocation: null, authorPhotoUrl: null },
+    ]
+    render(
+      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
+    )
+    expect(screen.queryByRole('button', { name: /Previous testimonial/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Next testimonial/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/Solo q/)).toBeInTheDocument()
+  })
+
+  it('caps the carousel render at the 50-testimonial defense limit', () => {
     const testimonials = Array.from({ length: 80 }, (_, i) => ({
       id: `tm${i}`,
       quote: `Q ${i}`,
@@ -667,66 +661,24 @@ describe('ModernTemplate', () => {
       authorPhotoUrl: null,
     }))
     const { container } = render(
-      <ModernTemplate
-        data={makeData({ testimonials: testimonials as never })}
-        basePath="/site/test"
-      />,
-    )
-    // Pre-render cap at 50 testimonials × 2 for the loop = 100 items max.
-    const items = container.querySelectorAll('[aria-roledescription="carousel"] li')
-    expect(items.length).toBe(100)
-  })
-
-  it('marquee duration scales with testimonial count for a calm cadence', () => {
-    // 5 testimonials × 12s/card minimum is 60s — the 60s floor ALSO gives us
-    // 60s for any count ≤ 5. The pin is "at least 60s on the floor" so a
-    // future refactor doesn't accidentally make the loop frantic again.
-    const testimonials = Array.from({ length: 5 }, (_, i) => ({
-      id: `tm${i}`,
-      quote: `Q ${i}`,
-      authorName: `P ${i}`,
-      authorLocation: null,
-      authorPhotoUrl: null,
-    }))
-    const { container } = render(
       <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
     )
-    const styleText = container.querySelector('style')?.textContent ?? ''
-    const m = styleText.match(/animation:\s*\S+\s+(\d+)s\s/)
-    expect(m, 'expected the marquee style block to declare an animation duration').toBeTruthy()
-    expect(Number(m![1])).toBeGreaterThanOrEqual(60)
+    // No duplication — exactly 50 cards in a single track.
+    const items = container.querySelectorAll('[aria-roledescription="carousel"] ul > li')
+    expect(items.length).toBe(50)
   })
 
-  it('marquee animation class names are deterministic (no Math.random — SSR-safe)', () => {
-    const testimonials = Array.from({ length: 5 }, (_, i) => ({
-      id: `stable-${i}`,
-      quote: `Q ${i}`,
-      authorName: `P ${i}`,
-      authorLocation: null,
-      authorPhotoUrl: null,
-    }))
-    const first = render(
-      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
-    )
-    const firstStyle = first.container.querySelector('style')?.textContent ?? ''
-    first.unmount()
-    const second = render(
-      <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
-    )
-    const secondStyle = second.container.querySelector('style')?.textContent ?? ''
-    // Identical testimonial id list → identical generated class names → no
-    // hydration mismatch between SSR + client.
-    expect(firstStyle).toBe(secondStyle)
-  })
-
-  it('renders an initial letter avatar when no testimonial photo is set', () => {
+  it('renders testimonial cards with the patient name in bold (no avatar — Tend pattern)', () => {
+    // Tend's review cards lead with the quote, then a star row, then
+    // "<strong>Author</strong> · Location" — no avatar mark. The carousel
+    // matches that minimal chrome.
     render(
       <ModernTemplate
         data={makeData({
           testimonials: [
             {
               id: 't1',
-              quote: 'Q.',
+              quote: 'Such a calming visit.',
               authorName: 'Marcus T.',
               authorLocation: null,
               authorPhotoUrl: null,
@@ -736,7 +688,11 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
-    expect(screen.getByText('M')).toBeInTheDocument()
+    // Author name carries the <strong> emphasis Tend uses — find ANY
+    // strong with the author text (multiple strongs on the page belong
+    // to other emphasis treatments like "no judgment, ever").
+    const strongs = Array.from(document.querySelectorAll('strong'))
+    expect(strongs.some((s) => s.textContent === 'Marcus T.')).toBe(true)
   })
 
   // ── Office photos ───────────────────────────────────────────────────

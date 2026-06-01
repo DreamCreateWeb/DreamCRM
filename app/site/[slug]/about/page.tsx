@@ -17,10 +17,7 @@ import { firstSentence, staffInitials } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
-import {
-  TestimonialCard,
-  TestimonialsMarquee,
-} from '@/components/clinic-site/modern-template'
+import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -379,27 +376,7 @@ export default async function AboutPage({ params }: Props) {
                 Patients on the experience.
               </h2>
             </div>
-            {testimonials.length > 3 ? (
-              <TestimonialsMarquee
-                testimonials={testimonials}
-                brand={brand}
-                surface={SURFACE}
-              />
-            ) : (
-              <div
-                className={`grid gap-6 lg:gap-8 ${
-                  testimonials.length === 3
-                    ? 'md:grid-cols-3'
-                    : testimonials.length === 2
-                      ? 'md:grid-cols-2 max-w-4xl'
-                      : 'max-w-2xl'
-                }`}
-              >
-                {testimonials.map((t) => (
-                  <TestimonialCard key={t.id} t={t} brand={brand} />
-                ))}
-              </div>
-            )}
+            <TestimonialsCarousel testimonials={testimonials} brand={brand} />
           </div>
         </section>
       )}
