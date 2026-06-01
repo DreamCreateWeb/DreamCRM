@@ -8,7 +8,12 @@ import {
 import { listPublishedPosts } from '@/lib/services/blog'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
+import { DEFAULT_SERVICES, type ClinicService } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import {
+  buildClinicNavLinks,
+  navServicesFromClinicServices,
+} from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -54,13 +59,13 @@ export default async function ClinicCareersPage({ params }: Props) {
   const bookLabel = 'Book a Visit'
   const signIn = `${appBaseUrl()}/signin`
 
-  const navLinks: Array<{ label: string; href: string }> = [
-    { label: 'Services', href: `${basePath}/services` },
-    { label: 'About', href: `${basePath}/about` },
-    { label: 'FAQ', href: `${basePath}/faq` },
-    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
-    { label: 'Contact', href: `${basePath || '/'}#contact` },
-  ]
+  const navLinks = buildClinicNavLinks({
+    basePath,
+    hasBlog,
+    services: navServicesFromClinicServices(
+      (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+    ),
+  })
 
   return (
     <div

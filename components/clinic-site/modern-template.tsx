@@ -8,7 +8,11 @@ import type {
 } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
-import { firstSentence } from '@/lib/clinic-site-helpers'
+import {
+  firstSentence,
+  buildClinicNavLinks,
+  navServicesFromClinicServices,
+} from '@/lib/clinic-site-helpers'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -80,8 +84,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const heroImageUrl = profile.heroImageUrl ?? null
-  const services: ClinicService[] =
-    ((profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES).slice(0, 6)
+  // Full service list (drives the nav dropdowns); `services` stays capped at 6
+  // for the hero body composition below.
+  const allServices: ClinicService[] =
+    (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
+  const services: ClinicService[] = allServices.slice(0, 6)
   const rawStats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
   // Resolve dynamic stats at render. v1: only `review_count` is dynamic.
   // When the live count is 0 AND the stat is dynamic, drop the row rather
@@ -133,13 +140,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const signIn =
     signInUrl ??
     `${(process.env.NEXT_PUBLIC_APP_URL || 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')}/signin`
-  const navLinks: Array<{ label: string; href: string }> = [
-    { label: 'Services', href: `${basePath}/services` },
-    { label: 'About', href: `${basePath}/about` },
-    { label: 'FAQ', href: `${basePath}/faq` },
-    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
-    { label: 'Contact', href: `${basePath}#contact` },
-  ]
+  const navLinks = buildClinicNavLinks({
+    basePath,
+    hasBlog,
+    services: navServicesFromClinicServices(allServices),
+  })
 
   // Value-prop chips repeated in the chartreuse closer strip below the
   // "it's a pleasure" CTA card. Same palette + structure as the top

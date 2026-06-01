@@ -7,13 +7,20 @@ import {
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import type {
+  ClinicService,
   ClinicStaff,
   ClinicStat,
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
+import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
-import { firstSentence, staffInitials } from '@/lib/clinic-site-helpers'
+import {
+  firstSentence,
+  staffInitials,
+  buildClinicNavLinks,
+  navServicesFromClinicServices,
+} from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -79,13 +86,13 @@ export default async function AboutPage({ params }: Props) {
   const bookLabel = 'Book a Visit'
   const signIn = `${appBaseUrl()}/signin`
 
-  const navLinks: Array<{ label: string; href: string }> = [
-    { label: 'Services', href: `${basePath}/services` },
-    { label: 'About', href: `${basePath}/about` },
-    { label: 'FAQ', href: `${basePath}/faq` },
-    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
-    { label: 'Contact', href: `${basePath || '/'}#contact` },
-  ]
+  const navLinks = buildClinicNavLinks({
+    basePath,
+    hasBlog,
+    services: navServicesFromClinicServices(
+      (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+    ),
+  })
 
   const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
   const stats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)

@@ -133,6 +133,57 @@ export const agencyProject = pgTable('agency_project', {
 export type AgencyProject = typeof agencyProject.$inferSelect
 export type NewAgencyProject = typeof agencyProject.$inferInsert
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Service library (platform-owned canonical catalog)
+//
+// The shared, Tend-style service catalog. One canonical entry per dental
+// service (Teeth Whitening, Dental Implants, …); content is written ONCE here
+// and customized per-clinic at render time (Checkpoint 1A: simple
+// `{clinic}`/`{city}` token substitution; 1B: AI rewrites). A clinic's
+// `clinic_profile.services` jsonb references these entries by `librarySlug`;
+// `resolveClinicServices` (lib/services/service-library.ts) merges the library
+// content with per-clinic overrides (photo / offer / category).
+//
+// `origin` distinguishes platform-authored canon ('platform') from
+// clinic-authored additions ('clinic', used in 1B). `status` lets us stage
+// AI-drafted entries ('pending') before they go 'active', and retire entries
+// without deleting them ('archived').
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const serviceLibrary = pgTable('service_library', {
+  id: text('id').primaryKey(),
+  // Stable kebab-case identifier, e.g. 'teeth-whitening'. Routes to
+  // {slug}.dreamcreatestudio.com/services/<slug> for clinics that offer it.
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  // 'core' | 'special' — nav taxonomy only (same detail template). Drives the
+  // /services index grouping + the Core/Special nav dropdowns.
+  category: text('category').notNull().default('core'),
+  icon: text('icon'),
+  // One-liner used on index + nav cards.
+  shortDescription: text('short_description'),
+  // 3-5 benefit bullets for the detail hero. string[]
+  heroBullets: jsonb('hero_bullets'),
+  // 2-3 sentence description-band paragraph.
+  body: text('body'),
+  // Array<{ title, body }> — the numbered "what to expect" walkthrough.
+  processSteps: jsonb('process_steps'),
+  // Array<{ question, answer }> — detail-page FAQ (pricing answered honestly,
+  // no fabricated dollar figures).
+  faq: jsonb('faq'),
+  // string[] — curated adjacencies for the related-services carousel.
+  relatedSlugs: jsonb('related_slugs'),
+  // 'platform' | 'clinic'
+  origin: text('origin').notNull().default('platform'),
+  // 'active' | 'pending' | 'archived'
+  status: text('status').notNull().default('active'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export type ServiceLibraryRow = typeof serviceLibrary.$inferSelect
+export type NewServiceLibraryRow = typeof serviceLibrary.$inferInsert
+
 export const AGENCY_PROJECT_TYPES = [
   'website',
   'ecommerce',

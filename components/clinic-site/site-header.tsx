@@ -2,19 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import type { SiteNavLink } from '@/lib/clinic-site-helpers'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 
 const { INK, INK_MUTED, BORDER } = CLINIC_THEME
 
-interface NavLink {
-  label: string
-  href: string
-}
-
 interface Props {
   data: ClinicSiteData
   basePath: string
-  navLinks: NavLink[]
+  navLinks: SiteNavLink[]
   bookHref: string
   bookLabel: string
   signInUrl: string
@@ -56,6 +52,16 @@ export default function SiteHeader({
   signInUrl,
 }: Props) {
   const [hidden, setHidden] = useState(false)
+  // Which dropdown menu is open (by label). null = none. Opens on hover or
+  // focus/click for keyboard + touch; Escape + outside-click close it.
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenu(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
   useEffect(() => {
     let lastY = typeof window !== 'undefined' ? window.scrollY : 0
     const onScroll = () => {
@@ -234,16 +240,88 @@ export default function SiteHeader({
 
             {/* Centered nav */}
             <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center">
-              {navLinks.map((l) => (
-                <a
-                  key={l.label}
-                  href={l.href}
-                  className="text-[15px] font-medium px-4 py-2 rounded-md transition hover:bg-[#F4EBDD]"
-                  style={{ color: INK }}
-                >
-                  {l.label}
-                </a>
-              ))}
+              {navLinks.map((l) =>
+                l.children && l.children.length > 0 ? (
+                  <div
+                    key={l.label}
+                    className="relative"
+                    onMouseEnter={() => setOpenMenu(l.label)}
+                    onMouseLeave={() => setOpenMenu((m) => (m === l.label ? null : m))}
+                  >
+                    {/* Parent: the label itself navigates to the index; a
+                        separate chevron button toggles the dropdown so the
+                        parent link stays clickable AND keyboard users can open
+                        the menu without losing the link. */}
+                    <span className="inline-flex items-center rounded-md transition hover:bg-[#F4EBDD]">
+                      <a
+                        href={l.href}
+                        className="text-[15px] font-medium pl-4 pr-1 py-2"
+                        style={{ color: INK }}
+                      >
+                        {l.label}
+                      </a>
+                      <button
+                        type="button"
+                        aria-haspopup="menu"
+                        aria-expanded={openMenu === l.label}
+                        aria-label={`${l.label} menu`}
+                        onClick={() =>
+                          setOpenMenu((m) => (m === l.label ? null : l.label))
+                        }
+                        className="pr-3 pl-1 py-2"
+                        style={{ color: INK }}
+                      >
+                        <svg
+                          className={`w-3.5 h-3.5 transition-transform ${
+                            openMenu === l.label ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          aria-hidden="true"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+                    </span>
+                    {openMenu === l.label && (
+                      <ul
+                        role="menu"
+                        aria-label={l.label}
+                        className="absolute left-1/2 -translate-x-1/2 top-full mt-1 min-w-[240px] max-h-[70vh] overflow-y-auto rounded-2xl py-2 z-50"
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          border: `1px solid ${BORDER}`,
+                          boxShadow: '0 12px 32px -8px rgba(28, 26, 23, 0.18)',
+                        }}
+                      >
+                        {l.children.map((c) => (
+                          <li key={c.label} role="none">
+                            <a
+                              role="menuitem"
+                              href={c.href}
+                              className="block px-5 py-2.5 text-[14px] font-medium transition hover:bg-[#F4EBDD]"
+                              style={{ color: INK }}
+                            >
+                              {c.label}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <a
+                    key={l.label}
+                    href={l.href}
+                    className="text-[15px] font-medium px-4 py-2 rounded-md transition hover:bg-[#F4EBDD]"
+                    style={{ color: INK }}
+                  >
+                    {l.label}
+                  </a>
+                ),
+              )}
             </nav>
 
             {/* Right CTAs */}
@@ -270,21 +348,51 @@ export default function SiteHeader({
             </div>
           </div>
 
-          {/* Secondary nav row — visible on mobile only, scrolls horizontally */}
+          {/* Secondary nav row — visible on mobile only. Top-level links
+              scroll horizontally; dropdown parents render their children as an
+              indented sub-row directly beneath so the full service catalog is
+              reachable without a desktop hover. */}
           <nav
-            className="lg:hidden border-t flex items-center gap-1 overflow-x-auto px-5 py-2 text-[14px] font-medium"
+            className="lg:hidden border-t px-5 py-2 text-[14px] font-medium"
             style={{ borderColor: BORDER, color: INK_MUTED }}
           >
-            {navLinks.map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                className="px-3 py-1.5 rounded-full transition hover:bg-[#F4EBDD] shrink-0"
-                style={{ color: INK }}
-              >
-                {l.label}
-              </a>
-            ))}
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {navLinks.map((l) => (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  className="px-3 py-1.5 rounded-full transition hover:bg-[#F4EBDD] shrink-0"
+                  style={{ color: INK }}
+                >
+                  {l.label}
+                </a>
+              ))}
+            </div>
+            {navLinks
+              .filter((l) => l.children && l.children.length > 0)
+              .map((l) => (
+                <div key={`sub-${l.label}`} className="mt-1.5 pl-3">
+                  <p
+                    className="text-[11px] uppercase tracking-[0.14em] mb-1"
+                    style={{ color: INK_MUTED }}
+                  >
+                    {l.label}
+                  </p>
+                  <ul className="flex items-center gap-1 overflow-x-auto pb-1">
+                    {l.children!.map((c) => (
+                      <li key={c.label} className="shrink-0">
+                        <a
+                          href={c.href}
+                          className="inline-block px-3 py-1.5 rounded-full transition hover:bg-[#F4EBDD]"
+                          style={{ color: INK }}
+                        >
+                          {c.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
           </nav>
         </div>
       </div>
