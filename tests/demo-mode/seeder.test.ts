@@ -86,6 +86,14 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+// The canonical service-library seed runs at the very top of createDemoClinic.
+// It has its own dedicated test (tests/services/service-library.test.ts); here
+// we no-op it so it doesn't consume from the staged selectQueue or add
+// untracked inserts to `state.inserts`.
+vi.mock('@/lib/services/service-library', () => ({
+  seedServiceLibrary: vi.fn(async () => {}),
+}))
+
 import { createDemoClinic } from '@/lib/services/demo-clinic'
 
 function tableCounts(): Record<string, number> {

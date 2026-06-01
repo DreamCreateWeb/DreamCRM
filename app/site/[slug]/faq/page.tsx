@@ -6,12 +6,17 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
-import type { ClinicFaqItem } from '@/lib/types/clinic-content'
+import type { ClinicFaqItem, ClinicService } from '@/lib/types/clinic-content'
 import {
   DEFAULT_FAQ_ITEMS,
+  DEFAULT_SERVICES,
   FAQ_CATEGORIES,
 } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import {
+  buildClinicNavLinks,
+  navServicesFromClinicServices,
+} from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -76,13 +81,13 @@ export default async function FaqPage({ params }: Props) {
   const bookLabel = 'Book a Visit'
   const signIn = `${appBaseUrl()}/signin`
 
-  const navLinks: Array<{ label: string; href: string }> = [
-    { label: 'Services', href: `${basePath}/services` },
-    { label: 'About', href: `${basePath}/about` },
-    { label: 'FAQ', href: `${basePath}/faq` },
-    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
-    { label: 'Contact', href: `${basePath || '/'}#contact` },
-  ]
+  const navLinks = buildClinicNavLinks({
+    basePath,
+    hasBlog,
+    services: navServicesFromClinicServices(
+      (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+    ),
+  })
 
   const customFaq = profile.faq as ClinicFaqItem[] | null
   const faq: ClinicFaqItem[] = customFaq && customFaq.length > 0 ? customFaq : DEFAULT_FAQ_ITEMS

@@ -1,11 +1,67 @@
 // Public, client-safe content types stored as JSON on clinic_profile.
 // Used by the clinic site editor and consumed by the public-facing template.
 
+export type ServiceCategory = 'core' | 'special'
+
+export interface ServiceProcessStep {
+  title: string
+  body: string
+}
+
+export interface ServiceFaqItem {
+  question: string
+  answer: string
+}
+
+/**
+ * A canonical service from the shared platform library. Content is written
+ * once (lib/services/service-library-seed.ts) and customized per-clinic at
+ * render — Checkpoint 1A: `{clinic}`/`{city}` token substitution; 1B: AI.
+ *
+ * Core vs special is purely a nav taxonomy: both render the SAME detail
+ * skeleton; `category` controls /services-index grouping + Core/Special nav
+ * dropdown placement + offer-ribbon eligibility.
+ */
+export interface ServiceLibraryEntry {
+  slug: string
+  name: string
+  category: ServiceCategory
+  icon?: string | null
+  shortDescription: string
+  heroBullets: string[]
+  body: string
+  processSteps: ServiceProcessStep[]
+  faq: ServiceFaqItem[]
+  relatedSlugs?: string[]
+}
+
+/**
+ * A clinic's chosen service, stored in `clinic_profile.services` jsonb.
+ *
+ * Legacy rows carry only `{ id, name, description?, icon? }` (free-text,
+ * authored in the settings editor). New rows link to a canonical
+ * `ServiceLibraryEntry` via `librarySlug` — the rich detail-page content
+ * (hero bullets / process / FAQ / related) comes from the library and is
+ * token-substituted at render; the clinic can override `photoUrl` (hero
+ * photo) and `offer` (promo ribbon) per-service. `category` is resolved from
+ * the library entry (or clinic-set for free-text services).
+ */
 export interface ClinicService {
   id: string
   name: string
   description?: string | null
   icon?: string | null
+  /** Links to a `ServiceLibraryEntry.slug` — when set, the detail page pulls
+   *  rich content from the library. Null/absent = free-text legacy service. */
+  librarySlug?: string | null
+  /** Resolved from the library entry, or clinic-set for free-text services.
+   *  Drives /services grouping + nav-dropdown placement. */
+  category?: ServiceCategory | null
+  /** Optional per-clinic hero photo override for the detail page. */
+  photoUrl?: string | null
+  /** Optional promo-ribbon text rendered as a thin brand-color bar atop the
+   *  detail page (and as a card badge on the index). */
+  offer?: string | null
 }
 
 export interface ClinicStaff {

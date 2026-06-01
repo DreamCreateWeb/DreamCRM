@@ -3,11 +3,17 @@ import { and, eq, gte, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
+import { seedServiceLibrary } from '@/lib/services/service-library'
 import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-templates'
 import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { seedDemoPms } from '@/lib/services/pms'
-import { DEFAULT_FAQ_ITEMS, type ClinicStat } from '@/lib/types/clinic-content'
+import {
+  DEFAULT_FAQ_ITEMS,
+  type ClinicStat,
+  type ClinicService,
+} from '@/lib/types/clinic-content'
+import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 
 /**
  * Demo-clinic seeder. Creates a fully-populated clinic org so platform
@@ -244,6 +250,48 @@ const DEMO_STATS = [
   { id: 'st2', value: 'Same-week', label: 'appointments available' },
   { id: 'st3', value: 'Most', label: 'insurance accepted' },
 ]
+
+// Acme's services reference the shared service library by slug — a mix of core
+// + special so the /services index grouping + Core/Special nav dropdowns are
+// both exercised. Each row pulls name + icon + category from the canonical
+// seed (so they stay in sync). Teeth Whitening carries a per-clinic photo +
+// offer override so the detail page's promo-ribbon + photo-panel paths get
+// exercised on the demo. Built from the seed so a slug rename never drifts.
+const DEMO_SERVICE_SLUGS = [
+  'family-dental-care',
+  'dental-exams',
+  'dental-hygiene',
+  'teeth-whitening',
+  'clear-aligners',
+  'dental-implants',
+  'oral-surgery', // special
+  'iv-sedation', // special
+] as const
+
+const DEMO_WHITENING_PHOTO_URL =
+  'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=1200&q=80'
+
+function buildDemoServices(): ClinicService[] {
+  const bySlug = new Map(SERVICE_LIBRARY_SEED.map((e) => [e.slug, e]))
+  return DEMO_SERVICE_SLUGS.map((slug, i) => {
+    const entry = bySlug.get(slug)!
+    const base: ClinicService = {
+      id: `svc_${i + 1}`,
+      librarySlug: slug,
+      name: entry.name,
+      category: entry.category,
+      icon: entry.icon ?? null,
+    }
+    if (slug === 'teeth-whitening') {
+      // Per-clinic override example — exercises the photo panel + promo ribbon.
+      base.photoUrl = DEMO_WHITENING_PHOTO_URL
+      base.offer = 'New patient special — ask us about whitening'
+    }
+    return base
+  })
+}
+
+const DEMO_SERVICES: ClinicService[] = buildDemoServices()
 
 // Universal PPO carrier list shown in the public site's Insurance section
 // + populated into the verifier-form carrier dropdown. Covers the major
@@ -497,6 +545,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   const name = 'Acme Dental Demo'
   const slug = slugify(name)
 
+  // Seed the platform-owned canonical service library (idempotent — upserts
+  // by slug). Acme's services + every clinic's /services pages read from it,
+  // so it must exist before we wire the demo's library-linked services below.
+  await seedServiceLibrary()
+
   // Idempotent: bail early if the slug already exists.
   const [existing] = await db
     .select({ id: schema.organization.id, name: schema.organization.name, slug: schema.organization.slug })
@@ -523,6 +576,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         brandColor: schema.clinicProfile.brandColor,
         about: schema.clinicProfile.about,
         tagline: schema.clinicProfile.tagline,
+        services: schema.clinicProfile.services,
         stats: schema.clinicProfile.stats,
         testimonials: schema.clinicProfile.testimonials,
         officePhotos: schema.clinicProfile.officePhotos,
@@ -562,6 +616,23 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       // been hand-edited away from the demo defaults.
       const upgraded = upgradeLegacyDemoStats(profile.stats as ClinicStat[] | null)
       if (upgraded) patch.stats = upgraded
+    }
+    // Services self-heal: legacy demos seeded free-text services (no
+    // librarySlug) before the service-library checkpoint. Replace them with
+    // the curated library-linked set so the /services index grouping +
+    // Core/Special nav dropdowns + detail pages all light up. Idempotent —
+    // skips when the services already reference library slugs (so a demo a
+    // platform admin re-themed past the defaults isn't clobbered).
+    {
+      const storedServices = Array.isArray(profile?.services)
+        ? (profile!.services as ClinicService[])
+        : null
+      const alreadyLibraryLinked =
+        storedServices !== null &&
+        storedServices.some((s) => typeof s?.librarySlug === 'string' && s.librarySlug)
+      if (!alreadyLibraryLinked) {
+        patch.services = DEMO_SERVICES
+      }
     }
     // testimonials are handled by the dedicated self-heal below — it needs
     // existingPatientIds (only available later in this block) so each
@@ -978,12 +1049,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       sat: { open: null, close: null },
       sun: { open: null, close: null },
     },
-    services: [
-      { id: 's1', name: 'Routine Cleanings', description: 'Twice-yearly hygiene visits' },
-      { id: 's2', name: 'Cosmetic Whitening', description: 'In-office and take-home options' },
-      { id: 's3', name: 'Invisalign', description: 'Clear aligners with monthly check-ins' },
-      { id: 's4', name: 'Implants', description: 'Single-tooth and full-arch restorations' },
-    ],
+    services: DEMO_SERVICES,
     staff: [
       { id: 'p1', name: 'Dr. Jordan Reyes', title: 'Lead Dentist', bio: '15 years of general dentistry' },
       { id: 'p2', name: 'Dr. Sam Patel', title: 'Cosmetic Specialist' },

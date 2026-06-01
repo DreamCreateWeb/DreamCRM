@@ -8,7 +8,13 @@ import {
 import { listPublishedPosts } from '@/lib/services/blog'
 import type { ClinicService } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
+import {
+  resolveClinicServices,
+  groupByCategory,
+  type EnrichedService,
+} from '@/lib/services/service-library'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -72,18 +78,26 @@ export default async function ServicesPage({ params }: Props) {
   const bookLabel = 'Book a Visit'
   const signIn = `${appBaseUrl()}/signin`
 
-  const navLinks: Array<{ label: string; href: string }> = [
-    { label: 'Services', href: `${basePath}/services` },
-    { label: 'About', href: `${basePath}/about` },
-    { label: 'FAQ', href: `${basePath}/faq` },
-    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
-    { label: 'Contact', href: `${basePath || '/'}#contact` },
-  ]
-
-  // Show ALL configured services on the index — no 6-cap (the homepage caps
-  // for layout; the index is the place to surface the full catalog).
-  const services: ClinicService[] =
+  // Resolve the clinic's services into library-enriched rows, then split by
+  // category. Show ALL configured services on the index — no 6-cap (the
+  // homepage caps for layout; the index is the full catalog).
+  const rawServices: ClinicService[] =
     (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
+  const resolved = await resolveClinicServices(rawServices, {
+    clinicName: name,
+    city: profile.city,
+  })
+  const { core, special } = groupByCategory(resolved)
+
+  const navLinks = buildClinicNavLinks({
+    basePath,
+    hasBlog,
+    services: resolved.map((s) => ({
+      name: s.name,
+      routingSlug: s.routingSlug,
+      category: s.category,
+    })),
+  })
 
   return (
     <div
@@ -150,52 +164,42 @@ export default async function ServicesPage({ params }: Props) {
         </div>
       </section>
 
-      {/* ── Services grid ──────────────────────────────────────────────── */}
-      <section className="pb-20 sm:pb-28" style={{ backgroundColor: SURFACE }}>
+      {/* ── Core services ──────────────────────────────────────────────── */}
+      <section className="pb-16 sm:pb-20" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-24">
           <h2
             className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
-            The full catalog.
+            Core services.
           </h2>
-          <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
-            {services.map((s, i) => (
-              <div
-                key={s.id}
-                className="flex flex-col group rounded-2xl p-7 sm:p-8 transition-transform duration-300 hover:-translate-y-0.5"
-                style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
-              >
-                <span
-                  className="text-sm font-semibold tracking-[0.12em] mb-4 inline-flex items-center gap-2"
-                  style={{ color: brand }}
-                >
-                  <span>{String(i + 1).padStart(2, '0')}</span>
-                  <span
-                    aria-hidden="true"
-                    className="h-px w-0 group-hover:w-8 transition-[width] duration-300"
-                    style={{ backgroundColor: brand }}
-                  />
-                </span>
-                <h3 className="text-xl font-semibold mb-3 leading-tight" style={{ color: INK }}>
-                  {s.name}
-                </h3>
-                {s.description && (
-                  <p className="text-[15px] leading-[1.6] mb-6" style={{ color: INK_MUTED }}>
-                    {s.description}
-                  </p>
-                )}
-                <a
-                  href={bookHref}
-                  className="inline-flex items-center self-start mt-auto px-5 py-2.5 rounded-full text-sm font-semibold border transition hover:shadow-sm"
-                  style={{ color: brand, borderColor: brand }}
-                >
-                  {bookLabel}
-                </a>
-              </div>
-            ))}
-          </div>
+          <ServiceGrid
+            services={core}
+            basePath={basePath}
+            brand={brand}
+            bookHref={bookHref}
+            bookLabel={bookLabel}
+          />
         </div>
+
+        {/* ── Special services (only when any) ─────────────────────────── */}
+        {special.length > 0 && (
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-16 sm:pt-20">
+            <h2
+              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
+              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              Special services.
+            </h2>
+            <ServiceGrid
+              services={special}
+              basePath={basePath}
+              brand={brand}
+              bookHref={bookHref}
+              bookLabel={bookLabel}
+            />
+          </div>
+        )}
       </section>
 
       {/* ── Closing CTA band ───────────────────────────────────────────── */}
@@ -251,6 +255,82 @@ export default async function ServicesPage({ params }: Props) {
         bookHref={bookHref}
         bookLabel={bookLabel}
       />
+    </div>
+  )
+}
+
+/** A responsive grid of service cards — icon + name + one-liner + "Learn more"
+ *  (links to the detail page) + a tier-aware Book CTA. Cards link to
+ *  `/services/<routingSlug>`. */
+function ServiceGrid({
+  services,
+  basePath,
+  brand,
+  bookHref,
+  bookLabel,
+}: {
+  services: EnrichedService[]
+  basePath: string
+  brand: string
+  bookHref: string
+  bookLabel: string
+}) {
+  return (
+    <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
+      {services.map((s) => {
+        const detailHref = `${basePath}/services/${s.routingSlug}`
+        const oneLiner = s.shortDescription ?? s.description ?? null
+        return (
+          <div
+            key={s.id}
+            className="flex flex-col group rounded-2xl p-7 sm:p-8 transition-transform duration-300 hover:-translate-y-0.5"
+            style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              {s.icon && (
+                <span aria-hidden="true" className="text-2xl leading-none">
+                  {s.icon}
+                </span>
+              )}
+              {s.offer && (
+                <span
+                  className="ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold text-white"
+                  style={{ backgroundColor: brand }}
+                >
+                  {s.offer}
+                </span>
+              )}
+            </div>
+            <h3 className="text-xl font-semibold mb-3 leading-tight" style={{ color: INK }}>
+              <a href={detailHref} className="hover:underline">
+                {s.name}
+              </a>
+            </h3>
+            {oneLiner && (
+              <p className="text-[15px] leading-[1.6] mb-6" style={{ color: INK_MUTED }}>
+                {oneLiner}
+              </p>
+            )}
+            <div className="mt-auto flex flex-wrap items-center gap-3">
+              <a
+                href={detailHref}
+                className="inline-flex items-center gap-1 text-sm font-semibold transition group-hover:gap-2"
+                style={{ color: brand }}
+              >
+                Learn more
+                <span aria-hidden="true">→</span>
+              </a>
+              <a
+                href={bookHref}
+                className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition hover:shadow-sm"
+                style={{ color: brand, borderColor: brand }}
+              >
+                {bookLabel}
+              </a>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

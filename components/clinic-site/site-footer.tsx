@@ -1,16 +1,17 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { ClinicService } from '@/lib/types/clinic-content'
-import { DAYS, DAY_LABEL, fmt12, type HoursMap } from '@/lib/clinic-site-helpers'
-
-interface NavLink {
-  label: string
-  href: string
-}
+import {
+  DAYS,
+  DAY_LABEL,
+  fmt12,
+  type HoursMap,
+  type SiteNavLink,
+} from '@/lib/clinic-site-helpers'
 
 interface Props {
   data: ClinicSiteData
   basePath: string
-  navLinks: NavLink[]
+  navLinks: SiteNavLink[]
   bookHref: string
   bookLabel: string
   signInUrl: string

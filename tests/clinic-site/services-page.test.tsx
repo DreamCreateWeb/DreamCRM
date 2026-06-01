@@ -1,14 +1,33 @@
 /**
- * Smoke tests for the /services index page. Confirms the H1 carries the
- * clinic name, every configured service renders, and the tier-aware Book CTA
- * points to /book for pro+ clinics and #contact on the homepage for basic.
+ * Smoke tests for the /services index page. Confirms the H1 carries the clinic
+ * name, services group into Core vs Special sections, the Special grid is
+ * hidden when the clinic offers no special services, every card deep-links to
+ * its detail page (/services/<slug>), and the tier-aware Book CTA points to
+ * /book for pro+ and #contact on the homepage for basic.
+ *
+ * `resolveClinicServices` is NOT mocked — it falls back to SERVICE_LIBRARY_SEED
+ * when the DB is unavailable (as in tests), so library-linked services resolve
+ * real category + routing slugs.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import type { ClinicService } from '@/lib/types/clinic-content'
 
-function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSiteData {
+// Default services for most tests — a mix of core + special library-linked
+// services so grouping is exercised.
+const MIXED_SERVICES: ClinicService[] = [
+  { id: 's1', name: 'Hygiene & Cleaning', librarySlug: 'dental-hygiene' },
+  { id: 's2', name: 'Teeth Whitening', librarySlug: 'teeth-whitening' },
+  { id: 's3', name: 'Oral Surgery', librarySlug: 'oral-surgery' },
+  { id: 's4', name: 'Dental IV Sedation', librarySlug: 'iv-sedation' },
+]
+
+function makeData(
+  overrides: Partial<ClinicSiteData['profile']> = {},
+  services: ClinicService[] = MIXED_SERVICES,
+): ClinicSiteData {
   return {
     orgId: 'org_1',
     orgName: 'Acme Dental',
@@ -29,8 +48,8 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
       websiteDomain: null,
       addressLine1: null,
       addressLine2: null,
-      city: null,
-      state: null,
+      city: 'Austin',
+      state: 'TX',
       postalCode: null,
       country: 'US',
       hours: null,
@@ -40,20 +59,14 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
       subscriptionStatus: null,
       logoUrl: null,
       heroImageUrl: null,
-      services: [
-        { id: 's1', name: 'Routine Cleanings', description: 'Twice-yearly visits' },
-        { id: 's2', name: 'Cosmetic Whitening', description: 'Brighter in one visit' },
-        { id: 's3', name: 'Invisalign', description: null },
-        { id: 's4', name: 'Implants', description: 'Permanent solutions' },
-        { id: 's5', name: 'Root Canals', description: null },
-        { id: 's6', name: 'Crowns', description: null },
-        { id: 's7', name: 'Veneers', description: null },
-      ] as never,
+      differenceVideoUrl: null,
+      services: services as never,
       staff: null,
       stats: null,
       testimonials: null,
       officePhotos: null,
       faq: null,
+      acceptedInsuranceCarriers: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,
@@ -95,28 +108,46 @@ describe('ServicesPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('lists ALL configured services (no 6-cap on the index page)', async () => {
+  it('groups services into Core and Special sections', async () => {
     await renderPage()
-    // Services now also surface in the footer's Services column (up to 8),
-    // so the first 7 here appear in both places. Accept ≥1 match.
-    expect(screen.getAllByText('Routine Cleanings').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Cosmetic Whitening').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Invisalign').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Implants').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Root Canals').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Crowns').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Veneers').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('heading', { name: /^Core services\.$/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^Special services\.$/i })).toBeInTheDocument()
   })
 
-  it('renders numbered pillars (01, 02, …07)', async () => {
+  it('lists all configured services (core + special)', async () => {
     await renderPage()
-    expect(screen.getByText('01')).toBeInTheDocument()
-    expect(screen.getByText('07')).toBeInTheDocument()
+    // Each name appears in the body card AND the nav dropdown → ≥1 match.
+    expect(screen.getAllByText('Hygiene & Cleaning').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Teeth Whitening').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Oral Surgery').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Dental IV Sedation').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows service descriptions when set', async () => {
+  it('hides the Special grid when the clinic offers no special services', async () => {
+    const coreOnly: ClinicService[] = [
+      { id: 's1', name: 'Hygiene & Cleaning', librarySlug: 'dental-hygiene' },
+      { id: 's2', name: 'Teeth Whitening', librarySlug: 'teeth-whitening' },
+    ]
+    await renderPage(makeData({}, coreOnly))
+    expect(screen.getByRole('heading', { name: /^Core services\.$/i })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /^Special services\.$/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('cards deep-link to the service detail page (/services/<slug>)', async () => {
     await renderPage()
-    expect(screen.getByText('Twice-yearly visits')).toBeInTheDocument()
+    const links = screen.getAllByRole('link')
+    const detailHrefs = links
+      .map((a) => a.getAttribute('href'))
+      .filter((h): h is string => Boolean(h && h.includes('/services/')))
+    expect(detailHrefs).toContain('/site/acme-dental/services/teeth-whitening')
+    expect(detailHrefs).toContain('/site/acme-dental/services/oral-surgery')
+  })
+
+  it('renders a "Learn more" CTA per card', async () => {
+    await renderPage()
+    expect(screen.getAllByText(/Learn more/i).length).toBeGreaterThanOrEqual(4)
   })
 
   it('tier-gated Book CTA points to /book for pro tier', async () => {
@@ -140,8 +171,13 @@ describe('ServicesPage', () => {
   })
 
   it('falls back to DEFAULT_SERVICES when none are configured', async () => {
-    await renderPage(makeData({ services: null as never }))
-    expect(screen.getByText('Cleanings & Exams')).toBeInTheDocument()
-    expect(screen.getByText('Cosmetic Dentistry')).toBeInTheDocument()
+    await renderPage(makeData({ services: null as never }, []))
+    // DEFAULT_SERVICES are free-text (no librarySlug) → all land in Core.
+    expect(screen.getAllByText('Cleanings & Exams').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Cosmetic Dentistry').length).toBeGreaterThanOrEqual(1)
+    // No special services among the defaults → Special section hidden.
+    expect(
+      screen.queryByRole('heading', { name: /^Special services\.$/i }),
+    ).not.toBeInTheDocument()
   })
 })

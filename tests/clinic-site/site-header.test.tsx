@@ -4,9 +4,10 @@
  * a cream rounded-bottom drawer container.
  */
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import type { SiteNavLink } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 
 function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSiteData {
@@ -307,5 +308,101 @@ describe('SiteHeader', () => {
     expect(header!.className).toContain('sticky')
     expect(header!.className).toContain('top-0')
     expect(header!.className).toContain('z-40')
+  })
+})
+
+// ── Nav dropdowns (Core / Special services) ──────────────────────────────────
+
+const navWithDropdowns: SiteNavLink[] = [
+  {
+    label: 'Services',
+    href: '/site/acme-dental/services',
+    children: [
+      { label: 'Teeth Whitening', href: '/site/acme-dental/services/teeth-whitening' },
+      { label: 'Dental Exams', href: '/site/acme-dental/services/dental-exams' },
+    ],
+  },
+  {
+    label: 'Special Services',
+    href: '/site/acme-dental/services',
+    children: [
+      { label: 'Oral Surgery', href: '/site/acme-dental/services/oral-surgery' },
+    ],
+  },
+  { label: 'About', href: '/site/acme-dental/about' },
+]
+
+function renderWithNav(nav: SiteNavLink[]) {
+  return render(
+    <SiteHeader
+      data={makeData()}
+      basePath="/site/acme-dental"
+      navLinks={nav}
+      bookHref="/site/acme-dental/book"
+      bookLabel="Book a Visit"
+      signInUrl="https://app.example.com/signin"
+    />,
+  )
+}
+
+describe('SiteHeader — nav dropdowns', () => {
+  it('renders a chevron toggle button with aria-haspopup for a parent with children', () => {
+    renderWithNav(navWithDropdowns)
+    const toggle = screen.getByRole('button', { name: /^Services menu$/i })
+    expect(toggle).toHaveAttribute('aria-haspopup', 'menu')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('keeps the parent label as a link to the index even with children', () => {
+    renderWithNav(navWithDropdowns)
+    const serviceLinks = screen
+      .getAllByRole('link', { name: /^Services$/i })
+      .filter((a) => a.getAttribute('href') === '/site/acme-dental/services')
+    expect(serviceLinks.length).toBeGreaterThan(0)
+  })
+
+  it('reveals child menu items + sets aria-expanded when the toggle is clicked', () => {
+    renderWithNav(navWithDropdowns)
+    const toggle = screen.getByRole('button', { name: /^Services menu$/i })
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const menu = screen.getByRole('menu', { name: /Services/i })
+    expect(menu).toBeInTheDocument()
+    const items = screen.getAllByRole('menuitem')
+    const itemHrefs = items.map((i) => i.getAttribute('href'))
+    expect(itemHrefs).toContain('/site/acme-dental/services/teeth-whitening')
+    expect(itemHrefs).toContain('/site/acme-dental/services/dental-exams')
+  })
+
+  it('renders a Special Services parent toggle when special children exist', () => {
+    renderWithNav(navWithDropdowns)
+    expect(
+      screen.getByRole('button', { name: /^Special Services menu$/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('omits the Special Services parent when there are no special services', () => {
+    const noSpecial: SiteNavLink[] = [
+      {
+        label: 'Services',
+        href: '/site/acme-dental/services',
+        children: [
+          { label: 'Teeth Whitening', href: '/site/acme-dental/services/teeth-whitening' },
+        ],
+      },
+      { label: 'About', href: '/site/acme-dental/about' },
+    ]
+    renderWithNav(noSpecial)
+    expect(
+      screen.queryByRole('button', { name: /^Special Services menu$/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders the child service links in the mobile sub-nav too', () => {
+    renderWithNav(navWithDropdowns)
+    // Mobile sub-list always renders the children (no toggle needed), so the
+    // teeth-whitening href appears even before opening the desktop dropdown.
+    const allLinks = screen.getAllByRole('link', { name: /Teeth Whitening/i })
+    expect(allLinks.length).toBeGreaterThan(0)
   })
 })
