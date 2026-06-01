@@ -94,4 +94,71 @@ describe('SiteFooter', () => {
     const link = screen.getByRole('link', { name: /See all hours/i }) as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('/site/acme-dental#hours')
   })
+
+  it('uses the hardcoded forest-teal background (NOT theme-driven) regardless of brand color', () => {
+    // Whether the clinic picks sage or hot pink, the footer always anchors
+    // the page in forest-teal — that's the Tend-verbatim look.
+    const { container: a } = render(
+      <SiteFooter
+        data={makeData({ brandColor: '#9CAF9F' })}
+        basePath=""
+        navLinks={navLinks}
+        bookHref="/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    const footerA = a.querySelector('footer') as HTMLElement
+    expect(footerA.style.backgroundColor).toMatch(/rgb\(54, ?81, ?76\)|#36514c/i)
+
+    const { container: b } = render(
+      <SiteFooter
+        data={makeData({ brandColor: '#FF1493' })}
+        basePath=""
+        navLinks={navLinks}
+        bookHref="/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    const footerB = b.querySelector('footer') as HTMLElement
+    expect(footerB.style.backgroundColor).toMatch(/rgb\(54, ?81, ?76\)|#36514c/i)
+  })
+
+  it('renders 4-column layout with About / Visit / (Services if any) / Questions headers', () => {
+    render(
+      <SiteFooter
+        data={makeData({
+          services: [
+            { id: 's1', name: 'Cleanings', description: null },
+            { id: 's2', name: 'Whitening', description: null },
+          ] as never,
+        })}
+        basePath=""
+        navLinks={navLinks}
+        bookHref="/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    // Four heading columns
+    expect(screen.getByRole('heading', { level: 2, name: /About Acme Dental/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /^Visit$/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /^Services$/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /^Questions\?/ })).toBeInTheDocument()
+  })
+
+  it('omits the Services column when the clinic has no services configured', () => {
+    render(
+      <SiteFooter
+        data={makeData({ services: null })}
+        basePath=""
+        navLinks={navLinks}
+        bookHref="/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    expect(screen.queryByRole('heading', { level: 2, name: /^Services$/ })).not.toBeInTheDocument()
+  })
 })

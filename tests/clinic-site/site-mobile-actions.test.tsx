@@ -1,9 +1,14 @@
 /**
- * Smoke tests for the SiteMobileActions component — the floating phone CTA
- * (desktop) + sticky bottom Book + Call bar (mobile). Extracted from the
- * homepage modern-template so /about, /services, /faq, /book, /careers all
- * carry the same conversion surface; before extraction, mobile visitors on
- * the new pages had no persistent booking CTA above the keyboard.
+ * Smoke tests for the SiteMobileActions component — Tend's persistent
+ * #sticky element. Renamed in this pass from "mobile actions" to "sticky
+ * bar" semantically, but the export name + filename stay for back-compat
+ * with the existing route imports.
+ *
+ * The Tend-verbatim shape: ALWAYS visible across breakpoints (was
+ * mobile-only before this pass), fixed to the viewport bottom, carrying
+ * Book Now (brand) + Login (white outline, ≥sm) + Phone (tan accent).
+ * The prior floating-circle desktop-only phone CTA is gone — the sticky
+ * bar covers both surfaces now.
  */
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -57,7 +62,7 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
 }
 
 describe('SiteMobileActions', () => {
-  it('renders the desktop-only floating phone CTA with a tel: href and hidden-on-mobile classes', () => {
+  it('renders a persistent sticky action bar pinned to the viewport bottom (no breakpoint hiding)', () => {
     const { container } = render(
       <SiteMobileActions
         data={makeData()}
@@ -66,14 +71,15 @@ describe('SiteMobileActions', () => {
         bookLabel="Book a Visit"
       />,
     )
-    const floating = container.querySelector('a[href="tel:(555) 555-0100"].hidden.lg\\:flex')
-    expect(floating).not.toBeNull()
-    expect(floating?.className).toContain('hidden')
-    expect(floating?.className).toContain('lg:flex')
-    expect(floating?.className).toContain('fixed')
+    // Bar wrapper is `fixed bottom-0 left-0 right-0` — always visible.
+    const bar = container.querySelector('.fixed.bottom-0')
+    expect(bar).not.toBeNull()
+    // It must NOT carry `lg:hidden` (would hide on desktop, defeating
+    // the Tend-pattern always-visible bottom bar).
+    expect(bar?.className ?? '').not.toContain('lg:hidden')
   })
 
-  it('renders the mobile-only sticky Book + Call bar that hides on desktop (lg:hidden)', () => {
+  it('carries Book + Phone CTAs inside the sticky bar', () => {
     const { container } = render(
       <SiteMobileActions
         data={makeData()}
@@ -82,15 +88,26 @@ describe('SiteMobileActions', () => {
         bookLabel="Book a Visit"
       />,
     )
-    // Sticky bar wrapper is `lg:hidden fixed bottom-0 …`
-    const stickyBar = container.querySelector('.lg\\:hidden.fixed.bottom-0')
-    expect(stickyBar).not.toBeNull()
-    // It must contain both a Book link (to the bookHref) and a Call link.
-    const bookLink = stickyBar?.querySelector('a[href="/site/acme-dental/book"]')
-    expect(bookLink).not.toBeNull()
-    expect(bookLink?.textContent).toMatch(/Book a Visit/)
-    const callLink = stickyBar?.querySelector('a[href="tel:(555) 555-0100"]')
-    expect(callLink).not.toBeNull()
+    const bar = container.querySelector('.fixed.bottom-0')
+    expect(bar).not.toBeNull()
+    expect(bar?.querySelector('a[href="/site/acme-dental/book"]')).not.toBeNull()
+    expect(bar?.querySelector('a[href="tel:(555) 555-0100"]')).not.toBeNull()
+  })
+
+  it('surfaces a Login pill in the sticky bar when signInUrl is supplied', () => {
+    const { container } = render(
+      <SiteMobileActions
+        data={makeData()}
+        basePath="/site/acme-dental"
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    const bar = container.querySelector('.fixed.bottom-0')
+    const loginLink = bar?.querySelector('a[href="https://app.example.com/signin"]')
+    expect(loginLink).not.toBeNull()
+    expect(loginLink?.textContent).toMatch(/Login/)
   })
 
   it('uses the Book CTA label from props (universal "Book a Visit" copy)', () => {
@@ -106,7 +123,7 @@ describe('SiteMobileActions', () => {
     expect(bookLinks.length).toBeGreaterThan(0)
   })
 
-  it('omits both the floating phone and the sticky call button when no phone is set', () => {
+  it('omits the phone CTA when no phone is set; bar still renders the Book button', () => {
     const { container } = render(
       <SiteMobileActions
         data={makeData({ phone: null })}
@@ -116,7 +133,8 @@ describe('SiteMobileActions', () => {
       />,
     )
     expect(container.querySelector('a[href^="tel:"]')).toBeNull()
-    // Sticky bar wrapper still renders so the Book CTA stays available.
-    expect(container.querySelector('.lg\\:hidden.fixed.bottom-0')).not.toBeNull()
+    const bar = container.querySelector('.fixed.bottom-0')
+    expect(bar).not.toBeNull()
+    expect(bar?.querySelector('a[href="/site/acme-dental/book"]')).not.toBeNull()
   })
 })
