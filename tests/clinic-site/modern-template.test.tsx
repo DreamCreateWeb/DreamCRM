@@ -593,7 +593,7 @@ describe('ModernTemplate', () => {
       <ModernTemplate
         data={makeData({
           stats: [
-            { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+            { id: 'st_reviews', value: '0', label: 'happy reviews', dynamic: 'review_count' },
             { id: 'st2', value: 'Same-week', label: 'appointments' },
           ] as never,
         })}
@@ -603,19 +603,19 @@ describe('ModernTemplate', () => {
     )
     // 47 formats to "47+" (medium count, rounded preserved exact since <100)
     expect(screen.getByText('47+')).toBeInTheDocument()
-    expect(screen.getByText('happy patients')).toBeInTheDocument()
+    expect(screen.getByText('happy reviews')).toBeInTheDocument()
     // The hardcoded value "0" should NOT be rendered — it was overridden
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 
   it('drops the dynamic review_count stat when the live count is zero', () => {
     // Fresh clinic with no reviews — the dynamic stat row must hide rather
-    // than render "0 happy patients" (would look broken on a real site).
+    // than render "0 happy reviews" (would look broken on a real site).
     render(
       <ModernTemplate
         data={makeData({
           stats: [
-            { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+            { id: 'st_reviews', value: '0', label: 'happy reviews', dynamic: 'review_count' },
             { id: 'st2', value: 'Same-week', label: 'appointments' },
           ] as never,
         })}
@@ -623,7 +623,7 @@ describe('ModernTemplate', () => {
         reviewCount={0}
       />,
     )
-    expect(screen.queryByText('happy patients')).not.toBeInTheDocument()
+    expect(screen.queryByText('happy reviews')).not.toBeInTheDocument()
     // The other static stat survives
     expect(screen.getByText('Same-week')).toBeInTheDocument()
   })
@@ -633,14 +633,14 @@ describe('ModernTemplate', () => {
       <ModernTemplate
         data={makeData({
           stats: [
-            { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+            { id: 'st_reviews', value: '0', label: 'happy reviews', dynamic: 'review_count' },
           ] as never,
         })}
         basePath="/site/test"
         reviewCount={0}
       />,
     )
-    expect(screen.queryByText('happy patients')).not.toBeInTheDocument()
+    expect(screen.queryByText('happy reviews')).not.toBeInTheDocument()
   })
 
   describe('formatReviewCount', () => {
