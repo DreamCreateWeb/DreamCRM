@@ -46,13 +46,17 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # The auto-migrate trigger — a tiny built-in-fetch script (no external deps) that
-# calls the app's own migrate route once the server is up.
+# calls the app's own migrate route once the server is up. The resync-demo
+# script is the same idiom for the Acme Dental Demo self-heal — runs after
+# migrate so any newly-added columns + their defaults are seeded.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/db-migrate.mjs ./scripts/db-migrate.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/resync-demo.mjs ./scripts/resync-demo.mjs
 USER nextjs
 EXPOSE 3000
 # App Runner / ECS inject their own HOSTNAME env; Next standalone binds to it,
 # so force 0.0.0.0 at exec time or the health check can't reach the server.
-# Start the server, then auto-apply pending migrations via its own route (the
-# trigger waits for boot, then calls /api/admin/migrate). A migrate failure is
-# logged but doesn't take the server down.
-CMD ["sh", "-c", "HOSTNAME=0.0.0.0 node server.js & node scripts/db-migrate.mjs || true; wait"]
+# Start the server, then auto-apply pending migrations via its own route, then
+# walk the Acme demo through its self-heal so any new columns shipped in this
+# deploy get backfilled. Both scripts are idempotent; failures are logged but
+# don't take the server down (App Runner has already marked it healthy).
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 node server.js & (node scripts/db-migrate.mjs && node scripts/resync-demo.mjs) || true; wait"]
