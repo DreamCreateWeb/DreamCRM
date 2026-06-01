@@ -252,9 +252,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               {officePhotos.slice(0, 4).map((p) => (
                 <li key={p.id} className="shrink-0 snap-start w-48 sm:w-56">
                   <div
-                    className="aspect-[3/4] w-full overflow-hidden"
+                    className="aspect-[4/5] w-full overflow-hidden"
                     style={{
-                      borderRadius: '50% 50% 48% 52% / 55% 45% 55% 45%',
+                      borderRadius: '50%',
                       backgroundColor: BORDER,
                     }}
                   >
@@ -938,33 +938,27 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// OvalPortrait — the soft asymmetric-oval (egg-shape) photo panel that
-// flanks the hero + the clinical-team section's outer columns. Uses a
-// non-uniform border-radius that reads as "soft pebble" — taller than
-// wide, slightly tilted per-variant so the left + right pair don't look
-// like mirror copies. Backdrops are the clinic-site palette's blue and
+// OvalPortrait — symmetric vertical-pill photo panel that flanks the hero
+// + the clinical-team section's outer columns. Uses a pure `50%` ellipse
+// over a 4/5 portrait aspect so both ends are equally rounded and the
+// curvature reads as a soft wide-pill shape (smoother than the prior
+// asymmetric pebble). Backdrops are the clinic-site palette's blue and
 // peach (passed in by the parent), giving a Tend-style flat solid backing.
 // ────────────────────────────────────────────────────────────────────────
 
 function OvalPortrait({
   src,
   bg,
-  variant,
+  variant: _variant,
 }: {
   src: string | null
   bg: string
-  variant: 'left' | 'right'
+  variant?: 'left' | 'right'
 }) {
-  // Asymmetric egg-shape. The two variants mirror their tilt so the pair
-  // looks intentionally hand-drawn rather than copy-pasted.
-  const radii =
-    variant === 'left'
-      ? '50% 50% 48% 52% / 55% 45% 55% 45%'
-      : '50% 50% 52% 48% / 45% 55% 45% 55%'
   return (
     <div
-      className="relative overflow-hidden w-full aspect-[3/4]"
-      style={{ borderRadius: radii, backgroundColor: bg }}
+      className="relative overflow-hidden w-full aspect-[4/5]"
+      style={{ borderRadius: '50%', backgroundColor: bg }}
     >
       {src ? (
         /* eslint-disable-next-line @next/next/no-img-element */

@@ -46,29 +46,32 @@ export default function ServicePills({ pills, brand, ink, href }: Props) {
         type="button"
         onClick={() => scrollBy(-1)}
         aria-label="Previous services"
-        className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-10 h-10 rounded-full items-center justify-center bg-white shadow-sm transition hover:shadow-md"
+        className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full items-center justify-center bg-white shadow-sm transition hover:shadow-md"
         style={{ border: `1px solid ${brand}66`, color: brand }}
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
       </button>
 
-      {/* Track */}
+      {/* Track — centered on desktop when content fits, scrolls horizontally
+          when it overflows. Pills are large (Tend-scale): generous padding
+          and slightly bigger text so each card reads as a real CTA, not a
+          chip. */}
       <ul
         ref={trackRef}
-        className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory sm:px-12 scroll-smooth"
+        className="flex gap-4 sm:gap-5 lg:gap-6 overflow-x-auto pb-2 snap-x snap-mandatory sm:px-14 lg:justify-center scroll-smooth"
         style={{ scrollbarWidth: 'none' }}
       >
         {pills.map((p) => (
           <li key={p.id} className="snap-start shrink-0">
             <a
               href={href}
-              className="inline-flex items-center px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-sm sm:text-[15px] font-semibold transition hover:shadow-sm"
+              className="inline-flex items-center px-8 sm:px-10 lg:px-14 py-4 sm:py-5 rounded-full text-base sm:text-lg font-semibold transition hover:shadow-md"
               style={{
-                backgroundColor: `${brand}1F`,
+                backgroundColor: `${brand}26`,
                 color: ink,
-                border: `1px solid ${brand}40`,
+                border: `1px solid ${brand}55`,
               }}
             >
               {p.name}
@@ -82,10 +85,10 @@ export default function ServicePills({ pills, brand, ink, href }: Props) {
         type="button"
         onClick={() => scrollBy(1)}
         aria-label="Next services"
-        className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-10 h-10 rounded-full items-center justify-center bg-white shadow-sm transition hover:shadow-md"
+        className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full items-center justify-center bg-white shadow-sm transition hover:shadow-md"
         style={{ border: `1px solid ${brand}66`, color: brand }}
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
       </button>
