@@ -957,6 +957,17 @@ To-do in the AWS migration session (rough order):
   manual route `POST /api/admin/migrate` (`Authorization: Bearer $CRON_SECRET`,
   same idempotent migrate) stays as a fallback for out-of-band applies.
   `/api/admin/seed-platform` (same auth) seeds the platform org on a fresh DB.
+- **Acme demo auto-resync**: also auto-applied on deploy. After migrate,
+  the container runs `scripts/resync-demo.mjs` → `POST /api/admin/resync-demo`
+  → calls `createDemoClinic()`. It's idempotent: on a fresh DB it seeds the
+  demo end-to-end; on an existing demo it walks every self-heal branch
+  (stats label migrations, differenceVideoUrl overwrite, FAQ backfill,
+  testimonials re-linking, etc.) so the demo always showcases the latest
+  template without a manual "View as Acme" trigger. Real-clinic data is
+  never touched — `createDemoClinic` scopes all writes to the org with
+  `isDemo: true`. (Real clinics don't need this: their public site reads
+  `clinic_profile` live on every render, so edits in `/settings/clinic`
+  reflect immediately.)
 - **Monitoring**: CloudWatch alarms (RDS CPU/storage/connections/memory; App
   Runner 5xx/CPU/memory) → SNS topic `dreamcrm-alerts` (email). Logs retain 30d.
 - **Webhook secrets**: rotate by editing `dreamcrm/app-secrets` in Secrets
