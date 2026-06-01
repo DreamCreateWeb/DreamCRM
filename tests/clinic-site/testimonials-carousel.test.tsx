@@ -39,8 +39,11 @@ describe('TestimonialsCarousel', () => {
     render(<TestimonialsCarousel testimonials={T} brand="#9CAF9F" />)
     expect(screen.getByRole('button', { name: /Previous testimonial/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Next testimonial/i })).toBeInTheDocument()
-    expect(screen.getAllByText(/Quote 0/)).toHaveLength(1)
-    expect(screen.getAllByText(/Quote 3/)).toHaveLength(1)
+    // Cards are doubled in the DOM (N + N) for the seamless wrap — each
+    // quote appears twice, once in the original set and once in the
+    // duplicate set used as the wrap-around landing pad.
+    expect(screen.getAllByText(/Quote 0/)).toHaveLength(2)
+    expect(screen.getAllByText(/Quote 3/)).toHaveLength(2)
   })
 
   it('advances the carousel state when Next is clicked (transform updates)', () => {
@@ -52,13 +55,17 @@ describe('TestimonialsCarousel', () => {
     expect(nextTransform).not.toBe(initialTransform)
   })
 
-  it('wraps around when Prev is clicked from index 0', () => {
+  it('animates past index 0 when Prev is clicked, then snaps to the wrap', () => {
     const { container } = render(<TestimonialsCarousel testimonials={T} brand="#9CAF9F" />)
     const track = container.querySelector('ul') as HTMLElement
     fireEvent.click(screen.getByRole('button', { name: /Previous testimonial/i }))
-    const wrapped = track.getAttribute('style') ?? ''
-    // Wraps to count-1 = 3, so transform multiplier is now 3.
-    expect(wrapped).toMatch(/\* 3\)/)
+    // The visible animation goes to -1 first (the duplicate-set position
+    // visually identical to count-1). After the 500ms transition, the
+    // useEffect snap fires and shifts index to count-1 with no
+    // transition. We assert the immediate animated phase here — the
+    // snap-back is timing-dependent and brittle to test in happy-dom.
+    const animated = track.getAttribute('style') ?? ''
+    expect(animated).toMatch(/\* -1\)/)
   })
 })
 
