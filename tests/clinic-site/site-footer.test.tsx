@@ -62,7 +62,7 @@ const navLinks = [
 ]
 
 describe('SiteFooter', () => {
-  it('"See all hours" link routes to /#hours when basePath is empty (subdomain mode)', () => {
+  it('renders the full weekly hours inline (no more "See all hours" link)', () => {
     render(
       <SiteFooter
         data={makeData()}
@@ -73,17 +73,19 @@ describe('SiteFooter', () => {
         signInUrl="https://app.example.com/signin"
       />,
     )
-    const link = screen.getByRole('link', { name: /See all hours/i }) as HTMLAnchorElement
-    // Subdomain mode strips basePath, but the link must still resolve to a
-    // homepage anchor (`/#hours`) — a bare `#hours` would scroll within the
-    // current page, which has no `#hours` element on /about /services /faq.
-    expect(link.getAttribute('href')).toBe('/#hours')
+    // The standalone homepage Hours section was removed; the footer now
+    // carries the full weekly hours in its "Visit" column. Monday's open
+    // range renders in 12-hour format, and there's no longer a
+    // "See all hours" anchor link (the #hours target is gone).
+    expect(screen.getByText('Monday')).toBeInTheDocument()
+    expect(screen.getByText('9:00 AM – 5:00 PM')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /See all hours/i })).not.toBeInTheDocument()
   })
 
-  it('"See all hours" link routes to {basePath}/#hours under path-based mode', () => {
+  it('renders "Closed" days in the footer weekly hours', () => {
     render(
       <SiteFooter
-        data={makeData()}
+        data={makeData({ hours: { mon: { open: '09:00', close: '17:00' }, sun: { closed: true } } as never })}
         basePath="/site/acme-dental"
         navLinks={navLinks}
         bookHref="/site/acme-dental/book"
@@ -91,8 +93,8 @@ describe('SiteFooter', () => {
         signInUrl="https://app.example.com/signin"
       />,
     )
-    const link = screen.getByRole('link', { name: /See all hours/i }) as HTMLAnchorElement
-    expect(link.getAttribute('href')).toBe('/site/acme-dental#hours')
+    expect(screen.getByText('Sunday')).toBeInTheDocument()
+    expect(screen.getByText('Closed')).toBeInTheDocument()
   })
 
   it('uses the hardcoded forest-teal background (NOT theme-driven) regardless of brand color', () => {

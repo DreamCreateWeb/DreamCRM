@@ -61,7 +61,7 @@ export default async function ClinicSitePage({ params }: Props) {
   const basePath = await resolveSiteBasePath(slug)
   const jsonLd = clinicJsonLd(data)
   const [publishedPosts, reviewCount] = await Promise.all([
-    listPublishedPosts(data.orgId, { limit: 1 }),
+    listPublishedPosts(data.orgId, { limit: 3 }),
     getCompletedReviewCount(data.orgId),
   ])
 
@@ -79,6 +79,7 @@ export default async function ClinicSitePage({ params }: Props) {
         basePath={basePath}
         signInUrl={`${appBaseUrl()}/signin`}
         hasBlog={publishedPosts.length > 0}
+        recentPosts={publishedPosts}
         reviewCount={reviewCount}
       />
     </>

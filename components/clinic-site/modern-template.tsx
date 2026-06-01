@@ -1,21 +1,14 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import type { BlogPost } from '@/lib/db/schema/clinic'
 import type {
   ClinicService,
-  ClinicStaff,
   ClinicStat,
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
-import {
-  DAYS,
-  DAY_LABEL,
-  fmt12,
-  firstSentence,
-  staffInitials,
-  type HoursMap,
-} from '@/lib/clinic-site-helpers'
+import { firstSentence } from '@/lib/clinic-site-helpers'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -28,14 +21,18 @@ import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-f
  * Modern Family/Wellness template — the default clinic site.
  *
  * Design direction: hellotend.com verbatim, adapted for single-clinic content.
- * Two-bar header (top brand-color strip + main white nav), 3-col hero with
- * H1+secondary-H2 in the center column and large-radius oval portraits in
- * the flanking columns, pill service carousel, trust-stats card,
- * "the {clinic} difference" 2-col section, full services grid, clinical-
- * team 3-col with 4 icon callouts (only when ≥2 office photos or staff
- * present), arrow-paginated testimonials carousel, about, office tour,
- * hours+location, "it's a pleasure" closing CTA banner, dark forest-teal
- * footer. See CLAUDE.md for the full breakdown.
+ * Section flow (top→bottom): two-bar header (top brand-color strip + main
+ * white nav) · 3-col hero (H1 + secondary-H2 center, oval portraits flanking)
+ * · pill service carousel · trust-stats card · "the {clinic} difference"
+ * 2-col · arrow-paginated testimonials carousel · Location (map + directions)
+ * · Insurance band (carriers + verifier + logo marquee) · clinical-team 3-col
+ * with 4 icon callouts (only when ≥2 office photos) · "From the blog" 3-card
+ * band (only when published posts exist) · "it's a pleasure" CTA banner ·
+ * contact form (basic tier only — pro/premium book via /book) · dark
+ * forest-teal footer (full weekly hours live here). The standalone staff
+ * grid, about paragraph, office-tour gallery, and hours sections were
+ * removed to match Tend's flow; that content lives on /about + the footer.
+ * See CLAUDE.md for the full breakdown.
  */
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
@@ -51,6 +48,9 @@ interface Props {
   signInUrl?: string
   /** Whether the clinic has at least one published blog post — gates the Blog nav link. */
   hasBlog?: boolean
+  /** Up to 3 recent published posts — drives the homepage "From the blog"
+   *  band. Empty array hides the section (same gate as the Blog nav link). */
+  recentPosts?: BlogPost[]
   /** All-time count of completed `review_request` rows. Substituted into any
    *  stat with `dynamic: 'review_count'` so the "happy patients" trust signal
    *  reflects real data instead of a hardcoded "8,000+". Defaults to 0. */
@@ -74,16 +74,14 @@ export function formatReviewCount(n: number): string {
   return `${Math.floor(n / 1000)}k+`
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, reviewCount = 0 }: Props) {
-  const { profile, primaryLocation, locations } = data
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0 }: Props) {
+  const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
-  const hours = profile.hours as HoursMap | null
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const heroImageUrl = profile.heroImageUrl ?? null
   const services: ClinicService[] =
     ((profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES).slice(0, 6)
-  const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
   const rawStats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
   // Resolve dynamic stats at render. v1: only `review_count` is dynamic.
   // When the live count is 0 AND the stat is dynamic, drop the row rather
@@ -816,286 +814,81 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         </section>
       )}
 
-      {/* ── Meet the team (existing) ───────────────────────────────────── */}
-      {staff.length > 0 && (
-        <section id="team" className="scroll-mt-20 py-24 sm:py-32">
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-14">
-              <p
-                className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
-              >
-                Our team
-              </p>
-              <h2
-                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-              >
-                The <strong className="italic font-semibold">people</strong> who care for you.
-              </h2>
-            </div>
-            <div
-              className={`grid gap-x-6 gap-y-12 ${
-                staff.length >= 4
-                  ? 'grid-cols-2 lg:grid-cols-4'
-                  : staff.length === 3
-                    ? 'sm:grid-cols-3'
-                    : staff.length === 2
-                      ? 'sm:grid-cols-2 max-w-3xl'
-                      : 'max-w-sm'
-              }`}
-            >
-              {staff.map((s) => (
-                <div key={s.id} className="flex flex-col group">
-                  <div
-                    className="aspect-[4/5] w-full overflow-hidden mb-5 transition-transform duration-300 group-hover:-translate-y-0.5"
-                    style={{
-                      backgroundColor: BORDER,
-                      borderRadius: '120px',
-                    }}
-                  >
-                    {s.photoUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={s.photoUrl} alt={s.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center text-5xl font-bold"
-                        style={{
-                          background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
-                          color: brand,
-                        }}
-                        aria-label={s.name}
-                      >
-                        {staffInitials(s.name)}
-                      </div>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-semibold mb-1 leading-tight" style={{ color: INK }}>
-                    {s.name}
-                  </h3>
-                  {s.title && (
-                    <p className="text-sm font-medium mb-3" style={{ color: brand }}>
-                      {s.title}
-                    </p>
-                  )}
-                  {s.bio && (
-                    <p className="text-[14px] leading-[1.6]" style={{ color: INK_MUTED }}>
-                      {s.bio}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── About ──────────────────────────────────────────────────────── */}
-      {profile.about && (
+      {/* ── Blog — 3-card recent-posts preview ─────────────────────────── */}
+      {/* Mirrors Tend's homepage blog band: a left-aligned heading with a
+          "View all posts" CTA, then up to 3 recent published posts as
+          cards (cover image · category · title · excerpt · Read more).
+          Only renders when the clinic has published posts — same gate as
+          the Blog nav link. */}
+      {recentPosts.length > 0 && (
         <section className="py-24 sm:py-32">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-start">
-              <div className="lg:col-span-4">
-                <p
-                  className="text-xs font-semibold uppercase tracking-[0.16em]"
-                  style={{ color: brand }}
-                >
-                  About {name}
-                </p>
-              </div>
-              <div className="lg:col-span-8">
-                <p
-                  className="text-xl sm:text-2xl leading-[1.55] whitespace-pre-wrap font-medium"
-                  style={{ color: INK }}
-                >
-                  {profile.about}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── Office tour — magazine-rhythm photo gallery ─────────────────── */}
-      {officePhotos.length > 0 && (
-        <section className="py-24 sm:py-32" style={{ backgroundColor: SURFACE }}>
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-14">
-              <p
-                className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
-              >
-                Inside the office
-              </p>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-12">
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
-                A space designed to put you <strong className="italic font-semibold">at ease.</strong>
+                From the blog
               </h2>
+              <a
+                href={`${basePath}/blog`}
+                className="inline-flex items-center px-5 py-3 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+                style={{ backgroundColor: brand }}
+              >
+                View all posts
+              </a>
             </div>
-            <div
-              className={`grid gap-4 sm:gap-6 ${
-                officePhotos.length >= 4
-                  ? 'grid-cols-2 lg:grid-cols-4'
-                  : officePhotos.length === 3
-                    ? 'grid-cols-1 sm:grid-cols-3'
-                    : officePhotos.length === 2
-                      ? 'grid-cols-1 sm:grid-cols-2'
-                      : 'grid-cols-1 max-w-2xl'
-              }`}
-            >
-              {officePhotos.slice(0, 4).map((p) => (
-                <figure key={p.id} className="group">
-                  <div
-                    className="overflow-hidden rounded-2xl"
-                    style={{ backgroundColor: BORDER }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.url}
-                      alt={p.alt ?? ''}
-                      className="w-full aspect-[4/5] object-cover transition-transform duration-500 ease-out group-hover:scale-[1.025]"
-                      loading="lazy"
-                    />
-                  </div>
-                  {(p.caption || p.alt) && (
-                    <figcaption className="mt-3 text-sm" style={{ color: INK_MUTED }}>
-                      {p.caption ?? p.alt}
-                    </figcaption>
-                  )}
-                </figure>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── Hours + Location ───────────────────────────────────────────── */}
-      {(hours || primaryLocation || profile.city) && (
-        <section id="hours" className="scroll-mt-20 py-24 sm:py-32">
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
-              {/* Hours */}
-              {hours && Object.keys(hours).length > 0 && (
-                <div
-                  className="rounded-2xl p-8 sm:p-10"
+            <div className="grid gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {recentPosts.slice(0, 3).map((post) => (
+                <a
+                  key={post.id}
+                  href={`${basePath}/blog/${post.slug}`}
+                  className="group flex flex-col rounded-2xl overflow-hidden transition-transform duration-300 hover:-translate-y-0.5"
                   style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
                 >
-                  <p
-                    className="text-xs font-semibold uppercase tracking-[0.16em] mb-5"
-                    style={{ color: brand }}
-                  >
-                    Office hours
-                  </p>
-                  <div className="space-y-3">
-                    {DAYS.map((day) => {
-                      const entry = (hours as HoursMap)[day]
-                      if (!entry) return null
-                      return (
-                        <div key={day} className="flex items-baseline justify-between text-[15px]">
-                          <span className="font-medium w-28 shrink-0" style={{ color: INK }}>
-                            {DAY_LABEL[day]}
-                          </span>
-                          <span className="text-right" style={{ color: INK_MUTED }}>
-                            {entry.closed
-                              ? 'Closed'
-                              : entry.open && entry.close
-                                ? `${fmt12(entry.open)} – ${fmt12(entry.close)}`
-                                : '—'}
-                          </span>
-                        </div>
-                      )
-                    })}
+                  <div className="aspect-[16/10] overflow-hidden" style={{ backgroundColor: `${brand}14` }}>
+                    {post.coverImageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={post.coverImageUrl}
+                        alt={post.coverImageAlt ?? ''}
+                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+                        loading="lazy"
+                      />
+                    ) : null}
                   </div>
-                </div>
-              )}
-
-              {/* Location */}
-              {(primaryLocation || profile.city) && (
-                <div
-                  className="rounded-2xl p-8 sm:p-10"
-                  style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
-                >
-                  <p
-                    className="text-xs font-semibold uppercase tracking-[0.16em] mb-5"
-                    style={{ color: brand }}
-                  >
-                    Find us
-                  </p>
-                  <div className="space-y-4">
-                    {locations.map((loc, i) => {
-                      const addr = [loc.addressLine1, loc.addressLine2].filter(Boolean).join(' ')
-                      const city = [loc.city, loc.state, loc.postalCode].filter(Boolean).join(', ')
-                      return (
-                        <div
-                          key={loc.id}
-                          className={i > 0 ? 'pt-4 border-t' : ''}
-                          style={i > 0 ? { borderColor: BORDER } : undefined}
-                        >
-                          {locations.length > 1 && (
-                            <p
-                              className="text-[11px] font-semibold uppercase tracking-wider mb-2"
-                              style={{ color: INK_MUTED }}
-                            >
-                              {loc.name}
-                            </p>
-                          )}
-                          {addr && (
-                            <p className="text-[15px] font-medium" style={{ color: INK }}>
-                              {addr}
-                            </p>
-                          )}
-                          {city && (
-                            <p className="text-sm" style={{ color: INK_MUTED }}>
-                              {city}
-                            </p>
-                          )}
-                          {loc.phone && (
-                            <a
-                              href={`tel:${loc.phone}`}
-                              className="block text-sm mt-2 hover:underline"
-                              style={{ color: brand }}
-                            >
-                              {loc.phone}
-                            </a>
-                          )}
-                        </div>
-                      )
-                    })}
-                    {locations.length === 0 && profile.city && (
-                      <div>
-                        {profile.addressLine1 && (
-                          <p className="text-[15px] font-medium" style={{ color: INK }}>
-                            {profile.addressLine1}
-                          </p>
-                        )}
-                        <p className="text-sm" style={{ color: INK_MUTED }}>
-                          {[profile.city, profile.state, profile.postalCode].filter(Boolean).join(', ')}
-                        </p>
-                        {profile.phone && (
-                          <a
-                            href={`tel:${profile.phone}`}
-                            className="block text-sm mt-2 hover:underline"
-                            style={{ color: brand }}
-                          >
-                            {profile.phone}
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    {profile.email && (
-                      <a
-                        href={`mailto:${profile.email}`}
-                        className="inline-block text-sm font-medium mt-3 hover:underline"
+                  <div className="flex flex-col flex-1 p-6">
+                    {post.category && (
+                      <p
+                        className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-3"
                         style={{ color: brand }}
                       >
-                        {profile.email}
-                      </a>
+                        {post.category}
+                      </p>
                     )}
+                    <h3
+                      className="text-lg font-semibold leading-snug mb-3"
+                      style={{ color: INK }}
+                    >
+                      {post.title}
+                    </h3>
+                    {post.excerpt && (
+                      <p
+                        className="text-[14px] leading-[1.6] mb-4 line-clamp-3"
+                        style={{ color: INK_MUTED }}
+                      >
+                        {post.excerpt}
+                      </p>
+                    )}
+                    <span
+                      className="mt-auto text-sm font-semibold inline-flex items-center gap-1"
+                      style={{ color: brand }}
+                    >
+                      Read more →
+                    </span>
                   </div>
-                </div>
-              )}
+                </a>
+              ))}
             </div>
           </div>
         </section>
@@ -1147,34 +940,39 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         </div>
       </section>
 
-      {/* ── Booking CTA / Contact form ─────────────────────────────────── */}
-      <section
-        id="contact"
-        className="py-24 sm:py-32"
-      >
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-          <div className="max-w-[600px] mx-auto text-center">
-            <p
-              className="text-xs font-semibold uppercase tracking-[0.16em] mb-5"
-              style={{ color: brand }}
-            >
-              {isPro ? 'Book online' : 'Get in touch'}
-            </p>
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              {isPro ? "Let's get you on the schedule." : "We'd love to see you."}
-            </h2>
-            <p className="text-lg leading-[1.6] mb-10" style={{ color: INK_MUTED }}>
-              {isPro
-                ? 'Pick a time that works. Most patients are seen the same week.'
-                : 'Fill out the form and we\'ll be in touch to confirm your visit.'}
-            </p>
-            <ContactForm orgId={data.orgId} brand={brand} isPro={isPro} basePath={basePath} />
+      {/* ── Contact form — basic tier only ─────────────────────────────── */}
+      {/* Pro/premium clinics route every Book CTA to the /book slot picker,
+          so they don't need an on-page form (and Tend's homepage has none —
+          booking is always the widget). Basic-tier clinics have no /book,
+          so their Book CTAs anchor here to the contact form, which is their
+          only inbound-request channel. */}
+      {!isPro && (
+        <section
+          id="contact"
+          className="py-24 sm:py-32"
+        >
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+            <div className="max-w-[600px] mx-auto text-center">
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.16em] mb-5"
+                style={{ color: brand }}
+              >
+                Get in touch
+              </p>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                We&apos;d love to see you.
+              </h2>
+              <p className="text-lg leading-[1.6] mb-10" style={{ color: INK_MUTED }}>
+                Fill out the form and we&apos;ll be in touch to confirm your visit.
+              </p>
+              <ContactForm orgId={data.orgId} brand={brand} isPro={isPro} basePath={basePath} />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       </main>
 
