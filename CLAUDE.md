@@ -924,16 +924,24 @@ To-do in the AWS migration session (rough order):
 - **Deploy = merge to `main`** (automatic, like Vercel was). A GitHub Actions
   workflow (`.github/workflows/deploy.yml`, keyless via the OIDC role
   `DreamCRMGitHubActionsDeploy`) uploads the source and triggers the CodeBuild
-  project `dreamcrm-image-build`, which builds the image, pushes ECR
-  `:latest` + `:build-N`, and runs `aws apprunner start-deployment`. Watch it in
-  the repo's **Actions** tab (~8 min end to end). Manual fallback (no GitHub):
+  project `dreamcrm-image-build`, which builds the image with `docker buildx`,
+  pushes ECR `:latest` + `:build-N` (and a separate `:buildcache` tag carrying
+  the BuildKit layer cache via `--cache-to type=registry`), then runs
+  `aws apprunner start-deployment`. End-to-end ~4-5 min: ~30-60s GitHub Actions
+  + ~60-90s CodeBuild (cache-hot; ~2 min cold) + ~3 min App Runner deploy
+  (image pull + health check + traffic switch — irreducible AWS overhead).
+  Watch it in the repo's **Actions** tab. Manual fallback (no GitHub):
   ```
   git archive --format=zip HEAD -o /tmp/src.zip
   aws s3 cp /tmp/src.zip s3://dreamcrm-codebuild-952078552817/source/dreamcrm-src.zip
   aws codebuild start-build --project-name dreamcrm-image-build
   ```
   `NEXT_PUBLIC_*` bake at build time (CodeBuild env → Docker build args), so
-  changing them needs a rebuild, not just a redeploy.
+  changing them needs a rebuild, not just a redeploy. The BuildKit cache image
+  in ECR (`dreamcrm:buildcache`) is regenerated every build (`mode=max`) and
+  isn't covered by the `build-*` lifecycle rule, so it persists indefinitely;
+  if a build ever needs to start from a cold cache, just delete that tag in
+  ECR and the next build will repopulate it.
 - **Secrets / config**: Secrets Manager `dreamcrm/app-secrets` (one JSON) →
   injected as App Runner `RuntimeEnvironmentSecrets`. Driver switches + non-
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
