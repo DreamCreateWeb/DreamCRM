@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 
-const { BG, INK, INK_MUTED, BORDER } = CLINIC_THEME
+// Only INK + BORDER survive — the prev/next button uses them.
+// Card surface + text colors are fixed to the dark forest-teal palette
+// (see TestimonialCard below).
+const { INK, BORDER } = CLINIC_THEME
 
 interface Props {
   testimonials: ClinicTestimonial[]
@@ -22,7 +25,9 @@ interface Props {
  * + index state are interactive; the static markup below is what shows
  * on first paint so SSR + zero-JS visitors still see the first set.
  */
-export default function TestimonialsCarousel({ testimonials, brand }: Props) {
+export default function TestimonialsCarousel({ testimonials, brand: _brand }: Props) {
+  // `brand` is accepted for backwards-compat with existing callers but
+  // intentionally unused — the v2 card surface is fixed forest-teal.
   // We page three cards at a time on desktop. The index tracks the LEAD
   // card so prev/next moves one card at a time (not one page) — feels
   // more deliberate to read than a hard page jump.
@@ -59,7 +64,7 @@ export default function TestimonialsCarousel({ testimonials, brand }: Props) {
   if (count === 1) {
     return (
       <div className="max-w-2xl">
-        <TestimonialCard t={testimonials[0]} brand={brand} />
+        <TestimonialCard t={testimonials[0]} />
       </div>
     )
   }
@@ -71,12 +76,12 @@ export default function TestimonialsCarousel({ testimonials, brand }: Props) {
       className="relative"
       tabIndex={0}
     >
-      <div className="flex items-center justify-end gap-2 mb-6">
+      <div className="flex items-center justify-end gap-3 mb-8 sm:mb-10">
         <button
           type="button"
           onClick={goPrev}
           aria-label="Previous testimonial"
-          className="w-11 h-11 rounded-full flex items-center justify-center transition hover:shadow-sm"
+          className="w-12 h-12 rounded-full flex items-center justify-center transition hover:shadow-sm"
           style={{ backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -87,47 +92,43 @@ export default function TestimonialsCarousel({ testimonials, brand }: Props) {
           type="button"
           onClick={goNext}
           aria-label="Next testimonial"
-          className="w-11 h-11 rounded-full flex items-center justify-center text-white transition hover:shadow-md"
-          style={{ backgroundColor: brand }}
+          className="h-12 px-5 rounded-full inline-flex items-center gap-2 transition hover:shadow-sm text-sm font-semibold tracking-wide"
+          style={{ backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }}
         >
+          <span>NEXT</span>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>
       </div>
-      <div className="overflow-hidden">
+      <div className="overflow-visible">
         <ul
           className="flex transition-transform duration-500 ease-out gap-6 lg:gap-8"
           style={{
-            // Each card takes ~92% of viewport on mobile, ~33% on desktop.
-            // We use translateX percent so it scales without measuring DOM.
-            // The percent moves one card-width per index step.
-            // mobile single-column: 100% of (card + gap) per step ≈ 100/1
-            // desktop three-up: 100/3 per step. We split with a CSS var
-            // controlled by Tailwind classes for predictability.
+            // Step moves the track by one card-width per click. Single-card
+            // focus with significant peeks on both sides (Tend's verbatim).
+            // Mobile = full width, tablet/desktop = ~66% with peek so the
+            // next/prev card hints visible at the edges.
             transform: `translateX(calc(var(--tm-step, -100%) * ${index}))`,
           }}
         >
           {testimonials.map((t, i) => (
             <li
               key={t.id}
-              className="shrink-0 basis-full md:basis-1/2 lg:basis-1/3 min-w-0"
+              className="shrink-0 basis-full md:basis-3/4 lg:basis-2/3 min-w-0"
               aria-hidden={Math.abs(i - index) > 1 ? 'true' : undefined}
             >
-              <TestimonialCard t={t} brand={brand} />
+              <TestimonialCard t={t} />
             </li>
           ))}
         </ul>
       </div>
       <style>{`
-        /* Single-step uses one card per page on mobile, three on desktop.
-           We pick the step width to match the basis class above, so the
-           transform stays in sync with the visible card count. */
         @media (min-width: 768px) {
-          [aria-roledescription="carousel"] ul { --tm-step: calc(-50% - 1rem); }
+          [aria-roledescription="carousel"] ul { --tm-step: calc(-75% - 1.5rem); }
         }
         @media (min-width: 1024px) {
-          [aria-roledescription="carousel"] ul { --tm-step: calc(-33.333% - 1rem); }
+          [aria-roledescription="carousel"] ul { --tm-step: calc(-66.667% - 2rem); }
         }
         @media (prefers-reduced-motion: reduce) {
           [aria-roledescription="carousel"] ul { transition: none; }
@@ -138,35 +139,48 @@ export default function TestimonialsCarousel({ testimonials, brand }: Props) {
 }
 
 /**
- * Single testimonial card — shared shape across the carousel. Long quote
- * top, 5-star row, author name (strong) + city. Matches Tend's review card
- * — minimal chrome, the words do the work.
+ * Single testimonial card — Tend-verbatim composition. Dark forest-teal
+ * card (`#36514c`, same hex as the footer) with white quote text + gold
+ * 5-star row bottom-left and author bottom-right. Quote is unbounded
+ * vertically; the flex-end footer pins stars/author to the bottom even
+ * on short reviews.
+ *
+ * `brand` is intentionally unused on the card — the dark surface is fixed
+ * to the forest-teal regardless of clinic brand color so the carousel
+ * reads as a deliberate visual break, not as another brand-color tint.
  */
-export function TestimonialCard({ t, brand }: { t: ClinicTestimonial; brand: string }) {
+const TESTIMONIAL_CARD_BG = '#36514c'
+const TESTIMONIAL_CARD_STAR = '#FFCC00'
+
+export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string }) {
   return (
     <figure
-      className="rounded-2xl p-7 sm:p-8 flex flex-col h-full"
-      style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+      className="rounded-3xl p-8 sm:p-10 lg:p-12 flex flex-col h-full"
+      style={{ backgroundColor: TESTIMONIAL_CARD_BG }}
     >
       <blockquote
-        className="text-[17px] leading-[1.55] flex-1 mb-5"
-        style={{ color: INK }}
+        className="text-base sm:text-lg lg:text-xl leading-[1.5] flex-1 mb-10 text-center"
+        style={{ color: '#FFFFFF' }}
       >
-        &ldquo;{t.quote}&rdquo;
+        {t.quote}
       </blockquote>
-      <p
-        className="text-base mb-4 leading-none tracking-widest"
-        style={{ color: brand }}
-        aria-label="5 out of 5 stars"
-      >
-        ★★★★★
-      </p>
-      <figcaption className="text-sm" style={{ color: INK_MUTED }}>
-        <strong className="font-semibold" style={{ color: INK }}>
-          {t.authorName}
-        </strong>
-        {t.authorLocation && <> · {t.authorLocation}</>}
-      </figcaption>
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <p
+          className="text-base lg:text-lg leading-none tracking-widest"
+          style={{ color: TESTIMONIAL_CARD_STAR }}
+          aria-label="5 out of 5 stars"
+        >
+          ★★★★★
+        </p>
+        <figcaption className="text-sm lg:text-[15px]" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          <strong className="font-semibold" style={{ color: '#FFFFFF' }}>
+            {t.authorName}
+          </strong>
+          {t.authorLocation && (
+            <span style={{ color: 'rgba(255,255,255,0.65)' }}> {t.authorLocation}</span>
+          )}
+        </figcaption>
+      </div>
     </figure>
   )
 }

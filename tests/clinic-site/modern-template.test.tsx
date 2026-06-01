@@ -227,7 +227,7 @@ describe('ModernTemplate', () => {
     expect(screen.getAllByText('Cosmetic Dentistry').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders configured services with descriptions', () => {
+  it('renders configured service names in the hero pill carousel', () => {
     render(
       <ModernTemplate
         data={makeData({
@@ -239,10 +239,13 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
-    // Names appear in BOTH the hero pill carousel + the services section.
-    // The DESCRIPTION only renders in the services section.
+    // Service NAMES appear in the hero pill carousel (and the "Difference"
+    // section's value-prop chips when applicable). Descriptions no longer
+    // render on the homepage — the dedicated services-pillars section was
+    // removed in favor of putting the testimonials carousel right under
+    // the hero. The full catalog (with descriptions) lives at /services.
     expect(screen.getAllByText('Teeth Whitening').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Brighter in one visit')).toBeInTheDocument()
+    expect(screen.queryByText('Brighter in one visit')).not.toBeInTheDocument()
     expect(screen.getAllByText('Implants').length).toBeGreaterThanOrEqual(1)
   })
 
@@ -384,7 +387,7 @@ describe('ModernTemplate', () => {
     expect(h1.getAttribute('style')).toMatch(/font-family/i)
   })
 
-  it('renders service pills below the hero linking to #services', () => {
+  it('renders service pills below the hero linking to /services', () => {
     render(
       <ModernTemplate
         data={makeData({
@@ -396,11 +399,13 @@ describe('ModernTemplate', () => {
         basePath="/site/test"
       />,
     )
-    // Each pill is a link with href ending in #services. Both names should
-    // be reachable as links.
+    // Pills now point at the standalone /services index page (the prior
+    // on-page #services anchor was removed when the services-pillars
+    // section was deleted in favor of putting the testimonials carousel
+    // right under the hero).
     const pillLinks = screen
       .getAllByRole('link')
-      .filter((a) => a.getAttribute('href') === '/site/test#services')
+      .filter((a) => a.getAttribute('href') === '/site/test/services')
     expect(pillLinks.length).toBeGreaterThanOrEqual(2)
   })
 
@@ -488,25 +493,7 @@ describe('ModernTemplate', () => {
     expect(screen.getByRole('heading', { level: 1, name: /finally feels human/i })).toBeInTheDocument()
   })
 
-  it('renders numbered service pillars (01, 02, …)', () => {
-    render(
-      <ModernTemplate
-        data={makeData({
-          services: [
-            { id: 's1', name: 'Cleanings', description: null },
-            { id: 's2', name: 'Whitening', description: null },
-            { id: 's3', name: 'Implants', description: null },
-          ] as never,
-        })}
-        basePath="/site/test"
-      />,
-    )
-    expect(screen.getByText('01')).toBeInTheDocument()
-    expect(screen.getByText('02')).toBeInTheDocument()
-    expect(screen.getByText('03')).toBeInTheDocument()
-  })
-
-  it('caps services at 6 in the main body sections (hero pills + services grid)', () => {
+  it('caps services at 6 in the hero pill carousel', () => {
     const services = Array.from({ length: 10 }, (_, i) => ({
       id: `s${i}`,
       name: `Service ${i}`,
@@ -515,9 +502,10 @@ describe('ModernTemplate', () => {
     const { container } = render(
       <ModernTemplate data={makeData({ services: services as never })} basePath="/site/test" />,
     )
-    // Main body = everything inside <main>. Services 0-5 each appear in
-    // the hero pill carousel + the services section. 6+ never appear
-    // inside <main>. The footer separately surfaces up to 8 entries.
+    // Main body = everything inside <main>. The pill carousel renders
+    // services 0-5 (cap of 6). Items 6+ never appear inside <main>; the
+    // full catalog lives at /services. The footer separately surfaces
+    // up to 8 entries (asserted elsewhere).
     const main = container.querySelector('main')
     expect(main).not.toBeNull()
     const mainText = main!.textContent ?? ''
