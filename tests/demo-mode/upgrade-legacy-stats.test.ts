@@ -23,7 +23,7 @@ describe('upgradeLegacyDemoStats', () => {
 
   it('returns null when stats are already on the current dynamic shape', () => {
     const current: ClinicStat[] = [
-      { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+      { id: 'st_reviews', value: '0', label: 'happy reviews', dynamic: 'review_count' },
       { id: 'st2', value: 'Same-week', label: 'appointments' },
     ]
     expect(upgradeLegacyDemoStats(current)).toBeNull()
@@ -39,7 +39,7 @@ describe('upgradeLegacyDemoStats', () => {
     expect(upgraded![0]).toEqual({
       id: 'st_reviews',
       value: '0',
-      label: 'happy patients',
+      label: 'happy reviews',
       dynamic: 'review_count',
     })
     // Other stats are preserved
@@ -70,12 +70,26 @@ describe('upgradeLegacyDemoStats', () => {
     expect(upgradeLegacyDemoStats(handEdited)).toBeNull()
   })
 
-  it('does NOT re-upgrade a stat that already carries dynamic: review_count', () => {
-    // Edge case: a stat that happens to have id="st1" but is already
-    // dynamic shouldn't be touched.
-    const mixed: ClinicStat[] = [
-      { id: 'st1', value: '0', label: 'happy patients', dynamic: 'review_count' },
+  it('does NOT re-upgrade a stat that already carries dynamic: review_count + the terminal label', () => {
+    // Edge case: a stat that's already in its terminal shape stays
+    // untouched. Different from the second-pass migration below.
+    const terminal: ClinicStat[] = [
+      { id: 'st1', value: '0', label: 'happy reviews', dynamic: 'review_count' },
     ]
-    expect(upgradeLegacyDemoStats(mixed)).toBeNull()
+    expect(upgradeLegacyDemoStats(terminal)).toBeNull()
+  })
+
+  it('second-pass migration: relabels the intermediate "happy patients" to "happy reviews"', () => {
+    // The first cut of the dynamic stat shipped with label "happy
+    // patients", which read like the clinic had only a handful of
+    // patients total. Demos seeded between those two cuts have the
+    // intermediate shape; the upgrade re-labels them on next entry.
+    const intermediate: ClinicStat[] = [
+      { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+    ]
+    const upgraded = upgradeLegacyDemoStats(intermediate)
+    expect(upgraded).not.toBeNull()
+    expect(upgraded![0].label).toBe('happy reviews')
+    expect(upgraded![0].dynamic).toBe('review_count')
   })
 })

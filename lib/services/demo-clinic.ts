@@ -240,7 +240,7 @@ function buildPatientPersonas(now: Date): PatientPersona[] {
 // can't verify). The demo seeds 7 completed reviews, so this renders as
 // "7" on a freshly-seeded demo and grows as platform admins click through.
 const DEMO_STATS = [
-  { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' as const },
+  { id: 'st_reviews', value: '0', label: 'happy reviews', dynamic: 'review_count' as const },
   { id: 'st2', value: 'Same-week', label: 'appointments available' },
   { id: 'st3', value: 'Most', label: 'insurance accepted' },
 ]
@@ -272,9 +272,17 @@ export function upgradeLegacyDemoStats(stats: ClinicStat[] | null): ClinicStat[]
       return {
         id: 'st_reviews',
         value: '0',
-        label: 'happy patients',
+        label: 'happy reviews',
         dynamic: 'review_count' as const,
       }
+    }
+    // Second-pass migration: the initial cut of the dynamic stat shipped
+    // with the label "happy patients", which read like the clinic had only
+    // a handful of patients total ("7 happy patients" felt embarrassing).
+    // Relabel to "happy reviews" so the count clearly refers to reviews.
+    if (s.dynamic === 'review_count' && (s.label ?? '').toLowerCase() === 'happy patients') {
+      changed = true
+      return { ...s, label: 'happy reviews' }
     }
     return s
   })
@@ -425,8 +433,14 @@ const DEMO_HERO_IMAGE_URL =
 // Pexels dental footage — Pexels licenses everything for free commercial
 // use without attribution. Keeps the demo showcasing the video branch of
 // the difference section without us needing to shoot anything.
+// Self-hosted on our S3 bucket. The original Pexels CDN URL returned 403
+// to direct browser requests (their CDN hotlink-blocks the mp4 endpoint),
+// leaving the difference-section card visibly blank. Source is the same
+// dentist-checkup clip from Mixkit (free under the Mixkit License, no
+// attribution required) mirrored to S3 so the demo serves reliably from
+// a domain we control.
 const DEMO_DIFFERENCE_VIDEO_URL =
-  'https://videos.pexels.com/video-files/4421284/4421284-hd_1280_720_30fps.mp4'
+  'https://dreamcrm-uploads-prod.s3.us-east-1.amazonaws.com/demo-assets/dental-difference.mp4'
 
 const DEMO_OFFICE_PHOTOS = [
   {
@@ -531,9 +545,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (!profile?.logoUrl) patch.logoUrl = DEMO_LOGO_URL
     if (!profile?.heroImageUrl) patch.heroImageUrl = DEMO_HERO_IMAGE_URL
     // Difference-video backfill: legacy demos predate migration 0037 + the
-    // ambient autoplay loop in the "Why us?" section. Seed the Pexels
-    // sample so the demo showcases the new video branch on next entry.
-    if (!profile?.differenceVideoUrl) patch.differenceVideoUrl = DEMO_DIFFERENCE_VIDEO_URL
+    // ambient autoplay loop in the "Why us?" section. Also overwrite the
+    // first-pass Pexels URL — Pexels hotlink-blocked the mp4 endpoint with
+    // a 403, so the section was rendering a blank card. The S3-hosted
+    // mirror is reliable; force-replace the broken Pexels URL on next entry.
+    if (
+      !profile?.differenceVideoUrl ||
+      profile.differenceVideoUrl.includes('videos.pexels.com')
+    ) {
+      patch.differenceVideoUrl = DEMO_DIFFERENCE_VIDEO_URL
+    }
     // FAQ backfill: legacy demos seeded before migration 0036 added the
     // faq column have null here, so the public /faq page falls back to the
     // universal DEFAULT_FAQ_ITEMS but the demo is missing its "edited"
