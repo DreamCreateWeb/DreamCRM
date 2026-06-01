@@ -141,6 +141,20 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     { label: 'Contact', href: `${basePath}#contact` },
   ]
 
+  // Value-prop chips repeated in the chartreuse closer strip below the
+  // "it's a pleasure" CTA card. Same palette + structure as the top
+  // announcement strip in SiteHeader so the page composition rhymes —
+  // chartreuse top, chartreuse bottom, with the closer card as the
+  // bridge. Kept short + generic so they read on every clinic.
+  const closerChips: string[] = [
+    'No judgment, ever',
+    'Same-week visits',
+    'Most insurance accepted',
+    'Modern technology',
+    'Caring team',
+    'Convenient hours',
+  ]
+
   // Two flanking portrait photos for the hero. Left = clinic's hero image,
   // right = first office photo. Backdrops are HARDCODED universal pastels
   // (soft blue + warm peach) — Tend pairs the photo ovals against fixed
@@ -895,50 +909,106 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       )}
 
       {/* ── "It's a pleasure" closing CTA banner ─────────────────────────── */}
-      {/* Full-width band in the clinic's brand color (with optional photo
-          overlay) carrying the Tend-verbatim "Care isn't just X, it's a
-          pleasure" closing line + Book Now CTA. The brand-color saturation
-          + white serif headline is the single most recognizable Tend
-          composition element. */}
+      {/* Tend-verbatim composition: a WHITE rounded-3xl floating card sits
+          on a forest-teal background dressed with a soft watercolor-style
+          gradient blob overlay. The card pops down into the chartreuse
+          chip strip below via a negative margin, so the strip reads as
+          continuous with the card's lower edge — the exact transition
+          Tend uses between the closer line and the dark footer. */}
       <section
         className="relative overflow-hidden"
-        style={{
-          backgroundColor: brand,
-          color: '#FFFFFF',
-        }}
+        style={{ backgroundColor: '#36514c' }}
       >
-        {heroImageUrl && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={heroImageUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover opacity-25"
-            loading="lazy"
-          />
-        )}
-        <div className="relative max-w-[1240px] mx-auto px-5 sm:px-8 py-20 sm:py-28">
-          <div className="grid lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-8">
-              <h2
-                className="text-3xl sm:text-4xl lg:text-[52px] font-semibold leading-[1.1] tracking-[-0.015em]"
-                style={{ color: '#FFFFFF', fontFamily: 'var(--font-display, Georgia, serif)' }}
-              >
-                Care at {name} isn't just easy, it's{' '}
-                <strong className="italic font-semibold">a pleasure.</strong>
-              </h2>
-            </div>
-            <div className="lg:col-span-4 lg:text-right">
-              <a
-                href={bookHref}
-                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold transition hover:opacity-95 shadow-lg"
-                style={{ backgroundColor: '#FFFFFF', color: brand }}
-              >
-                {bookLabel}
-              </a>
+        {/* Soft watercolor-ish texture: layered radial gradients in subtle
+            white-on-teal create the same painted-pattern feel Tend uses
+            behind their closer card, without shipping a raster texture. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse at 12% 18%, rgba(255,255,255,0.10) 0%, transparent 38%),' +
+              'radial-gradient(ellipse at 82% 64%, rgba(255,255,255,0.08) 0%, transparent 42%),' +
+              'radial-gradient(ellipse at 48% 88%, rgba(255,255,255,0.06) 0%, transparent 38%),' +
+              'radial-gradient(ellipse at 90% 12%, rgba(255,255,255,0.05) 0%, transparent 30%)',
+          }}
+        />
+        <div
+          className="relative max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-28"
+          style={{ paddingBottom: 'calc(2.5rem + 32px)' }}
+        >
+          {/* Floating white card. -mb-16 below pulls its bottom edge into
+              the chartreuse strip so they overlap, matching Tend's
+              composition. */}
+          <div
+            className="relative bg-white rounded-3xl px-8 sm:px-12 lg:px-16 py-10 sm:py-12 lg:py-14 -mb-16 sm:-mb-20"
+            style={{ boxShadow: '0 24px 48px -16px rgba(28, 26, 23, 0.30)' }}
+          >
+            <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-center">
+              <div className="lg:col-span-8">
+                <h2
+                  className="text-3xl sm:text-4xl lg:text-[52px] font-semibold leading-[1.1] tracking-[-0.015em]"
+                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                >
+                  Care at {name} isn&apos;t just easy, it&apos;s{' '}
+                  <strong className="italic font-semibold">a pleasure.</strong>
+                </h2>
+              </div>
+              <div className="lg:col-span-4 lg:text-right">
+                <a
+                  href={bookHref}
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+                  style={{ backgroundColor: brand }}
+                >
+                  {bookLabel}
+                </a>
+              </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* ── Closer chartreuse chip strip ──────────────────────────────── */}
+      {/* Same chartreuse #E7FB7E + ink palette as the top announcement
+          strip. Tend repeats this strip between the closer card and the
+          dark footer; the visual rhyme closes the page composition the
+          same way it opened it. Pure CSS marquee — no client component
+          needed. Sits in a higher stacking context (z-10) so the card
+          above overlaps onto it via its -mb-16 pull-down. */}
+      <div
+        className="relative z-10 overflow-hidden"
+        style={{ backgroundColor: '#E7FB7E', color: '#1C1A17' }}
+      >
+        <div
+          className="tend-marquee max-w-[1400px] mx-auto px-5 sm:px-8 h-11 sm:h-12 flex items-center"
+          aria-hidden="true"
+        >
+          <ul
+            className="tend-marquee-track flex items-center whitespace-nowrap shrink-0 text-[13px] sm:text-[14px] font-medium"
+            style={{ gap: '2.5rem' }}
+          >
+            {[...closerChips, ...closerChips].map((chip, i) => (
+              <li
+                key={i}
+                className="inline-flex items-center gap-2 shrink-0"
+                style={{ color: '#1C1A17' }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-block w-1 h-1 rounded-full"
+                  style={{ backgroundColor: '#1C1A17' }}
+                />
+                {chip}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <ul className="sr-only">
+          {closerChips.map((chip, i) => (
+            <li key={i}>{chip}</li>
+          ))}
+        </ul>
+      </div>
 
       {/* ── Contact form — basic tier only ─────────────────────────────── */}
       {/* Pro/premium clinics route every Book CTA to the /book slot picker,
