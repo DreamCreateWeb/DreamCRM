@@ -36,6 +36,7 @@ export async function submitInsuranceVerifyRequest(
   const email = formData.get('email')?.toString().trim() || ''
   const phone = formData.get('phone')?.toString().trim() || ''
   const carrierRaw = formData.get('carrier')?.toString().trim() || ''
+  const serviceRaw = formData.get('service')?.toString().trim() || ''
 
   if (!orgId) return { ok: false, error: 'Missing organization' }
   if (!email) return { ok: false, error: 'Email is required' }
@@ -55,7 +56,12 @@ export async function submitInsuranceVerifyRequest(
   const name = 'Insurance verification request'
   const carrierLabel =
     !carrierRaw || carrierRaw === '__other__' ? 'unspecified' : carrierRaw
-  const notes = `Insurance verification request: ${carrierLabel}`
+  const serviceLabel =
+    !serviceRaw || serviceRaw === '__other__' ? 'unspecified' : serviceRaw
+  const notes =
+    `Insurance verification request — ` +
+    `Carrier: ${carrierLabel}. ` +
+    `Service of interest: ${serviceLabel}.`
 
   try {
     await createLead({
