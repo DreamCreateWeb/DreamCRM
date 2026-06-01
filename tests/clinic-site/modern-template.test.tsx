@@ -771,9 +771,12 @@ describe('ModernTemplate', () => {
     )
     // Carousel wrapper present — labelled by aria-roledescription.
     expect(container.querySelector('[aria-roledescription="carousel"]')).not.toBeNull()
-    // Each testimonial renders exactly once (no marquee duplication).
-    expect(screen.getAllByText(/Quote 0/)).toHaveLength(1)
-    expect(screen.getAllByText(/Quote 2/)).toHaveLength(1)
+    // Each testimonial renders twice — the N+N doubled track that powers
+    // the seamless infinite-loop wrap. The duplicates carry aria-hidden
+    // for non-adjacent positions, so screen readers still hear each
+    // quote once.
+    expect(screen.getAllByText(/Quote 0/)).toHaveLength(2)
+    expect(screen.getAllByText(/Quote 2/)).toHaveLength(2)
   })
 
   it('exposes Previous and Next buttons for paging the carousel', () => {
@@ -814,9 +817,10 @@ describe('ModernTemplate', () => {
     const { container } = render(
       <ModernTemplate data={makeData({ testimonials: testimonials as never })} basePath="/site/test" />,
     )
-    // No duplication — exactly 50 cards in a single track.
+    // Template caps the array at 50 before handing it to the carousel;
+    // the carousel then doubles to 100 DOM cards for the wrap.
     const items = container.querySelectorAll('[aria-roledescription="carousel"] ul > li')
-    expect(items.length).toBe(50)
+    expect(items.length).toBe(100)
   })
 
   it('renders testimonial cards with the patient name in bold (no avatar — Tend pattern)', () => {

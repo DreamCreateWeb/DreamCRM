@@ -9,6 +9,12 @@ import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 // (see TestimonialCard below).
 const { INK, BORDER } = CLINIC_THEME
 
+// Match the CSS `transition-duration` on the track. Slightly-padded
+// timeout matches the visible animation length so the snap-back fires
+// AFTER the animation completes, not during it.
+const TRANSITION_MS = 500
+const SNAP_DELAY_MS = TRANSITION_MS + 50
+
 interface Props {
   testimonials: ClinicTestimonial[]
   brand: string
@@ -16,38 +22,39 @@ interface Props {
 
 /**
  * Arrow-paginated testimonials carousel — matches Tend's "Why people love us"
- * section. One card visible at a time on mobile, three on desktop, with
- * prev/next buttons in the top-right and keyboard left/right nav.
+ * section. Single-card focus on desktop with sliver-peeks on both sides,
+ * prev/next buttons in the top-right, keyboard left/right nav.
  *
- * Replaces the prior CSS-marquee — Tend's actual implementation is a
- * splide-style paged carousel, and the marquee felt frenetic against the
- * otherwise-still page rhythm. Renders client-side because the prev/next
- * + index state are interactive; the static markup below is what shows
- * on first paint so SSR + zero-JS visitors still see the first set.
+ * Infinite-loop behavior: the track renders 2N cards (originals duplicated
+ * once); when the index advances PAST the first set (index >= count) we
+ * let the animation land on the duplicate, then snap (no transition) back
+ * to the equivalent in-range index. The user sees a seamless ongoing
+ * stream rather than a hard reset to position 0.
+ *
+ * Renders client-side because the prev/next + index state are interactive;
+ * static SSR markup still shows the first set on first paint.
  */
 export default function TestimonialsCarousel({ testimonials, brand: _brand }: Props) {
   // `brand` is accepted for backwards-compat with existing callers but
   // intentionally unused — the v2 card surface is fixed forest-teal.
-  // We page three cards at a time on desktop. The index tracks the LEAD
-  // card so prev/next moves one card at a time (not one page) — feels
-  // more deliberate to read than a hard page jump.
-  const [index, setIndex] = useState(0)
   const count = testimonials.length
-  // visible-window size by breakpoint — kept simple, we just always render
-  // ALL cards in a horizontal track and translateX by index * cardWidth.
-  // Tailwind handles per-breakpoint card width via flex-basis classes.
+
+  // Index can transiently overshoot [0, count) during the snap-back
+  // window — that's intentional. `transitionOn` is briefly toggled off
+  // while we snap so the user doesn't see the reset.
+  const [index, setIndex] = useState(0)
+  const [transitionOn, setTransitionOn] = useState(true)
 
   const goPrev = useCallback(() => {
-    setIndex((i) => (i - 1 + count) % count)
-  }, [count])
+    setTransitionOn(true)
+    setIndex((i) => i - 1)
+  }, [])
   const goNext = useCallback(() => {
-    setIndex((i) => (i + 1) % count)
-  }, [count])
+    setTransitionOn(true)
+    setIndex((i) => i + 1)
+  }, [])
 
-  // Keyboard nav — left/right arrows page the carousel when it has focus
-  // (the wrapper carries tabIndex={0}). Tend mounts this on the whole
-  // section so any focus inside cycles cards; we keep it scoped to the
-  // wrapper so it doesn't fight form inputs elsewhere on the page.
+  // Keyboard nav — left/right arrows page the carousel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') goPrev()
@@ -57,10 +64,28 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
     return () => window.removeEventListener('keydown', onKey)
   }, [goPrev, goNext])
 
+  // Snap-back: after the animation finishes, if we're outside [0, count),
+  // disable transition and shift index by ±count so we're back in range
+  // visually identical to the post-animation frame. Re-enable transition
+  // immediately so the next interaction animates normally.
+  useEffect(() => {
+    if (count <= 1) return
+    if (index >= 0 && index < count) return
+    const t = setTimeout(() => {
+      setTransitionOn(false)
+      setIndex((i) => (i >= count ? i - count : i + count))
+      // Re-enable transition on the next frame so subsequent interactions
+      // animate. Using rAF instead of another setTimeout because we want
+      // the no-transition state to apply for exactly one paint.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setTransitionOn(true))
+      })
+    }, SNAP_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [index, count])
+
   if (count === 0) return null
 
-  // For a single testimonial, skip the carousel chrome entirely — buttons
-  // would page in place and look broken with no visual change.
   if (count === 1) {
     return (
       <div className="max-w-2xl">
@@ -68,6 +93,11 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
       </div>
     )
   }
+
+  // Doubled track for the seamless wrap. The second copy gives us a real
+  // card to slide INTO when the user advances past index count-1 → count;
+  // after the animation we snap back to index 0 (or N-1 on prev-wrap).
+  const doubled = [...testimonials, ...testimonials]
 
   return (
     <div
@@ -101,26 +131,37 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
           </svg>
         </button>
       </div>
-      <div className="overflow-visible">
+      {/* overflow-x-clip on the wrapper instead of the section so the peek
+          cards stay within the section's max-w but don't push the page
+          wider than the viewport on narrow screens. clip beats hidden
+          because it doesn't establish a scroll container (which would
+          break sticky positioning further up the page). */}
+      <div className="-mx-5 sm:-mx-8 px-5 sm:px-8" style={{ overflowX: 'clip' }}>
         <ul
-          className="flex transition-transform duration-500 ease-out gap-6 lg:gap-8"
+          className="flex gap-6 lg:gap-8"
           style={{
-            // Step moves the track by one card-width per click. Single-card
-            // focus with significant peeks on both sides (Tend's verbatim).
-            // Mobile = full width, tablet/desktop = ~66% with peek so the
-            // next/prev card hints visible at the edges.
+            transition: transitionOn
+              ? `transform ${TRANSITION_MS}ms ease-out`
+              : 'none',
             transform: `translateX(calc(var(--tm-step, -100%) * ${index}))`,
           }}
         >
-          {testimonials.map((t, i) => (
-            <li
-              key={t.id}
-              className="shrink-0 basis-full md:basis-3/4 lg:basis-2/3 min-w-0"
-              aria-hidden={Math.abs(i - index) > 1 ? 'true' : undefined}
-            >
-              <TestimonialCard t={t} />
-            </li>
-          ))}
+          {doubled.map((t, i) => {
+            // For aria, hide cards that are NOT adjacent to the visible
+            // one. Use modular distance so the wrap-around copies count
+            // as "the same" position.
+            const norm = ((i - index) % count + count) % count
+            const isVisibleish = norm === 0 || norm === 1 || norm === count - 1
+            return (
+              <li
+                key={i}
+                className="shrink-0 basis-full md:basis-3/4 lg:basis-2/3 min-w-0"
+                aria-hidden={isVisibleish ? undefined : 'true'}
+              >
+                <TestimonialCard t={t} />
+              </li>
+            )
+          })}
         </ul>
       </div>
       <style>{`
@@ -131,7 +172,7 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
           [aria-roledescription="carousel"] ul { --tm-step: calc(-66.667% - 2rem); }
         }
         @media (prefers-reduced-motion: reduce) {
-          [aria-roledescription="carousel"] ul { transition: none; }
+          [aria-roledescription="carousel"] ul { transition: none !important; }
         }
       `}</style>
     </div>
