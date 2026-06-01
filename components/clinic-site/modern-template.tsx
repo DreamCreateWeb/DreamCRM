@@ -313,7 +313,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 pills={heroServicePills.map((s) => ({ id: s.id, name: s.name }))}
                 brand={brand}
                 ink={INK}
-                href={`${basePath}#services`}
+                href={`${basePath}/services`}
               />
             </div>
           )}
@@ -455,54 +455,25 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         </div>
       </section>
 
-      {/* ── Services — numbered pillars ────────────────────────────────── */}
-      <section id="services" className="scroll-mt-20 py-24 sm:py-32">
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-          <div className="max-w-[640px] mb-14">
-            <p
-              className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-              style={{ color: brand }}
-            >
-              What we do
-            </p>
+      {/* ── Testimonials — promoted to this slot (was: services pillars,
+          deleted). Tend's verbatim: "Why people love {clinic}" left-aligned
+          serif heading, prev/next arrows top-right, dark forest-teal cards
+          with white quote text + gold stars + author bottom-right. The full
+          services catalog lives on /services; the hero pill carousel keeps
+          a name-only preview. */}
+      {testimonials.length > 0 && (
+        <section id="reviews" className="scroll-mt-20 py-24 sm:py-32">
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
+              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
-              Comprehensive dental care, <strong className="italic font-semibold">gently delivered.</strong>
+              Why people love <strong className="italic font-semibold">{name}</strong>
             </h2>
+            <TestimonialsCarousel testimonials={testimonials} brand={brand} />
           </div>
-          <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
-            {services.map((s, i) => (
-              <div
-                key={s.id}
-                className="flex flex-col group rounded-2xl p-7 sm:p-8 transition-transform duration-300 hover:-translate-y-0.5"
-                style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
-              >
-                <span
-                  className="text-sm font-semibold tracking-[0.12em] mb-4 inline-flex items-center gap-2"
-                  style={{ color: brand }}
-                >
-                  <span>{String(i + 1).padStart(2, '0')}</span>
-                  <span
-                    aria-hidden="true"
-                    className="h-px w-0 group-hover:w-8 transition-[width] duration-300"
-                    style={{ backgroundColor: brand }}
-                  />
-                </span>
-                <h3 className="text-xl font-semibold mb-3 leading-tight" style={{ color: INK }}>
-                  {s.name}
-                </h3>
-                {s.description && (
-                  <p className="text-[15px] leading-[1.6]" style={{ color: INK_MUTED }}>
-                    {s.description}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ── Clinical-team trust — 3-col with oval portraits + 4 callouts ── */}
       {/* Renders only when we have ≥2 office photos (so both flanking
@@ -647,29 +618,6 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── Testimonials — arrow-paginated carousel ────────────────────── */}
-      {testimonials.length > 0 && (
-        <section id="reviews" className="scroll-mt-20 py-24 sm:py-32" style={{ backgroundColor: SURFACE }}>
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-14">
-              <p
-                className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
-              >
-                In their words
-              </p>
-              <h2
-                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-              >
-                Why people love <strong className="italic font-semibold">{name}</strong>
-              </h2>
-            </div>
-            <TestimonialsCarousel testimonials={testimonials} brand={brand} />
           </div>
         </section>
       )}
