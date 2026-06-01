@@ -205,6 +205,29 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
               hint="Wide banner image shown behind your hero. 16:9 or wider. JPG/PNG, up to 5MB."
               previewClass="aspect-[3/1]"
             />
+            {/* "Why us?" section ambient video. URL only for v1 — clinics
+                paste a public mp4/webm URL (their own CDN, Pexels, etc.).
+                A native in-product video uploader (mime-aware, S3 multipart)
+                is a future v1.1 addition; for now this is the lightest-
+                touch wiring that exercises the new differenceVideoUrl column.
+                Falls back to the hero image when left blank. */}
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="differenceVideoUrl">
+                &ldquo;Why us?&rdquo; ambient video URL
+                <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2">(optional)</span>
+              </label>
+              <input
+                id="differenceVideoUrl"
+                name="differenceVideoUrl"
+                type="url"
+                className="form-input w-full"
+                placeholder="https://…/video.mp4"
+                defaultValue={profile?.differenceVideoUrl ?? ''}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Plays as an ambient autoplay loop in the &ldquo;Why us?&rdquo; section. Falls back to the hero image when blank. MP4 or WebM recommended.
+              </p>
+            </div>
             <input type="hidden" name="template" value="modern" />
           </div>
         </section>

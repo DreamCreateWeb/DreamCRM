@@ -1,6 +1,26 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// Mock the db before importing the service. Re-used by the
+// getCompletedReviewCount unit test below.
+const q: { queue: unknown[][] } = { queue: [] }
+vi.mock('@/lib/db', () => {
+  const chain = () => {
+    const c: Record<string, unknown> = {}
+    for (const m of ['from', 'where', 'innerJoin', 'leftJoin', 'orderBy', 'groupBy', 'limit']) {
+      c[m] = () => c
+    }
+    c.then = (resolve: (v: unknown) => void) => resolve(q.queue.shift() ?? [])
+    return c
+  }
+  return {
+    db: { select: () => chain() },
+    schema: new Proxy({}, { get: () => new Proxy({}, { get: () => ({}) }) }),
+  }
+})
+
 import {
   availableSites,
+  getCompletedReviewCount,
   isReviewConfigComplete,
   PLATFORM_LABEL,
   reviewPlatformUrl,
@@ -120,5 +140,27 @@ describe('PLATFORM_LABEL', () => {
     expect(PLATFORM_LABEL.healthgrades).toBe('Healthgrades')
     expect(PLATFORM_LABEL.facebook).toBe('Facebook')
     expect(PLATFORM_LABEL.yelp).toBe('Yelp')
+  })
+})
+
+describe('getCompletedReviewCount', () => {
+  it('returns the count from the COUNT(*) row', async () => {
+    q.queue = [[{ c: 47 }]]
+    const n = await getCompletedReviewCount('org_test')
+    expect(n).toBe(47)
+  })
+
+  it('returns 0 when the row is absent', async () => {
+    q.queue = [[]]
+    const n = await getCompletedReviewCount('org_test')
+    expect(n).toBe(0)
+  })
+
+  it('coerces string counts to numbers (Postgres bigint serialization)', async () => {
+    // node-postgres returns COUNT(*) as a string ("47") rather than a number
+    // for bigint. Verify the service casts properly.
+    q.queue = [[{ c: '8500' }]]
+    const n = await getCompletedReviewCount('org_test')
+    expect(n).toBe(8500)
   })
 })

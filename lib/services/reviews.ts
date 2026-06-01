@@ -665,6 +665,30 @@ export async function recordReviewCompleted(token: string, site: ReviewSite): Pr
 
 // ── Dashboard reads ──────────────────────────────────────────────────
 
+/**
+ * All-time count of completed `review_request` rows for the org. Used by
+ * the public site's "happy patients" trust stat — clinics with 5 completed
+ * reviews show "5", clinics with 8,500 show "8k+". The single source of
+ * truth so the homepage doesn't lie. See `formatReviewCount` in
+ * `components/clinic-site/modern-template.tsx` for display formatting.
+ *
+ * Not 30-day-scoped: the trust stat is cumulative ("we've made N patients
+ * happy"), not a recent-activity gauge. `getReviewStats` covers the 30-day
+ * funnel for the dashboard.
+ */
+export async function getCompletedReviewCount(organizationId: string): Promise<number> {
+  const [row] = await db
+    .select({ c: count() })
+    .from(schema.reviewRequest)
+    .where(
+      and(
+        eq(schema.reviewRequest.organizationId, organizationId),
+        isNotNull(schema.reviewRequest.completedAt),
+      ),
+    )
+  return Number(row?.c ?? 0)
+}
+
 export async function getReviewStats(organizationId: string): Promise<ReviewStats> {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 

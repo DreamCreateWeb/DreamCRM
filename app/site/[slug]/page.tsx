@@ -7,6 +7,7 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { getCompletedReviewCount } from '@/lib/services/reviews'
 import ModernTemplate from '@/components/clinic-site/modern-template'
 
 interface Props {
@@ -59,7 +60,10 @@ export default async function ClinicSitePage({ params }: Props) {
 
   const basePath = await resolveSiteBasePath(slug)
   const jsonLd = clinicJsonLd(data)
-  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
+  const [publishedPosts, reviewCount] = await Promise.all([
+    listPublishedPosts(data.orgId, { limit: 1 }),
+    getCompletedReviewCount(data.orgId),
+  ])
 
   return (
     <>
@@ -75,6 +79,7 @@ export default async function ClinicSitePage({ params }: Props) {
         basePath={basePath}
         signInUrl={`${appBaseUrl()}/signin`}
         hasBlog={publishedPosts.length > 0}
+        reviewCount={reviewCount}
       />
     </>
   )

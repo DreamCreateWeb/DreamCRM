@@ -20,6 +20,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   template: text('template').default('modern'),
   logoUrl: text('logo_url'),
   heroImageUrl: text('hero_image_url'),
+  // Optional ambient background video for the "The {clinic} difference"
+  // section on the public site. Plain mp4/webm URL — rendered as
+  // <video autoplay muted loop playsInline> when set, falls back to
+  // heroImageUrl when null. Keeps the section feeling alive without
+  // demanding clinics shoot a video.
+  differenceVideoUrl: text('difference_video_url'),
 
   // Editable site content stored as JSON for the MVP — avoids the join
   // overhead while we figure out which fields clinics actually customize.

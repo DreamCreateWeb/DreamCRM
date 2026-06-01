@@ -7,7 +7,7 @@ import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-
 import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { seedDemoPms } from '@/lib/services/pms'
-import { DEFAULT_FAQ_ITEMS } from '@/lib/types/clinic-content'
+import { DEFAULT_FAQ_ITEMS, type ClinicStat } from '@/lib/types/clinic-content'
 
 /**
  * Demo-clinic seeder. Creates a fully-populated clinic org so platform
@@ -232,11 +232,54 @@ function buildPatientPersonas(now: Date): PatientPersona[] {
 
 // Demo content — pulled out so the create path and the self-heal path
 // for already-seeded demos share one source of truth.
+//
+// The first stat uses the `dynamic: 'review_count'` flag — the public
+// template substitutes `value` with the live count of completed
+// `review_request` rows at render time. "happy patients" is the
+// ambiguous label (implies positive without claiming a star count we
+// can't verify). The demo seeds 7 completed reviews, so this renders as
+// "7" on a freshly-seeded demo and grows as platform admins click through.
 const DEMO_STATS = [
-  { id: 'st1', value: '8,000+', label: 'five-star reviews' },
+  { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' as const },
   { id: 'st2', value: 'Same-week', label: 'appointments available' },
   { id: 'st3', value: 'Most', label: 'insurance accepted' },
 ]
+
+/**
+ * Self-heal helper for legacy demos that seeded the hardcoded "8,000+
+ * five-star reviews" stat before the `dynamic: 'review_count'` pattern
+ * existed. Returns a new stats array with the legacy stat upgraded to
+ * the dynamic version, or `null` if no upgrade is needed (current
+ * dynamic stat already in place, or the demo has been hand-edited away
+ * from the recognizable legacy shape).
+ *
+ * Exported for unit testing.
+ */
+export function upgradeLegacyDemoStats(stats: ClinicStat[] | null): ClinicStat[] | null {
+  if (!stats || !Array.isArray(stats)) return null
+  let changed = false
+  const next = stats.map((s) => {
+    // Recognize the legacy seeded shape — either the original id or the
+    // original value/label pair. Swap it for the dynamic stat so the
+    // demo shows live data on next render.
+    if (
+      !s.dynamic &&
+      (s.id === 'st1' ||
+        s.value === '8,000+' ||
+        (s.label ?? '').toLowerCase() === 'five-star reviews')
+    ) {
+      changed = true
+      return {
+        id: 'st_reviews',
+        value: '0',
+        label: 'happy patients',
+        dynamic: 'review_count' as const,
+      }
+    }
+    return s
+  })
+  return changed ? next : null
+}
 
 /**
  * SINGLE SOURCE OF TRUTH for demo review text. Keyed by patientIdx. Used
@@ -378,6 +421,12 @@ const DEMO_LOGO_URL =
   'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=200&h=200&fit=crop&q=80'
 const DEMO_HERO_IMAGE_URL =
   'https://images.unsplash.com/photo-1606811971618-4486d14f3f99?w=2000&q=80'
+// Ambient autoplay loop for the "The {clinic} difference" section. Free
+// Pexels dental footage — Pexels licenses everything for free commercial
+// use without attribution. Keeps the demo showcasing the video branch of
+// the difference section without us needing to shoot anything.
+const DEMO_DIFFERENCE_VIDEO_URL =
+  'https://videos.pexels.com/video-files/4421284/4421284-hd_1280_720_30fps.mp4'
 
 const DEMO_OFFICE_PHOTOS = [
   {
@@ -441,6 +490,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         officePhotos: schema.clinicProfile.officePhotos,
         logoUrl: schema.clinicProfile.logoUrl,
         heroImageUrl: schema.clinicProfile.heroImageUrl,
+        differenceVideoUrl: schema.clinicProfile.differenceVideoUrl,
         faq: schema.clinicProfile.faq,
       })
       .from(schema.clinicProfile)
@@ -463,13 +513,27 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (!profile?.tagline || profile.tagline === 'Bright smiles, gentle care') {
       patch.tagline = 'Dental care that finally feels human.'
     }
-    if (!profile?.stats) patch.stats = DEMO_STATS
+    if (!profile?.stats) {
+      patch.stats = DEMO_STATS
+    } else {
+      // Stats backfill: legacy demos seeded the static "8,000+ five-star
+      // reviews" stat before the dynamic-stat pattern existed. Swap it for
+      // the live `review_count` stat so the demo shows real data and
+      // exercises the dynamic substitution path. Skips when stats have
+      // been hand-edited away from the demo defaults.
+      const upgraded = upgradeLegacyDemoStats(profile.stats as ClinicStat[] | null)
+      if (upgraded) patch.stats = upgraded
+    }
     // testimonials are handled by the dedicated self-heal below — it needs
     // existingPatientIds (only available later in this block) so each
     // seeded testimonial can link to a real CRM patient.
     if (!profile?.officePhotos) patch.officePhotos = DEMO_OFFICE_PHOTOS
     if (!profile?.logoUrl) patch.logoUrl = DEMO_LOGO_URL
     if (!profile?.heroImageUrl) patch.heroImageUrl = DEMO_HERO_IMAGE_URL
+    // Difference-video backfill: legacy demos predate migration 0037 + the
+    // ambient autoplay loop in the "Why us?" section. Seed the Pexels
+    // sample so the demo showcases the new video branch on next entry.
+    if (!profile?.differenceVideoUrl) patch.differenceVideoUrl = DEMO_DIFFERENCE_VIDEO_URL
     // FAQ backfill: legacy demos seeded before migration 0036 added the
     // faq column have null here, so the public /faq page falls back to the
     // universal DEFAULT_FAQ_ITEMS but the demo is missing its "edited"
@@ -829,6 +893,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     email: 'hello@acme-dental.example',
     logoUrl: DEMO_LOGO_URL,
     heroImageUrl: DEMO_HERO_IMAGE_URL,
+    differenceVideoUrl: DEMO_DIFFERENCE_VIDEO_URL,
     addressLine1: '500 Main St',
     city: 'Austin',
     state: 'TX',

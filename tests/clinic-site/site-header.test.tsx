@@ -245,4 +245,67 @@ describe('SiteHeader', () => {
     const mainBar = container.querySelectorAll('header > div')[1]
     expect(mainBar?.className ?? '').not.toContain('rounded-full')
   })
+
+  // ── Hide-on-scroll ────────────────────────────────────────────────────
+
+  it('carries the slide CSS hook + initial visible transform on the <header>', () => {
+    // Hide-on-scroll is driven by client-side scroll listening; under
+    // happy-dom there's no real scroll so the initial state must be
+    // visible. Verify the structural wiring (class hook + inline
+    // transform attribute) is present so the runtime behavior can flip
+    // the state via the same plumbing.
+    const { container } = render(
+      <SiteHeader
+        data={makeData()}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    const header = container.querySelector('header')
+    expect(header).not.toBeNull()
+    expect(header!.className).toContain('site-header-slide')
+    expect(header!.getAttribute('style') ?? '').toContain('translateY(0')
+    expect(header!.getAttribute('data-hidden')).toBe('false')
+  })
+
+  it('emits a CSS transition rule that runs only when prefers-reduced-motion is no-preference', () => {
+    const { container } = render(
+      <SiteHeader
+        data={makeData()}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    // The inline <style> block carries the transition rule. Reduced-motion
+    // users must NOT get the slide; the rule should be gated behind a
+    // @media (prefers-reduced-motion: no-preference) wrapper so the default
+    // (no preference set) keeps the slide animation.
+    const style = container.querySelector('style')?.textContent ?? ''
+    expect(style).toMatch(/prefers-reduced-motion:\s*no-preference/i)
+    expect(style).toMatch(/site-header-slide/)
+    expect(style).toMatch(/transition:\s*transform/i)
+  })
+
+  it('keeps the sticky top-0 + z-40 positioning so the slide stays anchored', () => {
+    const { container } = render(
+      <SiteHeader
+        data={makeData()}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    const header = container.querySelector('header')
+    expect(header!.className).toContain('sticky')
+    expect(header!.className).toContain('top-0')
+    expect(header!.className).toContain('z-40')
+  })
 })
