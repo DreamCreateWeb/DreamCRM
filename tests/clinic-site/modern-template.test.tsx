@@ -249,52 +249,23 @@ describe('ModernTemplate', () => {
     expect(screen.getAllByText('Implants').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('omits the staff section when no staff configured', () => {
-    render(<ModernTemplate data={makeData({ staff: null as never })} basePath="/site/test" />)
-    expect(screen.queryByText(/Our team/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/people who care/i)).not.toBeInTheDocument()
-  })
-
-  it('renders staff with names, titles, and bios', () => {
+  it('does not render the staff grid on the homepage (it lives on /about now)', () => {
+    // The standalone "people who care for you" staff grid was removed to
+    // match Tend's homepage flow (clinical-team trust → blog → CTA →
+    // footer). The full staff roster lives on /about; the homepage only
+    // carries the clinical-team trust band + a "Meet our team →" link.
     render(
       <ModernTemplate
         data={makeData({
           staff: [
-            {
-              id: 'p1',
-              name: 'Dr. Jane Smith',
-              title: 'Lead Dentist',
-              bio: '15 years of practice.',
-              photoUrl: null,
-            },
-            { id: 'p2', name: 'Dr. John Lee', title: 'Orthodontist' },
+            { id: 'p1', name: 'Dr. Jane Smith', title: 'Lead Dentist', bio: '15 years.', photoUrl: null },
           ] as never,
         })}
         basePath="/site/test"
       />,
     )
-    expect(screen.getByText('Dr. Jane Smith')).toBeInTheDocument()
-    expect(screen.getByText('Lead Dentist')).toBeInTheDocument()
-    expect(screen.getByText('15 years of practice.')).toBeInTheDocument()
-    expect(screen.getByText('Dr. John Lee')).toBeInTheDocument()
-  })
-
-  it('replaces the emoji avatar with an initial mark when a staff member has no photo', () => {
-    // The prior 👤 emoji read as "unfinished site." This pins the gradient
-    // initial chip as the replacement so a future regression can't silently
-    // bring back the emoji.
-    render(
-      <ModernTemplate
-        data={makeData({
-          staff: [{ id: 'p1', name: 'Dr. Jane Lee', title: 'Lead Dentist', photoUrl: null }] as never,
-        })}
-        basePath="/site/test"
-      />,
-    )
-    // "Dr." is stripped → first name + last name initials = "JL" (not "DJ").
-    expect(screen.getAllByLabelText('Dr. Jane Lee').some((el) => el.textContent === 'JL')).toBe(true)
-    // Belt-and-braces: the emoji must not be present anywhere on the page.
-    expect(screen.queryByText('👤')).not.toBeInTheDocument()
+    expect(screen.queryByText(/people who care/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('15 years.')).not.toBeInTheDocument()
   })
 
   it('renders both Book and Phone CTAs in the centered hero (Tend pattern)', () => {
@@ -409,45 +380,13 @@ describe('ModernTemplate', () => {
     expect(pillLinks.length).toBeGreaterThanOrEqual(2)
   })
 
-  it("renders today's-hours blurb in the footer when hours are configured", () => {
+  it('renders the full weekly hours in the footer when hours are configured', () => {
     const hours = { mon: { open: '09:00', close: '17:00' } } as never
     render(<ModernTemplate data={makeData({ hours })} basePath="/site/test" />)
-    // The footer "Today" column reads "Open today · 9:00 AM – 5:00 PM" on
-    // weekdays where the clinic has open hours, "Closed today" otherwise.
-    const todayMatches = screen.queryAllByText(/Open today|Closed today|Hours by appointment/)
-    expect(todayMatches.length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('strips post-nominals from the initials chip too', () => {
-    // "Maria Vega, RDH" → "MV" (the RDH credential doesn't show up as "MR").
-    render(
-      <ModernTemplate
-        data={makeData({
-          staff: [{ id: 'p1', name: 'Maria Vega, RDH', title: 'Hygienist', photoUrl: null }] as never,
-        })}
-        basePath="/site/test"
-      />,
-    )
-    expect(screen.getAllByLabelText('Maria Vega, RDH').some((el) => el.textContent === 'MV')).toBe(true)
-  })
-
-  it('uses the staff photo when provided', () => {
-    render(
-      <ModernTemplate
-        data={makeData({
-          staff: [
-            {
-              id: 'p1',
-              name: 'Dr. Jane',
-              photoUrl: 'https://example.com/jane.jpg',
-            },
-          ] as never,
-        })}
-        basePath="/site/test"
-      />,
-    )
-    const img = screen.getByAltText('Dr. Jane') as HTMLImageElement
-    expect(img.src).toBe('https://example.com/jane.jpg')
+    // The standalone Hours section was removed; full weekly hours now live
+    // in the footer "Visit" column. Monday's open hours render as a 12-hour
+    // range there.
+    expect(screen.getAllByText(/9:00 AM – 5:00 PM/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('uses the logo image in the header when provided', () => {
@@ -852,17 +791,27 @@ describe('ModernTemplate', () => {
 
   // ── Office photos ───────────────────────────────────────────────────
 
-  it('omits the office tour section when no photos configured', () => {
+  it('does not render the standalone office-tour gallery (removed to match Tend)', () => {
+    // The "A space designed to put you at ease" gallery band was removed.
+    // Office photos still surface via the hero mobile-scroll + the
+    // clinical-team trust ovals, but the dedicated gallery section + its
+    // "Inside the office" eyebrow are gone — assert that even WITH photos.
     render(
       <ModernTemplate
-        data={makeData({ officePhotos: null as never })}
+        data={makeData({
+          officePhotos: [
+            { id: 'op1', url: 'https://example.com/op1.jpg', alt: null, caption: null },
+            { id: 'op2', url: 'https://example.com/op2.jpg', alt: null, caption: null },
+          ] as never,
+        })}
         basePath="/site/test"
       />,
     )
     expect(screen.queryByText(/Inside the office/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/A space designed to put you/i)).not.toBeInTheDocument()
   })
 
-  it('renders office photo URLs', () => {
+  it('surfaces office photo URLs (hero mobile scroll + clinical-team ovals)', () => {
     render(
       <ModernTemplate
         data={makeData({
@@ -879,7 +828,7 @@ describe('ModernTemplate', () => {
     expect(imgs.some((i) => i.src === 'https://example.com/op2.jpg')).toBe(true)
   })
 
-  it('caps office photos at 4', () => {
+  it('caps office photos at 4 in the hero mobile scroll', () => {
     const photos = Array.from({ length: 8 }, (_, i) => ({
       id: `op${i}`,
       url: `https://example.com/op${i}.jpg`,
@@ -889,10 +838,57 @@ describe('ModernTemplate', () => {
     render(
       <ModernTemplate data={makeData({ officePhotos: photos as never })} basePath="/site/test" />,
     )
+    // The hero mobile-scroll renders officePhotos.slice(0, 4) — op0..op3
+    // appear, op4+ never do.
     const imgs = Array.from(document.querySelectorAll('img'))
     expect(imgs.some((i) => i.src === 'https://example.com/op0.jpg')).toBe(true)
     expect(imgs.some((i) => i.src === 'https://example.com/op3.jpg')).toBe(true)
     expect(imgs.some((i) => i.src === 'https://example.com/op4.jpg')).toBe(false)
+  })
+
+  // ── Blog band + contact gating ──────────────────────────────────────
+
+  it('renders the "From the blog" band with up to 3 recent posts', () => {
+    const posts = Array.from({ length: 5 }, (_, i) => ({
+      id: `post${i}`,
+      slug: `post-${i}`,
+      title: `Post Title ${i}`,
+      excerpt: `Excerpt ${i}`,
+      coverImageUrl: null,
+      coverImageAlt: null,
+      category: 'Oral Health',
+    })) as never
+    render(<ModernTemplate data={makeData()} basePath="/site/test" recentPosts={posts} />)
+    expect(screen.getByText(/From the blog/i)).toBeInTheDocument()
+    // Only the first 3 render; 4th+ are dropped.
+    expect(screen.getByText('Post Title 0')).toBeInTheDocument()
+    expect(screen.getByText('Post Title 2')).toBeInTheDocument()
+    expect(screen.queryByText('Post Title 3')).not.toBeInTheDocument()
+    // "View all posts" CTA → /blog
+    const viewAll = screen.getByRole('link', { name: /View all posts/i })
+    expect(viewAll).toHaveAttribute('href', '/site/test/blog')
+    // Each card links to its post.
+    expect(
+      screen.getAllByRole('link').some((a) => a.getAttribute('href') === '/site/test/blog/post-0'),
+    ).toBe(true)
+  })
+
+  it('hides the blog band when there are no recent posts', () => {
+    render(<ModernTemplate data={makeData()} basePath="/site/test" recentPosts={[]} />)
+    expect(screen.queryByText(/From the blog/i)).not.toBeInTheDocument()
+  })
+
+  it('renders the on-page contact form ONLY for basic-tier clinics', () => {
+    // Pro/premium route every Book CTA to /book, so the homepage has no
+    // on-page contact form (matches Tend — booking is always the widget).
+    const { rerender } = render(
+      <ModernTemplate data={makeData({ planTier: 'basic' })} basePath="/site/test" />,
+    )
+    expect(document.querySelector('#contact')).not.toBeNull()
+    expect(screen.getByText(/We'd love to see you/i)).toBeInTheDocument()
+
+    rerender(<ModernTemplate data={makeData({ planTier: 'pro' })} basePath="/site/test" />)
+    expect(document.querySelector('#contact')).toBeNull()
   })
 
   // ── Location section (map + directions) ─────────────────────────────

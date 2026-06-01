@@ -1,6 +1,6 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { ClinicService } from '@/lib/types/clinic-content'
-import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
+import { DAYS, DAY_LABEL, fmt12, type HoursMap } from '@/lib/clinic-site-helpers'
 
 interface NavLink {
   label: string
@@ -140,16 +140,32 @@ export default function SiteFooter({
               {cityState && (
                 <p style={{ color: FOOTER_MUTED }}>{cityState}</p>
               )}
+              {/* Full weekly hours live here now — the standalone homepage
+                  Hours section was removed to match Tend's flow (hours sit
+                  in the footer, not as a dedicated band). */}
               {hours && Object.keys(hours).length > 0 && (
-                <p style={{ color: FOOTER_MUTED }}>{todaysHoursLabel(hours)}</p>
+                <ul className="pt-1 space-y-1">
+                  {DAYS.map((day) => {
+                    const entry = (hours as HoursMap)[day]
+                    if (!entry) return null
+                    return (
+                      <li
+                        key={day}
+                        className="flex items-baseline justify-between gap-4 text-[13px]"
+                      >
+                        <span style={{ color: FOOTER_MUTED }}>{DAY_LABEL[day]}</span>
+                        <span className="text-right" style={{ color: FOOTER_INK }}>
+                          {entry.closed
+                            ? 'Closed'
+                            : entry.open && entry.close
+                              ? `${fmt12(entry.open)} – ${fmt12(entry.close)}`
+                              : '—'}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
-              <a
-                href={`${basePath || '/'}#hours`}
-                className="inline-block mt-1 text-[14px] font-medium hover:underline transition"
-                style={{ color: brand }}
-              >
-                See all hours →
-              </a>
             </div>
           </div>
 
