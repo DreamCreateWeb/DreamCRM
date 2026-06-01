@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 
@@ -18,7 +21,7 @@ interface Props {
 }
 
 /**
- * Tend-style two-bar site header.
+ * Tend-style two-bar site header with hide-on-scroll-down behavior.
  *
  * (1) Top announcement strip — hardcoded chartreuse `#E7FB7E` (Tend's
  *     signature accent regardless of brand color). Three cells: "Why us?"
@@ -32,8 +35,17 @@ interface Props {
  *     edge-to-edge below `lg` so it looks right on mobile. Carries the
  *     logo, page-path nav, phone CTA, and Book Now.
  *
+ * Both bars slide as a single unit. We watch `window.scrollY` and:
+ *   - always show within the first 50px of the page (no jitter at top)
+ *   - hide on a >5px scroll-down delta (slide up off-viewport)
+ *   - show on a >5px scroll-up delta (slide back in from the top)
+ * The 5px deadband suppresses thumb-tremor on mobile + makes the
+ * transition feel deliberate. Transform-only (no display/height change)
+ * means no layout shift on the content below. `prefers-reduced-motion`
+ * disables the transition so users who opted out of animation get an
+ * instant show/hide instead of the slide.
+ *
  * Drop-in across the homepage, /about, /services, /faq, /book, /careers.
- * Server-renderable, zero hydration cost.
  */
 export default function SiteHeader({
   data,
@@ -43,6 +55,23 @@ export default function SiteHeader({
   bookLabel,
   signInUrl,
 }: Props) {
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => {
+    let lastY = typeof window !== 'undefined' ? window.scrollY : 0
+    const onScroll = () => {
+      const y = window.scrollY
+      if (y < 50) {
+        setHidden(false)
+      } else if (y > lastY + 5) {
+        setHidden(true)
+      } else if (y < lastY - 5) {
+        setHidden(false)
+      }
+      lastY = y
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
@@ -78,7 +107,13 @@ export default function SiteHeader({
   const NAV_CONTAINER_BG = '#FEF7F1'
 
   return (
-    <header className="sticky top-0 z-40">
+    <header
+      className="sticky top-0 z-40 site-header-slide"
+      data-hidden={hidden ? 'true' : 'false'}
+      style={{
+        transform: hidden ? 'translateY(-100%)' : 'translateY(0)',
+      }}
+    >
       {/* ── Top strip — chartreuse marquee, three cells ─────────────────── */}
       <div
         className="text-[12px] sm:text-[13px] font-medium"
@@ -146,6 +181,11 @@ export default function SiteHeader({
         @keyframes tend-marquee-scroll {
           0%   { transform: translate3d(0, 0, 0); }
           100% { transform: translate3d(-50%, 0, 0); }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .site-header-slide {
+            transition: transform 200ms ease-out;
+          }
         }
         @media (prefers-reduced-motion: reduce) {
           .tend-marquee-track {

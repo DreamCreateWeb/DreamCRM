@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import ModernTemplate from '@/components/clinic-site/modern-template'
+import ModernTemplate, { formatReviewCount } from '@/components/clinic-site/modern-template'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 
 function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSiteData {
@@ -35,6 +35,7 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
       subscriptionStatus: null,
       logoUrl: null,
       heroImageUrl: null,
+      differenceVideoUrl: null,
       services: null,
       staff: null,
       stats: null,
@@ -583,6 +584,125 @@ describe('ModernTemplate', () => {
     expect(screen.getByText('V0')).toBeInTheDocument()
     expect(screen.getByText('V3')).toBeInTheDocument()
     expect(screen.queryByText('V4')).not.toBeInTheDocument()
+  })
+
+  // ── Dynamic stats — live review count ──────────────────────────────
+
+  it('substitutes the dynamic review_count stat with the live count', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          stats: [
+            { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+            { id: 'st2', value: 'Same-week', label: 'appointments' },
+          ] as never,
+        })}
+        basePath="/site/test"
+        reviewCount={47}
+      />,
+    )
+    // 47 formats to "47+" (medium count, rounded preserved exact since <100)
+    expect(screen.getByText('47+')).toBeInTheDocument()
+    expect(screen.getByText('happy patients')).toBeInTheDocument()
+    // The hardcoded value "0" should NOT be rendered — it was overridden
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
+
+  it('drops the dynamic review_count stat when the live count is zero', () => {
+    // Fresh clinic with no reviews — the dynamic stat row must hide rather
+    // than render "0 happy patients" (would look broken on a real site).
+    render(
+      <ModernTemplate
+        data={makeData({
+          stats: [
+            { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+            { id: 'st2', value: 'Same-week', label: 'appointments' },
+          ] as never,
+        })}
+        basePath="/site/test"
+        reviewCount={0}
+      />,
+    )
+    expect(screen.queryByText('happy patients')).not.toBeInTheDocument()
+    // The other static stat survives
+    expect(screen.getByText('Same-week')).toBeInTheDocument()
+  })
+
+  it('hides the whole stats section when the dynamic stat is the only one and count is zero', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          stats: [
+            { id: 'st_reviews', value: '0', label: 'happy patients', dynamic: 'review_count' },
+          ] as never,
+        })}
+        basePath="/site/test"
+        reviewCount={0}
+      />,
+    )
+    expect(screen.queryByText('happy patients')).not.toBeInTheDocument()
+  })
+
+  describe('formatReviewCount', () => {
+    it('renders small counts exact (under 10)', () => {
+      expect(formatReviewCount(0)).toBe('0')
+      expect(formatReviewCount(5)).toBe('5')
+      expect(formatReviewCount(9)).toBe('9')
+    })
+    it('appends "+" to two-digit counts', () => {
+      expect(formatReviewCount(47)).toBe('47+')
+      expect(formatReviewCount(99)).toBe('99+')
+    })
+    it('rounds three-digit counts down to the nearest 10', () => {
+      expect(formatReviewCount(234)).toBe('230+')
+      expect(formatReviewCount(999)).toBe('990+')
+    })
+    it('collapses thousands to "k+" notation', () => {
+      expect(formatReviewCount(1234)).toBe('1.2k+')
+      expect(formatReviewCount(8500)).toBe('8.5k+')
+      // Strip ".0" so "1000" formats to "1k+" not "1.0k+"
+      expect(formatReviewCount(1000)).toBe('1k+')
+    })
+    it('uses whole-number "k+" for counts over 10k', () => {
+      expect(formatReviewCount(12345)).toBe('12k+')
+      expect(formatReviewCount(8500)).toBe('8.5k+') // under 10k stays decimal
+    })
+  })
+
+  // ── Difference section — video vs image ────────────────────────────
+
+  it('renders an autoplay <video> in the difference section when differenceVideoUrl is set', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({
+          differenceVideoUrl: 'https://example.com/dental-loop.mp4',
+        } as never)}
+        basePath="/site/test"
+      />,
+    )
+    const video = container.querySelector('video')
+    expect(video).not.toBeNull()
+    expect(video).toHaveAttribute('autoplay')
+    expect(video).toHaveAttribute('loop')
+    // muted is required for autoplay on every modern browser
+    // jsdom serializes the muted property differently; the React-applied
+    // attribute is set as a boolean prop. Check via the property too.
+    expect(video!.muted).toBe(true)
+    const source = video!.querySelector('source')
+    expect(source).toHaveAttribute('src', 'https://example.com/dental-loop.mp4')
+  })
+
+  it('falls back to <img> in the difference section when differenceVideoUrl is null', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({ differenceVideoUrl: null, heroImageUrl: 'https://example.com/hero.jpg' } as never)}
+        basePath="/site/test"
+      />,
+    )
+    expect(container.querySelector('video')).toBeNull()
+    // Hero image renders as an <img> somewhere (could be in the difference
+    // section). Smoke check by counting images > 0.
+    expect(container.querySelectorAll('img').length).toBeGreaterThan(0)
   })
 
   // ── Testimonials ────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { DEFAULT_SERVICES, type ClinicService } from '@/lib/types/clinic-content'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -105,7 +106,12 @@ export default async function BookPage({ params }: Props) {
             className="rounded-2xl p-7 sm:p-9"
             style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
           >
-            <BookForm orgId={data.orgId} brand={brand} clinicName={name} />
+            <BookForm
+              orgId={data.orgId}
+              brand={brand}
+              clinicName={name}
+              services={(data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES}
+            />
           </div>
 
           <p className="text-center mt-8 text-sm" style={{ color: INK_MUTED }}>

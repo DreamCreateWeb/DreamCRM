@@ -202,6 +202,11 @@ export async function updateClinicProfile(formData: FormData) {
   const template = clean('template', formData, 'modern')
   const logoUrl = clean('logoUrl', formData)
   const heroImageUrl = clean('heroImageUrl', formData)
+  // URL only for v1 — no in-product video uploader yet (would need a
+  // mime-aware uploader + S3 chunked-upload flow). Clinics paste a public
+  // mp4/webm URL (Pexels, their own CDN, etc.). When set, the public site
+  // renders the "Why us?" section's media as an ambient autoplay loop.
+  const differenceVideoUrl = clean('differenceVideoUrl', formData)
   const services = parseServices(formData.get('services')?.toString())
   const staff = parseStaff(formData.get('staff')?.toString())
   const stats = parseStats(formData.get('stats')?.toString())
@@ -226,6 +231,7 @@ export async function updateClinicProfile(formData: FormData) {
     template,
     logoUrl,
     heroImageUrl,
+    differenceVideoUrl,
     hours,
     services,
     staff,

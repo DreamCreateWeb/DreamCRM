@@ -47,11 +47,20 @@ export interface ClinicTestimonial {
  * "Stat anchor" — a short, scannable trust signal pair. `value` is the
  * big-text headline ("8,000+", "Same-week", "Most"), `label` is the
  * follow-on phrase ("five-star reviews", "appointments", "insurance accepted").
+ *
+ * `dynamic` opts the stat into runtime substitution. v1 supports only
+ * `'review_count'` — the public template replaces `value` with the live
+ * count of completed `review_request` rows (formatted for display), so the
+ * trust signal is honest instead of hardcoded. Static stats (no `dynamic`)
+ * render their `value` as-is.
  */
 export interface ClinicStat {
   id: string
   value: string
   label: string
+  /** When set, the public template substitutes `value` with a runtime
+   *  value. v1: only `'review_count'` is supported. */
+  dynamic?: 'review_count' | null
 }
 
 /**

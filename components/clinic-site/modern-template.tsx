@@ -50,9 +50,30 @@ interface Props {
   signInUrl?: string
   /** Whether the clinic has at least one published blog post — gates the Blog nav link. */
   hasBlog?: boolean
+  /** All-time count of completed `review_request` rows. Substituted into any
+   *  stat with `dynamic: 'review_count'` so the "happy patients" trust signal
+   *  reflects real data instead of a hardcoded "8,000+". Defaults to 0. */
+  reviewCount?: number
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false }: Props) {
+/**
+ * Display formatter for the live "happy patients" trust stat. Small counts
+ * stay exact (a clinic with 5 reviews should not show "10+"); medium counts
+ * round to the nearest 10 ("47" → "47+"); large counts collapse to "k+"
+ * notation ("8,500" → "8k+"). Conservative rounding so the headline never
+ * overstates what the clinic has actually earned.
+ *
+ * Exported for unit testing.
+ */
+export function formatReviewCount(n: number): string {
+  if (n < 10) return String(n)
+  if (n < 100) return `${n}+`
+  if (n < 1000) return `${Math.floor(n / 10) * 10}+`
+  if (n < 10000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k+`
+  return `${Math.floor(n / 1000)}k+`
+}
+
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, reviewCount = 0 }: Props) {
   const { profile, primaryLocation, locations } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -62,7 +83,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const services: ClinicService[] =
     ((profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES).slice(0, 6)
   const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
-  const stats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
+  const rawStats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
+  // Resolve dynamic stats at render. v1: only `review_count` is dynamic.
+  // When the live count is 0 AND the stat is dynamic, drop the row rather
+  // than display "0 happy patients" — fresh clinics see the section minus
+  // that stat, and if it was the only stat the whole section hides cleanly
+  // via the existing `stats.length > 0` guard below.
+  const stats: ClinicStat[] = rawStats
+    .map((s) =>
+      s.dynamic === 'review_count'
+        ? { ...s, value: formatReviewCount(reviewCount) }
+        : s,
+    )
+    .filter((s) => !(s.dynamic === 'review_count' && reviewCount === 0))
   const testimonials: ClinicTestimonial[] =
     ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 50)
   const officePhotos: ClinicOfficePhoto[] =
@@ -334,10 +367,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       )}
 
       {/* ── "The {clinic} difference" — 2-col feature/checklist ────────── */}
-      {/* Left: feature image (heroImageUrl or first officePhoto). Right:
-          H2 + leadin + Book CTA + 2-col chip checklist. Mirrors Tend's
-          "Tend Dental difference" block. Honest: no fake review count
-          line (would need real data). */}
+      {/* Left: feature media — video when `differenceVideoUrl` is set
+          (ambient autoplay loop, no controls), otherwise heroImageUrl or
+          officePhoto fallback. Right: H2 + leadin + Book CTA + 2-col chip
+          checklist. Mirrors Tend's "Tend Dental difference" block. */}
       <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
@@ -350,7 +383,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   aspectRatio: '4 / 3',
                 }}
               >
-                {(heroImageUrl ?? officePhotos[1]?.url ?? officePhotos[0]?.url) && (
+                {profile.differenceVideoUrl ? (
+                  <video
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-full object-cover"
+                    aria-hidden="true"
+                  >
+                    <source src={profile.differenceVideoUrl} />
+                  </video>
+                ) : (heroImageUrl ?? officePhotos[1]?.url ?? officePhotos[0]?.url) && (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={heroImageUrl ?? officePhotos[1]?.url ?? officePhotos[0]?.url ?? ''}

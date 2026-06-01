@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "difference_video_url" text;

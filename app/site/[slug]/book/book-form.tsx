@@ -3,16 +3,29 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { listBookingSlots, submitBookingRequest } from '../actions'
 import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
+import type { ClinicService } from '@/lib/types/clinic-content'
 
-const APPT_TYPES = [
-  { value: 'checkup', label: 'Checkup / Exam' },
-  { value: 'cleaning', label: 'Cleaning' },
-  { value: 'filling', label: 'Filling' },
-  { value: 'extraction', label: 'Extraction' },
-  { value: 'root_canal', label: 'Root Canal' },
-  { value: 'consultation', label: 'Consultation' },
-  { value: 'other', label: 'Other' },
-]
+/** Final option in every visit-type dropdown so patients who don't see
+ *  their reason in the clinic's service list can still book. Service
+ *  id `other` is the discriminated value the server action expects. */
+const OTHER_OPTION = { value: 'other', label: 'Other / not sure' }
+
+/** Build the visit-type dropdown options from a clinic's configured
+ *  services. Always appends an "Other" fallback so patients can book
+ *  even when their reason isn't in the configured list. When the clinic
+ *  has no services configured, returns just the Other fallback so the
+ *  form still works.
+ *
+ *  Exported for unit testing. */
+export function buildVisitTypeOptions(
+  services: Array<{ id: string; name: string }>,
+): Array<{ value: string; label: string }> {
+  const opts = services.map((s) => ({ value: s.id, label: s.name }))
+  // De-dupe if a clinic happens to have an `id: 'other'` service of its
+  // own — avoid two "Other" rows.
+  if (opts.some((o) => o.value === OTHER_OPTION.value)) return opts
+  return [...opts, OTHER_OPTION]
+}
 
 const BG = '#FAF7F2'
 const INK = '#1C1A17'
@@ -27,6 +40,10 @@ interface Props {
   orgId: string
   brand: string
   clinicName: string
+  /** Visit-type options reflect the clinic's configured services on the
+   *  dashboard. The form always appends an "Other / not sure" fallback so
+   *  patients can book even when their reason isn't in the list. */
+  services: ClinicService[]
 }
 
 function startOfDay(d: Date): Date {
@@ -73,7 +90,9 @@ export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedRe
   return 'Every slot is taken for this day. Try another day.'
 }
 
-export default function BookForm({ orgId, brand, clinicName }: Props) {
+export default function BookForm({ orgId, brand, clinicName, services }: Props) {
+  const apptTypes = useMemo(() => buildVisitTypeOptions(services), [services])
+  const defaultApptType = apptTypes[0]?.value ?? 'other'
   const days = useMemo(() => {
     const today = startOfDay(new Date())
     return Array.from({ length: DAY_WINDOW }, (_, i) => {
@@ -319,11 +338,11 @@ export default function BookForm({ orgId, brand, clinicName }: Props) {
           />
           <select
             name="type"
-            defaultValue="checkup"
+            defaultValue={defaultApptType}
             className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2 appearance-none"
             style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
           >
-            {APPT_TYPES.map((t) => (
+            {apptTypes.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
