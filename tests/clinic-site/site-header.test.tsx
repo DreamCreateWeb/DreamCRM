@@ -1,7 +1,7 @@
 /**
- * Smoke tests for the two-bar SiteHeader (top brand-color announcement
- * strip + main white edge-to-edge nav). Replaces the prior floating-pill
- * header per the Tend-clone composition.
+ * Smoke tests for the two-bar SiteHeader. The top strip is a hardcoded
+ * chartreuse marquee (Tend's signature accent), the main nav lives inside
+ * a cream rounded-bottom drawer container.
  */
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -80,7 +80,7 @@ describe('SiteHeader', () => {
     expect(bars.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('renders auto-rotating value-prop chips in the top strip', () => {
+  it('renders value-prop chips in the top strip marquee', () => {
     render(
       <SiteHeader
         data={makeData()}
@@ -91,10 +91,11 @@ describe('SiteHeader', () => {
         signInUrl="https://app.example.com/signin"
       />,
     )
-    // Universal chips always render (CSS-rotated, all in DOM).
-    expect(screen.getByText(/No judgment, ever/i)).toBeInTheDocument()
-    expect(screen.getByText(/Same-week visits/i)).toBeInTheDocument()
-    expect(screen.getByText(/Most insurance accepted/i)).toBeInTheDocument()
+    // Marquee duplicates each chip for the seamless loop + a sr-only fallback
+    // mirrors the chips, so each label appears multiple times in the DOM.
+    expect(screen.getAllByText(/No judgment, ever/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Same-week visits/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Most insurance accepted/i).length).toBeGreaterThan(0)
   })
 
   it('includes the tagline as a chip when short enough', () => {
@@ -108,7 +109,63 @@ describe('SiteHeader', () => {
         signInUrl="https://app.example.com/signin"
       />,
     )
-    expect(screen.getByText(/Care that feels like care/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Care that feels like care/i).length).toBeGreaterThan(0)
+  })
+
+  it('hardcodes the chartreuse #E7FB7E strip background regardless of brand color', () => {
+    const { container } = render(
+      <SiteHeader
+        data={makeData({ brandColor: '#9CAF9F' })}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    // Strip is the FIRST child div of the header. Its inline style must
+    // carry the hardcoded chartreuse background, NOT the brand color.
+    const strip = container.querySelector('header > div')
+    const style = strip?.getAttribute('style') ?? ''
+    expect(style).toMatch(/#E7FB7E/i)
+    // Brand color must NOT bleed into the strip.
+    expect(style).not.toMatch(/#9CAF9F/i)
+  })
+
+  it('renders a marquee track that loops the chips for a seamless scroll', () => {
+    const { container } = render(
+      <SiteHeader
+        data={makeData()}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    expect(container.querySelector('.tend-marquee-track')).not.toBeNull()
+  })
+
+  it('wraps the main nav in a cream rounded-bottom drawer container at desktop', () => {
+    const { container } = render(
+      <SiteHeader
+        data={makeData()}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    // The cream container carries `lg:rounded-b-[32px]` + the cream bg.
+    const navWrappers = Array.from(container.querySelectorAll('div'))
+    expect(
+      navWrappers.some(
+        (d) =>
+          d.className.includes('lg:rounded-b-[32px]') &&
+          (d.getAttribute('style') ?? '').toUpperCase().includes('#FEF7F1'),
+      ),
+    ).toBe(true)
   })
 
   it('omits the tagline chip when the tagline is too long for a chip', () => {

@@ -21,6 +21,7 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
+import ServicePills from '@/components/clinic-site/service-pills'
 
 /**
  * Modern Family/Wellness template — the default clinic site.
@@ -80,12 +81,14 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   ]
 
   // Two flanking portrait photos for the hero. Left = clinic's hero image,
-  // right = first office photo. Both fall back to warm panel backgrounds
-  // so the 3-col composition stays even when no photos exist.
+  // right = first office photo. Backdrops are HARDCODED universal pastels
+  // (soft blue + warm peach) — Tend pairs the photo ovals against fixed
+  // complementary panels regardless of brand color so the composition
+  // reads the same on every palette. Decorative chrome, not content.
   const leftPortraitImage = heroImageUrl ?? null
   const rightPortraitImage = officePhotos[0]?.url ?? null
-  const leftPortraitBg = `${brand}33`
-  const rightPortraitBg = '#E9D6BF'
+  const leftPortraitBg = '#B8D4E8'
+  const rightPortraitBg = '#F0D9BD'
 
   // Service pills under the hero — Tend's qualifier strip.
   const heroServicePills = services.slice(0, 6)
@@ -150,22 +153,26 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       />
 
       <main>
-      {/* ── Hero — 3-col Tend composition ──────────────────────────────── */}
-      {/* LEFT portrait | center text column (eyebrow → H1 → leadin → CTAs
-          → secondary H2) | RIGHT portrait. Portraits use a large fixed
-          border-radius (~200px) for the soft-pebble/oval shape, NOT
-          asymmetric blob radii. Portraits are hidden on mobile; mobile
-          gets a 4-photo horizontal scroll below the text instead. */}
+      {/* ── Hero — Tend-verbatim composition ──────────────────────────── */}
+      {/* LEFT photo (asymmetric oval, breaks out of container with neg
+          margin, ~35% viewport) | CENTER text column capped at 640px
+          (eyebrow → H1 → leadin → CTAs → secondary H2) | RIGHT photo.
+          Photos use a SOFT ASYMMETRIC OVAL radius (egg-shape, not full
+          circle, not perfect ellipse) sitting on HARDCODED neutral
+          backdrops (soft blue + warm peach) regardless of brand color.
+          Mobile collapses to a centered single column; a horizontal
+          photo scroll appears below the text instead. */}
       <section className="relative overflow-hidden pt-12 pb-16 sm:pt-16 sm:pb-20 lg:pt-20 lg:pb-24">
         <div className="relative max-w-[1400px] mx-auto px-5 sm:px-8">
-          <div className="grid lg:grid-cols-3 gap-6 lg:gap-12 items-center">
-            {/* LEFT portrait */}
-            <div className="hidden lg:block">
+          <div className="grid lg:grid-cols-[1fr_minmax(0,640px)_1fr] gap-6 lg:gap-10 items-center">
+            {/* LEFT photo — breakout to ~35% viewport, soft asymmetric oval */}
+            <div className="hidden lg:block lg:-ml-12 xl:-ml-20">
               <OvalPortrait src={leftPortraitImage} bg={leftPortraitBg} variant="left" />
             </div>
 
-            {/* CENTER text column */}
-            <div className="text-center max-w-xl mx-auto">
+            {/* CENTER text column — caps at 640px so the photos take the
+                breathing room. */}
+            <div className="text-center max-w-[640px] mx-auto">
               <p
                 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.22em] mb-5 sm:mb-6 flex items-center justify-center gap-2 flex-wrap"
                 style={{ color: INK_MUTED }}
@@ -183,7 +190,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 )}
               </p>
               <h1
-                className="text-[40px] sm:text-[52px] lg:text-[60px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
+                className="text-[44px] sm:text-[64px] lg:text-[80px] font-semibold leading-[1.05] tracking-[-0.02em] mb-6"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 {profile.tagline ?? 'Dental care that finally feels human.'}
@@ -208,30 +215,30 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 {profile.phone && (
                   <a
                     href={`tel:${profile.phone}`}
-                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                    style={{ backgroundColor: '#bc8452' }}
+                    className="inline-flex items-center px-6 py-3.5 rounded-full text-base font-semibold bg-white transition hover:bg-[#FAF7F2]"
+                    style={{
+                      color: brand,
+                      border: `1.5px solid ${brand}`,
+                    }}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                    </svg>
                     {profile.phone}
                   </a>
                 )}
               </div>
               {/* Secondary H2 inside the same text column — Tend's verbatim
-                  "We offer a full range of services for all your needs" with
-                  emphasis on the last phrase. */}
+                  "A full range of care for all your needs" with bold (not
+                  italic) emphasis on the last phrase. */}
               <h2
-                className="text-[26px] sm:text-[32px] lg:text-[36px] font-semibold leading-[1.15] tracking-[-0.01em]"
+                className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.15] tracking-[-0.01em]"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 A full range of care for{' '}
-                <strong className="italic font-semibold">all your needs</strong>
+                <strong className="font-bold">all your needs</strong>.
               </h2>
             </div>
 
-            {/* RIGHT portrait */}
-            <div className="hidden lg:block">
+            {/* RIGHT photo — breakout to ~35% viewport, soft asymmetric oval */}
+            <div className="hidden lg:block lg:-mr-12 xl:-mr-20">
               <OvalPortrait src={rightPortraitImage} bg={rightPortraitBg} variant="right" />
             </div>
           </div>
@@ -245,9 +252,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               {officePhotos.slice(0, 4).map((p) => (
                 <li key={p.id} className="shrink-0 snap-start w-48 sm:w-56">
                   <div
-                    className="aspect-[4/5] w-full overflow-hidden"
+                    className="aspect-[3/4] w-full overflow-hidden"
                     style={{
-                      borderRadius: '120px',
+                      borderRadius: '50% 50% 48% 52% / 55% 45% 55% 45%',
                       backgroundColor: BORDER,
                     }}
                   >
@@ -264,28 +271,18 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             </ul>
           )}
 
-          {/* Pill carousel of services — Tend's qualifier strip just below the hero. */}
+          {/* Pill carousel of services with visible prev/next arrows —
+              Tend's qualifier strip just below the hero. Client component
+              so the arrows can scroll the row by one page on click. */}
           {heroServicePills.length > 0 && (
-            <ul
-              className="mt-12 sm:mt-14 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory sm:flex-wrap sm:justify-center sm:overflow-visible"
-              style={{ scrollbarWidth: 'none' }}
-            >
-              {heroServicePills.map((s) => (
-                <li key={s.id} className="snap-start shrink-0">
-                  <a
-                    href={`${basePath}#services`}
-                    className="inline-flex items-center px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-sm sm:text-[15px] font-semibold transition hover:shadow-sm"
-                    style={{
-                      backgroundColor: `${brand}1F`,
-                      color: INK,
-                      border: `1px solid ${brand}40`,
-                    }}
-                  >
-                    {s.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-12 sm:mt-14">
+              <ServicePills
+                pills={heroServicePills.map((s) => ({ id: s.id, name: s.name }))}
+                brand={brand}
+                ink={INK}
+                href={`${basePath}#services`}
+              />
+            </div>
           )}
         </div>
       </section>
@@ -941,12 +938,12 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// OvalPortrait — the soft-pebble photo panel that flanks the hero + the
-// clinical-team section's outer columns. Uses a LARGE FIXED border-radius
-// (Tend's `--border-radius-xlg: 12.875rem`, i.e. ~206px) for the oval
-// shape, NOT asymmetric blob radii. The two variants (left/right) each
-// add a very subtle border-radius asymmetry so the pair doesn't look like
-// mirror copies — the warm panel below the photo always reads as oval.
+// OvalPortrait — the soft asymmetric-oval (egg-shape) photo panel that
+// flanks the hero + the clinical-team section's outer columns. Uses a
+// non-uniform border-radius that reads as "soft pebble" — taller than
+// wide, slightly tilted per-variant so the left + right pair don't look
+// like mirror copies. Backdrops are the clinic-site palette's blue and
+// peach (passed in by the parent), giving a Tend-style flat solid backing.
 // ────────────────────────────────────────────────────────────────────────
 
 function OvalPortrait({
@@ -958,17 +955,15 @@ function OvalPortrait({
   bg: string
   variant: 'left' | 'right'
 }) {
-  // Both variants use a single big radius — Tend's verbatim treatment is a
-  // uniform `border-radius-xlg`, NOT asymmetric. The tiny per-variant tweak
-  // (`50% / 40%` vs `40% / 50%`) just sells the organic feel; the dominant
-  // visual is "soft pebble oval" not "blob."
+  // Asymmetric egg-shape. The two variants mirror their tilt so the pair
+  // looks intentionally hand-drawn rather than copy-pasted.
   const radii =
     variant === 'left'
-      ? '50% / 40%'
-      : '50% / 40%'
+      ? '50% 50% 48% 52% / 55% 45% 55% 45%'
+      : '50% 50% 52% 48% / 45% 55% 45% 55%'
   return (
     <div
-      className="relative overflow-hidden w-full aspect-[4/5]"
+      className="relative overflow-hidden w-full aspect-[3/4]"
       style={{ borderRadius: radii, backgroundColor: bg }}
     >
       {src ? (
