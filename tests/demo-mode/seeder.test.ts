@@ -288,14 +288,92 @@ describe('createDemoClinic', () => {
       brandColor?: unknown
       logoUrl?: string
       heroImageUrl?: string
+      acceptedInsuranceCarriers?: unknown
     }
     expect(patch.stats).toBeDefined()
     expect(patch.officePhotos).toBeDefined()
     expect(patch.brandColor).toBeUndefined() // already current
     expect(patch.logoUrl).toMatch(/^https?:\/\//)
     expect(patch.heroImageUrl).toMatch(/^https?:\/\//)
+    // Insurance carriers backfill (migration 0038) — the patch should
+    // include the universal PPO list so the public site's Insurance
+    // section + verifier-form dropdown render on legacy demos.
+    expect(Array.isArray(patch.acceptedInsuranceCarriers)).toBe(true)
+    expect((patch.acceptedInsuranceCarriers as string[]).length).toBeGreaterThan(0)
+    expect((patch.acceptedInsuranceCarriers as string[])).toContain('Aetna')
     // appointment.source backfill present
     expect(state.updates.some((u) => (u.set as { source?: string }).source === 'manual')).toBe(true)
+  })
+
+  it('self-heal skips the insurance-carriers backfill when the legacy demo already has them set', async () => {
+    // If a platform admin (or a prior self-heal) has already written
+    // acceptedInsuranceCarriers, the next self-heal pass should leave
+    // it alone — we only fill nulls, we never overwrite real data.
+    state.selectQueue.push([
+      { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
+    ])
+    state.selectQueue.push([
+      {
+        brandColor: '#9CAF9F',
+        stats: [{ id: 's', value: 'X', label: 'y' }],
+        testimonials: [{ id: 't', quote: 'q' }],
+        officePhotos: [{ id: 'o', url: 'u' }],
+        logoUrl: 'https://existing.example/logo.png',
+        heroImageUrl: 'https://existing.example/hero.png',
+        differenceVideoUrl: 'https://existing.example/v.mp4',
+        faq: [{ id: 'f', category: 'X', question: 'Q', answer: 'A' }],
+        acceptedInsuranceCarriers: ['CustomCarrier'],
+      },
+    ])
+    state.selectQueue.push([{ id: 'form_existing' }])
+    state.selectQueue.push([]) // existing patients
+    state.selectQueue.push([{ id: 'prov_existing' }])
+    state.selectQueue.push([]) // backfillDemoBookingAttribution
+    state.selectQueue.push([{ id: 'rem_existing' }])
+    state.selectQueue.push([
+      { name: 'Olivia Chen' },
+      { name: 'Daniel Park' },
+      { name: 'Rachel Williams' },
+      { name: 'Marcus Johnson' },
+      { name: 'Emma Lopez' },
+      { name: 'aaaaa zzzzzz' },
+    ])
+    state.selectQueue.push([{ id: 'pat_emma' }])
+    state.selectQueue.push([]) // existingAudienceRows
+    state.selectQueue.push([]) // existingCampaignRows
+    state.selectQueue.push([]) // existingPatientRows
+    state.selectQueue.push([]) // seedSystemTemplates existing names
+    state.selectQueue.push([
+      { id: 1, name: 'Reactivation — come back for a cleaning' },
+      { id: 2, name: 'Birthday — warm monthly check-in' },
+      { id: 3, name: 'New-patient welcome' },
+    ])
+    state.selectQueue.push([]) // existingThreadRows
+    state.selectQueue.push([]) // existingReviewConfigRows
+    state.selectQueue.push([]) // existingReviewRequestRows
+    state.selectQueue.push([]) // patients count
+    state.selectQueue.push([]) // appointments count
+
+    state.updates.length = 0
+    await createDemoClinic()
+
+    // The clinic_profile patch update should NOT carry an
+    // acceptedInsuranceCarriers key when the column already has a value
+    // (the self-heal only writes the field when it's null).
+    const profilePatch = state.updates.find(
+      (u) => (u.set as { stats?: unknown }).stats !== undefined,
+    )?.set as { acceptedInsuranceCarriers?: unknown } | undefined
+    // The whole stats/etc patch may not even fire if every field is
+    // current — what matters is that no update overwrites the carriers.
+    const carrierOverwrite = state.updates.find(
+      (u) =>
+        (u.set as { acceptedInsuranceCarriers?: unknown }).acceptedInsuranceCarriers !== undefined,
+    )
+    expect(carrierOverwrite).toBeUndefined()
+    // Defensive: if a patch did fire, double-check the field isn't on it.
+    if (profilePatch) {
+      expect(profilePatch.acceptedInsuranceCarriers).toBeUndefined()
+    }
   })
 
   it('self-heal seeds patient_note + form_submission when missing', async () => {

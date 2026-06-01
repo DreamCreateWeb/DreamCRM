@@ -122,6 +122,26 @@ function parseTestimonials(raw: string | undefined): ClinicTestimonial[] | null 
   }
 }
 
+function parseInsuranceCarriers(raw: string | undefined): string[] | null {
+  if (!raw) return null
+  // The settings UI sends a newline-separated list; also accept commas as
+  // a separator so paste-from-a-Word-doc works without us building a
+  // tag-picker for v1. Trim + dedupe + drop empties.
+  const parts = raw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const p of parts) {
+    const key = p.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(p)
+  }
+  return out.length ? out : null
+}
+
 function parseOfficePhotos(raw: string | undefined): ClinicOfficePhoto[] | null {
   if (!raw) return null
   try {
@@ -212,6 +232,9 @@ export async function updateClinicProfile(formData: FormData) {
   const stats = parseStats(formData.get('stats')?.toString())
   const testimonials = parseTestimonials(formData.get('testimonials')?.toString())
   const officePhotos = parseOfficePhotos(formData.get('officePhotos')?.toString())
+  const acceptedInsuranceCarriers = parseInsuranceCarriers(
+    formData.get('acceptedInsuranceCarriers')?.toString(),
+  )
   const hours = parseHours(formData)
 
   const payload = {
@@ -238,6 +261,7 @@ export async function updateClinicProfile(formData: FormData) {
     stats,
     testimonials,
     officePhotos,
+    acceptedInsuranceCarriers,
   }
 
   await db

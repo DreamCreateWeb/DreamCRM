@@ -22,6 +22,7 @@ import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
 import ServicePills from '@/components/clinic-site/service-pills'
+import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
 
 /**
  * Modern Family/Wellness template — the default clinic site.
@@ -100,6 +101,35 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 50)
   const officePhotos: ClinicOfficePhoto[] =
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
+  // Insurance carriers shown on the public Insurance section + populated
+  // into the verifier-form carrier dropdown. JSONB string[] on
+  // clinic_profile (migration 0038). When null/empty, the section falls
+  // back to "call us to verify" copy and drops the dropdown.
+  const insuranceCarriers: string[] = Array.isArray(profile.acceptedInsuranceCarriers)
+    ? (profile.acceptedInsuranceCarriers as unknown[]).filter(
+        (c): c is string => typeof c === 'string' && c.trim().length > 0,
+      )
+    : []
+  // Address used by the Location section — prefer the primary clinic
+  // location row (multi-location clinics keep address there), fall back
+  // to the profile-level fields. Same precedence as the Hours+Location
+  // card lower on the page and the JSON-LD builder.
+  const addrLine1 = primaryLocation?.addressLine1 ?? profile.addressLine1 ?? null
+  const addrCity = primaryLocation?.city ?? profile.city ?? null
+  const addrState = primaryLocation?.state ?? profile.state ?? null
+  const addrPostal = primaryLocation?.postalCode ?? profile.postalCode ?? null
+  const hasAddress = Boolean(addrLine1 || addrCity)
+  const addressOneLine = [addrLine1, [addrCity, addrState].filter(Boolean).join(', '), addrPostal]
+    .filter((p) => p && p.toString().trim().length > 0)
+    .join(', ')
+  // Keyless Google Maps embed — no API key required. The `q=` query +
+  // `&output=embed` flag is the official no-auth path Google has supported
+  // for the maps iframe for years. Cite the address verbatim.
+  const mapQuery = encodeURIComponent(
+    [addrLine1, addrCity, addrState, addrPostal].filter(Boolean).join(', '),
+  )
+  const mapEmbedSrc = `https://www.google.com/maps?q=${mapQuery}&output=embed`
+  const mapDirectionsHref = `https://www.google.com/maps/dir/?api=1&destination=${mapQuery}`
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
   const bookLabel = 'Book a Visit'
   const signIn =
@@ -474,6 +504,189 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           </div>
         </section>
       )}
+
+      {/* ── Location — "Come meet us at…" with map + directions ─────────── */}
+      {/* Connective-tissue band between social proof (testimonials) and
+          the clinical-team trust grid. Keyless Google Maps iframe; the
+          "Get directions" CTA deep-links into google.com/maps/dir so the
+          visitor can launch turn-by-turn from their device of choice.
+          Hides cleanly when the clinic has no address at all. */}
+      {hasAddress && (
+        <section id="location" className="scroll-mt-20 py-20 sm:py-28">
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+            <div className="text-center max-w-[760px] mx-auto mb-10">
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
+                style={{ color: INK_MUTED }}
+              >
+                Visit us
+              </p>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-4"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                {addrLine1
+                  ? `Come meet us at ${addrLine1}`
+                  : `Come meet us in ${[addrCity, addrState].filter(Boolean).join(', ')}`}
+              </h2>
+              {addressOneLine && (
+                <p className="text-base sm:text-lg leading-[1.55]" style={{ color: INK_MUTED }}>
+                  {addressOneLine}
+                </p>
+              )}
+            </div>
+            <div className="max-w-[1000px] mx-auto">
+              <iframe
+                src={mapEmbedSrc}
+                className="w-full"
+                style={{ height: '400px', border: 0, borderRadius: '24px' }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allowFullScreen
+                title={`Map showing ${name}`}
+              />
+              <div className="text-center mt-8">
+                <a
+                  href={mapDirectionsHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+                  style={{ backgroundColor: brand }}
+                >
+                  Get directions
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                    />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Insurance — forest-teal band with carrier list + verifier ───── */}
+      {/* Full-width band using the same forest-teal palette as the footer
+          + testimonial cards (#36514c) so the section feels visually
+          grouped with the trust signals. Left column lists accepted PPO
+          carriers from the new clinic_profile.acceptedInsuranceCarriers
+          jsonb column (or a calm "call to verify" copy when empty); right
+          column is a 2-field request form that lands in /leads with
+          sourcePage='insurance_verifier' so front desk can follow up. NOT
+          a real eligibility check (no Eligible.com / payer-API hookup —
+          we're explicit about that in the success message). */}
+      <section
+        className="py-20 sm:py-28"
+        style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
+      >
+        <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+          <div className="text-center max-w-[700px] mx-auto mb-12">
+            <p
+              className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
+              style={{ color: 'rgba(250, 247, 242, 0.7)' }}
+            >
+              Insurance
+            </p>
+            <h2
+              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
+              style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              Dental insurance coverage
+            </h2>
+            <p
+              className="text-base sm:text-lg leading-[1.55]"
+              style={{ color: 'rgba(255, 255, 255, 0.8)' }}
+            >
+              We want to make accessing dental care easy. We work with most major dental
+              insurance carriers and are here to help you navigate your benefits.
+            </p>
+          </div>
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-12">
+            {/* Left: carriers */}
+            <div>
+              <h3
+                className="text-xl sm:text-2xl font-semibold mb-3"
+                style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                Our insurance carriers
+              </h3>
+              {insuranceCarriers.length > 0 ? (
+                <>
+                  <p
+                    className="text-sm sm:text-base leading-[1.55] mb-5"
+                    style={{ color: 'rgba(255, 255, 255, 0.8)' }}
+                  >
+                    We are happy to accept most major PPO dental insurance plans, including
+                    (but not limited to):
+                  </p>
+                  <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                    {insuranceCarriers.map((carrier) => (
+                      <li
+                        key={carrier}
+                        className="flex items-start gap-2.5 text-[15px] leading-snug"
+                        style={{ color: '#FAF7F2' }}
+                      >
+                        <svg
+                          className="w-5 h-5 shrink-0 mt-0.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          style={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                          aria-hidden="true"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                        <span>{carrier}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p
+                  className="text-base leading-[1.55]"
+                  style={{ color: 'rgba(255, 255, 255, 0.8)' }}
+                >
+                  Call us to verify your specific plan — we work with most major PPO
+                  carriers.
+                </p>
+              )}
+            </div>
+
+            {/* Right: verifier form */}
+            <div>
+              <h3
+                className="text-xl sm:text-2xl font-semibold mb-3"
+                style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                Check your insurance
+              </h3>
+              <p
+                className="text-sm sm:text-base leading-[1.55] mb-5"
+                style={{ color: 'rgba(255, 255, 255, 0.8)' }}
+              >
+                Curious if your insurance will cover your exam? Drop us a note and
+                we&apos;ll get back to you within one business day.
+              </p>
+              <InsuranceVerifierForm
+                orgId={data.orgId}
+                brand={brand}
+                carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ── Clinical-team trust — 3-col with oval portraits + 4 callouts ── */}
       {/* Renders only when we have ≥2 office photos (so both flanking

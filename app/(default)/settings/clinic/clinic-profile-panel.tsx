@@ -45,6 +45,14 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
   const initialStats = (profile?.stats ?? null) as ClinicStat[] | null
   const initialTestimonials = (profile?.testimonials ?? null) as ClinicTestimonial[] | null
   const initialOfficePhotos = (profile?.officePhotos ?? null) as ClinicOfficePhoto[] | null
+  // Accepted insurance carriers — JSON string[] on clinic_profile
+  // (migration 0038). Edited as one carrier per line in a textarea so
+  // clinics can paste-or-type without us building a multi-select picker.
+  const initialInsuranceCarriers = Array.isArray(profile?.acceptedInsuranceCarriers)
+    ? ((profile?.acceptedInsuranceCarriers as unknown[]).filter(
+        (c): c is string => typeof c === 'string',
+      ) as string[])
+    : []
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -273,6 +281,25 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
             them in below and they&apos;ll appear as a gallery on your site.
           </p>
           <OfficePhotosEditor name="officePhotos" defaultValue={initialOfficePhotos} />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+            Accepted Insurance Carriers
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Shown on your public site in the &ldquo;Dental insurance coverage&rdquo; section
+            and used as the dropdown options on the insurance verifier form. One carrier per
+            line. Leave blank if you&apos;d rather just invite patients to call to verify.
+          </p>
+          <textarea
+            id="acceptedInsuranceCarriers"
+            name="acceptedInsuranceCarriers"
+            className="form-textarea w-full font-mono text-sm"
+            rows={6}
+            defaultValue={initialInsuranceCarriers.join('\n')}
+            placeholder={'Aetna\nCigna\nDelta Dental\nGuardian\nMetLife'}
+          />
         </section>
 
         <div className="flex items-center gap-3 pt-2 border-t border-gray-200 dark:border-gray-700/60">
