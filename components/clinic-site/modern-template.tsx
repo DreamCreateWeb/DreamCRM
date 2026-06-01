@@ -160,20 +160,6 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     'Convenient hours',
   ]
 
-  // Value-prop chips repeated in the chartreuse closer strip below the
-  // "it's a pleasure" CTA card. Same palette + structure as the top
-  // announcement strip in SiteHeader so the page composition rhymes —
-  // chartreuse top, chartreuse bottom, with the closer card as the
-  // bridge. Kept short + generic so they read on every clinic.
-  const closerChips: string[] = [
-    'No judgment, ever',
-    'Same-week visits',
-    'Most insurance accepted',
-    'Modern technology',
-    'Caring team',
-    'Convenient hours',
-  ]
-
   // Two flanking portrait photos for the hero. Left = clinic's hero image,
   // right = first office photo. Backdrops are HARDCODED universal pastels
   // (soft blue + warm peach) — Tend pairs the photo ovals against fixed

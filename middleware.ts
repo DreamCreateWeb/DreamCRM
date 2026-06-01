@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   // CRON_SECRET-guarded one-shot admin routes (run from inside the VPC).
   '/api/admin/migrate',
   '/api/admin/seed-platform',
+  '/api/admin/resync-demo',
   // Public review-request landing pages — patient lands here from
   // the email link. Token in the URL is the auth.
   '/r',
