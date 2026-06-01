@@ -6,7 +6,7 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
+import { DEFAULT_SERVICES, INSURANCE_CARRIER_LOGOS } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   DAYS,
@@ -685,6 +685,65 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               />
             </div>
           </div>
+          {/* Auto-scrolling carrier-logo marquee. Pure CSS @keyframes —
+              renders the carrier set TWICE in the same flex track and
+              translates 0 → -50% so the seam is invisible. Pause on
+              hover, prefers-reduced-motion fallback to a static row.
+              Carriers without a known logo URL fall back to a text-only
+              card (the name renders below an empty logo slot). Hides
+              entirely when there are no carriers configured. */}
+          {insuranceCarriers.length > 0 && (
+            <div className="mt-14 sm:mt-20 -mx-5 sm:-mx-8" style={{ overflowX: 'clip' }}>
+              <div
+                className="flex gap-4 sm:gap-5 ins-marquee-track px-5 sm:px-8"
+                style={{ width: 'max-content' }}
+              >
+                {[...insuranceCarriers, ...insuranceCarriers].map((carrier, i) => {
+                  const logoUrl = INSURANCE_CARRIER_LOGOS[carrier]
+                  return (
+                    <div
+                      key={`${carrier}-${i}`}
+                      className="shrink-0 bg-white rounded-2xl px-6 py-4 flex flex-col items-center justify-center w-[200px] h-[88px]"
+                      aria-hidden={i >= insuranceCarriers.length ? 'true' : undefined}
+                    >
+                      {logoUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={logoUrl}
+                          alt={carrier}
+                          className="max-h-10 max-w-[140px] object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="text-sm font-semibold text-center text-gray-800 leading-tight">
+                          {carrier}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <style>{`
+                @keyframes ins-marquee-kf {
+                  from { transform: translateX(0); }
+                  to { transform: translateX(-50%); }
+                }
+                .ins-marquee-track {
+                  animation: ins-marquee-kf ${Math.max(35, insuranceCarriers.length * 4)}s linear infinite;
+                  will-change: transform;
+                }
+                .ins-marquee-track:hover { animation-play-state: paused; }
+                @media (prefers-reduced-motion: reduce) {
+                  .ins-marquee-track {
+                    animation: none;
+                    flex-wrap: wrap;
+                    width: 100% !important;
+                    justify-content: center;
+                  }
+                }
+              `}</style>
+            </div>
+          )}
         </div>
       </section>
 

@@ -106,6 +106,41 @@ export const DEFAULT_SERVICES: ClinicService[] = [
   { id: 'emergency', name: 'Emergency Care', icon: '😌' },
 ]
 
+/**
+ * Logo URLs for common dental PPO carriers. Used by the public Insurance
+ * section to render a marquee of accepted-carrier badges. Sourced from
+ * Clearbit's public logo API (free, no auth) keyed by the carrier's
+ * primary domain. Carriers not in this map fall back to a text-only
+ * marquee card; broken URLs degrade to a card with the carrier name
+ * shown below an empty logo slot. Update by appending — `name` keys
+ * here MUST match the strings used in `acceptedInsuranceCarriers` on
+ * `clinic_profile` for the map lookup to hit.
+ */
+export const INSURANCE_CARRIER_LOGOS: Record<string, string> = {
+  'Aetna': 'https://logo.clearbit.com/aetna.com',
+  'Ameritas': 'https://logo.clearbit.com/ameritas.com',
+  'Anthem / BlueCross BlueShield': 'https://logo.clearbit.com/anthem.com',
+  'Anthem / CareFirst / FEP Dental / GRID+': 'https://logo.clearbit.com/anthem.com',
+  'BlueCross BlueShield': 'https://logo.clearbit.com/bcbs.com',
+  'CareFirst': 'https://logo.clearbit.com/carefirst.com',
+  'Careington': 'https://logo.clearbit.com/careington.com',
+  'Cigna': 'https://logo.clearbit.com/cigna.com',
+  'Delta Dental': 'https://logo.clearbit.com/deltadental.com',
+  'DenteMax': 'https://logo.clearbit.com/dentemax.com',
+  'Empire BCBS': 'https://logo.clearbit.com/empireblue.com',
+  'GEHA': 'https://logo.clearbit.com/geha.com',
+  'Guardian': 'https://logo.clearbit.com/guardianlife.com',
+  'Humana': 'https://logo.clearbit.com/humana.com',
+  'Lincoln Financial': 'https://logo.clearbit.com/lincolnfinancial.com',
+  'MetLife': 'https://logo.clearbit.com/metlife.com',
+  'Mutual of Omaha': 'https://logo.clearbit.com/mutualofomaha.com',
+  'Principal': 'https://logo.clearbit.com/principal.com',
+  'Renaissance Dental': 'https://logo.clearbit.com/renaissancedental.com',
+  'Sun Life Financial': 'https://logo.clearbit.com/sunlife.com',
+  'United Concordia (UCCI)': 'https://logo.clearbit.com/unitedconcordia.com',
+  'United Healthcare (UHC)': 'https://logo.clearbit.com/uhc.com',
+}
+
 /** Universal dental FAQ defaults — seeded by demo + used as fallback on
  *  /faq when a clinic hasn't customized. Written in the anti-shame,
  *  warm voice per DESIGN.md. */

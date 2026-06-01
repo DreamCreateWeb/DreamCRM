@@ -246,20 +246,27 @@ const DEMO_STATS = [
 ]
 
 // Universal PPO carrier list shown in the public site's Insurance section
-// and populated into the verifier-form carrier dropdown. Covers the 8-9
-// carriers most US dental offices accept (Delta + the major medical
-// payers with dental products). Clinics replace this with their actual
-// accepted list via /settings/clinic. Migration 0038 added the column.
+// + populated into the verifier-form carrier dropdown. Covers the major
+// US dental PPO + dental-rider medical payers most family practices
+// accept. Clinics replace this with their actual accepted list via
+// /settings/clinic; the self-heal block ONLY backfills when null or
+// shorter than the current default (legacy demos predating list growth
+// get topped up; clinic-edited lists stay untouched).
 const DEMO_INSURANCE_CARRIERS: string[] = [
   'Aetna',
+  'Ameritas',
+  'Anthem / BlueCross BlueShield',
   'Cigna',
   'Delta Dental',
+  'GEHA',
   'Guardian',
+  'Humana',
+  'Lincoln Financial',
   'MetLife',
+  'Principal',
+  'Sun Life Financial',
   'United Concordia (UCCI)',
   'United Healthcare (UHC)',
-  'Humana',
-  'Anthem / BlueCross BlueShield',
 ]
 
 /**
@@ -582,8 +589,25 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Insurance carriers backfill: migration 0038 added the column. Seed
     // the universal PPO list so the public site's Insurance section + the
     // carrier dropdown on the verifier form both render with realistic
-    // content on legacy demos. Skips when the demo has been hand-edited.
-    if (!profile?.acceptedInsuranceCarriers) {
+    // content on legacy demos. Also tops up demos that were seeded
+    // BEFORE the list grew to the current default — we detect "stale
+    // demo defaults" by comparing against the size of the current full
+    // list and overwriting when the stored array is smaller. A clinic
+    // that has CURATED a shorter list still wins by virtue of the
+    // typical clinic-edited array containing names outside our default
+    // set; we only overwrite when every stored entry is also in the
+    // current default (i.e. a pure subset of stale demo seed data).
+    const currentSet = new Set(DEMO_INSURANCE_CARRIERS)
+    const stored = Array.isArray(profile?.acceptedInsuranceCarriers)
+      ? (profile!.acceptedInsuranceCarriers as unknown[]).filter(
+          (c): c is string => typeof c === 'string',
+        )
+      : null
+    const isStaleDemoSubset =
+      stored !== null &&
+      stored.length < DEMO_INSURANCE_CARRIERS.length &&
+      stored.every((c) => currentSet.has(c))
+    if (stored === null || isStaleDemoSubset) {
       patch.acceptedInsuranceCarriers = DEMO_INSURANCE_CARRIERS
     }
     if (Object.keys(patch).length > 0) {
