@@ -894,4 +894,220 @@ describe('ModernTemplate', () => {
     expect(imgs.some((i) => i.src === 'https://example.com/op3.jpg')).toBe(true)
     expect(imgs.some((i) => i.src === 'https://example.com/op4.jpg')).toBe(false)
   })
+
+  // ── Location section (map + directions) ─────────────────────────────
+
+  it('renders the Location section heading + map iframe + Get directions CTA when address is set', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          addressLine1: '500 Main St',
+          city: 'Austin',
+          state: 'TX',
+          postalCode: '78701',
+        })}
+        basePath="/site/test"
+      />,
+    )
+    // H2 includes the literal address line 1
+    const heading = screen.getByRole('heading', { level: 2, name: /Come meet us at 500 Main St/i })
+    expect(heading).toBeInTheDocument()
+    // Address one-liner subhead
+    expect(screen.getByText(/500 Main St, Austin, TX, 78701/)).toBeInTheDocument()
+    // Keyless Google Maps iframe
+    const iframe = document.querySelector('iframe[title^="Map showing"]') as HTMLIFrameElement | null
+    expect(iframe).not.toBeNull()
+    expect(iframe?.src).toContain('https://www.google.com/maps?q=')
+    expect(iframe?.src).toContain('output=embed')
+    // Address is URL-encoded into the q= parameter
+    expect(iframe?.src).toMatch(/500%20Main%20St/)
+    // "Get directions" CTA opens in a new tab and points at maps/dir
+    const directions = screen.getByRole('link', { name: /Get directions/i })
+    expect(directions).toHaveAttribute('target', '_blank')
+    expect(directions.getAttribute('rel') ?? '').toMatch(/noopener/)
+    expect(directions.getAttribute('href') ?? '').toContain('google.com/maps/dir/?api=1&destination=')
+  })
+
+  it('falls back to "Come meet us in {City, State}" when only city/state is set', () => {
+    // Some clinics fill in city + state but leave the street address blank
+    // (suite/office still in flux at sign-up). The Location section still
+    // renders meaningfully without a street.
+    render(
+      <ModernTemplate
+        data={makeData({ addressLine1: null, city: 'Austin', state: 'TX' })}
+        basePath="/site/test"
+      />,
+    )
+    expect(
+      screen.getByRole('heading', { level: 2, name: /Come meet us in Austin, TX/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('omits the Location section entirely when no address is configured', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ addressLine1: null, city: null, state: null, postalCode: null })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.queryByRole('heading', { name: /Come meet us/i })).not.toBeInTheDocument()
+    expect(document.querySelector('iframe[title^="Map showing"]')).toBeNull()
+    expect(screen.queryByRole('link', { name: /Get directions/i })).not.toBeInTheDocument()
+  })
+
+  it('prefers primaryLocation.addressLine1 over the profile-level address when both are set', () => {
+    // Multi-location clinics keep the canonical address on clinic_location,
+    // and the profile-level fields may be stale or empty. The Location
+    // section should cite the location row's address verbatim — same
+    // precedence as the Hours+Location card and the JSON-LD builder.
+    const baseData = makeData({
+      addressLine1: '999 Old St',
+      city: 'Old City',
+      state: 'TX',
+    })
+    const dataWithLocation: ClinicSiteData = {
+      ...baseData,
+      primaryLocation: {
+        id: 'loc_primary',
+        organizationId: 'org_1',
+        name: 'Downtown',
+        addressLine1: '500 Main St',
+        addressLine2: null,
+        city: 'Austin',
+        state: 'TX',
+        postalCode: '78701',
+        phone: null,
+        isPrimary: 1,
+        createdAt: new Date(),
+      },
+      locations: [],
+    }
+    render(<ModernTemplate data={dataWithLocation} basePath="/site/test" />)
+    expect(
+      screen.getByRole('heading', { level: 2, name: /Come meet us at 500 Main St/i }),
+    ).toBeInTheDocument()
+    // The Location section H2 + subhead must NOT cite the stale profile-level
+    // street. (The legacy Hours+Location card lower on the page may still
+    // render it from profile.addressLine1 when locations[] is empty — that's
+    // a separate concern; the Location section is what we're locking in.)
+    expect(
+      screen.queryByRole('heading', { level: 2, name: /Come meet us at 999 Old St/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  // ── Insurance section (carrier list + verifier form) ────────────────
+
+  it('renders the Insurance section heading + 2-col layout (carriers + verifier form)', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ acceptedInsuranceCarriers: ['Aetna', 'Cigna', 'Delta Dental'] as never })}
+        basePath="/site/test"
+      />,
+    )
+    expect(
+      screen.getByRole('heading', { level: 2, name: /Dental insurance coverage/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Our insurance carriers/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Check your insurance/i })).toBeInTheDocument()
+  })
+
+  it('renders the carrier checklist from acceptedInsuranceCarriers', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          acceptedInsuranceCarriers: [
+            'Aetna',
+            'Cigna',
+            'Delta Dental',
+            'Guardian',
+            'MetLife',
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    // Each carrier renders in BOTH the visible checklist <ul> AND the
+    // <select> dropdown options in the verifier form — so we expect two
+    // hits per name (one <span> in the checklist + one <option>). The
+    // checklist hit is the visible UI surface that matters here.
+    expect(screen.getAllByText('Aetna').length).toBeGreaterThanOrEqual(1)
+    const aetnaInChecklist = Array.from(document.querySelectorAll('li span')).find(
+      (s) => s.textContent === 'Aetna',
+    )
+    expect(aetnaInChecklist).toBeTruthy()
+    const checklistNames = Array.from(document.querySelectorAll('li span'))
+      .map((s) => s.textContent)
+      .filter((t): t is string => Boolean(t))
+    expect(checklistNames).toContain('Aetna')
+    expect(checklistNames).toContain('Cigna')
+    expect(checklistNames).toContain('Delta Dental')
+    expect(checklistNames).toContain('Guardian')
+    expect(checklistNames).toContain('MetLife')
+  })
+
+  it('falls back to "call us to verify" copy when no carriers configured', () => {
+    render(
+      <ModernTemplate
+        data={makeData({ acceptedInsuranceCarriers: null as never })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.getByText(/call us to verify your specific plan/i)).toBeInTheDocument()
+    // No carrier dropdown when the list is empty — front desk doesn't want
+    // to surface a "please pick" question they can't honestly answer yet.
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  })
+
+  it('renders the verifier form with email + phone inputs and a Check insurance submit', () => {
+    render(<ModernTemplate data={makeData()} basePath="/site/test" />)
+    const email = document.querySelector('#iv-email') as HTMLInputElement | null
+    const phone = document.querySelector('#iv-phone') as HTMLInputElement | null
+    expect(email).not.toBeNull()
+    expect(email?.type).toBe('email')
+    expect(email?.required).toBe(true)
+    expect(phone).not.toBeNull()
+    expect(phone?.type).toBe('tel')
+    expect(phone?.required).toBe(true)
+    expect(screen.getByRole('button', { name: /Check insurance/i })).toBeInTheDocument()
+  })
+
+  it('exposes the carrier dropdown with an "Other / not listed" option when carriers are configured', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          acceptedInsuranceCarriers: ['Aetna', 'Cigna'] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    const select = document.querySelector('#iv-carrier') as HTMLSelectElement | null
+    expect(select).not.toBeNull()
+    const optionValues = Array.from(select?.options ?? []).map((o) => o.value)
+    expect(optionValues).toContain('Aetna')
+    expect(optionValues).toContain('Cigna')
+    expect(optionValues).toContain('__other__')
+  })
+
+  it('keeps the Insurance section even when the rest of the site is empty (it is a request channel)', () => {
+    // The Insurance section is the universal "ask about my plan" channel
+    // and renders for every clinic so patients can always reach out — the
+    // carrier list adapts, but the form is always there.
+    render(
+      <ModernTemplate
+        data={makeData({
+          about: null,
+          phone: null,
+          city: null,
+          state: null,
+          addressLine1: null,
+          acceptedInsuranceCarriers: null as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(
+      screen.getByRole('heading', { level: 2, name: /Dental insurance coverage/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Check insurance/i })).toBeInTheDocument()
+  })
 })

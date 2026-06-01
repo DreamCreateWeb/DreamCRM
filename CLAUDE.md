@@ -220,7 +220,28 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   the existing sticky Book+Call bar (mobile). "Book a Visit" copy is
   universal across tiers; basic tier routes Book to `#contact`.
   Editable via `/settings/clinic` (services, staff, stats, testimonials,
-  office photos, hours, brand, logo/hero uploads).
+  office photos, hours, brand, logo/hero uploads, accepted insurance
+  carriers).
+  **(11) Location section** — between testimonials and the clinical-team
+  trust grid: "Come meet us at {addressLine1}" with a keyless Google Maps
+  iframe (`https://www.google.com/maps?q=...&output=embed`, no API key
+  required) and a "Get directions" CTA deep-linking into
+  `google.com/maps/dir/?api=1&destination=...` (opens in a new tab).
+  Address citation prefers `primaryLocation.addressLine1` over the
+  profile-level field — same precedence as the Hours+Location card and
+  the JSON-LD builder. Hides cleanly when the clinic has no address at
+  all. **(12) Insurance section** — forest-teal `#36514c` full-width band
+  (same hue as the footer + testimonial cards) right after Location. Left
+  column: "Our insurance carriers" checklist sourced from the new
+  `clinic_profile.accepted_insurance_carriers` jsonb column (migration
+  0038, `string[]`); falls back to "call to verify" copy when the column
+  is empty. Right column: "Check your insurance" verifier form (email +
+  phone + optional carrier dropdown) — on submit, creates a `lead` row
+  scoped to the org with `sourcePage: 'insurance_verifier'` so the
+  request lands in the existing /leads triage queue with the same aging
+  + status treatment as contact-form leads. **NOT** an actual eligibility
+  check (no payer-API hookup); the success message tells the patient
+  we'll be in touch within one business day so expectations stay honest.
 - **SEO foundations for clinic sites** — `publicSiteUrl()` canonical
   URL helper (custom domain or subdomain). `clinicJsonLd()` builds a
   schema.org `Dentist` payload (name, address with primary-location
@@ -887,7 +908,7 @@ the third-party integrations that aren't AWS-native. Inventory below.
 ### Pre-migration code hygiene
 
 Already done (no action needed):
-- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0037 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; 0035 adds `review_request.review_text`; 0036 adds `clinic_profile.faq`; 0037 adds `clinic_profile.difference_video_url`)
+- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0038 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; 0035 adds `review_request.review_text`; 0036 adds `clinic_profile.faq`; 0037 adds `clinic_profile.difference_video_url`; 0038 adds `clinic_profile.accepted_insurance_carriers` powering the public Insurance section + verifier form)
 - Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108)
 - 627/627 tests passing, typecheck clean
 - No uncommitted changes on `main`

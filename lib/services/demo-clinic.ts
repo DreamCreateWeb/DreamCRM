@@ -245,6 +245,23 @@ const DEMO_STATS = [
   { id: 'st3', value: 'Most', label: 'insurance accepted' },
 ]
 
+// Universal PPO carrier list shown in the public site's Insurance section
+// and populated into the verifier-form carrier dropdown. Covers the 8-9
+// carriers most US dental offices accept (Delta + the major medical
+// payers with dental products). Clinics replace this with their actual
+// accepted list via /settings/clinic. Migration 0038 added the column.
+const DEMO_INSURANCE_CARRIERS: string[] = [
+  'Aetna',
+  'Cigna',
+  'Delta Dental',
+  'Guardian',
+  'MetLife',
+  'United Concordia (UCCI)',
+  'United Healthcare (UHC)',
+  'Humana',
+  'Anthem / BlueCross BlueShield',
+]
+
 /**
  * Self-heal helper for legacy demos that seeded the hardcoded "8,000+
  * five-star reviews" stat before the `dynamic: 'review_count'` pattern
@@ -506,6 +523,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         heroImageUrl: schema.clinicProfile.heroImageUrl,
         differenceVideoUrl: schema.clinicProfile.differenceVideoUrl,
         faq: schema.clinicProfile.faq,
+        acceptedInsuranceCarriers: schema.clinicProfile.acceptedInsuranceCarriers,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -561,6 +579,13 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // state. Seed the defaults so the editor + render-from-DB path both
     // exercise the column. Skips when the demo has been hand-edited.
     if (!profile?.faq) patch.faq = DEFAULT_FAQ_ITEMS
+    // Insurance carriers backfill: migration 0038 added the column. Seed
+    // the universal PPO list so the public site's Insurance section + the
+    // carrier dropdown on the verifier form both render with realistic
+    // content on legacy demos. Skips when the demo has been hand-edited.
+    if (!profile?.acceptedInsuranceCarriers) {
+      patch.acceptedInsuranceCarriers = DEMO_INSURANCE_CARRIERS
+    }
     if (Object.keys(patch).length > 0) {
       await db
         .update(schema.clinicProfile)
@@ -946,6 +971,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     testimonials: [],
     officePhotos: DEMO_OFFICE_PHOTOS,
     faq: DEFAULT_FAQ_ITEMS,
+    acceptedInsuranceCarriers: DEMO_INSURANCE_CARRIERS,
     planTier: 'premium',
     subscriptionStatus: 'active',
   })
