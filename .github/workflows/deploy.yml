@@ -41,11 +41,13 @@ jobs:
           set -euo pipefail
           BID=$(aws codebuild start-build --project-name dreamcrm-image-build --query 'build.id' --output text)
           echo "CodeBuild started: $BID"
+          # Tight 5s polling (was 15s). Saves up to ~10s of overhang once
+          # the build finishes; the API call is cheap.
           while true; do
             ST=$(aws codebuild batch-get-builds --ids "$BID" --query 'builds[0].buildStatus' --output text)
             echo "build status: $ST"
             [ "$ST" != "IN_PROGRESS" ] && break
-            sleep 15
+            sleep 5
           done
           if [ "$ST" != "SUCCEEDED" ]; then
             echo "::error::CodeBuild finished with status $ST"
