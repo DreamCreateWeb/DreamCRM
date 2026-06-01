@@ -6,7 +6,7 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES, INSURANCE_CARRIER_LOGOS } from '@/lib/types/clinic-content'
+import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   DAYS,
@@ -682,46 +682,42 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 orgId={data.orgId}
                 brand={brand}
                 carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
+                services={services.length > 0 ? services.map((s) => s.name) : null}
               />
             </div>
           </div>
-          {/* Auto-scrolling carrier-logo marquee. Pure CSS @keyframes —
+          {/* Auto-scrolling carrier badge marquee. Pure CSS @keyframes —
               renders the carrier set TWICE in the same flex track and
               translates 0 → -50% so the seam is invisible. Pause on
               hover, prefers-reduced-motion fallback to a static row.
-              Carriers without a known logo URL fall back to a text-only
-              card (the name renders below an empty logo slot). Hides
-              entirely when there are no carriers configured. */}
+              v1 uses text-only branded cards: Clearbit's free logo API
+              (the obvious source) was deprecated/sunsetted, Wikipedia's
+              CDN rate-limits our IP, and the open-source brand-asset
+              repos don't carry US dental-PPO carriers. Text cards
+              avoid hotlinking / trademark concerns entirely and read
+              cleanly as "carriers we accept" badges. Hides entirely
+              when there are no carriers configured. */}
           {insuranceCarriers.length > 0 && (
             <div className="mt-14 sm:mt-20 -mx-5 sm:-mx-8" style={{ overflowX: 'clip' }}>
               <div
                 className="flex gap-4 sm:gap-5 ins-marquee-track px-5 sm:px-8"
                 style={{ width: 'max-content' }}
               >
-                {[...insuranceCarriers, ...insuranceCarriers].map((carrier, i) => {
-                  const logoUrl = INSURANCE_CARRIER_LOGOS[carrier]
-                  return (
-                    <div
-                      key={`${carrier}-${i}`}
-                      className="shrink-0 bg-white rounded-2xl px-6 py-4 flex flex-col items-center justify-center w-[200px] h-[88px]"
-                      aria-hidden={i >= insuranceCarriers.length ? 'true' : undefined}
+                {[...insuranceCarriers, ...insuranceCarriers].map((carrier, i) => (
+                  <div
+                    key={`${carrier}-${i}`}
+                    className="shrink-0 bg-white rounded-2xl px-7 py-5 flex items-center justify-center w-[220px] h-[88px]"
+                    style={{ borderTop: `3px solid ${brand}` }}
+                    aria-hidden={i >= insuranceCarriers.length ? 'true' : undefined}
+                  >
+                    <span
+                      className="text-[15px] font-semibold tracking-tight text-center leading-tight"
+                      style={{ color: '#1C1A17', fontFamily: 'var(--font-display, Georgia, serif)' }}
                     >
-                      {logoUrl ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src={logoUrl}
-                          alt={carrier}
-                          className="max-h-10 max-w-[140px] object-contain"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="text-sm font-semibold text-center text-gray-800 leading-tight">
-                          {carrier}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
+                      {carrier}
+                    </span>
+                  </div>
+                ))}
               </div>
               <style>{`
                 @keyframes ins-marquee-kf {

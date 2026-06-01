@@ -11,6 +11,12 @@ interface Props {
    *  carriers they take, so guessing one would be worse than asking
    *  "what's yours?" with the free-text email/phone alone). */
   carriers: string[] | null
+  /** Service names from the clinic's catalog. When provided, the form
+   *  surfaces a "what brought you in" dropdown so the verification
+   *  request lands in /leads with the patient's reason of visit, not
+   *  just a generic eligibility check — front desk can route more
+   *  efficiently. Optional + auto-hides when null/empty. */
+  services?: string[] | null
 }
 
 /**
@@ -26,12 +32,14 @@ interface Props {
  * Success state replaces the form with a calm "we'll be in touch within
  * one business day" message so expectations stay honest.
  */
-export default function InsuranceVerifierForm({ orgId, brand, carriers }: Props) {
+export default function InsuranceVerifierForm({ orgId, brand, carriers, services }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
   const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
   const showCarrierDropdown = carrierList.length > 0
+  const serviceList = (services ?? []).filter((s) => s.trim().length > 0)
+  const showServiceDropdown = serviceList.length > 0
 
   if (status === 'success') {
     return (
@@ -110,6 +118,28 @@ export default function InsuranceVerifierForm({ orgId, brand, carriers }: Props)
           className={inputClass}
         />
       </div>
+      {showServiceDropdown && (
+        <div>
+          <label className="sr-only" htmlFor="iv-service">
+            Service of interest
+          </label>
+          <select
+            id="iv-service"
+            name="service"
+            defaultValue=""
+            className={inputClass}
+            style={{ appearance: 'auto' }}
+          >
+            <option value="">What brought you in? (optional)</option>
+            {serviceList.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+            <option value="__other__">Other / not sure</option>
+          </select>
+        </div>
+      )}
       {showCarrierDropdown && (
         <div>
           <label className="sr-only" htmlFor="iv-carrier">

@@ -1053,9 +1053,11 @@ describe('ModernTemplate', () => {
       />,
     )
     expect(screen.getByText(/call us to verify your specific plan/i)).toBeInTheDocument()
-    // No carrier dropdown when the list is empty — front desk doesn't want
+    // No CARRIER dropdown when the list is empty — front desk doesn't want
     // to surface a "please pick" question they can't honestly answer yet.
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    // The service-of-interest dropdown (id=iv-service) is unrelated and
+    // may still render when the clinic has services configured.
+    expect(document.querySelector('#iv-carrier')).toBeNull()
   })
 
   it('renders the verifier form with email + phone inputs and a Check insurance submit', () => {
