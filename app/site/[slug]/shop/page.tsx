@@ -50,7 +50,7 @@ export default async function ClinicShopPage({ params }: Props) {
               Shop
             </p>
             <h1
-              className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em]"
+              className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em]"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Our recommended products

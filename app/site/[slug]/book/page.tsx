@@ -155,7 +155,7 @@ export default async function BookPage({ params }: Props) {
                 Book a visit
               </p>
               <h1
-                className="text-[40px] sm:text-[56px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
+                className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Let&rsquo;s get you on the schedule.
@@ -174,7 +174,7 @@ export default async function BookPage({ params }: Props) {
         </section>
 
         {/* ── 2-col main: reassurance left, form right ─────────────────── */}
-        <section className="pb-20 sm:pb-28">
+        <section className="pb-14 sm:pb-24">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
               {/* Reassurance column */}

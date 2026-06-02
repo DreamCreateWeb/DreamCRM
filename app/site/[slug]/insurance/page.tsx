@@ -240,7 +240,7 @@ export default async function InsurancePage({ params }: Props) {
 
       <main>
         {/* ── Hero ─────────────────────────────────────────────────────────── */}
-        <section className="pt-14 pb-14 sm:pt-20 sm:pb-16">
+        <section className="pt-10 pb-10 sm:pt-20 sm:pb-16">
           <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
@@ -249,7 +249,7 @@ export default async function InsurancePage({ params }: Props) {
               Patients · Insurance
             </p>
             <h1
-              className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
+              className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
               style={{
                 color: brand,
                 fontFamily: 'var(--font-display, Georgia, serif)',
@@ -353,7 +353,7 @@ export default async function InsurancePage({ params }: Props) {
 
         {/* ── Carriers + verifier — forest-teal band (matches homepage) ──── */}
         <section
-          className="py-20 sm:py-28"
+          className="py-14 sm:py-24"
           style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
         >
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
@@ -518,7 +518,7 @@ export default async function InsurancePage({ params }: Props) {
         </section>
 
         {/* ── Insurance process — In-network vs Out-of-network ─────────── */}
-        <section className="py-20 sm:py-28">
+        <section className="py-14 sm:py-24">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <ScrollReveal className="max-w-[700px] mb-14">
               <p
@@ -605,7 +605,7 @@ export default async function InsurancePage({ params }: Props) {
         )}
 
         {/* ── HSA/FSA + final-bill explainer ──────────────────────────── */}
-        <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+        <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-14">
               <div>

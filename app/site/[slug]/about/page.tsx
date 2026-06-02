@@ -135,7 +135,7 @@ export default async function AboutPage({ params }: Props) {
 
       <main>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="pt-14 pb-16 sm:pt-20 sm:pb-20">
+      <section className="pt-10 pb-12 sm:pt-20 sm:pb-20">
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
           <p
             className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
@@ -144,7 +144,7 @@ export default async function AboutPage({ params }: Props) {
             About {name}
           </p>
           <h1
-            className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
+            className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
             {profile.tagline ?? `Get to know ${name}.`}
@@ -183,7 +183,7 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Story ──────────────────────────────────────────────────────── */}
       {profile.about && (
-        <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+        <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-start">
               <ScrollReveal className="lg:col-span-4">
@@ -209,7 +209,7 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Stats anchors ──────────────────────────────────────────────── */}
       {stats.length > 0 && (
-        <section className="py-20 sm:py-24">
+        <section className="py-14 sm:py-20">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <ScrollReveal
               className="rounded-2xl overflow-hidden"
@@ -234,7 +234,7 @@ export default async function AboutPage({ params }: Props) {
                 {stats.map((s) => (
                   <li key={s.id} className="text-center px-6 py-7 sm:py-9" style={{ borderColor: BORDER }}>
                     <div
-                      className="text-[40px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
+                      className="text-[34px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
                       style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
                     >
                       {s.value}
@@ -255,11 +255,11 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Team ───────────────────────────────────────────────────────── */}
       {staff.length > 0 && (
-        <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+        <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <ScrollReveal className="max-w-[640px] mb-14">
+            <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14 text-center mx-auto">
               <p
-                className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
+                className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
                 style={{ color: brand }}
               >
                 Our team
@@ -272,32 +272,39 @@ export default async function AboutPage({ params }: Props) {
               </h2>
             </ScrollReveal>
             <div
-              className={`grid gap-x-6 gap-y-12 ${
+              className={`grid gap-x-6 gap-y-10 sm:gap-y-12 ${
                 staff.length >= 4
                   ? 'grid-cols-2 lg:grid-cols-4'
                   : staff.length === 3
-                    ? 'sm:grid-cols-3'
+                    ? 'grid-cols-2 sm:grid-cols-3'
                     : staff.length === 2
-                      ? 'sm:grid-cols-2 max-w-3xl'
-                      : 'max-w-sm'
+                      ? 'grid-cols-2 max-w-3xl mx-auto'
+                      : 'max-w-sm mx-auto'
               }`}
             >
               {staff.map((s, i) => (
                 <ScrollReveal as="div" key={s.id} delay={(i % 4) * 90}>
-                  <div className="flex flex-col group h-full">
+                  <div className="flex flex-col items-center text-center group h-full">
+                    {/* Oval portrait — matches /team index + homepage clinical-team
+                        band + /team/[staffSlug] hero so the team look is consistent
+                        across every surface that renders a staff card. */}
                     <div
-                      className="aspect-[4/5] w-full rounded-2xl overflow-hidden mb-5 transition-transform duration-500 group-hover:scale-[1.02]"
-                      style={{ backgroundColor: BORDER }}
+                      className="aspect-[4/5] w-full max-w-[220px] overflow-hidden mb-5 transition-transform duration-500 group-hover:scale-[1.04]"
+                      style={{
+                        borderRadius: '50%',
+                        backgroundColor: BORDER,
+                      }}
                     >
                       {s.photoUrl ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={s.photoUrl} alt={s.name} className="w-full h-full object-cover" />
                       ) : (
                         <div
-                          className="w-full h-full flex items-center justify-center text-5xl font-bold"
+                          className="w-full h-full flex items-center justify-center text-5xl font-semibold"
                           style={{
                             background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
                             color: brand,
+                            fontFamily: 'var(--font-display, Georgia, serif)',
                           }}
                           aria-label={s.name}
                         >
@@ -305,17 +312,20 @@ export default async function AboutPage({ params }: Props) {
                         </div>
                       )}
                     </div>
+                    {s.title && (
+                      <p
+                        className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-1.5"
+                        style={{ color: INK_MUTED }}
+                      >
+                        {s.title}
+                      </p>
+                    )}
                     <h3
-                      className="text-lg font-semibold mb-1 leading-tight"
+                      className="text-lg sm:text-xl font-semibold mb-2 leading-tight"
                       style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
                     >
                       {s.name}
                     </h3>
-                    {s.title && (
-                      <p className="text-sm font-medium mb-3" style={{ color: brand }}>
-                        {s.title}
-                      </p>
-                    )}
                     {s.bio && (
                       <p className="text-[14px] leading-[1.6]" style={{ color: INK_MUTED }}>
                         {s.bio}
@@ -331,9 +341,9 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Office tour ────────────────────────────────────────────────── */}
       {officePhotos.length > 0 && (
-        <section className="py-20 sm:py-28">
+        <section className="py-14 sm:py-24">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <ScrollReveal className="max-w-[640px] mb-14">
+            <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -388,9 +398,9 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Testimonials ───────────────────────────────────────────────── */}
       {testimonials.length > 0 && (
-        <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+        <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <ScrollReveal className="max-w-[640px] mb-14">
+            <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}

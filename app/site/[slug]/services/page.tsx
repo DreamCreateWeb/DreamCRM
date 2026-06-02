@@ -133,7 +133,7 @@ export default async function ServicesPage({ params }: Props) {
 
       <main>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="pt-14 pb-16 sm:pt-20 sm:pb-20">
+      <section className="pt-10 pb-12 sm:pt-20 sm:pb-20">
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
           <p
             className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
@@ -142,7 +142,7 @@ export default async function ServicesPage({ params }: Props) {
             What we do
           </p>
           <h1
-            className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
+            className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
             Dental services at {name}.

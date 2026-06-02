@@ -94,7 +94,7 @@ export default async function IntakeFormPage({ params }: Props) {
               Patient intake
             </p>
             <h1
-              className="text-[36px] sm:text-[48px] lg:text-[56px] font-semibold leading-[1.06] tracking-[-0.015em] mb-4"
+              className="text-[30px] sm:text-[42px] lg:text-[56px] font-semibold leading-[1.06] tracking-[-0.015em] mb-4"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               {template.title}

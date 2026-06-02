@@ -211,7 +211,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
 
       <main>
         {/* ── Hero ─────────────────────────────────────────────────────────── */}
-        <section className="pt-14 pb-14 sm:pt-20 sm:pb-16">
+        <section className="pt-10 pb-10 sm:pt-20 sm:pb-16">
           <div className="max-w-[820px] mx-auto px-5 sm:px-8 text-center">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
@@ -220,7 +220,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
               Patients · Payment &amp; Financing
             </p>
             <h1
-              className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
+              className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
               style={{
                 color: brand,
                 fontFamily: 'var(--font-display, Georgia, serif)',
@@ -272,7 +272,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
         </section>
 
         {/* ── Payment methods — pill grid ─────────────────────────────────── */}
-        <section className="py-20 sm:py-24">
+        <section className="py-14 sm:py-20">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <ScrollReveal className="max-w-[640px] mb-10">
               <p
@@ -339,7 +339,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
 
         {/* ── HSA & FSA — full-width band ──────────────────────────────────── */}
         <section
-          className="py-20 sm:py-24"
+          className="py-14 sm:py-20"
           style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
         >
           <div className="max-w-[900px] mx-auto px-5 sm:px-8 text-center">
@@ -373,7 +373,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
 
         {/* ── Financing partners (only when set) ───────────────────────── */}
         {financingPartners.length > 0 && (
-          <section className="py-20 sm:py-28">
+          <section className="py-14 sm:py-24">
             <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
               <ScrollReveal className="max-w-[640px] mb-12">
                 <p

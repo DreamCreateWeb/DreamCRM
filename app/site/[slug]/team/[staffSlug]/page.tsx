@@ -236,7 +236,7 @@ export default async function StaffDetailPage({ params }: Props) {
                   <span aria-hidden="true">←</span> Back to team
                 </a>
                 <h1
-                  className="text-[36px] sm:text-[48px] lg:text-[56px] font-semibold leading-[1.05] tracking-[-0.015em] mb-3"
+                  className="text-[30px] sm:text-[42px] lg:text-[56px] font-semibold leading-[1.05] tracking-[-0.015em] mb-3"
                   style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
                   {staff.name}

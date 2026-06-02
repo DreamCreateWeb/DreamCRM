@@ -200,7 +200,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                 {categoryLabel}
               </p>
               <h1
-                className="text-[36px] sm:text-[48px] lg:text-[56px] font-semibold leading-[1.06] tracking-[-0.015em] mb-6"
+                className="text-[30px] sm:text-[42px] lg:text-[56px] font-semibold leading-[1.06] tracking-[-0.015em] mb-6"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 {service.name} at {name}.
@@ -383,7 +383,7 @@ export default async function ServiceDetailPage({ params }: Props) {
 
       {/* ── Testimonials (universal, only when present) ─────────────────── */}
       {testimonials.length > 0 && (
-        <section className="py-20 sm:py-28">
+        <section className="py-14 sm:py-24">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <ScrollReveal className="max-w-[640px] mb-14">
               <p

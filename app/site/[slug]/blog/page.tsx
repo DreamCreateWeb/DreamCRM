@@ -84,7 +84,7 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
               The Blog · {name}
             </p>
             <h1
-              className="text-[40px] sm:text-[56px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
+              className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Honest answers, real questions.
@@ -102,7 +102,7 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
         </div>
       </section>
 
-      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 pb-20 sm:pb-28">
+      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 pb-14 sm:pb-24">
         {/* Category filter */}
         {categories.length > 0 && (
           <ScrollReveal className="flex flex-wrap gap-2 mb-12 justify-center">
