@@ -124,7 +124,6 @@ export default function SiteHeader({
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
-  const logoUrl = profile.logoUrl ?? null
   const homeHref = basePath || '/'
 
   const trimmedTagline = profile.tagline?.trim() ?? null
@@ -258,26 +257,12 @@ export default function SiteHeader({
             }}
           >
             <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 lg:h-20 flex items-center justify-between gap-3 sm:gap-6">
-              {/* Logo */}
-              <a href={homeHref} className="flex items-center gap-2 sm:gap-2.5 min-w-0 shrink">
-                {logoUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={logoUrl}
-                    alt=""
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg object-cover shrink-0"
-                  />
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg text-white text-base font-bold shrink-0"
-                    style={{ backgroundColor: brand }}
-                  >
-                    {name.charAt(0).toUpperCase()}
-                  </span>
-                )}
+              {/* Logo — just the clinic name in Fraunces serif. The image
+                  slot (when `profile.logoUrl` is set) used to render here too
+                  but reads cleaner as text-only across every clinic palette. */}
+              <a href={homeHref} className="flex items-center min-w-0 shrink">
                 <span
-                  className="font-semibold text-[15px] sm:text-[17px] lg:text-[18px] leading-tight truncate"
+                  className="font-semibold text-[17px] sm:text-[19px] lg:text-[22px] leading-tight truncate tracking-[-0.005em]"
                   style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
                   {name}

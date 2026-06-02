@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { listBookingSlots, submitBookingRequest } from '../actions'
 import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
 import type { ClinicService } from '@/lib/types/clinic-content'
@@ -110,6 +110,19 @@ export default function BookForm({ orgId, brand, clinicName, services }: Props) 
   const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
+  // Ref + scroll handler for the day strip prev/next arrows. The strip
+  // overflows past the visible width on every viewport (14-day window /
+  // ~5 days visible at a time), so we surface explicit arrow buttons —
+  // less obvious-to-discover than swipe on a touchpad/mouse setup.
+  const dayStripRef = useRef<HTMLDivElement | null>(null)
+  const scrollDays = useCallback((dir: 1 | -1) => {
+    const el = dayStripRef.current
+    if (!el) return
+    // Move by ~70% of the visible track width — about "one page" of days.
+    const step = Math.max(180, el.clientWidth * 0.7)
+    el.scrollBy({ left: dir * step, behavior: 'smooth' })
+  }, [])
+
   useEffect(() => {
     startSlotsTransition(() => {
       listBookingSlots(orgId, isoDate(selectedDate))
@@ -195,38 +208,66 @@ export default function BookForm({ orgId, brand, clinicName, services }: Props) 
           01 · Pick a date
         </p>
         {/* Day strip — breaks out of the parent form card's padding so the
-            swipe surface spans the full card width on mobile. `-mx-5
-            sm:-mx-9` cancels the card's `p-5 sm:p-9`; the matching `px-5
-            sm:px-9` keeps the first/last day inset from the card edge. */}
-        <div
-          className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory -mx-5 px-5 sm:-mx-9 sm:px-9"
-          style={{ scrollbarWidth: 'none' }}
-        >
-          {days.map((d) => {
-            const isSelected = sameDay(d, selectedDate)
-            return (
-              <button
-                key={d.toISOString()}
-                type="button"
-                onClick={() => setSelectedDate(d)}
-                className="shrink-0 snap-start rounded-2xl px-4 py-3 text-center transition border min-w-[68px]"
-                style={{
-                  borderColor: isSelected ? brand : BORDER,
-                  backgroundColor: isSelected ? brand : SURFACE,
-                  color: isSelected ? 'white' : INK,
-                }}
-                aria-pressed={isSelected}
-              >
-                <div
-                  className="text-[11px] font-medium uppercase tracking-wider"
-                  style={{ color: isSelected ? 'rgba(255,255,255,0.85)' : INK_MUTED }}
+            swipe surface spans the full card width on mobile. The prev/next
+            arrows sit absolutely positioned over the strip; they were
+            previously missing entirely (only swipe scrolled), which made the
+            full 14-day window invisible on a mouse-driven desktop. */}
+        <div className="relative -mx-5 sm:-mx-9">
+          <button
+            type="button"
+            onClick={() => scrollDays(-1)}
+            aria-label="Previous days"
+            className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white shadow-sm transition hover:shadow-md"
+            style={{ border: `1px solid ${BORDER}`, color: brand }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+
+          <div
+            ref={dayStripRef}
+            className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth px-12 sm:px-14"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {days.map((d) => {
+              const isSelected = sameDay(d, selectedDate)
+              return (
+                <button
+                  key={d.toISOString()}
+                  type="button"
+                  onClick={() => setSelectedDate(d)}
+                  className="shrink-0 snap-start rounded-2xl px-4 py-3 text-center transition border min-w-[68px]"
+                  style={{
+                    borderColor: isSelected ? brand : BORDER,
+                    backgroundColor: isSelected ? brand : SURFACE,
+                    color: isSelected ? 'white' : INK,
+                  }}
+                  aria-pressed={isSelected}
                 >
-                  {DAY_NAME_SHORT[d.getDay()]}
-                </div>
-                <div className="text-xl font-bold leading-none mt-1">{d.getDate()}</div>
-              </button>
-            )
-          })}
+                  <div
+                    className="text-[11px] font-medium uppercase tracking-wider"
+                    style={{ color: isSelected ? 'rgba(255,255,255,0.85)' : INK_MUTED }}
+                  >
+                    {DAY_NAME_SHORT[d.getDay()]}
+                  </div>
+                  <div className="text-xl font-bold leading-none mt-1">{d.getDate()}</div>
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => scrollDays(1)}
+            aria-label="More days"
+            className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white shadow-sm transition hover:shadow-md"
+            style={{ border: `1px solid ${BORDER}`, color: brand }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
         </div>
       </section>
 
