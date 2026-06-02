@@ -691,14 +691,47 @@ platform tenant or as legacy entry points):
 - `Tasks /tasks/kanban` — research across 8 dental orbital-layer products (Weave / NexHealth / RevenueWell / Modento / Lighthouse / Solutionreach / Adit / Practice by Numbers) found 0 ship a generic kanban; the dental pattern is patient-attached followups, already half-shipped across Overview attention cards + Patients needs-attention + Appointments aging-color + Leads rot. Future "Followups" surface goes inside Patients detail, not a top-level module
 - `Invoices /invoices` — Mosaic stub that 404s. Clinical billing is PMS-owned (out of scope per DESIGN.md); Shop payments + booking deposits + memberships will live inside Shop (Phase 3) as "Orders & Payments"
 
-Public clinic surfaces also live:
+Public clinic surfaces also live (full Tend-clone nav structure as of
+Checkpoint 3 — minus multi-location pages):
 - `{slug}.dreamcreatestudio.com/` — Modern Family/Wellness template
 - `{slug}.dreamcreatestudio.com/book` — slot-picker booking (pro/premium)
 - `{slug}.dreamcreatestudio.com/intake/[formSlug]` — public form fill
 - `{slug}.dreamcreatestudio.com/sitemap.xml`, `/robots.txt`
 - `{slug}.dreamcreatestudio.com/opengraph-image` — dynamic OG image
 - `{slug}.dreamcreatestudio.com/services` + `/services/[serviceSlug]` —
-  Tend-style service index + per-service detail page (1A + 1B)
+  Tend-style services index (grouped Core/Special) + per-service detail
+  pages with AI-customized content (Checkpoints 1A + 1B)
+- `{slug}.dreamcreatestudio.com/insurance` — standalone deep version of
+  the homepage Insurance section (Checkpoint 2)
+- `{slug}.dreamcreatestudio.com/payment-financing` — payment methods +
+  optional financing partners + cancellation policy (Checkpoint 2)
+- `{slug}.dreamcreatestudio.com/dental-plans` — re-render of the
+  membership module under Tend's "Dental Plans" voice (Checkpoint 2)
+- `{slug}.dreamcreatestudio.com/about`, `/team`, `/team/[staffSlug]`,
+  `/blog`, `/blog/[postSlug]`, `/careers`, `/careers/[jobSlug]`, `/faq`,
+  `/r/[token]` — full About-dropdown surface (Checkpoint 3)
+
+**Post-Checkpoint-3 desktop nav** (5 dropdowns; FAQ + Blog are NO LONGER
+top-level — they live inside the About dropdown):
+
+```
+Services ▼  Special Services ▼  Patients ▼  About ▼  Contact
+   ↓              ↓                 ↓           ↓
+   core           special           Insurance   About
+   library        library           Payment     Meet Our Team
+   services       (when any)        & Financing Blog
+                                    Dental Plans Careers
+                                    (when active) FAQ
+                                                  (always)
+```
+
+Gating booleans threaded through `buildClinicNavLinks` mirror each other:
+`hasBlog` (published posts) · `hasDentalPlans` (active membership plans)
+· `hasCareers` (open job postings) · `hasTeam` (staff array non-empty).
+All 13 `<SiteHeader>` call sites do the parallel `Promise.all` loads
+upstream and pass the booleans down. Each child auto-hides cleanly when
+its gate is false; FAQ + About + Insurance + Payment & Financing always
+render (universal defaults make them render-safe on empty clinics).
 
 ## Tend-clone service library + Patients dropdown + About dropdown (Checkpoints 1A + 1B + 2 + 3)
 
@@ -976,6 +1009,25 @@ Blog are NO LONGER top-level — they live only inside About.
 
 ## What's NOT yet wired (priorities for next session)
 
+### Tend-clone epic — DONE (Checkpoints 1A/1B/2/3 shipped this session)
+
+The full Tend-style site structure is live, minus multi-location pages.
+PRs: #184 (services library + Core/Special nav), #186 (AI customization
++ clinic submissions + admin review), #187 (Patients dropdown + 3 new
+pages), #188 (Team page + About dropdown). The "Tend-clone service
+library" subsection below covers the full design; the "Public clinic
+surfaces also live" list above enumerates every public route.
+
+**Loose ends for v1.1** (not blocking — system works as-is):
+- Per-staff individual booking widgets via `ClinicStaff.bookHref` — type
+  is wired and rendered on the detail page CTA, but we don't yet have
+  a per-provider booking experience inside `/book`; the override
+  currently points patients to the same booking page
+- `service_library` AI-submitted pending entries currently render their
+  AI-generated content with NO admin edit pass (admin approves or
+  rejects; editing the cleaned content pre-approval is v1.1)
+- Per-page SEO controls in the Website Editor — still v1.1
+
 ### AWS migration — DONE (see "Vercel → AWS migration" below for status)
 
 The Vercel → AWS migration is complete: the app runs on App Runner + RDS +
@@ -1184,9 +1236,9 @@ the third-party integrations that aren't AWS-native. Inventory below.
 ### Pre-migration code hygiene
 
 Already done (no action needed):
-- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0038 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; 0035 adds `review_request.review_text`; 0036 adds `clinic_profile.faq`; 0037 adds `clinic_profile.difference_video_url`; 0038 adds `clinic_profile.accepted_insurance_carriers` powering the public Insurance section + verifier form)
-- Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108)
-- 627/627 tests passing, typecheck clean
+- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0041 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; 0035 adds `review_request.review_text`; 0036 adds `clinic_profile.faq`; 0037 adds `clinic_profile.difference_video_url`; 0038 adds `clinic_profile.accepted_insurance_carriers` powering the public Insurance section + verifier form; 0039 adds the platform-owned `service_library` table powering the Tend-clone services-library checkpoint; 0040 adds `service_library.submitted_by_org_id` + `review_notes` + `idx_service_library_status` for the AI submission → admin review workflow; 0041 adds `clinic_profile.payment_methods` + `financing_partners` + `cancellation_policy` for the standalone /payment-financing page)
+- Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108). Note: the **public-path allowlist in `middleware.ts`** also needs to cover any new `/api/admin/*` route guarded only by `CRON_SECRET` — PR #185 fixed a regression where `/api/admin/resync-demo` was silently 302'd to /signin (added in #176 but never added to the allowlist), which silently broke every auto-resync since.
+- 1224/1224 tests passing, typecheck clean
 - No uncommitted changes on `main`
 - Twilio integration was never shipped — no code to remove, just a never-built Phase B plan replaced with AWS SMS
 
