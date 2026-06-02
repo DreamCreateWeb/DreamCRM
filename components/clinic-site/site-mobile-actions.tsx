@@ -1,94 +1,101 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
-
-const { INK, BORDER } = CLINIC_THEME
 
 interface Props {
   data: ClinicSiteData
   basePath: string
   bookHref: string
   bookLabel: string
+  /** Legacy prop kept for back-compat with existing call sites. The Login
+   *  pill no longer lives here — patient login is reachable from the
+   *  chartreuse top strip of the site header instead. */
   signInUrl?: string
 }
 
 /**
- * Persistent sticky bottom action bar — matches Tend's #sticky element.
- * Always visible across every breakpoint (was mobile-only before this
- * pass), pinned to the viewport bottom with a backdrop blur so it floats
- * above scrolling content. Three CTAs left-to-right: Book Now (brand
- * primary) · Login (white outline) · phone (icon-only on small screens,
- * icon + number on desktop).
+ * Floating action widgets pinned to the bottom-right corner of the
+ * viewport. Replaces the prior full-width sticky bottom bar — much less
+ * intrusive while preserving one-tap access to Book + Call.
  *
- * To keep the bar from overlapping the actual footer at the very bottom
- * of the page, we render a spacer below the page content (sized so the
- * bar's footprint can never cover the bottom of the footer). A more
- * precise scroll-into-footer hide would need IntersectionObserver +
- * `'use client'`; the spacer is the no-JS path Tend itself uses.
+ * Two stacked widgets:
+ *   - top:    Phone circle (warm tan, icon-only)
+ *   - bottom: Book pill (brand color, calendar icon + label)
+ *
+ * Wrapper uses `pointer-events: none` so the empty space between widgets
+ * doesn't trap clicks meant for underlying content. Each widget re-enables
+ * pointer events on itself.
+ *
+ * No layout spacer needed (the prior sticky bar reserved a horizontal
+ * strip and required one to keep the footer reachable; the floating
+ * widgets just sit in the corner).
  */
 export default function SiteMobileActions({
   data,
   basePath: _basePath,
   bookHref,
   bookLabel,
-  signInUrl,
+  signInUrl: _signInUrl,
 }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
 
-  // Phone CTA uses Tend's "alert" color — a warm tan/peach that reads as
-  // "tap to call" without competing with the brand-colored Book Now. We
-  // hard-code it here (not theme-driven) because the warm tan reads well
-  // against essentially every clinic brand color and grounds the bar.
+  // Warm tan/peach — reads as "tap to call" without competing with the
+  // brand-colored Book CTA. Hardcoded (not theme-driven) because it works
+  // against every clinic brand color and grounds the corner stack.
   const phoneCta = '#bc8452'
 
   return (
-    <>
-      <div
-        className="fixed bottom-0 left-0 right-0 z-30 pb-[max(env(safe-area-inset-bottom),10px)] pt-3 px-4"
-        style={{
-          background: '#FFFFFFEE',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          borderTop: `1px solid ${BORDER}`,
-          boxShadow: '0 -4px 16px rgba(28, 26, 23, 0.06)',
-        }}
-      >
-        <div className="max-w-[1100px] mx-auto flex items-center gap-2 sm:gap-3 justify-center">
-          <a
-            href={bookHref}
-            className="flex-1 sm:flex-initial sm:min-w-[180px] inline-flex items-center justify-center px-5 py-3 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
-            style={{ backgroundColor: brand }}
+    <div
+      className="floating-cta-stack fixed z-30 flex flex-col items-end gap-3 pointer-events-none"
+      style={{
+        right: 'max(env(safe-area-inset-right), 16px)',
+        bottom: 'max(env(safe-area-inset-bottom), 16px)',
+      }}
+    >
+      {profile.phone && (
+        <a
+          href={`tel:${profile.phone}`}
+          aria-label={`Call ${name}`}
+          className="pointer-events-auto inline-flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/80"
+          style={{ backgroundColor: phoneCta }}
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.75}
+            aria-hidden="true"
           >
-            {bookLabel}
-          </a>
-          {signInUrl && (
-            <a
-              href={signInUrl}
-              className="hidden sm:inline-flex items-center justify-center px-5 py-3 rounded-full text-sm font-semibold bg-white transition hover:shadow-sm"
-              style={{ color: INK, border: `1px solid ${BORDER}` }}
-            >
-              Login
-            </a>
-          )}
-          {profile.phone && (
-            <a
-              href={`tel:${profile.phone}`}
-              className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
-              style={{ backgroundColor: phoneCta }}
-              aria-label={`Call ${name}`}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-              </svg>
-              <span className="hidden sm:inline">{profile.phone}</span>
-            </a>
-          )}
-        </div>
-      </div>
-
-      {/* Spacer so page content (incl. the footer) doesn't sit under the bar. */}
-      <div className="h-20 sm:h-24" aria-hidden="true" />
-    </>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"
+            />
+          </svg>
+        </a>
+      )}
+      <a
+        href={bookHref}
+        className="pointer-events-auto inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-sm sm:text-base font-semibold text-white shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/80"
+        style={{ backgroundColor: brand }}
+      >
+        <svg
+          className="w-4 h-4 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+          />
+        </svg>
+        {bookLabel}
+      </a>
+    </div>
   )
 }
