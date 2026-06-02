@@ -132,7 +132,7 @@ export default async function TeamPage({ params }: Props) {
 
       <main>
         {/* ── Hero ───────────────────────────────────────────────────────── */}
-        <section className="pt-14 pb-12 sm:pt-20 sm:pb-16">
+        <section className="pt-10 pb-10 sm:pt-20 sm:pb-16">
           <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
@@ -141,7 +141,7 @@ export default async function TeamPage({ params }: Props) {
               About · Our team
             </p>
             <h1
-              className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
+              className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Meet the team at {name}.
@@ -157,7 +157,7 @@ export default async function TeamPage({ params }: Props) {
 
         {/* ── Team grid (or empty placeholder) ───────────────────────────── */}
         {hasTeam ? (
-          <section className="pb-20 sm:pb-28">
+          <section className="pb-14 sm:pb-24">
             <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
               <div
                 className={`grid gap-x-6 gap-y-12 ${
@@ -239,7 +239,7 @@ export default async function TeamPage({ params }: Props) {
           /* Empty state — render gracefully rather than 404 so direct nav hits
              don't break. The nav gate hides /team from the dropdown until staff
              exist; this catches the rare direct-link case. */
-          <section className="pb-20 sm:pb-28">
+          <section className="pb-14 sm:pb-24">
             <div className="max-w-[640px] mx-auto px-5 sm:px-8">
               <div
                 className="rounded-2xl border border-dashed py-14 text-center"

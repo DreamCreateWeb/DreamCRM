@@ -44,7 +44,7 @@ export default async function ClinicMembershipPage({ params }: Props) {
             Membership
           </p>
           <h1
-            className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.04] tracking-[-0.015em] mb-5"
+            className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.04] tracking-[-0.015em] mb-5"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
             No insurance? No problem.

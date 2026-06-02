@@ -197,7 +197,7 @@ export default function SiteHeader({
           {/* Right login pill — dark ink on chartreuse contrast */}
           <a
             href={signInUrl}
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[12px] sm:text-[13px] font-semibold shrink-0 transition hover:opacity-90"
+            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-[12px] sm:text-[13px] font-semibold shrink-0 transition hover:opacity-90"
             style={{ backgroundColor: STRIP_INK, color: STRIP_BG }}
           >
             Login
@@ -391,17 +391,24 @@ export default function SiteHeader({
           {/* Secondary nav row — visible on mobile only. Top-level links
               scroll horizontally; dropdown parents render their children as an
               indented sub-row directly beneath so the full service catalog is
-              reachable without a desktop hover. */}
+              reachable without a desktop hover.
+
+              Hide the horizontal scrollbar via webkit + Firefox properties so
+              the chip strip looks like a clean swipe surface on mobile (it's
+              still scrollable; the scrollbar is just visually muted). */}
           <nav
-            className="lg:hidden border-t px-5 py-2 text-[14px] font-medium"
+            className="lg:hidden border-t px-4 sm:px-5 py-2.5 text-[14px] font-medium"
             style={{ borderColor: BORDER, color: INK_MUTED }}
           >
-            <div className="flex items-center gap-1 overflow-x-auto">
+            <div
+              className="flex items-center gap-1.5 overflow-x-auto -mx-1 px-1"
+              style={{ scrollbarWidth: 'none' }}
+            >
               {navLinks.map((l) => (
                 <a
                   key={l.label}
                   href={l.href}
-                  className="px-3 py-1.5 rounded-full transition hover:bg-[#F4EBDD] shrink-0"
+                  className="px-3.5 py-2 rounded-full transition hover:bg-[#F4EBDD] shrink-0"
                   style={{ color: INK }}
                 >
                   {l.label}
@@ -411,19 +418,22 @@ export default function SiteHeader({
             {navLinks
               .filter((l) => l.children && l.children.length > 0)
               .map((l) => (
-                <div key={`sub-${l.label}`} className="mt-1.5 pl-3">
+                <div key={`sub-${l.label}`} className="mt-2 pl-2">
                   <p
-                    className="text-[11px] uppercase tracking-[0.14em] mb-1"
+                    className="text-[11px] uppercase tracking-[0.14em] mb-1.5"
                     style={{ color: INK_MUTED }}
                   >
                     {l.label}
                   </p>
-                  <ul className="flex items-center gap-1 overflow-x-auto pb-1">
+                  <ul
+                    className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1"
+                    style={{ scrollbarWidth: 'none' }}
+                  >
                     {l.children!.map((c) => (
                       <li key={c.label} className="shrink-0">
                         <a
                           href={c.href}
-                          className="inline-block px-3 py-1.5 rounded-full transition hover:bg-[#F4EBDD]"
+                          className="inline-block px-3.5 py-2 rounded-full transition hover:bg-[#F4EBDD]"
                           style={{ color: INK }}
                         >
                           {c.label}

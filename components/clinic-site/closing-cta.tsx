@@ -33,7 +33,7 @@ export default function ClosingCTA({
   const bgColor = variant === 'teal' ? '#36514c' : brand
 
   return (
-    <section className="py-20 sm:py-28" style={{ backgroundColor: bgColor }}>
+    <section className="py-14 sm:py-24" style={{ backgroundColor: bgColor }}>
       <div className="max-w-[820px] mx-auto px-5 sm:px-8 text-center">
         <ScrollReveal>
           <h2

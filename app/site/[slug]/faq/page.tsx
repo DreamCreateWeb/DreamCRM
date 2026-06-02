@@ -159,7 +159,7 @@ export default async function FaqPage({ params }: Props) {
 
       <main>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="pt-14 pb-12 sm:pt-20 sm:pb-16">
+      <section className="pt-10 pb-10 sm:pt-20 sm:pb-16">
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
           <p
             className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
@@ -168,7 +168,7 @@ export default async function FaqPage({ params }: Props) {
             Frequently asked
           </p>
           <h1
-            className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
+            className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
             Frequently asked questions.

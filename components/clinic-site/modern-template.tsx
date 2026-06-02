@@ -285,7 +285,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 )}
               </p>
               <h1
-                className="text-[44px] sm:text-[64px] lg:text-[80px] font-semibold leading-[1.05] tracking-[-0.02em] mb-6"
+                className="text-[34px] sm:text-[56px] lg:text-[80px] font-semibold leading-[1.05] tracking-[-0.02em] mb-5 sm:mb-6"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 {profile.tagline ?? 'Dental care that finally feels human.'}
@@ -409,7 +409,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 {stats.map((s) => (
                   <li key={s.id} className="text-center px-6 py-7 sm:py-9" style={{ borderColor: BORDER }}>
                     <div
-                      className="text-[40px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
+                      className="text-[34px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
                       style={{ color: brand }}
                     >
                       {s.value}
@@ -433,7 +433,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           (ambient autoplay loop, no controls), otherwise heroImageUrl or
           officePhoto fallback. Right: H2 + leadin + Book CTA + 2-col chip
           checklist. Mirrors Tend's "Tend Dental difference" block. */}
-      <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
+      <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
             <div>
@@ -524,7 +524,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           services catalog lives on /services; the hero pill carousel keeps
           a name-only preview. */}
       {testimonials.length > 0 && (
-        <section id="reviews" className="scroll-mt-20 py-24 sm:py-32">
+        <section id="reviews" className="scroll-mt-20 py-16 sm:py-28">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <h2
               className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
@@ -544,7 +544,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           visitor can launch turn-by-turn from their device of choice.
           Hides cleanly when the clinic has no address at all. */}
       {hasAddress && (
-        <section id="location" className="scroll-mt-20 py-20 sm:py-28">
+        <section id="location" className="scroll-mt-20 py-14 sm:py-24">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="text-center max-w-[760px] mx-auto mb-10">
               <p
@@ -618,7 +618,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           a real eligibility check (no Eligible.com / payer-API hookup —
           we're explicit about that in the success message). */}
       <section
-        className="py-20 sm:py-28"
+        className="py-14 sm:py-24"
         style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
@@ -780,7 +780,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           portraits have real content). Hides cleanly when missing — no
           half-empty grid. */}
       {officePhotos.length >= 2 && (
-        <section className="py-24 sm:py-32" style={{ backgroundColor: SURFACE }}>
+        <section className="py-16 sm:py-28" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-3 gap-8 lg:gap-12 items-center">
               <div className="hidden lg:block">
@@ -855,7 +855,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           Only renders when the clinic has published posts — same gate as
           the Blog nav link. */}
       {recentPosts.length > 0 && (
-        <section className="py-24 sm:py-32">
+        <section className="py-16 sm:py-28">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4 mb-12">
               <h2
@@ -954,7 +954,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           }}
         />
         <div
-          className="relative max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-28"
+          className="relative max-w-[1240px] mx-auto px-5 sm:px-8 pt-14 sm:pt-24"
           style={{ paddingBottom: 'calc(2.5rem + 32px)' }}
         >
           {/* Floating white card. -mb-16 below pulls its bottom edge into
@@ -1039,7 +1039,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       {!isPro && (
         <section
           id="contact"
-          className="py-24 sm:py-32"
+          className="py-16 sm:py-28"
         >
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="max-w-[600px] mx-auto text-center">

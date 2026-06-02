@@ -37,7 +37,7 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
 
   return (
     <BlogChrome data={data} basePath={basePath}>
-      <div className="max-w-[600px] mx-auto px-5 sm:px-8 py-20 sm:py-24 text-center">
+      <div className="max-w-[600px] mx-auto px-5 sm:px-8 py-14 sm:py-20 text-center">
         <div
           className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl text-white shadow-md"
           style={{ backgroundColor: brand }}
