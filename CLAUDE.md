@@ -697,6 +697,98 @@ Public clinic surfaces also live:
 - `{slug}.dreamcreatestudio.com/intake/[formSlug]` — public form fill
 - `{slug}.dreamcreatestudio.com/sitemap.xml`, `/robots.txt`
 - `{slug}.dreamcreatestudio.com/opengraph-image` — dynamic OG image
+- `{slug}.dreamcreatestudio.com/services` + `/services/[serviceSlug]` —
+  Tend-style service index + per-service detail page (1A + 1B)
+
+## Tend-clone service library (Checkpoints 1A + 1B)
+
+Per DESIGN.md "the website is the trunk" + the Tend.com aesthetic, every
+clinic gets a full per-service detail page, not just a card on the strip
+under the hero. The catalog is platform-owned (every clinic starts from
+the same canonical content), customized per clinic at render.
+
+**Schema:**
+- `service_library` (migrations 0039 + 0040) — platform-owned canonical
+  catalog. Columns: `slug` (unique), `name`, `category` (core | special),
+  `icon`, `shortDescription`, `heroBullets[]`, `body`, `processSteps[]`,
+  `faq[]`, `relatedSlugs[]`, `origin` (platform | clinic), `status`
+  (active | pending | archived), `submittedByOrgId` FK, `reviewNotes`,
+  + `idx_service_library_status`. 17 canonical entries
+  (`SERVICE_LIBRARY_SEED` in `lib/services/service-library-seed.ts`).
+- `clinic_profile.services` jsonb — each `ClinicService` row links to a
+  canonical entry via `librarySlug`; the clinic can override `photoUrl`
+  + `offer` (promo ribbon), and (1B) carries an optional `customized`
+  blob with per-clinic AI-rewritten copy.
+
+**Checkpoint 1A (shipped):** `/services` + `/services/[serviceSlug]`
+render Tend-style detail pages using canonical content + `{clinic}` /
+`{city}` token substitution. Nav builds Core/Special dropdowns from the
+clinic's library-linked services (`buildClinicNavLinks` in
+`lib/clinic-site-helpers.ts`). The resolver (`resolveClinicServices`)
+returns `EnrichedService[]` with hero bullets, body, process steps, FAQ,
+related-services slugs — all token-substituted.
+
+**Checkpoint 1B (shipped):**
+- **Per-clinic AI customization** — `lib/services/service-library-ai.ts`
+  `customizeServiceForClinic(library, clinic)` calls Anthropic Sonnet
+  4.6 via `runClaudeJson` (tool-use structured output, the same pattern
+  as `lib/services/ai-blog.ts`). Generated **at selection time** (when
+  the clinic picks a service in the settings picker), persisted on
+  `clinic_profile.services[i].customized` (`{ heroBullets, body,
+  processSteps, faq, generatedAt, modelId }`), regeneratable from the
+  picker UI. The detail-page resolver prefers `customized` when present
+  + linked to the matching library slug; falls back cleanly to the 1A
+  token-substitution path when missing or malformed. Tight system prompt
+  pins voice rules + the **no-fabricated-pricing** promise (cost FAQs
+  describe the estimate-first process, never invent dollar figures).
+- **Clinic-submitted entries** — `vetAndCleanNewService(submission,
+  existing)` runs a 3-way Sonnet decision (invalid / duplicate / new)
+  via the same structured-output path. Duplicates point at an existing
+  slug (e.g. "Zoom Whitening" → "Teeth Whitening"); new entries arrive
+  as a clean full `ServiceLibraryEntry` shape. Defense-in-depth: the
+  service rejects hallucinated existing-slugs that don't actually exist
+  in the supplied list, and treats "new" entries colliding with an
+  existing slug as a duplicate. `submitNewLibraryEntry` lands accepted
+  new entries as `origin='clinic'`, `status='pending'`,
+  `submittedByOrgId=orgId`. **Submitting clinic uses immediately** —
+  `listLibraryForPicker(orgId)` + `getLibraryEntryBySlug(slug, orgId)`
+  both honor "active OR my-own-pending"; other clinics' pickers don't
+  see it until a platform admin approves.
+- **Picker UI** (`/settings/clinic`) — `services-library-picker.tsx`
+  replaces the old free-text editor. Selected services list with per-row
+  Regenerate-with-AI / Edit-copy / Photo+offer / Remove + up-down
+  reorder buttons. "+ Add a service" drawer lists library entries by
+  category with search, plus a "Can't find your service?" submission
+  form that surfaces duplicates / rejections / success states inline.
+  Per-row "Customized ✨" / "Library default" pills make the state of
+  each row visible at a glance.
+- **Platform admin review surface** — `/platform/service-library` (gated
+  to `tenantType === 'platform' && role in [owner, admin]`). Three tabs:
+  Pending (action queue), Active (cleanup → archive), Archived (audit
+  trail). Each row expands to show the full canonical preview (hero
+  bullets, body, process, FAQ); pending rows carry Approve / Reject
+  controls with required reviewer notes. Sidebar entry in
+  `lib/modules/platform.ts`.
+- **Demo seeding** — `lib/services/demo-clinic.ts` carries hand-written
+  per-service `customized` blobs in `DEMO_CUSTOMIZED` keyed by slug
+  (Acme-flavored rewrites, no fabricated prices, structural counts
+  match the canonical seed). Skips the Anthropic API entirely on every
+  resync (resync runs on every deploy via
+  `scripts/resync-demo.mjs`). Self-heal block backfills missing
+  `customized` blobs onto legacy demos so they showcase the 1B path on
+  next deploy without losing real-clinic data.
+- **Tests** — `tests/services/service-library-ai.test.ts` (18 tests
+  covering customization success / parse-failure / vet new+duplicate+
+  invalid / hallucinated slugs / slug collisions),
+  `tests/services/service-library.test.ts` (extended for the customized
+  resolver branch + malformed-blob fallback),
+  `tests/services/service-library-admin.test.ts` (approve / reject
+  status transitions + DB error paths),
+  `tests/services/service-library-submit.test.ts` (submit-new end-to-
+  end with mocked AI + DB),
+  `tests/demo-mode/demo-services-customized.test.ts` (every Acme service
+  has a customized blob matching the canonical process/FAQ counts, no
+  $-figure anywhere).
 
 ## What's NOT yet wired (priorities for next session)
 
@@ -968,7 +1060,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0037): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0040): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its

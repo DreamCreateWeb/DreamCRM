@@ -31,11 +31,37 @@ function parseServices(raw: string | undefined): ClinicService[] | null {
       const obj = item as Record<string, unknown>
       const name = typeof obj.name === 'string' ? obj.name.trim() : ''
       if (!name) continue
+      // Preserve the library-link + per-clinic-override + customization
+      // fields added across 1A/1B. The form-based editor is being phased
+      // out in favor of the picker UI + dedicated server actions, but the
+      // shape needs to survive a round-trip through the settings form too
+      // (e.g. when the clinic edits OTHER profile fields and saves).
+      const librarySlug =
+        typeof obj.librarySlug === 'string' && obj.librarySlug
+          ? obj.librarySlug
+          : null
+      const category =
+        obj.category === 'core' || obj.category === 'special' ? obj.category : null
+      const photoUrl =
+        typeof obj.photoUrl === 'string' && obj.photoUrl.trim()
+          ? obj.photoUrl.trim()
+          : null
+      const offer =
+        typeof obj.offer === 'string' && obj.offer.trim() ? obj.offer.trim() : null
+      const customized =
+        obj.customized && typeof obj.customized === 'object'
+          ? (obj.customized as ClinicService['customized'])
+          : null
       out.push({
         id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
         name,
         description: typeof obj.description === 'string' ? obj.description.trim() || null : null,
         icon: typeof obj.icon === 'string' ? obj.icon.trim() || null : null,
+        librarySlug,
+        category,
+        photoUrl,
+        offer,
+        customized,
       })
     }
     return out.length ? out : null

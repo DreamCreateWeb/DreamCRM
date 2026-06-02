@@ -10,8 +10,9 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
+import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
-import ServicesEditor from './services-editor'
+import ServicesLibraryPicker from './services-library-picker'
 import StaffEditor from './staff-editor'
 import StatsEditor from './stats-editor'
 import TestimonialsEditor from './testimonials-editor'
@@ -20,6 +21,8 @@ import OfficePhotosEditor from './office-photos-editor'
 interface Props {
   profile: ClinicProfile | null
   orgName: string
+  orgId: string
+  library: ServiceLibraryEntryWithStatus[]
 }
 
 const DAYS = [
@@ -34,7 +37,7 @@ const DAYS = [
 
 interface HoursEntry { open?: string | null; close?: string | null; closed?: boolean }
 
-export default function ClinicProfilePanel({ profile, orgName }: Props) {
+export default function ClinicProfilePanel({ profile, orgName, orgId, library }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -243,9 +246,15 @@ export default function ClinicProfilePanel({ profile, orgName }: Props) {
         <section>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Services</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            What you offer. Shown as a strip below the hero on your website.
+            Pick from the shared library — each service gets a full Tend-style detail
+            page on your site, rewritten in your clinic&apos;s voice with AI.
           </p>
-          <ServicesEditor name="services" defaultValue={initialServices} />
+          <ServicesLibraryPicker
+            name="services"
+            initialServices={initialServices ?? []}
+            library={library}
+            orgId={orgId}
+          />
         </section>
 
         <section>
