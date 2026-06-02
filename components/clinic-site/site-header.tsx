@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { SiteNavLink } from '@/lib/clinic-site-helpers'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
@@ -55,12 +55,41 @@ export default function SiteHeader({
   // Which dropdown menu is open (by label). null = none. Opens on hover or
   // focus/click for keyboard + touch; Escape + outside-click close it.
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  // Timer that defers closing the dropdown on mouseleave. Gives a slow
+  // mouse 150ms of grace to traverse from the trigger to the menu (or
+  // back) before the menu collapses — the #1 hover-dropdown UX bug. The
+  // hoverable bridge below (pt-1.5 wrapper) handles the visual-gap case;
+  // this timer handles brief excursions outside the wrapper box.
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelClose = () => {
+    if (leaveTimer.current) {
+      clearTimeout(leaveTimer.current)
+      leaveTimer.current = null
+    }
+  }
+  const openDropdown = (label: string) => {
+    cancelClose()
+    setOpenMenu(label)
+  }
+  const scheduleClose = (label: string) => {
+    cancelClose()
+    leaveTimer.current = setTimeout(() => {
+      setOpenMenu((m) => (m === label ? null : m))
+      leaveTimer.current = null
+    }, 150)
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(null)
+      if (e.key === 'Escape') {
+        cancelClose()
+        setOpenMenu(null)
+      }
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      cancelClose()
+    }
   }, [])
   useEffect(() => {
     let lastY = typeof window !== 'undefined' ? window.scrollY : 0
@@ -245,8 +274,8 @@ export default function SiteHeader({
                   <div
                     key={l.label}
                     className="relative"
-                    onMouseEnter={() => setOpenMenu(l.label)}
-                    onMouseLeave={() => setOpenMenu((m) => (m === l.label ? null : m))}
+                    onMouseEnter={() => openDropdown(l.label)}
+                    onMouseLeave={() => scheduleClose(l.label)}
                   >
                     {/* Parent: the label itself navigates to the index; a
                         separate chevron button toggles the dropdown so the
@@ -286,29 +315,40 @@ export default function SiteHeader({
                       </button>
                     </span>
                     {openMenu === l.label && (
-                      <ul
-                        role="menu"
-                        aria-label={l.label}
-                        className="absolute left-1/2 -translate-x-1/2 top-full mt-1 min-w-[240px] max-h-[70vh] overflow-y-auto rounded-2xl py-2 z-50"
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          border: `1px solid ${BORDER}`,
-                          boxShadow: '0 12px 32px -8px rgba(28, 26, 23, 0.18)',
-                        }}
+                      // Wrapper carries `pt-1.5` instead of putting the gap
+                      // on the menu via `mt-1`. The padding-top is a
+                      // transparent hover-bridge — slow mouse traversal
+                      // from trigger to menu now stays inside the parent
+                      // div's element tree, so mouseleave doesn't fire
+                      // and the menu doesn't snap closed mid-hover.
+                      <div
+                        className="absolute left-1/2 -translate-x-1/2 top-full pt-1.5 z-50"
+                        onMouseEnter={cancelClose}
                       >
-                        {l.children.map((c) => (
-                          <li key={c.label} role="none">
-                            <a
-                              role="menuitem"
-                              href={c.href}
-                              className="block px-5 py-2.5 text-[14px] font-medium transition hover:bg-[#F4EBDD]"
-                              style={{ color: INK }}
-                            >
-                              {c.label}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
+                        <ul
+                          role="menu"
+                          aria-label={l.label}
+                          className="min-w-[240px] max-h-[70vh] overflow-y-auto rounded-2xl py-2"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `1px solid ${BORDER}`,
+                            boxShadow: '0 12px 32px -8px rgba(28, 26, 23, 0.18)',
+                          }}
+                        >
+                          {l.children.map((c) => (
+                            <li key={c.label} role="none">
+                              <a
+                                role="menuitem"
+                                href={c.href}
+                                className="block px-5 py-2.5 text-[14px] font-medium transition hover:bg-[#F4EBDD]"
+                                style={{ color: INK }}
+                              >
+                                {c.label}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 ) : (

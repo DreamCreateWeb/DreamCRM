@@ -1,14 +1,11 @@
 /**
- * Smoke tests for the SiteMobileActions component — Tend's persistent
- * #sticky element. Renamed in this pass from "mobile actions" to "sticky
- * bar" semantically, but the export name + filename stay for back-compat
- * with the existing route imports.
+ * Smoke tests for the SiteMobileActions component — now rendering as
+ * floating action widgets pinned to the bottom-right corner of the
+ * viewport (replacing the prior full-width sticky bottom bar).
  *
- * The Tend-verbatim shape: ALWAYS visible across breakpoints (was
- * mobile-only before this pass), fixed to the viewport bottom, carrying
- * Book Now (brand) + Login (white outline, ≥sm) + Phone (tan accent).
- * The prior floating-circle desktop-only phone CTA is gone — the sticky
- * bar covers both surfaces now.
+ * Two stacked widgets: a phone circle on top + a brand-colored Book pill
+ * below. The legacy Login pill is gone — patient login is reachable from
+ * the chartreuse top strip of the site header.
  */
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -61,8 +58,8 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
   }
 }
 
-describe('SiteMobileActions', () => {
-  it('renders a persistent sticky action bar pinned to the viewport bottom (no breakpoint hiding)', () => {
+describe('SiteMobileActions — floating widgets', () => {
+  it('renders a fixed widget stack pinned to the bottom-right corner (no breakpoint hiding)', () => {
     const { container } = render(
       <SiteMobileActions
         data={makeData()}
@@ -71,15 +68,19 @@ describe('SiteMobileActions', () => {
         bookLabel="Book a Visit"
       />,
     )
-    // Bar wrapper is `fixed bottom-0 left-0 right-0` — always visible.
-    const bar = container.querySelector('.fixed.bottom-0')
-    expect(bar).not.toBeNull()
-    // It must NOT carry `lg:hidden` (would hide on desktop, defeating
-    // the Tend-pattern always-visible bottom bar).
-    expect(bar?.className ?? '').not.toContain('lg:hidden')
+    const stack = container.querySelector('.floating-cta-stack')
+    expect(stack).not.toBeNull()
+    expect(stack?.className ?? '').toContain('fixed')
+    // Must not carry `lg:hidden` — the widgets stay visible across
+    // every breakpoint (mobile + tablet + desktop).
+    expect(stack?.className ?? '').not.toContain('lg:hidden')
+    // Wrapper itself disables pointer events so empty space between
+    // widgets doesn't trap clicks meant for underlying content; the
+    // children re-enable them on themselves.
+    expect(stack?.className ?? '').toContain('pointer-events-none')
   })
 
-  it('carries Book + Phone CTAs inside the sticky bar', () => {
+  it('carries Book + Phone CTAs as floating widgets', () => {
     const { container } = render(
       <SiteMobileActions
         data={makeData()}
@@ -88,13 +89,13 @@ describe('SiteMobileActions', () => {
         bookLabel="Book a Visit"
       />,
     )
-    const bar = container.querySelector('.fixed.bottom-0')
-    expect(bar).not.toBeNull()
-    expect(bar?.querySelector('a[href="/site/acme-dental/book"]')).not.toBeNull()
-    expect(bar?.querySelector('a[href="tel:(555) 555-0100"]')).not.toBeNull()
+    const stack = container.querySelector('.floating-cta-stack')
+    expect(stack).not.toBeNull()
+    expect(stack?.querySelector('a[href="/site/acme-dental/book"]')).not.toBeNull()
+    expect(stack?.querySelector('a[href="tel:(555) 555-0100"]')).not.toBeNull()
   })
 
-  it('surfaces a Login pill in the sticky bar when signInUrl is supplied', () => {
+  it('does NOT render a Login pill (login lives in the header top strip now)', () => {
     const { container } = render(
       <SiteMobileActions
         data={makeData()}
@@ -104,10 +105,8 @@ describe('SiteMobileActions', () => {
         signInUrl="https://app.example.com/signin"
       />,
     )
-    const bar = container.querySelector('.fixed.bottom-0')
-    const loginLink = bar?.querySelector('a[href="https://app.example.com/signin"]')
-    expect(loginLink).not.toBeNull()
-    expect(loginLink?.textContent).toMatch(/Login/)
+    // signInUrl is accepted for back-compat but not rendered as a CTA.
+    expect(container.querySelector('a[href="https://app.example.com/signin"]')).toBeNull()
   })
 
   it('uses the Book CTA label from props (universal "Book a Visit" copy)', () => {
@@ -123,7 +122,7 @@ describe('SiteMobileActions', () => {
     expect(bookLinks.length).toBeGreaterThan(0)
   })
 
-  it('omits the phone CTA when no phone is set; bar still renders the Book button', () => {
+  it('omits the phone widget when no phone is set; Book widget still renders', () => {
     const { container } = render(
       <SiteMobileActions
         data={makeData({ phone: null })}
@@ -133,8 +132,22 @@ describe('SiteMobileActions', () => {
       />,
     )
     expect(container.querySelector('a[href^="tel:"]')).toBeNull()
-    const bar = container.querySelector('.fixed.bottom-0')
-    expect(bar).not.toBeNull()
-    expect(bar?.querySelector('a[href="/site/acme-dental/book"]')).not.toBeNull()
+    const stack = container.querySelector('.floating-cta-stack')
+    expect(stack).not.toBeNull()
+    expect(stack?.querySelector('a[href="/site/acme-dental/book"]')).not.toBeNull()
+  })
+
+  it('Phone widget has an accessible label (icon-only button)', () => {
+    const { container } = render(
+      <SiteMobileActions
+        data={makeData()}
+        basePath="/site/acme-dental"
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+      />,
+    )
+    const phone = container.querySelector('a[href^="tel:"]')
+    expect(phone).not.toBeNull()
+    expect(phone?.getAttribute('aria-label')).toMatch(/Call Acme Dental/)
   })
 })
