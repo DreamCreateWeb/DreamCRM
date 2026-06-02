@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 
 interface Props {
@@ -20,13 +23,15 @@ interface Props {
  *   - top:    Phone circle (warm tan, icon-only)
  *   - bottom: Book pill (brand color, calendar icon + label)
  *
- * Wrapper uses `pointer-events: none` so the empty space between widgets
- * doesn't trap clicks meant for underlying content. Each widget re-enables
- * pointer events on itself.
+ * Reveal behavior: the widgets stay invisible while the user is still
+ * looking at the hero (which has its own Book + phone CTAs), then fade
+ * in once the user has scrolled past most of the first viewport. This
+ * stops the floating Book pill from sitting on top of the in-page Book
+ * button on the hero — a real overlap problem we hit on mobile.
  *
- * No layout spacer needed (the prior sticky bar reserved a horizontal
- * strip and required one to keep the footer reachable; the floating
- * widgets just sit in the corner).
+ * Wrapper carries `pointer-events: none` so the empty space between
+ * widgets never traps clicks meant for content underneath; each widget
+ * re-enables pointer events on itself.
  */
 export default function SiteMobileActions({
   data,
@@ -40,9 +45,28 @@ export default function SiteMobileActions({
   const brand = profile.brandColor ?? '#9CAF9F'
 
   // Warm tan/peach — reads as "tap to call" without competing with the
-  // brand-colored Book CTA. Hardcoded (not theme-driven) because it works
-  // against every clinic brand color and grounds the corner stack.
+  // brand-colored Book CTA.
   const phoneCta = '#bc8452'
+
+  const [revealed, setRevealed] = useState(false)
+  useEffect(() => {
+    // Threshold scales with viewport — about 60% of the first viewport,
+    // capped so very tall windows don't delay the reveal forever. After
+    // the user scrolls past the hero (where the in-page CTAs live), the
+    // widgets fade in.
+    const compute = () => {
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+      const threshold = Math.min(vh * 0.6, 600)
+      setRevealed(window.scrollY > threshold)
+    }
+    compute()
+    window.addEventListener('scroll', compute, { passive: true })
+    window.addEventListener('resize', compute)
+    return () => {
+      window.removeEventListener('scroll', compute)
+      window.removeEventListener('resize', compute)
+    }
+  }, [])
 
   return (
     <div
@@ -50,14 +74,18 @@ export default function SiteMobileActions({
       style={{
         right: 'max(env(safe-area-inset-right), 16px)',
         bottom: 'max(env(safe-area-inset-bottom), 16px)',
+        opacity: revealed ? 1 : 0,
+        transform: revealed ? 'translateY(0)' : 'translateY(16px)',
+        transition: 'opacity 280ms ease-out, transform 280ms ease-out',
       }}
     >
       {profile.phone && (
         <a
           href={`tel:${profile.phone}`}
           aria-label={`Call ${name}`}
+          tabIndex={revealed ? 0 : -1}
           className="pointer-events-auto inline-flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/80"
-          style={{ backgroundColor: phoneCta }}
+          style={{ backgroundColor: phoneCta, pointerEvents: revealed ? 'auto' : 'none' }}
         >
           <svg
             className="w-5 h-5"
@@ -77,8 +105,9 @@ export default function SiteMobileActions({
       )}
       <a
         href={bookHref}
+        tabIndex={revealed ? 0 : -1}
         className="pointer-events-auto inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-sm sm:text-base font-semibold text-white shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/80"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: brand, pointerEvents: revealed ? 'auto' : 'none' }}
       >
         <svg
           className="w-4 h-4 shrink-0"
