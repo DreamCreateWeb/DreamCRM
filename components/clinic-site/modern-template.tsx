@@ -299,7 +299,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   <strong className="font-semibold">no judgment, ever.</strong>
                 </p>
               )}
-              <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
+              <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
                 <a
                   href={bookHref}
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
@@ -320,6 +320,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   </a>
                 )}
               </div>
+              {/* Tertiary link — surfaces the "save my intake to my account"
+                  flow without crowding the primary Book CTA. Lives directly
+                  under the buttons so it reads as a related, lower-friction
+                  next step (sign in / sign up → fill the form once → it's
+                  stored on your patient record forever). */}
+              <a
+                href={`${basePath}/intake-start`}
+                className="inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
+                style={{ color: brand }}
+              >
+                New patient? Start your intake
+                <span aria-hidden="true">→</span>
+              </a>
               {/* Secondary H2 inside the same text column — Tend's verbatim
                   "A full range of care for all your needs" with bold (not
                   italic) emphasis on the last phrase. */}
