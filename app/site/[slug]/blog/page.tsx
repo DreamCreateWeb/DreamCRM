@@ -3,6 +3,8 @@ import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/s
 import { listPublishedPosts, listPublishedCategories, getPostAuthor } from '@/lib/services/blog'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const BG = '#FAF7F2'
 const INK = '#1C1A17'
@@ -45,6 +47,8 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
+  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
+  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
 
   const [posts, categories] = await Promise.all([
     listPublishedPosts(data.orgId, { category }),
@@ -52,59 +56,118 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
   ])
   const authors = await Promise.all(posts.map((p) => getPostAuthor(data.orgId, p)))
 
+  // Pull a featured post forward when we're not in a filtered view and have
+  // at least 3 posts. With <3 posts the grid alone reads better than a hero
+  // card + 0-1 sidekick.
+  const showFeatured = !category && posts.length >= 3
+  const featured = showFeatured ? posts[0] : null
+  const featuredAuthor = showFeatured ? authors[0] : null
+  const restPosts = showFeatured ? posts.slice(1) : posts
+  const restAuthors = showFeatured ? authors.slice(1) : authors
+
   return (
     <BlogChrome data={data} basePath={basePath}>
-      <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
-        <div className="mb-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: brand }}>
-            From {name}
-          </p>
-          <h1 className="text-4xl sm:text-5xl font-bold leading-[1.05] tracking-[-0.02em]" style={{ color: INK }}>
-            The Blog
-          </h1>
-          <p className="text-lg leading-[1.55] mt-3 max-w-[560px]" style={{ color: INK_MUTED }}>
-            Practical, no-judgment guidance on keeping your smile healthy — written by our team.
-          </p>
+      {/* ── Hero ──────────────────────────────────────────────────────── */}
+      <section className="relative pt-14 sm:pt-20 pb-10 sm:pb-14 overflow-hidden">
+        {/* Soft brand-color decorative blob */}
+        <div
+          aria-hidden="true"
+          className="absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full opacity-[0.18] blur-3xl"
+          style={{ backgroundColor: brand }}
+        />
+        <div className="relative max-w-[1100px] mx-auto px-5 sm:px-8 text-center">
+          <ScrollReveal>
+            <p
+              className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
+              style={{ color: brand }}
+            >
+              The Blog · {name}
+            </p>
+            <h1
+              className="text-[40px] sm:text-[56px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
+              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              Honest answers, real questions.
+            </h1>
+          </ScrollReveal>
+          <ScrollReveal delay={120}>
+            <p
+              className="text-lg sm:text-xl leading-[1.55] mx-auto max-w-[600px]"
+              style={{ color: INK_MUTED }}
+            >
+              Practical, no-judgment guidance on keeping your smile healthy —
+              written by our team for yours.
+            </p>
+          </ScrollReveal>
         </div>
+      </section>
 
+      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 pb-20 sm:pb-28">
         {/* Category filter */}
         {categories.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-10">
-            <CategoryChip basePath={basePath} label="All" href={`${basePath}/blog`} active={!category} brand={brand} />
+          <ScrollReveal className="flex flex-wrap gap-2 mb-12 justify-center">
+            <CategoryChip label="All" href={`${basePath}/blog`} active={!category} brand={brand} />
             {categories.map((c) => (
               <CategoryChip
                 key={c}
-                basePath={basePath}
                 label={c}
                 href={`${basePath}/blog?category=${encodeURIComponent(c)}`}
                 active={category === c}
                 brand={brand}
               />
             ))}
-          </div>
+          </ScrollReveal>
         )}
 
         {posts.length === 0 ? (
-          <div
+          <ScrollReveal
             className="rounded-2xl border border-dashed py-20 text-center"
             style={{ borderColor: BORDER, color: INK_MUTED }}
           >
             <p className="text-base">No posts yet — check back soon.</p>
-          </div>
+          </ScrollReveal>
         ) : (
-          <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
-            {posts.map((p, i) => (
-              <PostCard
-                key={p.id}
-                post={p}
-                authorName={authors[i]?.name ?? null}
-                basePath={basePath}
-                brand={brand}
-              />
-            ))}
-          </div>
+          <>
+            {featured && (
+              <ScrollReveal className="mb-16 sm:mb-20">
+                <FeaturedPostCard
+                  post={featured}
+                  authorName={featuredAuthor?.name ?? null}
+                  basePath={basePath}
+                  brand={brand}
+                />
+              </ScrollReveal>
+            )}
+
+            {restPosts.length > 0 && (
+              <div className="grid gap-x-8 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
+                {restPosts.map((p, i) => (
+                  <ScrollReveal as="article" key={p.id} delay={(i % 3) * 90}>
+                    <PostCard
+                      post={p}
+                      authorName={restAuthors[i]?.name ?? null}
+                      basePath={basePath}
+                      brand={brand}
+                    />
+                  </ScrollReveal>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      <ClosingCTA
+        heading="Have a question we haven’t answered?"
+        subhead="We’re happy to talk it through — no pressure, no sales pitch."
+        primary={{ label: 'Book a visit', href: bookHref }}
+        secondary={
+          data.profile.phone
+            ? { label: data.profile.phone, href: `tel:${data.profile.phone}` }
+            : undefined
+        }
+        brand={brand}
+      />
     </BlogChrome>
   )
 }
@@ -115,7 +178,6 @@ function CategoryChip({
   active,
   brand,
 }: {
-  basePath: string
   label: string
   href: string
   active: boolean
@@ -124,14 +186,89 @@ function CategoryChip({
   return (
     <a
       href={href}
-      className="text-[13px] font-medium px-3.5 py-1.5 rounded-full border transition"
+      className="text-[13px] font-medium px-4 py-2 rounded-full border transition hover:shadow-sm"
       style={
         active
           ? { backgroundColor: brand, color: '#fff', borderColor: brand }
-          : { color: INK_MUTED, borderColor: BORDER, backgroundColor: 'transparent' }
+          : { color: INK_MUTED, borderColor: BORDER, backgroundColor: '#fff' }
       }
     >
       {label}
+    </a>
+  )
+}
+
+/** Wide 2-col featured-post card with hover scale on cover image. */
+function FeaturedPostCard({
+  post,
+  authorName,
+  basePath,
+  brand,
+}: {
+  post: BlogPost
+  authorName: string | null
+  basePath: string
+  brand: string
+}) {
+  return (
+    <a
+      href={`${basePath}/blog/${post.slug}`}
+      className="group block rounded-3xl overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+      style={{ backgroundColor: '#fff', border: `1px solid ${BORDER}` }}
+    >
+      <div className="grid md:grid-cols-2 gap-0 items-stretch">
+        <div
+          className="aspect-[16/10] md:aspect-auto md:h-full w-full overflow-hidden"
+          style={{ backgroundColor: `${brand}1A` }}
+        >
+          {post.coverImageUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={post.coverImageUrl}
+              alt=""
+              className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center" style={{ color: brand }}>
+              <svg className="w-14 h-14 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.25}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+            </div>
+          )}
+        </div>
+        <div className="p-8 sm:p-10 lg:p-12 flex flex-col justify-center">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] mb-3"
+            style={{ color: brand }}
+          >
+            Featured · {post.category ?? 'Latest'}
+          </p>
+          <h2
+            className="text-2xl sm:text-3xl lg:text-[36px] font-semibold leading-[1.12] tracking-[-0.015em] mb-4 transition group-hover:opacity-85"
+            style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          >
+            {post.title}
+          </h2>
+          {post.excerpt && (
+            <p className="text-base sm:text-lg leading-[1.6] mb-5 line-clamp-3" style={{ color: INK_MUTED }}>
+              {post.excerpt}
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-[13px]" style={{ color: INK_MUTED }}>
+              {authorName ? `${authorName} · ` : ''}
+              {fmtDate(post.publishedAt)}
+            </p>
+            <span
+              className="inline-flex items-center gap-1.5 text-sm font-semibold transition-all duration-300 group-hover:gap-2.5"
+              style={{ color: brand }}
+            >
+              Read article
+              <span aria-hidden="true">→</span>
+            </span>
+          </div>
+        </div>
+      </div>
     </a>
   )
 }
@@ -148,9 +285,9 @@ function PostCard({
   brand: string
 }) {
   return (
-    <a href={`${basePath}/blog/${post.slug}`} className="group flex flex-col">
+    <a href={`${basePath}/blog/${post.slug}`} className="group flex flex-col h-full">
       <div
-        className="aspect-[16/10] w-full rounded-xl overflow-hidden mb-4"
+        className="aspect-[16/10] w-full rounded-2xl overflow-hidden mb-5"
         style={{ backgroundColor: `${brand}1A` }}
       >
         {post.coverImageUrl ? (
@@ -158,7 +295,7 @@ function PostCard({
           <img
             src={post.coverImageUrl}
             alt=""
-            className="w-full h-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center" style={{ color: brand }}>
@@ -174,17 +311,17 @@ function PostCard({
         </span>
       )}
       <h2
-        className="text-xl font-bold leading-snug tracking-[-0.01em] mb-2 transition group-hover:opacity-80"
-        style={{ color: INK }}
+        className="text-xl font-semibold leading-snug tracking-[-0.01em] mb-2 transition group-hover:opacity-80"
+        style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
       >
         {post.title}
       </h2>
       {post.excerpt && (
-        <p className="text-[15px] leading-[1.55] mb-3 line-clamp-3" style={{ color: INK_MUTED }}>
+        <p className="text-[15px] leading-[1.55] mb-4 line-clamp-3" style={{ color: INK_MUTED }}>
           {post.excerpt}
         </p>
       )}
-      <p className="text-[13px] mt-auto" style={{ color: INK_MUTED }}>
+      <p className="text-[13px] mt-auto pt-1" style={{ color: INK_MUTED }}>
         {authorName ? `${authorName} · ` : ''}
         {fmtDate(post.publishedAt)}
       </p>

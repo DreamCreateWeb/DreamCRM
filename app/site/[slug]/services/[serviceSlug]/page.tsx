@@ -20,6 +20,9 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import NumberedSteps from '@/components/clinic-site/numbered-steps'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -189,7 +192,7 @@ export default async function ServiceDetailPage({ params }: Props) {
       <section className="pt-12 pb-14 sm:pt-16 sm:pb-20">
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
-            <div className="lg:col-span-6">
+            <ScrollReveal className="lg:col-span-6">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
                 style={{ color: INK_MUTED }}
@@ -233,7 +236,7 @@ export default async function ServiceDetailPage({ params }: Props) {
               <div className="flex flex-wrap items-center gap-3">
                 <a
                   href={bookHref}
-                  className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+                  className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:scale-[1.02]"
                   style={{ backgroundColor: brand }}
                 >
                   {bookLabel}
@@ -255,11 +258,11 @@ export default async function ServiceDetailPage({ params }: Props) {
                 Gentle, judgment-free care — we&apos;ll explain everything in plain
                 language.
               </p>
-            </div>
+            </ScrollReveal>
 
             {/* Photo-on-color panel — brand-tint panel with the photo on an
                 organic asymmetric radius; solid panel when no photo. */}
-            <div className="lg:col-span-6">
+            <ScrollReveal delay={150} className="lg:col-span-6">
               <div
                 className="relative aspect-[4/3] w-full overflow-hidden"
                 style={{
@@ -272,7 +275,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                   <img
                     src={heroImage}
                     alt={service.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition duration-700 hover:scale-[1.03]"
                   />
                 ) : (
                   service.icon && (
@@ -285,7 +288,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                   )
                 )}
               </div>
-            </div>
+            </ScrollReveal>
           </div>
         </div>
       </section>
@@ -296,12 +299,14 @@ export default async function ServiceDetailPage({ params }: Props) {
           {service.body && (
             <section className="py-16 sm:py-20" style={{ backgroundColor: SURFACE }}>
               <div className="max-w-[820px] mx-auto px-5 sm:px-8 text-center">
-                <p
-                  className="text-xl sm:text-2xl leading-[1.55] font-medium"
-                  style={{ color: INK }}
-                >
-                  {service.body}
-                </p>
+                <ScrollReveal>
+                  <p
+                    className="text-xl sm:text-2xl leading-[1.55] font-medium"
+                    style={{ color: INK }}
+                  >
+                    {service.body}
+                  </p>
+                </ScrollReveal>
               </div>
             </section>
           )}
@@ -310,37 +315,13 @@ export default async function ServiceDetailPage({ params }: Props) {
           {service.processSteps.length > 0 && (
             <section className="py-16 sm:py-24">
               <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-                <h2
-                  className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-12 sm:mb-16 text-center"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-                >
-                  What to expect.
-                </h2>
-                <ol className="grid gap-6 sm:gap-7 sm:grid-cols-2">
-                  {service.processSteps.map((step, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-5 rounded-2xl p-6 sm:p-7"
-                      style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
-                    >
-                      <span
-                        className="shrink-0 text-3xl sm:text-4xl font-bold leading-none tracking-[-0.02em]"
-                        style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-                        aria-hidden="true"
-                      >
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <div>
-                        <h3 className="text-lg font-semibold mb-2 leading-tight" style={{ color: INK }}>
-                          {step.title}
-                        </h3>
-                        <p className="text-[15px] leading-[1.6]" style={{ color: INK_MUTED }}>
-                          {step.body}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                <NumberedSteps
+                  steps={service.processSteps}
+                  brand={brand}
+                  columns={2}
+                  heading="What to expect."
+                  centered
+                />
               </div>
             </section>
           )}
@@ -349,46 +330,49 @@ export default async function ServiceDetailPage({ params }: Props) {
           {service.faq.length > 0 && (
             <section className="py-16 sm:py-24" style={{ backgroundColor: SURFACE }}>
               <div className="max-w-[820px] mx-auto px-5 sm:px-8">
-                <h2
-                  className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-                >
-                  Have questions about {service.name}?
-                </h2>
+                <ScrollReveal>
+                  <h2
+                    className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
+                    style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  >
+                    Have questions about {service.name}?
+                  </h2>
+                </ScrollReveal>
                 <div className="space-y-3">
                   {service.faq.map((item, i) => (
-                    <details
-                      key={i}
-                      className="group rounded-2xl border overflow-hidden transition"
-                      style={{ backgroundColor: BG, borderColor: BORDER }}
-                    >
-                      <summary
-                        className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
-                        style={{ color: INK }}
+                    <ScrollReveal as="div" key={i} delay={i * 50}>
+                      <details
+                        className="group rounded-2xl border overflow-hidden transition hover:shadow-sm"
+                        style={{ backgroundColor: BG, borderColor: BORDER }}
                       >
-                        <span>{item.question}</span>
-                        <span
-                          aria-hidden="true"
-                          className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                          style={{ color: brand }}
+                        <summary
+                          className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
+                          style={{ color: INK }}
                         >
-                          +
-                        </span>
-                        <span
-                          aria-hidden="true"
-                          className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                          style={{ color: brand }}
+                          <span>{item.question}</span>
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
+                            style={{ color: brand }}
+                          >
+                            +
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
+                            style={{ color: brand }}
+                          >
+                            −
+                          </span>
+                        </summary>
+                        <div
+                          className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
+                          style={{ color: INK_MUTED }}
                         >
-                          −
-                        </span>
-                      </summary>
-                      <div
-                        className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
-                        style={{ color: INK_MUTED }}
-                      >
-                        {item.answer}
-                      </div>
-                    </details>
+                          {item.answer}
+                        </div>
+                      </details>
+                    </ScrollReveal>
                   ))}
                 </div>
               </div>
@@ -401,7 +385,7 @@ export default async function ServiceDetailPage({ params }: Props) {
       {testimonials.length > 0 && (
         <section className="py-20 sm:py-28">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-14">
+            <ScrollReveal className="max-w-[640px] mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -414,7 +398,7 @@ export default async function ServiceDetailPage({ params }: Props) {
               >
                 Patients on the experience.
               </h2>
-            </div>
+            </ScrollReveal>
             <TestimonialsCarousel testimonials={testimonials} brand={brand} />
           </div>
         </section>
@@ -424,79 +408,61 @@ export default async function ServiceDetailPage({ params }: Props) {
       {related.length > 0 && (
         <section className="py-16 sm:py-24" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <h2
-              className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              You might also be interested in.
-            </h2>
+            <ScrollReveal>
+              <h2
+                className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                You might also be interested in.
+              </h2>
+            </ScrollReveal>
             <div className="grid gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {related.map((r) => (
-                <a
-                  key={r.id}
-                  href={`${basePath}/services/${r.routingSlug}`}
-                  className="flex flex-col group rounded-2xl p-7 transition-transform duration-300 hover:-translate-y-0.5"
-                  style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
-                >
-                  {r.icon && (
-                    <span aria-hidden="true" className="text-2xl leading-none mb-4">
-                      {r.icon}
-                    </span>
-                  )}
-                  <h3 className="text-lg font-semibold mb-2 leading-tight" style={{ color: INK }}>
-                    {r.name}
-                  </h3>
-                  {(r.shortDescription ?? r.description) && (
-                    <p className="text-[14px] leading-[1.6] mb-5" style={{ color: INK_MUTED }}>
-                      {r.shortDescription ?? r.description}
-                    </p>
-                  )}
-                  <span
-                    className="inline-flex items-center gap-1 text-sm font-semibold mt-auto transition group-hover:gap-2"
-                    style={{ color: brand }}
+              {related.map((r, i) => (
+                <ScrollReveal as="div" key={r.id} delay={i * 90}>
+                  <a
+                    href={`${basePath}/services/${r.routingSlug}`}
+                    className="flex flex-col h-full group rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
+                    style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
                   >
-                    Learn more
-                    <span aria-hidden="true">→</span>
-                  </span>
-                </a>
+                    {r.icon && (
+                      <span aria-hidden="true" className="text-2xl leading-none mb-4">
+                        {r.icon}
+                      </span>
+                    )}
+                    <h3 className="text-lg font-semibold mb-2 leading-tight" style={{ color: INK }}>
+                      {r.name}
+                    </h3>
+                    {(r.shortDescription ?? r.description) && (
+                      <p className="text-[14px] leading-[1.6] mb-5" style={{ color: INK_MUTED }}>
+                        {r.shortDescription ?? r.description}
+                      </p>
+                    )}
+                    <span
+                      className="inline-flex items-center gap-1 text-sm font-semibold mt-auto transition-all duration-300 group-hover:gap-2.5"
+                      style={{ color: brand }}
+                    >
+                      Learn more
+                      <span aria-hidden="true">→</span>
+                    </span>
+                  </a>
+                </ScrollReveal>
               ))}
             </div>
           </div>
         </section>
       )}
 
-      {/* ── Closing CTA band ───────────────────────────────────────────── */}
-      <section className="py-20 sm:py-28" style={{ backgroundColor: brand }}>
-        <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-          <h2
-            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-            style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-          >
-            It&apos;s a pleasure to care for you.
-          </h2>
-          <p className="text-lg leading-[1.6] mb-9 text-white/90">
-            Book your visit and we&apos;ll take it from there — gently, and at your
-            pace.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <a
-              href={bookHref}
-              className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-              style={{ backgroundColor: '#FFFFFF', color: INK }}
-            >
-              {bookLabel}
-            </a>
-            {profile.phone && (
-              <a
-                href={`tel:${profile.phone}`}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-              >
-                {profile.phone}
-              </a>
-            )}
-          </div>
-        </div>
-      </section>
+      <ClosingCTA
+        heading="It’s a pleasure to care for you."
+        subhead="Book your visit and we’ll take it from there — gently, and at your pace."
+        primary={{ label: bookLabel, href: bookHref }}
+        secondary={
+          profile.phone
+            ? { label: profile.phone, href: `tel:${profile.phone}` }
+            : undefined
+        }
+        brand={brand}
+      />
 
       </main>
 

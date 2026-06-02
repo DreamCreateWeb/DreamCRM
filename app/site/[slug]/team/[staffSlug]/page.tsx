@@ -23,6 +23,8 @@ import {
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -125,6 +127,11 @@ export default async function StaffDetailPage({ params }: Props) {
 
   const staffArr = (profile.staff as ClinicStaff[] | null) ?? []
   const hasTeam = staffArr.length > 0
+  // Other staff for the "more people" grid below — exclude the current one,
+  // cap at 3, preserve display order.
+  const otherStaff = staffArr
+    .filter((s) => resolveStaffSlug(s) !== resolveStaffSlug(staff))
+    .slice(0, 3)
 
   const navLinks = buildClinicNavLinks({
     basePath,
@@ -186,9 +193,9 @@ export default async function StaffDetailPage({ params }: Props) {
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
               {/* Portrait */}
-              <div className="lg:col-span-5 flex justify-center lg:justify-start">
+              <ScrollReveal className="lg:col-span-5 flex justify-center lg:justify-start">
                 <div
-                  className="relative w-[260px] h-[320px] sm:w-[320px] sm:h-[380px]"
+                  className="relative w-[260px] h-[320px] sm:w-[320px] sm:h-[380px] transition-transform duration-700 hover:scale-[1.02]"
                   style={{
                     borderRadius: '50%',
                     overflow: 'hidden',
@@ -215,15 +222,15 @@ export default async function StaffDetailPage({ params }: Props) {
                     </div>
                   )}
                 </div>
-              </div>
+              </ScrollReveal>
               {/* Copy */}
-              <div className="lg:col-span-7">
+              <ScrollReveal delay={120} className="lg:col-span-7">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] mb-3" style={{ color: INK_MUTED }}>
                   About · Our team
                 </p>
                 <a
                   href={`${basePath}/team`}
-                  className="inline-flex items-center gap-1 text-sm font-semibold mb-4 transition hover:underline"
+                  className="inline-flex items-center gap-1 text-sm font-semibold mb-4 transition hover:gap-2"
                   style={{ color: brand }}
                 >
                   <span aria-hidden="true">←</span> Back to team
@@ -247,7 +254,7 @@ export default async function StaffDetailPage({ params }: Props) {
                 <div className="flex flex-wrap items-center gap-3">
                   <a
                     href={bookHref}
-                    className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+                    className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
                     style={{ backgroundColor: brand }}
                   >
                     {bookLabel}
@@ -265,7 +272,7 @@ export default async function StaffDetailPage({ params }: Props) {
                     </a>
                   )}
                 </div>
-              </div>
+              </ScrollReveal>
             </div>
           </div>
         </section>
@@ -274,7 +281,7 @@ export default async function StaffDetailPage({ params }: Props) {
         {specialties.length > 0 && (
           <section className="py-16 sm:py-20" style={{ backgroundColor: SURFACE }}>
             <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-              <div className="max-w-[640px] mb-8">
+              <ScrollReveal className="max-w-[640px] mb-8">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: brand }}>
                   Focus areas
                 </p>
@@ -284,20 +291,23 @@ export default async function StaffDetailPage({ params }: Props) {
                 >
                   What {firstName(staff.name)} specializes in.
                 </h2>
-              </div>
+              </ScrollReveal>
               <ul className="flex flex-wrap gap-2.5">
                 {specialties.map((s, i) => (
-                  <li
+                  <ScrollReveal
+                    as="li"
                     key={i}
-                    className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold"
+                    delay={i * 60}
+                    className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold transition hover:shadow-sm"
                     style={{
                       backgroundColor: '#FFFFFF',
                       color: INK,
                       border: `1px solid ${BORDER}`,
+                      listStyle: 'none',
                     }}
                   >
                     {s}
-                  </li>
+                  </ScrollReveal>
                 ))}
               </ul>
             </div>
@@ -308,8 +318,8 @@ export default async function StaffDetailPage({ params }: Props) {
         {staff.funFact && (
           <section className="py-16 sm:py-20">
             <div className="max-w-[820px] mx-auto px-5 sm:px-8">
-              <div
-                className="rounded-2xl p-8 sm:p-10 text-center"
+              <ScrollReveal
+                className="rounded-2xl p-8 sm:p-10 text-center transition hover:shadow-sm"
                 style={{
                   backgroundColor: SURFACE,
                   border: `1px solid ${BORDER}`,
@@ -320,46 +330,103 @@ export default async function StaffDetailPage({ params }: Props) {
                 </p>
                 <p
                   className="text-xl sm:text-2xl font-medium leading-[1.4]"
-                  style={{ color: INK }}
+                  style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
-                  {staff.funFact}
+                  &ldquo;{staff.funFact}&rdquo;
                 </p>
+              </ScrollReveal>
+            </div>
+          </section>
+        )}
+
+        {/* ── Meet the rest of the team ──────────────────────────────────── */}
+        {otherStaff.length > 0 && (
+          <section className="py-16 sm:py-24" style={{ backgroundColor: SURFACE }}>
+            <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
+              <ScrollReveal className="text-center max-w-[640px] mx-auto mb-12 sm:mb-14">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: brand }}>
+                  Meet the team
+                </p>
+                <h2
+                  className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.1] tracking-[-0.015em]"
+                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                >
+                  More people who&rsquo;ll take care of you.
+                </h2>
+              </ScrollReveal>
+              <div className="grid gap-6 sm:gap-8 sm:grid-cols-3">
+                {otherStaff.map((s, i) => {
+                  const sSlug = resolveStaffSlug(s)
+                  return (
+                    <ScrollReveal as="div" key={sSlug} delay={i * 90}>
+                      <a
+                        href={`${basePath}/team/${sSlug}`}
+                        className="group flex flex-col items-center text-center"
+                      >
+                        <div
+                          className="w-44 h-52 sm:w-48 sm:h-56 mb-5 overflow-hidden transition-transform duration-500 group-hover:scale-[1.04]"
+                          style={{
+                            borderRadius: '50%',
+                            backgroundColor: BORDER,
+                          }}
+                        >
+                          {s.photoUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={s.photoUrl}
+                              alt={s.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className="w-full h-full flex items-center justify-center text-4xl font-bold"
+                              style={{
+                                background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
+                                color: brand,
+                              }}
+                              aria-label={s.name}
+                            >
+                              {staffInitials(s.name)}
+                            </div>
+                          )}
+                        </div>
+                        <h3
+                          className="text-lg font-semibold leading-tight mb-1 transition group-hover:opacity-80"
+                          style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                        >
+                          {s.name}
+                        </h3>
+                        {s.title && (
+                          <p className="text-sm mb-3" style={{ color: INK_MUTED }}>
+                            {s.title}
+                          </p>
+                        )}
+                        <span
+                          className="inline-flex items-center gap-1 text-sm font-semibold transition-all duration-300 group-hover:gap-2"
+                          style={{ color: brand }}
+                        >
+                          More <span aria-hidden="true">→</span>
+                        </span>
+                      </a>
+                    </ScrollReveal>
+                  )
+                })}
               </div>
             </div>
           </section>
         )}
 
-        {/* ── Closing CTA band ───────────────────────────────────────────── */}
-        <section
-          className="py-20 sm:py-28"
-          style={{ backgroundColor: brand }}
-        >
-          <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-              style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              Ready to come see us?
-            </h2>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <a
-                href={bookHref}
-                className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: '#FFFFFF', color: INK }}
-              >
-                {bookLabel}
-              </a>
-              {profile.phone && (
-                <a
-                  href={`tel:${profile.phone}`}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-                >
-                  {profile.phone}
-                </a>
-              )}
-            </div>
-          </div>
-        </section>
+        <ClosingCTA
+          heading="Ready to come see us?"
+          subhead={`Book with ${firstName(staff.name)} or another member of our team — same week if you need it.`}
+          primary={{ label: bookLabel, href: bookHref }}
+          secondary={
+            profile.phone
+              ? { label: profile.phone, href: `tel:${profile.phone}` }
+              : undefined
+          }
+          brand={brand}
+        />
       </main>
 
       <SiteFooter
