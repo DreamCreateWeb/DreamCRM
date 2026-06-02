@@ -1,4 +1,5 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import { appBaseUrl } from '@/lib/services/clinic-site'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 import type {
   ClinicService,
@@ -321,12 +322,17 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 )}
               </div>
               {/* Tertiary link — surfaces the "save my intake to my account"
-                  flow without crowding the primary Book CTA. Lives directly
-                  under the buttons so it reads as a related, lower-friction
-                  next step (sign in / sign up → fill the form once → it's
-                  stored on your patient record forever). */}
+                  flow without crowding the primary Book CTA. Always points
+                  at the apex `www.` host (not `basePath`) because the rest
+                  of the flow — better-auth's `/api/auth/*`, the patient
+                  portal at `/patient/*` — only exist on the main app
+                  domain. On a clinic subdomain a relative `/intake-start`
+                  would get rewritten under `/site/<slug>/` and the auth
+                  POST would 404 (issue we hit live). Absolute URL takes
+                  the user to www, where auth + cookies + patient portal
+                  all share one origin. */}
               <a
-                href={`${basePath}/intake-start`}
+                href={`${appBaseUrl()}/site/${data.slug}/intake-start`}
                 className="inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
                 style={{ color: brand }}
               >

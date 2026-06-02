@@ -1,6 +1,10 @@
 import { notFound, redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
+import {
+  appBaseUrl,
+  getClinicSiteBySlug,
+  resolveSiteBasePath,
+} from '@/lib/services/clinic-site'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { auth } from '@/lib/auth/server'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
@@ -29,11 +33,29 @@ export default async function IntakeStartPage({ params }: Props) {
   const template = await getDefaultFormTemplate(data.orgId)
   if (!template) notFound()
 
+  // Defensive subdomain redirect. If someone lands on
+  // `<slug>.dreamcreatestudio.com/intake-start`, send them to the apex
+  // `www.` version so better-auth's POST to `/api/auth/sign-up/email`
+  // (relative URL on the same origin) hits the actual auth handler
+  // rather than getting rewritten to `/site/<slug>/api/auth/...` (which
+  // doesn't exist and 404s). The whole intake flow — auth, cookies,
+  // patient portal — must live on a single origin for the cookie to
+  // travel with the user.
+  const h = await headers()
+  const host = (h.get('x-forwarded-host') || h.get('host') || '')
+    .split(',')[0]
+    .split(':')[0]
+    .toLowerCase()
+  const apex = new URL(appBaseUrl()).hostname.toLowerCase()
+  if (host && host !== apex && host.endsWith(apex.replace(/^www\./, ''))) {
+    redirect(`${appBaseUrl()}/site/${slug}/intake-start`)
+  }
+
   // If the user is ALREADY signed in, short-circuit straight to the
   // authenticated intake page. The patient page handles the case where
   // they're not yet a patient of THIS clinic (it redirects to "/" which
   // then routes them to their actual dashboard).
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await auth.api.getSession({ headers: h })
   if (session?.user) {
     redirect('/patient/intake')
   }
