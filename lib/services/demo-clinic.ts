@@ -12,6 +12,7 @@ import {
   DEFAULT_FAQ_ITEMS,
   type ClinicStat,
   type ClinicService,
+  type ClinicStaff,
 } from '@/lib/types/clinic-content'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 
@@ -1094,6 +1095,84 @@ const DEMO_OFFICE_PHOTOS = [
   },
 ]
 
+/**
+ * Acme demo staff — 5 members covering every role + every glyph state on the
+ * /team detail page. Bios are warm and plausible (not autobiographical); they
+ * exist to showcase the template, not to invent credentials at a real clinic.
+ *
+ * Coverage:
+ *   - Dr. Jordan Reyes — explicit `slug` set (exercises the override path
+ *     on the staff detail resolver); full credentials + specialties + funFact
+ *   - Dr. Sam Patel — derived slug (kebab(name)) — exercises the fallback
+ *   - Maria Vega, RDH — name strips honorifics on derived slug, has
+ *     specialties but no funFact (section gracefully hides)
+ *   - Casey Lin — minimal bio, no specialties (pill section hides),
+ *     funFact present
+ *   - Renee Park — hygienist with credentials + specialties, no funFact
+ */
+const DEMO_STAFF: ClinicStaff[] = [
+  {
+    id: 'p1',
+    name: 'Dr. Jordan Reyes',
+    title: 'Lead Dentist',
+    slug: 'dr-jordan-reyes',
+    credentials: 'DDS · 15 years experience',
+    bio: 'Dr. Reyes founded Acme to make going to the dentist feel like going to any other thoughtful place — calm rooms, plain-English explanations, no judgment about how long it has been. He trained at a community health center before moving into private practice, and brings that "everyone deserves great care" sensibility to every visit.',
+    specialties: ['Family dentistry', 'Restorative care', 'Anxious patients'],
+    funFact: 'On weekends you can find him on the trails outside Austin — he is slowly working his way through every hike in the Texas Hill Country.',
+    bookHref: null,
+    photoUrl: null,
+  },
+  {
+    id: 'p2',
+    name: 'Dr. Sam Patel',
+    title: 'Cosmetic Dentist',
+    slug: null,
+    credentials: 'DDS, MS · 8 years experience',
+    bio: 'Sam joined the team in 2022 from a cosmetic-focused practice in Houston. She loves the moment a patient who has hidden their smile for years finally sees what is possible — and she is meticulous about the small choices (shade, shape, contour) that make the result look like you, just better.',
+    specialties: ['Cosmetic dentistry', 'Teeth whitening', 'Veneers'],
+    funFact: 'She is a relentless home baker — ask her about her sourdough rotation.',
+    bookHref: null,
+    photoUrl: null,
+  },
+  {
+    id: 'p3',
+    name: 'Maria Vega, RDH',
+    title: 'Lead Hygienist',
+    slug: null,
+    credentials: 'RDH · 12 years experience',
+    bio: 'Maria has been with the practice from day one. Patients ask for her by name because she is gentle, thorough, and absolutely refuses to lecture. If it has been a while since your last cleaning, she will tell you what she sees, what she would do about it, and then she will do it — calmly, and without making you feel small.',
+    specialties: ['Deep cleanings', 'Periodontal care', 'Patient education'],
+    funFact: null,
+    bookHref: null,
+    photoUrl: null,
+  },
+  {
+    id: 'p4',
+    name: 'Casey Lin',
+    title: 'Office Manager',
+    slug: null,
+    credentials: null,
+    bio: 'Casey runs the front of the office. She is the person who will call your insurance for you, send you the form ahead of time, and remember that you prefer morning appointments. Every front desk should be this kind.',
+    specialties: null,
+    funFact: 'She is studying for her certified dental practice manager credential on the side.',
+    bookHref: null,
+    photoUrl: null,
+  },
+  {
+    id: 'p5',
+    name: 'Renee Park, RDH',
+    title: 'Hygienist',
+    slug: null,
+    credentials: 'RDH · 6 years experience',
+    bio: 'Renee joined Acme in 2024. She is especially good with kids and first-time-in-a-while patients — patient, plainspoken, and never in a rush. She trained with the periodontal team at UT Health and brings that careful attention to every cleaning.',
+    specialties: ['Pediatric hygiene', 'First-visit comfort'],
+    funFact: null,
+    bookHref: null,
+    photoUrl: null,
+  },
+]
+
 export async function createDemoClinic(): Promise<DemoClinicResult> {
   const name = 'Acme Dental Demo'
   const slug = slugify(name)
@@ -1130,6 +1209,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         about: schema.clinicProfile.about,
         tagline: schema.clinicProfile.tagline,
         services: schema.clinicProfile.services,
+        staff: schema.clinicProfile.staff,
         stats: schema.clinicProfile.stats,
         testimonials: schema.clinicProfile.testimonials,
         officePhotos: schema.clinicProfile.officePhotos,
@@ -1273,6 +1353,53 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     }
     if (!profile?.cancellationPolicy) {
       patch.cancellationPolicy = DEMO_CANCELLATION_POLICY
+    }
+    // Staff self-heal (Checkpoint 3 — /team page + about-dropdown). Legacy
+    // demos seeded the 3-entry minimal staff array before this PR. Two-stage
+    // backfill:
+    //   (1) If `staff` is null OR ALL stored entries match the legacy 3-entry
+    //       shape exactly (only id/name/title/bio set, none of the new
+    //       slug/credentials/specialties/funFact/bookHref fields populated),
+    //       replace with the curated DEMO_STAFF set so the demo exercises
+    //       the full 5-card grid + every detail-page field branch.
+    //   (2) Otherwise, top up any matching legacy entry IN PLACE — keep the
+    //       clinic's edits (name/title/bio/photoUrl) but backfill the new
+    //       optional fields from DEMO_STAFF by id. Skips entries that already
+    //       have ANY of the new fields set (real clinic edits stay untouched).
+    {
+      const storedStaff = Array.isArray(profile?.staff)
+        ? (profile!.staff as ClinicStaff[])
+        : null
+      const isLegacyMinimal = (s: ClinicStaff): boolean =>
+        !s.slug && !s.credentials && !s.specialties && !s.funFact && !s.bookHref
+      const allLegacy =
+        storedStaff !== null &&
+        storedStaff.length > 0 &&
+        storedStaff.every(isLegacyMinimal)
+      if (storedStaff === null || storedStaff.length === 0 || allLegacy) {
+        patch.staff = DEMO_STAFF
+      } else {
+        // Targeted in-place backfill — only touches rows whose new optional
+        // fields are ALL still null/absent (legacy-shaped within a hand-edited
+        // array). A clinic that hand-edited any new field stays untouched.
+        const byId = new Map(DEMO_STAFF.map((s) => [s.id, s]))
+        const upgraded = storedStaff.map((s) => {
+          if (!isLegacyMinimal(s)) return s
+          const template = byId.get(s.id)
+          if (!template) return s
+          return {
+            ...s,
+            slug: template.slug ?? null,
+            credentials: template.credentials ?? null,
+            specialties: template.specialties ?? null,
+            funFact: template.funFact ?? null,
+            bookHref: template.bookHref ?? null,
+          }
+        })
+        if (upgraded.some((s, i) => s !== storedStaff[i])) {
+          patch.staff = upgraded
+        }
+      }
     }
     if (Object.keys(patch).length > 0) {
       await db
@@ -1643,11 +1770,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       sun: { open: null, close: null },
     },
     services: DEMO_SERVICES,
-    staff: [
-      { id: 'p1', name: 'Dr. Jordan Reyes', title: 'Lead Dentist', bio: '15 years of general dentistry' },
-      { id: 'p2', name: 'Dr. Sam Patel', title: 'Cosmetic Specialist' },
-      { id: 'p3', name: 'Maria Vega, RDH', title: 'Lead Hygienist' },
-    ],
+    staff: DEMO_STAFF,
     stats: DEMO_STATS,
     // testimonials are patched in below, after patient IDs are known, so
     // the seeded testimonials can reference real patient records.

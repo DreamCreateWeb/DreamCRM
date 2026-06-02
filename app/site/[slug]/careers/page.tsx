@@ -9,7 +9,7 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
-import { DEFAULT_SERVICES, type ClinicService } from '@/lib/types/clinic-content'
+import { DEFAULT_SERVICES, type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
@@ -57,6 +57,11 @@ export default async function ClinicCareersPage({ params }: Props) {
   ])
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
+  // Careers nav-dropdown gate is "has open jobs" — by construction this page
+  // only renders meaningfully when jobs.length > 0, so reuse that. Team gate
+  // mirrors the other call sites: clinic has ≥1 staff entry.
+  const hasCareers = jobs.length > 0
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
   const cityState = [data.primaryLocation?.city, data.primaryLocation?.state].filter(Boolean).join(', ')
 
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
@@ -68,6 +73,8 @@ export default async function ClinicCareersPage({ params }: Props) {
     basePath,
     hasBlog,
     hasDentalPlans,
+    hasTeam,
+    hasCareers,
     services: navServicesFromClinicServices(
       (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),

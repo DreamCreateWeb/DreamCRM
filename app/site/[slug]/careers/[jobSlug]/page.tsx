@@ -7,9 +7,9 @@ import {
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
-import { getOpenJobBySlug } from '@/lib/services/careers'
+import { getOpenJobBySlug, getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp, jobPostingJsonLd } from '@/lib/types/careers'
-import { DEFAULT_SERVICES, type ClinicService } from '@/lib/types/clinic-content'
+import { DEFAULT_SERVICES, type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
@@ -68,12 +68,15 @@ export default async function ClinicJobDetailPage({ params }: Props) {
   const comp = formatComp(job)
   const loc = data.primaryLocation
   const cityState = [loc?.city, loc?.state].filter(Boolean).join(', ')
-  const [publishedPosts, membershipPlans] = await Promise.all([
+  const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
+    getOpenJobs(data.orgId),
   ])
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
+  const hasCareers = openJobs.length > 0
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
@@ -84,6 +87,8 @@ export default async function ClinicJobDetailPage({ params }: Props) {
     basePath,
     hasBlog,
     hasDentalPlans,
+    hasTeam,
+    hasCareers,
     services: navServicesFromClinicServices(
       (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),

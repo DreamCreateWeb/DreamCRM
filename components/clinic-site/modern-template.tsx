@@ -50,7 +50,8 @@ interface Props {
    *  (not relative) because on a clinic subdomain a relative /signin would be
    *  rewritten to /site/<slug>/signin and 404. */
   signInUrl?: string
-  /** Whether the clinic has at least one published blog post — gates the Blog nav link. */
+  /** Whether the clinic has at least one published blog post — gates the
+   *  About → Blog dropdown child. */
   hasBlog?: boolean
   /** Up to 3 recent published posts — drives the homepage "From the blog"
    *  band. Empty array hides the section (same gate as the Blog nav link). */
@@ -62,6 +63,14 @@ interface Props {
   /** Whether the clinic has ≥1 active membership plan — gates the Patients →
    *  Dental Plans dropdown child. Same shape as `hasBlog`. */
   hasDentalPlans?: boolean
+  /** Whether the clinic has ≥1 open job posting — gates the About → Careers
+   *  dropdown child. Empty/false hides Careers from the nav so we never
+   *  surface a link to an empty roles page. */
+  hasCareers?: boolean
+  /** Whether the clinic has ≥1 staff member — gates the About → Meet Our Team
+   *  dropdown child. Derived inside the page wrapper (no DB call needed; it's
+   *  just `staff.length > 0` on the already-loaded profile). */
+  hasTeam?: boolean
 }
 
 /**
@@ -81,7 +90,7 @@ export function formatReviewCount(n: number): string {
   return `${Math.floor(n / 1000)}k+`
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false }: Props) {
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false }: Props) {
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -147,6 +156,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     basePath,
     hasBlog,
     hasDentalPlans,
+    hasTeam,
+    hasCareers,
     services: navServicesFromClinicServices(allServices),
   })
 

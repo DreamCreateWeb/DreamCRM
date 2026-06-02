@@ -71,7 +71,7 @@ export interface NavService {
  * Centralizing it here keeps the nav identical across every `<SiteHeader>`
  * call site — change it once, it changes everywhere.
  *
- * Structure:
+ * Structure (Checkpoint 3 — About consolidates Team/Blog/Careers/FAQ):
  *   • "Services" parent → `${basePath}/services`, children = the clinic's CORE
  *     services (each → `/services/<routingSlug>`). No children when the clinic
  *     has no core services (parent still links to the index).
@@ -80,23 +80,41 @@ export interface NavService {
  *   • "Patients" parent → /insurance · /payment-financing · /dental-plans (the
  *     last only when `hasDentalPlans=true`; we don't surface a dental-plans
  *     link when the clinic has no active membership plans).
- *   • About / FAQ / Blog (only when `hasBlog`) / Contact — unchanged.
+ *   • "About" parent → /about, children:
+ *       - About <clinic> → /about (the parent itself, also surfaced as a child
+ *         so the dropdown is self-explanatory on mobile sub-nav)
+ *       - Meet Our Team → /team (only when `hasTeam=true`)
+ *       - Blog → /blog (only when `hasBlog=true`)
+ *       - Careers → /careers (only when `hasCareers=true`)
+ *       - FAQ → /faq (always — universal defaults render even when the clinic
+ *         hasn't authored any FAQ items)
+ *   • Contact — unchanged.
  *
- * `hasDentalPlans` mirrors the `hasBlog` pattern: each calling page determines
- * whether the clinic has any active membership plans (typically via
- * `listActiveMembershipPlans(orgId)`) and passes the boolean in. Keeps the
- * helper pure (sync) so it doesn't cascade into every call site as async.
- * Defaults to `false` so existing/lighter call sites that don't load
- * membership plans (e.g. inside test mocks) don't accidentally surface
- * a broken Dental Plans link.
+ * `hasTeam` / `hasBlog` / `hasCareers` / `hasDentalPlans` mirror each other:
+ * each calling page determines whether the clinic has the underlying content
+ * and passes the boolean in. Keeps the helper pure (sync) so it doesn't
+ * cascade into every call site as async. Defaults to `false` so existing /
+ * lighter call sites that don't load these (e.g. inside test mocks) don't
+ * accidentally surface broken links.
+ *
+ * FAQ and Blog are NO LONGER top-level — they live inside the About dropdown.
  */
 export function buildClinicNavLinks(opts: {
   basePath: string
   hasBlog: boolean
   services: NavService[]
   hasDentalPlans?: boolean
+  hasTeam?: boolean
+  hasCareers?: boolean
 }): SiteNavLink[] {
-  const { basePath, hasBlog, services, hasDentalPlans = false } = opts
+  const {
+    basePath,
+    hasBlog,
+    services,
+    hasDentalPlans = false,
+    hasTeam = false,
+    hasCareers = false,
+  } = opts
   const core = services.filter((s) => s.category !== 'special')
   const special = services.filter((s) => s.category === 'special')
 
@@ -141,13 +159,29 @@ export function buildClinicNavLinks(opts: {
     ],
   }
 
+  // About dropdown — consolidates About + Team + Blog + Careers + FAQ.
+  // Order is Tend's pattern: storytelling (About) → people (Team) → content
+  // (Blog) → joining the team (Careers) → reference (FAQ). FAQ always renders
+  // (universal defaults); the other gated children only show when the clinic
+  // has the underlying content so empty links never appear.
+  const aboutChildren: Array<{ label: string; href: string }> = [
+    { label: 'About', href: `${basePath}/about` },
+    ...(hasTeam ? [{ label: 'Meet Our Team', href: `${basePath}/team` }] : []),
+    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
+    ...(hasCareers ? [{ label: 'Careers', href: `${basePath}/careers` }] : []),
+    { label: 'FAQ', href: `${basePath}/faq` },
+  ]
+  const aboutLink: SiteNavLink = {
+    label: 'About',
+    href: `${basePath}/about`,
+    children: aboutChildren,
+  }
+
   return [
     servicesLink,
     ...(specialLink ? [specialLink] : []),
     patientsLink,
-    { label: 'About', href: `${basePath}/about` },
-    { label: 'FAQ', href: `${basePath}/faq` },
-    ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
+    aboutLink,
     { label: 'Contact', href: `${basePath || '/'}#contact` },
   ]
 }
@@ -161,13 +195,29 @@ const SEED_CATEGORY_BY_SLUG = new Map(
 )
 
 /** Local kebab-case (mirror of lib/utils slugify, inlined to keep this file
- *  free of any server-only transitive import). */
-function kebab(input: string): string {
+ *  free of any server-only transitive import). Exported so the /team detail
+ *  page can derive a stable slug from a staff member's name when no explicit
+ *  `slug` is set. */
+export function kebab(input: string): string {
   return input
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
     .slice(0, 80)
+}
+
+/**
+ * Resolve the URL slug for a staff member — explicit `slug` override when
+ * present + valid, else kebab(name). Returns null only when neither is
+ * resolvable (degenerate staff with no name). Used by both the /team index
+ * (to build per-card links) + the /team/[staffSlug] resolver (to match an
+ * incoming param against the staff array).
+ */
+export function staffSlug(staff: { slug?: string | null; name: string }): string | null {
+  const explicit = staff.slug?.trim()
+  if (explicit && /^[a-z0-9-]+$/i.test(explicit)) return explicit.toLowerCase()
+  const derived = kebab(staff.name)
+  return derived.length > 0 ? derived : null
 }
 
 /**

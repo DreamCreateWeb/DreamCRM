@@ -12,6 +12,25 @@ function uid() {
   return Math.random().toString(36).slice(2, 10)
 }
 
+function kebab(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 80)
+}
+
+/** Parse a newline/comma-separated specialties textarea into a clean
+ *  `string[]`. Trims each token, drops empties, returns null when the result
+ *  is empty so the JSON column matches the type's null-when-absent contract. */
+function parseSpecialties(raw: string): string[] | null {
+  const list = raw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  return list.length > 0 ? list : null
+}
+
 export default function StaffEditor({ name, defaultValue }: Props) {
   const [items, setItems] = useState<ClinicStaff[]>(defaultValue ?? [])
 
@@ -22,7 +41,21 @@ export default function StaffEditor({ name, defaultValue }: Props) {
     setItems((prev) => prev.filter((_, i) => i !== idx))
   }
   function add() {
-    setItems((prev) => [...prev, { id: uid(), name: '', title: '', bio: '', photoUrl: null }])
+    setItems((prev) => [
+      ...prev,
+      {
+        id: uid(),
+        name: '',
+        title: '',
+        bio: '',
+        photoUrl: null,
+        slug: null,
+        credentials: null,
+        specialties: null,
+        funFact: null,
+        bookHref: null,
+      },
+    ])
   }
 
   return (
@@ -65,6 +98,13 @@ function StaffRow({
 }) {
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // Local textarea state for specialties so we don't fight controlled-input
+  // round-tripping the array -> string conversion on every keystroke. We
+  // hydrate from the saved array on mount, then write back to the parent as
+  // a parsed `string[] | null` on every change.
+  const [specialtiesText, setSpecialtiesText] = useState(
+    (value.specialties ?? []).join('\n'),
+  )
 
   async function handleUpload(file: File) {
     if (!file.type.startsWith('image/')) return
@@ -81,6 +121,8 @@ function StaffRow({
       setUploading(false)
     }
   }
+
+  const derivedSlug = value.name ? kebab(value.name) : ''
 
   return (
     <div className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700/60 rounded-lg">
@@ -130,6 +172,13 @@ function StaffRow({
             placeholder="Dentist / Hygienist / Office Manager"
           />
         </div>
+        <input
+          type="text"
+          value={value.credentials ?? ''}
+          onChange={(e) => onChange({ credentials: e.target.value || null })}
+          className="form-input w-full"
+          placeholder="Credentials — DDS · 12 years experience"
+        />
         <textarea
           value={value.bio ?? ''}
           onChange={(e) => onChange({ bio: e.target.value })}
@@ -137,6 +186,39 @@ function StaffRow({
           rows={2}
           placeholder="Short bio (optional)"
         />
+        <textarea
+          value={specialtiesText}
+          onChange={(e) => {
+            setSpecialtiesText(e.target.value)
+            onChange({ specialties: parseSpecialties(e.target.value) })
+          }}
+          className="form-textarea w-full text-sm"
+          rows={2}
+          placeholder="Specialties — one per line (e.g. Family dentistry, Pediatric care)"
+        />
+        <input
+          type="text"
+          value={value.funFact ?? ''}
+          onChange={(e) => onChange({ funFact: e.target.value || null })}
+          className="form-input w-full"
+          placeholder="Outside the office — When she's not in the chair, she's hiking"
+        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={value.slug ?? ''}
+            onChange={(e) => onChange({ slug: e.target.value || null })}
+            className="form-input flex-1"
+            placeholder={derivedSlug ? `URL slug (default: ${derivedSlug})` : 'URL slug (a-z, 0-9, dashes)'}
+          />
+          <input
+            type="text"
+            value={value.bookHref ?? ''}
+            onChange={(e) => onChange({ bookHref: e.target.value || null })}
+            className="form-input flex-1"
+            placeholder="Booking URL override (/book?provider=jane)"
+          />
+        </div>
       </div>
       <button
         type="button"

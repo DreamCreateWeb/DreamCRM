@@ -488,3 +488,154 @@ describe('SiteHeader — Patients dropdown', () => {
     expect(dpLinks).toHaveLength(0)
   })
 })
+
+// ── About dropdown (Checkpoint 3 — consolidates About + Team + Blog + Careers + FAQ)
+
+describe('SiteHeader — About dropdown', () => {
+  it('emits an About parent with About + FAQ children always (universal floor)', () => {
+    const links = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      hasTeam: false,
+      hasCareers: false,
+      services: [],
+    })
+    const about = links.find((l) => l.label === 'About')
+    expect(about).toBeDefined()
+    const childLabels = (about?.children ?? []).map((c) => c.label)
+    // Two universal floor children — they render even with no gated content.
+    expect(childLabels).toContain('About')
+    expect(childLabels).toContain('FAQ')
+    // Gated children must NOT appear when their flags are false.
+    expect(childLabels).not.toContain('Meet Our Team')
+    expect(childLabels).not.toContain('Blog')
+    expect(childLabels).not.toContain('Careers')
+  })
+
+  it('includes Meet Our Team only when hasTeam=true', () => {
+    const off = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      hasTeam: false,
+      hasCareers: false,
+      services: [],
+    })
+    const aboutOff = off.find((l) => l.label === 'About')
+    expect((aboutOff?.children ?? []).map((c) => c.label)).not.toContain('Meet Our Team')
+
+    const on = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      hasTeam: true,
+      hasCareers: false,
+      services: [],
+    })
+    const aboutOn = on.find((l) => l.label === 'About')
+    const labels = (aboutOn?.children ?? []).map((c) => c.label)
+    expect(labels).toContain('Meet Our Team')
+    const hrefs = (aboutOn?.children ?? []).map((c) => c.href)
+    expect(hrefs).toContain('/site/acme-dental/team')
+  })
+
+  it('includes Blog only when hasBlog=true', () => {
+    const off = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      hasTeam: false,
+      hasCareers: false,
+      services: [],
+    })
+    const aboutOff = off.find((l) => l.label === 'About')
+    expect((aboutOff?.children ?? []).map((c) => c.label)).not.toContain('Blog')
+
+    const on = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: true,
+      hasDentalPlans: false,
+      hasTeam: false,
+      hasCareers: false,
+      services: [],
+    })
+    const aboutOn = on.find((l) => l.label === 'About')
+    const hrefs = (aboutOn?.children ?? []).map((c) => c.href)
+    expect(hrefs).toContain('/site/acme-dental/blog')
+  })
+
+  it('includes Careers only when hasCareers=true', () => {
+    const off = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      hasTeam: false,
+      hasCareers: false,
+      services: [],
+    })
+    const aboutOff = off.find((l) => l.label === 'About')
+    expect((aboutOff?.children ?? []).map((c) => c.label)).not.toContain('Careers')
+
+    const on = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      hasTeam: false,
+      hasCareers: true,
+      services: [],
+    })
+    const aboutOn = on.find((l) => l.label === 'About')
+    const hrefs = (aboutOn?.children ?? []).map((c) => c.href)
+    expect(hrefs).toContain('/site/acme-dental/careers')
+  })
+
+  it('renders the About dropdown toggle in the desktop header', () => {
+    const links = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: true,
+      hasDentalPlans: false,
+      hasTeam: true,
+      hasCareers: true,
+      services: [],
+    })
+    renderWithNav(links)
+    expect(
+      screen.getByRole('button', { name: /^About menu$/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('renders all About children in the mobile sub-nav', () => {
+    const links = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: true,
+      hasDentalPlans: false,
+      hasTeam: true,
+      hasCareers: true,
+      services: [],
+    })
+    renderWithNav(links)
+    const allLinks = screen.getAllByRole('link')
+    const hrefs = allLinks.map((a) => a.getAttribute('href'))
+    expect(hrefs).toContain('/site/acme-dental/about')
+    expect(hrefs).toContain('/site/acme-dental/team')
+    expect(hrefs).toContain('/site/acme-dental/blog')
+    expect(hrefs).toContain('/site/acme-dental/careers')
+    expect(hrefs).toContain('/site/acme-dental/faq')
+  })
+
+  it('FAQ and Blog are NO LONGER top-level — they live inside About', () => {
+    const links = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: true,
+      hasDentalPlans: false,
+      hasTeam: false,
+      hasCareers: false,
+      services: [],
+    })
+    // No top-level node should be labeled FAQ or Blog. They appear only as
+    // About → children.
+    expect(links.some((l) => l.label === 'FAQ')).toBe(false)
+    expect(links.some((l) => l.label === 'Blog')).toBe(false)
+  })
+})

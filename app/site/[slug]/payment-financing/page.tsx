@@ -7,8 +7,10 @@ import {
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
+import { getOpenJobs } from '@/lib/services/careers'
 import type {
   ClinicService,
+  ClinicStaff,
   ClinicFaqItem,
   ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
@@ -104,12 +106,15 @@ export default async function PaymentFinancingPage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
-  const [publishedPosts, membershipPlans] = await Promise.all([
+  const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
+    getOpenJobs(data.orgId),
   ])
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
+  const hasCareers = openJobs.length > 0
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   const { profile } = data
   const name = profile.displayName ?? data.orgName
@@ -123,6 +128,8 @@ export default async function PaymentFinancingPage({ params }: Props) {
     basePath,
     hasBlog,
     hasDentalPlans,
+    hasTeam,
+    hasCareers,
     services: navServicesFromClinicServices(
       (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),

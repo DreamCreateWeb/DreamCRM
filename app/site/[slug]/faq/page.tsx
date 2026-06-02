@@ -7,7 +7,8 @@ import {
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
-import type { ClinicFaqItem, ClinicService } from '@/lib/types/clinic-content'
+import { getOpenJobs } from '@/lib/services/careers'
+import type { ClinicFaqItem, ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
 import {
   DEFAULT_FAQ_ITEMS,
   DEFAULT_SERVICES,
@@ -72,12 +73,15 @@ export default async function FaqPage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
-  const [publishedPosts, membershipPlans] = await Promise.all([
+  const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
+    getOpenJobs(data.orgId),
   ])
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
+  const hasCareers = openJobs.length > 0
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   const { profile } = data
   const brand = profile.brandColor ?? '#9CAF9F'
@@ -90,6 +94,8 @@ export default async function FaqPage({ params }: Props) {
     basePath,
     hasBlog,
     hasDentalPlans,
+    hasTeam,
+    hasCareers,
     services: navServicesFromClinicServices(
       (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),

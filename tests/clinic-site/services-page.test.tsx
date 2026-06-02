@@ -98,6 +98,10 @@ vi.mock('@/lib/services/membership', () => ({
   listActivePlans: vi.fn(async () => []),
 }))
 
+vi.mock('@/lib/services/careers', () => ({
+  getOpenJobs: vi.fn(async () => []),
+}))
+
 import ServicesPage from '@/app/site/[slug]/services/page'
 import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
 

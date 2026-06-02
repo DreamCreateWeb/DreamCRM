@@ -7,7 +7,8 @@ import {
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
-import type { ClinicService, ClinicFaqItem } from '@/lib/types/clinic-content'
+import { getOpenJobs } from '@/lib/services/careers'
+import type { ClinicService, ClinicStaff, ClinicFaqItem } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
@@ -170,12 +171,15 @@ export default async function InsurancePage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
-  const [publishedPosts, membershipPlans] = await Promise.all([
+  const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
+    getOpenJobs(data.orgId),
   ])
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
+  const hasCareers = openJobs.length > 0
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   const { profile } = data
   const name = profile.displayName ?? data.orgName
@@ -191,6 +195,8 @@ export default async function InsurancePage({ params }: Props) {
     basePath,
     hasBlog,
     hasDentalPlans,
+    hasTeam,
+    hasCareers,
     services: navServicesFromClinicServices(services),
   })
 

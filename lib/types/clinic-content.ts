@@ -97,12 +97,40 @@ export interface ClinicService {
   customized?: ClinicServiceCustomization | null
 }
 
+/**
+ * Per-clinic staff entry. Stored in `clinic_profile.staff` jsonb. Random `id`
+ * is the internal key (the staff-editor generates it); `slug` is an optional
+ * URL-friendly override for the per-person detail page at /team/<slug>. When
+ * `slug` is absent, the detail page resolver derives it from `kebab(name)` so
+ * existing rows keep working without a migration — but adding a stable slug
+ * means a rename won't break links.
+ *
+ * `credentials` / `specialties` / `funFact` / `bookHref` are universal
+ * humanizing fields surfaced on the /team detail page (and gracefully hidden
+ * when absent — no fake content). `bookHref` lets clinics with per-provider
+ * booking widgets override the page-level CTA.
+ */
 export interface ClinicStaff {
   id: string
   name: string
   title?: string | null
   bio?: string | null
   photoUrl?: string | null
+  /** Optional URL slug override for /team/<slug>. Null/absent = derive from
+   *  kebab(name) at render time. */
+  slug?: string | null
+  /** "DDS · 12 years experience" / "RDH, MS" — short single-line credential
+   *  string rendered under the name on the detail page. */
+  credentials?: string | null
+  /** Focus areas. Surfaced as a pill list on the detail page. Null/empty =
+   *  section hides. */
+  specialties?: string[] | null
+  /** Single-line humanizing detail. "When she's not in the chair, she's
+   *  hiking." Null = section hides. */
+  funFact?: string | null
+  /** Per-staff booking URL override. Null/absent = use clinic's tier-aware
+   *  default (bookHref / contact anchor). */
+  bookHref?: string | null
 }
 
 /**

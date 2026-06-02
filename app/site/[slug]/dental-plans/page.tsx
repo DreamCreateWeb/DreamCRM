@@ -6,9 +6,10 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { getOpenJobs } from '@/lib/services/careers'
 import { getShopConfig } from '@/lib/services/shop'
 import { listActivePlans } from '@/lib/services/membership'
-import type { ClinicService } from '@/lib/types/clinic-content'
+import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
@@ -91,10 +92,13 @@ export default async function DentalPlansPage({ params }: Props) {
   if (plans.length === 0) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
-  const [publishedPosts] = await Promise.all([
+  const [publishedPosts, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
+    getOpenJobs(data.orgId),
   ])
   const hasBlog = publishedPosts.length > 0
+  const hasCareers = openJobs.length > 0
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   const { profile } = data
   const name = profile.displayName ?? data.orgName
@@ -109,6 +113,8 @@ export default async function DentalPlansPage({ params }: Props) {
     hasBlog,
     // We just confirmed plans.length > 0 above, so dental-plans IS available.
     hasDentalPlans: true,
+    hasTeam,
+    hasCareers,
     services: navServicesFromClinicServices(
       (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),
