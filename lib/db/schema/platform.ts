@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, jsonb, index } from 'drizzle-orm/pg-core'
 import { organization } from './auth'
 
 // Clinic-specific profile data that extends an organization where type='clinic'.
@@ -150,36 +150,55 @@ export type NewAgencyProject = typeof agencyProject.$inferInsert
 // without deleting them ('archived').
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const serviceLibrary = pgTable('service_library', {
-  id: text('id').primaryKey(),
-  // Stable kebab-case identifier, e.g. 'teeth-whitening'. Routes to
-  // {slug}.dreamcreatestudio.com/services/<slug> for clinics that offer it.
-  slug: text('slug').notNull().unique(),
-  name: text('name').notNull(),
-  // 'core' | 'special' — nav taxonomy only (same detail template). Drives the
-  // /services index grouping + the Core/Special nav dropdowns.
-  category: text('category').notNull().default('core'),
-  icon: text('icon'),
-  // One-liner used on index + nav cards.
-  shortDescription: text('short_description'),
-  // 3-5 benefit bullets for the detail hero. string[]
-  heroBullets: jsonb('hero_bullets'),
-  // 2-3 sentence description-band paragraph.
-  body: text('body'),
-  // Array<{ title, body }> — the numbered "what to expect" walkthrough.
-  processSteps: jsonb('process_steps'),
-  // Array<{ question, answer }> — detail-page FAQ (pricing answered honestly,
-  // no fabricated dollar figures).
-  faq: jsonb('faq'),
-  // string[] — curated adjacencies for the related-services carousel.
-  relatedSlugs: jsonb('related_slugs'),
-  // 'platform' | 'clinic'
-  origin: text('origin').notNull().default('platform'),
-  // 'active' | 'pending' | 'archived'
-  status: text('status').notNull().default('active'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const serviceLibrary = pgTable(
+  'service_library',
+  {
+    id: text('id').primaryKey(),
+    // Stable kebab-case identifier, e.g. 'teeth-whitening'. Routes to
+    // {slug}.dreamcreatestudio.com/services/<slug> for clinics that offer it.
+    slug: text('slug').notNull().unique(),
+    name: text('name').notNull(),
+    // 'core' | 'special' — nav taxonomy only (same detail template). Drives the
+    // /services index grouping + the Core/Special nav dropdowns.
+    category: text('category').notNull().default('core'),
+    icon: text('icon'),
+    // One-liner used on index + nav cards.
+    shortDescription: text('short_description'),
+    // 3-5 benefit bullets for the detail hero. string[]
+    heroBullets: jsonb('hero_bullets'),
+    // 2-3 sentence description-band paragraph.
+    body: text('body'),
+    // Array<{ title, body }> — the numbered "what to expect" walkthrough.
+    processSteps: jsonb('process_steps'),
+    // Array<{ question, answer }> — detail-page FAQ (pricing answered honestly,
+    // no fabricated dollar figures).
+    faq: jsonb('faq'),
+    // string[] — curated adjacencies for the related-services carousel.
+    relatedSlugs: jsonb('related_slugs'),
+    // 'platform' | 'clinic'
+    origin: text('origin').notNull().default('platform'),
+    // 'active' | 'pending' | 'archived'
+    status: text('status').notNull().default('active'),
+    // Org that submitted this entry — null for platform-seeded canon, set for
+    // clinic-authored additions (1B). The submitting clinic can use the entry
+    // on their own site immediately even while status='pending'; other
+    // clinics only see it once a platform admin approves (status→active).
+    submittedByOrgId: text('submitted_by_org_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
+    // Optional note from the reviewing platform admin — stored on approve
+    // and reject so the audit trail is honest about why an entry landed
+    // where it did.
+    reviewNotes: text('review_notes'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    // Status is the picker's hot-path filter (active + own-pending), so we
+    // index it directly. Slug already has its own unique index for lookups.
+    statusIdx: index('idx_service_library_status').on(t.status),
+  }),
+)
 
 export type ServiceLibraryRow = typeof serviceLibrary.$inferSelect
 export type NewServiceLibraryRow = typeof serviceLibrary.$inferInsert

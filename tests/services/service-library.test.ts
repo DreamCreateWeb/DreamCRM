@@ -161,6 +161,65 @@ describe('resolveClinicServices', () => {
     expect(r.hasLibraryContent).toBe(false)
     expect(r.name).toBe('Mystery Service')
   })
+
+  // ── Checkpoint 1B — customized content prefers AI blob over canonical
+  it('prefers the persisted AI customization over canonical + tokens (1B)', async () => {
+    const services: ClinicService[] = [
+      {
+        id: 'a',
+        name: 'Teeth Whitening',
+        librarySlug: 'teeth-whitening',
+        customized: {
+          heroBullets: ['Customized bullet 1', 'Customized bullet 2', 'Customized bullet 3'],
+          body: 'Acme-specific rewritten body.',
+          processSteps: [
+            { title: 'AI step 1', body: 'AI step body 1.' },
+            { title: 'AI step 2', body: 'AI step body 2.' },
+            { title: 'AI step 3', body: 'AI step body 3.' },
+            { title: 'AI step 4', body: 'AI step body 4.' },
+          ],
+          faq: [{ question: 'AI Q?', answer: 'AI A.' }],
+          generatedAt: '2026-06-02T00:00:00Z',
+          modelId: 'claude-sonnet-4-6',
+        },
+      },
+    ]
+    const [r] = await resolveClinicServices(services, ctx, SERVICE_LIBRARY_SEED)
+    expect(r.hasLibraryContent).toBe(true)
+    expect(r.isCustomized).toBe(true)
+    expect(r.heroBullets).toEqual([
+      'Customized bullet 1',
+      'Customized bullet 2',
+      'Customized bullet 3',
+    ])
+    expect(r.body).toBe('Acme-specific rewritten body.')
+    expect(r.processSteps[0].title).toBe('AI step 1')
+    expect(r.faq[0].question).toBe('AI Q?')
+    expect(r.customizedAt).toBe('2026-06-02T00:00:00Z')
+    expect(r.customizedModelId).toBe('claude-sonnet-4-6')
+  })
+
+  it('falls back cleanly when the customization blob is malformed', async () => {
+    const services: ClinicService[] = [
+      {
+        id: 'a',
+        name: 'Teeth Whitening',
+        librarySlug: 'teeth-whitening',
+        customized: {
+          // hero bullets isn't an array → blob is rejected
+          heroBullets: 'oops' as unknown as string[],
+          body: 'should not appear',
+          processSteps: [],
+          faq: [],
+          generatedAt: '',
+          modelId: '',
+        },
+      },
+    ]
+    const [r] = await resolveClinicServices(services, ctx, SERVICE_LIBRARY_SEED)
+    expect(r.isCustomized).toBe(false)
+    expect(r.body).toContain('Acme Dental') // back to 1A token substitution
+  })
 })
 
 describe('groupByCategory', () => {

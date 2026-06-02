@@ -281,6 +281,13 @@
       "when": 1780349149747,
       "tag": "0039_slow_kylun",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1780377900397,
+      "tag": "0040_cultured_paibok",
+      "breakpoints": true
     }
   ]
 }

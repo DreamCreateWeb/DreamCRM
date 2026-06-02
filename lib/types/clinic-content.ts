@@ -36,6 +36,30 @@ export interface ServiceLibraryEntry {
 }
 
 /**
+ * Per-clinic, AI-rewritten content blob — generated at selection time by
+ * Checkpoint 1B (`customizeServiceForClinic` in
+ * `lib/services/service-library-ai.ts`). When present on a `ClinicService`,
+ * the resolver uses these values instead of the library's canonical content +
+ * token substitution. `librarySlug` on the parent service identifies which
+ * canonical entry the blob was rewritten FROM, so a `librarySlug` swap
+ * invalidates the customization (next regenerate will rebuild it).
+ *
+ * `modelId` + `generatedAt` are recorded so a clinic can see when the copy
+ * was last refreshed and what model produced it — useful when we ship a
+ * model upgrade and want clinics to know they can regenerate.
+ */
+export interface ClinicServiceCustomization {
+  heroBullets: string[]
+  body: string
+  processSteps: ServiceProcessStep[]
+  faq: ServiceFaqItem[]
+  /** ISO timestamp the rewrite was produced at. */
+  generatedAt: string
+  /** Model id that produced the rewrite (e.g. 'claude-sonnet-4-6'). */
+  modelId: string
+}
+
+/**
  * A clinic's chosen service, stored in `clinic_profile.services` jsonb.
  *
  * Legacy rows carry only `{ id, name, description?, icon? }` (free-text,
@@ -45,6 +69,11 @@ export interface ServiceLibraryEntry {
  * token-substituted at render; the clinic can override `photoUrl` (hero
  * photo) and `offer` (promo ribbon) per-service. `category` is resolved from
  * the library entry (or clinic-set for free-text services).
+ *
+ * `customized` is the Checkpoint 1B addition — when present, it's an
+ * AI-rewritten content blob produced at service-selection time that the
+ * detail-page resolver prefers over canonical + token substitution. Null /
+ * absent = fall back to the 1A path (library + tokens).
  */
 export interface ClinicService {
   id: string
@@ -62,6 +91,10 @@ export interface ClinicService {
   /** Optional promo-ribbon text rendered as a thin brand-color bar atop the
    *  detail page (and as a card badge on the index). */
   offer?: string | null
+  /** AI-rewritten per-clinic content blob (Checkpoint 1B). When present,
+   *  the resolver prefers this over the library's canonical + token-
+   *  substituted content. Regeneratable from the settings UI. */
+  customized?: ClinicServiceCustomization | null
 }
 
 export interface ClinicStaff {

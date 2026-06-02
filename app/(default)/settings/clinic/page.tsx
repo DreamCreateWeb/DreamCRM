@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
+import { listLibraryForPicker } from '@/lib/services/service-library'
 import SettingsSidebar from '../settings-sidebar'
 import ClinicProfilePanel from './clinic-profile-panel'
 
@@ -24,6 +25,10 @@ export default async function ClinicSettings() {
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
+
+  // Library available to this clinic's picker — every `active` entry plus
+  // any `pending` entries this org submitted (1B own-pending visibility).
+  const library = await listLibraryForPicker(ctx.organizationId)
 
   const siteUrl = profile?.websiteDomain
     ? `https://${profile.websiteDomain}`
@@ -50,7 +55,12 @@ export default async function ClinicSettings() {
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
           <SettingsSidebar tenantType={ctx.tenantType} />
-          <ClinicProfilePanel profile={profile ?? null} orgName={ctx.organizationName} />
+          <ClinicProfilePanel
+            profile={profile ?? null}
+            orgName={ctx.organizationName}
+            orgId={ctx.organizationId}
+            library={library}
+          />
         </div>
       </div>
     </div>
