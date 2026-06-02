@@ -245,7 +245,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
 
       {/* End CTA */}
       <ScrollReveal
-        className="mt-12 rounded-2xl p-8 text-center"
+        className="mt-12 rounded-2xl p-6 sm:p-8 text-center"
         style={{ backgroundColor: `${brand}14` }}
       >
         <p

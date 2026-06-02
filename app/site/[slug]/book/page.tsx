@@ -173,12 +173,14 @@ export default async function BookPage({ params }: Props) {
           </div>
         </section>
 
-        {/* ── 2-col main: reassurance left, form right ─────────────────── */}
-        <section className="pb-14 sm:pb-24">
+        {/* ── 2-col main: reassurance left, form right (desktop). Mobile
+            shows reassurance FIRST so the page eases into the form rather
+            than leading with a wall of inputs. ───────────────────────── */}
+        <section className="pb-12 sm:pb-24">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-            <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-              {/* Reassurance column */}
-              <ScrollReveal as="div" className="lg:col-span-5 order-2 lg:order-1">
+            <div className="grid gap-8 lg:grid-cols-12 lg:gap-12 items-start">
+              {/* Reassurance column — order-first on every breakpoint. */}
+              <ScrollReveal as="div" className="lg:col-span-5">
                 <div className="lg:sticky lg:top-32">
                   <p
                     className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
@@ -242,13 +244,15 @@ export default async function BookPage({ params }: Props) {
                 </div>
               </ScrollReveal>
 
-              {/* Form column */}
+              {/* Form column. Mobile uses a tighter `rounded-2xl p-5` so the
+                  form card doesn't dwarf the viewport; desktop keeps the
+                  generous `rounded-3xl p-9`. */}
               <ScrollReveal
                 delay={120}
-                className="lg:col-span-7 order-1 lg:order-2"
+                className="lg:col-span-7"
               >
                 <div
-                  className="rounded-3xl p-6 sm:p-9 shadow-sm"
+                  className="rounded-2xl sm:rounded-3xl p-5 sm:p-9 shadow-sm"
                   style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
                 >
                   <BookForm
