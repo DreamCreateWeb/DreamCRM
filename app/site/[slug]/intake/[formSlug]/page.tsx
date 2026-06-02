@@ -117,7 +117,7 @@ export default async function IntakeFormPage({ params }: Props) {
 
           <ScrollReveal>
             <div
-              className="rounded-3xl p-6 sm:p-9 shadow-sm"
+              className="rounded-2xl sm:rounded-3xl p-5 sm:p-9 shadow-sm"
               style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
             >
               <IntakeFormRunner

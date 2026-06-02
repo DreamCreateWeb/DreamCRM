@@ -319,7 +319,7 @@ export default async function StaffDetailPage({ params }: Props) {
           <section className="py-16 sm:py-20">
             <div className="max-w-[820px] mx-auto px-5 sm:px-8">
               <ScrollReveal
-                className="rounded-2xl p-8 sm:p-10 text-center transition hover:shadow-sm"
+                className="rounded-2xl p-6 sm:p-10 text-center transition hover:shadow-sm"
                 style={{
                   backgroundColor: SURFACE,
                   border: `1px solid ${BORDER}`,

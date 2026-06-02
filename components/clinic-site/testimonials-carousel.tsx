@@ -196,7 +196,7 @@ const TESTIMONIAL_CARD_STAR = '#FFCC00'
 export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string }) {
   return (
     <figure
-      className="rounded-3xl p-8 sm:p-10 lg:p-12 flex flex-col h-full"
+      className="rounded-2xl sm:rounded-3xl p-6 sm:p-10 lg:p-12 flex flex-col h-full"
       style={{ backgroundColor: TESTIMONIAL_CARD_BG }}
     >
       <blockquote

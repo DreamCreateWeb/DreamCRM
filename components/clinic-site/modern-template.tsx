@@ -574,8 +574,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <div className="max-w-[1000px] mx-auto">
               <iframe
                 src={mapEmbedSrc}
-                className="w-full"
-                style={{ height: '400px', border: 0, borderRadius: '24px' }}
+                className="w-full h-[280px] sm:h-[360px] lg:h-[400px]"
+                style={{ border: 0, borderRadius: '24px' }}
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 allowFullScreen
@@ -965,7 +965,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               the chartreuse strip so they overlap, matching Tend's
               composition. */}
           <div
-            className="relative bg-white rounded-3xl px-8 sm:px-12 lg:px-16 py-10 sm:py-12 lg:py-14 -mb-16 sm:-mb-20"
+            className="relative bg-white rounded-2xl sm:rounded-3xl px-6 sm:px-12 lg:px-16 py-8 sm:py-12 lg:py-14 -mb-12 sm:-mb-20"
             style={{ boxShadow: '0 24px 48px -16px rgba(28, 26, 23, 0.30)' }}
           >
             <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-center">

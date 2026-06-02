@@ -194,7 +194,14 @@ export default function BookForm({ orgId, brand, clinicName, services }: Props) 
         >
           01 · Pick a date
         </p>
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+        {/* Day strip — breaks out of the parent form card's padding so the
+            swipe surface spans the full card width on mobile. `-mx-5
+            sm:-mx-9` cancels the card's `p-5 sm:p-9`; the matching `px-5
+            sm:px-9` keeps the first/last day inset from the card edge. */}
+        <div
+          className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory -mx-5 px-5 sm:-mx-9 sm:px-9"
+          style={{ scrollbarWidth: 'none' }}
+        >
           {days.map((d) => {
             const isSelected = sameDay(d, selectedDate)
             return (
@@ -202,7 +209,7 @@ export default function BookForm({ orgId, brand, clinicName, services }: Props) 
                 key={d.toISOString()}
                 type="button"
                 onClick={() => setSelectedDate(d)}
-                className="shrink-0 snap-start rounded-2xl px-4 py-3 text-center transition border min-w-[72px]"
+                className="shrink-0 snap-start rounded-2xl px-4 py-3 text-center transition border min-w-[68px]"
                 style={{
                   borderColor: isSelected ? brand : BORDER,
                   backgroundColor: isSelected ? brand : SURFACE,
@@ -372,7 +379,27 @@ export default function BookForm({ orgId, brand, clinicName, services }: Props) 
           {submitState === 'pending'
             ? 'Booking…'
             : selectedSlotIso
-              ? `Book ${fmtDayLabel(selectedDate)} · ${slots.find((s) => s.startIso === selectedSlotIso)?.label ?? ''}`
+              ? // Short form on mobile (day name + time) keeps the button from
+                // wrapping on narrow screens; full date label on sm+ where
+                // there's room.
+                (() => {
+                  const slot = slots.find((s) => s.startIso === selectedSlotIso)
+                  const dayLabel = fmtDayLabel(selectedDate)
+                  const shortDay =
+                    dayLabel === 'Today' || dayLabel === 'Tomorrow'
+                      ? dayLabel
+                      : DAY_NAME_SHORT[selectedDate.getDay()]
+                  return (
+                    <>
+                      <span className="sm:hidden">
+                        Book {shortDay} · {slot?.label ?? ''}
+                      </span>
+                      <span className="hidden sm:inline">
+                        Book {dayLabel} · {slot?.label ?? ''}
+                      </span>
+                    </>
+                  )
+                })()
               : 'Pick a time to continue'}
         </button>
         <p className="text-xs text-center mt-3" style={{ color: INK_MUTED }}>
