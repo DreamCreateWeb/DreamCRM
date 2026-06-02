@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import ModernTemplate, { formatReviewCount } from '@/components/clinic-site/modern-template'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 
@@ -192,9 +192,11 @@ describe('ModernTemplate', () => {
 
   it('renders header nav using page paths (services + about + faq) plus #contact anchor', () => {
     render(<ModernTemplate data={makeData()} basePath="/site/test" />)
+    // FAQ now lives under the About dropdown — open the mobile drawer so
+    // every nav link (top-level + children) is queryable. Phone users see
+    // the full list there anyway.
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }))
     const links = screen.getAllByRole('link')
-    // Page-path nav: /services, /about, /faq each render. Contact stays
-    // an anchor (there is no /contact page).
     expect(links.some((a) => a.getAttribute('href') === '/site/test/services')).toBe(true)
     expect(links.some((a) => a.getAttribute('href') === '/site/test/about')).toBe(true)
     expect(links.some((a) => a.getAttribute('href') === '/site/test/faq')).toBe(true)
@@ -203,10 +205,12 @@ describe('ModernTemplate', () => {
 
   it('surfaces a Blog nav link only when hasBlog is true', () => {
     const { rerender } = render(<ModernTemplate data={makeData()} basePath="/site/test" hasBlog={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }))
     expect(
       screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test/blog'),
     ).toBe(false)
     rerender(<ModernTemplate data={makeData()} basePath="/site/test" hasBlog />)
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }))
     expect(
       screen.queryAllByRole('link').some((a) => a.getAttribute('href') === '/site/test/blog'),
     ).toBe(true)

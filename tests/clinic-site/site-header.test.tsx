@@ -398,10 +398,12 @@ describe('SiteHeader — nav dropdowns', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renders the child service links in the mobile sub-nav too', () => {
+  it('renders the child service links in the mobile drawer when it is opened', () => {
     renderWithNav(navWithDropdowns)
-    // Mobile sub-list always renders the children (no toggle needed), so the
-    // teeth-whitening href appears even before opening the desktop dropdown.
+    // Mobile nav is now collapsed behind a hamburger button. Open the
+    // drawer and verify the child link is queryable — the drawer renders
+    // all dropdown children flat (no accordion tap step).
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }))
     const allLinks = screen.getAllByRole('link', { name: /Teeth Whitening/i })
     expect(allLinks.length).toBeGreaterThan(0)
   })
@@ -454,7 +456,7 @@ describe('SiteHeader — Patients dropdown', () => {
     expect(childHrefs).toContain('/site/acme-dental/dental-plans')
   })
 
-  it('renders the Patients dropdown toggle in the desktop header', () => {
+  it('renders the Patients dropdown toggle in the desktop header + child links in the mobile drawer', () => {
     const navWithPatients = buildClinicNavLinks({
       basePath: '/site/acme-dental',
       hasBlog: false,
@@ -465,8 +467,8 @@ describe('SiteHeader — Patients dropdown', () => {
     expect(
       screen.getByRole('button', { name: /^Patients menu$/i }),
     ).toBeInTheDocument()
-    // The child links appear via the mobile sub-nav (which is always present
-    // in DOM) before the desktop toggle is clicked, so verify the hrefs.
+    // Open the mobile drawer; all dropdown children render flat inside.
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }))
     const allLinks = screen.getAllByRole('link')
     const hrefs = allLinks.map((a) => a.getAttribute('href'))
     expect(hrefs).toContain('/site/acme-dental/insurance')
@@ -605,7 +607,7 @@ describe('SiteHeader — About dropdown', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders all About children in the mobile sub-nav', () => {
+  it('renders all About children in the mobile drawer when opened', () => {
     const links = buildClinicNavLinks({
       basePath: '/site/acme-dental',
       hasBlog: true,
@@ -615,6 +617,7 @@ describe('SiteHeader — About dropdown', () => {
       services: [],
     })
     renderWithNav(links)
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }))
     const allLinks = screen.getAllByRole('link')
     const hrefs = allLinks.map((a) => a.getAttribute('href'))
     expect(hrefs).toContain('/site/acme-dental/about')

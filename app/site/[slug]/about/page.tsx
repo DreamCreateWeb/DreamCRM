@@ -220,13 +220,13 @@ export default async function AboutPage({ params }: Props) {
               }}
             >
               <ul
-                className={`grid divide-y sm:divide-y-0 sm:divide-x ${
+                className={`grid ${
                   stats.length === 4
-                    ? 'sm:grid-cols-2 lg:grid-cols-4'
+                    ? 'grid-cols-2 lg:grid-cols-4'
                     : stats.length === 3
-                      ? 'sm:grid-cols-3'
+                      ? 'grid-cols-1 sm:grid-cols-3'
                       : stats.length === 2
-                        ? 'sm:grid-cols-2'
+                        ? 'grid-cols-2'
                         : 'grid-cols-1'
                 }`}
                 style={{ borderColor: BORDER }}

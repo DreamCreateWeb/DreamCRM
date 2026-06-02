@@ -394,14 +394,18 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 boxShadow: '0 1px 2px rgba(28, 26, 23, 0.04)',
               }}
             >
+              {/* Stats grid: 2×2 on mobile (so a 4-stat card doesn't tower)
+                  → 1×n on sm+ → unchanged on lg. Dividers track the layout:
+                  vertical-between-cols always, horizontal-between-rows only
+                  for the 4-stat 2×2 case. */}
               <ul
-                className={`grid divide-y sm:divide-y-0 sm:divide-x ${
+                className={`grid ${
                   stats.length === 4
-                    ? 'sm:grid-cols-2 lg:grid-cols-4'
+                    ? 'grid-cols-2 lg:grid-cols-4'
                     : stats.length === 3
-                      ? 'sm:grid-cols-3'
+                      ? 'grid-cols-1 sm:grid-cols-3'
                       : stats.length === 2
-                        ? 'sm:grid-cols-2'
+                        ? 'grid-cols-2'
                         : 'grid-cols-1'
                 }`}
                 style={{ borderColor: BORDER }}
