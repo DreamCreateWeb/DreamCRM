@@ -59,6 +59,9 @@ interface Props {
    *  stat with `dynamic: 'review_count'` so the "happy patients" trust signal
    *  reflects real data instead of a hardcoded "8,000+". Defaults to 0. */
   reviewCount?: number
+  /** Whether the clinic has ≥1 active membership plan — gates the Patients →
+   *  Dental Plans dropdown child. Same shape as `hasBlog`. */
+  hasDentalPlans?: boolean
 }
 
 /**
@@ -78,7 +81,7 @@ export function formatReviewCount(n: number): string {
   return `${Math.floor(n / 1000)}k+`
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0 }: Props) {
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false }: Props) {
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -143,6 +146,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
+    hasDentalPlans,
     services: navServicesFromClinicServices(allServices),
   })
 

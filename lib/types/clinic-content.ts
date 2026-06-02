@@ -188,6 +188,37 @@ export const FAQ_CATEGORIES = [
 ] as const
 export type ClinicFaqCategory = (typeof FAQ_CATEGORIES)[number]
 
+/**
+ * A clinic's financing partner — CareCredit / Sunbit / Cherry / etc. Stored
+ * inside `clinic_profile.financing_partners` jsonb as `Array<ClinicFinancingPartner>`.
+ * `applyUrl` should point at the partner's homepage, NOT a hotlink-protected
+ * affiliate apply URL we don't control. When the array is null/empty, the
+ * entire financing-partners section on /payment-financing hides — we don't
+ * push patients to financing if the clinic has no partner relationship.
+ */
+export interface ClinicFinancingPartner {
+  id: string
+  name: string
+  description?: string | null
+  applyUrl?: string | null
+  logoUrl?: string | null
+}
+
+/**
+ * Universal accepted-payment-methods fallback for /payment-financing when
+ * `clinic_profile.payment_methods` is null. Every US dental practice can
+ * honestly claim all five — cash, cards, HSA/FSA tap, contactless, ACH.
+ * Clinics can curate their own list in /settings/clinic; null = render
+ * this fallback so the section never reads as empty / under-built.
+ */
+export const DEFAULT_PAYMENT_METHODS: string[] = [
+  'Cash',
+  'Credit & debit cards',
+  'HSA / FSA cards',
+  'Apple Pay & Google Pay',
+  'ACH bank transfer',
+]
+
 export const DEFAULT_SERVICES: ClinicService[] = [
   { id: 'cleanings', name: 'Cleanings & Exams', icon: '🦷' },
   { id: 'cosmetic', name: 'Cosmetic Dentistry', icon: '✨' },

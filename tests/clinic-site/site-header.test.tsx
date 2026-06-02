@@ -406,3 +406,85 @@ describe('SiteHeader — nav dropdowns', () => {
     expect(allLinks.length).toBeGreaterThan(0)
   })
 })
+
+// ── Patients dropdown (Insurance / Payment & Financing / Dental Plans) ─────
+
+import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
+
+describe('SiteHeader — Patients dropdown', () => {
+  it('buildClinicNavLinks emits a Patients parent with Insurance + Payment & Financing children when hasDentalPlans=false', () => {
+    const links = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      services: [],
+    })
+    const patients = links.find((l) => l.label === 'Patients')
+    expect(patients).toBeDefined()
+    const childLabels = (patients?.children ?? []).map((c) => c.label)
+    expect(childLabels).toContain('Insurance')
+    expect(childLabels).toContain('Payment & Financing')
+    // Dental Plans must NOT appear when the clinic has no active membership.
+    expect(childLabels).not.toContain('Dental Plans')
+  })
+
+  it('buildClinicNavLinks includes Dental Plans when hasDentalPlans=true', () => {
+    const links = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: true,
+      services: [],
+    })
+    const patients = links.find((l) => l.label === 'Patients')
+    const childLabels = (patients?.children ?? []).map((c) => c.label)
+    expect(childLabels).toEqual(['Insurance', 'Payment & Financing', 'Dental Plans'])
+  })
+
+  it('child hrefs route under the given basePath', () => {
+    const links = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: true,
+      services: [],
+    })
+    const patients = links.find((l) => l.label === 'Patients')
+    const childHrefs = (patients?.children ?? []).map((c) => c.href)
+    expect(childHrefs).toContain('/site/acme-dental/insurance')
+    expect(childHrefs).toContain('/site/acme-dental/payment-financing')
+    expect(childHrefs).toContain('/site/acme-dental/dental-plans')
+  })
+
+  it('renders the Patients dropdown toggle in the desktop header', () => {
+    const navWithPatients = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: true,
+      services: [],
+    })
+    renderWithNav(navWithPatients)
+    expect(
+      screen.getByRole('button', { name: /^Patients menu$/i }),
+    ).toBeInTheDocument()
+    // The child links appear via the mobile sub-nav (which is always present
+    // in DOM) before the desktop toggle is clicked, so verify the hrefs.
+    const allLinks = screen.getAllByRole('link')
+    const hrefs = allLinks.map((a) => a.getAttribute('href'))
+    expect(hrefs).toContain('/site/acme-dental/insurance')
+    expect(hrefs).toContain('/site/acme-dental/payment-financing')
+    expect(hrefs).toContain('/site/acme-dental/dental-plans')
+  })
+
+  it('omits Dental Plans link entirely when hasDentalPlans=false', () => {
+    const navNoDP = buildClinicNavLinks({
+      basePath: '/site/acme-dental',
+      hasBlog: false,
+      hasDentalPlans: false,
+      services: [],
+    })
+    renderWithNav(navNoDP)
+    const dpLinks = screen
+      .queryAllByRole('link')
+      .filter((a) => a.getAttribute('href') === '/site/acme-dental/dental-plans')
+    expect(dpLinks).toHaveLength(0)
+  })
+})

@@ -700,7 +700,7 @@ Public clinic surfaces also live:
 - `{slug}.dreamcreatestudio.com/services` + `/services/[serviceSlug]` —
   Tend-style service index + per-service detail page (1A + 1B)
 
-## Tend-clone service library (Checkpoints 1A + 1B)
+## Tend-clone service library + Patients dropdown (Checkpoints 1A + 1B + 2)
 
 Per DESIGN.md "the website is the trunk" + the Tend.com aesthetic, every
 clinic gets a full per-service detail page, not just a card on the strip
@@ -789,6 +789,97 @@ related-services slugs — all token-substituted.
   `tests/demo-mode/demo-services-customized.test.ts` (every Acme service
   has a customized blob matching the canonical process/FAQ counts, no
   $-figure anywhere).
+
+**Checkpoint 2 (shipped):** Patients nav dropdown — three new public pages
+matching Tend's `/insurance` · `/payment-financing` · `/dental-plans`
+structure, adapted for single-clinic multi-tenant. `buildClinicNavLinks`
+emits a new "Patients" parent with **Insurance** + **Payment & Financing**
+children always (universal fallbacks render even when the clinic hasn't
+configured the underlying fields), plus a third **Dental Plans** child
+only when the clinic has ≥1 active membership plan. Gating mirrors the
+existing `hasBlog` pattern: each calling page loads
+`listActivePlans(orgId)` alongside its other parallel data fetches and
+passes `hasDentalPlans` into `buildClinicNavLinks`.
+- **New schema (migration 0041):** `clinic_profile.payment_methods` jsonb
+  (clinic-set list, null = render `DEFAULT_PAYMENT_METHODS` fallback) +
+  `financing_partners` jsonb (`Array<ClinicFinancingPartner>` —
+  `{id, name, description?, applyUrl?, logoUrl?}`, null/empty = section
+  hides entirely — we don't push patients to financing the clinic
+  doesn't actually partner with) + `cancellation_policy` text (longform
+  prose, null = section hides — no fake dollar fees). Client-safe types
+  + `DEFAULT_PAYMENT_METHODS` in `lib/types/clinic-content.ts`;
+  `JsonClinicFinancingPartner` server-side type in
+  `lib/db/schema/platform.ts`.
+- **`/insurance`** (`app/site/[slug]/insurance/page.tsx`) — the standalone
+  deep version of the homepage Insurance section. Hero + 4-bullet
+  "We're here to help" grid + carrier list & verifier band (reuses the
+  same `clinic_profile.accepted_insurance_carriers` data + the existing
+  `InsuranceVerifierForm` client component, no fork) + chartreuse-card
+  logo marquee + 2-column in-network vs out-of-network process steps
+  (universal honest copy) + forest-teal "No dental insurance?"
+  cross-link to `/dental-plans` (auto-hides when no active membership)
+  + HSA/FSA + final-bill explainer + FAQ accordion filtered to
+  `category === 'Insurance'` (4 universal fallbacks when none authored)
+  + closing CTA.
+- **`/payment-financing`** (`app/site/[slug]/payment-financing/page.tsx`)
+  — Hero + 3-step "Honest billing, every visit" explainer (NO
+  marketing pitch about a bill-pay integration we don't actually
+  ship; describes how billing works rather than promising online pay)
+  + pill grid of payment methods (`payment_methods` field or
+  `DEFAULT_PAYMENT_METHODS`) + forest-teal HSA/FSA band + financing
+  partners cards (hides entirely when `financing_partners` is null/empty)
+  + cancellation policy soft-card (hides when null — no fake fees)
+  + FAQ accordion filtered to `category === 'Billing'` (4 universal
+  fallbacks) + closing CTA.
+- **`/dental-plans`** (`app/site/[slug]/dental-plans/page.tsx`) —
+  **re-render** of the membership flow with Tend's "Dental Plans" nav
+  voice (NOT a 308 redirect to `/membership` — keeps the URL stable,
+  preserves canonical metadata, avoids URL flicker mid-load).
+  Imports the existing `MembershipJoin` client component directly so
+  the Stripe Checkout flow has one source of truth; `/membership`
+  remains the canonical implementation for the join action. Hero +
+  plan cards + 3-bullet "Why patients choose this" reassurance band
+  (No deductibles · No annual maximums · No claim forms) + closing
+  CTA. `notFound()`s when `getShopConfig.membershipEnabled === false`
+  or `listActivePlans(orgId).length === 0`.
+- **Settings editor** (`app/(default)/settings/clinic/`) — new textarea
+  for payment methods (newline-separated, same pattern as accepted
+  insurance carriers), `FinancingPartnersEditor` repeater component
+  ({name, description, applyUrl, logoUrl} rows with add/remove), and a
+  cancellation-policy textarea. All three flow through the existing
+  `updateClinicProfile` server action with null-on-empty parsers.
+- **Sitemap** updated to include `/insurance` + `/payment-financing`
+  always (they render universal defaults when underlying data is null),
+  + `/dental-plans` only when active membership plans exist.
+- **Demo seeding** — `lib/services/demo-clinic.ts` seeds Acme with
+  `DEMO_PAYMENT_METHODS` (5 entries matching `DEFAULT_PAYMENT_METHODS`),
+  `DEMO_FINANCING_PARTNERS` (CareCredit + Sunbit — the two most common
+  in US dental, `applyUrl` points at each company's homepage NOT a
+  hotlink-protected affiliate URL), and `DEMO_CANCELLATION_POLICY`
+  (warm 2-3 sentence policy, no specific dollar amounts). Self-heal
+  block backfills all three fields onto legacy demos when null
+  (existing demos that have hand-edited any of these stay untouched).
+- **Tests** —
+  `tests/clinic-site/insurance-page.test.tsx` (hero copy / carriers
+  render / "call to verify" fallback / verifier form present /
+  dental-plans cross-link gating / in-vs-out-of-network steps /
+  Insurance-filter FAQ / universal default FAQ fallback / basic-tier
+  Book CTA routing),
+  `tests/clinic-site/payment-financing-page.test.tsx`
+  (DEFAULT_PAYMENT_METHODS render / clinic-set methods replace
+  defaults / financing partners hide-when-empty + render-when-set /
+  cancellation policy hide-when-null + render-when-set / Billing-
+  filter FAQ / universal default FAQ fallback),
+  `tests/clinic-site/dental-plans-page.test.tsx` (Tend-voice H1 /
+  plan cards from `listActivePlans` / 404 when no plans / 404 when
+  membership disabled / reassurance band),
+  `tests/clinic-site/site-header.test.tsx` extended with a
+  "Patients dropdown" describe block (parent + children structure /
+  Dental Plans gating by `hasDentalPlans` / child hrefs route under
+  basePath / desktop toggle renders / mobile sub-nav renders all
+  three children),
+  `tests/demo-mode/seeder.test.ts` extended to verify the new
+  self-heal columns + the no-overwrite guarantee.
 
 ## What's NOT yet wired (priorities for next session)
 
@@ -1060,7 +1151,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0040): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0041): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its

@@ -9,7 +9,9 @@ import type {
   ClinicStat,
   ClinicTestimonial,
   ClinicOfficePhoto,
+  ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
+import { DEFAULT_PAYMENT_METHODS } from '@/lib/types/clinic-content'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import ServicesLibraryPicker from './services-library-picker'
@@ -17,6 +19,7 @@ import StaffEditor from './staff-editor'
 import StatsEditor from './stats-editor'
 import TestimonialsEditor from './testimonials-editor'
 import OfficePhotosEditor from './office-photos-editor'
+import FinancingPartnersEditor from './financing-partners-editor'
 
 interface Props {
   profile: ClinicProfile | null
@@ -56,6 +59,19 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library }:
         (c): c is string => typeof c === 'string',
       ) as string[])
     : []
+  // Payment methods (migration 0041) — JSON string[]. Mirrors the
+  // insurance-carriers textarea pattern. Null = render the universal
+  // DEFAULT_PAYMENT_METHODS fallback on the public site.
+  const initialPaymentMethods = Array.isArray(profile?.paymentMethods)
+    ? ((profile?.paymentMethods as unknown[]).filter(
+        (c): c is string => typeof c === 'string',
+      ) as string[])
+    : []
+  // Financing partners (migration 0041) — repeater. Null/empty = hide
+  // the entire section on the public site.
+  const initialFinancingPartners = (profile?.financingPartners ?? null) as
+    | ClinicFinancingPartner[]
+    | null
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -308,6 +324,60 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library }:
             rows={6}
             defaultValue={initialInsuranceCarriers.join('\n')}
             placeholder={'Aetna\nCigna\nDelta Dental\nGuardian\nMetLife'}
+          />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+            Accepted Payment Methods
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Shown on your <code>/payment-financing</code> page. One method per line.
+            Leave blank to use a sensible default list (cash, cards, HSA / FSA, Apple
+            Pay / Google Pay, ACH) — the section never reads empty.
+          </p>
+          <textarea
+            id="paymentMethods"
+            name="paymentMethods"
+            className="form-textarea w-full font-mono text-sm"
+            rows={5}
+            defaultValue={initialPaymentMethods.join('\n')}
+            placeholder={DEFAULT_PAYMENT_METHODS.join('\n')}
+          />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+            Financing Partners
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Third-party financing you accept (CareCredit, Sunbit, Cherry, etc.) — shown
+            on your <code>/payment-financing</code> page. Leave empty if you don&apos;t
+            partner with anyone; we won&apos;t push patients to financing they
+            can&apos;t actually use.
+          </p>
+          <FinancingPartnersEditor
+            name="financingPartners"
+            defaultValue={initialFinancingPartners}
+          />
+        </section>
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+            Cancellation &amp; No-Show Policy
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Plain-language policy shown on your <code>/payment-financing</code> page —
+            the section hides entirely when blank. Tell patients what notice you ask
+            for and any consequences (we leave specific dollar amounts to you).
+          </p>
+          <textarea
+            id="cancellationPolicy"
+            name="cancellationPolicy"
+            className="form-textarea w-full text-sm"
+            rows={4}
+            defaultValue={profile?.cancellationPolicy ?? ''}
+            placeholder="We ask for 24 hours notice when you need to cancel or reschedule. Things come up — just let us know when you can, and we&apos;ll work with you."
           />
         </section>
 

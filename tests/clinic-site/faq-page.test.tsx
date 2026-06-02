@@ -72,6 +72,10 @@ vi.mock('@/lib/services/blog', () => ({
   listPublishedPosts: vi.fn(async () => []),
 }))
 
+vi.mock('@/lib/services/membership', () => ({
+  listActivePlans: vi.fn(async () => []),
+}))
+
 import FaqPage from '@/app/site/[slug]/faq/page'
 import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
 

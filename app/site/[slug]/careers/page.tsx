@@ -6,6 +6,7 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
 import { DEFAULT_SERVICES, type ClinicService } from '@/lib/types/clinic-content'
@@ -49,9 +50,13 @@ export default async function ClinicCareersPage({ params }: Props) {
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
-  const jobs = await getOpenJobs(data.orgId)
-  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
+  const [jobs, publishedPosts, membershipPlans] = await Promise.all([
+    getOpenJobs(data.orgId),
+    listPublishedPosts(data.orgId, { limit: 1 }),
+    listActivePlans(data.orgId),
+  ])
   const hasBlog = publishedPosts.length > 0
+  const hasDentalPlans = membershipPlans.length > 0
   const cityState = [data.primaryLocation?.city, data.primaryLocation?.state].filter(Boolean).join(', ')
 
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
@@ -62,6 +67,7 @@ export default async function ClinicCareersPage({ params }: Props) {
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
+    hasDentalPlans,
     services: navServicesFromClinicServices(
       (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),

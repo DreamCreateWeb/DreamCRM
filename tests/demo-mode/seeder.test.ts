@@ -297,6 +297,9 @@ describe('createDemoClinic', () => {
       logoUrl?: string
       heroImageUrl?: string
       acceptedInsuranceCarriers?: unknown
+      paymentMethods?: unknown
+      financingPartners?: unknown
+      cancellationPolicy?: unknown
     }
     expect(patch.stats).toBeDefined()
     expect(patch.officePhotos).toBeDefined()
@@ -309,6 +312,20 @@ describe('createDemoClinic', () => {
     expect(Array.isArray(patch.acceptedInsuranceCarriers)).toBe(true)
     expect((patch.acceptedInsuranceCarriers as string[]).length).toBeGreaterThan(0)
     expect((patch.acceptedInsuranceCarriers as string[])).toContain('Aetna')
+    // Patients dropdown backfill (migration 0041 — Checkpoint 2). All three
+    // /payment-financing fields must seed when null on legacy demos so the
+    // page renders the demo through every code path.
+    expect(Array.isArray(patch.paymentMethods)).toBe(true)
+    expect((patch.paymentMethods as string[])).toContain('Cash')
+    expect(Array.isArray(patch.financingPartners)).toBe(true)
+    expect((patch.financingPartners as Array<{ name: string }>).length).toBeGreaterThan(0)
+    expect(
+      (patch.financingPartners as Array<{ name: string }>).some(
+        (p) => p.name === 'CareCredit',
+      ),
+    ).toBe(true)
+    expect(typeof patch.cancellationPolicy).toBe('string')
+    expect((patch.cancellationPolicy as string).length).toBeGreaterThan(20)
     // appointment.source backfill present
     expect(state.updates.some((u) => (u.set as { source?: string }).source === 'manual')).toBe(true)
   })
@@ -331,6 +348,9 @@ describe('createDemoClinic', () => {
         differenceVideoUrl: 'https://existing.example/v.mp4',
         faq: [{ id: 'f', category: 'X', question: 'Q', answer: 'A' }],
         acceptedInsuranceCarriers: ['CustomCarrier'],
+        paymentMethods: ['Custom payment'],
+        financingPartners: [{ id: 'cust', name: 'Custom Lender' }],
+        cancellationPolicy: 'Clinic-edited custom policy text.',
       },
     ])
     state.selectQueue.push([{ id: 'form_existing' }])
@@ -370,7 +390,12 @@ describe('createDemoClinic', () => {
     // (the self-heal only writes the field when it's null).
     const profilePatch = state.updates.find(
       (u) => (u.set as { stats?: unknown }).stats !== undefined,
-    )?.set as { acceptedInsuranceCarriers?: unknown } | undefined
+    )?.set as {
+      acceptedInsuranceCarriers?: unknown
+      paymentMethods?: unknown
+      financingPartners?: unknown
+      cancellationPolicy?: unknown
+    } | undefined
     // The whole stats/etc patch may not even fire if every field is
     // current — what matters is that no update overwrites the carriers.
     const carrierOverwrite = state.updates.find(
@@ -378,9 +403,29 @@ describe('createDemoClinic', () => {
         (u.set as { acceptedInsuranceCarriers?: unknown }).acceptedInsuranceCarriers !== undefined,
     )
     expect(carrierOverwrite).toBeUndefined()
+    // Same guarantee for the new 0041 columns — once the clinic has set
+    // these, the self-heal must NOT overwrite them.
+    const paymentOverwrite = state.updates.find(
+      (u) =>
+        (u.set as { paymentMethods?: unknown }).paymentMethods !== undefined,
+    )
+    expect(paymentOverwrite).toBeUndefined()
+    const financingOverwrite = state.updates.find(
+      (u) =>
+        (u.set as { financingPartners?: unknown }).financingPartners !== undefined,
+    )
+    expect(financingOverwrite).toBeUndefined()
+    const policyOverwrite = state.updates.find(
+      (u) =>
+        (u.set as { cancellationPolicy?: unknown }).cancellationPolicy !== undefined,
+    )
+    expect(policyOverwrite).toBeUndefined()
     // Defensive: if a patch did fire, double-check the field isn't on it.
     if (profilePatch) {
       expect(profilePatch.acceptedInsuranceCarriers).toBeUndefined()
+      expect(profilePatch.paymentMethods).toBeUndefined()
+      expect(profilePatch.financingPartners).toBeUndefined()
+      expect(profilePatch.cancellationPolicy).toBeUndefined()
     }
   })
 

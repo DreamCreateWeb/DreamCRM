@@ -12,6 +12,7 @@ import type {
   ClinicStat,
   ClinicTestimonial,
   ClinicOfficePhoto,
+  ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
 
 export interface HoursEntry {
@@ -168,6 +169,50 @@ function parseInsuranceCarriers(raw: string | undefined): string[] | null {
   return out.length ? out : null
 }
 
+/**
+ * Parse the payment-methods textarea (newline / comma separated). Same
+ * dedupe + trim treatment as insurance carriers. Returns null when the
+ * input is empty so the public site falls back to DEFAULT_PAYMENT_METHODS.
+ */
+function parsePaymentMethods(raw: string | undefined): string[] | null {
+  return parseInsuranceCarriers(raw)
+}
+
+/**
+ * Parse the financing-partners repeater JSON. Empty rows + rows without a
+ * `name` are dropped. Returns null when the resulting list is empty so the
+ * public site's Financing section hides cleanly.
+ */
+function parseFinancingPartners(
+  raw: string | undefined,
+): ClinicFinancingPartner[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: ClinicFinancingPartner[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const name = typeof obj.name === 'string' ? obj.name.trim() : ''
+      if (!name) continue
+      out.push({
+        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
+        name,
+        description:
+          typeof obj.description === 'string' ? obj.description.trim() || null : null,
+        applyUrl:
+          typeof obj.applyUrl === 'string' ? obj.applyUrl.trim() || null : null,
+        logoUrl:
+          typeof obj.logoUrl === 'string' ? obj.logoUrl.trim() || null : null,
+      })
+    }
+    return out.length ? out : null
+  } catch {
+    return null
+  }
+}
+
 function parseOfficePhotos(raw: string | undefined): ClinicOfficePhoto[] | null {
   if (!raw) return null
   try {
@@ -261,6 +306,13 @@ export async function updateClinicProfile(formData: FormData) {
   const acceptedInsuranceCarriers = parseInsuranceCarriers(
     formData.get('acceptedInsuranceCarriers')?.toString(),
   )
+  const paymentMethods = parsePaymentMethods(
+    formData.get('paymentMethods')?.toString(),
+  )
+  const financingPartners = parseFinancingPartners(
+    formData.get('financingPartners')?.toString(),
+  )
+  const cancellationPolicy = clean('cancellationPolicy', formData)
   const hours = parseHours(formData)
 
   const payload = {
@@ -288,6 +340,9 @@ export async function updateClinicProfile(formData: FormData) {
     testimonials,
     officePhotos,
     acceptedInsuranceCarriers,
+    paymentMethods,
+    financingPartners,
+    cancellationPolicy,
   }
 
   await db

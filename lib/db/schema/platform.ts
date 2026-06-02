@@ -38,6 +38,15 @@ export const clinicProfile = pgTable('clinic_profile', {
   // acceptedInsuranceCarriers:  Array<string> — PPO carriers shown on the
   //                             public site's Insurance section and on the
   //                             carrier dropdown in the verifier form.
+  // paymentMethods:             Array<string> — clinic-set list of accepted
+  //                             payment methods on /payment-financing. Null =
+  //                             render DEFAULT_PAYMENT_METHODS (universal
+  //                             list every US dental practice can claim).
+  // financingPartners:          Array<JsonClinicFinancingPartner> — optional
+  //                             CareCredit / Sunbit / Cherry / etc. partner
+  //                             list. Null/empty = section hides entirely
+  //                             (we don't push patients to financing if the
+  //                             clinic has no partner).
   services: jsonb('services'),
   staff: jsonb('staff'),
   testimonials: jsonb('testimonials'),
@@ -45,6 +54,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   officePhotos: jsonb('office_photos'),
   faq: jsonb('faq'),
   acceptedInsuranceCarriers: jsonb('accepted_insurance_carriers'),
+  paymentMethods: jsonb('payment_methods'),
+  financingPartners: jsonb('financing_partners'),
+  // Plain longform "we ask for 24 hours notice..." paragraph rendered as a
+  // soft-card on /payment-financing. Null = section hides (we don't fake a
+  // cancellation policy, since specific dollar fees vary per clinic).
+  cancellationPolicy: text('cancellation_policy'),
 
   // Contact
   phone: text('phone'),
@@ -91,6 +106,22 @@ export const clinicLocation = pgTable('clinic_location', {
 
 export type ClinicProfile = typeof clinicProfile.$inferSelect
 export type ClinicLocation = typeof clinicLocation.$inferSelect
+
+/**
+ * Shape stored inside `clinic_profile.financing_partners` jsonb. Optional
+ * per-clinic list of CareCredit / Sunbit / Cherry / etc. apply-here partners.
+ * `applyUrl` should point at the partner's homepage (NOT a hotlink-protected
+ * affiliate apply URL we don't control). The whole financing section on
+ * /payment-financing hides when this is null/empty — we don't push patients
+ * to financing if the clinic doesn't have a partner.
+ */
+export interface JsonClinicFinancingPartner {
+  id: string
+  name: string
+  description?: string | null
+  applyUrl?: string | null
+  logoUrl?: string | null
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Agency projects

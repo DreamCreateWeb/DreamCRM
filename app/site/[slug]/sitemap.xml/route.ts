@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
 
 interface Params {
   slug: string
@@ -55,9 +56,32 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     { loc: `${base}/about`, lastmod, changefreq: 'monthly', priority: '0.8' },
     { loc: `${base}/services`, lastmod, changefreq: 'monthly', priority: '0.8' },
     { loc: `${base}/faq`, lastmod, changefreq: 'monthly', priority: '0.6' },
+    // Patients dropdown — Insurance + Payment & Financing always render (with
+    // universal fallbacks when the clinic hasn't customized), so both go in
+    // the sitemap unconditionally. /dental-plans is added below only when
+    // the clinic has ≥1 active membership plan.
+    { loc: `${base}/insurance`, lastmod, changefreq: 'monthly', priority: '0.7' },
+    {
+      loc: `${base}/payment-financing`,
+      lastmod,
+      changefreq: 'monthly',
+      priority: '0.7',
+    },
   ]
   if (isPro) {
     urls.push({ loc: `${base}/book`, lastmod, changefreq: 'monthly', priority: '0.8' })
+  }
+
+  // /dental-plans only when there are active membership plans (the page
+  // notFound()s otherwise).
+  const membershipPlans = await listActivePlans(data.orgId)
+  if (membershipPlans.length > 0) {
+    urls.push({
+      loc: `${base}/dental-plans`,
+      lastmod,
+      changefreq: 'monthly',
+      priority: '0.7',
+    })
   }
 
   // Published blog posts + the blog index (only when there's something to show).

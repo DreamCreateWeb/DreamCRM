@@ -6,6 +6,7 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import { DEFAULT_SERVICES, type ClinicService } from '@/lib/types/clinic-content'
 import {
@@ -51,8 +52,12 @@ export default async function BookPage({ params }: Props) {
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const basePath = await resolveSiteBasePath(slug)
-  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
+  const [publishedPosts, membershipPlans] = await Promise.all([
+    listPublishedPosts(data.orgId, { limit: 1 }),
+    listActivePlans(data.orgId),
+  ])
   const hasBlog = publishedPosts.length > 0
+  const hasDentalPlans = membershipPlans.length > 0
   const signIn = `${appBaseUrl()}/signin`
   // On the /book page itself, the Book CTA in the nav links should also
   // route to /book (we're already here, but the nav should remain consistent
@@ -63,6 +68,7 @@ export default async function BookPage({ params }: Props) {
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
+    hasDentalPlans,
     services: navServicesFromClinicServices(
       (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),
