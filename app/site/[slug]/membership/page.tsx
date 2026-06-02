@@ -3,6 +3,7 @@ import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/s
 import { getShopConfig } from '@/lib/services/shop'
 import { listActivePlans } from '@/lib/services/membership'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import MembershipJoin from './membership-join'
 
 interface Props {
@@ -38,17 +39,24 @@ export default async function ClinicMembershipPage({ params }: Props) {
   return (
     <BlogChrome data={data} basePath={basePath}>
       <div className="max-w-[900px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
-        <div className="text-center mb-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: brand }}>Membership</p>
-          <h1 className="text-4xl sm:text-5xl font-bold leading-[1.05] tracking-[-0.02em]" style={{ color: INK }}>
+        <div className="text-center mb-12 sm:mb-14">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] mb-5" style={{ color: brand }}>
+            Membership
+          </p>
+          <h1
+            className="text-[40px] sm:text-[56px] lg:text-[64px] font-semibold leading-[1.04] tracking-[-0.015em] mb-5"
+            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          >
             No insurance? No problem.
           </h1>
-          <p className="text-lg leading-[1.55] mt-3 max-w-[560px] mx-auto" style={{ color: INK_MUTED }}>
+          <p className="text-lg sm:text-xl leading-[1.55] mt-3 max-w-[600px] mx-auto" style={{ color: INK_MUTED }}>
             Join the {name} membership plan — your preventive care is covered, plus you save on any other treatment you
             need. No deductibles, no claim forms, no waiting periods.
           </p>
         </div>
-        <MembershipJoin slug={slug} brand={brand} plans={plans} />
+        <ScrollReveal>
+          <MembershipJoin slug={slug} brand={brand} plans={plans} />
+        </ScrollReveal>
       </div>
     </BlogChrome>
   )

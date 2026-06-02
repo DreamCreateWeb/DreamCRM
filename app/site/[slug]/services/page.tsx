@@ -20,6 +20,8 @@ import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -179,12 +181,14 @@ export default async function ServicesPage({ params }: Props) {
       {/* ── Core services ──────────────────────────────────────────────── */}
       <section className="pb-16 sm:pb-20" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-24">
-          <h2
-            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
-            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-          >
-            Core services.
-          </h2>
+          <ScrollReveal>
+            <h2
+              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
+              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              Core services.
+            </h2>
+          </ScrollReveal>
           <ServiceGrid
             services={core}
             basePath={basePath}
@@ -197,12 +201,14 @@ export default async function ServicesPage({ params }: Props) {
         {/* ── Special services (only when any) ─────────────────────────── */}
         {special.length > 0 && (
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-16 sm:pt-20">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              Special services.
-            </h2>
+            <ScrollReveal>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                Special services.
+              </h2>
+            </ScrollReveal>
             <ServiceGrid
               services={special}
               basePath={basePath}
@@ -214,41 +220,17 @@ export default async function ServicesPage({ params }: Props) {
         )}
       </section>
 
-      {/* ── Closing CTA band ───────────────────────────────────────────── */}
-      <section
-        className="py-20 sm:py-28"
-        style={{ backgroundColor: brand }}
-      >
-        <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-          <h2
-            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-            style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-          >
-            Not sure which one you need?
-          </h2>
-          <p className="text-lg leading-[1.6] mb-9 text-white/90">
-            Book a visit and we&apos;ll figure it out together — no judgment, no
-            pressure.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <a
-              href={bookHref}
-              className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-              style={{ backgroundColor: '#FFFFFF', color: INK }}
-            >
-              {bookLabel}
-            </a>
-            {profile.phone && (
-              <a
-                href={`tel:${profile.phone}`}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-              >
-                {profile.phone}
-              </a>
-            )}
-          </div>
-        </div>
-      </section>
+      <ClosingCTA
+        heading="Not sure which one you need?"
+        subhead="Book a visit and we’ll figure it out together — no judgment, no pressure."
+        primary={{ label: bookLabel, href: bookHref }}
+        secondary={
+          profile.phone
+            ? { label: profile.phone, href: `tel:${profile.phone}` }
+            : undefined
+        }
+        brand={brand}
+      />
 
       </main>
 
@@ -289,58 +271,69 @@ function ServiceGrid({
 }) {
   return (
     <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
-      {services.map((s) => {
+      {services.map((s, i) => {
         const detailHref = `${basePath}/services/${s.routingSlug}`
         const oneLiner = s.shortDescription ?? s.description ?? null
         return (
-          <div
-            key={s.id}
-            className="flex flex-col group rounded-2xl p-7 sm:p-8 transition-transform duration-300 hover:-translate-y-0.5"
-            style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              {s.icon && (
-                <span aria-hidden="true" className="text-2xl leading-none">
-                  {s.icon}
-                </span>
-              )}
-              {s.offer && (
+          <ScrollReveal as="div" key={s.id} delay={(i % 3) * 90}>
+            <div
+              className="flex flex-col group rounded-2xl p-7 sm:p-8 h-full transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
+              style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                {s.icon && (
+                  <span aria-hidden="true" className="text-2xl leading-none">
+                    {s.icon}
+                  </span>
+                )}
                 <span
-                  className="ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold text-white"
-                  style={{ backgroundColor: brand }}
+                  className="text-xs font-semibold tracking-[0.18em] uppercase"
+                  style={{ color: INK_MUTED, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  aria-hidden="true"
                 >
-                  {s.offer}
+                  {String(i + 1).padStart(2, '0')}
                 </span>
+                {s.offer && (
+                  <span
+                    className="ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold text-white"
+                    style={{ backgroundColor: brand }}
+                  >
+                    {s.offer}
+                  </span>
+                )}
+              </div>
+              <h3
+                className="text-xl font-semibold mb-3 leading-tight"
+                style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                <a href={detailHref} className="transition group-hover:opacity-80">
+                  {s.name}
+                </a>
+              </h3>
+              {oneLiner && (
+                <p className="text-[15px] leading-[1.6] mb-6" style={{ color: INK_MUTED }}>
+                  {oneLiner}
+                </p>
               )}
+              <div className="mt-auto flex flex-wrap items-center gap-3">
+                <a
+                  href={detailHref}
+                  className="inline-flex items-center gap-1 text-sm font-semibold transition-all duration-300 group-hover:gap-2.5"
+                  style={{ color: brand }}
+                >
+                  Learn more
+                  <span aria-hidden="true">→</span>
+                </a>
+                <a
+                  href={bookHref}
+                  className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition hover:shadow-sm hover:scale-[1.02]"
+                  style={{ color: brand, borderColor: brand }}
+                >
+                  {bookLabel}
+                </a>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-3 leading-tight" style={{ color: INK }}>
-              <a href={detailHref} className="hover:underline">
-                {s.name}
-              </a>
-            </h3>
-            {oneLiner && (
-              <p className="text-[15px] leading-[1.6] mb-6" style={{ color: INK_MUTED }}>
-                {oneLiner}
-              </p>
-            )}
-            <div className="mt-auto flex flex-wrap items-center gap-3">
-              <a
-                href={detailHref}
-                className="inline-flex items-center gap-1 text-sm font-semibold transition group-hover:gap-2"
-                style={{ color: brand }}
-              >
-                Learn more
-                <span aria-hidden="true">→</span>
-              </a>
-              <a
-                href={bookHref}
-                className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition hover:shadow-sm"
-                style={{ color: brand, borderColor: brand }}
-              >
-                {bookLabel}
-              </a>
-            </div>
-          </div>
+          </ScrollReveal>
         )
       })}
     </div>

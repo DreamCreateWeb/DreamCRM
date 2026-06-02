@@ -27,6 +27,8 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -184,22 +186,22 @@ export default async function AboutPage({ params }: Props) {
         <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-start">
-              <div className="lg:col-span-4">
+              <ScrollReveal className="lg:col-span-4">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em]"
                   style={{ color: brand }}
                 >
                   Our story
                 </p>
-              </div>
-              <div className="lg:col-span-8">
+              </ScrollReveal>
+              <ScrollReveal delay={100} className="lg:col-span-8">
                 <p
                   className="text-xl sm:text-2xl leading-[1.55] whitespace-pre-wrap font-medium"
                   style={{ color: INK }}
                 >
                   {profile.about}
                 </p>
-              </div>
+              </ScrollReveal>
             </div>
           </div>
         </section>
@@ -209,7 +211,7 @@ export default async function AboutPage({ params }: Props) {
       {stats.length > 0 && (
         <section className="py-20 sm:py-24">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-            <div
+            <ScrollReveal
               className="rounded-2xl overflow-hidden"
               style={{
                 backgroundColor: SURFACE,
@@ -233,7 +235,7 @@ export default async function AboutPage({ params }: Props) {
                   <li key={s.id} className="text-center px-6 py-7 sm:py-9" style={{ borderColor: BORDER }}>
                     <div
                       className="text-[40px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
-                      style={{ color: brand }}
+                      style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
                     >
                       {s.value}
                     </div>
@@ -246,7 +248,7 @@ export default async function AboutPage({ params }: Props) {
                   </li>
                 ))}
               </ul>
-            </div>
+            </ScrollReveal>
           </div>
         </section>
       )}
@@ -255,7 +257,7 @@ export default async function AboutPage({ params }: Props) {
       {staff.length > 0 && (
         <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-14">
+            <ScrollReveal className="max-w-[640px] mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -268,7 +270,7 @@ export default async function AboutPage({ params }: Props) {
               >
                 The people who care for you.
               </h2>
-            </div>
+            </ScrollReveal>
             <div
               className={`grid gap-x-6 gap-y-12 ${
                 staff.length >= 4
@@ -280,42 +282,47 @@ export default async function AboutPage({ params }: Props) {
                       : 'max-w-sm'
               }`}
             >
-              {staff.map((s) => (
-                <div key={s.id} className="flex flex-col group">
-                  <div
-                    className="aspect-[4/5] w-full rounded-2xl overflow-hidden mb-5 transition-transform duration-300 group-hover:-translate-y-0.5"
-                    style={{ backgroundColor: BORDER }}
-                  >
-                    {s.photoUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={s.photoUrl} alt={s.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center text-5xl font-bold"
-                        style={{
-                          background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
-                          color: brand,
-                        }}
-                        aria-label={s.name}
-                      >
-                        {staffInitials(s.name)}
-                      </div>
+              {staff.map((s, i) => (
+                <ScrollReveal as="div" key={s.id} delay={(i % 4) * 90}>
+                  <div className="flex flex-col group h-full">
+                    <div
+                      className="aspect-[4/5] w-full rounded-2xl overflow-hidden mb-5 transition-transform duration-500 group-hover:scale-[1.02]"
+                      style={{ backgroundColor: BORDER }}
+                    >
+                      {s.photoUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={s.photoUrl} alt={s.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center text-5xl font-bold"
+                          style={{
+                            background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
+                            color: brand,
+                          }}
+                          aria-label={s.name}
+                        >
+                          {staffInitials(s.name)}
+                        </div>
+                      )}
+                    </div>
+                    <h3
+                      className="text-lg font-semibold mb-1 leading-tight"
+                      style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                    >
+                      {s.name}
+                    </h3>
+                    {s.title && (
+                      <p className="text-sm font-medium mb-3" style={{ color: brand }}>
+                        {s.title}
+                      </p>
+                    )}
+                    {s.bio && (
+                      <p className="text-[14px] leading-[1.6]" style={{ color: INK_MUTED }}>
+                        {s.bio}
+                      </p>
                     )}
                   </div>
-                  <h3 className="text-lg font-semibold mb-1 leading-tight" style={{ color: INK }}>
-                    {s.name}
-                  </h3>
-                  {s.title && (
-                    <p className="text-sm font-medium mb-3" style={{ color: brand }}>
-                      {s.title}
-                    </p>
-                  )}
-                  {s.bio && (
-                    <p className="text-[14px] leading-[1.6]" style={{ color: INK_MUTED }}>
-                      {s.bio}
-                    </p>
-                  )}
-                </div>
+                </ScrollReveal>
               ))}
             </div>
           </div>
@@ -326,7 +333,7 @@ export default async function AboutPage({ params }: Props) {
       {officePhotos.length > 0 && (
         <section className="py-20 sm:py-28">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-14">
+            <ScrollReveal className="max-w-[640px] mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -339,7 +346,7 @@ export default async function AboutPage({ params }: Props) {
               >
                 A space designed to put you at ease.
               </h2>
-            </div>
+            </ScrollReveal>
             <div
               className={`grid gap-4 sm:gap-6 ${
                 officePhotos.length >= 4
@@ -351,26 +358,28 @@ export default async function AboutPage({ params }: Props) {
                       : 'grid-cols-1 max-w-2xl'
               }`}
             >
-              {officePhotos.map((p) => (
-                <figure key={p.id} className="group">
-                  <div
-                    className="overflow-hidden rounded-2xl"
-                    style={{ backgroundColor: BORDER }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.url}
-                      alt={p.alt ?? ''}
-                      className="w-full aspect-[4/5] object-cover transition-transform duration-500 ease-out group-hover:scale-[1.025]"
-                      loading="lazy"
-                    />
-                  </div>
-                  {(p.caption || p.alt) && (
-                    <figcaption className="mt-3 text-sm" style={{ color: INK_MUTED }}>
-                      {p.caption ?? p.alt}
-                    </figcaption>
-                  )}
-                </figure>
+              {officePhotos.map((p, i) => (
+                <ScrollReveal as="div" key={p.id} delay={(i % 4) * 80}>
+                  <figure className="group">
+                    <div
+                      className="overflow-hidden rounded-2xl"
+                      style={{ backgroundColor: BORDER }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.url}
+                        alt={p.alt ?? ''}
+                        className="w-full aspect-[4/5] object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                        loading="lazy"
+                      />
+                    </div>
+                    {(p.caption || p.alt) && (
+                      <figcaption className="mt-3 text-sm" style={{ color: INK_MUTED }}>
+                        {p.caption ?? p.alt}
+                      </figcaption>
+                    )}
+                  </figure>
+                </ScrollReveal>
               ))}
             </div>
           </div>
@@ -381,7 +390,7 @@ export default async function AboutPage({ params }: Props) {
       {testimonials.length > 0 && (
         <section className="py-20 sm:py-28" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-14">
+            <ScrollReveal className="max-w-[640px] mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -394,43 +403,23 @@ export default async function AboutPage({ params }: Props) {
               >
                 Patients on the experience.
               </h2>
-            </div>
+            </ScrollReveal>
             <TestimonialsCarousel testimonials={testimonials} brand={brand} />
           </div>
         </section>
       )}
 
-      {/* ── Closing CTA band ───────────────────────────────────────────── */}
-      <section
-        className="py-20 sm:py-28"
-        style={{ backgroundColor: brand }}
-      >
-        <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-          <h2
-            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-            style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-          >
-            Ready to come see us?
-          </h2>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <a
-              href={bookHref}
-              className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-              style={{ backgroundColor: '#FFFFFF', color: INK }}
-            >
-              {bookLabel}
-            </a>
-            {profile.phone && (
-              <a
-                href={`tel:${profile.phone}`}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-              >
-                {profile.phone}
-              </a>
-            )}
-          </div>
-        </div>
-      </section>
+      <ClosingCTA
+        heading="Ready to come see us?"
+        subhead="Same-week visits are usually possible. We’d love to meet you."
+        primary={{ label: bookLabel, href: bookHref }}
+        secondary={
+          profile.phone
+            ? { label: profile.phone, href: `tel:${profile.phone}` }
+            : undefined
+        }
+        brand={brand}
+      />
 
       </main>
 

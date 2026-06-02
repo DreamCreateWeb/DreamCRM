@@ -3,6 +3,7 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
 import type { ClinicStaff, BlogFaqItem } from '@/lib/types/clinic-content'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { readingTimeMinutes } from '@/lib/utils'
+import ScrollReveal from './scroll-reveal'
 
 const INK = '#1C1A17'
 const INK_MUTED = '#6B635A'
@@ -62,8 +63,12 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
 
   return (
     <article className="max-w-[760px] mx-auto px-5 sm:px-8 py-12 sm:py-16">
-      <a href={`${basePath}/blog`} className="text-[13px] font-medium hover:underline" style={{ color: INK_MUTED }}>
-        ← All posts
+      <a
+        href={`${basePath}/blog`}
+        className="inline-flex items-center gap-1 text-[13px] font-semibold transition-all duration-300 hover:gap-2"
+        style={{ color: brand }}
+      >
+        <span aria-hidden="true">←</span> All posts
       </a>
 
       <header className="mt-6 mb-8">
@@ -73,8 +78,8 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
           </span>
         )}
         <h1
-          className="text-3xl sm:text-[42px] font-bold leading-[1.1] tracking-[-0.02em] mt-3 mb-5"
-          style={{ color: INK }}
+          className="text-3xl sm:text-[42px] lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mt-3 mb-5"
+          style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
         >
           {post.title}
         </h1>
@@ -120,8 +125,14 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
       </header>
 
       {post.coverImageUrl && (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={post.coverImageUrl} alt={post.coverImageAlt ?? ''} className="w-full aspect-[16/9] object-cover rounded-2xl mb-10" />
+        <div className="rounded-2xl overflow-hidden mb-10" style={{ backgroundColor: `${brand}1A` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={post.coverImageUrl}
+            alt={post.coverImageAlt ?? ''}
+            className="w-full aspect-[16/9] object-cover transition duration-700 hover:scale-[1.02]"
+          />
+        </div>
       )}
 
       <div className="prose prose-lg prose-stone max-w-none" style={proseStyle} dangerouslySetInnerHTML={{ __html: firstHalf }} />
@@ -146,8 +157,11 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
       )}
 
       {faq.length > 0 && (
-        <section className="mt-12 pt-8 border-t" style={{ borderColor: BORDER }}>
-          <h2 className="text-2xl font-bold tracking-[-0.01em] mb-5" style={{ color: INK }}>
+        <ScrollReveal as="section" className="mt-12 pt-8 border-t" style={{ borderColor: BORDER }}>
+          <h2
+            className="text-2xl font-semibold tracking-[-0.01em] mb-5"
+            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          >
             Frequently asked questions
           </h2>
           <div className="space-y-6">
@@ -162,11 +176,11 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
               </div>
             ))}
           </div>
-        </section>
+        </ScrollReveal>
       )}
 
       {author?.bio && (
-        <div className="mt-12 pt-8 border-t" style={{ borderColor: BORDER }}>
+        <ScrollReveal className="mt-12 pt-8 border-t" style={{ borderColor: BORDER }}>
           <p className="text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: INK_MUTED }}>
             About the author
           </p>
@@ -185,50 +199,69 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
               </p>
             </div>
           </div>
-        </div>
+        </ScrollReveal>
       )}
 
       {related.length > 0 && (
         <div className="mt-12 pt-8 border-t" style={{ borderColor: BORDER }}>
-          <p className="text-[11px] uppercase tracking-wider font-semibold mb-4" style={{ color: INK_MUTED }}>
-            Keep reading
-          </p>
+          <ScrollReveal>
+            <p
+              className="text-[11px] uppercase tracking-wider font-semibold mb-4"
+              style={{ color: brand }}
+            >
+              Keep reading
+            </p>
+          </ScrollReveal>
           <div className="grid gap-6 sm:grid-cols-3">
-            {related.map((r) => (
-              <a key={r.id} href={`${basePath}/blog/${r.slug}`} className="group">
-                <div className="aspect-[16/10] w-full rounded-xl overflow-hidden mb-3" style={{ backgroundColor: `${brand}1A` }}>
-                  {r.coverImageUrl && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+            {related.map((r, i) => (
+              <ScrollReveal as="div" key={r.id} delay={i * 90}>
+                <a href={`${basePath}/blog/${r.slug}`} className="group block">
+                  <div
+                    className="aspect-[16/10] w-full rounded-xl overflow-hidden mb-3 transition-transform duration-500 group-hover:-translate-y-1"
+                    style={{ backgroundColor: `${brand}1A` }}
+                  >
+                    {r.coverImageUrl && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]" />
+                    )}
+                  </div>
+                  {r.category && (
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: brand }}>
+                      {r.category}
+                    </span>
                   )}
-                </div>
-                {r.category && (
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: brand }}>
-                    {r.category}
-                  </span>
-                )}
-                <p className="text-[15px] font-bold leading-snug mt-1 transition group-hover:opacity-80" style={{ color: INK }}>
-                  {r.title}
-                </p>
-              </a>
+                  <p
+                    className="text-[15px] font-semibold leading-snug mt-1 transition group-hover:opacity-80"
+                    style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  >
+                    {r.title}
+                  </p>
+                </a>
+              </ScrollReveal>
             ))}
           </div>
         </div>
       )}
 
       {/* End CTA */}
-      <div className="mt-12 rounded-2xl p-8 text-center" style={{ backgroundColor: `${brand}14` }}>
-        <p className="text-xl font-bold tracking-[-0.01em] mb-4" style={{ color: INK }}>
+      <ScrollReveal
+        className="mt-12 rounded-2xl p-8 text-center"
+        style={{ backgroundColor: `${brand}14` }}
+      >
+        <p
+          className="text-xl sm:text-2xl font-semibold tracking-[-0.01em] mb-5"
+          style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+        >
           Questions about your smile? We&apos;re happy to help.
         </p>
         <a
           href={bookHref}
-          className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+          className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
           style={{ backgroundColor: brand }}
         >
           Book a Visit
         </a>
-      </div>
+      </ScrollReveal>
     </article>
   )
 }
