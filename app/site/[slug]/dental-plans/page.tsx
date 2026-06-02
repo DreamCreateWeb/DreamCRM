@@ -19,6 +19,8 @@ import {
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 import MembershipJoin from '../membership/membership-join'
 
 /**
@@ -172,14 +174,16 @@ export default async function DentalPlansPage({ params }: Props) {
         {/* ── Plan cards + join form ──────────────────────────────────────── */}
         <section className="py-10 sm:py-16" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[900px] mx-auto px-5 sm:px-8">
-            <MembershipJoin slug={slug} brand={brand} plans={plans} />
+            <ScrollReveal>
+              <MembershipJoin slug={slug} brand={brand} plans={plans} />
+            </ScrollReveal>
           </div>
         </section>
 
         {/* ── Why memberships work — small reassurance band ─────────────── */}
         <section className="py-16 sm:py-20">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-10">
+            <ScrollReveal className="max-w-[640px] mb-10">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -195,7 +199,7 @@ export default async function DentalPlansPage({ params }: Props) {
               >
                 Better than dental insurance, for most people.
               </h2>
-            </div>
+            </ScrollReveal>
             <ul className="grid sm:grid-cols-3 gap-5 sm:gap-6">
               {[
                 {
@@ -213,15 +217,28 @@ export default async function DentalPlansPage({ params }: Props) {
                   body:
                     'Pay one annual or monthly fee, then your visits and discounts are applied automatically at check-out.',
                 },
-              ].map((b) => (
-                <li
+              ].map((b, i) => (
+                <ScrollReveal
+                  as="li"
                   key={b.title}
-                  className="rounded-2xl p-6 sm:p-7"
+                  delay={i * 100}
+                  className="rounded-2xl p-6 sm:p-7 transition-transform duration-300 hover:-translate-y-1 hover:shadow-sm"
                   style={{
                     backgroundColor: SURFACE,
                     border: `1px solid ${BORDER}`,
+                    listStyle: 'none',
                   }}
                 >
+                  <span
+                    className="text-3xl font-bold leading-none tracking-[-0.02em] mb-3 block"
+                    style={{
+                      color: brand,
+                      fontFamily: 'var(--font-display, Georgia, serif)',
+                    }}
+                    aria-hidden="true"
+                  >
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
                   <h3
                     className="text-lg font-semibold mb-2 leading-tight"
                     style={{ color: INK }}
@@ -234,44 +251,23 @@ export default async function DentalPlansPage({ params }: Props) {
                   >
                     {b.body}
                   </p>
-                </li>
+                </ScrollReveal>
               ))}
             </ul>
           </div>
         </section>
 
-        {/* ── Closing CTA band ───────────────────────────────────────────── */}
-        <section className="py-20 sm:py-28" style={{ backgroundColor: brand }}>
-          <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-              style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              Ready to join?
-            </h2>
-            <p className="text-lg leading-[1.6] mb-9 text-white/90">
-              Pick a plan above, or call us with any questions — we are happy
-              to walk through what coverage looks like for your situation.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <a
-                href={bookHref}
-                className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: '#FFFFFF', color: INK }}
-              >
-                {bookLabel}
-              </a>
-              {profile.phone && (
-                <a
-                  href={`tel:${profile.phone}`}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-                >
-                  {profile.phone}
-                </a>
-              )}
-            </div>
-          </div>
-        </section>
+        <ClosingCTA
+          heading="Ready to join?"
+          subhead="Pick a plan above, or call us with any questions — we’re happy to walk through what coverage looks like for your situation."
+          primary={{ label: bookLabel, href: bookHref }}
+          secondary={
+            profile.phone
+              ? { label: profile.phone, href: `tel:${profile.phone}` }
+              : undefined
+          }
+          brand={brand}
+        />
       </main>
 
       <SiteFooter

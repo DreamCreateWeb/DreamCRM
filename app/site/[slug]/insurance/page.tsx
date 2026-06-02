@@ -19,6 +19,9 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import NumberedSteps from '@/components/clinic-site/numbered-steps'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -285,7 +288,7 @@ export default async function InsurancePage({ params }: Props) {
         {/* ── "We're here to help" 4-bullet grid ─────────────────────────── */}
         <section className="py-16 sm:py-20" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-12">
+            <ScrollReveal className="max-w-[640px] mb-12">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -301,13 +304,15 @@ export default async function InsurancePage({ params }: Props) {
               >
                 Benefits, on your side.
               </h2>
-            </div>
+            </ScrollReveal>
             <ul className="grid sm:grid-cols-2 gap-5 sm:gap-7">
-              {HELP_BULLETS.map((b) => (
-                <li
+              {HELP_BULLETS.map((b, i) => (
+                <ScrollReveal
+                  as="li"
                   key={b.title}
-                  className="rounded-2xl p-6 sm:p-7"
-                  style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+                  delay={(i % 2) * 100}
+                  className="rounded-2xl p-6 sm:p-7 transition-transform duration-300 hover:-translate-y-1 hover:shadow-sm"
+                  style={{ backgroundColor: BG, border: `1px solid ${BORDER}`, listStyle: 'none' }}
                 >
                   <div
                     className="inline-flex items-center justify-center w-10 h-10 rounded-full mb-4"
@@ -340,7 +345,7 @@ export default async function InsurancePage({ params }: Props) {
                   >
                     {b.body}
                   </p>
-                </li>
+                </ScrollReveal>
               ))}
             </ul>
           </div>
@@ -515,7 +520,7 @@ export default async function InsurancePage({ params }: Props) {
         {/* ── Insurance process — In-network vs Out-of-network ─────────── */}
         <section className="py-20 sm:py-28">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[700px] mb-14">
+            <ScrollReveal className="max-w-[700px] mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -531,100 +536,28 @@ export default async function InsurancePage({ params }: Props) {
               >
                 The insurance process at {name}.
               </h2>
-            </div>
+            </ScrollReveal>
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-12">
               {/* In-network */}
-              <div>
+              <ScrollReveal>
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: INK_MUTED }}
                 >
                   If we&apos;re in-network with your plan
                 </p>
-                <ol className="space-y-5">
-                  {IN_NETWORK_STEPS.map((step, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-5 rounded-2xl p-6 sm:p-7"
-                      style={{
-                        backgroundColor: SURFACE,
-                        border: `1px solid ${BORDER}`,
-                      }}
-                    >
-                      <span
-                        className="shrink-0 text-3xl font-bold leading-none tracking-[-0.02em]"
-                        style={{
-                          color: brand,
-                          fontFamily: 'var(--font-display, Georgia, serif)',
-                        }}
-                        aria-hidden="true"
-                      >
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <div>
-                        <h3
-                          className="text-lg font-semibold mb-2 leading-tight"
-                          style={{ color: INK }}
-                        >
-                          {step.title}
-                        </h3>
-                        <p
-                          className="text-[15px] leading-[1.6]"
-                          style={{ color: INK_MUTED }}
-                        >
-                          {step.body}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+                <NumberedSteps steps={IN_NETWORK_STEPS} brand={brand} columns={1} />
+              </ScrollReveal>
               {/* Out-of-network */}
-              <div>
+              <ScrollReveal delay={120}>
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: INK_MUTED }}
                 >
                   If we&apos;re out-of-network
                 </p>
-                <ol className="space-y-5">
-                  {OUT_OF_NETWORK_STEPS.map((step, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-5 rounded-2xl p-6 sm:p-7"
-                      style={{
-                        backgroundColor: SURFACE,
-                        border: `1px solid ${BORDER}`,
-                      }}
-                    >
-                      <span
-                        className="shrink-0 text-3xl font-bold leading-none tracking-[-0.02em]"
-                        style={{
-                          color: brand,
-                          fontFamily: 'var(--font-display, Georgia, serif)',
-                        }}
-                        aria-hidden="true"
-                      >
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <div>
-                        <h3
-                          className="text-lg font-semibold mb-2 leading-tight"
-                          style={{ color: INK }}
-                        >
-                          {step.title}
-                        </h3>
-                        <p
-                          className="text-[15px] leading-[1.6]"
-                          style={{ color: INK_MUTED }}
-                        >
-                          {step.body}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+                <NumberedSteps steps={OUT_OF_NETWORK_STEPS} brand={brand} columns={1} />
+              </ScrollReveal>
             </div>
           </div>
         </section>
@@ -735,86 +668,68 @@ export default async function InsurancePage({ params }: Props) {
         {/* ── FAQ accordion ──────────────────────────────────────────────── */}
         <section className="py-16 sm:py-24">
           <div className="max-w-[820px] mx-auto px-5 sm:px-8">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
-              style={{
-                color: brand,
-                fontFamily: 'var(--font-display, Georgia, serif)',
-              }}
-            >
-              Insurance questions, answered.
-            </h2>
+            <ScrollReveal>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
+                style={{
+                  color: brand,
+                  fontFamily: 'var(--font-display, Georgia, serif)',
+                }}
+              >
+                Insurance questions, answered.
+              </h2>
+            </ScrollReveal>
             <div className="space-y-3">
-              {insuranceFaq.map((item) => (
-                <details
-                  key={item.id}
-                  className="group rounded-2xl border overflow-hidden transition"
-                  style={{ backgroundColor: SURFACE, borderColor: BORDER }}
-                >
-                  <summary
-                    className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
-                    style={{ color: INK }}
+              {insuranceFaq.map((item, i) => (
+                <ScrollReveal as="div" key={item.id} delay={i * 45}>
+                  <details
+                    className="group rounded-2xl border overflow-hidden transition hover:shadow-sm"
+                    style={{ backgroundColor: SURFACE, borderColor: BORDER }}
                   >
-                    <span>{item.question}</span>
-                    <span
-                      aria-hidden="true"
-                      className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                      style={{ color: brand }}
+                    <summary
+                      className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
+                      style={{ color: INK }}
                     >
-                      +
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                      style={{ color: brand }}
+                      <span>{item.question}</span>
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
+                        style={{ color: brand }}
+                      >
+                        +
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
+                        style={{ color: brand }}
+                      >
+                        −
+                      </span>
+                    </summary>
+                    <div
+                      className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
+                      style={{ color: INK_MUTED }}
                     >
-                      −
-                    </span>
-                  </summary>
-                  <div
-                    className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
-                    style={{ color: INK_MUTED }}
-                  >
-                    {item.answer}
-                  </div>
-                </details>
+                      {item.answer}
+                    </div>
+                  </details>
+                </ScrollReveal>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── Closing CTA band ───────────────────────────────────────────── */}
-        <section className="py-20 sm:py-28" style={{ backgroundColor: brand }}>
-          <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-              style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              Have more questions?
-            </h2>
-            <p className="text-lg leading-[1.6] mb-9 text-white/90">
-              Call us, book a visit, or message us through the portal — we will
-              walk you through anything insurance-shaped.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <a
-                href={bookHref}
-                className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: '#FFFFFF', color: INK }}
-              >
-                {bookLabel}
-              </a>
-              {profile.phone && (
-                <a
-                  href={`tel:${profile.phone}`}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-                >
-                  {profile.phone}
-                </a>
-              )}
-            </div>
-          </div>
-        </section>
+        <ClosingCTA
+          heading="Have more questions?"
+          subhead="Call us, book a visit, or message us through the portal — we’ll walk you through anything insurance-shaped."
+          primary={{ label: bookLabel, href: bookHref }}
+          secondary={
+            profile.phone
+              ? { label: profile.phone, href: `tel:${profile.phone}` }
+              : undefined
+          }
+          brand={brand}
+        />
       </main>
 
       <SiteFooter

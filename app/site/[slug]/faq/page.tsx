@@ -22,6 +22,8 @@ import {
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -216,46 +218,49 @@ export default async function FaqPage({ params }: Props) {
         <div className="max-w-[820px] mx-auto px-5 sm:px-8 space-y-14">
           {orderedCategories.map((c) => (
             <div key={c} id={`category-${categorySlug(c)}`} className="scroll-mt-32">
-              <h2
-                className="text-2xl sm:text-3xl font-semibold leading-[1.1] mb-6"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-              >
-                {c}
-              </h2>
+              <ScrollReveal>
+                <h2
+                  className="text-2xl sm:text-3xl font-semibold leading-[1.1] mb-6"
+                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                >
+                  {c}
+                </h2>
+              </ScrollReveal>
               <div className="space-y-3">
-                {(grouped.get(c) ?? []).map((item) => (
-                  <details
-                    key={item.id}
-                    className="group rounded-2xl border overflow-hidden transition"
-                    style={{ backgroundColor: SURFACE, borderColor: BORDER }}
-                  >
-                    <summary
-                      className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
-                      style={{ color: INK }}
+                {(grouped.get(c) ?? []).map((item, i) => (
+                  <ScrollReveal as="div" key={item.id} delay={i * 40}>
+                    <details
+                      className="group rounded-2xl border overflow-hidden transition hover:shadow-sm"
+                      style={{ backgroundColor: SURFACE, borderColor: BORDER }}
                     >
-                      <span>{item.question}</span>
-                      <span
-                        aria-hidden="true"
-                        className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                        style={{ color: brand }}
+                      <summary
+                        className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
+                        style={{ color: INK }}
                       >
-                        +
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                        style={{ color: brand }}
+                        <span>{item.question}</span>
+                        <span
+                          aria-hidden="true"
+                          className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
+                          style={{ color: brand }}
+                        >
+                          +
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
+                          style={{ color: brand }}
+                        >
+                          −
+                        </span>
+                      </summary>
+                      <div
+                        className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
+                        style={{ color: INK_MUTED }}
                       >
-                        −
-                      </span>
-                    </summary>
-                    <div
-                      className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
-                      style={{ color: INK_MUTED }}
-                    >
-                      {item.answer}
-                    </div>
-                  </details>
+                        {item.answer}
+                      </div>
+                    </details>
+                  </ScrollReveal>
                 ))}
               </div>
             </div>
@@ -263,41 +268,17 @@ export default async function FaqPage({ params }: Props) {
         </div>
       </section>
 
-      {/* ── Closing CTA band ───────────────────────────────────────────── */}
-      <section
-        className="py-20 sm:py-28"
-        style={{ backgroundColor: brand }}
-      >
-        <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-          <h2
-            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-            style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-          >
-            Still have questions?
-          </h2>
-          <p className="text-lg leading-[1.6] mb-9 text-white/90">
-            We&apos;re happy to talk it through — call us or book a visit and
-            we&apos;ll meet you where you are.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <a
-              href={bookHref}
-              className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-              style={{ backgroundColor: '#FFFFFF', color: INK }}
-            >
-              {bookLabel}
-            </a>
-            {profile.phone && (
-              <a
-                href={`tel:${profile.phone}`}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-              >
-                {profile.phone}
-              </a>
-            )}
-          </div>
-        </div>
-      </section>
+      <ClosingCTA
+        heading="Still have questions?"
+        subhead="We’re happy to talk it through — call us or book a visit and we’ll meet you where you are."
+        primary={{ label: bookLabel, href: bookHref }}
+        secondary={
+          profile.phone
+            ? { label: profile.phone, href: `tel:${profile.phone}` }
+            : undefined
+        }
+        brand={brand}
+      />
 
       </main>
 

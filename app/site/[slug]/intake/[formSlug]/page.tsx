@@ -6,6 +6,7 @@ import {
 } from '@/lib/services/clinic-site'
 import { getFormTemplateBySlug } from '@/lib/services/forms'
 import type { FormTemplateSchema } from '@/lib/types/forms'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import IntakeFormRunner from './intake-form-runner'
 import { submitIntakeForm } from './actions'
 
@@ -85,34 +86,50 @@ export default async function IntakeFormPage({ params }: Props) {
 
       <main className="py-12 sm:py-20">
         <div className="max-w-[720px] mx-auto px-5 sm:px-8">
-          <div className="mb-10">
+          <div className="mb-10 text-center">
             <p
-              className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
+              className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
               style={{ color: brand }}
             >
               Patient intake
             </p>
             <h1
-              className="text-3xl sm:text-4xl font-bold leading-[1.1] tracking-[-0.02em] mb-3"
-              style={{ color: INK }}
+              className="text-[36px] sm:text-[48px] lg:text-[56px] font-semibold leading-[1.06] tracking-[-0.015em] mb-4"
+              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               {template.title}
             </h1>
             {template.description && (
-              <p className="text-lg leading-[1.55]" style={{ color: INK_MUTED }}>
+              <p className="text-lg leading-[1.55] mx-auto max-w-[560px]" style={{ color: INK_MUTED }}>
                 {template.description}
               </p>
             )}
+            <p
+              className="text-xs mt-5 inline-flex items-center gap-1.5"
+              style={{ color: INK_MUTED }}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Takes about 5–10 minutes · Your responses are private
+            </p>
           </div>
 
-          <IntakeFormRunner
-            orgId={data.orgId}
-            templateId={template.id}
-            schema={schema}
-            brand={brand}
-            clinicName={name}
-            action={submitIntakeForm}
-          />
+          <ScrollReveal>
+            <div
+              className="rounded-3xl p-6 sm:p-9 shadow-sm"
+              style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
+            >
+              <IntakeFormRunner
+                orgId={data.orgId}
+                templateId={template.id}
+                schema={schema}
+                brand={brand}
+                clinicName={name}
+                action={submitIntakeForm}
+              />
+            </div>
+          </ScrollReveal>
         </div>
       </main>
 

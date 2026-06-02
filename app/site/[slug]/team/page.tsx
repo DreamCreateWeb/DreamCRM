@@ -24,6 +24,8 @@ import {
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -166,66 +168,68 @@ export default async function TeamPage({ params }: Props) {
                       : 'max-w-sm mx-auto'
                 }`}
               >
-                {staff.map((s) => {
+                {staff.map((s, i) => {
                   const personSlug = resolveStaffSlug(s)
                   const detailHref = personSlug
                     ? `${basePath}/team/${personSlug}`
                     : null
                   return (
-                    <div key={s.id} className="flex flex-col items-center text-center group">
-                      {/* Oval portrait — matches the homepage clinical-team band */}
-                      <div
-                        className="relative w-[200px] h-[240px] sm:w-[220px] sm:h-[260px] mb-5 transition-transform duration-300 group-hover:-translate-y-0.5"
-                        style={{
-                          borderRadius: '50%',
-                          overflow: 'hidden',
-                          backgroundColor: BORDER,
-                        }}
-                      >
-                        {s.photoUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={s.photoUrl}
-                            alt={s.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div
-                            className="w-full h-full flex items-center justify-center text-5xl font-bold"
-                            style={{
-                              background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
-                              color: brand,
-                            }}
-                            aria-label={s.name}
+                    <ScrollReveal as="div" key={s.id} delay={(i % 3) * 100}>
+                      <div className="flex flex-col items-center text-center group">
+                        {/* Oval portrait — matches the homepage clinical-team band */}
+                        <div
+                          className="relative w-[200px] h-[240px] sm:w-[220px] sm:h-[260px] mb-5 transition-transform duration-500 group-hover:scale-[1.04]"
+                          style={{
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            backgroundColor: BORDER,
+                          }}
+                        >
+                          {s.photoUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={s.photoUrl}
+                              alt={s.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className="w-full h-full flex items-center justify-center text-5xl font-bold"
+                              style={{
+                                background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
+                                color: brand,
+                              }}
+                              aria-label={s.name}
+                            >
+                              {staffInitials(s.name)}
+                            </div>
+                          )}
+                        </div>
+                        {s.title && (
+                          <p
+                            className="text-[13px] font-semibold uppercase tracking-[0.12em] mb-2"
+                            style={{ color: INK_MUTED }}
                           >
-                            {staffInitials(s.name)}
-                          </div>
+                            {s.title}
+                          </p>
+                        )}
+                        <h2
+                          className="text-2xl sm:text-[28px] font-semibold leading-tight mb-3"
+                          style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                        >
+                          {s.name}
+                        </h2>
+                        {detailHref && (
+                          <a
+                            href={detailHref}
+                            className="text-sm font-semibold inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
+                            style={{ color: brand }}
+                          >
+                            More <span aria-hidden="true">→</span>
+                          </a>
                         )}
                       </div>
-                      {s.title && (
-                        <p
-                          className="text-[13px] font-semibold uppercase tracking-[0.12em] mb-2"
-                          style={{ color: INK_MUTED }}
-                        >
-                          {s.title}
-                        </p>
-                      )}
-                      <h2
-                        className="text-2xl sm:text-[28px] font-semibold leading-tight mb-3"
-                        style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
-                      >
-                        {s.name}
-                      </h2>
-                      {detailHref && (
-                        <a
-                          href={detailHref}
-                          className="text-sm font-semibold inline-flex items-center gap-1 transition hover:gap-2"
-                          style={{ color: brand }}
-                        >
-                          More <span aria-hidden="true">→</span>
-                        </a>
-                      )}
-                    </div>
+                    </ScrollReveal>
                   )
                 })}
               </div>
@@ -250,37 +254,17 @@ export default async function TeamPage({ params }: Props) {
           </section>
         )}
 
-        {/* ── Closing CTA band ───────────────────────────────────────────── */}
-        <section
-          className="py-20 sm:py-28"
-          style={{ backgroundColor: brand }}
-        >
-          <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-              style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              It&apos;s a pleasure to meet you.
-            </h2>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <a
-                href={bookHref}
-                className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: '#FFFFFF', color: INK }}
-              >
-                {bookLabel}
-              </a>
-              {profile.phone && (
-                <a
-                  href={`tel:${profile.phone}`}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-                >
-                  {profile.phone}
-                </a>
-              )}
-            </div>
-          </div>
-        </section>
+        <ClosingCTA
+          heading="It’s a pleasure to meet you."
+          subhead="Book with any member of the team — same week is usually possible."
+          primary={{ label: bookLabel, href: bookHref }}
+          secondary={
+            profile.phone
+              ? { label: profile.phone, href: `tel:${profile.phone}` }
+              : undefined
+          }
+          brand={brand}
+        />
       </main>
 
       <SiteFooter

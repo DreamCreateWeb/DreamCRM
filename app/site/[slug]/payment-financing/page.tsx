@@ -26,6 +26,9 @@ import {
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import NumberedSteps from '@/components/clinic-site/numbered-steps'
+import ClosingCTA from '@/components/clinic-site/closing-cta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -66,6 +69,25 @@ export async function generateMetadata({ params }: Props) {
       : undefined,
   }
 }
+
+// Universal "How it works" steps for the payment band.
+const HOW_IT_WORKS_STEPS: Array<{ title: string; body: string }> = [
+  {
+    title: 'You get an estimate upfront',
+    body:
+      'Before treatment begins, we walk through exactly what your visit will cost and what your insurance covers. You decide before we start.',
+  },
+  {
+    title: 'You pay at the end of the visit',
+    body:
+      'Your patient portion is due at check-out. We accept most modern payment methods, including HSA and FSA cards for eligible care.',
+  },
+  {
+    title: 'You see every receipt in your portal',
+    body:
+      'Every itemized receipt, claim status, and statement lives in your patient portal — so there is always a clear record.',
+  },
+]
 
 // Universal billing-category FAQ fallbacks rendered when a clinic hasn't
 // authored Billing FAQ items. Warm voice, no fake numbers.
@@ -238,78 +260,21 @@ export default async function PaymentFinancingPage({ params }: Props) {
         {/* ── How patients pay — universal explainer (no marketing pitch) ── */}
         <section className="py-16 sm:py-20" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-12">
-              <p
-                className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
-              >
-                How it works
-              </p>
-              <h2
-                className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{
-                  color: brand,
-                  fontFamily: 'var(--font-display, Georgia, serif)',
-                }}
-              >
-                Honest billing, every visit.
-              </h2>
-            </div>
-            <ol className="grid sm:grid-cols-3 gap-5 sm:gap-6">
-              {[
-                {
-                  title: 'You get an estimate upfront',
-                  body:
-                    'Before treatment begins, we walk through exactly what your visit will cost and what your insurance covers. You decide before we start.',
-                },
-                {
-                  title: 'You pay at the end of the visit',
-                  body:
-                    'Your patient portion is due at check-out. We accept most modern payment methods, including HSA and FSA cards for eligible care.',
-                },
-                {
-                  title: 'You see every receipt in your portal',
-                  body:
-                    'Every itemized receipt, claim status, and statement lives in your patient portal — so there is always a clear record.',
-                },
-              ].map((step, i) => (
-                <li
-                  key={i}
-                  className="rounded-2xl p-6 sm:p-7"
-                  style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
-                >
-                  <span
-                    className="text-3xl font-bold leading-none tracking-[-0.02em] mb-3 block"
-                    style={{
-                      color: brand,
-                      fontFamily: 'var(--font-display, Georgia, serif)',
-                    }}
-                    aria-hidden="true"
-                  >
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <h3
-                    className="text-lg font-semibold mb-2 leading-tight"
-                    style={{ color: INK }}
-                  >
-                    {step.title}
-                  </h3>
-                  <p
-                    className="text-[15px] leading-[1.6]"
-                    style={{ color: INK_MUTED }}
-                  >
-                    {step.body}
-                  </p>
-                </li>
-              ))}
-            </ol>
+            <NumberedSteps
+              steps={HOW_IT_WORKS_STEPS}
+              brand={brand}
+              columns={3}
+              eyebrow="How it works"
+              heading="Honest billing, every visit."
+              surface="bg"
+            />
           </div>
         </section>
 
         {/* ── Payment methods — pill grid ─────────────────────────────────── */}
         <section className="py-20 sm:py-24">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-            <div className="max-w-[640px] mb-10">
+            <ScrollReveal className="max-w-[640px] mb-10">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
@@ -325,15 +290,18 @@ export default async function PaymentFinancingPage({ params }: Props) {
               >
                 We accept the way you want to pay.
               </h2>
-            </div>
+            </ScrollReveal>
             <ul className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-              {paymentMethods.map((method) => (
-                <li
+              {paymentMethods.map((method, i) => (
+                <ScrollReveal
+                  as="li"
                   key={method}
-                  className="flex items-center gap-3 rounded-2xl px-5 py-4"
+                  delay={(i % 4) * 60}
+                  className="flex items-center gap-3 rounded-2xl px-5 py-4 transition hover:shadow-sm"
                   style={{
                     backgroundColor: SURFACE,
                     border: `1px solid ${BORDER}`,
+                    listStyle: 'none',
                   }}
                 >
                   <span
@@ -363,7 +331,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
                   >
                     {method}
                   </span>
-                </li>
+                </ScrollReveal>
               ))}
             </ul>
           </div>
@@ -407,7 +375,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
         {financingPartners.length > 0 && (
           <section className="py-20 sm:py-28">
             <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
-              <div className="max-w-[640px] mb-12">
+              <ScrollReveal className="max-w-[640px] mb-12">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: brand }}
@@ -431,12 +399,14 @@ export default async function PaymentFinancingPage({ params }: Props) {
                   you spread payments over time with terms that work for your
                   budget.
                 </p>
-              </div>
+              </ScrollReveal>
               <div className="grid gap-5 sm:gap-6 sm:grid-cols-2">
-                {financingPartners.map((p) => (
-                  <div
+                {financingPartners.map((p, i) => (
+                  <ScrollReveal
+                    as="div"
                     key={p.id}
-                    className="rounded-2xl p-6 sm:p-7 flex flex-col"
+                    delay={(i % 2) * 110}
+                    className="rounded-2xl p-6 sm:p-7 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
                     style={{
                       backgroundColor: SURFACE,
                       border: `1px solid ${BORDER}`,
@@ -479,14 +449,14 @@ export default async function PaymentFinancingPage({ params }: Props) {
                         href={p.applyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-semibold mt-auto self-start"
+                        className="inline-flex items-center gap-1 text-sm font-semibold mt-auto self-start transition-all duration-300 hover:gap-2"
                         style={{ color: brand }}
                       >
                         Learn more
                         <span aria-hidden="true">→</span>
                       </a>
                     )}
-                  </div>
+                  </ScrollReveal>
                 ))}
               </div>
             </div>
@@ -535,86 +505,68 @@ export default async function PaymentFinancingPage({ params }: Props) {
         {/* ── FAQ accordion ──────────────────────────────────────────────── */}
         <section className="py-16 sm:py-24">
           <div className="max-w-[820px] mx-auto px-5 sm:px-8">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
-              style={{
-                color: brand,
-                fontFamily: 'var(--font-display, Georgia, serif)',
-              }}
-            >
-              Billing questions, answered.
-            </h2>
+            <ScrollReveal>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
+                style={{
+                  color: brand,
+                  fontFamily: 'var(--font-display, Georgia, serif)',
+                }}
+              >
+                Billing questions, answered.
+              </h2>
+            </ScrollReveal>
             <div className="space-y-3">
-              {billingFaq.map((item) => (
-                <details
-                  key={item.id}
-                  className="group rounded-2xl border overflow-hidden transition"
-                  style={{ backgroundColor: SURFACE, borderColor: BORDER }}
-                >
-                  <summary
-                    className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
-                    style={{ color: INK }}
+              {billingFaq.map((item, i) => (
+                <ScrollReveal as="div" key={item.id} delay={i * 45}>
+                  <details
+                    className="group rounded-2xl border overflow-hidden transition hover:shadow-sm"
+                    style={{ backgroundColor: SURFACE, borderColor: BORDER }}
                   >
-                    <span>{item.question}</span>
-                    <span
-                      aria-hidden="true"
-                      className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                      style={{ color: brand }}
+                    <summary
+                      className="cursor-pointer list-none px-6 py-5 text-base sm:text-lg font-semibold leading-snug flex items-start justify-between gap-4"
+                      style={{ color: INK }}
                     >
-                      +
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                      style={{ color: brand }}
+                      <span>{item.question}</span>
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
+                        style={{ color: brand }}
+                      >
+                        +
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
+                        style={{ color: brand }}
+                      >
+                        −
+                      </span>
+                    </summary>
+                    <div
+                      className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
+                      style={{ color: INK_MUTED }}
                     >
-                      −
-                    </span>
-                  </summary>
-                  <div
-                    className="px-6 pb-6 -mt-1 text-[15px] sm:text-base leading-[1.65]"
-                    style={{ color: INK_MUTED }}
-                  >
-                    {item.answer}
-                  </div>
-                </details>
+                      {item.answer}
+                    </div>
+                  </details>
+                </ScrollReveal>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── Closing CTA band ───────────────────────────────────────────── */}
-        <section className="py-20 sm:py-28" style={{ backgroundColor: brand }}>
-          <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
-              style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              Questions about your bill?
-            </h2>
-            <p className="text-lg leading-[1.6] mb-9 text-white/90">
-              Reach out — we will walk you through anything that does not look
-              right.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <a
-                href={bookHref}
-                className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: '#FFFFFF', color: INK }}
-              >
-                {bookLabel}
-              </a>
-              {profile.phone && (
-                <a
-                  href={`tel:${profile.phone}`}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium text-white border border-white/40 transition hover:bg-white/10"
-                >
-                  {profile.phone}
-                </a>
-              )}
-            </div>
-          </div>
-        </section>
+        <ClosingCTA
+          heading="Questions about your bill?"
+          subhead="Reach out — we’ll walk you through anything that doesn’t look right."
+          primary={{ label: bookLabel, href: bookHref }}
+          secondary={
+            profile.phone
+              ? { label: profile.phone, href: `tel:${profile.phone}` }
+              : undefined
+          }
+          brand={brand}
+        />
       </main>
 
       <SiteFooter
