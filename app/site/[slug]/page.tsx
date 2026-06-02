@@ -9,6 +9,8 @@ import {
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getCompletedReviewCount } from '@/lib/services/reviews'
+import { getOpenJobs } from '@/lib/services/careers'
+import type { ClinicStaff } from '@/lib/types/clinic-content'
 import ModernTemplate from '@/components/clinic-site/modern-template'
 
 interface Props {
@@ -61,11 +63,13 @@ export default async function ClinicSitePage({ params }: Props) {
 
   const basePath = await resolveSiteBasePath(slug)
   const jsonLd = clinicJsonLd(data)
-  const [publishedPosts, reviewCount, membershipPlans] = await Promise.all([
+  const [publishedPosts, reviewCount, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 3 }),
     getCompletedReviewCount(data.orgId),
     listActivePlans(data.orgId),
+    getOpenJobs(data.orgId),
   ])
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   return (
     <>
@@ -84,6 +88,8 @@ export default async function ClinicSitePage({ params }: Props) {
         recentPosts={publishedPosts}
         reviewCount={reviewCount}
         hasDentalPlans={membershipPlans.length > 0}
+        hasCareers={openJobs.length > 0}
+        hasTeam={hasTeam}
       />
     </>
   )

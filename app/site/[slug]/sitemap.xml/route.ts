@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
+import type { ClinicStaff } from '@/lib/types/clinic-content'
+import { staffSlug as resolveStaffSlug } from '@/lib/clinic-site-helpers'
 
 interface Params {
   slug: string
@@ -82,6 +84,30 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       changefreq: 'monthly',
       priority: '0.7',
     })
+  }
+
+  // /team — included when the clinic has ≥1 staff entry. Per-staff detail
+  // pages get their own URLs (one entry per staff member). Empty staff =
+  // the /team index renders a placeholder; we don't include it in the
+  // sitemap when there's nothing to surface.
+  const staff = (data.profile.staff as ClinicStaff[] | null) ?? []
+  if (staff.length > 0) {
+    urls.push({
+      loc: `${base}/team`,
+      lastmod,
+      changefreq: 'monthly',
+      priority: '0.7',
+    })
+    for (const s of staff) {
+      const personSlug = resolveStaffSlug(s)
+      if (!personSlug) continue
+      urls.push({
+        loc: `${base}/team/${personSlug}`,
+        lastmod,
+        changefreq: 'monthly',
+        priority: '0.5',
+      })
+    }
   }
 
   // Published blog posts + the blog index (only when there's something to show).

@@ -7,7 +7,8 @@ import {
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
-import type { ClinicService, ClinicTestimonial } from '@/lib/types/clinic-content'
+import { getOpenJobs } from '@/lib/services/careers'
+import type { ClinicService, ClinicStaff, ClinicTestimonial } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import {
   resolveClinicServices,
@@ -86,12 +87,15 @@ export default async function ServiceDetailPage({ params }: Props) {
   const { data, name, resolved, service } = ctx
 
   const basePath = await resolveSiteBasePath(slug)
-  const [publishedPosts, membershipPlans] = await Promise.all([
+  const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
+    getOpenJobs(data.orgId),
   ])
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
+  const hasCareers = openJobs.length > 0
+  const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   const { profile } = data
   const brand = profile.brandColor ?? '#9CAF9F'
@@ -104,6 +108,8 @@ export default async function ServiceDetailPage({ params }: Props) {
     basePath,
     hasBlog,
     hasDentalPlans,
+    hasTeam,
+    hasCareers,
     services: resolved.map((s) => ({
       name: s.name,
       routingSlug: s.routingSlug,

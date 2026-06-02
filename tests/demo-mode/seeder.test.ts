@@ -326,6 +326,13 @@ describe('createDemoClinic', () => {
     ).toBe(true)
     expect(typeof patch.cancellationPolicy).toBe('string')
     expect((patch.cancellationPolicy as string).length).toBeGreaterThan(20)
+    // Staff self-heal (Checkpoint 3) — the patch must include the curated
+    // DEMO_STAFF array when the column was null on the legacy demo, so the
+    // /team page + per-staff detail pages light up with realistic content.
+    expect(Array.isArray((patch as { staff?: unknown }).staff)).toBe(true)
+    const staff = (patch as { staff: Array<{ name: string; specialties?: unknown }> }).staff
+    expect(staff.length).toBeGreaterThan(0)
+    expect(staff.some((s) => s.name === 'Dr. Jordan Reyes')).toBe(true)
     // appointment.source backfill present
     expect(state.updates.some((u) => (u.set as { source?: string }).source === 'manual')).toBe(true)
   })
@@ -351,6 +358,18 @@ describe('createDemoClinic', () => {
         paymentMethods: ['Custom payment'],
         financingPartners: [{ id: 'cust', name: 'Custom Lender' }],
         cancellationPolicy: 'Clinic-edited custom policy text.',
+        // Staff with a clinic-edited new-field present — exercises the
+        // "skip overwrite" branch of the staff self-heal. Any one of the new
+        // optional fields being set marks the row as clinic-edited.
+        staff: [
+          {
+            id: 'p1',
+            name: 'Dr. Custom Hire',
+            title: 'Dentist',
+            bio: 'A real clinic edited this entry.',
+            credentials: 'DDS',
+          },
+        ],
       },
     ])
     state.selectQueue.push([{ id: 'form_existing' }])
@@ -420,12 +439,19 @@ describe('createDemoClinic', () => {
         (u.set as { cancellationPolicy?: unknown }).cancellationPolicy !== undefined,
     )
     expect(policyOverwrite).toBeUndefined()
+    // Staff self-heal (Checkpoint 3) — when a clinic has edited the staff row
+    // (any new field set on any entry), the self-heal must NOT overwrite it.
+    const staffOverwrite = state.updates.find(
+      (u) => (u.set as { staff?: unknown }).staff !== undefined,
+    )
+    expect(staffOverwrite).toBeUndefined()
     // Defensive: if a patch did fire, double-check the field isn't on it.
     if (profilePatch) {
       expect(profilePatch.acceptedInsuranceCarriers).toBeUndefined()
       expect(profilePatch.paymentMethods).toBeUndefined()
       expect(profilePatch.financingPartners).toBeUndefined()
       expect(profilePatch.cancellationPolicy).toBeUndefined()
+      expect((profilePatch as { staff?: unknown }).staff).toBeUndefined()
     }
   })
 

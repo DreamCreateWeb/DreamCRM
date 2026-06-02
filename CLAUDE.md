@@ -700,7 +700,7 @@ Public clinic surfaces also live:
 - `{slug}.dreamcreatestudio.com/services` + `/services/[serviceSlug]` —
   Tend-style service index + per-service detail page (1A + 1B)
 
-## Tend-clone service library + Patients dropdown (Checkpoints 1A + 1B + 2)
+## Tend-clone service library + Patients dropdown + About dropdown (Checkpoints 1A + 1B + 2 + 3)
 
 Per DESIGN.md "the website is the trunk" + the Tend.com aesthetic, every
 clinic gets a full per-service detail page, not just a card on the strip
@@ -880,6 +880,99 @@ passes `hasDentalPlans` into `buildClinicNavLinks`.
   three children),
   `tests/demo-mode/seeder.test.ts` extended to verify the new
   self-heal columns + the no-overwrite guarantee.
+
+**Checkpoint 3 (shipped):** `/team` index + per-staff detail pages +
+About-dropdown consolidation. Per Tend's "Meet Our Dentists" pattern, the
+flat About/FAQ/Blog top-level nav collapses into a single **About**
+dropdown carrying About · Meet Our Team · Blog · Careers · FAQ. FAQ and
+Blog are NO LONGER top-level — they live only inside About.
+- **New routes:**
+  - `app/site/[slug]/team/page.tsx` — Tend's `/dentists` pattern. Hero
+    ("Meet the team at {clinic}" with the first sentence of `about` or a
+    universal warm intro), 1/2/3-column responsive grid of oval-portrait
+    cards (matching the homepage clinical-team band), each with title +
+    name + "More →" link to the per-person detail page. Empty-staff
+    state renders a "coming soon" placeholder rather than 404 (so direct
+    nav hits don't break), but the nav dropdown only surfaces the link
+    when `staff.length > 0`. SiteHeader + footer + closing CTA band
+    match every other clinic page.
+  - `app/site/[slug]/team/[staffSlug]/page.tsx` — per-staff detail page.
+    2-col hero (oval portrait + copy block: eyebrow / back-to-team /
+    H1 name in Fraunces brand color / title+credentials line / bio /
+    Book CTA labeled "Book with {firstName}" stripping honorifics).
+    Specialties pill list (forest-teal accent, only renders when set),
+    "Outside the office" fun-fact card (only renders when present),
+    closing CTA band. Resolves staffSlug against an explicit
+    `staff.slug` override OR `kebab(staff.name)` fallback — explicit slug
+    is checked first so renaming a staff member doesn't break links if
+    they set a stable slug. `notFound()` on unknown slug. Emits Person
+    JSON-LD (`@type:'Person'`, `worksFor:{@type:'Dentist', name:clinic}`)
+    for people-search SEO.
+- **Type changes (NO migration — `clinic_profile.staff` is jsonb):**
+  `ClinicStaff` in `lib/types/clinic-content.ts` adds 5 optional fields
+  — `slug?` (URL override), `credentials?` ("DDS · 12 years experience"),
+  `specialties?` (string[]), `funFact?` (single-line humanizing detail),
+  `bookHref?` (per-staff booking URL override). All optional; detail page
+  renders gracefully when absent.
+- **Shared slug helper:** `staffSlug({slug?, name})` in
+  `lib/clinic-site-helpers.ts` — explicit-override-then-derived. Re-used
+  by the /team index (per-card link), the [staffSlug] resolver
+  (param-to-staff match), and the sitemap.xml route (per-staff URL).
+- **Nav restructure:** `buildClinicNavLinks` signature gains `hasTeam?:
+  boolean` + `hasCareers?: boolean` (mirror the existing `hasBlog` +
+  `hasDentalPlans` pattern, default false). About is now the canonical
+  dropdown parent — children in Tend's order: About → Meet Our Team
+  (gated `hasTeam`) → Blog (gated `hasBlog`) → Careers (gated
+  `hasCareers`) → FAQ (always — universal defaults render even when
+  the clinic hasn't authored items). FAQ + Blog removed from top-level.
+- **All 11 SiteHeader call sites threaded** with the two new booleans —
+  page wrappers do the loads in parallel (`Promise.all`):
+  `getOpenJobs(orgId)` for Careers (returns `length > 0`), plus
+  `(profile.staff ?? []).length > 0` for Team (no extra DB call — staff
+  already loaded with the profile). Each call site is the page that
+  matters: `app/site/[slug]/{about,book,careers,careers/[jobSlug],
+  dental-plans,faq,insurance,page (home → ModernTemplate wrapper),
+  payment-financing,services,services/[serviceSlug]}/page.tsx` plus
+  `components/clinic-site/modern-template.tsx` (sync, receives
+  `hasTeam` + `hasCareers` as props from the home wrapper).
+- **Settings editor** (`app/(default)/settings/clinic/staff-editor.tsx`)
+  — surfaces all 5 new fields per staff row: slug (text, placeholder
+  shows the auto-derived kebab), credentials (text), specialties
+  (textarea, newline/comma split), funFact (text), bookHref (text,
+  optional). All flow through the existing `updateClinicProfile` server
+  action (jsonb column accepts the extended type as-is).
+- **Demo seeding** — `DEMO_STAFF` in `lib/services/demo-clinic.ts` carries
+  5 staff (lead dentist with explicit slug + cosmetic dentist with
+  derived slug + 2 hygienists + office manager) — each with credentials,
+  specialties, fun-facts to exercise every code branch on the detail
+  page (Dr. Reyes has all fields populated; Maria has bio+credentials+
+  specialties; Casey has bio+funFact but no specialties; Renee has
+  credentials+specialties but no funFact). Self-heal block backfills:
+  (1) replaces null / empty / all-legacy-minimal staff arrays with
+  DEMO_STAFF wholesale; (2) targeted in-place upgrade — for each
+  stored entry whose new optional fields are ALL absent, looks up by id
+  and backfills from DEMO_STAFF; entries with ANY new field set are
+  treated as clinic-edited and skipped.
+- **Sitemap** — `app/site/[slug]/sitemap.xml/route.ts` emits `/team`
+  (when staff exists) + one URL per staff member with the resolved slug.
+- **Tests** —
+  `tests/clinic-site/team-page.test.tsx` (H1 / each staff renders /
+  More links use explicit + derived slug / empty-staff renders
+  placeholder not 404 / hero subhead pulls about first sentence /
+  fallback warm copy when about is null / chrome present),
+  `tests/clinic-site/team-staff-page.test.tsx` (resolves by explicit
+  slug / derived slug / renders credentials+specialties+funFact /
+  hides those sections when absent / per-staff bookHref override /
+  Book label strips honorific / Back-to-team href / Person JSON-LD
+  worksFor:Dentist / notFound on unknown slug / notFound on empty
+  staff list),
+  `tests/clinic-site/site-header.test.tsx` extended with an "About
+  dropdown" describe block (universal floor About+FAQ children render
+  always / Team/Blog/Careers gate correctly on their booleans / About
+  dropdown toggle renders / mobile sub-nav renders all children /
+  FAQ+Blog NO LONGER top-level),
+  `tests/demo-mode/seeder.test.ts` extended (self-heal patch carries
+  DEMO_STAFF when null + skips staff overwrite when clinic-edited).
 
 ## What's NOT yet wired (priorities for next session)
 
