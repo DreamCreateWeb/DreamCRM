@@ -7,6 +7,7 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
 import { getCompletedReviewCount } from '@/lib/services/reviews'
 import ModernTemplate from '@/components/clinic-site/modern-template'
 
@@ -60,9 +61,10 @@ export default async function ClinicSitePage({ params }: Props) {
 
   const basePath = await resolveSiteBasePath(slug)
   const jsonLd = clinicJsonLd(data)
-  const [publishedPosts, reviewCount] = await Promise.all([
+  const [publishedPosts, reviewCount, membershipPlans] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 3 }),
     getCompletedReviewCount(data.orgId),
+    listActivePlans(data.orgId),
   ])
 
   return (
@@ -81,6 +83,7 @@ export default async function ClinicSitePage({ params }: Props) {
         hasBlog={publishedPosts.length > 0}
         recentPosts={publishedPosts}
         reviewCount={reviewCount}
+        hasDentalPlans={membershipPlans.length > 0}
       />
     </>
   )

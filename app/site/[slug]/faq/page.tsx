@@ -6,6 +6,7 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
 import type { ClinicFaqItem, ClinicService } from '@/lib/types/clinic-content'
 import {
   DEFAULT_FAQ_ITEMS,
@@ -71,8 +72,12 @@ export default async function FaqPage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
-  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
+  const [publishedPosts, membershipPlans] = await Promise.all([
+    listPublishedPosts(data.orgId, { limit: 1 }),
+    listActivePlans(data.orgId),
+  ])
   const hasBlog = publishedPosts.length > 0
+  const hasDentalPlans = membershipPlans.length > 0
 
   const { profile } = data
   const brand = profile.brandColor ?? '#9CAF9F'
@@ -84,6 +89,7 @@ export default async function FaqPage({ params }: Props) {
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
+    hasDentalPlans,
     services: navServicesFromClinicServices(
       (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),

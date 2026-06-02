@@ -6,6 +6,7 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
 import type { ClinicService, ClinicTestimonial } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import {
@@ -85,8 +86,12 @@ export default async function ServiceDetailPage({ params }: Props) {
   const { data, name, resolved, service } = ctx
 
   const basePath = await resolveSiteBasePath(slug)
-  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
+  const [publishedPosts, membershipPlans] = await Promise.all([
+    listPublishedPosts(data.orgId, { limit: 1 }),
+    listActivePlans(data.orgId),
+  ])
   const hasBlog = publishedPosts.length > 0
+  const hasDentalPlans = membershipPlans.length > 0
 
   const { profile } = data
   const brand = profile.brandColor ?? '#9CAF9F'
@@ -98,6 +103,7 @@ export default async function ServiceDetailPage({ params }: Props) {
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
+    hasDentalPlans,
     services: resolved.map((s) => ({
       name: s.name,
       routingSlug: s.routingSlug,

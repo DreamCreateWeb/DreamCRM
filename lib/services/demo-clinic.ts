@@ -831,6 +831,45 @@ const DEMO_INSURANCE_CARRIERS: string[] = [
   'United Healthcare (UHC)',
 ]
 
+// Acme demo payment-method list — matches DEFAULT_PAYMENT_METHODS in shape
+// but is duplicated here so the seeded demo doesn't drift if the universal
+// fallback ever moves. Same 5 entries every US dental practice can claim.
+const DEMO_PAYMENT_METHODS: string[] = [
+  'Cash',
+  'Credit & debit cards',
+  'HSA / FSA cards',
+  'Apple Pay & Google Pay',
+  'ACH bank transfer',
+]
+
+// Two demo financing partners — the two most common in US dental
+// (CareCredit + Sunbit). applyUrl points at each company's homepage (NOT
+// a hotlink-protected affiliate URL we don't control) so the demo render
+// stays stable.
+const DEMO_FINANCING_PARTNERS = [
+  {
+    id: 'fp-carecredit',
+    name: 'CareCredit',
+    description:
+      'Health & wellness credit card with promotional 0% APR financing for qualifying purchases over $200.',
+    applyUrl: 'https://www.carecredit.com',
+    logoUrl: null,
+  },
+  {
+    id: 'fp-sunbit',
+    name: 'Sunbit',
+    description:
+      'Soft credit check, fast pre-approval, flexible monthly payments for treatment plans of any size.',
+    applyUrl: 'https://www.sunbit.com',
+    logoUrl: null,
+  },
+]
+
+// Warm, demo-clinic cancellation policy. Plain prose, no specific dollar
+// amounts — each real clinic fills theirs in.
+const DEMO_CANCELLATION_POLICY =
+  "We ask for 24 hours notice when you need to cancel or reschedule. Life happens, so we'll always try to work with you — just call or message us as soon as you know. If you no-show without letting us know, we may ask for a small deposit to hold your next visit. We promise to be reasonable about it."
+
 /**
  * Self-heal helper for legacy demos that seeded the hardcoded "8,000+
  * five-star reviews" stat before the `dynamic: 'review_count'` pattern
@@ -1099,6 +1138,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         differenceVideoUrl: schema.clinicProfile.differenceVideoUrl,
         faq: schema.clinicProfile.faq,
         acceptedInsuranceCarriers: schema.clinicProfile.acceptedInsuranceCarriers,
+        paymentMethods: schema.clinicProfile.paymentMethods,
+        financingPartners: schema.clinicProfile.financingPartners,
+        cancellationPolicy: schema.clinicProfile.cancellationPolicy,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1218,6 +1260,19 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       stored.every((c) => currentSet.has(c))
     if (stored === null || isStaleDemoSubset) {
       patch.acceptedInsuranceCarriers = DEMO_INSURANCE_CARRIERS
+    }
+    // Patients dropdown backfill (migration 0041 — Checkpoint 2). Legacy
+    // demos predate the /insurance + /payment-financing + /dental-plans
+    // pages and have null for paymentMethods / financingPartners /
+    // cancellationPolicy. Seed all three so the demo exercises the full
+    // Patients dropdown render path. Each column only backfills when
+    // null — a real clinic that hand-edited any of these stays untouched.
+    if (!profile?.paymentMethods) patch.paymentMethods = DEMO_PAYMENT_METHODS
+    if (!profile?.financingPartners) {
+      patch.financingPartners = DEMO_FINANCING_PARTNERS
+    }
+    if (!profile?.cancellationPolicy) {
+      patch.cancellationPolicy = DEMO_CANCELLATION_POLICY
     }
     if (Object.keys(patch).length > 0) {
       await db
@@ -1600,6 +1655,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     officePhotos: DEMO_OFFICE_PHOTOS,
     faq: DEFAULT_FAQ_ITEMS,
     acceptedInsuranceCarriers: DEMO_INSURANCE_CARRIERS,
+    paymentMethods: DEMO_PAYMENT_METHODS,
+    financingPartners: DEMO_FINANCING_PARTNERS,
+    cancellationPolicy: DEMO_CANCELLATION_POLICY,
     planTier: 'premium',
     subscriptionStatus: 'active',
   })

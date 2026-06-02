@@ -67,6 +67,9 @@ function makeData(
       officePhotos: null,
       faq: null,
       acceptedInsuranceCarriers: null,
+      paymentMethods: null,
+      financingPartners: null,
+      cancellationPolicy: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,
@@ -89,6 +92,10 @@ vi.mock('@/lib/services/clinic-site', async () => {
 
 vi.mock('@/lib/services/blog', () => ({
   listPublishedPosts: vi.fn(async () => []),
+}))
+
+vi.mock('@/lib/services/membership', () => ({
+  listActivePlans: vi.fn(async () => []),
 }))
 
 import ServicesPage from '@/app/site/[slug]/services/page'

@@ -57,6 +57,9 @@ function makeData(services: ClinicService[]): ClinicSiteData {
       officePhotos: null,
       faq: null,
       acceptedInsuranceCarriers: null,
+      paymentMethods: null,
+      financingPartners: null,
+      cancellationPolicy: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as ClinicSiteData['profile'],
@@ -85,6 +88,10 @@ vi.mock('@/lib/services/clinic-site', async () => {
 
 vi.mock('@/lib/services/blog', () => ({
   listPublishedPosts: vi.fn(async () => []),
+}))
+
+vi.mock('@/lib/services/membership', () => ({
+  listActivePlans: vi.fn(async () => []),
 }))
 
 import ServiceDetailPage from '@/app/site/[slug]/services/[serviceSlug]/page'

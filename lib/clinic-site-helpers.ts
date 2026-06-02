@@ -77,14 +77,26 @@ export interface NavService {
  *     has no core services (parent still links to the index).
  *   • "Special Services" parent → ONLY when the clinic offers ≥1 special
  *     service; children = those special services.
+ *   • "Patients" parent → /insurance · /payment-financing · /dental-plans (the
+ *     last only when `hasDentalPlans=true`; we don't surface a dental-plans
+ *     link when the clinic has no active membership plans).
  *   • About / FAQ / Blog (only when `hasBlog`) / Contact — unchanged.
+ *
+ * `hasDentalPlans` mirrors the `hasBlog` pattern: each calling page determines
+ * whether the clinic has any active membership plans (typically via
+ * `listActiveMembershipPlans(orgId)`) and passes the boolean in. Keeps the
+ * helper pure (sync) so it doesn't cascade into every call site as async.
+ * Defaults to `false` so existing/lighter call sites that don't load
+ * membership plans (e.g. inside test mocks) don't accidentally surface
+ * a broken Dental Plans link.
  */
 export function buildClinicNavLinks(opts: {
   basePath: string
   hasBlog: boolean
   services: NavService[]
+  hasDentalPlans?: boolean
 }): SiteNavLink[] {
-  const { basePath, hasBlog, services } = opts
+  const { basePath, hasBlog, services, hasDentalPlans = false } = opts
   const core = services.filter((s) => s.category !== 'special')
   const special = services.filter((s) => s.category === 'special')
 
@@ -113,9 +125,26 @@ export function buildClinicNavLinks(opts: {
         }
       : null
 
+  // Patients dropdown — always renders Insurance + Payment & Financing.
+  // Dental Plans appears only when the clinic has ≥1 active membership plan
+  // (gated by `hasDentalPlans`), so we don't surface a link that lands on a
+  // notFound() page when the clinic hasn't enabled membership.
+  const patientsLink: SiteNavLink = {
+    label: 'Patients',
+    href: `${basePath}/insurance`,
+    children: [
+      { label: 'Insurance', href: `${basePath}/insurance` },
+      { label: 'Payment & Financing', href: `${basePath}/payment-financing` },
+      ...(hasDentalPlans
+        ? [{ label: 'Dental Plans', href: `${basePath}/dental-plans` }]
+        : []),
+    ],
+  }
+
   return [
     servicesLink,
     ...(specialLink ? [specialLink] : []),
+    patientsLink,
     { label: 'About', href: `${basePath}/about` },
     { label: 'FAQ', href: `${basePath}/faq` },
     ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),

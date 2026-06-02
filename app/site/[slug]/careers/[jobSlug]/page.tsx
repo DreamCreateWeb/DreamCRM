@@ -6,6 +6,7 @@ import {
   appBaseUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobBySlug } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp, jobPostingJsonLd } from '@/lib/types/careers'
 import { DEFAULT_SERVICES, type ClinicService } from '@/lib/types/clinic-content'
@@ -67,8 +68,12 @@ export default async function ClinicJobDetailPage({ params }: Props) {
   const comp = formatComp(job)
   const loc = data.primaryLocation
   const cityState = [loc?.city, loc?.state].filter(Boolean).join(', ')
-  const publishedPosts = await listPublishedPosts(data.orgId, { limit: 1 })
+  const [publishedPosts, membershipPlans] = await Promise.all([
+    listPublishedPosts(data.orgId, { limit: 1 }),
+    listActivePlans(data.orgId),
+  ])
   const hasBlog = publishedPosts.length > 0
+  const hasDentalPlans = membershipPlans.length > 0
 
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
@@ -78,6 +83,7 @@ export default async function ClinicJobDetailPage({ params }: Props) {
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
+    hasDentalPlans,
     services: navServicesFromClinicServices(
       (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
     ),
