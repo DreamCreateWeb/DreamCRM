@@ -43,31 +43,58 @@ export default async function ClinicProductPage({ params }: Props) {
 
   return (
     <BlogChrome data={data} basePath={basePath}>
-      <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
-        <a href={`${basePath}/shop`} className="text-[14px] font-medium" style={{ color: brand }}>← All products</a>
-        <div className="grid md:grid-cols-2 gap-10 mt-5">
-          <div className="aspect-square w-full rounded-2xl overflow-hidden" style={{ backgroundColor: `${brand}1A` }}>
+      <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
+        <a
+          href={`${basePath}/shop`}
+          className="inline-flex items-center gap-1 text-[14px] font-semibold transition-all duration-300 hover:gap-2"
+          style={{ color: brand }}
+        >
+          <span aria-hidden="true">←</span> All products
+        </a>
+        <div className="grid md:grid-cols-2 gap-10 lg:gap-14 mt-6 items-start">
+          <div
+            className="aspect-square w-full rounded-3xl overflow-hidden transition-transform duration-700 hover:scale-[1.01]"
+            style={{ backgroundColor: `${brand}1A` }}
+          >
             {product.images[0] ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center" style={{ color: brand }}>
+              <div className="w-full h-full flex items-center justify-center text-base" style={{ color: brand }}>
                 {CATEGORY_LABELS[product.category]}
               </div>
             )}
           </div>
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: brand }}>
+            <span
+              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+              style={{ color: brand }}
+            >
               {CATEGORY_LABELS[product.category]}
             </span>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-[-0.02em] mt-1" style={{ color: INK }}>{product.name}</h1>
+            <h1
+              className="text-[32px] sm:text-[40px] lg:text-[48px] font-semibold tracking-[-0.015em] leading-[1.08] mt-2"
+              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              {product.name}
+            </h1>
             {product.description && (
-              <p className="text-[16px] leading-[1.6] mt-4 whitespace-pre-wrap" style={{ color: INK_MUTED }}>{product.description}</p>
+              <p
+                className="text-[16px] leading-[1.65] mt-5 whitespace-pre-wrap"
+                style={{ color: INK_MUTED }}
+              >
+                {product.description}
+              </p>
             )}
             {product.fsaEligible && (
-              <p className="text-[13px] mt-3" style={{ color: INK_MUTED }}>FSA/HSA-eligible with a dentist&apos;s prescription.</p>
+              <p className="text-[13px] mt-3 inline-flex items-center gap-1.5" style={{ color: INK_MUTED }}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: brand }} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                FSA/HSA-eligible with a dentist&apos;s prescription.
+              </p>
             )}
-            <div className="mt-6 pt-6 border-t" style={{ borderColor: BORDER }}>
+            <div className="mt-7 pt-7 border-t" style={{ borderColor: BORDER }}>
               <AddToCart
                 slug={slug}
                 brand={brand}

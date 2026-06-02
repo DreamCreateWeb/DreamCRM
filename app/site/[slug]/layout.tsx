@@ -25,7 +25,14 @@ export default function ClinicSiteLayout({ children }: { children: React.ReactNo
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
       />
-      <style>{`:root { --font-display: 'Fraunces', Georgia, serif; }`}</style>
+      <style>{`
+        :root { --font-display: 'Fraunces', Georgia, serif; }
+        /* Smooth-scroll only for explicit anchor navigation (e.g. nav
+           skip links to #verify, #hours). Honors prefers-reduced-motion
+           automatically via UA stylesheet. Scoped to the public clinic
+           layout — won't leak into the authenticated dashboard. */
+        html { scroll-behavior: smooth; }
+      `}</style>
       {children}
     </>
   )

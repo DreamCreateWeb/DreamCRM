@@ -42,12 +42,20 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
   return (
     <BlogChrome data={data} basePath={basePath}>
       <ClearCart slug={slug} />
-      <div className="max-w-[560px] mx-auto px-5 sm:px-8 py-20 text-center">
-        <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center text-2xl text-white" style={{ backgroundColor: brand }}>✓</div>
-        <h1 className="text-3xl font-bold tracking-[-0.02em] mt-5" style={{ color: INK }}>
+      <div className="max-w-[600px] mx-auto px-5 sm:px-8 py-20 sm:py-24 text-center">
+        <div
+          className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl text-white shadow-md"
+          style={{ backgroundColor: brand }}
+        >
+          ✓
+        </div>
+        <h1
+          className="text-[32px] sm:text-[44px] lg:text-[52px] font-semibold leading-[1.06] tracking-[-0.015em] mt-7"
+          style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+        >
           {paid ? 'Thank you — your order is confirmed!' : 'Thanks — we’re processing your order'}
         </h1>
-        <p className="text-[16px] leading-[1.6] mt-3" style={{ color: INK_MUTED }}>
+        <p className="text-[16px] sm:text-lg leading-[1.6] mt-4" style={{ color: INK_MUTED }}>
           {paid
             ? totalCents > 0
               ? `We received your payment of ${formatCents(totalCents)}. A receipt is on its way to your email.`
@@ -55,8 +63,12 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
             : 'Your payment is being confirmed — you’ll get a receipt by email shortly.'}
           {paid && pickup ? ' We’ll have it ready to pick up at your next visit.' : ''}
         </p>
-        <a href={`${basePath}/shop`} className="inline-block mt-6 text-[15px] font-semibold underline" style={{ color: brand }}>
-          Continue shopping →
+        <a
+          href={`${basePath}/shop`}
+          className="inline-flex items-center gap-1.5 mt-7 text-[15px] font-semibold transition-all duration-300 hover:gap-2.5"
+          style={{ color: brand }}
+        >
+          Continue shopping <span aria-hidden="true">→</span>
         </a>
       </div>
     </BlogChrome>
