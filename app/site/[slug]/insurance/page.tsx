@@ -384,7 +384,11 @@ export default async function InsurancePage({ params }: Props) {
             </div>
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-12">
               {/* Left: carriers */}
-              <div>
+              <div
+                data-edit-field="acceptedInsuranceCarriers"
+                data-edit-kind="modal"
+                data-edit-label="insurance carriers"
+              >
                 <h3
                   className="text-xl sm:text-2xl font-semibold mb-3"
                   style={{
