@@ -215,7 +215,12 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Stats anchors ──────────────────────────────────────────────── */}
       {stats.length > 0 && (
-        <section className="py-14 sm:py-20">
+        <section
+          className="py-14 sm:py-20"
+          data-edit-field="stats"
+          data-edit-kind="modal"
+          data-edit-label="trust stats"
+        >
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <ScrollReveal
               className="rounded-2xl overflow-hidden"

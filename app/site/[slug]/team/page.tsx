@@ -157,7 +157,12 @@ export default async function TeamPage({ params }: Props) {
 
         {/* ── Team grid (or empty placeholder) ───────────────────────────── */}
         {hasTeam ? (
-          <section className="pb-14 sm:pb-24">
+          <section
+            className="pb-14 sm:pb-24"
+            data-edit-field="staff"
+            data-edit-kind="modal"
+            data-edit-label="team"
+          >
             <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
               <div
                 className={`grid gap-x-6 gap-y-12 ${
