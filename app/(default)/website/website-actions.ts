@@ -200,3 +200,34 @@ export async function savePaymentFinancing(formData: FormData): Promise<SectionR
     })
   })
 }
+
+// ── Inline single-field save (Website Studio) ───────────────────────────────
+// Powers click-to-edit text + click-to-replace images on the full-screen
+// studio. Whitelisted single-column writes only — never an array/jsonb field
+// (those go through their section action via a modal). `value` is trimmed;
+// empty → null so the public site falls back to its default.
+const INLINE_TEXT_FIELDS = new Set([
+  'tagline', 'about', 'displayName', 'legalName', 'phone', 'email',
+])
+const INLINE_IMAGE_FIELDS = new Set(['logoUrl', 'heroImageUrl'])
+
+export type InlineField =
+  | 'tagline' | 'about' | 'displayName' | 'legalName' | 'phone' | 'email'
+  | 'logoUrl' | 'heroImageUrl'
+
+export async function saveInlineField(field: string, value: string): Promise<SectionResult> {
+  if (!INLINE_TEXT_FIELDS.has(field) && !INLINE_IMAGE_FIELDS.has(field)) {
+    return { ok: false, error: 'That field cannot be edited inline' }
+  }
+  return runSection(async (ctx) => {
+    const v = typeof value === 'string' && value.trim() ? value.trim() : null
+    await writeSection(ctx, { [field]: v } as Partial<typeof clinicProfile.$inferInsert>)
+    // Keep the org name in sync with the public display name.
+    if (field === 'displayName' && v) {
+      await db
+        .update(organization)
+        .set({ name: v })
+        .where(eq(organization.id, ctx.organizationId))
+    }
+  })
+}

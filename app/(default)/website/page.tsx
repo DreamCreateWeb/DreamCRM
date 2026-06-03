@@ -5,26 +5,22 @@ import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
-import { listLibraryForPicker } from '@/lib/services/service-library'
-import { getAiUsage } from '@/lib/services/ai-website'
-import { aiConfigured } from '@/lib/ai'
-import WebsiteEditor from './website-editor'
+import WebsiteStudio from './website-studio'
 
 export const metadata = {
   title: 'Website - DreamCRM',
-  description: "Your clinic's storefront — the trunk every other module attaches to.",
+  description: "Your clinic's storefront — edit it in place, live.",
 }
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Website Editor — the clinic's storefront, edited in place.
- *
- * Replaces the prior read-only checklist (which funneled every edit into the
- * buried settings mega-form) with a real section-based editor: left-rail
- * anatomy + per-section panels + a live preview of the public site. Per
- * DESIGN.md "the website is the trunk." Per-section saves go through
- * ./website-actions.ts; services reuse the dedicated picker actions.
+ * Website Studio — the full-screen, in-place editor. `/website` opens the
+ * clinic's real site in an editable canvas (no CRM chrome). Per DESIGN.md
+ * "the website is the trunk" + the research wedge: clinics OWN their site and
+ * edit it themselves, live, with no agency ticket. The studio shell lives in
+ * website-studio.tsx; the in-canvas editing is driven by the EditBridge that
+ * the public site mounts when opened with `?edit=1` (owner/admin only).
  */
 export default async function WebsiteEditorPage() {
   const ctx = await requireTenant()
@@ -59,22 +55,7 @@ export default async function WebsiteEditorPage() {
   }
 
   const slug = ctx.organizationSlug
-  const [library, usage] = await Promise.all([
-    listLibraryForPicker(ctx.organizationId),
-    getAiUsage(ctx.organizationId, profile.planTier),
-  ])
   const siteUrl = publicSiteUrl({ slug, profile })
 
-  return (
-    <WebsiteEditor
-      profile={profile}
-      orgId={ctx.organizationId}
-      slug={slug}
-      siteUrl={siteUrl}
-      previewPath={`/site/${slug}`}
-      library={library}
-      usage={usage}
-      aiEnabled={aiConfigured()}
-    />
-  )
+  return <WebsiteStudio slug={slug} siteUrl={siteUrl} />
 }

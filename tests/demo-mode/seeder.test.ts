@@ -594,7 +594,7 @@ describe('createDemoClinic', () => {
     expect(counts.shop_coupon).toBe(3)
   })
 
-  it('seeds logoUrl + heroImageUrl so the website-editor checklist reads "Set" on both', async () => {
+  it('seeds logoUrl + heroImageUrl so the studio shows both brand images', async () => {
     state.selectQueue.push([])
     state.selectQueue.push([])
     state.selectQueue.push([{ id: 'tmpl' }])
