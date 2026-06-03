@@ -18,6 +18,7 @@ import StaffEditor from '../settings/clinic/staff-editor'
 import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
 import FinancingPartnersEditor from '../settings/clinic/financing-partners-editor'
 import FaqEditor from './faq-editor'
+import HoursEditor from './hours-editor'
 import {
   saveInlineField,
   saveStats,
@@ -28,6 +29,7 @@ import {
   saveFaq,
   saveInsurance,
   savePaymentFinancing,
+  saveHours,
   type SectionResult,
 } from './website-actions'
 
@@ -65,6 +67,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   faq: saveFaq,
   acceptedInsuranceCarriers: saveInsurance,
   paymentFinancing: savePaymentFinancing,
+  hours: saveHours,
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -77,6 +80,7 @@ const SECTION_TITLES: Record<string, string> = {
   faq: 'Frequently asked questions',
   acceptedInsuranceCarriers: 'Insurance carriers',
   paymentFinancing: 'Payment & financing',
+  hours: 'Office hours',
 }
 
 /**
@@ -427,6 +431,22 @@ function StudioModal({
                 />
                 <p className="text-[11px] text-stone-400 mt-1">Leave blank to hide — no fake fees.</p>
               </div>
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'hours' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                Your weekly office hours, shown in the footer of every page. Check “Closed” for
+                days you’re not open.
+              </p>
+              <HoursEditor
+                defaultValue={
+                  (profile.hours as Record<
+                    string,
+                    { open?: string | null; close?: string | null; closed?: boolean }
+                  > | null) ?? null
+                }
+              />
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'differenceVideoUrl' && (
