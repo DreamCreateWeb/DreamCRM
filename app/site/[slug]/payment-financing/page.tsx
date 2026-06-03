@@ -272,7 +272,12 @@ export default async function PaymentFinancingPage({ params }: Props) {
         </section>
 
         {/* ── Payment methods — pill grid ─────────────────────────────────── */}
-        <section className="py-14 sm:py-20">
+        <section
+          className="py-14 sm:py-20"
+          data-edit-field="paymentFinancing"
+          data-edit-kind="modal"
+          data-edit-label="payment & financing"
+        >
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <ScrollReveal className="max-w-[640px] mb-10">
               <p

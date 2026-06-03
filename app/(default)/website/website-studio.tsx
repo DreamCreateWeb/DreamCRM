@@ -9,12 +9,14 @@ import type {
   ClinicStaff,
   ClinicOfficePhoto,
   ClinicFaqItem,
+  ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
 import ImageUploader from '@/components/ui/image-uploader'
 import StatsEditor from '../settings/clinic/stats-editor'
 import TestimonialsEditor from '../settings/clinic/testimonials-editor'
 import StaffEditor from '../settings/clinic/staff-editor'
 import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
+import FinancingPartnersEditor from '../settings/clinic/financing-partners-editor'
 import FaqEditor from './faq-editor'
 import {
   saveInlineField,
@@ -25,6 +27,7 @@ import {
   saveOfficePhotos,
   saveFaq,
   saveInsurance,
+  savePaymentFinancing,
   type SectionResult,
 } from './website-actions'
 
@@ -61,6 +64,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   officePhotos: saveOfficePhotos,
   faq: saveFaq,
   acceptedInsuranceCarriers: saveInsurance,
+  paymentFinancing: savePaymentFinancing,
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -72,6 +76,7 @@ const SECTION_TITLES: Record<string, string> = {
   officePhotos: 'Office photos',
   faq: 'Frequently asked questions',
   acceptedInsuranceCarriers: 'Insurance carriers',
+  paymentFinancing: 'Payment & financing',
 }
 
 /**
@@ -380,6 +385,48 @@ function StudioModal({
                 placeholder={'Delta Dental\nCigna\nAetna\nMetLife'}
                 className="form-textarea w-full text-sm"
               />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'paymentFinancing' && (
+            <form ref={formRef} className="space-y-4">
+              <div>
+                <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
+                  Payment methods <span className="font-normal text-stone-400">(one per line)</span>
+                </label>
+                <textarea
+                  name="paymentMethods"
+                  defaultValue={((profile.paymentMethods as string[] | null) ?? []).join('\n')}
+                  rows={5}
+                  placeholder={'Cash\nAll major credit cards\nHSA / FSA cards\nCareCredit'}
+                  className="form-textarea w-full text-sm"
+                />
+                <p className="text-[11px] text-stone-400 mt-1">Leave blank to show the standard set.</p>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
+                  Financing partners
+                </label>
+                <FinancingPartnersEditor
+                  name="financingPartners"
+                  defaultValue={(profile.financingPartners as ClinicFinancingPartner[] | null) ?? null}
+                />
+                <p className="text-[11px] text-stone-400 mt-1">
+                  Only partners you actually work with — the section hides when empty.
+                </p>
+              </div>
+              <div>
+                <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
+                  Cancellation policy
+                </label>
+                <textarea
+                  name="cancellationPolicy"
+                  defaultValue={(profile.cancellationPolicy as string | null) ?? ''}
+                  rows={4}
+                  placeholder="We ask for 48 hours’ notice to reschedule…"
+                  className="form-textarea w-full text-sm"
+                />
+                <p className="text-[11px] text-stone-400 mt-1">Leave blank to hide — no fake fees.</p>
+              </div>
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'differenceVideoUrl' && (
