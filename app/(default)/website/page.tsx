@@ -6,6 +6,8 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listLibraryForPicker } from '@/lib/services/service-library'
+import { getAiUsage } from '@/lib/services/ai-website'
+import { aiConfigured } from '@/lib/ai'
 import WebsiteEditor from './website-editor'
 
 export const metadata = {
@@ -57,7 +59,10 @@ export default async function WebsiteEditorPage() {
   }
 
   const slug = ctx.organizationSlug
-  const library = await listLibraryForPicker(ctx.organizationId)
+  const [library, usage] = await Promise.all([
+    listLibraryForPicker(ctx.organizationId),
+    getAiUsage(ctx.organizationId, profile.planTier),
+  ])
   const siteUrl = publicSiteUrl({ slug, profile })
 
   return (
@@ -68,6 +73,8 @@ export default async function WebsiteEditorPage() {
       siteUrl={siteUrl}
       previewPath={`/site/${slug}`}
       library={library}
+      usage={usage}
+      aiEnabled={aiConfigured()}
     />
   )
 }

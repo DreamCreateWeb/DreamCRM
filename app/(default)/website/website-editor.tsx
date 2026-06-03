@@ -36,6 +36,12 @@ import {
   savePaymentFinancing,
   type SectionResult,
 } from './website-actions'
+import { aiRewriteSection } from './ai-actions'
+import type {
+  AiUsageSnapshot,
+  AiWebsiteSection,
+  GeneratedContent,
+} from '@/lib/types/ai-website'
 
 interface Props {
   profile: ClinicProfile
@@ -46,6 +52,14 @@ interface Props {
   /** Same-origin path the preview iframe loads (e.g. /site/acme-dental). */
   previewPath: string
   library: ServiceLibraryEntryWithStatus[]
+  /** Current month's AI-rewrite usage for the tier-baked allowance. */
+  usage: AiUsageSnapshot
+  /** Whether AI is configured on this environment (hides the buttons if not). */
+  aiEnabled: boolean
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10)
 }
 
 type Status = 'done' | 'partial' | 'missing'
@@ -105,12 +119,26 @@ export default function WebsiteEditor({
   siteUrl,
   previewPath,
   library,
+  usage,
+  aiEnabled,
 }: Props) {
   const [active, setActive] = useState<SectionId>('brand')
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [showPreview, setShowPreview] = useState(true)
   const [previewNonce, setPreviewNonce] = useState(0)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
+
+  // AI assist state: allowance left this month + per-section busy/error +
+  // the controlled / remountable values the AI fills (never auto-saved).
+  const [remaining, setRemaining] = useState(usage.remaining)
+  const [aiBusy, setAiBusy] = useState<AiWebsiteSection | null>(null)
+  const [aiError, setAiError] = useState<{ section: AiWebsiteSection; msg: string } | null>(null)
+  const [tagline, setTagline] = useState(profile.tagline ?? '')
+  const [aboutText, setAboutText] = useState(profile.about ?? '')
+  const [aiStats, setAiStats] = useState<ClinicStat[] | null>(null)
+  const [statsSeed, setStatsSeed] = useState(0)
+  const [aiFaq, setAiFaq] = useState<ClinicFaqItem[] | null>(null)
+  const [faqSeed, setFaqSeed] = useState(0)
 
   const services = (profile.services ?? null) as ClinicService[] | null
   const staff = (profile.staff ?? null) as ClinicStaff[] | null
@@ -126,6 +154,83 @@ export default function WebsiteEditor({
 
   function reloadPreview() {
     setPreviewNonce((n) => n + 1)
+  }
+
+  function applyContent(content: GeneratedContent) {
+    switch (content.section) {
+      case 'hero':
+        setTagline(content.tagline)
+        break
+      case 'about':
+        setAboutText(content.about)
+        break
+      case 'stats':
+        setAiStats(content.stats.map((s) => ({ id: uid(), value: s.value, label: s.label, dynamic: null })))
+        setStatsSeed((n) => n + 1)
+        break
+      case 'faq':
+        setAiFaq(
+          content.faq.map((f) => ({ id: uid(), category: f.category, question: f.question, answer: f.answer })),
+        )
+        setFaqSeed((n) => n + 1)
+        break
+    }
+  }
+
+  async function runAi(section: AiWebsiteSection) {
+    setAiBusy(section)
+    setAiError(null)
+    try {
+      const res = await aiRewriteSection(section)
+      if (res.ok) {
+        applyContent(res.content)
+        setRemaining(res.usage.remaining)
+      } else if (res.reason === 'limit') {
+        setRemaining(res.usage.remaining)
+        setAiError({
+          section,
+          msg: "You've used this month's AI rewrites — edit freely; they reset on the 1st.",
+        })
+      } else {
+        setAiError({ section, msg: res.error })
+      }
+    } catch {
+      setAiError({ section, msg: 'AI request failed — please try again.' })
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
+  // The "✨ Rewrite with AI" affordance for a section header. Hidden entirely
+  // when AI isn't configured; gates (never charges) when the allowance is spent.
+  function aiButtonFor(section: AiWebsiteSection) {
+    if (!aiEnabled) return null
+    const busy = aiBusy === section
+    const out = remaining <= 0
+    return (
+      <button
+        type="button"
+        onClick={() => runAi(section)}
+        disabled={busy || out}
+        title={out ? "You've used this month's AI rewrites" : 'Draft this section with AI'}
+        className="text-[12px] font-semibold px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {busy ? 'Writing…' : '✨ Rewrite with AI'}
+      </button>
+    )
+  }
+
+  function aiNote(section: AiWebsiteSection) {
+    if (!aiEnabled) return null
+    return (
+      <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1">
+        {aiError?.section === section ? (
+          <span className="text-amber-600 dark:text-amber-400">{aiError.msg}</span>
+        ) : (
+          <>AI fills a draft for you to review — nothing saves until you click Save. {remaining} {remaining === 1 ? 'rewrite' : 'rewrites'} left this month.</>
+        )}
+      </p>
+    )
   }
 
   function statusFor(id: SectionId): Status {
@@ -201,6 +306,14 @@ export default function WebsiteEditor({
           ) : (
             <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
               ✓ All essentials set
+            </span>
+          )}
+          {aiEnabled && (
+            <span
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+              title="Manual editing is always free. This is your monthly AI-rewrite allowance — it resets on the 1st and never bills you a surprise."
+            >
+              ✨ {remaining} AI {remaining === 1 ? 'rewrite' : 'rewrites'} left
             </span>
           )}
           <a
@@ -332,6 +445,8 @@ export default function WebsiteEditor({
               description="The first thing patients read. Keep the tagline short and concrete — a promise, not a slogan."
               action={saveHero}
               onSaved={reloadPreview}
+              headerAction={aiButtonFor('hero')}
+              note={aiNote('hero')}
             >
               <Field label="Display name" hint="Shown on your site and in the dashboard." required>
                 <input name="displayName" className="form-input w-full" type="text" required defaultValue={profile.displayName ?? ''} />
@@ -340,7 +455,7 @@ export default function WebsiteEditor({
                 <input name="legalName" className="form-input w-full" type="text" defaultValue={profile.legalName ?? ''} />
               </Field>
               <Field label="Tagline" hint="One line under the headline. “Gentle family dentistry in Brooklyn,” not a paragraph.">
-                <input name="tagline" className="form-input w-full" type="text" defaultValue={profile.tagline ?? ''} placeholder="Modern, judgment-free dentistry" />
+                <input name="tagline" className="form-input w-full" type="text" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Modern, judgment-free dentistry" />
               </Field>
             </SectionForm>
           </Panel>
@@ -352,8 +467,10 @@ export default function WebsiteEditor({
               description="Three short signals right under the hero — “8,000+ five-star reviews,” “Same-week appointments,” “Most insurance accepted.”"
               action={saveStats}
               onSaved={reloadPreview}
+              headerAction={aiButtonFor('stats')}
+              note={aiNote('stats')}
             >
-              <StatsEditor name="stats" defaultValue={stats} />
+              <StatsEditor key={statsSeed} name="stats" defaultValue={aiStats ?? stats} />
             </SectionForm>
           </Panel>
 
@@ -425,8 +542,10 @@ export default function WebsiteEditor({
               description="A paragraph or two — what makes the practice different, who the dentists are, why a patient should trust you. Used on the homepage and the /about page."
               action={saveAbout}
               onSaved={reloadPreview}
+              headerAction={aiButtonFor('about')}
+              note={aiNote('about')}
             >
-              <textarea name="about" className="form-textarea w-full" rows={7} defaultValue={profile.about ?? ''} placeholder="We're a family practice that believes a dental visit should feel calm, honest, and judgment-free…" />
+              <textarea name="about" className="form-textarea w-full" rows={7} value={aboutText} onChange={(e) => setAboutText(e.target.value)} placeholder="We're a family practice that believes a dental visit should feel calm, honest, and judgment-free…" />
             </SectionForm>
           </Panel>
 
@@ -437,8 +556,10 @@ export default function WebsiteEditor({
               description="Answers patients look for before booking — insurance, anxiety, first visit. Grouped by category on your /faq page and emitted as FAQ structured data for Google."
               action={saveFaq}
               onSaved={reloadPreview}
+              headerAction={aiButtonFor('faq')}
+              note={aiNote('faq')}
             >
-              <FaqEditor name="faq" defaultValue={faq} />
+              <FaqEditor key={faqSeed} name="faq" defaultValue={aiFaq ?? faq} />
             </SectionForm>
           </Panel>
 
@@ -633,12 +754,16 @@ function SectionForm({
   action,
   onSaved,
   children,
+  headerAction,
+  note,
 }: {
   title: string
   description: string
   action: (fd: FormData) => Promise<SectionResult>
   onSaved: () => void
   children: React.ReactNode
+  headerAction?: React.ReactNode
+  note?: React.ReactNode
 }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -670,8 +795,15 @@ function SectionForm({
       onSubmit={handleSubmit}
       className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5"
     >
-      <SectionHeader title={title} description={description} />
-      <div className="space-y-4">{children}</div>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <div>
+          <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">{title}</h2>
+          <p className="text-[13px] text-stone-500 dark:text-stone-400 mt-0.5">{description}</p>
+        </div>
+        {headerAction && <div className="shrink-0">{headerAction}</div>}
+      </div>
+      {note && <div className="mb-3">{note}</div>}
+      <div className="space-y-4 mt-3">{children}</div>
       <div className="flex items-center gap-3 mt-5 pt-4 border-t border-stone-100 dark:border-stone-700/40">
         <button
           type="submit"

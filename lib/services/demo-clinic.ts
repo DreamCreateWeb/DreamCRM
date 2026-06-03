@@ -1173,6 +1173,24 @@ const DEMO_STAFF: ClinicStaff[] = [
   },
 ]
 
+/**
+ * Seed a modest AI-rewrite usage count for the current month so the Website
+ * Editor's tier-baked allowance meter shows a realistic non-zero value
+ * (e.g. "188 of 200 left"). Demo-scoped + idempotent — pins a fixed value on
+ * conflict so a resync always presents the same illustrative number.
+ */
+async function seedDemoAiUsage(orgId: string) {
+  const now = new Date()
+  const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+  // Seed-if-absent (non-destructive): leave any real usage the demo has
+  // accrued this month alone; only plant the illustrative value on a fresh
+  // month / fresh demo.
+  await db
+    .insert(schema.aiUsageCounter)
+    .values({ id: newId('aiu'), organizationId: orgId, period, kind: 'website_rewrite', count: 12 })
+    .onConflictDoNothing()
+}
+
 export async function createDemoClinic(): Promise<DemoClinicResult> {
   const name = 'Acme Dental Demo'
   const slug = slugify(name)
@@ -1717,6 +1735,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // PMS Integrations self-heal: seed the sandbox connection + entity maps +
     // sync/write-back history once (idempotent — no-op if already connected).
     await seedDemoPms(existing.id)
+
+    // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
+    await seedDemoAiUsage(existing.id)
 
     return {
       organizationId: existing.id,
@@ -2265,6 +2286,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // the connection + entity maps + sync history + write-back log (every state)
   // so /integrations showcases two-way sync without a live PMS.
   await seedDemoPms(orgId)
+
+  // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
+  await seedDemoAiUsage(orgId)
 
   return {
     organizationId: orgId,
