@@ -392,7 +392,12 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               Tend's qualifier strip just below the hero. Client component
               so the arrows can scroll the row by one page on click. */}
           {heroServicePills.length > 0 && (
-            <div className="mt-12 sm:mt-14">
+            <div
+              className="mt-12 sm:mt-14"
+              data-edit-field="services"
+              data-edit-kind="modal"
+              data-edit-label="services"
+            >
               <ServicePills
                 pills={heroServicePills.map((s) => ({ id: s.id, name: s.name }))}
                 brand={brand}
