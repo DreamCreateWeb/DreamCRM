@@ -44,6 +44,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.membershipPlan) return 'membership_plan'
     if (t === schema.membership) return 'membership'
     if (t === schema.shopCoupon) return 'shop_coupon'
+    if (t === schema.aiUsageCounter) return 'ai_usage_counter'
     return 'unknown'
   }
   const chain = () => {
@@ -214,7 +215,10 @@ describe('createDemoClinic', () => {
     expect(out.organizationId).toBe('org_existing')
     expect(out.patientCount).toBe(3)
     expect(out.appointmentCount).toBe(1)
-    expect(state.inserts).toHaveLength(0)
+    // Self-heal re-seeds no demo *entities* — the only insert it issues is the
+    // non-destructive AI-usage meter backfill (onConflictDoNothing).
+    expect(state.inserts.filter((i) => i.table !== 'ai_usage_counter')).toHaveLength(0)
+    expect(state.inserts.some((i) => i.table === 'ai_usage_counter')).toBe(true)
   })
 
   it('self-heals stats / testimonials / officePhotos / logoUrl / heroImageUrl when the existing demo has nulls', async () => {

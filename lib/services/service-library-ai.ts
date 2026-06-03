@@ -49,7 +49,7 @@ const MODEL_ID = 'claude-sonnet-4-6'
 // Shared brand-voice frame.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CORE_VOICE_RULES = `Voice rules (non-negotiable):
+export const CORE_VOICE_RULES = `Voice rules (non-negotiable):
 - Warm, calm, plain-spoken. Anti-shame: "no judgment, you're welcome here".
 - Short sentences. Plain words. First-person plural ("we", "our team") for the clinic.
 - NO marketing-bro vocabulary: never use "revolutionary", "game-changing", "state-of-the-art", "world-class", "supercharge", "unlock", "10x", "next-level", "synergy", "leverage", "cutting-edge".

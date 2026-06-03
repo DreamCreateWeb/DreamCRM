@@ -454,20 +454,56 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   also pulls `patient_message` + `email_message` rows inline, with
   message-kind events linking to `/messages?thread=<id>`. Platform
   tenant keeps the generic Mosaic chat surface (different mental model).
-- **Website Editor v1** — Per DESIGN.md "the website is the trunk",
-  `/website` promoted out of `/settings/clinic` into a real top-level
-  dashboard. Hero with View-live-site CTA + public URL; 4-stat row
-  (template / brand color / plan / setup completion with warn tone on
-  required-missing); 12-item Setup checklist (required: Logo, Tagline,
-  Hero image, About, Services ≥4, Staff ≥2, Office hours, Address+
-  phone; optional: Testimonials, Office photos, Stat anchors, Brand
-  color) with ✓ Set / ~ Partial / ⚠ Missing pills per item, each
-  linking to `/settings/clinic` for deep edit; Public surfaces list
-  (homepage / `/book` / intake forms / sitemap / robots / opengraph-
-  image — each with View link); Locations summary; "Coming next"
-  footer with the v1.1 roadmap (multi-page editor, template switcher
-  with preview, custom domain wiring, per-page SEO). Deep content
-  editing stays at `/settings/clinic`.
+- **Website Editor v2 (section editor + live preview + AI assist)** —
+  Per DESIGN.md "the website is the trunk", `/website` is now a real
+  **three-pane in-place editor** (PR #199 + #200), replacing the prior
+  read-only checklist that funnelled every edit into the buried
+  `/settings/clinic` mega-form. **Layout**: left-rail site anatomy
+  (Homepage / Pages / Contact, each row with a ✓/~/⚠ completeness dot) ·
+  center section panels (Brand · Hero · Stats · Services · Team ·
+  Testimonials · Office photos · About · FAQ · Insurance · Payment ·
+  Contact · Hours) · right **live `<iframe>` preview** of
+  `/site/[slug]` (same-origin under `X-Frame-Options: SAMEORIGIN`) with
+  a desktop/mobile toggle + reload-on-save. **Per-section saves** live in
+  `app/(default)/website/website-actions.ts`, each scoped to only its own
+  columns (mirrors `services-actions.ts`) — no all-or-nothing form submit
+  that could null absent fields; panels stay mounted so switching never
+  loses unsaved edits. The proven content parsers were extracted into
+  `lib/clinic-content-parse.ts` (shared by the editor + the legacy
+  settings form). **Filled the FAQ gap**: `clinic_profile.faq` had a
+  column + universal defaults but no UI — new `faq-editor.tsx` (category +
+  Q/A + reorder + "start from the 13 universal defaults"). Services are a
+  first-class section (reuses the library picker), not a Settings link.
+  Ownership framing throughout ("you own it — change anything, live in
+  seconds, no tickets") — the anti-lock-in wedge from the dental-website
+  research (Officite ToS: site *"owned by us"*, auto-renews, *"right to
+  delete all data"*; ProSites *"ticket system"* + *"cone of silence"*).
+- **Website Editor — AI copy assist + tier-baked allowance** (PR #200) —
+  per-section **"✨ Rewrite with AI"** on the four copy-heavy sections
+  (Hero tagline · About · Stats · FAQ; Services already had their own AI
+  via `service-library-ai.ts`). `lib/services/ai-website.ts` orchestrates
+  one `runClaudeJson` structured-output call per section, reusing the
+  exported `CORE_VOICE_RULES` (anti-shame, **no fabricated numbers /
+  prices** — stats are qualitative only, cost answers are estimate-first).
+  The generated copy is RETURNED to the editor to fill the fields for
+  review — **never auto-saved** (the clinic reviews, tweaks, clicks the
+  normal Save). **Monetization decision (research-grounded, see below):
+  a tier-baked monthly allowance, NOT a credit currency.** Manual editing
+  and the (future) onboarding draft are always free and never count; only
+  an on-demand rewrite does. `AI_REWRITE_ALLOWANCE` (lib/types/ai-website.ts)
+  = Basic 15 / Pro 50 / Premium 200 per month, plain-language ("✨ N AI
+  rewrites left"), **fails safe** — when spent, the buttons gate gracefully
+  ("edit freely; they reset on the 1st") and it NEVER auto-charges. The
+  meter is a per-org/per-month `ai_usage_counter` table (migration 0042,
+  atomic `INSERT … ON CONFLICT DO UPDATE count+1`). Cost reality: a rewrite
+  is pennies of Sonnet tokens vs a $99–199/mo sub, so the allowance is an
+  abuse guardrail + upgrade lever, not cost-recovery — deliberately
+  generous so the "pay to edit my own content" resentment never triggers.
+  `/settings/clinic` stays as a deep-edit fallback (retire in a follow-up).
+  **Loose ends**: Stats/FAQ AI inject via a remount-key; FAQ/Stats editor
+  refactor to controlled inputs is a future cleanup. Onboarding AI
+  interview (the conversational "draft my whole site" flow) is the next
+  phase — see "What's NOT yet wired".
 - **Reviews & Reputation v2** — Post-visit review collection where the
   **patient writes the review inside DreamCRM**, the text persists,
   staff just toggles featured/unfeatured on the public site. Patient
@@ -675,7 +711,7 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
 | Growth | Reviews | `/reviews` + `/reviews/received` | **Live (v2)** | Post-visit review collection — **patient writes the review text inside DreamCRM** (`review_request.review_text`, migration 0035), staff just toggles featured/unfeatured on the public site. Morning-huddle dashboard: 4-stat funnel (Sent · Opened · Reviewed · Ready-to-ask) + platform mix breakdown + Ready-to-ask list + recent activity with ✓ Featured pills + Browse received CTA + inline config. `/reviews/received` shows the patient's actual quote in a read-only italic blockquote + star rating + one-click Feature/Unfeature (staff CANNOT edit). Public landing at `/r/<token>` is text-first: rating + textarea + Submit, then "Also share on Google/Healthgrades/Facebook/Yelp?" as a secondary action (SEO play preserved). `featureReviewAsTestimonial({orgId, patientId})` sources quote from `review_request.reviewText` — throws "has not submitted a review" when null. `clinic_profile.testimonials` gains `patientId` link; display label denormalized to "First L." + city. Featured testimonials surface on the public site (static 3-card grid ≤3, looping marquee >3). FTC-clean (2024 Fake Reviews Rule), no NPS gating, 365-day rate limit. Auto-trigger on appointment completion = v1.1 scaffolded (handler exists, needs EventBridge rule). |
 | Growth | Analytics | `/analytics` | **Live (v1)** | Premium-tier. The honest CRM-vs-PMS split: read-only aggregation (no new schema) over data other modules already capture. 5 bands — Acquisition (new patients via firstSeenAt + source mix + a real GSC-clicks→leads→contacted→converted website funnel), Schedule health (volume trend + no-show/cancellation/confirmation rates vs an industry benchmark, with a low-volume guard that shows counts instead of a misleading % on small samples), Recall & outreach (recall-due reuses listPatients + sent→opened→clicked→booked), Reputation (review funnel + platform mix, reuses getReviewStats), and an honest "Lives in your PMS" deferral block (production $, procedure mix, hygiene reappt %, AR aging) that arrives with Integrations rather than being faked. 30/90-day toggle. Aggregates existing demo data — no seeder change |
-| Website | Website Editor | `/website` | **Live (v1)** | Per DESIGN.md "the website is the trunk" — promoted out of Settings into a real dashboard. Hero with View-live-site CTA + public URL, 4-stat row (template / brand color / plan / setup completion), 12-item Setup checklist (required vs optional, with ✓ Set / ~ Partial / ⚠ Missing pills per item, each linking to /settings/clinic for the deep edit), Public surfaces list (homepage / book / intake forms / sitemap / robots / OG image — each with View link), Locations summary, "Coming next" footer with the v1.1 roadmap. Deep content editing remains at /settings/clinic |
+| Website | Website Editor | `/website` | **Live (v2)** | Real three-pane in-place editor (PR #199 + #200): left-rail site anatomy w/ completeness dots · center per-section panels (Brand · Hero · Stats · Services · Team · Testimonials · Photos · About · FAQ · Insurance · Payment · Contact · Hours) · live `/site/[slug]` iframe preview w/ desktop/mobile toggle + reload-on-save. Per-section saves (`website-actions.ts`, scoped column writes, shared parsers in `lib/clinic-content-parse.ts`). Fills the FAQ-editor gap. Per-section **"✨ Rewrite with AI"** on Hero/About/Stats/FAQ (`lib/services/ai-website.ts`, returns copy for review — never auto-saves) gated by a **tier-baked monthly allowance** (Basic 15 / Pro 50 / Premium 200; `ai_usage_counter` migration 0042; fails safe, no credit currency, no auto-charge). `/settings/clinic` remains a deep-edit fallback. Next: conversational AI onboarding interview |
 | Website | Blog | `/blog` | Soon | Phase 1 placeholder — Tiptap editor + SEO + AI-assisted drafts |
 | Website | SEO | `/seo` | **Live (v1)** | Base SEO (sitemap / robots / JSON-LD / OG images / canonicals) is live. Dashboard surfaces site-health checks, an organic→leads→bookings funnel, real Search Console clicks + top queries, and reviews as a ranking signal. **Search Console is a single shared platform connection, zero-config for clinics**: the platform admin connects ONCE with the `sc-domain:dreamcreatestudio.com` Domain property (covers apex + www + every clinic subdomain); each clinic's SEO tab reads that connection scoped to its own pages via a `page contains '/site/<slug>'` (or `<slug>.` in subdomain mode) filter — clinics connect nothing. OAuth routes a platform-admin's connect to the platform org even from demo mode (`getPlatformOrgId`); `getClinicSeoPerformance` does the scoped read (also feeds the Analytics website funnel). Platform context (`tenantType==='platform'`) shows the manage view (connect / pick property / whole-domain perf); clinic/demo shows the scoped read. Custom-domain clinics aren't covered by the shared property (future: their own connection). Rank tracking + page-speed + GBP still roadmap |
 | Website | Careers | `/careers` | **Live (v1)** | Premium-tier. Job postings on the clinic's own site + a built-in ATS — replaces the $400/mo DentalPost board. **The "Indeed integration" is structured-data, not a partner API**: each open role renders at `{slug}.../careers/[jobSlug]` with `JobPosting` JSON-LD so **Google for Jobs + Indeed index it for free** (Indeed's Job Sync API is ATS-partner-only; the direct-employer path is the `/site/[slug]/jobs.xml` feed we also generate). Schema (migration 0031): `job_posting` (role/employment/comp/status/apply-method) + `job_application`. Admin `/careers`: Roles tab (create/edit via `/careers/new` + `/careers/[id]`, publish/close/delete) + Applicants tab (triage pipeline new→reviewing→interview→offer→hired/passed, aging-color rot border on un-reviewed, drawer with résumé download + rating + notes). Public apply form uploads résumé to S3 via a public server action (auth-gated upload route can't serve unauthenticated applicants). Client-safe types/labels/JSON-LD in `lib/types/careers.ts`; DB functions in `lib/services/careers.ts`. Demo seeder: 2 open roles + 1 draft + 7 applicants across every pipeline state (aging spread). Scope = permanent/part-time hires for one practice, NOT a temp/gig marketplace (Cloud Dentistry's lane). Full one-click *Indeed Apply* is a future partner track |
@@ -1028,6 +1064,54 @@ surfaces also live" list above enumerates every public route.
   rejects; editing the cleaned content pre-approval is v1.1)
 - Per-page SEO controls in the Website Editor — still v1.1
 
+### Website Editor epic — Phases 1 + 2 shipped; Phase 3 (AI onboarding) next
+
+Research-grounded overhaul of the `/website` editor (deep research this
+session on dental website vendors, patient expectations, and AI-copy
+pricing — full reports in chat history). Key findings that shaped it:
+the clinic pain that matters is **lock-in + powerlessness** (you don't own
+the site, must email an agency to change a word — Officite ToS / ProSites
+"cone of silence"), **AI copy is whitespace in dental** (no vendor ships
+it), and **metering edits to your own content is the #1 AI backlash
+trigger** (Canva/Cursor/Notion). So: own-it + edit-it-yourself framing,
+AI as a free-feeling accelerant, manual editing always free.
+
+- **Phase 1 (PR #199, shipped)** — section editor + live preview + FAQ
+  editor (see "Website Editor v2" under What's wired).
+- **Phase 2 (PR #200, shipped)** — per-section "Rewrite with AI" + the
+  **tier-baked allowance** monetization model (Basic 15 / Pro 50 /
+  Premium 200 rewrites/mo; NOT a credit currency; fails safe; never
+  auto-charges). See "Website Editor — AI copy assist" under What's wired.
+- **Phase 3 (NEXT, not built)** — the **conversational AI onboarding
+  interview**: a brand-styled streaming chat shown post-checkout (onboarding
+  creates a near-empty `clinic_profile`, so `/onboarding-complete` →
+  a new `/welcome` step is the insertion point) that asks ~6–10 warm
+  questions then drafts the WHOLE site copy (tagline, about, service
+  selection + customization, stats, FAQ) in one pass, free + uncounted,
+  then drops the clinic into the Phase-1 editor to refine. Reuses
+  `lib/services/ai-website.ts` + `service-library-ai.ts`.
+- **Phase 2 loose ends** — Stats/FAQ AI inject via a remount-key (their
+  editors aren't controlled yet); a "improve my current text" seed (vs
+  generate-fresh) is a future add; `/settings/clinic` still exists as a
+  deep-edit fallback to be retired/redirected.
+
+### Public-site polish reconciliation (PRs #190–#198 — were undocumented)
+
+The #189 doc sweep predated these; captured here for honesty:
+- **#190–#192** — shared public-site primitives added: `components/clinic-site/`
+  `closing-cta.tsx`, `scroll-reveal.tsx`, `numbered-steps.tsx`; subpage
+  refinement sweep (scroll reveals + ClosingCTA across the subpages).
+- **#193** — **replaced the sticky mobile Book+Call bar with corner
+  floating CTAs** (`site-mobile-actions.tsx`) + dropdown hover-bridge.
+  ⚠️ This diverges from DESIGN.md's "sticky bottom CTA bar" pattern — a
+  deliberate change; DESIGN.md's mobile-pattern note should be updated to
+  match (or the decision revisited) next time that doc is touched.
+- **#194–#196** — mobile responsiveness pass + About-page polish + hamburger
+  drawer nav + stats 2×2 + tighter form cards + day-picker breakout.
+- **#197–#198** — **intake self-signup flow** (`app/site/[slug]/intake-start/`)
+  routed through `www` so auth + cookies + portal share an origin; nav-logo
+  cleanup; day-picker arrows.
+
 ### AWS migration — DONE (see "Vercel → AWS migration" below for status)
 
 The Vercel → AWS migration is complete: the app runs on App Runner + RDS +
@@ -1236,7 +1320,7 @@ the third-party integrations that aren't AWS-native. Inventory below.
 ### Pre-migration code hygiene
 
 Already done (no action needed):
-- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0041 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; 0035 adds `review_request.review_text`; 0036 adds `clinic_profile.faq`; 0037 adds `clinic_profile.difference_video_url`; 0038 adds `clinic_profile.accepted_insurance_carriers` powering the public Insurance section + verifier form; 0039 adds the platform-owned `service_library` table powering the Tend-clone services-library checkpoint; 0040 adds `service_library.submitted_by_org_id` + `review_notes` + `idx_service_library_status` for the AI submission → admin review workflow; 0041 adds `clinic_profile.payment_methods` + `financing_partners` + `cancellation_policy` for the standalone /payment-financing page)
+- All current migrations applied to prod through 0023 at AWS-cutover time (`_dreamcrm_migrations_applied` ledger reflected 0000–0023 then); subsequent migrations 0024–0041 have been auto-applied on deploy via `scripts/db-migrate.mjs` (note: 0033 + 0034 land with the OD epic merge; 0035 adds `review_request.review_text`; 0036 adds `clinic_profile.faq`; 0037 adds `clinic_profile.difference_video_url`; 0038 adds `clinic_profile.accepted_insurance_carriers` powering the public Insurance section + verifier form; 0039 adds the platform-owned `service_library` table powering the Tend-clone services-library checkpoint; 0040 adds `service_library.submitted_by_org_id` + `review_notes` + `idx_service_library_status` for the AI submission → admin review workflow; 0041 adds `clinic_profile.payment_methods` + `financing_partners` + `cancellation_policy` for the standalone /payment-financing page; 0042 adds the `ai_usage_counter` table — per-org/per-month tally behind the Website Editor's tier-baked AI-rewrite allowance)
 - Bootstrap route + middleware allowlist removed after every migration apply (latest cleanup: PR #108). Note: the **public-path allowlist in `middleware.ts`** also needs to cover any new `/api/admin/*` route guarded only by `CRON_SECRET` — PR #185 fixed a regression where `/api/admin/resync-demo` was silently 302'd to /signin (added in #176 but never added to the allowlist), which silently broke every auto-resync since.
 - 1224/1224 tests passing, typecheck clean
 - No uncommitted changes on `main`
@@ -1296,7 +1380,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0041): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0042): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its

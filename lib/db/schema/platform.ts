@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { organization } from './auth'
 
 // Clinic-specific profile data that extends an organization where type='clinic'.
@@ -275,3 +275,42 @@ export const AGENCY_PROJECT_STATUS_LABELS: Record<AgencyProjectStatus, string> =
   on_hold: 'On Hold',
   cancelled: 'Cancelled',
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI usage counter
+//
+// A lightweight per-org, per-month tally of metered AI generations (today:
+// website-copy rewrites). Powers the tier-baked allowance in the Website
+// Editor — manual editing and the one-time onboarding draft are always free
+// and NEVER increment this; only an on-demand "Rewrite with AI" does. The
+// unique (organization_id, period, kind) index lets us do an atomic
+// INSERT … ON CONFLICT DO UPDATE SET count = count + 1, and read the current
+// month's usage in one row. `period` is a 'YYYY-MM' string in UTC.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const aiUsageCounter = pgTable(
+  'ai_usage_counter',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // 'YYYY-MM' (UTC) — the billing-month bucket the allowance resets on.
+    period: text('period').notNull(),
+    // Metered action class. v1: 'website_rewrite'. Extensible (e.g. future
+    // 'blog_draft') without a migration.
+    kind: text('kind').notNull().default('website_rewrite'),
+    count: integer('count').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    orgPeriodKind: uniqueIndex('idx_ai_usage_org_period_kind').on(
+      t.organizationId,
+      t.period,
+      t.kind,
+    ),
+  }),
+)
+
+export type AiUsageCounter = typeof aiUsageCounter.$inferSelect
