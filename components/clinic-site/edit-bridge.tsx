@@ -88,11 +88,13 @@ export default function EditBridge() {
     editBtn.className = 'dc-edit-btn'
     editBtn.style.display = 'none'
     let editBtnField = ''
+    let editBtnKind = ''
     let hideTimer: ReturnType<typeof setTimeout> | null = null
     editBtn.addEventListener('click', (ev) => {
       ev.preventDefault()
       ev.stopPropagation()
-      if (editBtnField) post({ type: 'openModal', field: editBtnField })
+      if (!editBtnField) return
+      post({ type: editBtnKind === 'image' ? 'editImage' : 'openModal', field: editBtnField })
     })
     editBtn.addEventListener('mouseenter', () => {
       if (hideTimer) clearTimeout(hideTimer)
@@ -102,7 +104,9 @@ export default function EditBridge() {
 
     function showEditBtn(el: HTMLElement) {
       editBtnField = el.getAttribute('data-edit-field') ?? ''
-      editBtn.textContent = `✎ Edit ${el.getAttribute('data-edit-label') ?? 'section'}`
+      editBtnKind = el.getAttribute('data-edit-kind') ?? ''
+      const label = el.getAttribute('data-edit-label') ?? (editBtnKind === 'image' ? 'photo' : 'section')
+      editBtn.textContent = editBtnKind === 'image' ? `📷 Replace ${label}` : `✎ Edit ${label}`
       const r = el.getBoundingClientRect()
       editBtn.style.top = `${Math.max(8, r.top + 10)}px`
       editBtn.style.left = `${Math.min(window.innerWidth - 150, Math.max(8, r.right - 140))}px`
@@ -120,13 +124,15 @@ export default function EditBridge() {
       const el = (e.target as HTMLElement).closest('[data-edit-field]') as HTMLElement | null
       if (!el) return
       el.classList.add('dc-edit-hover')
-      if (el.getAttribute('data-edit-kind') === 'modal') showEditBtn(el)
+      const k = el.getAttribute('data-edit-kind')
+      if (k === 'modal' || k === 'image') showEditBtn(el)
     }
     function onOut(e: MouseEvent) {
       const el = (e.target as HTMLElement).closest('[data-edit-field]') as HTMLElement | null
       if (!el) return
       el.classList.remove('dc-edit-hover')
-      if (el.getAttribute('data-edit-kind') === 'modal') scheduleHideBtn()
+      const k = el.getAttribute('data-edit-kind')
+      if (k === 'modal' || k === 'image') scheduleHideBtn()
     }
 
     function onMessage(e: MessageEvent) {
