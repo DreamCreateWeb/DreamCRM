@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
-import type { ClinicStat } from '@/lib/types/clinic-content'
+import type { ClinicStat, ClinicTestimonial } from '@/lib/types/clinic-content'
 import ImageUploader from '@/components/ui/image-uploader'
 import StatsEditor from '../settings/clinic/stats-editor'
-import { saveInlineField, saveStats, type SectionResult } from './website-actions'
+import TestimonialsEditor from '../settings/clinic/testimonials-editor'
+import { saveInlineField, saveStats, saveTestimonials, type SectionResult } from './website-actions'
 
 interface Props {
   slug: string
@@ -165,7 +166,9 @@ function StudioModal({
         ? 'Trust stats'
         : modal.field === 'differenceVideoUrl'
           ? 'Intro video'
-          : 'Edit section'
+          : modal.field === 'testimonials'
+            ? 'Featured reviews'
+            : 'Edit section'
 
   async function onSave() {
     setBusy(true)
@@ -177,6 +180,9 @@ function StudioModal({
       res = await persist(() => saveStats(fd))
     } else if (modal.field === 'differenceVideoUrl') {
       res = await persist(() => saveInlineField('differenceVideoUrl', videoUrl))
+    } else if (modal.field === 'testimonials') {
+      const fd = new FormData(formRef.current!)
+      res = await persist(() => saveTestimonials(fd))
     } else {
       res = { ok: false, error: 'This section isn’t editable yet' }
     }
@@ -225,6 +231,18 @@ function StudioModal({
               <StatsEditor
                 name="stats"
                 defaultValue={(profile.stats as ClinicStat[] | null) ?? null}
+              />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'testimonials' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                Patient quotes shown on your homepage. Reviews submitted through the Reviews
+                module can be featured here too — and you can add your own.
+              </p>
+              <TestimonialsEditor
+                name="testimonials"
+                defaultValue={(profile.testimonials as ClinicTestimonial[] | null) ?? null}
               />
             </form>
           )}

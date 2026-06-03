@@ -567,7 +567,14 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           services catalog lives on /services; the hero pill carousel keeps
           a name-only preview. */}
       {testimonials.length > 0 && (
-        <section id="reviews" className="scroll-mt-20 py-16 sm:py-28">
+        <section
+          id="reviews"
+          className="scroll-mt-20 py-16 sm:py-28"
+          data-edit-section="testimonials"
+          data-edit-field="testimonials"
+          data-edit-kind="modal"
+          data-edit-label="reviews"
+        >
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <h2
               className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
