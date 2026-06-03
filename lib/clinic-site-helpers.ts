@@ -30,6 +30,20 @@ export function firstSentence(text: string): string {
   return m ? m[0] : text.trim()
 }
 
+/**
+ * Resolve a per-clinic copy override (Website Studio) by stable key, falling
+ * back to the template's built-in default. `overrides` is the
+ * `clinic_profile.copyOverrides` map; an unset/blank key yields the fallback.
+ */
+export function copyOverride(
+  overrides: Record<string, string> | null | undefined,
+  key: string,
+  fallback: string,
+): string {
+  const v = overrides?.[key]
+  return typeof v === 'string' && v.trim() ? v : fallback
+}
+
 /** "Open today · 8:00 AM – 5:00 PM" or "Closed today" — the footer's
  *  at-a-glance availability blurb. */
 export function todaysHoursLabel(

@@ -11,6 +11,7 @@ import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   firstSentence,
+  copyOverride,
   buildClinicNavLinks,
   navServicesFromClinicServices,
 } from '@/lib/clinic-site-helpers'
@@ -102,6 +103,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const allServices: ClinicService[] =
     (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
   const services: ClinicService[] = allServices.slice(0, 6)
+  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
+  const differenceHeadline = copyOverride(copyOverrides, 'home.differenceHeadline', '')
   const rawStats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
   // Resolve dynamic stats at render. v1: only `review_count` is dynamic.
   // When the live count is 0 AND the stat is dynamic, drop the row rather
@@ -298,6 +301,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <p
                   className="text-base sm:text-lg leading-[1.55] mb-8 max-w-[460px] mx-auto"
                   style={{ color: INK }}
+                  data-edit-field="about"
+                  data-edit-kind="modal"
+                  data-edit-label="intro"
                 >
                   {firstSentence(profile.about)} with{' '}
                   <strong className="font-semibold">no judgment, ever.</strong>
@@ -348,15 +354,29 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <h2
                 className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.15] tracking-[-0.01em]"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:home.differenceHeadline"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                A full range of care for{' '}
-                <strong className="font-bold">all your needs</strong>.
+                {differenceHeadline || (
+                  <>
+                    A full range of care for{' '}
+                    <strong className="font-bold">all your needs</strong>.
+                  </>
+                )}
               </h2>
             </div>
 
             {/* RIGHT photo — breakout to ~35% viewport, soft asymmetric oval */}
             <div className="hidden lg:block lg:-mr-12 xl:-mr-20">
-              <OvalPortrait src={rightPortraitImage} bg={rightPortraitBg} variant="right" />
+              <OvalPortrait
+                src={rightPortraitImage}
+                bg={rightPortraitBg}
+                variant="right"
+                editField="officePhotos"
+                editKind="modal"
+                editLabel="office photos"
+              />
             </div>
           </div>
 
@@ -1147,18 +1167,29 @@ function OvalPortrait({
   bg,
   variant: _variant,
   editField,
+  editKind = 'image',
+  editLabel,
 }: {
   src: string | null
   bg: string
   variant?: 'left' | 'right'
-  /** When set, the panel becomes click-to-replace in the Website Studio. */
+  /** When set, the panel becomes editable in the Website Studio. */
   editField?: string
+  /** 'image' = click-to-replace a single column; 'modal' = open a section editor. */
+  editKind?: 'image' | 'modal'
+  editLabel?: string
 }) {
   return (
     <div
       className="relative overflow-hidden w-full aspect-[4/5]"
       style={{ borderRadius: '50%', backgroundColor: bg }}
-      {...(editField ? { 'data-edit-field': editField, 'data-edit-kind': 'image' } : {})}
+      {...(editField
+        ? {
+            'data-edit-field': editField,
+            'data-edit-kind': editKind,
+            ...(editLabel ? { 'data-edit-label': editLabel } : {}),
+          }
+        : {})}
     >
       {src ? (
         /* eslint-disable-next-line @next/next/no-img-element */
