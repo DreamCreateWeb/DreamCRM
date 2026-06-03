@@ -1,7 +1,15 @@
+import { getClinicOrgIdBySlug } from '@/lib/services/clinic-site'
+import { canEditClinic } from '@/lib/clinic-site-edit'
+import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
+
 /**
  * Site-wide layout for clinic public pages (/site/[slug]/...). Loads the
  * Fraunces serif used for display headings (hero H1 + section H2s) via a
  * standard <link> tag rather than `next/font/google`.
+ *
+ * It also mounts the Website Studio EditBridge (gated to owner/admin + the
+ * `?edit=1` flag) so the canvas stays editable as the clinic navigates
+ * between their own pages — see `EditBridgeGate`.
  *
  * Why the link approach: `next/font/google` fetches font files at BUILD
  * TIME and self-hosts them. That's nice for perf but it's brittle in
@@ -16,7 +24,16 @@
  * Inter for body text is loaded globally by the root layout, so we don't
  * need to touch it here.
  */
-export default function ClinicSiteLayout({ children }: { children: React.ReactNode }) {
+export default async function ClinicSiteLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode
+  params: Promise<{ slug: string }>
+}) {
+  const { slug } = await params
+  const orgId = await getClinicOrgIdBySlug(slug)
+  const canEdit = orgId ? await canEditClinic(orgId) : false
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -34,6 +51,7 @@ export default function ClinicSiteLayout({ children }: { children: React.ReactNo
         html { scroll-behavior: smooth; }
       `}</style>
       {children}
+      <EditBridgeGate canEdit={canEdit} />
     </>
   )
 }
