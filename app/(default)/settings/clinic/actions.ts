@@ -6,268 +6,21 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
-import type {
-  ClinicService,
-  ClinicStaff,
-  ClinicStat,
-  ClinicTestimonial,
-  ClinicOfficePhoto,
-  ClinicFinancingPartner,
-} from '@/lib/types/clinic-content'
+import {
+  parseServices,
+  parseStaff,
+  parseStats,
+  parseTestimonials,
+  parseOfficePhotos,
+  parseFaq,
+  parseStringList,
+  parseFinancingPartners,
+  parseHours,
+  clean,
+} from '@/lib/clinic-content-parse'
 
-export interface HoursEntry {
-  open?: string | null
-  close?: string | null
-  closed?: boolean
-}
-
-function parseServices(raw: string | undefined): ClinicService[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: ClinicService[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const name = typeof obj.name === 'string' ? obj.name.trim() : ''
-      if (!name) continue
-      // Preserve the library-link + per-clinic-override + customization
-      // fields added across 1A/1B. The form-based editor is being phased
-      // out in favor of the picker UI + dedicated server actions, but the
-      // shape needs to survive a round-trip through the settings form too
-      // (e.g. when the clinic edits OTHER profile fields and saves).
-      const librarySlug =
-        typeof obj.librarySlug === 'string' && obj.librarySlug
-          ? obj.librarySlug
-          : null
-      const category =
-        obj.category === 'core' || obj.category === 'special' ? obj.category : null
-      const photoUrl =
-        typeof obj.photoUrl === 'string' && obj.photoUrl.trim()
-          ? obj.photoUrl.trim()
-          : null
-      const offer =
-        typeof obj.offer === 'string' && obj.offer.trim() ? obj.offer.trim() : null
-      const customized =
-        obj.customized && typeof obj.customized === 'object'
-          ? (obj.customized as ClinicService['customized'])
-          : null
-      out.push({
-        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
-        name,
-        description: typeof obj.description === 'string' ? obj.description.trim() || null : null,
-        icon: typeof obj.icon === 'string' ? obj.icon.trim() || null : null,
-        librarySlug,
-        category,
-        photoUrl,
-        offer,
-        customized,
-      })
-    }
-    return out.length ? out : null
-  } catch {
-    return null
-  }
-}
-
-function parseStaff(raw: string | undefined): ClinicStaff[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: ClinicStaff[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const name = typeof obj.name === 'string' ? obj.name.trim() : ''
-      if (!name) continue
-      out.push({
-        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
-        name,
-        title: typeof obj.title === 'string' ? obj.title.trim() || null : null,
-        bio: typeof obj.bio === 'string' ? obj.bio.trim() || null : null,
-        photoUrl: typeof obj.photoUrl === 'string' ? obj.photoUrl || null : null,
-      })
-    }
-    return out.length ? out : null
-  } catch {
-    return null
-  }
-}
-
-function parseStats(raw: string | undefined): ClinicStat[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: ClinicStat[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const value = typeof obj.value === 'string' ? obj.value.trim() : ''
-      const label = typeof obj.label === 'string' ? obj.label.trim() : ''
-      if (!value && !label) continue
-      out.push({
-        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
-        value,
-        label,
-      })
-    }
-    return out.length ? out : null
-  } catch {
-    return null
-  }
-}
-
-function parseTestimonials(raw: string | undefined): ClinicTestimonial[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: ClinicTestimonial[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const quote = typeof obj.quote === 'string' ? obj.quote.trim() : ''
-      const authorName = typeof obj.authorName === 'string' ? obj.authorName.trim() : ''
-      if (!quote || !authorName) continue
-      out.push({
-        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
-        quote,
-        authorName,
-        authorLocation:
-          typeof obj.authorLocation === 'string' ? obj.authorLocation.trim() || null : null,
-        authorPhotoUrl:
-          typeof obj.authorPhotoUrl === 'string' ? obj.authorPhotoUrl || null : null,
-        patientId: typeof obj.patientId === 'string' && obj.patientId ? obj.patientId : null,
-      })
-    }
-    return out.length ? out : null
-  } catch {
-    return null
-  }
-}
-
-function parseInsuranceCarriers(raw: string | undefined): string[] | null {
-  if (!raw) return null
-  // The settings UI sends a newline-separated list; also accept commas as
-  // a separator so paste-from-a-Word-doc works without us building a
-  // tag-picker for v1. Trim + dedupe + drop empties.
-  const parts = raw
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const p of parts) {
-    const key = p.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(p)
-  }
-  return out.length ? out : null
-}
-
-/**
- * Parse the payment-methods textarea (newline / comma separated). Same
- * dedupe + trim treatment as insurance carriers. Returns null when the
- * input is empty so the public site falls back to DEFAULT_PAYMENT_METHODS.
- */
-function parsePaymentMethods(raw: string | undefined): string[] | null {
-  return parseInsuranceCarriers(raw)
-}
-
-/**
- * Parse the financing-partners repeater JSON. Empty rows + rows without a
- * `name` are dropped. Returns null when the resulting list is empty so the
- * public site's Financing section hides cleanly.
- */
-function parseFinancingPartners(
-  raw: string | undefined,
-): ClinicFinancingPartner[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: ClinicFinancingPartner[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const name = typeof obj.name === 'string' ? obj.name.trim() : ''
-      if (!name) continue
-      out.push({
-        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
-        name,
-        description:
-          typeof obj.description === 'string' ? obj.description.trim() || null : null,
-        applyUrl:
-          typeof obj.applyUrl === 'string' ? obj.applyUrl.trim() || null : null,
-        logoUrl:
-          typeof obj.logoUrl === 'string' ? obj.logoUrl.trim() || null : null,
-      })
-    }
-    return out.length ? out : null
-  } catch {
-    return null
-  }
-}
-
-function parseOfficePhotos(raw: string | undefined): ClinicOfficePhoto[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: ClinicOfficePhoto[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const url = typeof obj.url === 'string' ? obj.url.trim() : ''
-      if (!url) continue
-      out.push({
-        id: typeof obj.id === 'string' ? obj.id : Math.random().toString(36).slice(2, 10),
-        url,
-        alt: typeof obj.alt === 'string' ? obj.alt.trim() || null : null,
-        caption: typeof obj.caption === 'string' ? obj.caption.trim() || null : null,
-      })
-    }
-    return out.length ? out : null
-  } catch {
-    return null
-  }
-}
-
-const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
-type Day = (typeof DAYS)[number]
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
-
-/**
- * Parse hours[mon].open|close|closed multi-input form fields into a
- * { mon: {open, close, closed}, ... } JSON object suitable for clinic_profile.hours.
- */
-function parseHours(formData: FormData): Record<Day, HoursEntry> | null {
-  const out: Partial<Record<Day, HoursEntry>> = {}
-  let touched = false
-  for (const day of DAYS) {
-    const closed = formData.get(`hours[${day}].closed`) === 'on'
-    const open = formData.get(`hours[${day}].open`)?.toString().trim() ?? ''
-    const close = formData.get(`hours[${day}].close`)?.toString().trim() ?? ''
-    if (closed) {
-      out[day] = { closed: true }
-      touched = true
-    } else if (open || close) {
-      if (open && !HHMM.test(open)) throw new Error(`Invalid open time for ${day}`)
-      if (close && !HHMM.test(close)) throw new Error(`Invalid close time for ${day}`)
-      out[day] = { open: open || null, close: close || null }
-      touched = true
-    }
-  }
-  return touched ? (out as Record<Day, HoursEntry>) : null
-}
-
-function clean(field: string, formData: FormData, fallback: string | null = null) {
-  return formData.get(field)?.toString().trim() || fallback
-}
+// Re-exported for back-compat with any importer that pulled the type from here.
+export type { HoursEntry } from '@/lib/clinic-content-parse'
 
 export async function updateClinicProfile(formData: FormData) {
   const ctx = await requireTenant()
@@ -293,22 +46,19 @@ export async function updateClinicProfile(formData: FormData) {
   const template = clean('template', formData, 'modern')
   const logoUrl = clean('logoUrl', formData)
   const heroImageUrl = clean('heroImageUrl', formData)
-  // URL only for v1 — no in-product video uploader yet (would need a
-  // mime-aware uploader + S3 chunked-upload flow). Clinics paste a public
-  // mp4/webm URL (Pexels, their own CDN, etc.). When set, the public site
-  // renders the "Why us?" section's media as an ambient autoplay loop.
+  // URL only for v1 — no in-product video uploader yet. Clinics paste a public
+  // mp4/webm URL; when set, the public "Why us?" media plays as an ambient loop.
   const differenceVideoUrl = clean('differenceVideoUrl', formData)
   const services = parseServices(formData.get('services')?.toString())
   const staff = parseStaff(formData.get('staff')?.toString())
   const stats = parseStats(formData.get('stats')?.toString())
   const testimonials = parseTestimonials(formData.get('testimonials')?.toString())
   const officePhotos = parseOfficePhotos(formData.get('officePhotos')?.toString())
-  const acceptedInsuranceCarriers = parseInsuranceCarriers(
+  const faq = parseFaq(formData.get('faq')?.toString())
+  const acceptedInsuranceCarriers = parseStringList(
     formData.get('acceptedInsuranceCarriers')?.toString(),
   )
-  const paymentMethods = parsePaymentMethods(
-    formData.get('paymentMethods')?.toString(),
-  )
+  const paymentMethods = parseStringList(formData.get('paymentMethods')?.toString())
   const financingPartners = parseFinancingPartners(
     formData.get('financingPartners')?.toString(),
   )
@@ -339,6 +89,7 @@ export async function updateClinicProfile(formData: FormData) {
     stats,
     testimonials,
     officePhotos,
+    faq,
     acceptedInsuranceCarriers,
     paymentMethods,
     financingPartners,
@@ -358,5 +109,6 @@ export async function updateClinicProfile(formData: FormData) {
   }
 
   revalidatePath('/settings/clinic')
+  revalidatePath('/website')
   revalidatePath(`/site/${ctx.organizationSlug}`)
 }
