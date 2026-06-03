@@ -82,13 +82,51 @@ export default function EditBridge() {
       else if (kind === 'modal') post({ type: 'openModal', field })
     }
 
+    // Floating "Edit {label}" affordance shown when hovering a modal section.
+    const editBtn = document.createElement('button')
+    editBtn.type = 'button'
+    editBtn.className = 'dc-edit-btn'
+    editBtn.style.display = 'none'
+    let editBtnField = ''
+    let hideTimer: ReturnType<typeof setTimeout> | null = null
+    editBtn.addEventListener('click', (ev) => {
+      ev.preventDefault()
+      ev.stopPropagation()
+      if (editBtnField) post({ type: 'openModal', field: editBtnField })
+    })
+    editBtn.addEventListener('mouseenter', () => {
+      if (hideTimer) clearTimeout(hideTimer)
+    })
+    editBtn.addEventListener('mouseleave', scheduleHideBtn)
+    document.body.appendChild(editBtn)
+
+    function showEditBtn(el: HTMLElement) {
+      editBtnField = el.getAttribute('data-edit-field') ?? ''
+      editBtn.textContent = `✎ Edit ${el.getAttribute('data-edit-label') ?? 'section'}`
+      const r = el.getBoundingClientRect()
+      editBtn.style.top = `${Math.max(8, r.top + 10)}px`
+      editBtn.style.left = `${Math.min(window.innerWidth - 150, Math.max(8, r.right - 140))}px`
+      editBtn.style.display = 'block'
+      if (hideTimer) clearTimeout(hideTimer)
+    }
+    function scheduleHideBtn() {
+      if (hideTimer) clearTimeout(hideTimer)
+      hideTimer = setTimeout(() => {
+        editBtn.style.display = 'none'
+      }, 250)
+    }
+
     function onOver(e: MouseEvent) {
       const el = (e.target as HTMLElement).closest('[data-edit-field]') as HTMLElement | null
-      el?.classList.add('dc-edit-hover')
+      if (!el) return
+      el.classList.add('dc-edit-hover')
+      if (el.getAttribute('data-edit-kind') === 'modal') showEditBtn(el)
     }
     function onOut(e: MouseEvent) {
       const el = (e.target as HTMLElement).closest('[data-edit-field]') as HTMLElement | null
-      el?.classList.remove('dc-edit-hover')
+      if (!el) return
+      el.classList.remove('dc-edit-hover')
+      if (el.getAttribute('data-edit-kind') === 'modal') scheduleHideBtn()
     }
 
     function onMessage(e: MessageEvent) {
@@ -118,6 +156,8 @@ export default function EditBridge() {
       document.removeEventListener('mouseout', onOut)
       window.removeEventListener('message', onMessage)
       document.body.classList.remove('dc-edit-mode')
+      if (hideTimer) clearTimeout(hideTimer)
+      editBtn.remove()
     }
   }, [])
 
@@ -135,6 +175,12 @@ export default function EditBridge() {
       .dc-edit-mode [contenteditable="true"] {
         outline-color: #8b5cf6 !important; background-color: rgba(139,92,246,0.08);
       }
+      .dc-edit-btn {
+        position: fixed; z-index: 2147483646; border: none; cursor: pointer;
+        background: #8b5cf6; color: #fff; font: 600 12px/1 Inter, system-ui, sans-serif;
+        padding: 8px 13px; border-radius: 9px; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      }
+      .dc-edit-btn:hover { background: #7c3aed; }
     `}</style>
   )
 }
