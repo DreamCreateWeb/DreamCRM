@@ -40,15 +40,16 @@ export default async function OnboardingComplete() {
                     {orgName ? `Welcome, ${orgName}!` : "You're all set!"}
                   </h1>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
-                    Your subscription is active. Start by customizing your public clinic
-                    website — add your tagline, hours, services, and team photos.
+                    Your subscription is active. Let&apos;s build your website — answer a few
+                    quick questions and we&apos;ll draft the whole thing for you, then you can
+                    edit anything live.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2 justify-center">
                     <Link
                       className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-                      href="/settings/clinic"
+                      href="/welcome"
                     >
-                      Customize your website →
+                      Build my website with AI →
                     </Link>
                     <Link
                       className="btn bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300"
