@@ -454,30 +454,46 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   also pulls `patient_message` + `email_message` rows inline, with
   message-kind events linking to `/messages?thread=<id>`. Platform
   tenant keeps the generic Mosaic chat surface (different mental model).
-- **Website Editor v2 (section editor + live preview + AI assist)** —
-  Per DESIGN.md "the website is the trunk", `/website` is now a real
-  **three-pane in-place editor** (PR #199 + #200), replacing the prior
-  read-only checklist that funnelled every edit into the buried
-  `/settings/clinic` mega-form. **Layout**: left-rail site anatomy
-  (Homepage / Pages / Contact, each row with a ✓/~/⚠ completeness dot) ·
-  center section panels (Brand · Hero · Stats · Services · Team ·
-  Testimonials · Office photos · About · FAQ · Insurance · Payment ·
-  Contact · Hours) · right **live `<iframe>` preview** of
-  `/site/[slug]` (same-origin under `X-Frame-Options: SAMEORIGIN`) with
-  a desktop/mobile toggle + reload-on-save. **Per-section saves** live in
-  `app/(default)/website/website-actions.ts`, each scoped to only its own
-  columns (mirrors `services-actions.ts`) — no all-or-nothing form submit
-  that could null absent fields; panels stay mounted so switching never
-  loses unsaved edits. The proven content parsers were extracted into
-  `lib/clinic-content-parse.ts` (shared by the editor + the legacy
-  settings form). **Filled the FAQ gap**: `clinic_profile.faq` had a
-  column + universal defaults but no UI — new `faq-editor.tsx` (category +
-  Q/A + reorder + "start from the 13 universal defaults"). Services are a
-  first-class section (reuses the library picker), not a Settings link.
-  Ownership framing throughout ("you own it — change anything, live in
-  seconds, no tickets") — the anti-lock-in wedge from the dental-website
-  research (Officite ToS: site *"owned by us"*, auto-renews, *"right to
-  delete all data"*; ProSites *"ticket system"* + *"cone of silence"*).
+- **Website Studio — full in-place "navigate-the-canvas" editor** (PRs
+  #199–#212). Per DESIGN.md "the website is the trunk", `/website` opens
+  the clinic's REAL public site full-screen in an editable canvas (no CRM
+  chrome) — they edit by hovering and clicking the site itself, live.
+  Evolved from the original three-pane editor (#199 + #200) into a true
+  WYSIWYG surface: #202 full-screen foundation + inline tagline → #203
+  demo-mode gate fix → #204 section modals + image replace + hover "Edit"
+  → #205 hero-image/intro-video fixes → #207 navigate-the-canvas → #208–#212
+  per-page instrumentation. **How it works**: the authed shell
+  (`app/(default)/website/website-studio.tsx`) hosts an `<iframe>` of
+  `/site/[slug]?edit=1`; the public site mounts an **EditBridge**
+  (`components/clinic-site/edit-bridge.tsx`) — gated owner/admin + `?edit=1`
+  by `EditBridgeGate` in the shared `app/site/[slug]/layout.tsx` (auth via
+  `lib/clinic-site-edit.ts::canEditClinic`, demo-mode aware) — that turns
+  every `data-edit-*`-tagged region into an affordance and `postMessage`s
+  intents to the shell. **Inline text** (tagline, clinic name) edits in
+  place (contentEditable → `saveInlineField`); **images** click-to-replace
+  ("📷 Replace photo"); **sections** hover → "✎ Edit {label}" → a modal
+  reusing the existing editor + its **scoped** `website-actions.ts` save →
+  canvas reloads the CURRENT page. **Navigate-the-canvas**: internal
+  `/site/…` links navigate with `?edit=1` preserved, so editing spans
+  Home → About → Services → … without leaving the canvas (hash links
+  scroll; external/tel/mailto suppressed; nav dropdowns still work).
+  **Coverage**: Home (tagline · clinic name · hero image · intro video
+  upload-or-URL · trust stats · testimonials · services via the embedded
+  library picker), About (about · team · office photos), FAQ, Insurance
+  (carriers), Payment & Financing (methods · financing · cancellation),
+  and footer **Office Hours** on every page. Editors: `faq-editor.tsx` +
+  new `hours-editor.tsx` in `app/(default)/website/` + reused
+  `settings/clinic/*-editor.tsx`; shared parsers in
+  `lib/clinic-content-parse.ts`. A **stale-tab fallback** renders "refresh
+  to edit" when a `/website` tab predates a deploy that added new section
+  types (the shell JS lags the freshly-server-rendered iframe). Ownership
+  framing throughout — the anti-lock-in wedge from the dental-website
+  research (Officite ToS: site *"owned by us"*; ProSites *"cone of
+  silence"*). `/settings/clinic` remains a deep-edit fallback. **Loose
+  end:** the Phase-2 per-section "✨ Rewrite with AI" buttons lived on the
+  old three-pane panels and are NOT yet re-wired into the Studio modals —
+  the infra (`ai-website.ts`, allowance, `ai_usage_counter`) is intact;
+  the buttons just need re-adding per copy-heavy modal.
 - **Website Editor — AI copy assist + tier-baked allowance** (PR #200) —
   per-section **"✨ Rewrite with AI"** on the four copy-heavy sections
   (Hero tagline · About · Stats · FAQ; Services already had their own AI
@@ -500,10 +516,12 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   abuse guardrail + upgrade lever, not cost-recovery — deliberately
   generous so the "pay to edit my own content" resentment never triggers.
   `/settings/clinic` stays as a deep-edit fallback (retire in a follow-up).
-  **Loose ends**: Stats/FAQ AI inject via a remount-key; FAQ/Stats editor
-  refactor to controlled inputs is a future cleanup. Onboarding AI
-  interview (the conversational "draft my whole site" flow) is the next
-  phase — see "What's NOT yet wired".
+  **Built for the original three-pane editor (#200); the in-place Website
+  Studio that replaced it has NOT yet re-wired these per-section "Rewrite
+  with AI" buttons into its modals — infra intact, buttons pending** (see
+  the Website Studio bullet's loose end). The same `ai-website.ts` is the
+  generation engine reused by the conversational AI onboarding interview
+  (Phase 3 — see "What's NOT yet wired").
 - **Reviews & Reputation v2** — Post-visit review collection where the
   **patient writes the review inside DreamCRM**, the text persists,
   staff just toggles featured/unfeatured on the public site. Patient
@@ -711,7 +729,7 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
 | Growth | Reviews | `/reviews` + `/reviews/received` | **Live (v2)** | Post-visit review collection — **patient writes the review text inside DreamCRM** (`review_request.review_text`, migration 0035), staff just toggles featured/unfeatured on the public site. Morning-huddle dashboard: 4-stat funnel (Sent · Opened · Reviewed · Ready-to-ask) + platform mix breakdown + Ready-to-ask list + recent activity with ✓ Featured pills + Browse received CTA + inline config. `/reviews/received` shows the patient's actual quote in a read-only italic blockquote + star rating + one-click Feature/Unfeature (staff CANNOT edit). Public landing at `/r/<token>` is text-first: rating + textarea + Submit, then "Also share on Google/Healthgrades/Facebook/Yelp?" as a secondary action (SEO play preserved). `featureReviewAsTestimonial({orgId, patientId})` sources quote from `review_request.reviewText` — throws "has not submitted a review" when null. `clinic_profile.testimonials` gains `patientId` link; display label denormalized to "First L." + city. Featured testimonials surface on the public site (static 3-card grid ≤3, looping marquee >3). FTC-clean (2024 Fake Reviews Rule), no NPS gating, 365-day rate limit. Auto-trigger on appointment completion = v1.1 scaffolded (handler exists, needs EventBridge rule). |
 | Growth | Analytics | `/analytics` | **Live (v1)** | Premium-tier. The honest CRM-vs-PMS split: read-only aggregation (no new schema) over data other modules already capture. 5 bands — Acquisition (new patients via firstSeenAt + source mix + a real GSC-clicks→leads→contacted→converted website funnel), Schedule health (volume trend + no-show/cancellation/confirmation rates vs an industry benchmark, with a low-volume guard that shows counts instead of a misleading % on small samples), Recall & outreach (recall-due reuses listPatients + sent→opened→clicked→booked), Reputation (review funnel + platform mix, reuses getReviewStats), and an honest "Lives in your PMS" deferral block (production $, procedure mix, hygiene reappt %, AR aging) that arrives with Integrations rather than being faked. 30/90-day toggle. Aggregates existing demo data — no seeder change |
-| Website | Website Editor | `/website` | **Live (v2)** | Real three-pane in-place editor (PR #199 + #200): left-rail site anatomy w/ completeness dots · center per-section panels (Brand · Hero · Stats · Services · Team · Testimonials · Photos · About · FAQ · Insurance · Payment · Contact · Hours) · live `/site/[slug]` iframe preview w/ desktop/mobile toggle + reload-on-save. Per-section saves (`website-actions.ts`, scoped column writes, shared parsers in `lib/clinic-content-parse.ts`). Fills the FAQ-editor gap. Per-section **"✨ Rewrite with AI"** on Hero/About/Stats/FAQ (`lib/services/ai-website.ts`, returns copy for review — never auto-saves) gated by a **tier-baked monthly allowance** (Basic 15 / Pro 50 / Premium 200; `ai_usage_counter` migration 0042; fails safe, no credit currency, no auto-charge). `/settings/clinic` remains a deep-edit fallback. Next: conversational AI onboarding interview |
+| Website | Website Studio | `/website` | **Live (v3 — in-place)** | Full-screen **in-place "navigate-the-canvas" editor** (PRs #199→#212): `/website` hosts an `<iframe>` of the clinic's REAL site (`/site/[slug]?edit=1`); the public site mounts an **EditBridge** (gated owner/admin + `?edit=1` via `EditBridgeGate` in the shared `/site/[slug]/layout.tsx`) so every `data-edit-*` region is hover-to-edit. Inline text (tagline, name) edits in place; images click-to-replace ("📷 Replace"); sections hover → "✎ Edit" → modal reusing the existing editor + **scoped** `website-actions.ts` save → canvas reloads the current page. **Navigate-the-canvas** keeps `?edit=1` across internal links. Coverage: Home (tagline · name · hero image · intro video upload/URL · stats · testimonials · services picker) · About (about · team · office photos) · FAQ · Insurance · Payment & Financing · footer Office Hours (every page). Editors in `app/(default)/website/` (faq/hours) + reused `settings/clinic/*-editor.tsx`. Stale-tab "refresh to edit" fallback. **Loose end:** the Phase-2 per-section "✨ Rewrite with AI" buttons (tier allowance Basic 15 / Pro 50 / Premium 200, `ai_usage_counter` 0042, `ai-website.ts`) were on the old three-pane panels and aren't yet re-wired into the Studio modals (infra intact). `/settings/clinic` is the deep-edit fallback. Next: conversational AI onboarding interview (Phase 3) |
 | Website | Blog | `/blog` | Soon | Phase 1 placeholder — Tiptap editor + SEO + AI-assisted drafts |
 | Website | SEO | `/seo` | **Live (v1)** | Base SEO (sitemap / robots / JSON-LD / OG images / canonicals) is live. Dashboard surfaces site-health checks, an organic→leads→bookings funnel, real Search Console clicks + top queries, and reviews as a ranking signal. **Search Console is a single shared platform connection, zero-config for clinics**: the platform admin connects ONCE with the `sc-domain:dreamcreatestudio.com` Domain property (covers apex + www + every clinic subdomain); each clinic's SEO tab reads that connection scoped to its own pages via a `page contains '/site/<slug>'` (or `<slug>.` in subdomain mode) filter — clinics connect nothing. OAuth routes a platform-admin's connect to the platform org even from demo mode (`getPlatformOrgId`); `getClinicSeoPerformance` does the scoped read (also feeds the Analytics website funnel). Platform context (`tenantType==='platform'`) shows the manage view (connect / pick property / whole-domain perf); clinic/demo shows the scoped read. Custom-domain clinics aren't covered by the shared property (future: their own connection). Rank tracking + page-speed + GBP still roadmap |
 | Website | Careers | `/careers` | **Live (v1)** | Premium-tier. Job postings on the clinic's own site + a built-in ATS — replaces the $400/mo DentalPost board. **The "Indeed integration" is structured-data, not a partner API**: each open role renders at `{slug}.../careers/[jobSlug]` with `JobPosting` JSON-LD so **Google for Jobs + Indeed index it for free** (Indeed's Job Sync API is ATS-partner-only; the direct-employer path is the `/site/[slug]/jobs.xml` feed we also generate). Schema (migration 0031): `job_posting` (role/employment/comp/status/apply-method) + `job_application`. Admin `/careers`: Roles tab (create/edit via `/careers/new` + `/careers/[id]`, publish/close/delete) + Applicants tab (triage pipeline new→reviewing→interview→offer→hired/passed, aging-color rot border on un-reviewed, drawer with résumé download + rating + notes). Public apply form uploads résumé to S3 via a public server action (auth-gated upload route can't serve unauthenticated applicants). Client-safe types/labels/JSON-LD in `lib/types/careers.ts`; DB functions in `lib/services/careers.ts`. Demo seeder: 2 open roles + 1 draft + 7 applicants across every pipeline state (aging spread). Scope = permanent/part-time hires for one practice, NOT a temp/gig marketplace (Cloud Dentistry's lane). Full one-click *Indeed Apply* is a future partner track |
@@ -1064,7 +1082,7 @@ surfaces also live" list above enumerates every public route.
   rejects; editing the cleaned content pre-approval is v1.1)
 - Per-page SEO controls in the Website Editor — still v1.1
 
-### Website Editor epic — Phases 1 + 2 shipped; Phase 3 (AI onboarding) next
+### Website Editor epic — Phases 1 + 2 + in-place Studio shipped; Phase 3 (AI onboarding) in progress
 
 Research-grounded overhaul of the `/website` editor (deep research this
 session on dental website vendors, patient expectations, and AI-copy
@@ -1082,18 +1100,23 @@ AI as a free-feeling accelerant, manual editing always free.
   **tier-baked allowance** monetization model (Basic 15 / Pro 50 /
   Premium 200 rewrites/mo; NOT a credit currency; fails safe; never
   auto-charges). See "Website Editor — AI copy assist" under What's wired.
-- **Phase 3 (NEXT, not built)** — the **conversational AI onboarding
+- **Phase 2.5 — in-place Website Studio (PRs #202–#212, shipped)** — the
+  three-pane editor was REPLACED by a full-screen WYSIWYG canvas: the
+  clinic edits its real `/site/[slug]` inside an `<iframe>`, hovering and
+  clicking the site itself, navigating page-to-page in edit mode. Inline
+  text + image/video replace + per-section modals (reusing the existing
+  editors) + footer hours, across Home + every content subpage. See the
+  "Website Studio" bullet under What's wired for the full mechanism +
+  coverage. **Carry-over:** Phase-2's per-section "Rewrite with AI" buttons
+  aren't re-wired into the Studio modals yet (infra intact).
+- **Phase 3 (IN PROGRESS) — the conversational AI onboarding
   interview**: a brand-styled streaming chat shown post-checkout (onboarding
   creates a near-empty `clinic_profile`, so `/onboarding-complete` →
   a new `/welcome` step is the insertion point) that asks ~6–10 warm
   questions then drafts the WHOLE site copy (tagline, about, service
   selection + customization, stats, FAQ) in one pass, free + uncounted,
-  then drops the clinic into the Phase-1 editor to refine. Reuses
+  then drops the clinic into the in-place Studio to refine. Reuses
   `lib/services/ai-website.ts` + `service-library-ai.ts`.
-- **Phase 2 loose ends** — Stats/FAQ AI inject via a remount-key (their
-  editors aren't controlled yet); a "improve my current text" seed (vs
-  generate-fresh) is a future add; `/settings/clinic` still exists as a
-  deep-edit fallback to be retired/redirected.
 
 ### Public-site polish reconciliation (PRs #190–#198 — were undocumented)
 
