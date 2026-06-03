@@ -57,5 +57,5 @@ export default async function WebsiteEditorPage() {
   const slug = ctx.organizationSlug
   const siteUrl = publicSiteUrl({ slug, profile })
 
-  return <WebsiteStudio slug={slug} siteUrl={siteUrl} />
+  return <WebsiteStudio slug={slug} siteUrl={siteUrl} profile={profile} />
 }

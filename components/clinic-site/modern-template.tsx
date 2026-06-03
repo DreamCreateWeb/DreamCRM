@@ -412,7 +412,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── Trust anchors — stat card right under the hero ─────────────── */}
       {stats.length > 0 && (
-        <section className="pt-8 pb-20 sm:pt-10 sm:pb-24">
+        <section
+          className="pt-8 pb-20 sm:pt-10 sm:pb-24"
+          data-edit-section="stats"
+          data-edit-field="stats"
+          data-edit-kind="modal"
+          data-edit-label="trust stats"
+        >
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <div
               className="rounded-2xl overflow-hidden"
@@ -496,6 +502,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     alt=""
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    data-edit-field="heroImageUrl"
+                    data-edit-kind="image"
                   />
                 )}
               </div>

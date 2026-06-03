@@ -264,6 +264,8 @@ export default function SiteHeader({
                 <span
                   className="font-semibold text-[17px] sm:text-[19px] lg:text-[22px] leading-tight truncate tracking-[-0.005em]"
                   style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  data-edit-field="displayName"
+                  data-edit-kind="text"
                 >
                   {name}
                 </span>
