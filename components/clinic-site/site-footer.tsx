@@ -145,7 +145,12 @@ export default function SiteFooter({
                   Hours section was removed to match Tend's flow (hours sit
                   in the footer, not as a dedicated band). */}
               {hours && Object.keys(hours).length > 0 && (
-                <ul className="pt-1 space-y-1">
+                <ul
+                  className="pt-1 space-y-1"
+                  data-edit-field="hours"
+                  data-edit-kind="modal"
+                  data-edit-label="hours"
+                >
                   {DAYS.map((day) => {
                     const entry = (hours as HoursMap)[day]
                     if (!entry) return null
