@@ -3,12 +3,19 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
-import type { ClinicStat, ClinicTestimonial, ClinicStaff, ClinicOfficePhoto } from '@/lib/types/clinic-content'
+import type {
+  ClinicStat,
+  ClinicTestimonial,
+  ClinicStaff,
+  ClinicOfficePhoto,
+  ClinicFaqItem,
+} from '@/lib/types/clinic-content'
 import ImageUploader from '@/components/ui/image-uploader'
 import StatsEditor from '../settings/clinic/stats-editor'
 import TestimonialsEditor from '../settings/clinic/testimonials-editor'
 import StaffEditor from '../settings/clinic/staff-editor'
 import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
+import FaqEditor from './faq-editor'
 import {
   saveInlineField,
   saveStats,
@@ -16,6 +23,8 @@ import {
   saveAbout,
   saveStaff,
   saveOfficePhotos,
+  saveFaq,
+  saveInsurance,
   type SectionResult,
 } from './website-actions'
 
@@ -50,6 +59,8 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   about: saveAbout,
   staff: saveStaff,
   officePhotos: saveOfficePhotos,
+  faq: saveFaq,
+  acceptedInsuranceCarriers: saveInsurance,
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -59,6 +70,8 @@ const SECTION_TITLES: Record<string, string> = {
   about: 'About your practice',
   staff: 'Meet the team',
   officePhotos: 'Office photos',
+  faq: 'Frequently asked questions',
+  acceptedInsuranceCarriers: 'Insurance carriers',
 }
 
 /**
@@ -345,6 +358,30 @@ function StudioModal({
               />
             </form>
           )}
+          {modal.kind === 'section' && modal.field === 'faq' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                Questions patients ask before booking — insurance, first visits, billing,
+                anxiety. They’re grouped by category on your FAQ page.
+              </p>
+              <FaqEditor name="faq" defaultValue={(profile.faq as ClinicFaqItem[] | null) ?? null} />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'acceptedInsuranceCarriers' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                The insurance carriers you accept — one per line. They appear on your homepage
+                Insurance band and Insurance page. Leave blank to show “call to verify.”
+              </p>
+              <textarea
+                name="acceptedInsuranceCarriers"
+                defaultValue={((profile.acceptedInsuranceCarriers as string[] | null) ?? []).join('\n')}
+                rows={8}
+                placeholder={'Delta Dental\nCigna\nAetna\nMetLife'}
+                className="form-textarea w-full text-sm"
+              />
+            </form>
+          )}
           {modal.kind === 'section' && modal.field === 'differenceVideoUrl' && (
             <div>
               <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
@@ -408,6 +445,13 @@ function StudioModal({
                 />
               )}
             </div>
+          )}
+          {modal.kind === 'section' && !SECTION_TITLES[modal.field] && (
+            <p className="text-sm text-stone-500 dark:text-stone-400">
+              This section’s editor isn’t available in your current tab — it was likely added
+              in a newer version of the editor. Refresh the page (⌘⇧R / Ctrl+Shift+R) and try
+              again.
+            </p>
           )}
         </div>
 

@@ -214,7 +214,12 @@ export default async function FaqPage({ params }: Props) {
       </nav>
 
       {/* ── Accordion list, grouped ───────────────────────────────────── */}
-      <section className="py-12 sm:py-16">
+      <section
+        className="py-12 sm:py-16"
+        data-edit-field="faq"
+        data-edit-kind="modal"
+        data-edit-label="FAQ"
+      >
         <div className="max-w-[820px] mx-auto px-5 sm:px-8 space-y-14">
           {orderedCategories.map((c) => (
             <div key={c} id={`category-${categorySlug(c)}`} className="scroll-mt-32">
