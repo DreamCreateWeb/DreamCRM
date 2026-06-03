@@ -269,7 +269,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           <div className="grid lg:grid-cols-[1fr_minmax(0,640px)_1fr] gap-6 lg:gap-10 items-center">
             {/* LEFT photo — breakout to ~35% viewport, soft asymmetric oval */}
             <div className="hidden lg:block lg:-ml-12 xl:-ml-20">
-              <OvalPortrait src={leftPortraitImage} bg={leftPortraitBg} variant="left" />
+              <OvalPortrait src={leftPortraitImage} bg={leftPortraitBg} variant="left" editField="heroImageUrl" />
             </div>
 
             {/* CENTER text column — caps at 640px so the photos take the
@@ -492,6 +492,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     preload="metadata"
                     className="w-full h-full object-cover"
                     aria-hidden="true"
+                    data-edit-field="differenceVideoUrl"
+                    data-edit-kind="modal"
+                    data-edit-label="intro video"
                   >
                     <source src={profile.differenceVideoUrl} />
                   </video>
@@ -1139,15 +1142,19 @@ function OvalPortrait({
   src,
   bg,
   variant: _variant,
+  editField,
 }: {
   src: string | null
   bg: string
   variant?: 'left' | 'right'
+  /** When set, the panel becomes click-to-replace in the Website Studio. */
+  editField?: string
 }) {
   return (
     <div
       className="relative overflow-hidden w-full aspect-[4/5]"
       style={{ borderRadius: '50%', backgroundColor: bg }}
+      {...(editField ? { 'data-edit-field': editField, 'data-edit-kind': 'image' } : {})}
     >
       {src ? (
         /* eslint-disable-next-line @next/next/no-img-element */

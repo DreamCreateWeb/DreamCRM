@@ -207,13 +207,13 @@ export async function savePaymentFinancing(formData: FormData): Promise<SectionR
 // (those go through their section action via a modal). `value` is trimmed;
 // empty → null so the public site falls back to its default.
 const INLINE_TEXT_FIELDS = new Set([
-  'tagline', 'about', 'displayName', 'legalName', 'phone', 'email',
+  'tagline', 'about', 'displayName', 'legalName', 'phone', 'email', 'differenceVideoUrl',
 ])
 const INLINE_IMAGE_FIELDS = new Set(['logoUrl', 'heroImageUrl'])
 
 export type InlineField =
   | 'tagline' | 'about' | 'displayName' | 'legalName' | 'phone' | 'email'
-  | 'logoUrl' | 'heroImageUrl'
+  | 'logoUrl' | 'heroImageUrl' | 'differenceVideoUrl'
 
 export async function saveInlineField(field: string, value: string): Promise<SectionResult> {
   if (!INLINE_TEXT_FIELDS.has(field) && !INLINE_IMAGE_FIELDS.has(field)) {

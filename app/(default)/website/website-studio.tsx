@@ -150,6 +150,11 @@ function StudioModal({
   const [imageUrl, setImageUrl] = useState<string | null>(
     modal.kind === 'image' ? ((profile[modal.field as keyof ClinicProfile] as string | null) ?? null) : null,
   )
+  const [videoUrl, setVideoUrl] = useState<string>(
+    modal.kind === 'section' && modal.field === 'differenceVideoUrl'
+      ? ((profile.differenceVideoUrl as string | null) ?? '')
+      : '',
+  )
   const [busy, setBusy] = useState(false)
 
   const imageCfg = modal.kind === 'image' ? IMAGE_FIELDS[modal.field] : null
@@ -158,7 +163,9 @@ function StudioModal({
       ? `Replace ${imageCfg?.label ?? 'image'}`
       : modal.field === 'stats'
         ? 'Trust stats'
-        : 'Edit section'
+        : modal.field === 'differenceVideoUrl'
+          ? 'Intro video'
+          : 'Edit section'
 
   async function onSave() {
     setBusy(true)
@@ -168,6 +175,8 @@ function StudioModal({
     } else if (modal.field === 'stats') {
       const fd = new FormData(formRef.current!)
       res = await persist(() => saveStats(fd))
+    } else if (modal.field === 'differenceVideoUrl') {
+      res = await persist(() => saveInlineField('differenceVideoUrl', videoUrl))
     } else {
       res = { ok: false, error: 'This section isn’t editable yet' }
     }
@@ -218,6 +227,36 @@ function StudioModal({
                 defaultValue={(profile.stats as ClinicStat[] | null) ?? null}
               />
             </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'differenceVideoUrl' && (
+            <div>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                A short, muted, looping clip that plays in your “Why us?” section. Paste a
+                direct video URL (an <code>.mp4</code> link). Leave it blank to show a photo
+                there instead.
+              </p>
+              <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
+                Video URL
+              </label>
+              <input
+                type="url"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://…/clinic-intro.mp4"
+                className="form-input w-full text-sm"
+              />
+              {videoUrl.trim() && (
+                <video
+                  key={videoUrl}
+                  src={videoUrl}
+                  muted
+                  loop
+                  autoPlay
+                  playsInline
+                  className="mt-3 w-full max-h-48 object-cover rounded-lg bg-stone-100 dark:bg-stone-800"
+                />
+              )}
+            </div>
           )}
         </div>
 
