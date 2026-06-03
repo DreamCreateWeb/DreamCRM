@@ -1,6 +1,4 @@
 import { notFound } from 'next/navigation'
-import { headers } from 'next/headers'
-import { and, eq } from 'drizzle-orm'
 import {
   getClinicSiteBySlug,
   publicSiteUrl,
@@ -14,9 +12,7 @@ import { getCompletedReviewCount } from '@/lib/services/reviews'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import ModernTemplate from '@/components/clinic-site/modern-template'
-import { auth } from '@/lib/auth/server'
-import { db } from '@/lib/db'
-import { member } from '@/lib/db/schema/auth'
+import { getTenantContext } from '@/lib/auth/context'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -25,22 +21,23 @@ interface Props {
 
 /**
  * Resolve whether to open the site in Website-Studio edit mode. Gated hard:
- * `?edit=1` AND a logged-in session AND that user is an owner/admin member of
- * THIS clinic's org. A random visitor hitting `?edit=1` just gets the normal
- * site (no edit bridge, no affordances). Persistence is independently gated in
- * the server actions, so this only governs the in-canvas affordances.
+ * `?edit=1` AND the current viewer's active tenant context is THIS clinic with
+ * an owner/admin role. We resolve via `getTenantContext()` (not a raw member
+ * lookup) so it also recognizes a platform admin in "View as clinic" demo
+ * mode — whose authorization comes from the demo_context cookie, not a member
+ * row. A random visitor hitting `?edit=1` just gets the normal site (no bridge,
+ * no affordances). Persistence is independently gated in the server actions,
+ * so this only governs the in-canvas affordances.
  */
 async function resolveEditMode(orgId: string, edit: boolean): Promise<boolean> {
   if (!edit) return false
   try {
-    const session = await auth.api.getSession({ headers: await headers() })
-    if (!session?.user) return false
-    const [m] = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.userId, session.user.id), eq(member.organizationId, orgId)))
-      .limit(1)
-    return !!m && (m.role === 'owner' || m.role === 'admin')
+    const ctx = await getTenantContext()
+    return (
+      ctx?.tenantType === 'clinic' &&
+      ctx.organizationId === orgId &&
+      (ctx.role === 'owner' || ctx.role === 'admin')
+    )
   } catch {
     return false
   }
