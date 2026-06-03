@@ -64,22 +64,41 @@ export default function EditBridge() {
     function onClickCapture(e: MouseEvent) {
       const target = e.target as HTMLElement
       const editable = target.closest('[data-edit-field]') as HTMLElement | null
-      const nav = target.closest('a, button')
-      // Suppress navigation/interactions while editing — keep the clinic on
-      // the canvas. Editable regions handle their own click below.
-      if (nav && !editable) {
+      if (editable) {
         e.preventDefault()
         e.stopPropagation()
+        const kind = editable.getAttribute('data-edit-kind') ?? 'text'
+        const field = editable.getAttribute('data-edit-field') ?? ''
+        if (kind === 'text') startTextEdit(editable, field)
+        else if (kind === 'image') post({ type: 'editImage', field })
+        else if (kind === 'modal') post({ type: 'openModal', field })
         return
       }
-      if (!editable) return
+      // Navigate-the-canvas: keep edit mode across the clinic's OWN pages.
+      // An internal `/site/...` link navigates with `?edit=1` preserved (so the
+      // bridge re-mounts on the next page); an in-page `#hash` link scrolls
+      // normally; external / tel: / mailto: links are suppressed so the editor
+      // never gets yanked off-canvas. Buttons (nav dropdown toggles, carousels,
+      // FAQ accordions) keep working — they don't navigate away.
+      const a = target.closest('a') as HTMLAnchorElement | null
+      if (!a) return
+      const href = a.getAttribute('href') ?? ''
+      if (!href || href.startsWith('#')) return
+      let url: URL | null = null
+      try {
+        url = new URL(href, window.location.href)
+      } catch {
+        url = null
+      }
+      if (url && url.origin === window.location.origin && url.pathname.startsWith('/site/')) {
+        e.preventDefault()
+        e.stopPropagation()
+        url.searchParams.set('edit', '1')
+        window.location.assign(url.pathname + url.search + url.hash)
+        return
+      }
       e.preventDefault()
       e.stopPropagation()
-      const kind = editable.getAttribute('data-edit-kind') ?? 'text'
-      const field = editable.getAttribute('data-edit-field') ?? ''
-      if (kind === 'text') startTextEdit(editable, field)
-      else if (kind === 'image') post({ type: 'editImage', field })
-      else if (kind === 'modal') post({ type: 'openModal', field })
     }
 
     // Floating "Edit {label}" affordance shown when hovering a modal section.

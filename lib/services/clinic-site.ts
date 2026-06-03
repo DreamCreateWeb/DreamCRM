@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { headers } from 'next/headers'
 import { eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -85,6 +86,20 @@ export function publicSiteUrl(data: Pick<ClinicSiteData, 'slug' | 'profile'>): s
   }
   return `https://${SITE_DOMAIN}/site/${data.slug}`
 }
+
+/**
+ * Minimal, request-cached slug → clinic orgId resolver. Used by the
+ * `/site/[slug]` layout to gate the Website Studio EditBridge without loading
+ * the full profile + locations on every public page hit.
+ */
+export const getClinicOrgIdBySlug = cache(async (slug: string): Promise<string | null> => {
+  const [org] = await db
+    .select({ id: organization.id, type: organization.type })
+    .from(organization)
+    .where(eq(organization.slug, slug))
+    .limit(1)
+  return org && org.type === 'clinic' ? org.id : null
+})
 
 export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData | null> {
   const [org] = await db
