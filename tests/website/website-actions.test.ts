@@ -44,6 +44,7 @@ import {
   saveHours,
   savePaymentFinancing,
   saveInsurance,
+  saveInlineField,
 } from '@/app/(default)/website/website-actions'
 
 beforeEach(() => {
@@ -152,5 +153,43 @@ describe('website section actions — FAQ + hours', () => {
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.error).toMatch(/invalid open time/i)
     expect(ops).toHaveLength(0)
+  })
+})
+
+describe('saveInlineField (Website Studio click-to-edit)', () => {
+  it('rejects a field that is not on the inline whitelist', async () => {
+    const res = await saveInlineField('services', '[]')
+    expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/cannot be edited inline/i) })
+    expect(ops).toHaveLength(0)
+  })
+
+  it('blocks non-owner roles', async () => {
+    tenantCtx!.role = 'member'
+    const res = await saveInlineField('tagline', 'Hi')
+    expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/owner|admin/i) })
+  })
+
+  it('writes ONLY the named column (tagline), trimmed', async () => {
+    const res = await saveInlineField('tagline', '  Gentle care  ')
+    expect(res).toEqual({ ok: true })
+    expect(setKeys('clinic_profile')).toEqual(['tagline'])
+    expect(ops.find((o) => o.table === 'clinic_profile')!.set.tagline).toBe('Gentle care')
+  })
+
+  it('persists null when the value is blank (falls back to the site default)', async () => {
+    await saveInlineField('about', '   ')
+    expect(ops.find((o) => o.table === 'clinic_profile')!.set.about).toBeNull()
+  })
+
+  it('syncs organization.name when displayName is edited', async () => {
+    await saveInlineField('displayName', 'Bright Smiles')
+    const orgOp = ops.find((o) => o.table === 'organization')!
+    expect(orgOp.set.name).toBe('Bright Smiles')
+  })
+
+  it('accepts image-url fields (logoUrl / heroImageUrl)', async () => {
+    const res = await saveInlineField('logoUrl', 'https://x/logo.png')
+    expect(res).toEqual({ ok: true })
+    expect(setKeys('clinic_profile')).toEqual(['logoUrl'])
   })
 })

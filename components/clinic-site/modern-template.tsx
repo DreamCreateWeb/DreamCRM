@@ -16,6 +16,7 @@ import {
 } from '@/lib/clinic-site-helpers'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import SiteHeader from '@/components/clinic-site/site-header'
+import EditBridge from '@/components/clinic-site/edit-bridge'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
@@ -72,6 +73,10 @@ interface Props {
    *  dropdown child. Derived inside the page wrapper (no DB call needed; it's
    *  just `staff.length > 0` on the already-loaded profile). */
   hasTeam?: boolean
+  /** When true (Website Studio, owner/admin only), mounts the EditBridge and
+   *  the `data-edit-*` hooks become an editable surface. Default false — the
+   *  public render is byte-for-byte unchanged. */
+  editMode?: boolean
 }
 
 /**
@@ -91,7 +96,7 @@ export function formatReviewCount(n: number): string {
   return `${Math.floor(n / 1000)}k+`
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false }: Props) {
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false, editMode = false }: Props) {
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -239,6 +244,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      {editMode && <EditBridge />}
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -288,6 +294,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <h1
                 className="text-[34px] sm:text-[56px] lg:text-[80px] font-semibold leading-[1.05] tracking-[-0.02em] mb-5 sm:mb-6"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-section="hero"
+                data-edit-field="tagline"
+                data-edit-kind="text"
               >
                 {profile.tagline ?? 'Dental care that finally feels human.'}
               </h1>
