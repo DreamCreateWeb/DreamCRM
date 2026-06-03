@@ -473,6 +473,9 @@ export default async function PaymentFinancingPage({ params }: Props) {
           <section
             className="py-16 sm:py-20"
             style={{ backgroundColor: SURFACE }}
+            data-edit-field="paymentFinancing"
+            data-edit-kind="modal"
+            data-edit-label="cancellation policy"
           >
             <div className="max-w-[820px] mx-auto px-5 sm:px-8">
               <div className="mb-7">
@@ -508,7 +511,12 @@ export default async function PaymentFinancingPage({ params }: Props) {
         )}
 
         {/* ── FAQ accordion ──────────────────────────────────────────────── */}
-        <section className="py-16 sm:py-24">
+        <section
+          className="py-16 sm:py-24"
+          data-edit-field="faq"
+          data-edit-kind="modal"
+          data-edit-label="FAQ"
+        >
           <div className="max-w-[820px] mx-auto px-5 sm:px-8">
             <ScrollReveal>
               <h2

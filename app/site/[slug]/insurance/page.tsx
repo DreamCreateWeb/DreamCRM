@@ -670,7 +670,12 @@ export default async function InsurancePage({ params }: Props) {
         </section>
 
         {/* ── FAQ accordion ──────────────────────────────────────────────── */}
-        <section className="py-16 sm:py-24">
+        <section
+          className="py-16 sm:py-24"
+          data-edit-field="faq"
+          data-edit-kind="modal"
+          data-edit-label="FAQ"
+        >
           <div className="max-w-[820px] mx-auto px-5 sm:px-8">
             <ScrollReveal>
               <h2
