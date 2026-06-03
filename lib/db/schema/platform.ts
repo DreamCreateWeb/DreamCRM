@@ -53,6 +53,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   stats: jsonb('stats'),
   officePhotos: jsonb('office_photos'),
   faq: jsonb('faq'),
+  // copyOverrides: Record<string, string> — per-clinic overrides for otherwise
+  // hardcoded template copy (section headlines, etc.), keyed by a stable id
+  // (e.g. 'home.differenceHeadline'). Null/missing for a key → the template
+  // default renders. Powers "edit the important headlines" in the Website
+  // Studio without a migration per string.
+  copyOverrides: jsonb('copy_overrides'),
   acceptedInsuranceCarriers: jsonb('accepted_insurance_carriers'),
   paymentMethods: jsonb('payment_methods'),
   financingPartners: jsonb('financing_partners'),

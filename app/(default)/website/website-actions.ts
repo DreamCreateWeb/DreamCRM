@@ -216,6 +216,27 @@ export type InlineField =
   | 'logoUrl' | 'heroImageUrl' | 'differenceVideoUrl'
 
 export async function saveInlineField(field: string, value: string): Promise<SectionResult> {
+  // Hardcoded-copy override: field "copy:<key>" merges into the copy_overrides
+  // map (the template falls back to its built-in default when a key is unset).
+  if (field.startsWith('copy:')) {
+    const key = field.slice(5).trim()
+    if (!key) return { ok: false, error: 'Invalid copy key' }
+    return runSection(async (ctx) => {
+      const [row] = await db
+        .select({ copyOverrides: clinicProfile.copyOverrides })
+        .from(clinicProfile)
+        .where(eq(clinicProfile.organizationId, ctx.organizationId))
+        .limit(1)
+      const current = (row?.copyOverrides as Record<string, string> | null) ?? {}
+      const next: Record<string, string> = { ...current }
+      const v = typeof value === 'string' ? value.trim() : ''
+      if (v) next[key] = v
+      else delete next[key]
+      await writeSection(ctx, {
+        copyOverrides: Object.keys(next).length > 0 ? next : null,
+      } as Partial<typeof clinicProfile.$inferInsert>)
+    })
+  }
   if (!INLINE_TEXT_FIELDS.has(field) && !INLINE_IMAGE_FIELDS.has(field)) {
     return { ok: false, error: 'That field cannot be edited inline' }
   }

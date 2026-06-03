@@ -302,6 +302,13 @@
       "when": 1780463273186,
       "tag": "0042_numerous_jimmy_woo",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1780526859004,
+      "tag": "0043_soft_grandmaster",
+      "breakpoints": true
     }
   ]
 }
