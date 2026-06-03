@@ -14,6 +14,7 @@ import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -186,6 +187,7 @@ export default async function InsurancePage({ params }: Props) {
 
   const { profile } = data
   const name = profile.displayName ?? data.orgName
+  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const brand = profile.brandColor ?? '#9CAF9F'
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
@@ -254,16 +256,26 @@ export default async function InsurancePage({ params }: Props) {
                 color: brand,
                 fontFamily: 'var(--font-display, Georgia, serif)',
               }}
+              data-edit-field="copy:insurance.heading"
+              data-edit-kind="text"
+              data-edit-label="headline"
             >
-              Insurance at {name}.
+              {copyOverride(copyOverrides, 'insurance.heading', '') || <>Insurance at {name}.</>}
             </h1>
             <p
               className="text-base sm:text-lg leading-[1.6] mb-9"
               style={{ color: INK }}
+              data-edit-field="copy:insurance.heroIntro"
+              data-edit-kind="text"
+              data-edit-label="intro"
             >
-              We want care to be easy to use — so we verify your benefits up
-              front, file the claim for you, and answer every &ldquo;wait, what
-              did my plan say?&rdquo; question along the way.
+              {copyOverride(copyOverrides, 'insurance.heroIntro', '') || (
+                <>
+                  We want care to be easy to use — so we verify your benefits up
+                  front, file the claim for you, and answer every &ldquo;wait, what
+                  did my plan say?&rdquo; question along the way.
+                </>
+              )}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <a
@@ -301,8 +313,11 @@ export default async function InsurancePage({ params }: Props) {
                   color: brand,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:insurance.helpHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Benefits, on your side.
+                {copyOverride(copyOverrides, 'insurance.helpHeading', '') || 'Benefits, on your side.'}
               </h2>
             </ScrollReveal>
             <ul className="grid sm:grid-cols-2 gap-5 sm:gap-7">
@@ -370,8 +385,11 @@ export default async function InsurancePage({ params }: Props) {
                   color: '#FAF7F2',
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:insurance.carriersHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Carriers we accept
+                {copyOverride(copyOverrides, 'insurance.carriersHeading', '') || 'Carriers we accept'}
               </h2>
               <p
                 className="text-base sm:text-lg leading-[1.55]"
@@ -537,8 +555,13 @@ export default async function InsurancePage({ params }: Props) {
                   color: brand,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:insurance.processHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                The insurance process at {name}.
+                {copyOverride(copyOverrides, 'insurance.processHeading', '') || (
+                  <>The insurance process at {name}.</>
+                )}
               </h2>
             </ScrollReveal>
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-12">
@@ -684,8 +707,11 @@ export default async function InsurancePage({ params }: Props) {
                   color: brand,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:insurance.faqHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Insurance questions, answered.
+                {copyOverride(copyOverrides, 'insurance.faqHeading', '') || 'Insurance questions, answered.'}
               </h2>
             </ScrollReveal>
             <div className="space-y-3">
