@@ -13,8 +13,8 @@ export async function POST(request: Request) {
   if (!(file instanceof Blob)) {
     return NextResponse.json({ error: 'no file' }, { status: 400 })
   }
-  if (file.size > 10 * 1024 * 1024) {
-    return NextResponse.json({ error: 'file too large (max 10MB)' }, { status: 413 })
+  if (file.size > 50 * 1024 * 1024) {
+    return NextResponse.json({ error: 'file too large (max 50MB)' }, { status: 413 })
   }
 
   const name = (file as File).name || 'upload.bin'

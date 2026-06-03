@@ -476,6 +476,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   backgroundColor: `${brand}1A`,
                   aspectRatio: '4 / 3',
                 }}
+                data-edit-field="differenceVideoUrl"
+                data-edit-kind="modal"
+                data-edit-label="intro video"
               >
                 {profile.differenceVideoUrl ? (
                   <video
@@ -486,9 +489,6 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     preload="metadata"
                     className="w-full h-full object-cover"
                     aria-hidden="true"
-                    data-edit-field="differenceVideoUrl"
-                    data-edit-kind="modal"
-                    data-edit-label="intro video"
                   >
                     <source src={profile.differenceVideoUrl} />
                   </video>
@@ -499,8 +499,6 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     alt=""
                     className="w-full h-full object-cover"
                     loading="lazy"
-                    data-edit-field="heroImageUrl"
-                    data-edit-kind="image"
                   />
                 )}
               </div>

@@ -157,6 +157,41 @@ function StudioModal({
       : '',
   )
   const [busy, setBusy] = useState(false)
+  const videoFileRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  // Direct video upload — reuses the auth-gated /api/upload route (S3), the
+  // same path ImageUploader uses. On success the resolved URL fills the URL
+  // field, so upload and paste-a-URL converge on one value to save.
+  async function handleVideoFile(file: File) {
+    setUploadError(null)
+    if (!file.type.startsWith('video/')) {
+      setUploadError('Please choose a video file (MP4, MOV, or WebM).')
+      return
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setUploadError('That video is over 50MB — trim it, or paste a hosted URL instead.')
+      return
+    }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.set('file', file)
+      fd.set('folder', 'clinic-video')
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(b.error ?? 'Upload failed')
+      }
+      const { url } = (await res.json()) as { url: string }
+      setVideoUrl(url)
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const imageCfg = modal.kind === 'image' ? IMAGE_FIELDS[modal.field] : null
   const title =
@@ -249,12 +284,42 @@ function StudioModal({
           {modal.kind === 'section' && modal.field === 'differenceVideoUrl' && (
             <div>
               <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
-                A short, muted, looping clip that plays in your “Why us?” section. Paste a
-                direct video URL (an <code>.mp4</code> link). Leave it blank to show a photo
+                A short, muted, looping clip that plays in your “Why us?” section. Upload one
+                from your computer, or paste a direct video URL. Leave it blank to show a photo
                 there instead.
               </p>
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => videoFileRef.current?.click()}
+                  disabled={uploading}
+                  className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 disabled:opacity-60"
+                >
+                  {uploading ? 'Uploading…' : videoUrl ? 'Upload a different video' : 'Upload a video'}
+                </button>
+                {videoUrl && !uploading && (
+                  <button
+                    type="button"
+                    onClick={() => setVideoUrl('')}
+                    className="btn-sm text-rose-500 hover:text-rose-600"
+                  >
+                    Remove
+                  </button>
+                )}
+                <input
+                  ref={videoFileRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleVideoFile(file)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
               <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
-                Video URL
+                …or paste a video URL
               </label>
               <input
                 type="url"
@@ -263,6 +328,10 @@ function StudioModal({
                 placeholder="https://…/clinic-intro.mp4"
                 className="form-input w-full text-sm"
               />
+              <p className="text-[11px] text-stone-400 mt-1">
+                MP4, MOV, or WebM · up to 50MB · short, muted &amp; looping looks best.
+              </p>
+              {uploadError && <p className="text-[12px] text-rose-600 mt-2">{uploadError}</p>}
               {videoUrl.trim() && (
                 <video
                   key={videoUrl}
