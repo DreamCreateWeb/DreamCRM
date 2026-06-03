@@ -10,7 +10,9 @@ import type {
   ClinicOfficePhoto,
   ClinicFaqItem,
   ClinicFinancingPartner,
+  ClinicService,
 } from '@/lib/types/clinic-content'
+import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import StatsEditor from '../settings/clinic/stats-editor'
 import TestimonialsEditor from '../settings/clinic/testimonials-editor'
@@ -19,6 +21,7 @@ import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
 import FinancingPartnersEditor from '../settings/clinic/financing-partners-editor'
 import FaqEditor from './faq-editor'
 import HoursEditor from './hours-editor'
+import ServicesLibraryPicker from '../settings/clinic/services-library-picker'
 import {
   saveInlineField,
   saveStats,
@@ -37,6 +40,8 @@ interface Props {
   slug: string
   siteUrl: string
   profile: ClinicProfile
+  orgId: string
+  library: ServiceLibraryEntryWithStatus[]
 }
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -81,6 +86,7 @@ const SECTION_TITLES: Record<string, string> = {
   acceptedInsuranceCarriers: 'Insurance carriers',
   paymentFinancing: 'Payment & financing',
   hours: 'Office hours',
+  services: 'Services',
 }
 
 /**
@@ -90,7 +96,7 @@ const SECTION_TITLES: Record<string, string> = {
  * half: it calls the server actions (persistence is always gated server-side),
  * reloads the canvas on success, and renders the image / section modals on top.
  */
-export default function WebsiteStudio({ slug, siteUrl, profile }: Props) {
+export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -186,8 +192,11 @@ export default function WebsiteStudio({ slug, siteUrl, profile }: Props) {
         <StudioModal
           modal={modal}
           profile={profile}
+          orgId={orgId}
+          library={library}
           onClose={() => setModal(null)}
           persist={persist}
+          reload={reloadFrame}
         />
       )}
     </div>
@@ -197,13 +206,19 @@ export default function WebsiteStudio({ slug, siteUrl, profile }: Props) {
 function StudioModal({
   modal,
   profile,
+  orgId,
+  library,
   onClose,
   persist,
+  reload,
 }: {
   modal: NonNullable<ModalState>
   profile: ClinicProfile
+  orgId: string
+  library: ServiceLibraryEntryWithStatus[]
   onClose: () => void
   persist: (fn: () => Promise<SectionResult>) => Promise<SectionResult>
+  reload: () => void
 }) {
   const formRef = useRef<HTMLFormElement | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(
@@ -256,6 +271,9 @@ function StudioModal({
     modal.kind === 'image'
       ? `Replace ${imageCfg?.label ?? 'image'}`
       : (SECTION_TITLES[modal.field] ?? 'Edit section')
+  // Services embeds the autosaving library picker — it persists each change
+  // itself, so the modal just shows a "Done" button that reloads the canvas.
+  const isServices = modal.kind === 'section' && modal.field === 'services'
 
   async function onSave() {
     setBusy(true)
@@ -282,7 +300,9 @@ function StudioModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-lg max-h-[85vh] overflow-auto rounded-2xl bg-white dark:bg-stone-900 shadow-2xl">
+      <div
+        className={`w-full ${isServices ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-auto rounded-2xl bg-white dark:bg-stone-900 shadow-2xl`}
+      >
         <div className="flex items-center justify-between px-5 py-3 border-b border-stone-200 dark:border-stone-700/60">
           <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">{title}</h2>
           <button
@@ -449,6 +469,20 @@ function StudioModal({
               />
             </form>
           )}
+          {modal.kind === 'section' && modal.field === 'services' && (
+            <div>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                The services shown across your site. Add from the library, reorder, swap
+                photos, or rewrite copy with AI — each change saves automatically.
+              </p>
+              <ServicesLibraryPicker
+                name="services"
+                initialServices={(profile.services as ClinicService[] | null) ?? []}
+                library={library}
+                orgId={orgId}
+              />
+            </div>
+          )}
           {modal.kind === 'section' && modal.field === 'differenceVideoUrl' && (
             <div>
               <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
@@ -523,21 +557,36 @@ function StudioModal({
         </div>
 
         <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-stone-200 dark:border-stone-700/60">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-sm bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={busy}
-            className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 disabled:opacity-60"
-          >
-            {busy ? 'Saving…' : 'Save'}
-          </button>
+          {isServices ? (
+            <button
+              type="button"
+              onClick={() => {
+                reload()
+                onClose()
+              }}
+              className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
+            >
+              Done
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-sm bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={busy}
+                className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 disabled:opacity-60"
+              >
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

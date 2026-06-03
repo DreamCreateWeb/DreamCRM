@@ -5,6 +5,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
+import { listLibraryForPicker } from '@/lib/services/service-library'
 import WebsiteStudio from './website-studio'
 
 export const metadata = {
@@ -56,6 +57,15 @@ export default async function WebsiteEditorPage() {
 
   const slug = ctx.organizationSlug
   const siteUrl = publicSiteUrl({ slug, profile })
+  const library = await listLibraryForPicker(ctx.organizationId)
 
-  return <WebsiteStudio slug={slug} siteUrl={siteUrl} profile={profile} />
+  return (
+    <WebsiteStudio
+      slug={slug}
+      siteUrl={siteUrl}
+      profile={profile}
+      orgId={ctx.organizationId}
+      library={library}
+    />
+  )
 }

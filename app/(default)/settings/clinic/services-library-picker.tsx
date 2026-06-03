@@ -201,10 +201,12 @@ export default function ServicesLibraryPicker({
         + Add a service
       </button>
 
-      {/* Drawer overlay */}
+      {/* Drawer overlay — z-[80] so it sits above the Website Studio modal
+          (z-[70]) when the picker is embedded there; harmless in Settings,
+          where nothing else reaches that layer. */}
       {drawer.kind !== 'closed' && (
         <div
-          className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-stretch justify-end bg-black/40 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) setDrawer({ kind: 'closed' })
           }}
