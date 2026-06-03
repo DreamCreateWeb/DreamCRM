@@ -3,11 +3,21 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
-import type { ClinicStat, ClinicTestimonial } from '@/lib/types/clinic-content'
+import type { ClinicStat, ClinicTestimonial, ClinicStaff, ClinicOfficePhoto } from '@/lib/types/clinic-content'
 import ImageUploader from '@/components/ui/image-uploader'
 import StatsEditor from '../settings/clinic/stats-editor'
 import TestimonialsEditor from '../settings/clinic/testimonials-editor'
-import { saveInlineField, saveStats, saveTestimonials, type SectionResult } from './website-actions'
+import StaffEditor from '../settings/clinic/staff-editor'
+import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
+import {
+  saveInlineField,
+  saveStats,
+  saveTestimonials,
+  saveAbout,
+  saveStaff,
+  saveOfficePhotos,
+  type SectionResult,
+} from './website-actions'
 
 interface Props {
   slug: string
@@ -33,6 +43,24 @@ const IMAGE_FIELDS: Record<string, { label: string; folder: string; previewClass
   },
 }
 
+/** Section modals that render an editor in a <form> and save via FormData. */
+const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult>> = {
+  stats: saveStats,
+  testimonials: saveTestimonials,
+  about: saveAbout,
+  staff: saveStaff,
+  officePhotos: saveOfficePhotos,
+}
+
+const SECTION_TITLES: Record<string, string> = {
+  stats: 'Trust stats',
+  differenceVideoUrl: 'Intro video',
+  testimonials: 'Featured reviews',
+  about: 'About your practice',
+  staff: 'Meet the team',
+  officePhotos: 'Office photos',
+}
+
 /**
  * Website Studio — the full-screen, chrome-less editor. Hosts the clinic's real
  * site in an edit-mode iframe; the EditBridge inside drives inline text edits
@@ -48,7 +76,15 @@ export default function WebsiteStudio({ slug, siteUrl, profile }: Props) {
 
   const reloadFrame = () => {
     const f = iframeRef.current
-    if (f) f.src = f.src
+    if (!f) return
+    // Reload the iframe's CURRENT page — the clinic may have navigated to a
+    // subpage in edit mode, so resetting `src` (the homepage) would bounce
+    // them off it. Same-origin, so reading contentWindow is allowed.
+    try {
+      f.contentWindow?.location.reload()
+    } catch {
+      f.src = f.src
+    }
   }
 
   async function persist(fn: () => Promise<SectionResult>): Promise<SectionResult> {
@@ -197,27 +233,19 @@ function StudioModal({
   const title =
     modal.kind === 'image'
       ? `Replace ${imageCfg?.label ?? 'image'}`
-      : modal.field === 'stats'
-        ? 'Trust stats'
-        : modal.field === 'differenceVideoUrl'
-          ? 'Intro video'
-          : modal.field === 'testimonials'
-            ? 'Featured reviews'
-            : 'Edit section'
+      : (SECTION_TITLES[modal.field] ?? 'Edit section')
 
   async function onSave() {
     setBusy(true)
     let res: SectionResult
     if (modal.kind === 'image') {
       res = await persist(() => saveInlineField(modal.field, imageUrl ?? ''))
-    } else if (modal.field === 'stats') {
-      const fd = new FormData(formRef.current!)
-      res = await persist(() => saveStats(fd))
     } else if (modal.field === 'differenceVideoUrl') {
       res = await persist(() => saveInlineField('differenceVideoUrl', videoUrl))
-    } else if (modal.field === 'testimonials') {
+    } else if (FORM_SECTION_SAVES[modal.field]) {
+      const save = FORM_SECTION_SAVES[modal.field]
       const fd = new FormData(formRef.current!)
-      res = await persist(() => saveTestimonials(fd))
+      res = await persist(() => save(fd))
     } else {
       res = { ok: false, error: 'This section isn’t editable yet' }
     }
@@ -278,6 +306,42 @@ function StudioModal({
               <TestimonialsEditor
                 name="testimonials"
                 defaultValue={(profile.testimonials as ClinicTestimonial[] | null) ?? null}
+              />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'about' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                Your story — who you are, your approach, and what patients can expect. A few
+                short paragraphs work best.
+              </p>
+              <textarea
+                name="about"
+                defaultValue={profile.about ?? ''}
+                rows={10}
+                placeholder="We're a family-first dental practice…"
+                className="form-textarea w-full text-sm"
+              />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'staff' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                The people patients will meet. Add a photo, name, title, and a short bio for
+                each — they appear on your homepage and the Team page.
+              </p>
+              <StaffEditor name="staff" defaultValue={(profile.staff as ClinicStaff[] | null) ?? null} />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'officePhotos' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                A few warm shots of your space — the waiting room, an operatory, the front
+                desk. They appear in your office-tour gallery.
+              </p>
+              <OfficePhotosEditor
+                name="officePhotos"
+                defaultValue={(profile.officePhotos as ClinicOfficePhoto[] | null) ?? null}
               />
             </form>
           )}

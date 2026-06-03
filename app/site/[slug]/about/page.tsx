@@ -183,7 +183,13 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Story ──────────────────────────────────────────────────────── */}
       {profile.about && (
-        <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
+        <section
+          className="py-14 sm:py-24"
+          style={{ backgroundColor: SURFACE }}
+          data-edit-field="about"
+          data-edit-kind="modal"
+          data-edit-label="about text"
+        >
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-start">
               <ScrollReveal className="lg:col-span-4">
@@ -255,7 +261,13 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Team ───────────────────────────────────────────────────────── */}
       {staff.length > 0 && (
-        <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
+        <section
+          className="py-14 sm:py-24"
+          style={{ backgroundColor: SURFACE }}
+          data-edit-field="staff"
+          data-edit-kind="modal"
+          data-edit-label="team"
+        >
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14 text-center mx-auto">
               <p
@@ -341,7 +353,12 @@ export default async function AboutPage({ params }: Props) {
 
       {/* ── Office tour ────────────────────────────────────────────────── */}
       {officePhotos.length > 0 && (
-        <section className="py-14 sm:py-24">
+        <section
+          className="py-14 sm:py-24"
+          data-edit-field="officePhotos"
+          data-edit-kind="modal"
+          data-edit-label="office photos"
+        >
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14">
               <p
