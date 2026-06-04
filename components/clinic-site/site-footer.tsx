@@ -68,7 +68,11 @@ export default function SiteFooter({
   const cityState = [locationCity, locationState].filter(Boolean).join(', ')
 
   return (
-    <footer style={{ backgroundColor: FOOTER_BG, color: FOOTER_INK }}>
+    <footer
+      id="site-footer-contact"
+      className="scroll-mt-20"
+      style={{ backgroundColor: FOOTER_BG, color: FOOTER_INK }}
+    >
       <div className="max-w-[1400px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
         {/* Logo + clinic name lockup, full-width above columns */}
         <div className="flex items-center gap-3 mb-12">

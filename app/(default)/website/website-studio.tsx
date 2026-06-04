@@ -156,6 +156,23 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
           <Link href="/dashboard" className="text-sm text-stone-300 hover:text-white whitespace-nowrap">
             ← Exit
           </Link>
+          <button
+            type="button"
+            onClick={() => {
+              const f = iframeRef.current
+              if (!f) return
+              const home = `/site/${slug}?edit=1`
+              try {
+                f.contentWindow!.location.assign(home)
+              } catch {
+                f.src = home
+              }
+            }}
+            className="text-sm text-stone-300 hover:text-white whitespace-nowrap"
+            title="Return to your homepage (the logo isn't clickable in edit mode)"
+          >
+            🏠 Home
+          </button>
           <span className="text-sm font-semibold whitespace-nowrap">Editing your website</span>
           <span className="hidden sm:inline text-[11px] text-stone-400 truncate">
             Click text to edit it · hover a section for its “Edit” button · click the hero image to replace it.
