@@ -15,6 +15,7 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
   copyOverride,
+  resolveCopyList,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -197,6 +198,11 @@ export default async function InsurancePage({ params }: Props) {
 
   const services = (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
 
+  // Card lists resolved through copy-overrides so each card's text is editable.
+  const helpBullets = resolveCopyList(copyOverrides, 'insurance.help', HELP_BULLETS)
+  const inNetworkSteps = resolveCopyList(copyOverrides, 'insurance.inNet', IN_NETWORK_STEPS)
+  const outOfNetworkSteps = resolveCopyList(copyOverrides, 'insurance.outNet', OUT_OF_NETWORK_STEPS)
+
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
@@ -305,8 +311,11 @@ export default async function InsurancePage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
+                data-edit-field="copy:insurance.helpEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                We&apos;re here to help
+                {copyOverride(copyOverrides, 'insurance.helpEyebrow', 'We’re here to help')}
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em]"
@@ -322,7 +331,7 @@ export default async function InsurancePage({ params }: Props) {
               </h2>
             </ScrollReveal>
             <ul className="grid sm:grid-cols-2 gap-5 sm:gap-7">
-              {HELP_BULLETS.map((b, i) => (
+              {helpBullets.map((b, i) => (
                 <ScrollReveal
                   as="li"
                   key={b.title}
@@ -352,12 +361,18 @@ export default async function InsurancePage({ params }: Props) {
                   <h3
                     className="text-lg font-semibold mb-2 leading-tight"
                     style={{ color: INK }}
+                    data-edit-field={`copy:insurance.help.${i}.title`}
+                    data-edit-kind="text"
+                    data-edit-label="title"
                   >
                     {b.title}
                   </h3>
                   <p
                     className="text-[15px] leading-[1.6]"
                     style={{ color: INK_MUTED }}
+                    data-edit-field={`copy:insurance.help.${i}.body`}
+                    data-edit-kind="text"
+                    data-edit-label="text"
                   >
                     {b.body}
                   </p>
@@ -377,8 +392,11 @@ export default async function InsurancePage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
                 style={{ color: 'rgba(250, 247, 242, 0.7)' }}
+                data-edit-field="copy:insurance.carriersEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                Insurance
+                {copyOverride(copyOverrides, 'insurance.carriersEyebrow', 'Insurance')}
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
@@ -414,8 +432,11 @@ export default async function InsurancePage({ params }: Props) {
                     color: '#FAF7F2',
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
+                  data-edit-field="copy:insurance.carriersListHeading"
+                  data-edit-kind="text"
+                  data-edit-label="title"
                 >
-                  Our insurance carriers
+                  {copyOverride(copyOverrides, 'insurance.carriersListHeading', 'Our insurance carriers')}
                 </h3>
                 {insuranceCarriers.length > 0 ? (
                   <>
@@ -472,8 +493,11 @@ export default async function InsurancePage({ params }: Props) {
                     color: '#FAF7F2',
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
+                  data-edit-field="copy:insurance.verifierHeading"
+                  data-edit-kind="text"
+                  data-edit-label="title"
                 >
-                  Check your insurance
+                  {copyOverride(copyOverrides, 'insurance.verifierHeading', 'Check your insurance')}
                 </h3>
                 <p
                   className="text-sm sm:text-base leading-[1.55] mb-5"
@@ -551,8 +575,11 @@ export default async function InsurancePage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
+                data-edit-field="copy:insurance.processEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                How it works
+                {copyOverride(copyOverrides, 'insurance.processEyebrow', 'How it works')}
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
@@ -575,20 +602,36 @@ export default async function InsurancePage({ params }: Props) {
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: INK_MUTED }}
+                  data-edit-field="copy:insurance.inNetLabel"
+                  data-edit-kind="text"
+                  data-edit-label="label"
                 >
-                  If we&apos;re in-network with your plan
+                  {copyOverride(copyOverrides, 'insurance.inNetLabel', "If we're in-network with your plan")}
                 </p>
-                <NumberedSteps steps={IN_NETWORK_STEPS} brand={brand} columns={1} />
+                <NumberedSteps
+                  steps={inNetworkSteps}
+                  brand={brand}
+                  columns={1}
+                  editKeyPrefix="insurance.inNet"
+                />
               </ScrollReveal>
               {/* Out-of-network */}
               <ScrollReveal delay={120}>
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: INK_MUTED }}
+                  data-edit-field="copy:insurance.outNetLabel"
+                  data-edit-kind="text"
+                  data-edit-label="label"
                 >
-                  If we&apos;re out-of-network
+                  {copyOverride(copyOverrides, 'insurance.outNetLabel', "If we're out-of-network")}
                 </p>
-                <NumberedSteps steps={OUT_OF_NETWORK_STEPS} brand={brand} columns={1} />
+                <NumberedSteps
+                  steps={outOfNetworkSteps}
+                  brand={brand}
+                  columns={1}
+                  editKeyPrefix="insurance.outNet"
+                />
               </ScrollReveal>
             </div>
           </div>
@@ -604,8 +647,11 @@ export default async function InsurancePage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
                 style={{ color: 'rgba(250, 247, 242, 0.7)' }}
+                data-edit-field="copy:insurance.noInsEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                No dental insurance?
+                {copyOverride(copyOverrides, 'insurance.noInsEyebrow', 'No dental insurance?')}
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
@@ -613,16 +659,24 @@ export default async function InsurancePage({ params }: Props) {
                   color: '#FAF7F2',
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:insurance.noInsHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Our in-house dental plan covers preventive care.
+                {copyOverride(copyOverrides, 'insurance.noInsHeading', 'Our in-house dental plan covers preventive care.')}
               </h2>
               <p
                 className="text-base sm:text-lg leading-[1.55] mb-7 max-w-[640px] mx-auto"
                 style={{ color: 'rgba(255, 255, 255, 0.8)' }}
+                data-edit-field="copy:insurance.noInsBody"
+                data-edit-kind="text"
+                data-edit-label="text"
               >
-                No deductibles, no claim forms, no waiting periods. Join the
-                {name === data.orgName ? '' : ''} membership plan to keep your
-                routine care covered and save on any other treatment.
+                {copyOverride(
+                  copyOverrides,
+                  'insurance.noInsBody',
+                  'No deductibles, no claim forms, no waiting periods. Join the membership plan to keep your routine care covered and save on any other treatment.',
+                )}
               </p>
               <a
                 href={`${basePath}/dental-plans`}
@@ -644,8 +698,11 @@ export default async function InsurancePage({ params }: Props) {
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: brand }}
+                  data-edit-field="copy:insurance.hsaEyebrow"
+                  data-edit-kind="text"
+                  data-edit-label="eyebrow"
                 >
-                  HSA & FSA
+                  {copyOverride(copyOverrides, 'insurance.hsaEyebrow', 'HSA & FSA')}
                 </p>
                 <h2
                   className="text-2xl sm:text-3xl lg:text-[36px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
@@ -653,25 +710,35 @@ export default async function InsurancePage({ params }: Props) {
                     color: brand,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
+                  data-edit-field="copy:insurance.hsaHeading"
+                  data-edit-kind="text"
+                  data-edit-label="headline"
                 >
-                  Use your HSA or FSA dollars here.
+                  {copyOverride(copyOverrides, 'insurance.hsaHeading', 'Use your HSA or FSA dollars here.')}
                 </h2>
                 <p
                   className="text-[16px] leading-[1.65]"
                   style={{ color: INK_MUTED }}
+                  data-edit-field="copy:insurance.hsaBody"
+                  data-edit-kind="text"
+                  data-edit-label="text"
                 >
-                  We accept HSA and FSA cards for eligible dental care. Most
-                  treatment we provide qualifies (preventive, restorative,
-                  orthodontic). Cosmetic treatments like whitening typically do
-                  not qualify — we will let you know either way before billing.
+                  {copyOverride(
+                    copyOverrides,
+                    'insurance.hsaBody',
+                    'We accept HSA and FSA cards for eligible dental care. Most treatment we provide qualifies (preventive, restorative, orthodontic). Cosmetic treatments like whitening typically do not qualify — we will let you know either way before billing.',
+                  )}
                 </p>
               </div>
               <div>
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: brand }}
+                  data-edit-field="copy:insurance.finalBillEyebrow"
+                  data-edit-kind="text"
+                  data-edit-label="eyebrow"
                 >
-                  The final bill
+                  {copyOverride(copyOverrides, 'insurance.finalBillEyebrow', 'The final bill')}
                 </p>
                 <h2
                   className="text-2xl sm:text-3xl lg:text-[36px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
@@ -679,18 +746,24 @@ export default async function InsurancePage({ params }: Props) {
                     color: brand,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
+                  data-edit-field="copy:insurance.finalBillHeading"
+                  data-edit-kind="text"
+                  data-edit-label="headline"
                 >
-                  No silent surprises.
+                  {copyOverride(copyOverrides, 'insurance.finalBillHeading', 'No silent surprises.')}
                 </h2>
                 <p
                   className="text-[16px] leading-[1.65]"
                   style={{ color: INK_MUTED }}
+                  data-edit-field="copy:insurance.finalBillBody"
+                  data-edit-kind="text"
+                  data-edit-label="text"
                 >
-                  We verify your benefits and walk you through a clear estimate
-                  before any treatment begins. After the visit, your insurance
-                  pays its portion, and any remaining patient balance is billed
-                  through your portal. You will never see a charge you have not
-                  already been told about.
+                  {copyOverride(
+                    copyOverrides,
+                    'insurance.finalBillBody',
+                    'We verify your benefits and walk you through a clear estimate before any treatment begins. After the visit, your insurance pays its portion, and any remaining patient balance is billed through your portal. You will never see a charge you have not already been told about.',
+                  )}
                 </p>
               </div>
             </div>

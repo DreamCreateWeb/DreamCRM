@@ -44,6 +44,25 @@ export function copyOverride(
   return typeof v === 'string' && v.trim() ? v : fallback
 }
 
+/**
+ * Resolve a list of `{ title, body }` cards through copy-overrides keyed by
+ * `{prefix}.{i}.title` / `{prefix}.{i}.body`. Pairs with `NumberedSteps`'
+ * `editKeyPrefix` (and any in-page card grid using the same keys) so each
+ * card's text is inline-editable in the Website Studio. Unedited items keep
+ * their built-in copy.
+ */
+export function resolveCopyList<T extends { title: string; body: string }>(
+  overrides: Record<string, string> | null | undefined,
+  prefix: string,
+  items: T[],
+): T[] {
+  return items.map((it, i) => ({
+    ...it,
+    title: copyOverride(overrides, `${prefix}.${i}.title`, it.title),
+    body: copyOverride(overrides, `${prefix}.${i}.body`, it.body),
+  }))
+}
+
 /** "Open today · 8:00 AM – 5:00 PM" or "Closed today" — the footer's
  *  at-a-glance availability blurb. */
 export function todaysHoursLabel(
