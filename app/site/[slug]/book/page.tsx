@@ -13,6 +13,7 @@ import { DEFAULT_SERVICES, type ClinicService, type ClinicStaff } from '@/lib/ty
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -97,6 +98,7 @@ export default async function BookPage({ params }: Props) {
 
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  const copyOverrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
   const basePath = await resolveSiteBasePath(slug)
   const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
@@ -157,8 +159,11 @@ export default async function BookPage({ params }: Props) {
               <h1
                 className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:book.heroTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Let&rsquo;s get you on the schedule.
+                {copyOverride(copyOverrides, 'book.heroTitle', 'Let’s get you on the schedule.')}
               </h1>
             </ScrollReveal>
             <ScrollReveal delay={120}>
