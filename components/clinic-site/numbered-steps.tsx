@@ -61,6 +61,9 @@ export default function NumberedSteps({
             <p
               className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
               style={{ color: brand }}
+              {...(editKeyPrefix
+                ? { 'data-edit-field': `copy:${editKeyPrefix}.eyebrow`, 'data-edit-kind': 'text', 'data-edit-label': 'eyebrow' }
+                : {})}
             >
               {eyebrow}
             </p>
@@ -69,6 +72,9 @@ export default function NumberedSteps({
             <h2
               className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em]"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              {...(editKeyPrefix
+                ? { 'data-edit-field': `copy:${editKeyPrefix}.heading`, 'data-edit-kind': 'text', 'data-edit-label': 'headline' }
+                : {})}
             >
               {heading}
             </h2>

@@ -167,11 +167,15 @@ export default async function DentalPlansPage({ params }: Props) {
             <p
               className="text-base sm:text-lg leading-[1.6]"
               style={{ color: INK }}
+              data-edit-field="copy:dentalPlans.heroIntro"
+              data-edit-kind="text"
+              data-edit-label="text"
             >
-              No insurance? No problem. Our in-house dental plan covers your
-              routine preventive care and gives you a meaningful discount on
-              every other treatment — with no deductibles, no claim forms,
-              and no waiting periods.
+              {copyOverride(
+                copyOverrides,
+                'dentalPlans.heroIntro',
+                'No insurance? No problem. Our in-house dental plan covers your routine preventive care and gives you a meaningful discount on every other treatment — with no deductibles, no claim forms, and no waiting periods.',
+              )}
             </p>
           </div>
         </section>
@@ -198,8 +202,11 @@ export default async function DentalPlansPage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
+                data-edit-field="copy:dentalPlans.whyEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                Why patients choose this
+                {copyOverride(copyOverrides, 'dentalPlans.whyEyebrow', 'Why patients choose this')}
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em]"
@@ -207,8 +214,11 @@ export default async function DentalPlansPage({ params }: Props) {
                   color: brand,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:dentalPlans.whyHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Better than dental insurance, for most people.
+                {copyOverride(copyOverrides, 'dentalPlans.whyHeading', 'Better than dental insurance, for most people.')}
               </h2>
             </ScrollReveal>
             <ul className="grid sm:grid-cols-3 gap-5 sm:gap-6">
@@ -253,14 +263,20 @@ export default async function DentalPlansPage({ params }: Props) {
                   <h3
                     className="text-lg font-semibold mb-2 leading-tight"
                     style={{ color: INK }}
+                    data-edit-field={`copy:dentalPlans.why.${i}.title`}
+                    data-edit-kind="text"
+                    data-edit-label="title"
                   >
-                    {b.title}
+                    {copyOverride(copyOverrides, `dentalPlans.why.${i}.title`, b.title)}
                   </h3>
                   <p
                     className="text-[15px] leading-[1.6]"
                     style={{ color: INK_MUTED }}
+                    data-edit-field={`copy:dentalPlans.why.${i}.body`}
+                    data-edit-kind="text"
+                    data-edit-label="text"
                   >
-                    {b.body}
+                    {copyOverride(copyOverrides, `dentalPlans.why.${i}.body`, b.body)}
                   </p>
                 </ScrollReveal>
               ))}

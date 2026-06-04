@@ -23,6 +23,7 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
   copyOverride,
+  resolveCopyList,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -143,6 +144,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
+  const howSteps = resolveCopyList(copyOverrides, 'paymentFinancing.how', HOW_IT_WORKS_STEPS)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
@@ -266,12 +268,13 @@ export default async function PaymentFinancingPage({ params }: Props) {
         <section className="py-16 sm:py-20" style={{ backgroundColor: SURFACE }}>
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <NumberedSteps
-              steps={HOW_IT_WORKS_STEPS}
+              steps={howSteps}
               brand={brand}
               columns={3}
-              eyebrow="How it works"
-              heading="Honest billing, every visit."
+              eyebrow={copyOverride(copyOverrides, 'paymentFinancing.how.eyebrow', 'How it works')}
+              heading={copyOverride(copyOverrides, 'paymentFinancing.how.heading', 'Honest billing, every visit.')}
               surface="bg"
+              editKeyPrefix="paymentFinancing.how"
             />
           </div>
         </section>
@@ -288,8 +291,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: brand }}
+                data-edit-field="copy:paymentFinancing.methodsEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                Payment methods
+                {copyOverride(copyOverrides, 'paymentFinancing.methodsEyebrow', 'Payment methods')}
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em]"
@@ -297,8 +303,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
                   color: brand,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:paymentFinancing.methodsHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                We accept the way you want to pay.
+                {copyOverride(copyOverrides, 'paymentFinancing.methodsHeading', 'We accept the way you want to pay.')}
               </h2>
             </ScrollReveal>
             <ul className="grid sm:grid-cols-2 gap-3 sm:gap-4">
@@ -356,8 +365,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
               style={{ color: 'rgba(250, 247, 242, 0.7)' }}
+              data-edit-field="copy:paymentFinancing.hsaEyebrow"
+              data-edit-kind="text"
+              data-edit-label="eyebrow"
             >
-              HSA &amp; FSA
+              {copyOverride(copyOverrides, 'paymentFinancing.hsaEyebrow', 'HSA & FSA')}
             </p>
             <h2
               className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
@@ -365,18 +377,24 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 color: '#FAF7F2',
                 fontFamily: 'var(--font-display, Georgia, serif)',
               }}
+              data-edit-field="copy:paymentFinancing.hsaHeading"
+              data-edit-kind="text"
+              data-edit-label="headline"
             >
-              Use your tax-advantaged dollars here.
+              {copyOverride(copyOverrides, 'paymentFinancing.hsaHeading', 'Use your tax-advantaged dollars here.')}
             </h2>
             <p
               className="text-base sm:text-lg leading-[1.65] max-w-[700px] mx-auto"
               style={{ color: 'rgba(255, 255, 255, 0.85)' }}
+              data-edit-field="copy:paymentFinancing.hsaBody"
+              data-edit-kind="text"
+              data-edit-label="text"
             >
-              Most dental care is HSA / FSA eligible — including cleanings,
-              fillings, crowns, root canals, and orthodontics. Cosmetic
-              treatments like whitening typically do not qualify. Bring your
-              HSA / FSA card to your visit, or pay another way and submit the
-              itemized receipt to your administrator.
+              {copyOverride(
+                copyOverrides,
+                'paymentFinancing.hsaBody',
+                'Most dental care is HSA / FSA eligible — including cleanings, fillings, crowns, root canals, and orthodontics. Cosmetic treatments like whitening typically do not qualify. Bring your HSA / FSA card to your visit, or pay another way and submit the itemized receipt to your administrator.',
+              )}
             </p>
           </div>
         </section>
@@ -389,8 +407,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: brand }}
+                  data-edit-field="copy:paymentFinancing.financingEyebrow"
+                  data-edit-kind="text"
+                  data-edit-label="eyebrow"
                 >
-                  Financing
+                  {copyOverride(copyOverrides, 'paymentFinancing.financingEyebrow', 'Financing')}
                 </p>
                 <h2
                   className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
@@ -398,8 +419,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
                     color: brand,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
+                  data-edit-field="copy:paymentFinancing.financingHeading"
+                  data-edit-kind="text"
+                  data-edit-label="headline"
                 >
-                  Financing options we partner with.
+                  {copyOverride(copyOverrides, 'paymentFinancing.financingHeading', 'Financing options we partner with.')}
                 </h2>
                 <p
                   className="text-base leading-[1.6]"
@@ -487,8 +511,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
                   style={{ color: brand }}
+                  data-edit-field="copy:paymentFinancing.cancelEyebrow"
+                  data-edit-kind="text"
+                  data-edit-label="eyebrow"
                 >
-                  Cancellations &amp; no-shows
+                  {copyOverride(copyOverrides, 'paymentFinancing.cancelEyebrow', 'Cancellations & no-shows')}
                 </p>
                 <h2
                   className="text-2xl sm:text-3xl lg:text-[36px] font-semibold leading-[1.1] tracking-[-0.015em]"
@@ -496,8 +523,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
                     color: brand,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
+                  data-edit-field="copy:paymentFinancing.cancelHeading"
+                  data-edit-kind="text"
+                  data-edit-label="headline"
                 >
-                  Our cancellation policy.
+                  {copyOverride(copyOverrides, 'paymentFinancing.cancelHeading', 'Our cancellation policy.')}
                 </h2>
               </div>
               <div
@@ -530,8 +560,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
                   color: brand,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
+                data-edit-field="copy:paymentFinancing.faqHeading"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Billing questions, answered.
+                {copyOverride(copyOverrides, 'paymentFinancing.faqHeading', 'Billing questions, answered.')}
               </h2>
             </ScrollReveal>
             <div className="space-y-3">
