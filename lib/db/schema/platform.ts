@@ -24,6 +24,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   // NOT an office-gallery photo. Falls back to officePhotos[0] when null for
   // back-compat with sites set up before this column existed.
   heroImageUrl2: text('hero_image_url_2'),
+  // imagePositions: Record<fieldKey, "x% y%"> — per-image focal point applied as
+  // CSS object-position so a photo shown in a small crop (e.g. the hero ovals)
+  // can be repositioned to keep the right part in frame. Unset key → centred.
+  imagePositions: jsonb('image_positions'),
   // Optional ambient background video for the "The {clinic} difference"
   // section on the public site. Plain mp4/webm URL — rendered as
   // <video autoplay muted loop playsInline> when set, falls back to
