@@ -32,6 +32,7 @@ import {
   saveFaq,
   saveInsurance,
   savePaymentFinancing,
+  saveDifferenceChips,
   saveHours,
   type SectionResult,
 } from './website-actions'
@@ -72,6 +73,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   faq: saveFaq,
   acceptedInsuranceCarriers: saveInsurance,
   paymentFinancing: savePaymentFinancing,
+  differenceChips: saveDifferenceChips,
   hours: saveHours,
 }
 
@@ -85,6 +87,7 @@ const SECTION_TITLES: Record<string, string> = {
   faq: 'Frequently asked questions',
   acceptedInsuranceCarriers: 'Insurance carriers',
   paymentFinancing: 'Payment & financing',
+  differenceChips: '“Why us” highlights',
   hours: 'Office hours',
   services: 'Services',
 }
@@ -424,6 +427,22 @@ function StudioModal({
                 defaultValue={((profile.acceptedInsuranceCarriers as string[] | null) ?? []).join('\n')}
                 rows={8}
                 placeholder={'Delta Dental\nCigna\nAetna\nMetLife'}
+                className="form-textarea w-full text-sm"
+              />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'differenceChips' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                The short “Why us” highlight chips next to your homepage intro — one per line.
+                Leave blank to auto-build from your top services + standard reassurances
+                (“No judgment, ever,” “Same-week visits,” …).
+              </p>
+              <textarea
+                name="differenceChips"
+                defaultValue={((profile.differenceChips as string[] | null) ?? []).join('\n')}
+                rows={8}
+                placeholder={'Family Dental Care\nTeeth Whitening\nNo judgment, ever\nSame-week visits'}
                 className="form-textarea w-full text-sm"
               />
             </form>

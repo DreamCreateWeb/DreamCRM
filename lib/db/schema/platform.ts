@@ -59,6 +59,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   // default renders. Powers "edit the important headlines" in the Website
   // Studio without a migration per string.
   copyOverrides: jsonb('copy_overrides'),
+  // differenceChips: string[] — the "Why us" highlight chips on the homepage
+  // difference section. Null/empty → auto-built from the clinic's top services
+  // + standard reassurances; set → an explicit clinic-authored list.
+  differenceChips: jsonb('difference_chips'),
   acceptedInsuranceCarriers: jsonb('accepted_insurance_carriers'),
   paymentMethods: jsonb('payment_methods'),
   financingPartners: jsonb('financing_partners'),

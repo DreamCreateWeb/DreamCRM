@@ -188,6 +188,15 @@ export async function saveInsurance(formData: FormData): Promise<SectionResult> 
   })
 }
 
+// ── "Why us" difference chips (homepage highlight list) ─────────────────────
+export async function saveDifferenceChips(formData: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    await writeSection(ctx, {
+      differenceChips: parseStringList(formData.get('differenceChips')?.toString()),
+    })
+  })
+}
+
 // ── Payment methods + financing + cancellation policy ───────────────────────
 export async function savePaymentFinancing(formData: FormData): Promise<SectionResult> {
   return runSection(async (ctx) => {
