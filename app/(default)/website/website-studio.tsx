@@ -103,6 +103,7 @@ const SECTION_TITLES: Record<string, string> = {
   differenceChips: '“Why us” highlights',
   hours: 'Office hours',
   services: 'Services',
+  blog: 'Blog posts',
 }
 
 /**
@@ -312,6 +313,9 @@ function StudioModal({
   // Services embeds the autosaving library picker — it persists each change
   // itself, so the modal just shows a "Done" button that reloads the canvas.
   const isServices = modal.kind === 'section' && modal.field === 'services'
+  // Blog management lives in the full /blog manager (editor + scheduling
+  // calendar), so its modal is a link-out rather than an inline form.
+  const isLinkOut = modal.kind === 'section' && modal.field === 'blog'
 
   async function onSave() {
     setBusy(true)
@@ -616,6 +620,23 @@ function StudioModal({
               )}
             </div>
           )}
+          {modal.kind === 'section' && modal.field === 'blog' && (
+            <div className="space-y-3">
+              <p className="text-[13px] text-stone-500 dark:text-stone-400">
+                Your blog posts — drafts, scheduling, and publishing — live in the blog
+                manager, which has the full editor and a publishing calendar. Anything you
+                publish there appears in this “From the blog” section automatically.
+              </p>
+              <a
+                href="/blog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-sm inline-flex bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
+              >
+                Open the blog manager ↗
+              </a>
+            </div>
+          )}
           {modal.kind === 'section' && !SECTION_TITLES[modal.field] && (
             <p className="text-sm text-stone-500 dark:text-stone-400">
               This section’s editor isn’t available in your current tab — it was likely added
@@ -636,6 +657,14 @@ function StudioModal({
               className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
             >
               Done
+            </button>
+          ) : isLinkOut ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
+            >
+              Close
             </button>
           ) : (
             <>
