@@ -220,8 +220,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
               style={{ color: INK_MUTED }}
+              data-edit-field="copy:paymentFinancing.heroEyebrow"
+              data-edit-kind="text"
+              data-edit-label="eyebrow"
             >
-              Patients · Payment &amp; Financing
+              {copyOverride(copyOverrides, 'paymentFinancing.heroEyebrow', 'Patients · Payment & Financing')}
             </p>
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
@@ -608,8 +611,9 @@ export default async function PaymentFinancingPage({ params }: Props) {
         </section>
 
         <ClosingCTA
-          heading="Questions about your bill?"
-          subhead="Reach out — we’ll walk you through anything that doesn’t look right."
+          heading={copyOverride(copyOverrides, 'paymentFinancing.cta.heading', 'Questions about your bill?')}
+          subhead={copyOverride(copyOverrides, 'paymentFinancing.cta.subhead', 'Reach out — we’ll walk you through anything that doesn’t look right.')}
+          editKeyPrefix="paymentFinancing.cta"
           primary={{ label: bookLabel, href: bookHref }}
           secondary={
             profile.phone

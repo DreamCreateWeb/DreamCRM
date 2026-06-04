@@ -149,8 +149,11 @@ export default async function DentalPlansPage({ params }: Props) {
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
               style={{ color: INK_MUTED }}
+              data-edit-field="copy:dentalPlans.heroEyebrow"
+              data-edit-kind="text"
+              data-edit-label="eyebrow"
             >
-              Patients · Dental Plans
+              {copyOverride(copyOverrides, 'dentalPlans.heroEyebrow', 'Patients · Dental Plans')}
             </p>
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
@@ -285,8 +288,9 @@ export default async function DentalPlansPage({ params }: Props) {
         </section>
 
         <ClosingCTA
-          heading="Ready to join?"
-          subhead="Pick a plan above, or call us with any questions — we’re happy to walk through what coverage looks like for your situation."
+          heading={copyOverride(copyOverrides, 'dentalPlans.cta.heading', 'Ready to join?')}
+          subhead={copyOverride(copyOverrides, 'dentalPlans.cta.subhead', 'Pick a plan above, or call us with any questions — we’re happy to walk through what coverage looks like for your situation.')}
+          editKeyPrefix="dentalPlans.cta"
           primary={{ label: bookLabel, href: bookHref }}
           secondary={
             profile.phone
