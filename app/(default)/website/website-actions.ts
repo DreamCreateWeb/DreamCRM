@@ -224,6 +224,37 @@ export type InlineField =
   | 'tagline' | 'about' | 'displayName' | 'legalName' | 'phone' | 'email'
   | 'logoUrl' | 'heroImageUrl' | 'heroImageUrl2' | 'differenceVideoUrl'
 
+// ── Image field + focal point (Website Studio image modal) ──────────────────
+// Writes the single-column image URL AND merges this image's focal point into
+// the image_positions map (applied as CSS object-position on the public site).
+export async function saveImageField(
+  field: string,
+  url: string,
+  position: string | null,
+): Promise<SectionResult> {
+  if (!INLINE_IMAGE_FIELDS.has(field)) {
+    return { ok: false, error: 'That image cannot be edited here' }
+  }
+  return runSection(async (ctx) => {
+    const [row] = await db
+      .select({ imagePositions: clinicProfile.imagePositions })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, ctx.organizationId))
+      .limit(1)
+    const current = (row?.imagePositions as Record<string, string> | null) ?? {}
+    const next: Record<string, string> = { ...current }
+    const v = typeof url === 'string' && url.trim() ? url.trim() : null
+    const pos = typeof position === 'string' && position.trim() ? position.trim() : null
+    // Only store a non-centred focal point, and only when there's an image.
+    if (v && pos && pos !== '50% 50%') next[field] = pos
+    else delete next[field]
+    await writeSection(ctx, {
+      [field]: v,
+      imagePositions: Object.keys(next).length > 0 ? next : null,
+    } as Partial<typeof clinicProfile.$inferInsert>)
+  })
+}
+
 export async function saveInlineField(field: string, value: string): Promise<SectionResult> {
   // Hardcoded-copy override: field "copy:<key>" merges into the copy_overrides
   // map (the template falls back to its built-in default when a key is unset).

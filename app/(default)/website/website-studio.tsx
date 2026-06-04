@@ -14,6 +14,7 @@ import type {
 } from '@/lib/types/clinic-content'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
+import FocalPointPicker from '@/components/ui/focal-point-picker'
 import StatsEditor from '../settings/clinic/stats-editor'
 import TestimonialsEditor from '../settings/clinic/testimonials-editor'
 import StaffEditor from '../settings/clinic/staff-editor'
@@ -24,6 +25,7 @@ import HoursEditor from './hours-editor'
 import ServicesLibraryPicker from '../settings/clinic/services-library-picker'
 import {
   saveInlineField,
+  saveImageField,
   saveStats,
   saveTestimonials,
   saveAbout,
@@ -48,18 +50,23 @@ interface Props {
 type Status = 'idle' | 'saving' | 'saved' | 'error'
 type ModalState = { kind: 'image' | 'section'; field: string } | null
 
-const IMAGE_FIELDS: Record<string, { label: string; folder: string; previewClass: string; hint: string }> = {
+const IMAGE_FIELDS: Record<
+  string,
+  { label: string; folder: string; previewClass: string; hint: string; focalAspect?: string }
+> = {
   heroImageUrl: {
     label: 'Hero image',
     folder: 'clinic-hero',
     previewClass: 'aspect-[3/1]',
     hint: 'A real interior or team shot — 16:9 or wider beats a stock smile.',
+    focalAspect: 'aspect-[4/5]',
   },
   heroImageUrl2: {
     label: 'Second hero image',
     folder: 'clinic-hero',
     previewClass: 'aspect-[4/5] w-48',
     hint: 'The right-hand hero photo — a portrait-orientation shot of a person or your space works best.',
+    focalAspect: 'aspect-[4/5]',
   },
   logoUrl: {
     label: 'Logo',
@@ -250,6 +257,11 @@ function StudioModal({
   const [imageUrl, setImageUrl] = useState<string | null>(
     modal.kind === 'image' ? ((profile[modal.field as keyof ClinicProfile] as string | null) ?? null) : null,
   )
+  const [position, setPosition] = useState<string>(
+    modal.kind === 'image'
+      ? (((profile.imagePositions as Record<string, string> | null) ?? {})[modal.field] ?? '50% 50%')
+      : '50% 50%',
+  )
   const [videoUrl, setVideoUrl] = useState<string>(
     modal.kind === 'section' && modal.field === 'differenceVideoUrl'
       ? ((profile.differenceVideoUrl as string | null) ?? '')
@@ -305,7 +317,7 @@ function StudioModal({
     setBusy(true)
     let res: SectionResult
     if (modal.kind === 'image') {
-      res = await persist(() => saveInlineField(modal.field, imageUrl ?? ''))
+      res = await persist(() => saveImageField(modal.field, imageUrl ?? '', position))
     } else if (modal.field === 'differenceVideoUrl') {
       res = await persist(() => saveInlineField('differenceVideoUrl', videoUrl))
     } else if (FORM_SECTION_SAVES[modal.field]) {
@@ -343,15 +355,30 @@ function StudioModal({
 
         <div className="p-5">
           {modal.kind === 'image' && imageCfg && (
-            <ImageUploader
-              name={modal.field}
-              defaultValue={imageUrl}
-              folder={imageCfg.folder}
-              label={imageCfg.label}
-              hint={imageCfg.hint}
-              previewClass={imageCfg.previewClass}
-              onChange={(u) => setImageUrl(u)}
-            />
+            <>
+              <ImageUploader
+                name={modal.field}
+                defaultValue={imageUrl}
+                folder={imageCfg.folder}
+                label={imageCfg.label}
+                hint={imageCfg.hint}
+                previewClass={imageCfg.previewClass}
+                onChange={(u) => setImageUrl(u)}
+              />
+              {imageCfg.focalAspect && imageUrl && (
+                <div className="mt-4 pt-4 border-t border-stone-200 dark:border-stone-700/60">
+                  <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-2">
+                    Focus point
+                  </label>
+                  <FocalPointPicker
+                    src={imageUrl}
+                    aspectClass={imageCfg.focalAspect}
+                    value={position}
+                    onChange={setPosition}
+                  />
+                </div>
+              )}
+            </>
           )}
           {modal.kind === 'section' && modal.field === 'stats' && (
             <form ref={formRef}>

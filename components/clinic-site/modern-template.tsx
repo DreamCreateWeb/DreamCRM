@@ -107,6 +107,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const services: ClinicService[] = allServices.slice(0, 6)
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const differenceHeadline = copyOverride(copyOverrides, 'home.differenceHeadline', '')
+  const imagePositions = (profile.imagePositions as Record<string, string> | null) ?? {}
   const rawStats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
   // Resolve dynamic stats at render. v1: only `review_count` is dynamic.
   // When the live count is 0 AND the stat is dynamic, drop the row rather
@@ -278,7 +279,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           <div className="grid lg:grid-cols-[1fr_minmax(0,640px)_1fr] gap-6 lg:gap-10 items-center">
             {/* LEFT photo — breakout to ~35% viewport, soft asymmetric oval */}
             <div className="hidden lg:block lg:-ml-12 xl:-ml-20">
-              <OvalPortrait src={leftPortraitImage} bg={leftPortraitBg} variant="left" editField="heroImageUrl" />
+              <OvalPortrait
+                src={leftPortraitImage}
+                bg={leftPortraitBg}
+                variant="left"
+                editField="heroImageUrl"
+                position={imagePositions['heroImageUrl']}
+              />
             </div>
 
             {/* CENTER text column — caps at 640px so the photos take the
@@ -388,6 +395,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 editField="heroImageUrl2"
                 editKind="image"
                 editLabel="second hero image"
+                position={imagePositions['heroImageUrl2']}
               />
             </div>
           </div>
@@ -1265,6 +1273,7 @@ function OvalPortrait({
   editField,
   editKind = 'image',
   editLabel,
+  position,
 }: {
   src: string | null
   bg: string
@@ -1274,6 +1283,8 @@ function OvalPortrait({
   /** 'image' = click-to-replace a single column; 'modal' = open a section editor. */
   editKind?: 'image' | 'modal'
   editLabel?: string
+  /** CSS object-position focal point, e.g. "50% 30%". */
+  position?: string
 }) {
   return (
     <div
@@ -1293,6 +1304,7 @@ function OvalPortrait({
           src={src}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
+          style={position ? { objectPosition: position } : undefined}
         />
       ) : null}
     </div>
