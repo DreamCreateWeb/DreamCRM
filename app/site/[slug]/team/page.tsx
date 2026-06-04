@@ -20,6 +20,7 @@ import {
   staffSlug as resolveStaffSlug,
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -94,6 +95,7 @@ export default async function TeamPage({ params }: Props) {
 
   const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
   const hasTeam = staff.length > 0
+  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
 
   const navLinks = buildClinicNavLinks({
     basePath,
@@ -143,8 +145,11 @@ export default async function TeamPage({ params }: Props) {
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              data-edit-field="copy:team.heroTitle"
+              data-edit-kind="text"
+              data-edit-label="headline"
             >
-              Meet the team at {name}.
+              {copyOverride(copyOverrides, 'team.heroTitle', `Meet the team at ${name}.`)}
             </h1>
             <p
               className="text-base sm:text-lg leading-[1.6]"

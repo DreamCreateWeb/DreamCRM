@@ -22,6 +22,7 @@ import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -141,6 +142,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
@@ -225,8 +227,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 color: brand,
                 fontFamily: 'var(--font-display, Georgia, serif)',
               }}
+              data-edit-field="copy:paymentFinancing.heroTitle"
+              data-edit-kind="text"
+              data-edit-label="headline"
             >
-              Payment options at {name}.
+              {copyOverride(copyOverrides, 'paymentFinancing.heroTitle', `Payment options at ${name}.`)}
             </h1>
             <p
               className="text-base sm:text-lg leading-[1.6] mb-9"

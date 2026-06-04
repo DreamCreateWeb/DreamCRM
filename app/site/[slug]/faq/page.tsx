@@ -18,6 +18,7 @@ import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -104,6 +105,7 @@ export default async function FaqPage({ params }: Props) {
   })
 
   const customFaq = profile.faq as ClinicFaqItem[] | null
+  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const faq: ClinicFaqItem[] = customFaq && customFaq.length > 0 ? customFaq : DEFAULT_FAQ_ITEMS
 
   // Group by category, preserving order of FAQ_CATEGORIES, then any custom
@@ -170,8 +172,11 @@ export default async function FaqPage({ params }: Props) {
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            data-edit-field="copy:faq.heroTitle"
+            data-edit-kind="text"
+            data-edit-label="headline"
           >
-            Frequently asked questions.
+            {copyOverride(copyOverrides, 'faq.heroTitle', 'Frequently asked questions.')}
           </h1>
           <p
             className="text-base sm:text-lg leading-[1.6]"
