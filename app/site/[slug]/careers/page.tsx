@@ -201,7 +201,12 @@ export default async function ClinicCareersPage({ params }: Props) {
         </section>
 
         {/* ── Open positions ────────────────────────────────────────────── */}
-        <section className="pb-14 sm:pb-24">
+        <section
+          className="pb-14 sm:pb-24"
+          data-edit-field="careers"
+          data-edit-kind="modal"
+          data-edit-label="job postings"
+        >
           <div className="max-w-[1000px] mx-auto px-5 sm:px-8">
             <ScrollReveal className="mb-10 text-center">
               <p

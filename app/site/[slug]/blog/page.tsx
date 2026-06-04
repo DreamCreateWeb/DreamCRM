@@ -140,7 +140,12 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
             )}
 
             {restPosts.length > 0 && (
-              <div className="grid gap-x-8 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
+              <div
+                className="grid gap-x-8 gap-y-14 sm:grid-cols-2 lg:grid-cols-3"
+                data-edit-field="blog"
+                data-edit-kind="modal"
+                data-edit-label="blog posts"
+              >
                 {restPosts.map((p, i) => (
                   <ScrollReveal as="article" key={p.id} delay={(i % 3) * 90}>
                     <PostCard

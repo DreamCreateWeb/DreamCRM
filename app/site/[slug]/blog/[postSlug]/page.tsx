@@ -106,15 +106,17 @@ export default async function ClinicBlogPostPage({ params }: Props) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
       )}
       <BlogViewBeacon postId={post.id} />
-      <BlogArticle
-        post={post}
-        author={author}
-        reviewer={reviewer}
-        related={related}
-        brand={brand}
-        basePath={basePath}
-        isPro={isPro}
-      />
+      <div data-edit-field="blog" data-edit-kind="modal" data-edit-label="blog posts">
+        <BlogArticle
+          post={post}
+          author={author}
+          reviewer={reviewer}
+          related={related}
+          brand={brand}
+          basePath={basePath}
+          isPro={isPro}
+        />
+      </div>
     </BlogChrome>
   )
 }

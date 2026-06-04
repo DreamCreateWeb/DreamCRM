@@ -189,7 +189,12 @@ export default async function StaffDetailPage({ params }: Props) {
 
       <main>
         {/* ── Hero — 2-col on desktop ────────────────────────────────────── */}
-        <section className="pt-12 pb-16 sm:pt-16 sm:pb-20">
+        <section
+          className="pt-12 pb-16 sm:pt-16 sm:pb-20"
+          data-edit-field="staff"
+          data-edit-kind="modal"
+          data-edit-label="team"
+        >
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
               {/* Portrait */}
