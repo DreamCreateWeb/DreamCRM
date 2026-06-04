@@ -55,6 +55,12 @@ const IMAGE_FIELDS: Record<string, { label: string; folder: string; previewClass
     previewClass: 'aspect-[3/1]',
     hint: 'A real interior or team shot — 16:9 or wider beats a stock smile.',
   },
+  heroImageUrl2: {
+    label: 'Second hero image',
+    folder: 'clinic-hero',
+    previewClass: 'aspect-[4/5] w-48',
+    hint: 'The right-hand hero photo — a portrait-orientation shot of a person or your space works best.',
+  },
   logoUrl: {
     label: 'Logo',
     folder: 'clinic-logos',

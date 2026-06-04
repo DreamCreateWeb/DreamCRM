@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "hero_image_url_2" text;

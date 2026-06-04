@@ -1055,6 +1055,10 @@ const DEMO_LOGO_URL =
   'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=200&h=200&fit=crop&q=80'
 const DEMO_HERO_IMAGE_URL =
   'https://images.unsplash.com/photo-1606811971618-4486d14f3f99?w=2000&q=80'
+// Second hero photo (the right-hand oval) — a portrait-orientation shot, its
+// own dedicated single-image field (not an office-gallery photo).
+const DEMO_HERO_IMAGE_2_URL =
+  'https://images.unsplash.com/photo-1609840114035-3c981b782dfe?w=1000&h=1250&fit=crop&q=80'
 // Ambient autoplay loop for the "The {clinic} difference" section. Free
 // Pexels dental footage — Pexels licenses everything for free commercial
 // use without attribution. Keeps the demo showcasing the video branch of
@@ -1233,6 +1237,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         officePhotos: schema.clinicProfile.officePhotos,
         logoUrl: schema.clinicProfile.logoUrl,
         heroImageUrl: schema.clinicProfile.heroImageUrl,
+        heroImageUrl2: schema.clinicProfile.heroImageUrl2,
         differenceVideoUrl: schema.clinicProfile.differenceVideoUrl,
         faq: schema.clinicProfile.faq,
         acceptedInsuranceCarriers: schema.clinicProfile.acceptedInsuranceCarriers,
@@ -1318,6 +1323,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (!profile?.officePhotos) patch.officePhotos = DEMO_OFFICE_PHOTOS
     if (!profile?.logoUrl) patch.logoUrl = DEMO_LOGO_URL
     if (!profile?.heroImageUrl) patch.heroImageUrl = DEMO_HERO_IMAGE_URL
+    if (!profile?.heroImageUrl2) patch.heroImageUrl2 = DEMO_HERO_IMAGE_2_URL
     // Difference-video backfill: legacy demos predate migration 0037 + the
     // ambient autoplay loop in the "Why us?" section. Also overwrite the
     // first-pass Pexels URL — Pexels hotlink-blocked the mp4 endpoint with
@@ -1775,6 +1781,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     email: 'hello@acme-dental.example',
     logoUrl: DEMO_LOGO_URL,
     heroImageUrl: DEMO_HERO_IMAGE_URL,
+    heroImageUrl2: DEMO_HERO_IMAGE_2_URL,
     differenceVideoUrl: DEMO_DIFFERENCE_VIDEO_URL,
     addressLine1: '500 Main St',
     city: 'Austin',

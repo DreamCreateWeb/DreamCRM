@@ -187,7 +187,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // complementary panels regardless of brand color so the composition
   // reads the same on every palette. Decorative chrome, not content.
   const leftPortraitImage = heroImageUrl ?? null
-  const rightPortraitImage = officePhotos[0]?.url ?? null
+  // Right hero oval = its own dedicated second hero photo (single-image replace).
+  // Falls back to the first office photo for sites set up before the column.
+  const rightPortraitImage =
+    (profile.heroImageUrl2 as string | null) ?? officePhotos[0]?.url ?? null
   const leftPortraitBg = '#B8D4E8'
   const rightPortraitBg = '#F0D9BD'
 
@@ -382,9 +385,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 src={rightPortraitImage}
                 bg={rightPortraitBg}
                 variant="right"
-                editField="officePhotos"
-                editKind="modal"
-                editLabel="office photos"
+                editField="heroImageUrl2"
+                editKind="image"
+                editLabel="second hero image"
               />
             </div>
           </div>
