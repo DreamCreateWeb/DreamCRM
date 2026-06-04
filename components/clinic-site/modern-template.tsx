@@ -6,6 +6,7 @@ import type {
   ClinicStat,
   ClinicTestimonial,
   ClinicOfficePhoto,
+  ClinicStaff,
 } from '@/lib/types/clinic-content'
 import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
@@ -21,6 +22,7 @@ import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
 import ServicePills from '@/components/clinic-site/service-pills'
+import TeamGallery from '@/components/clinic-site/team-gallery'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
 
 /**
@@ -191,6 +193,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
   // Service pills under the hero — Tend's qualifier strip.
   const heroServicePills = services.slice(0, 6)
+  // Team photos for the clay gallery slider under the stats — sourced straight
+  // from the staff records, so it stays in sync with the Team editor.
+  const teamGalleryMembers = ((profile.staff as ClinicStaff[] | null) ?? [])
+    .filter((s): s is ClinicStaff & { photoUrl: string } => Boolean(s.photoUrl))
+    .map((s) => ({ id: s.id, name: s.name, title: s.title ?? null, photoUrl: s.photoUrl }))
 
   // Universal value-prop chips for the "difference" feature checklist. Drawn
   // from the clinic's own services first (so it feels personal), padded
@@ -482,6 +489,43 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Meet the team — clay-card photo slider sourced from staff photos ── */}
+      {/* Replaces the old flanking clinical-photo ovals; one source of truth
+          with the Team editor, so editing staff updates this gallery. Hides
+          cleanly when no staff member has a photo yet. */}
+      {teamGalleryMembers.length > 0 && (
+        <section className="pb-16 sm:pb-24">
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+            <div className="text-center max-w-[640px] mx-auto mb-9 sm:mb-12">
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.22em] mb-3"
+                style={{ color: INK_MUTED }}
+              >
+                Meet the team
+              </p>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em]"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:home.teamGalleryTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
+              >
+                {copyOverride(copyOverrides, 'home.teamGalleryTitle', '') || (
+                  <>The faces behind {name}.</>
+                )}
+              </h2>
+            </div>
+            <div
+              data-edit-field="staff"
+              data-edit-kind="modal"
+              data-edit-label="team photos"
+            >
+              <TeamGallery members={teamGalleryMembers} brand={brand} ink={INK} surface={SURFACE} />
             </div>
           </div>
         </section>
@@ -882,21 +926,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       {/* Renders only when we have ≥2 office photos (so both flanking
           portraits have real content). Hides cleanly when missing — no
           half-empty grid. */}
-      {officePhotos.length >= 2 && (
-        <section className="py-16 sm:py-28" style={{ backgroundColor: SURFACE }}>
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="grid lg:grid-cols-3 gap-8 lg:gap-12 items-center">
-              <div className="hidden lg:block">
-                <OvalPortrait
-                  src={officePhotos[1]?.url ?? null}
-                  bg={`${brand}22`}
-                  variant="left"
-                  editField="officePhotos"
-                  editKind="modal"
-                  editLabel="office photos"
-                />
-              </div>
-              <div className="max-w-xl mx-auto text-center lg:text-left">
+      <section className="py-16 sm:py-24" style={{ backgroundColor: SURFACE }}>
+        <div className="max-w-[1040px] mx-auto px-5 sm:px-8">
+          <div className="text-center max-w-[680px] mx-auto mb-10 sm:mb-14">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                   style={{ color: brand }}
@@ -928,14 +960,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     </>
                   )}
                 </p>
-                <ul className="space-y-5 text-left mb-8">
-                  {teamCallouts.map((c) => (
-                    <li key={c.title} className="flex items-start gap-4">
-                      <span
-                        className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${brand}1F`, color: brand }}
-                        aria-hidden="true"
-                      >
+          </div>
+          <ul className="grid sm:grid-cols-2 gap-4 sm:gap-5 max-w-[860px] mx-auto text-left">
+            {teamCallouts.map((c) => (
+              <li
+                key={c.title}
+                className="flex items-start gap-4 p-5 sm:p-6 rounded-2xl bg-white"
+                style={{ border: `1px solid ${BORDER}` }}
+              >
+                <span
+                  className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${brand}1F`, color: brand }}
+                  aria-hidden="true"
+                >
                         <TeamCalloutIcon kind={c.icon} />
                       </span>
                       <div>
@@ -949,28 +986,17 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     </li>
                   ))}
                 </ul>
-                <a
-                  href={`${basePath}/about`}
-                  className="inline-flex items-center gap-2 text-sm font-semibold hover:underline"
-                  style={{ color: brand }}
-                >
-                  Meet our team →
-                </a>
-              </div>
-              <div className="hidden lg:block">
-                <OvalPortrait
-                  src={officePhotos[2]?.url ?? officePhotos[0]?.url ?? null}
-                  bg="#E9D6BF"
-                  variant="right"
-                  editField="officePhotos"
-                  editKind="modal"
-                  editLabel="office photos"
-                />
-              </div>
-            </div>
+          <div className="text-center mt-10">
+            <a
+              href={`${basePath}/about`}
+              className="inline-flex items-center gap-2 text-sm font-semibold hover:underline"
+              style={{ color: brand }}
+            >
+              Meet our team →
+            </a>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {/* ── Blog — 3-card recent-posts preview ─────────────────────────── */}
       {/* Mirrors Tend's homepage blog band: a left-aligned heading with a
