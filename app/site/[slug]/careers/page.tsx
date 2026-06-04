@@ -14,6 +14,7 @@ import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -89,6 +90,7 @@ export default async function ClinicCareersPage({ params }: Props) {
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
+  const copyOverrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
   const [jobs, publishedPosts, membershipPlans] = await Promise.all([
     getOpenJobs(data.orgId),
     listPublishedPosts(data.orgId, { limit: 1 }),
@@ -151,8 +153,11 @@ export default async function ClinicCareersPage({ params }: Props) {
               <h1
                 className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:careers.heroTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Build the dental practice we&rsquo;d all want to visit.
+                {copyOverride(copyOverrides, 'careers.heroTitle', 'Build the dental practice we’d all want to visit.')}
               </h1>
             </ScrollReveal>
             <ScrollReveal delay={120}>
