@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { ClinicStat } from '@/lib/types/clinic-content'
+import { AddButton, EditorCard, EmptyHint, Field, inputCls } from '@/components/ui/editor-kit'
 
 interface Props {
   name: string
@@ -27,6 +28,15 @@ export default function StatsEditor({ name, defaultValue }: Props) {
   function remove(idx: number) {
     setItems((prev) => prev.filter((_, i) => i !== idx))
   }
+  function move(idx: number, dir: -1 | 1) {
+    setItems((prev) => {
+      const swap = idx + dir
+      if (swap < 0 || swap >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[swap]] = [next[swap], next[idx]]
+      return next
+    })
+  }
   function add() {
     setItems((prev) => [...prev, { id: uid(), value: '', label: '' }])
   }
@@ -36,57 +46,49 @@ export default function StatsEditor({ name, defaultValue }: Props) {
       <input type="hidden" name={name} value={JSON.stringify(items)} />
       <div className="space-y-3">
         {items.length === 0 && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-            No stats yet. Add 3 short trust signals — they sit just below your hero on the website.
-          </p>
+          <EmptyHint>
+            No stats yet. Add up to three short trust signals — they sit just below your hero.
+          </EmptyHint>
         )}
         {items.map((s, i) => {
           const ph = PLACEHOLDERS[i] ?? PLACEHOLDERS[0]
           return (
-            <div
+            <EditorCard
               key={s.id}
-              className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700/60 rounded-lg"
+              label={`Stat ${i + 1}`}
+              onMoveUp={() => move(i, -1)}
+              onMoveDown={() => move(i, 1)}
+              canMoveUp={i > 0}
+              canMoveDown={i < items.length - 1}
+              onRemove={() => remove(i)}
             >
-              <div className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2">
-                <input
-                  type="text"
-                  value={s.value}
-                  onChange={(e) => update(i, { value: e.target.value })}
-                  className="form-input text-base font-semibold"
-                  placeholder={ph.value}
-                  aria-label="Headline value"
-                  maxLength={32}
-                />
-                <input
-                  type="text"
-                  value={s.label}
-                  onChange={(e) => update(i, { label: e.target.value })}
-                  className="form-input text-sm"
-                  placeholder={ph.label}
-                  aria-label="Label"
-                  maxLength={64}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-3">
+                <Field label="Number / word">
+                  <input
+                    type="text"
+                    value={s.value}
+                    onChange={(e) => update(i, { value: e.target.value })}
+                    className={`${inputCls} font-semibold`}
+                    placeholder={ph.value}
+                    maxLength={32}
+                  />
+                </Field>
+                <Field label="Caption">
+                  <input
+                    type="text"
+                    value={s.label}
+                    onChange={(e) => update(i, { label: e.target.value })}
+                    className={inputCls}
+                    placeholder={ph.label}
+                    maxLength={64}
+                  />
+                </Field>
               </div>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="text-xs text-red-500 hover:text-red-600 mt-2"
-              >
-                Remove
-              </button>
-            </div>
+            </EditorCard>
           )
         })}
       </div>
-      {items.length < 4 && (
-        <button
-          type="button"
-          onClick={add}
-          className="mt-3 btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-        >
-          + Add Stat
-        </button>
-      )}
+      {items.length < 4 && <AddButton onClick={add}>Add stat</AddButton>}
     </div>
   )
 }

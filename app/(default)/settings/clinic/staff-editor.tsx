@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
+import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
 
 interface Props {
   name: string
@@ -41,6 +42,15 @@ export default function StaffEditor({ name, defaultValue }: Props) {
   function remove(idx: number) {
     setItems((prev) => prev.filter((_, i) => i !== idx))
   }
+  function move(idx: number, dir: -1 | 1) {
+    setItems((prev) => {
+      const swap = idx + dir
+      if (swap < 0 || swap >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[swap]] = [next[swap], next[idx]]
+      return next
+    })
+  }
   function add() {
     setItems((prev) => [
       ...prev,
@@ -64,49 +74,52 @@ export default function StaffEditor({ name, defaultValue }: Props) {
       <input type="hidden" name={name} value={JSON.stringify(items)} />
       <div className="space-y-3">
         {items.length === 0 && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-            No staff added yet. Add doctors and team members to display them on your website.
-          </p>
+          <EmptyHint>
+            No team members yet. Add your dentists, hygienists, and front-desk staff — they
+            appear on your homepage and the Team page.
+          </EmptyHint>
         )}
         {items.map((s, i) => (
           <StaffRow
             key={s.id}
+            index={i}
+            total={items.length}
             value={s}
             onChange={(patch) => update(i, patch)}
+            onMoveUp={() => move(i, -1)}
+            onMoveDown={() => move(i, 1)}
             onRemove={() => remove(i)}
           />
         ))}
       </div>
-      <button
-        type="button"
-        onClick={add}
-        className="mt-3 btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-      >
-        + Add Staff Member
-      </button>
+      <AddButton onClick={add}>Add team member</AddButton>
     </div>
   )
 }
 
 function StaffRow({
+  index,
+  total,
   value,
   onChange,
+  onMoveUp,
+  onMoveDown,
   onRemove,
 }: {
+  index: number
+  total: number
   value: ClinicStaff
   onChange: (patch: Partial<ClinicStaff>) => void
+  onMoveUp: () => void
+  onMoveDown: () => void
   onRemove: () => void
 }) {
   const [uploading, setUploading] = useState(false)
   const [reposition, setReposition] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   // Local textarea state for specialties so we don't fight controlled-input
-  // round-tripping the array -> string conversion on every keystroke. We
-  // hydrate from the saved array on mount, then write back to the parent as
-  // a parsed `string[] | null` on every change.
-  const [specialtiesText, setSpecialtiesText] = useState(
-    (value.specialties ?? []).join('\n'),
-  )
+  // round-tripping the array -> string conversion on every keystroke.
+  const [specialtiesText, setSpecialtiesText] = useState((value.specialties ?? []).join('\n'))
 
   async function handleUpload(file: File) {
     if (!file.type.startsWith('image/')) return
@@ -127,135 +140,156 @@ function StaffRow({
   const derivedSlug = value.name ? kebab(value.name) : ''
 
   return (
-    <div className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700/60 rounded-lg">
-      <div className="shrink-0 flex flex-col items-center gap-1.5 w-16">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-xs text-gray-400 hover:border-gray-300 relative"
-          aria-label="Upload photo"
-        >
-          {value.photoUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={value.photoUrl}
-              alt=""
-              className="w-full h-full object-cover"
-              style={value.photoPosition ? { objectPosition: value.photoPosition } : undefined}
-            />
-          ) : (
-            'Photo'
-          )}
-          {uploading && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px]">
-              …
-            </div>
-          )}
-        </button>
-        {value.photoUrl && (
+    <EditorCard
+      label={`Team member ${index + 1}`}
+      onMoveUp={onMoveUp}
+      onMoveDown={onMoveDown}
+      canMoveUp={index > 0}
+      canMoveDown={index < total - 1}
+      onRemove={onRemove}
+    >
+      <div className="flex gap-4">
+        {/* Photo column */}
+        <div className="shrink-0 flex flex-col items-center gap-1.5 w-20">
           <button
             type="button"
-            onClick={() => setReposition((v) => !v)}
-            className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 leading-tight"
+            onClick={() => fileRef.current?.click()}
+            className="w-20 h-20 rounded-full overflow-hidden bg-stone-100 dark:bg-stone-700 border border-stone-200 dark:border-stone-600 flex items-center justify-center text-[11px] text-stone-400 hover:border-stone-400 transition relative"
+            aria-label="Upload photo"
           >
-            {reposition ? 'Done' : '◎ Reposition'}
+            {value.photoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={value.photoUrl}
+                alt=""
+                className="w-full h-full object-cover"
+                style={value.photoPosition ? { objectPosition: value.photoPosition } : undefined}
+              />
+            ) : (
+              'Add photo'
+            )}
+            {uploading && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px]">
+                …
+              </div>
+            )}
           </button>
-        )}
-        {reposition && value.photoUrl && (
-          <div className="w-24">
-            <FocalPointPicker
-              compact
-              src={value.photoUrl}
-              aspectClass="aspect-[4/5]"
-              value={value.photoPosition ?? '50% 50%'}
-              onChange={(pos) => onChange({ photoPosition: pos })}
-            />
+          {value.photoUrl && (
+            <button
+              type="button"
+              onClick={() => setReposition((v) => !v)}
+              className="text-[10px] text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 leading-tight"
+            >
+              {reposition ? 'Done' : '◎ Reposition'}
+            </button>
+          )}
+          {reposition && value.photoUrl && (
+            <div className="w-24">
+              <FocalPointPicker
+                compact
+                src={value.photoUrl}
+                aspectClass="aspect-[4/5]"
+                value={value.photoPosition ?? '50% 50%'}
+                onChange={(pos) => onChange({ photoPosition: pos })}
+              />
+            </div>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleUpload(file)
+              e.target.value = ''
+            }}
+          />
+        </div>
+
+        {/* Fields — min-w-0 lets them shrink instead of overflowing the modal. */}
+        <div className="flex-1 min-w-0 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="Name">
+              <input
+                type="text"
+                value={value.name}
+                onChange={(e) => onChange({ name: e.target.value })}
+                className={inputCls}
+                placeholder="Dr. Jane Smith"
+              />
+            </Field>
+            <Field label="Title">
+              <input
+                type="text"
+                value={value.title ?? ''}
+                onChange={(e) => onChange({ title: e.target.value })}
+                className={inputCls}
+                placeholder="Lead Dentist"
+              />
+            </Field>
           </div>
-        )}
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) handleUpload(file)
-          e.target.value = ''
-        }}
-      />
-      <div className="flex-1 space-y-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={value.name}
-            onChange={(e) => onChange({ name: e.target.value })}
-            className="form-input flex-1"
-            placeholder="Dr. Jane Smith"
-          />
-          <input
-            type="text"
-            value={value.title ?? ''}
-            onChange={(e) => onChange({ title: e.target.value })}
-            className="form-input flex-1"
-            placeholder="Dentist / Hygienist / Office Manager"
-          />
-        </div>
-        <input
-          type="text"
-          value={value.credentials ?? ''}
-          onChange={(e) => onChange({ credentials: e.target.value || null })}
-          className="form-input w-full"
-          placeholder="Credentials — DDS · 12 years experience"
-        />
-        <textarea
-          value={value.bio ?? ''}
-          onChange={(e) => onChange({ bio: e.target.value })}
-          className="form-textarea w-full text-sm"
-          rows={2}
-          placeholder="Short bio (optional)"
-        />
-        <textarea
-          value={specialtiesText}
-          onChange={(e) => {
-            setSpecialtiesText(e.target.value)
-            onChange({ specialties: parseSpecialties(e.target.value) })
-          }}
-          className="form-textarea w-full text-sm"
-          rows={2}
-          placeholder="Specialties — one per line (e.g. Family dentistry, Pediatric care)"
-        />
-        <input
-          type="text"
-          value={value.funFact ?? ''}
-          onChange={(e) => onChange({ funFact: e.target.value || null })}
-          className="form-input w-full"
-          placeholder="Outside the office — When she's not in the chair, she's hiking"
-        />
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={value.slug ?? ''}
-            onChange={(e) => onChange({ slug: e.target.value || null })}
-            className="form-input flex-1"
-            placeholder={derivedSlug ? `URL slug (default: ${derivedSlug})` : 'URL slug (a-z, 0-9, dashes)'}
-          />
-          <input
-            type="text"
-            value={value.bookHref ?? ''}
-            onChange={(e) => onChange({ bookHref: e.target.value || null })}
-            className="form-input flex-1"
-            placeholder="Booking URL override (/book?provider=jane)"
-          />
+          <Field label="Credentials">
+            <input
+              type="text"
+              value={value.credentials ?? ''}
+              onChange={(e) => onChange({ credentials: e.target.value || null })}
+              className={inputCls}
+              placeholder="DDS · 12 years experience"
+            />
+          </Field>
+          <Field label="Bio">
+            <textarea
+              value={value.bio ?? ''}
+              onChange={(e) => onChange({ bio: e.target.value })}
+              className={textareaCls}
+              rows={3}
+              placeholder="A few sentences about who they are and their approach."
+            />
+          </Field>
+          <Field label="Specialties" hint="One per line — e.g. Family dentistry, Pediatric care.">
+            <textarea
+              value={specialtiesText}
+              onChange={(e) => {
+                setSpecialtiesText(e.target.value)
+                onChange({ specialties: parseSpecialties(e.target.value) })
+              }}
+              className={textareaCls}
+              rows={2}
+              placeholder={'Family dentistry\nRestorative care'}
+            />
+          </Field>
+          <Field label="Outside the office" hint="A humanizing detail shown on their profile.">
+            <input
+              type="text"
+              value={value.funFact ?? ''}
+              onChange={(e) => onChange({ funFact: e.target.value || null })}
+              className={inputCls}
+              placeholder="When she's not in the chair, she's hiking the Hill Country."
+            />
+          </Field>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="URL slug" hint={derivedSlug ? `Defaults to “${derivedSlug}”.` : undefined}>
+              <input
+                type="text"
+                value={value.slug ?? ''}
+                onChange={(e) => onChange({ slug: e.target.value || null })}
+                className={inputCls}
+                placeholder={derivedSlug || 'a-z, 0-9, dashes'}
+              />
+            </Field>
+            <Field label="Booking URL override">
+              <input
+                type="text"
+                value={value.bookHref ?? ''}
+                onChange={(e) => onChange({ bookHref: e.target.value || null })}
+                className={inputCls}
+                placeholder="/book?provider=jane"
+              />
+            </Field>
+          </div>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="text-xs text-red-500 hover:text-red-600 mt-2"
-      >
-        Remove
-      </button>
-    </div>
+    </EditorCard>
   )
 }

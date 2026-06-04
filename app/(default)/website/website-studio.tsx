@@ -347,6 +347,12 @@ function StudioModal({
   // Blog management lives in the full /blog manager (editor + scheduling
   // calendar), so its modal is a link-out rather than an inline form.
   const isLinkOut = modal.kind === 'section' && !!LINK_OUTS[modal.field]
+  // Content-heavy repeater editors get a wider sheet so cards aren't cramped.
+  const WIDE_FIELDS = new Set([
+    'staff', 'faq', 'testimonials', 'stats', 'officePhotos', 'hours',
+    'paymentFinancing', 'insurance_verifier', 'contact',
+  ])
+  const isWide = isServices || (modal.kind === 'section' && WIDE_FIELDS.has(modal.field))
 
   async function onSave() {
     setBusy(true)
@@ -374,7 +380,7 @@ function StudioModal({
       }}
     >
       <div
-        className={`w-full ${isServices ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-auto rounded-2xl bg-white dark:bg-stone-900 shadow-2xl`}
+        className={`w-full ${isWide ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-auto rounded-2xl bg-white dark:bg-stone-900 shadow-2xl`}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-stone-200 dark:border-stone-700/60">
           <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">{title}</h2>
