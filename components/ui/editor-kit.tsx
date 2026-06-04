@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useState, type KeyboardEvent, type ReactNode } from 'react'
 
 /**
  * Shared UI primitives for the Website Studio section editors, so every modal
@@ -167,6 +167,93 @@ export function EmptyHint({ children }: { children: ReactNode }) {
   return (
     <div className="rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-5 text-center text-[13px] leading-relaxed text-stone-500 dark:text-stone-400">
       {children}
+    </div>
+  )
+}
+
+/**
+ * Chip / tag input for editing a list of short strings (insurance carriers,
+ * "why us" highlights, payment methods). Type + Enter (or comma) to add a chip,
+ * × to remove, Backspace on an empty field removes the last. Serialises to a
+ * hidden input as newline-joined text so it round-trips through the existing
+ * `parseStringList` save paths unchanged.
+ */
+export function TagListEditor({
+  name,
+  defaultValue,
+  placeholder,
+  addLabel = 'Add another…',
+}: {
+  name: string
+  defaultValue?: string[] | null
+  placeholder?: string
+  addLabel?: string
+}) {
+  const [items, setItems] = useState<string[]>(defaultValue ?? [])
+  const [draft, setDraft] = useState('')
+
+  function commit(raw: string) {
+    const parts = raw
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (parts.length === 0) {
+      setDraft('')
+      return
+    }
+    setItems((prev) => {
+      const next = [...prev]
+      for (const p of parts) if (!next.some((x) => x.toLowerCase() === p.toLowerCase())) next.push(p)
+      return next
+    })
+    setDraft('')
+  }
+  function remove(i: number) {
+    setItems((prev) => prev.filter((_, idx) => idx !== i))
+  }
+  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      commit(draft)
+    } else if (e.key === 'Backspace' && draft === '' && items.length > 0) {
+      remove(items.length - 1)
+    }
+  }
+
+  return (
+    <div>
+      <input type="hidden" name={name} value={items.join('\n')} />
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 p-2 focus-within:ring-2 focus-within:ring-stone-900/15 dark:focus-within:ring-stone-100/20 focus-within:border-stone-400 transition">
+        {items.map((it, i) => (
+          <span
+            key={`${it}-${i}`}
+            className="inline-flex items-center gap-1 rounded-md bg-stone-100 dark:bg-stone-700 pl-2.5 pr-1.5 py-1 text-[13px] font-medium text-stone-700 dark:text-stone-200"
+          >
+            {it}
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="text-stone-400 hover:text-rose-600 transition"
+              aria-label={`Remove ${it}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round">
+                <path d="M6 6l8 8M14 6l-8 8" />
+              </svg>
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={() => commit(draft)}
+          placeholder={items.length === 0 ? placeholder : addLabel}
+          className="flex-1 min-w-[140px] bg-transparent text-sm px-1.5 py-1 focus:outline-none text-stone-900 dark:text-stone-100 placeholder-stone-400"
+        />
+      </div>
+      <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1.5">
+        Type and press Enter to add. Click × to remove.
+      </p>
     </div>
   )
 }

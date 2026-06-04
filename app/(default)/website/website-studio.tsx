@@ -14,6 +14,7 @@ import type {
 } from '@/lib/types/clinic-content'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
+import { Field, TagListEditor, inputCls, textareaCls } from '@/components/ui/editor-kit'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
 import LeadFormBuilder from './lead-form-builder'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
@@ -136,6 +137,11 @@ const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
     desc: 'Your in-house dental plans live in the membership manager — set pricing, benefits, and which plans are active. Active plans appear on your site automatically.',
   },
 }
+
+const btnPrimary =
+  'inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 transition disabled:opacity-60'
+const btnSecondary =
+  'inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/60 transition'
 
 /**
  * Website Studio — the full-screen, chrome-less editor. Hosts the clinic's real
@@ -380,21 +386,23 @@ function StudioModal({
       }}
     >
       <div
-        className={`w-full ${isWide ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-auto rounded-2xl bg-white dark:bg-stone-900 shadow-2xl`}
+        className={`w-full ${isWide ? 'max-w-2xl' : 'max-w-lg'} max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-stone-900 shadow-2xl`}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-stone-200 dark:border-stone-700/60">
-          <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">{title}</h2>
+        <div className="shrink-0 flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-stone-200 dark:border-stone-700/60">
+          <h2 className="text-[15px] font-bold text-stone-900 dark:text-stone-100">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 text-lg leading-none"
+            className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition"
             aria-label="Close"
           >
-            ✕
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round">
+              <path d="M6 6l8 8M14 6l-8 8" />
+            </svg>
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6">
           {modal.kind === 'image' && imageCfg && (
             <>
               <ImageUploader
@@ -456,7 +464,7 @@ function StudioModal({
                 defaultValue={profile.about ?? ''}
                 rows={10}
                 placeholder="We're a family-first dental practice…"
-                className="form-textarea w-full text-sm"
+                className={textareaCls}
               />
             </form>
           )}
@@ -493,31 +501,29 @@ function StudioModal({
           {modal.kind === 'section' && modal.field === 'acceptedInsuranceCarriers' && (
             <form ref={formRef}>
               <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
-                The insurance carriers you accept — one per line. They appear on your homepage
-                Insurance band and Insurance page. Leave blank to show “call to verify.”
+                The insurance carriers you accept. They appear on your homepage Insurance band
+                and Insurance page. Leave blank to show “call to verify.”
               </p>
-              <textarea
+              <TagListEditor
                 name="acceptedInsuranceCarriers"
-                defaultValue={((profile.acceptedInsuranceCarriers as string[] | null) ?? []).join('\n')}
-                rows={8}
-                placeholder={'Delta Dental\nCigna\nAetna\nMetLife'}
-                className="form-textarea w-full text-sm"
+                defaultValue={(profile.acceptedInsuranceCarriers as string[] | null) ?? []}
+                placeholder="Delta Dental, Cigna, Aetna…"
+                addLabel="Add a carrier…"
               />
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'differenceChips' && (
             <form ref={formRef}>
               <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
-                The short “Why us” highlight chips next to your homepage intro — one per line.
-                Leave blank to auto-build from your top services + standard reassurances
-                (“No judgment, ever,” “Same-week visits,” …).
+                The short “Why us” highlight chips next to your homepage intro. Leave blank to
+                auto-build from your top services + standard reassurances (“No judgment, ever,”
+                “Same-week visits,” …).
               </p>
-              <textarea
+              <TagListEditor
                 name="differenceChips"
-                defaultValue={((profile.differenceChips as string[] | null) ?? []).join('\n')}
-                rows={8}
-                placeholder={'Family Dental Care\nTeeth Whitening\nNo judgment, ever\nSame-week visits'}
-                className="form-textarea w-full text-sm"
+                defaultValue={(profile.differenceChips as string[] | null) ?? []}
+                placeholder="Family dental care, Same-week visits…"
+                addLabel="Add a highlight…"
               />
             </form>
           )}
@@ -554,45 +560,33 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'paymentFinancing' && (
-            <form ref={formRef} className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
-                  Payment methods <span className="font-normal text-stone-400">(one per line)</span>
-                </label>
-                <textarea
+            <form ref={formRef} className="space-y-5">
+              <Field label="Payment methods">
+                <TagListEditor
                   name="paymentMethods"
-                  defaultValue={((profile.paymentMethods as string[] | null) ?? []).join('\n')}
-                  rows={5}
-                  placeholder={'Cash\nAll major credit cards\nHSA / FSA cards\nCareCredit'}
-                  className="form-textarea w-full text-sm"
+                  defaultValue={(profile.paymentMethods as string[] | null) ?? []}
+                  placeholder="Cash, Credit cards, HSA / FSA…"
+                  addLabel="Add a method…"
                 />
-                <p className="text-[11px] text-stone-400 mt-1">Leave blank to show the standard set.</p>
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
-                  Financing partners
-                </label>
+              </Field>
+              <Field
+                label="Financing partners"
+                hint="Only partners you actually work with — the section hides when empty."
+              >
                 <FinancingPartnersEditor
                   name="financingPartners"
                   defaultValue={(profile.financingPartners as ClinicFinancingPartner[] | null) ?? null}
                 />
-                <p className="text-[11px] text-stone-400 mt-1">
-                  Only partners you actually work with — the section hides when empty.
-                </p>
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
-                  Cancellation policy
-                </label>
+              </Field>
+              <Field label="Cancellation policy" hint="Leave blank to hide — no fake fees.">
                 <textarea
                   name="cancellationPolicy"
                   defaultValue={(profile.cancellationPolicy as string | null) ?? ''}
                   rows={4}
                   placeholder="We ask for 48 hours’ notice to reschedule…"
-                  className="form-textarea w-full text-sm"
+                  className={textareaCls}
                 />
-                <p className="text-[11px] text-stone-400 mt-1">Leave blank to hide — no fake fees.</p>
-              </div>
+              </Field>
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'hours' && (
@@ -662,7 +656,7 @@ function StudioModal({
                   }}
                 />
               </div>
-              <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-1">
+              <label className="block text-[12px] font-medium text-stone-600 dark:text-stone-300 mb-1">
                 …or paste a video URL
               </label>
               <input
@@ -670,7 +664,7 @@ function StudioModal({
                 value={videoUrl}
                 onChange={(e) => setVideoUrl(e.target.value)}
                 placeholder="https://…/clinic-intro.mp4"
-                className="form-input w-full text-sm"
+                className={inputCls}
               />
               <p className="text-[11px] text-stone-400 mt-1">
                 MP4, MOV, or WebM · up to 50MB · short, muted &amp; looping looks best.
@@ -713,42 +707,22 @@ function StudioModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-stone-200 dark:border-stone-700/60">
+        <div className="shrink-0 flex items-center justify-end gap-2.5 px-5 sm:px-6 py-3.5 border-t border-stone-200 dark:border-stone-700/60 bg-stone-50/60 dark:bg-stone-900">
           {isServices ? (
-            <button
-              type="button"
-              onClick={() => {
-                reload()
-                onClose()
-              }}
-              className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
-            >
+            <button type="button" onClick={() => { reload(); onClose() }} className={btnPrimary}>
               Done
             </button>
           ) : isLinkOut ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
-            >
+            <button type="button" onClick={onClose} className={btnPrimary}>
               Close
             </button>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={onClose}
-                className="btn-sm bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200"
-              >
+              <button type="button" onClick={onClose} className={btnSecondary}>
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={busy}
-                className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 disabled:opacity-60"
-              >
-                {busy ? 'Saving…' : 'Save'}
+              <button type="button" onClick={onSave} disabled={busy} className={btnPrimary}>
+                {busy ? 'Saving…' : 'Save changes'}
               </button>
             </>
           )}
