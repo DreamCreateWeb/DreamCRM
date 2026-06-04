@@ -8,6 +8,7 @@ const TYPE_OPTIONS: { value: LeadFormFieldType; label: string }[] = [
   { value: 'textarea', label: 'Paragraph' },
   { value: 'email', label: 'Email' },
   { value: 'tel', label: 'Phone' },
+  { value: 'date', label: 'Date' },
   { value: 'select', label: 'Dropdown' },
 ]
 

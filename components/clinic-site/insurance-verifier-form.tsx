@@ -154,7 +154,15 @@ export default function InsuranceVerifierForm({ orgId, brand, carriers, services
         <input
           id={`iv-${f.id}`}
           name={f.id}
-          type={f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}
+          type={
+            f.type === 'email'
+              ? 'email'
+              : f.type === 'tel'
+                ? 'tel'
+                : f.type === 'date'
+                  ? 'date'
+                  : 'text'
+          }
           required={f.required}
           placeholder={placeholder}
           className={inputClass}

@@ -2,7 +2,7 @@
 // contact form + the insurance verifier). A clinic can edit/add/remove/reorder
 // fields in the Website Studio; the renderer + submit map values back to a lead.
 
-export type LeadFormFieldType = 'text' | 'textarea' | 'email' | 'tel' | 'select'
+export type LeadFormFieldType = 'text' | 'textarea' | 'email' | 'tel' | 'date' | 'select'
 
 export interface LeadFormField {
   /** Stable id; also the form field `name`. */
@@ -16,7 +16,7 @@ export interface LeadFormField {
   /** A select whose options come from live clinic data, not the stored list. */
   dynamicOptions?: 'services' | 'carriers'
   /** Maps the value to a real lead column. Unset → folded into the lead message. */
-  systemKey?: 'name' | 'email' | 'phone'
+  systemKey?: 'name' | 'email' | 'phone' | 'preferredDate' | 'message'
 }
 
 export type LeadFormKey = 'contact' | 'insurance_verifier'
@@ -26,15 +26,23 @@ export type LeadFormsConfig = Partial<Record<LeadFormKey, LeadFormField[]>>
 
 export const DEFAULT_LEAD_FORMS: Record<LeadFormKey, LeadFormField[]> = {
   contact: [
-    { id: 'name', type: 'text', label: 'Name', required: true, systemKey: 'name' },
-    { id: 'email', type: 'email', label: 'Email', required: true, systemKey: 'email' },
-    { id: 'phone', type: 'tel', label: 'Phone', required: false, systemKey: 'phone' },
+    { id: 'name', type: 'text', label: 'Full name', required: true, systemKey: 'name' },
+    { id: 'phone', type: 'tel', label: 'Phone', required: true, systemKey: 'phone' },
+    { id: 'email', type: 'email', label: 'Email', required: false, systemKey: 'email' },
+    {
+      id: 'preferredDate',
+      type: 'date',
+      label: 'Preferred date',
+      required: false,
+      systemKey: 'preferredDate',
+    },
     {
       id: 'message',
       type: 'textarea',
-      label: 'How can we help?',
-      placeholder: 'Tell us a little about what you need…',
+      label: 'Message or reason for visit',
+      placeholder: 'e.g. Annual cleaning, tooth pain, new patient…',
       required: false,
+      systemKey: 'message',
     },
   ],
   insurance_verifier: [
@@ -62,6 +70,7 @@ const VALID_TYPES: ReadonlySet<string> = new Set([
   'textarea',
   'email',
   'tel',
+  'date',
   'select',
 ])
 

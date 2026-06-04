@@ -2,17 +2,28 @@
 
 import { useState } from 'react'
 import { submitContactRequest } from './actions'
+import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 
 interface Props {
   orgId: string
   brand: string
   isPro: boolean
   basePath: string
+  /** Editable field definitions (Website Studio). Defaults to the standard
+   *  name · phone · email · date · message set when unset. */
+  fields?: LeadFormField[]
+  /** Live option sources for any dynamic-select fields a clinic adds. */
+  services?: string[] | null
+  carriers?: string[] | null
 }
 
-export default function ContactForm({ orgId, brand, isPro, basePath }: Props) {
+export default function ContactForm({ orgId, brand, isPro, basePath, fields, services, carriers }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+
+  const serviceList = (services ?? []).filter((s) => s.trim().length > 0)
+  const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
+  const formFields = fields && fields.length > 0 ? fields : DEFAULT_LEAD_FORMS.contact
 
   if (isPro) {
     // Pro+ users go to the full booking page
@@ -72,73 +83,83 @@ export default function ContactForm({ orgId, brand, isPro, basePath }: Props) {
     }
   }
 
+  const inputClass =
+    'w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:border-transparent transition'
+
+  function renderField(f: LeadFormField) {
+    const label = (
+      <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor={`cf-${f.id}`}>
+        {f.label}
+        {f.required && <span className="text-red-500"> *</span>}
+      </label>
+    )
+    if (f.type === 'select') {
+      const liveOpts =
+        f.dynamicOptions === 'services'
+          ? serviceList
+          : f.dynamicOptions === 'carriers'
+            ? carrierList
+            : null
+      if (f.dynamicOptions && (!liveOpts || liveOpts.length === 0)) return null
+      const opts = liveOpts ?? f.options ?? []
+      return (
+        <div key={f.id}>
+          {label}
+          <select
+            id={`cf-${f.id}`}
+            name={f.id}
+            defaultValue=""
+            required={f.required}
+            className={inputClass}
+          >
+            <option value="">Select…</option>
+            {opts.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+            {f.dynamicOptions && <option value="__other__">Other / not listed</option>}
+          </select>
+        </div>
+      )
+    }
+    if (f.type === 'textarea') {
+      return (
+        <div key={f.id}>
+          {label}
+          <textarea
+            id={`cf-${f.id}`}
+            name={f.id}
+            rows={3}
+            required={f.required}
+            placeholder={f.placeholder ?? ''}
+            className={`${inputClass} resize-none`}
+          />
+        </div>
+      )
+    }
+    const inputType =
+      f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'
+    return (
+      <div key={f.id}>
+        {label}
+        <input
+          id={`cf-${f.id}`}
+          name={f.id}
+          type={inputType}
+          required={f.required}
+          placeholder={f.placeholder ?? ''}
+          min={f.type === 'date' ? new Date().toISOString().split('T')[0] : undefined}
+          className={inputClass}
+          style={{ ['--tw-ring-color' as string]: brand }}
+        />
+      </div>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="cf-name">
-            Full Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="cf-name"
-            name="name"
-            type="text"
-            required
-            placeholder="Jane Smith"
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:border-transparent transition"
-            style={{ ['--tw-ring-color' as string]: brand }}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="cf-phone">
-            Phone <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="cf-phone"
-            name="phone"
-            type="tel"
-            required
-            placeholder="(555) 000-0000"
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:border-transparent transition"
-          />
-        </div>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="cf-email">
-          Email
-        </label>
-        <input
-          id="cf-email"
-          name="email"
-          type="email"
-          placeholder="jane@example.com"
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:border-transparent transition"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="cf-date">
-          Preferred Date
-        </label>
-        <input
-          id="cf-date"
-          name="preferredDate"
-          type="date"
-          min={new Date().toISOString().split('T')[0]}
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:border-transparent transition"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="cf-message">
-          Message or reason for visit
-        </label>
-        <textarea
-          id="cf-message"
-          name="message"
-          rows={3}
-          placeholder="e.g. Annual cleaning, tooth pain, new patient…"
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:border-transparent transition resize-none"
-        />
-      </div>
+      {formFields.map(renderField)}
 
       {status === 'error' && (
         <p className="text-sm text-red-600">{errorMsg}</p>
