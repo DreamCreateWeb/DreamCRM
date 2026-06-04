@@ -16,7 +16,7 @@ import {
   type EnrichedService,
 } from '@/lib/services/service-library'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
-import { buildClinicNavLinks, copyOverride } from '@/lib/clinic-site-helpers'
+import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -82,7 +82,6 @@ export default async function ServicesPage({ params }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
-  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   // Per-card Book CTA: pro+ goes to the slot picker; basic routes back to the
   // homepage's #contact anchor since there is no /services#contact section.
@@ -134,7 +133,14 @@ export default async function ServicesPage({ params }: Props) {
 
       <main>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="pt-10 pb-12 sm:pt-20 sm:pb-20">
+      {/* Services pages aren't granularly editable — every edit affordance
+          opens the services library picker (the single source of truth). */}
+      <section
+        className="pt-10 pb-12 sm:pt-20 sm:pb-20"
+        data-edit-field="services"
+        data-edit-kind="modal"
+        data-edit-label="services"
+      >
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
           <p
             className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
@@ -145,11 +151,8 @@ export default async function ServicesPage({ params }: Props) {
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-            data-edit-field="copy:services.heroTitle"
-            data-edit-kind="text"
-            data-edit-label="headline"
           >
-            {copyOverride(copyOverrides, 'services.heroTitle', `Dental services at ${name}.`)}
+            Dental services at {name}.
           </h1>
           <p
             className="text-base sm:text-lg leading-[1.6] mb-9"
