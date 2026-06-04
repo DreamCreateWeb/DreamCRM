@@ -190,7 +190,7 @@ export async function saveInsurance(formData: FormData): Promise<SectionResult> 
 }
 
 // ── Editable site lead-capture forms (contact / insurance verifier) ─────────
-const LEAD_FORM_TYPES = new Set(['text', 'textarea', 'email', 'tel', 'select'])
+const LEAD_FORM_TYPES = new Set(['text', 'textarea', 'email', 'tel', 'date', 'select'])
 export async function saveLeadForm(formData: FormData): Promise<SectionResult> {
   const key = formData.get('formKey')?.toString()
   if (key !== 'contact' && key !== 'insurance_verifier') {

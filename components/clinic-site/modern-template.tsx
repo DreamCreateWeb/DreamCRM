@@ -113,6 +113,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     (profile.leadForms as LeadFormsConfig | null) ?? null,
     'insurance_verifier',
   )
+  const contactFormFields = resolveLeadForm(
+    (profile.leadForms as LeadFormsConfig | null) ?? null,
+    'contact',
+  )
   const rawStats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
   // Resolve dynamic stats at render. v1: only `review_count` is dynamic.
   // When the live count is 0 AND the stat is dynamic, drop the row rather
@@ -1246,7 +1250,25 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <p className="text-lg leading-[1.6] mb-10" style={{ color: INK_MUTED }}>
                 Fill out the form and we&apos;ll be in touch to confirm your visit.
               </p>
-              <ContactForm orgId={data.orgId} brand={brand} isPro={isPro} basePath={basePath} />
+              <div
+                {...(!isPro
+                  ? {
+                      'data-edit-field': 'contact',
+                      'data-edit-kind': 'modal',
+                      'data-edit-label': 'contact form',
+                    }
+                  : {})}
+              >
+                <ContactForm
+                  orgId={data.orgId}
+                  brand={brand}
+                  isPro={isPro}
+                  basePath={basePath}
+                  fields={contactFormFields}
+                  services={services.length > 0 ? services.map((s) => s.name) : null}
+                  carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
+                />
+              </div>
             </div>
           </div>
         </section>

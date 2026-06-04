@@ -91,6 +91,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   paymentFinancing: savePaymentFinancing,
   differenceChips: saveDifferenceChips,
   insurance_verifier: saveLeadForm,
+  contact: saveLeadForm,
   hours: saveHours,
 }
 
@@ -106,6 +107,7 @@ const SECTION_TITLES: Record<string, string> = {
   paymentFinancing: 'Payment & financing',
   differenceChips: '“Why us” highlights',
   insurance_verifier: 'Insurance check form',
+  contact: 'Contact form',
   hours: 'Office hours',
   services: 'Services',
   blog: 'Blog posts',
@@ -501,6 +503,22 @@ function StudioModal({
                 defaultValue={resolveLeadForm(
                   (profile.leadForms as LeadFormsConfig | null) ?? null,
                   'insurance_verifier',
+                )}
+              />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'contact' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                The fields on your homepage contact form. Add, remove, reorder, or rename
+                fields. Keep a phone or email so you can reach the lead. Submissions land in
+                your Leads queue.
+              </p>
+              <LeadFormBuilder
+                formKey="contact"
+                defaultValue={resolveLeadForm(
+                  (profile.leadForms as LeadFormsConfig | null) ?? null,
+                  'contact',
                 )}
               />
             </form>

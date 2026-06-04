@@ -11,16 +11,13 @@ import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from 
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
+import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { organization } from '@/lib/db/schema/auth'
 
 export async function submitContactRequest(formData: FormData) {
   const orgId = formData.get('orgId')?.toString()
-  const name = formData.get('name')?.toString().trim()
-  const phone = formData.get('phone')?.toString().trim()
-  const email = formData.get('email')?.toString().trim() || null
-  const message = formData.get('message')?.toString().trim() || null
-  const preferredDate = formData.get('preferredDate')?.toString().trim() || null
+  if (!orgId) throw new Error('Missing organization')
 
   // Source-attribution fields populated by the client-side ContactForm.
   // All optional — older form versions / programmatic submissions won't
@@ -31,9 +28,38 @@ export async function submitContactRequest(formData: FormData) {
   const utmMedium = formData.get('utm_medium')?.toString().trim() || null
   const utmCampaign = formData.get('utm_campaign')?.toString().trim() || null
 
-  if (!orgId) throw new Error('Missing organization')
-  if (!name) throw new Error('Name is required')
-  if (!phone) throw new Error('Phone is required')
+  const [profile] = await db
+    .select({
+      email: clinicProfile.email,
+      displayName: clinicProfile.displayName,
+      leadForms: clinicProfile.leadForms,
+    })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, orgId))
+    .limit(1)
+
+  // Map each submitted value by its (possibly customised) field definition:
+  // system fields → lead columns, custom fields → labelled note lines.
+  const fields = resolveLeadForm((profile?.leadForms as LeadFormsConfig | null) ?? null, 'contact')
+  let name = ''
+  let phone = ''
+  let email: string | null = null
+  let preferredDate: string | null = null
+  let messageMain: string | null = null
+  const detailLines: string[] = []
+  for (const f of fields) {
+    const raw = formData.get(f.id)?.toString().trim() || ''
+    if (f.required && !raw) throw new Error(`${f.label} is required`)
+    if (f.systemKey === 'name') name = raw
+    else if (f.systemKey === 'phone') phone = raw
+    else if (f.systemKey === 'email') email = raw || null
+    else if (f.systemKey === 'preferredDate') preferredDate = raw || null
+    else if (f.systemKey === 'message') messageMain = raw || null
+    else if (raw && raw !== '__other__') detailLines.push(`${f.label}: ${raw}`)
+  }
+  if (!name) name = 'Website enquiry'
+  if (!phone && !email) throw new Error('Please give us a phone or email so we can reach you')
+  const message = [messageMain, ...detailLines].filter(Boolean).join('\n\n') || null
 
   // Persist the lead BEFORE firing email — DB success is the source of
   // truth. Email is best-effort notification on top.
@@ -50,12 +76,6 @@ export async function submitContactRequest(formData: FormData) {
     utmMedium,
     utmCampaign,
   })
-
-  const [profile] = await db
-    .select({ email: clinicProfile.email, displayName: clinicProfile.displayName })
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, orgId))
-    .limit(1)
 
   // Fire-and-forget: don't fail the form just because email is misconfigured.
   if (profile?.email) {
