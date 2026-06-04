@@ -22,6 +22,7 @@ import {
   staffInitials,
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -114,6 +115,7 @@ export default async function AboutPage({ params }: Props) {
     ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 50)
   const officePhotos: ClinicOfficePhoto[] =
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
+  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
 
   return (
     <div
@@ -140,14 +142,20 @@ export default async function AboutPage({ params }: Props) {
           <p
             className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
             style={{ color: INK_MUTED }}
+            data-edit-field="copy:about.heroEyebrow"
+            data-edit-kind="text"
+            data-edit-label="eyebrow"
           >
-            About {name}
+            {copyOverride(copyOverrides, 'about.heroEyebrow', `About ${name}`)}
           </p>
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            data-edit-field="copy:about.heroTitle"
+            data-edit-kind="text"
+            data-edit-label="headline"
           >
-            {profile.tagline ?? `Get to know ${name}.`}
+            {copyOverride(copyOverrides, 'about.heroTitle', profile.tagline ?? `Get to know ${name}.`)}
           </h1>
           {profile.about && (
             <p
@@ -284,8 +292,11 @@ export default async function AboutPage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:about.teamTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                The people who care for you.
+                {copyOverride(copyOverrides, 'about.teamTitle', 'The people who care for you.')}
               </h2>
             </ScrollReveal>
             <div
@@ -380,8 +391,11 @@ export default async function AboutPage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:about.officeTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                A space designed to put you at ease.
+                {copyOverride(copyOverrides, 'about.officeTitle', 'A space designed to put you at ease.')}
               </h2>
             </ScrollReveal>
             <div
@@ -438,8 +452,11 @@ export default async function AboutPage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:about.testimonialsTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                Patients on the experience.
+                {copyOverride(copyOverrides, 'about.testimonialsTitle', 'Patients on the experience.')}
               </h2>
             </ScrollReveal>
             <TestimonialsCarousel testimonials={testimonials} brand={brand} />

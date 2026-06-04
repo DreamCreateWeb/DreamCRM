@@ -16,7 +16,7 @@ import {
   type EnrichedService,
 } from '@/lib/services/service-library'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
-import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
+import { buildClinicNavLinks, copyOverride } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -82,6 +82,7 @@ export default async function ServicesPage({ params }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   // Per-card Book CTA: pro+ goes to the slot picker; basic routes back to the
   // homepage's #contact anchor since there is no /services#contact section.
@@ -144,8 +145,11 @@ export default async function ServicesPage({ params }: Props) {
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            data-edit-field="copy:services.heroTitle"
+            data-edit-kind="text"
+            data-edit-label="headline"
           >
-            Dental services at {name}.
+            {copyOverride(copyOverrides, 'services.heroTitle', `Dental services at ${name}.`)}
           </h1>
           <p
             className="text-base sm:text-lg leading-[1.6] mb-9"
