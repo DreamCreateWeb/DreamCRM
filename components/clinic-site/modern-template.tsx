@@ -1036,7 +1036,12 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 View all posts
               </a>
             </div>
-            <div className="grid gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div
+              className="grid gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3"
+              data-edit-field="blog"
+              data-edit-kind="modal"
+              data-edit-label="blog posts"
+            >
               {recentPosts.slice(0, 3).map((post) => (
                 <a
                   key={post.id}
