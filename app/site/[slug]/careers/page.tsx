@@ -147,8 +147,11 @@ export default async function ClinicCareersPage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
                 style={{ color: brand }}
+                data-edit-field="copy:careers.heroEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                Careers · {name}
+                {copyOverride(copyOverrides, 'careers.heroEyebrow', `Careers · ${name}`)}
               </p>
               <h1
                 className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
@@ -308,8 +311,9 @@ export default async function ClinicCareersPage({ params }: Props) {
         </section>
 
         <ClosingCTA
-          heading="Don’t see your role?"
-          subhead="We’re always interested in hearing from kind, thoughtful dental professionals. Send us a note."
+          heading={copyOverride(copyOverrides, 'careers.cta.heading', 'Don’t see your role?')}
+          subhead={copyOverride(copyOverrides, 'careers.cta.subhead', 'We’re always interested in hearing from kind, thoughtful dental professionals. Send us a note.')}
+          editKeyPrefix="careers.cta"
           primary={{
             label: 'Introduce yourself',
             href: `${basePath || '/'}#contact`,

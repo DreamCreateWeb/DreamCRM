@@ -254,8 +254,11 @@ export default async function InsurancePage({ params }: Props) {
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
               style={{ color: INK_MUTED }}
+              data-edit-field="copy:insurance.heroEyebrow"
+              data-edit-kind="text"
+              data-edit-label="eyebrow"
             >
-              Patients · Insurance
+              {copyOverride(copyOverrides, 'insurance.heroEyebrow', 'Patients · Insurance')}
             </p>
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
@@ -833,8 +836,9 @@ export default async function InsurancePage({ params }: Props) {
         </section>
 
         <ClosingCTA
-          heading="Have more questions?"
-          subhead="Call us, book a visit, or message us through the portal — we’ll walk you through anything insurance-shaped."
+          heading={copyOverride(copyOverrides, 'insurance.cta.heading', 'Have more questions?')}
+          subhead={copyOverride(copyOverrides, 'insurance.cta.subhead', 'Call us, book a visit, or message us through the portal — we’ll walk you through anything insurance-shaped.')}
+          editKeyPrefix="insurance.cta"
           primary={{ label: bookLabel, href: bookHref }}
           secondary={
             profile.phone

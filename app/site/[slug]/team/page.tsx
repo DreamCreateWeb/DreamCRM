@@ -139,8 +139,11 @@ export default async function TeamPage({ params }: Props) {
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
               style={{ color: INK_MUTED }}
+              data-edit-field="copy:team.heroEyebrow"
+              data-edit-kind="text"
+              data-edit-label="eyebrow"
             >
-              About · Our team
+              {copyOverride(copyOverrides, 'team.heroEyebrow', 'About · Our team')}
             </p>
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
@@ -266,8 +269,9 @@ export default async function TeamPage({ params }: Props) {
         )}
 
         <ClosingCTA
-          heading="It’s a pleasure to meet you."
-          subhead="Book with any member of the team — same week is usually possible."
+          heading={copyOverride(copyOverrides, 'team.cta.heading', 'It’s a pleasure to meet you.')}
+          subhead={copyOverride(copyOverrides, 'team.cta.subhead', 'Book with any member of the team — same week is usually possible.')}
+          editKeyPrefix="team.cta"
           primary={{ label: bookLabel, href: bookHref }}
           secondary={
             profile.phone

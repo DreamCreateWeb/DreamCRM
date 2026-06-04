@@ -153,8 +153,11 @@ export default async function BookPage({ params }: Props) {
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
                 style={{ color: brand }}
+                data-edit-field="copy:book.heroEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                Book a visit
+                {copyOverride(copyOverrides, 'book.heroEyebrow', 'Book a visit')}
               </p>
               <h1
                 className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
@@ -277,8 +280,9 @@ export default async function BookPage({ params }: Props) {
         </section>
 
         <ClosingCTA
-          heading="It’s a pleasure to care for you."
-          subhead="See you soon — and don’t hesitate to reach out if you have any questions before your visit."
+          heading={copyOverride(copyOverrides, 'book.cta.heading', 'It’s a pleasure to care for you.')}
+          subhead={copyOverride(copyOverrides, 'book.cta.subhead', 'See you soon — and don’t hesitate to reach out if you have any questions before your visit.')}
+          editKeyPrefix="book.cta"
           primary={{ label: 'See our services', href: `${basePath}/services` }}
           secondary={
             data.profile.phone

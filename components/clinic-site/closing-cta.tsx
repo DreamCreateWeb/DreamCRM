@@ -16,6 +16,12 @@ interface Props {
   brand: string
   /** Color treatment: 'brand' = clinic brand bg, 'teal' = forest-teal bg. */
   variant?: 'brand' | 'teal'
+  /**
+   * When set, the heading + subhead are tagged for inline editing in the
+   * Website Studio as `copy:{editKeyPrefix}.heading` / `.subhead`. The caller
+   * resolves the passed heading/subhead through those same overrides.
+   */
+  editKeyPrefix?: string
 }
 
 /**
@@ -29,6 +35,7 @@ export default function ClosingCTA({
   secondary,
   brand,
   variant = 'brand',
+  editKeyPrefix,
 }: Props) {
   const bgColor = variant === 'teal' ? '#36514c' : brand
 
@@ -39,13 +46,21 @@ export default function ClosingCTA({
           <h2
             className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-6 text-white"
             style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
+            {...(editKeyPrefix
+              ? { 'data-edit-field': `copy:${editKeyPrefix}.heading`, 'data-edit-kind': 'text', 'data-edit-label': 'headline' }
+              : {})}
           >
             {heading}
           </h2>
         </ScrollReveal>
         {subhead && (
           <ScrollReveal delay={80}>
-            <p className="text-lg leading-[1.6] mb-9 text-white/90 max-w-[600px] mx-auto">
+            <p
+              className="text-lg leading-[1.6] mb-9 text-white/90 max-w-[600px] mx-auto"
+              {...(editKeyPrefix
+                ? { 'data-edit-field': `copy:${editKeyPrefix}.subhead`, 'data-edit-kind': 'text', 'data-edit-label': 'text' }
+                : {})}
+            >
               {subhead}
             </p>
           </ScrollReveal>

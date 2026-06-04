@@ -166,8 +166,11 @@ export default async function FaqPage({ params }: Props) {
           <p
             className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
             style={{ color: INK_MUTED }}
+            data-edit-field="copy:faq.heroEyebrow"
+            data-edit-kind="text"
+            data-edit-label="eyebrow"
           >
-            Frequently asked
+            {copyOverride(copyOverrides, 'faq.heroEyebrow', 'Frequently asked')}
           </p>
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
@@ -279,8 +282,9 @@ export default async function FaqPage({ params }: Props) {
       </section>
 
       <ClosingCTA
-        heading="Still have questions?"
-        subhead="We’re happy to talk it through — call us or book a visit and we’ll meet you where you are."
+        heading={copyOverride(copyOverrides, 'faq.cta.heading', 'Still have questions?')}
+        subhead={copyOverride(copyOverrides, 'faq.cta.subhead', 'We’re happy to talk it through — call us or book a visit and we’ll meet you where you are.')}
+        editKeyPrefix="faq.cta"
         primary={{ label: bookLabel, href: bookHref }}
         secondary={
           profile.phone
