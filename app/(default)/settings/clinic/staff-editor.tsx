@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
+import FocalPointPicker from '@/components/ui/focal-point-picker'
 
 interface Props {
   name: string
@@ -97,6 +98,7 @@ function StaffRow({
   onRemove: () => void
 }) {
   const [uploading, setUploading] = useState(false)
+  const [reposition, setReposition] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   // Local textarea state for specialties so we don't fight controlled-input
   // round-tripping the array -> string conversion on every keystroke. We
@@ -126,24 +128,51 @@ function StaffRow({
 
   return (
     <div className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700/60 rounded-lg">
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        className="shrink-0 w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-xs text-gray-400 hover:border-gray-300 relative"
-        aria-label="Upload photo"
-      >
-        {value.photoUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={value.photoUrl} alt="" className="w-full h-full object-cover" />
-        ) : (
-          'Photo'
+      <div className="shrink-0 flex flex-col items-center gap-1.5 w-16">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-xs text-gray-400 hover:border-gray-300 relative"
+          aria-label="Upload photo"
+        >
+          {value.photoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={value.photoUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              style={value.photoPosition ? { objectPosition: value.photoPosition } : undefined}
+            />
+          ) : (
+            'Photo'
+          )}
+          {uploading && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px]">
+              …
+            </div>
+          )}
+        </button>
+        {value.photoUrl && (
+          <button
+            type="button"
+            onClick={() => setReposition((v) => !v)}
+            className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 leading-tight"
+          >
+            {reposition ? 'Done' : '◎ Reposition'}
+          </button>
         )}
-        {uploading && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px]">
-            …
+        {reposition && value.photoUrl && (
+          <div className="w-24">
+            <FocalPointPicker
+              compact
+              src={value.photoUrl}
+              aspectClass="aspect-[4/5]"
+              value={value.photoPosition ?? '50% 50%'}
+              onChange={(pos) => onChange({ photoPosition: pos })}
+            />
           </div>
         )}
-      </button>
+      </div>
       <input
         ref={fileRef}
         type="file"

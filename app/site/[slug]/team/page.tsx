@@ -196,6 +196,7 @@ export default async function TeamPage({ params }: Props) {
                               src={s.photoUrl}
                               alt={s.name}
                               className="w-full h-full object-cover"
+                              style={s.photoPosition ? { objectPosition: s.photoPosition } : undefined}
                             />
                           ) : (
                             <div

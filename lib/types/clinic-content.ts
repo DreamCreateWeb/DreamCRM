@@ -116,6 +116,9 @@ export interface ClinicStaff {
   title?: string | null
   bio?: string | null
   photoUrl?: string | null
+  /** CSS object-position focal point for the headshot (e.g. "50% 30%") so the
+   *  face stays in frame in small/oval crops. Null/absent = centred. */
+  photoPosition?: string | null
   /** Optional URL slug override for /team/<slug>. Null/absent = derive from
    *  kebab(name) at render time. */
   slug?: string | null
@@ -189,6 +192,9 @@ export interface ClinicOfficePhoto {
   url: string
   alt?: string | null
   caption?: string | null
+  /** CSS object-position focal point (e.g. "50% 30%") for the cropped frame.
+   *  Null/absent = centred. */
+  position?: string | null
 }
 
 /** A blog post FAQ entry — rendered on the post + emitted as FAQPage JSON-LD. */

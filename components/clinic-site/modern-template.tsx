@@ -210,7 +210,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // from the staff records, so it stays in sync with the Team editor.
   const teamGalleryMembers = ((profile.staff as ClinicStaff[] | null) ?? [])
     .filter((s): s is ClinicStaff & { photoUrl: string } => Boolean(s.photoUrl))
-    .map((s) => ({ id: s.id, name: s.name, title: s.title ?? null, photoUrl: s.photoUrl }))
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      title: s.title ?? null,
+      photoUrl: s.photoUrl,
+      position: s.photoPosition ?? null,
+    }))
 
   // Universal value-prop chips for the "difference" feature checklist. Drawn
   // from the clinic's own services first (so it feels personal), padded
@@ -429,6 +435,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                       src={p.url}
                       alt={p.alt ?? ''}
                       className="w-full h-full object-cover"
+                      style={p.position ? { objectPosition: p.position } : undefined}
                       loading="lazy"
                     />
                   </div>

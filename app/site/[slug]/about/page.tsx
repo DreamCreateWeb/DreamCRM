@@ -314,7 +314,12 @@ export default async function AboutPage({ params }: Props) {
                     >
                       {s.photoUrl ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={s.photoUrl} alt={s.name} className="w-full h-full object-cover" />
+                        <img
+                          src={s.photoUrl}
+                          alt={s.name}
+                          className="w-full h-full object-cover"
+                          style={s.photoPosition ? { objectPosition: s.photoPosition } : undefined}
+                        />
                       ) : (
                         <div
                           className="w-full h-full flex items-center justify-center text-5xl font-semibold"
@@ -402,6 +407,7 @@ export default async function AboutPage({ params }: Props) {
                         src={p.url}
                         alt={p.alt ?? ''}
                         className="w-full aspect-[4/5] object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                        style={p.position ? { objectPosition: p.position } : undefined}
                         loading="lazy"
                       />
                     </div>

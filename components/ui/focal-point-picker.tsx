@@ -9,6 +9,9 @@ interface Props {
   /** Current focal point as a CSS object-position string, e.g. "50% 30%". */
   value: string
   onChange: (pos: string) => void
+  /** Compact: fills its container (no max-width/centring) and hides the hint —
+   *  for embedding in an editor grid cell. */
+  compact?: boolean
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n))
@@ -30,6 +33,7 @@ export default function FocalPointPicker({
   aspectClass = 'aspect-[4/5]',
   value,
   onChange,
+  compact = false,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
@@ -51,7 +55,7 @@ export default function FocalPointPicker({
     <div>
       <div
         ref={ref}
-        className={`relative ${aspectClass} w-full max-w-[220px] mx-auto overflow-hidden rounded-2xl cursor-crosshair select-none touch-none ring-1 ring-stone-200 dark:ring-stone-700`}
+        className={`relative ${aspectClass} w-full ${compact ? '' : 'max-w-[220px] mx-auto'} overflow-hidden ${compact ? 'rounded-lg' : 'rounded-2xl'} cursor-crosshair select-none touch-none ring-1 ring-stone-200 dark:ring-stone-700`}
         onPointerDown={(e) => {
           draggingRef.current = true
           e.currentTarget.setPointerCapture(e.pointerId)
@@ -82,9 +86,11 @@ export default function FocalPointPicker({
           }}
         />
       </div>
-      <p className="text-[11px] text-stone-400 mt-2 text-center">
-        Drag to choose what stays in frame.
-      </p>
+      {!compact && (
+        <p className="text-[11px] text-stone-400 mt-2 text-center">
+          Drag to choose what stays in frame.
+        </p>
+      )}
     </div>
   )
 }

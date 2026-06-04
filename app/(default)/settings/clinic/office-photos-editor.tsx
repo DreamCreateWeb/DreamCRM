@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import type { ClinicOfficePhoto } from '@/lib/types/clinic-content'
+import FocalPointPicker from '@/components/ui/focal-point-picker'
 
 interface Props {
   name: string
@@ -55,17 +56,18 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
           {items.map((p, i) => (
-            <div
-              key={p.id}
-              className="relative aspect-[4/5] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt={p.alt ?? ''} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition" />
+            <div key={p.id} className="relative group">
+              <FocalPointPicker
+                compact
+                src={p.url}
+                aspectClass="aspect-[4/5]"
+                value={p.position ?? '50% 50%'}
+                onChange={(pos) => update(i, { position: pos })}
+              />
               <button
                 type="button"
                 onClick={() => remove(i)}
-                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-gray-700 hover:text-red-600 text-sm font-semibold opacity-0 group-hover:opacity-100 transition shadow"
+                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-gray-700 hover:text-red-600 text-sm font-semibold opacity-0 group-hover:opacity-100 transition shadow z-10"
                 aria-label="Remove photo"
               >
                 ×
@@ -75,7 +77,7 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
                 value={p.caption ?? ''}
                 onChange={(e) => update(i, { caption: e.target.value })}
                 placeholder="Caption (optional)"
-                className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs bg-white/95 border-t border-gray-200 focus:outline-none focus:bg-white"
+                className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs bg-white/95 border-t border-gray-200 focus:outline-none focus:bg-white z-10"
                 maxLength={120}
               />
             </div>
