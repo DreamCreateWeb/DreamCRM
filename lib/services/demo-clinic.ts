@@ -1078,6 +1078,7 @@ const DEMO_OFFICE_PHOTOS = [
     url: 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=1200&q=80',
     alt: 'Modern dental treatment room with natural light',
     caption: null,
+    position: '50% 35%',
   },
   {
     id: 'op2',
@@ -1125,7 +1126,8 @@ const DEMO_STAFF: ClinicStaff[] = [
     specialties: ['Family dentistry', 'Restorative care', 'Anxious patients'],
     funFact: 'On weekends you can find him on the trails outside Austin — he is slowly working his way through every hike in the Texas Hill Country.',
     bookHref: null,
-    photoUrl: null,
+    photoUrl: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=600&h=750&fit=crop&q=80',
+    photoPosition: '50% 28%',
   },
   {
     id: 'p2',
@@ -1137,7 +1139,7 @@ const DEMO_STAFF: ClinicStaff[] = [
     specialties: ['Cosmetic dentistry', 'Teeth whitening', 'Veneers'],
     funFact: 'She is a relentless home baker — ask her about her sourdough rotation.',
     bookHref: null,
-    photoUrl: null,
+    photoUrl: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=600&h=750&fit=crop&q=80',
   },
   {
     id: 'p3',
@@ -1149,7 +1151,7 @@ const DEMO_STAFF: ClinicStaff[] = [
     specialties: ['Deep cleanings', 'Periodontal care', 'Patient education'],
     funFact: null,
     bookHref: null,
-    photoUrl: null,
+    photoUrl: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=600&h=750&fit=crop&q=80',
   },
   {
     id: 'p4',
@@ -1161,7 +1163,7 @@ const DEMO_STAFF: ClinicStaff[] = [
     specialties: null,
     funFact: 'She is studying for her certified dental practice manager credential on the side.',
     bookHref: null,
-    photoUrl: null,
+    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&h=750&fit=crop&q=80',
   },
   {
     id: 'p5',
@@ -1173,7 +1175,7 @@ const DEMO_STAFF: ClinicStaff[] = [
     specialties: ['Pediatric hygiene', 'First-visit comfort'],
     funFact: null,
     bookHref: null,
-    photoUrl: null,
+    photoUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=600&h=750&fit=crop&q=80',
   },
 ]
 
@@ -1408,17 +1410,31 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         // array). A clinic that hand-edited any new field stays untouched.
         const byId = new Map(DEMO_STAFF.map((s) => [s.id, s]))
         const upgraded = storedStaff.map((s) => {
-          if (!isLegacyMinimal(s)) return s
           const template = byId.get(s.id)
-          if (!template) return s
-          return {
-            ...s,
-            slug: template.slug ?? null,
-            credentials: template.credentials ?? null,
-            specialties: template.specialties ?? null,
-            funFact: template.funFact ?? null,
-            bookHref: template.bookHref ?? null,
+          let next = s
+          // Backfill the Checkpoint-3 optional fields on legacy-minimal rows.
+          if (isLegacyMinimal(s) && template) {
+            next = {
+              ...next,
+              slug: template.slug ?? null,
+              credentials: template.credentials ?? null,
+              specialties: template.specialties ?? null,
+              funFact: template.funFact ?? null,
+              bookHref: template.bookHref ?? null,
+            }
           }
+          // Backfill a demo headshot + focal point when the row still has none
+          // (demos seeded before staff photos existed). Only touches rows still
+          // matching the demo persona by name — never injects a stock photo onto
+          // a renamed/clinic-edited entry, and never overwrites an uploaded one.
+          if (template?.photoUrl && !next.photoUrl && next.name === template.name) {
+            next = {
+              ...next,
+              photoUrl: template.photoUrl,
+              photoPosition: template.photoPosition ?? null,
+            }
+          }
+          return next
         })
         if (upgraded.some((s, i) => s !== storedStaff[i])) {
           patch.staff = upgraded

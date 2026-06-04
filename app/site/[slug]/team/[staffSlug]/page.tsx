@@ -208,6 +208,7 @@ export default async function StaffDetailPage({ params }: Props) {
                       src={staff.photoUrl}
                       alt={staff.name}
                       className="w-full h-full object-cover"
+                      style={staff.photoPosition ? { objectPosition: staff.photoPosition } : undefined}
                     />
                   ) : (
                     <div
@@ -376,6 +377,7 @@ export default async function StaffDetailPage({ params }: Props) {
                               src={s.photoUrl}
                               alt={s.name}
                               className="w-full h-full object-cover"
+                              style={s.photoPosition ? { objectPosition: s.photoPosition } : undefined}
                             />
                           ) : (
                             <div

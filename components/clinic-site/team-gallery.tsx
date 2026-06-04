@@ -7,6 +7,8 @@ interface Member {
   name: string
   title?: string | null
   photoUrl: string
+  /** CSS object-position focal point (e.g. "50% 30%"). */
+  position?: string | null
 }
 
 interface Props {
@@ -80,6 +82,7 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
                   src={m.photoUrl}
                   alt={m.name}
                   className="w-full h-full object-cover"
+                  style={m.position ? { objectPosition: m.position } : undefined}
                   loading="lazy"
                 />
               </div>
