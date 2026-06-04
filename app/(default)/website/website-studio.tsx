@@ -15,6 +15,8 @@ import type {
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
+import LeadFormBuilder from './lead-form-builder'
+import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import StatsEditor from '../settings/clinic/stats-editor'
 import TestimonialsEditor from '../settings/clinic/testimonials-editor'
 import StaffEditor from '../settings/clinic/staff-editor'
@@ -35,6 +37,7 @@ import {
   saveInsurance,
   savePaymentFinancing,
   saveDifferenceChips,
+  saveLeadForm,
   saveHours,
   type SectionResult,
 } from './website-actions'
@@ -87,6 +90,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   acceptedInsuranceCarriers: saveInsurance,
   paymentFinancing: savePaymentFinancing,
   differenceChips: saveDifferenceChips,
+  insurance_verifier: saveLeadForm,
   hours: saveHours,
 }
 
@@ -101,6 +105,7 @@ const SECTION_TITLES: Record<string, string> = {
   acceptedInsuranceCarriers: 'Insurance carriers',
   paymentFinancing: 'Payment & financing',
   differenceChips: '“Why us” highlights',
+  insurance_verifier: 'Insurance check form',
   hours: 'Office hours',
   services: 'Services',
   blog: 'Blog posts',
@@ -481,6 +486,22 @@ function StudioModal({
                 rows={8}
                 placeholder={'Family Dental Care\nTeeth Whitening\nNo judgment, ever\nSame-week visits'}
                 className="form-textarea w-full text-sm"
+              />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'insurance_verifier' && (
+            <form ref={formRef}>
+              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+                The fields on your “Check your insurance” form. Add, remove, reorder, or
+                rename fields. Keep an email or phone so you can reach the lead — the carrier
+                and service dropdowns pull their options from your live lists.
+              </p>
+              <LeadFormBuilder
+                formKey="insurance_verifier"
+                defaultValue={resolveLeadForm(
+                  (profile.leadForms as LeadFormsConfig | null) ?? null,
+                  'insurance_verifier',
+                )}
               />
             </form>
           )}

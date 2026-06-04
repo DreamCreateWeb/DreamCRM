@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant, type TenantContext } from '@/lib/auth/context'
+import type { LeadFormField } from '@/lib/types/lead-forms'
 import {
   parseStaff,
   parseStats,
@@ -185,6 +186,69 @@ export async function saveInsurance(formData: FormData): Promise<SectionResult> 
         formData.get('acceptedInsuranceCarriers')?.toString(),
       ),
     })
+  })
+}
+
+// ── Editable site lead-capture forms (contact / insurance verifier) ─────────
+const LEAD_FORM_TYPES = new Set(['text', 'textarea', 'email', 'tel', 'select'])
+export async function saveLeadForm(formData: FormData): Promise<SectionResult> {
+  const key = formData.get('formKey')?.toString()
+  if (key !== 'contact' && key !== 'insurance_verifier') {
+    return { ok: false, error: 'Unknown form' }
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(formData.get('fields')?.toString() ?? '[]')
+  } catch {
+    return { ok: false, error: 'Could not read the form fields' }
+  }
+  if (!Array.isArray(parsed)) return { ok: false, error: 'Could not read the form fields' }
+
+  const clean: LeadFormField[] = []
+  const seen = new Set<string>()
+  for (const raw of parsed as Record<string, unknown>[]) {
+    if (!raw || typeof raw.id !== 'string' || typeof raw.label !== 'string') continue
+    const label = raw.label.trim()
+    const type = String(raw.type)
+    if (!label || !LEAD_FORM_TYPES.has(type) || seen.has(raw.id)) continue
+    seen.add(raw.id)
+    const field: LeadFormField = {
+      id: raw.id,
+      type: type as LeadFormField['type'],
+      label,
+      required: Boolean(raw.required),
+    }
+    if (typeof raw.placeholder === 'string' && raw.placeholder.trim()) {
+      field.placeholder = raw.placeholder.trim()
+    }
+    if (raw.systemKey === 'name' || raw.systemKey === 'email' || raw.systemKey === 'phone') {
+      field.systemKey = raw.systemKey
+    }
+    if (raw.dynamicOptions === 'services' || raw.dynamicOptions === 'carriers') {
+      field.dynamicOptions = raw.dynamicOptions
+    }
+    if (field.type === 'select' && !field.dynamicOptions && Array.isArray(raw.options)) {
+      field.options = raw.options.map((o) => String(o).trim()).filter(Boolean)
+    }
+    clean.push(field)
+  }
+
+  if (clean.length === 0) return { ok: false, error: 'Add at least one field' }
+  const hasContact = clean.some((f) => f.systemKey === 'email' || f.systemKey === 'phone')
+  if (!hasContact) {
+    return { ok: false, error: 'Keep at least an email or phone field so leads are reachable' }
+  }
+
+  return runSection(async (ctx) => {
+    const [row] = await db
+      .select({ leadForms: clinicProfile.leadForms })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, ctx.organizationId))
+      .limit(1)
+    const current = (row?.leadForms as Record<string, unknown> | null) ?? {}
+    await writeSection(ctx, {
+      leadForms: { ...current, [key]: clean },
+    } as Partial<typeof clinicProfile.$inferInsert>)
   })
 }
 

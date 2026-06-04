@@ -28,6 +28,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   // CSS object-position so a photo shown in a small crop (e.g. the hero ovals)
   // can be repositioned to keep the right part in frame. Unset key → centred.
   imagePositions: jsonb('image_positions'),
+  // leadForms: Partial<Record<'contact'|'insurance_verifier', LeadFormField[]>> —
+  // clinic-edited field definitions for the public lead-capture forms. Unset for
+  // a key → the built-in default fields render.
+  leadForms: jsonb('lead_forms'),
   // Optional ambient background video for the "The {clinic} difference"
   // section on the public site. Plain mp4/webm URL — rendered as
   // <video autoplay muted loop playsInline> when set, falls back to

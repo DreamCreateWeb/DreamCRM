@@ -20,6 +20,7 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
+import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
@@ -486,6 +487,10 @@ export default async function InsurancePage({ params }: Props) {
                   brand={brand}
                   carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
                   services={services.length > 0 ? services.map((s) => s.name) : null}
+                  fields={resolveLeadForm(
+                    (profile.leadForms as LeadFormsConfig | null) ?? null,
+                    'insurance_verifier',
+                  )}
                 />
               </div>
             </div>

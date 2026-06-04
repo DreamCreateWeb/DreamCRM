@@ -24,6 +24,7 @@ import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel
 import ServicePills from '@/components/clinic-site/service-pills'
 import TeamGallery from '@/components/clinic-site/team-gallery'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
+import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 
 /**
  * Modern Family/Wellness template — the default clinic site.
@@ -108,6 +109,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const differenceHeadline = copyOverride(copyOverrides, 'home.differenceHeadline', '')
   const imagePositions = (profile.imagePositions as Record<string, string> | null) ?? {}
+  const insuranceFormFields = resolveLeadForm(
+    (profile.leadForms as LeadFormsConfig | null) ?? null,
+    'insurance_verifier',
+  )
   const rawStats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
   // Resolve dynamic stats at render. v1: only `review_count` is dynamic.
   // When the live count is 0 AND the stat is dynamic, drop the row rather
@@ -868,12 +873,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 Curious if your insurance will cover your exam? Drop us a note and
                 we&apos;ll get back to you within one business day.
               </p>
-              <InsuranceVerifierForm
-                orgId={data.orgId}
-                brand={brand}
-                carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
-                services={services.length > 0 ? services.map((s) => s.name) : null}
-              />
+              <div
+                data-edit-field="insurance_verifier"
+                data-edit-kind="modal"
+                data-edit-label="insurance check form"
+              >
+                <InsuranceVerifierForm
+                  orgId={data.orgId}
+                  brand={brand}
+                  carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
+                  services={services.length > 0 ? services.map((s) => s.name) : null}
+                  fields={insuranceFormFields}
+                />
+              </div>
             </div>
           </div>
           {/* Auto-scrolling carrier badge marquee. Pure CSS @keyframes —

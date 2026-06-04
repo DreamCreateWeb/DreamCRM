@@ -330,6 +330,13 @@
       "when": 1780605586492,
       "tag": "0046_even_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1780606483608,
+      "tag": "0047_lowly_bullseye",
+      "breakpoints": true
     }
   ]
 }

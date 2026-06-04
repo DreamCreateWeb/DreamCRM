@@ -1,6 +1,10 @@
 'use server'
 
+import { eq } from 'drizzle-orm'
 import { createLead } from '@/lib/services/leads'
+import { db } from '@/lib/db'
+import { clinicProfile } from '@/lib/db/schema/platform'
+import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 
 /**
  * Public insurance-verifier form action.
@@ -33,42 +37,55 @@ export async function submitInsuranceVerifyRequest(
   formData: FormData,
 ): Promise<InsuranceVerifyResult> {
   const orgId = formData.get('orgId')?.toString().trim()
-  const email = formData.get('email')?.toString().trim() || ''
-  const phone = formData.get('phone')?.toString().trim() || ''
-  const carrierRaw = formData.get('carrier')?.toString().trim() || ''
-  const serviceRaw = formData.get('service')?.toString().trim() || ''
-
   if (!orgId) return { ok: false, error: 'Missing organization' }
-  if (!email) return { ok: false, error: 'Email is required' }
-  if (!EMAIL_RE.test(email)) {
+
+  // Resolve the clinic's (possibly customised) field config from the DB so we
+  // map every submitted value by its real definition — system fields to lead
+  // columns, the rest to labelled note lines. Config is trusted (clinic-owned).
+  const [row] = await db
+    .select({ leadForms: clinicProfile.leadForms })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, orgId))
+    .limit(1)
+  const fields = resolveLeadForm((row?.leadForms as LeadFormsConfig | null) ?? null, 'insurance_verifier')
+
+  let email = ''
+  let phone = ''
+  let name = ''
+  const detailLines: string[] = []
+  for (const f of fields) {
+    const raw = formData.get(f.id)?.toString().trim() || ''
+    if (f.required && !raw) return { ok: false, error: `${f.label} is required` }
+    if (f.systemKey === 'email') email = raw
+    else if (f.systemKey === 'phone') phone = raw
+    else if (f.systemKey === 'name') name = raw
+    else if (raw && raw !== '__other__') detailLines.push(`${f.label}: ${raw}`)
+  }
+
+  if (!email && !phone) {
+    return { ok: false, error: 'Please give us an email or phone so we can reach you' }
+  }
+  if (email && !EMAIL_RE.test(email)) {
     return { ok: false, error: 'Please enter a valid email address' }
   }
-  if (!phone) return { ok: false, error: 'Phone is required' }
-  if (phone.replace(/\D/g, '').length < PHONE_DIGITS_MIN) {
+  if (phone && phone.replace(/\D/g, '').length < PHONE_DIGITS_MIN) {
     return { ok: false, error: 'Please enter a valid phone number' }
   }
 
-  // The lead row's name is required and there's no name field on this
-  // form (insurance verification is intentionally a 2-field ask — email
-  // + phone — so the bar to submit is low). Fall back to a clear sentinel
-  // so the /leads triage page makes it obvious this came from the
-  // insurance verifier and not a malformed contact submission.
-  const name = 'Insurance verification request'
-  const carrierLabel =
-    !carrierRaw || carrierRaw === '__other__' ? 'unspecified' : carrierRaw
-  const serviceLabel =
-    !serviceRaw || serviceRaw === '__other__' ? 'unspecified' : serviceRaw
+  // The lead row's name is required; the default insurance form has no name
+  // field (low-friction 2-field ask), so fall back to a clear sentinel that
+  // makes the /leads queue obvious.
+  const leadName = name || 'Insurance verification request'
   const notes =
-    `Insurance verification request — ` +
-    `Carrier: ${carrierLabel}. ` +
-    `Service of interest: ${serviceLabel}.`
+    'Insurance verification request' +
+    (detailLines.length > 0 ? ` — ${detailLines.join('. ')}.` : '.')
 
   try {
     await createLead({
       organizationId: orgId,
-      name,
+      name: leadName,
       phone,
-      email,
+      email: email || null,
       message: notes,
       // The leads UI surfaces sourcePage as a "from {sourcePage}" label
       // on every row — so a literal 'insurance_verifier' token here is
