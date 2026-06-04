@@ -60,6 +60,7 @@ function makeData(services: ClinicService[]): ClinicSiteData {
       faq: null,
       copyOverrides: null,
       differenceChips: null,
+      leadForms: null,
       acceptedInsuranceCarriers: null,
       paymentMethods: null,
       financingPartners: null,

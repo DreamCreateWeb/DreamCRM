@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const insertedRows: Array<{ table: string; values: unknown }> = []
 
+// The action resolves the clinic's (possibly customised) field config from the
+// DB; return an empty config so the built-in default fields are used.
+let leadFormsRow: { leadForms: unknown } = { leadForms: null }
+
 vi.mock('@/lib/db', async () => {
   const { lead } = await import('@/lib/db/schema/clinic')
   return {
@@ -12,6 +16,13 @@ vi.mock('@/lib/db', async () => {
           insertedRows.push({ table: tableName, values: vals })
         },
       }),
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [leadFormsRow],
+          }),
+        }),
+      }),
     },
     schema: { lead },
   }
@@ -21,6 +32,7 @@ import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify
 
 beforeEach(() => {
   insertedRows.length = 0
+  leadFormsRow = { leadForms: null }
 })
 
 function form(fields: Record<string, string | null>) {
@@ -94,7 +106,7 @@ describe('submitInsuranceVerifyRequest', () => {
     expect((leadInsert!.values as { message: string }).message).toContain('Aetna')
   })
 
-  it('records carrier as "unspecified" when no carrier is selected', async () => {
+  it('omits an empty optional field from the lead message (no "unspecified" filler)', async () => {
     await submitInsuranceVerifyRequest(
       form({
         orgId: 'org_1',
@@ -103,10 +115,13 @@ describe('submitInsuranceVerifyRequest', () => {
       }),
     )
     const leadInsert = insertedRows.find((r) => r.table === 'lead')
-    expect((leadInsert!.values as { message: string }).message).toContain('unspecified')
+    const message = (leadInsert!.values as { message: string }).message
+    // No carrier/service selected → those lines are simply omitted.
+    expect(message).toContain('Insurance verification request')
+    expect(message).not.toContain('Insurance carrier')
   })
 
-  it('records carrier as "unspecified" when carrier is the "Other / not listed" sentinel', async () => {
+  it('drops the "Other / not listed" sentinel rather than leaking it into the message', async () => {
     await submitInsuranceVerifyRequest(
       form({
         orgId: 'org_1',
@@ -116,11 +131,47 @@ describe('submitInsuranceVerifyRequest', () => {
       }),
     )
     const leadInsert = insertedRows.find((r) => r.table === 'lead')
-    expect((leadInsert!.values as { message: string }).message).toContain('unspecified')
+    const message = (leadInsert!.values as { message: string }).message
     // Critical: the synthetic '__other__' marker must NOT leak through to
-    // the lead row's notes (front desk would see garbage). The sentinel
-    // is a UI implementation detail; the persisted message is human copy.
-    expect((leadInsert!.values as { message: string }).message).not.toContain('__other__')
+    // the lead row's notes (front desk would see garbage).
+    expect(message).not.toContain('__other__')
+  })
+
+  it('maps a clinic-customised field to the lead by its config (label into message, systemKey into a column)', async () => {
+    leadFormsRow = {
+      leadForms: {
+        insurance_verifier: [
+          { id: 'name', type: 'text', label: 'Full name', required: true, systemKey: 'name' },
+          { id: 'email', type: 'email', label: 'Email', required: true, systemKey: 'email' },
+          { id: 'reason', type: 'text', label: 'Reason for visit', required: false },
+        ],
+      },
+    }
+    const result = await submitInsuranceVerifyRequest(
+      form({ orgId: 'org_1', name: 'Jane Doe', email: 'jane@example.com', reason: 'Cleaning' }),
+    )
+    expect(result.ok).toBe(true)
+    const leadInsert = insertedRows.find((r) => r.table === 'lead')!
+    // systemKey 'name' lands on the lead's name column; the custom 'reason'
+    // field is folded into the message under its real label.
+    expect(leadInsert.values).toMatchObject({ name: 'Jane Doe', email: 'jane@example.com' })
+    expect((leadInsert.values as { message: string }).message).toContain('Reason for visit: Cleaning')
+  })
+
+  it('requires a clinic-customised required field by its label', async () => {
+    leadFormsRow = {
+      leadForms: {
+        insurance_verifier: [
+          { id: 'email', type: 'email', label: 'Email', required: true, systemKey: 'email' },
+          { id: 'dob', type: 'text', label: 'Date of birth', required: true },
+        ],
+      },
+    }
+    const result = await submitInsuranceVerifyRequest(
+      form({ orgId: 'org_1', email: 'jane@example.com' }),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/date of birth/i)
   })
 
   it('falls back to a clear sentinel name on the lead row (form has no name field)', async () => {

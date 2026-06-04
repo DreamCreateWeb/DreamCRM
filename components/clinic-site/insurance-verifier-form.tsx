@@ -2,21 +2,20 @@
 
 import { useState } from 'react'
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
+import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 
 interface Props {
   orgId: string
   brand: string
-  /** Carrier list — shown as a select dropdown when set. When null/empty
-   *  the form skips the dropdown entirely (the clinic hasn't told us which
-   *  carriers they take, so guessing one would be worse than asking
-   *  "what's yours?" with the free-text email/phone alone). */
+  /** Carrier list — feeds the carrier dropdown's options. When null/empty
+   *  that dynamic dropdown auto-hides (we don't show an empty carrier picker). */
   carriers: string[] | null
-  /** Service names from the clinic's catalog. When provided, the form
-   *  surfaces a "what brought you in" dropdown so the verification
-   *  request lands in /leads with the patient's reason of visit, not
-   *  just a generic eligibility check — front desk can route more
-   *  efficiently. Optional + auto-hides when null/empty. */
+  /** Service names from the clinic's catalog — feed the "what brought you in"
+   *  dropdown's options; auto-hides when null/empty. */
   services?: string[] | null
+  /** Editable field definitions (Website Studio). Defaults to the standard
+   *  email · phone · service · carrier set when unset. */
+  fields?: LeadFormField[]
 }
 
 /**
@@ -32,14 +31,13 @@ interface Props {
  * Success state replaces the form with a calm "we'll be in touch within
  * one business day" message so expectations stay honest.
  */
-export default function InsuranceVerifierForm({ orgId, brand, carriers, services }: Props) {
+export default function InsuranceVerifierForm({ orgId, brand, carriers, services, fields }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
   const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
-  const showCarrierDropdown = carrierList.length > 0
   const serviceList = (services ?? []).filter((s) => s.trim().length > 0)
-  const showServiceDropdown = serviceList.length > 0
+  const formFields = fields && fields.length > 0 ? fields : DEFAULT_LEAD_FORMS.insurance_verifier
 
   if (status === 'success') {
     return (
@@ -90,78 +88,84 @@ export default function InsuranceVerifierForm({ orgId, brand, carriers, services
   const inputClass =
     'w-full px-5 py-3 rounded-full bg-white text-[#1C1A17] placeholder-gray-400 text-sm border-none focus:outline-none focus:ring-2 focus:ring-white/40 transition'
 
+  function renderField(f: LeadFormField) {
+    const optionalSuffix = f.required ? '' : ' (optional)'
+    const placeholder = (f.placeholder ?? f.label) + optionalSuffix
+    if (f.type === 'select') {
+      // Dynamic selects pull their options from live clinic data; hide cleanly
+      // when that list is empty (no point showing an empty carrier picker).
+      const liveOpts =
+        f.dynamicOptions === 'services'
+          ? serviceList
+          : f.dynamicOptions === 'carriers'
+            ? carrierList
+            : null
+      if (f.dynamicOptions && (!liveOpts || liveOpts.length === 0)) return null
+      const opts = liveOpts ?? f.options ?? []
+      return (
+        <div key={f.id}>
+          <label className="sr-only" htmlFor={`iv-${f.id}`}>
+            {f.label}
+          </label>
+          <select
+            id={`iv-${f.id}`}
+            name={f.id}
+            defaultValue=""
+            required={f.required}
+            className={inputClass}
+            style={{ appearance: 'auto' }}
+          >
+            <option value="">
+              {f.label}
+              {optionalSuffix}
+            </option>
+            {opts.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+            {f.dynamicOptions && <option value="__other__">Other / not listed</option>}
+          </select>
+        </div>
+      )
+    }
+    if (f.type === 'textarea') {
+      return (
+        <div key={f.id}>
+          <label className="sr-only" htmlFor={`iv-${f.id}`}>
+            {f.label}
+          </label>
+          <textarea
+            id={`iv-${f.id}`}
+            name={f.id}
+            required={f.required}
+            placeholder={placeholder}
+            rows={3}
+            className={`${inputClass} rounded-2xl`}
+          />
+        </div>
+      )
+    }
+    return (
+      <div key={f.id}>
+        <label className="sr-only" htmlFor={`iv-${f.id}`}>
+          {f.label}
+        </label>
+        <input
+          id={`iv-${f.id}`}
+          name={f.id}
+          type={f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}
+          required={f.required}
+          placeholder={placeholder}
+          className={inputClass}
+        />
+      </div>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div>
-        <label className="sr-only" htmlFor="iv-email">
-          Email
-        </label>
-        <input
-          id="iv-email"
-          name="email"
-          type="email"
-          required
-          placeholder="Email"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className="sr-only" htmlFor="iv-phone">
-          Phone
-        </label>
-        <input
-          id="iv-phone"
-          name="phone"
-          type="tel"
-          required
-          placeholder="Phone"
-          className={inputClass}
-        />
-      </div>
-      {showServiceDropdown && (
-        <div>
-          <label className="sr-only" htmlFor="iv-service">
-            Service of interest
-          </label>
-          <select
-            id="iv-service"
-            name="service"
-            defaultValue=""
-            className={inputClass}
-            style={{ appearance: 'auto' }}
-          >
-            <option value="">What brought you in? (optional)</option>
-            {serviceList.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-            <option value="__other__">Other / not sure</option>
-          </select>
-        </div>
-      )}
-      {showCarrierDropdown && (
-        <div>
-          <label className="sr-only" htmlFor="iv-carrier">
-            Insurance carrier
-          </label>
-          <select
-            id="iv-carrier"
-            name="carrier"
-            defaultValue=""
-            className={inputClass}
-            style={{ appearance: 'auto' }}
-          >
-            <option value="">Insurance carrier (optional)</option>
-            {carrierList.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-            <option value="__other__">Other / not listed</option>
-          </select>
-        </div>
-      )}
+      {formFields.map(renderField)}
 
       {status === 'error' && (
         <p className="text-sm font-medium text-rose-100 bg-rose-900/30 rounded-xl px-4 py-2">
