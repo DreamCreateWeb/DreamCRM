@@ -111,6 +111,30 @@ const SECTION_TITLES: Record<string, string> = {
   hours: 'Office hours',
   services: 'Services',
   blog: 'Blog posts',
+  careers: 'Job postings',
+  dental_plans: 'Membership plans',
+}
+
+/**
+ * Sections whose content lives in a dedicated manager (not clinic_profile), so
+ * their modal is a link-out to that manager rather than an inline editor.
+ */
+const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
+  blog: {
+    href: '/blog',
+    cta: 'Open the blog manager',
+    desc: 'Your blog posts — drafts, scheduling, and publishing — live in the blog manager, which has the full editor and a publishing calendar. Anything you publish there appears on your site automatically.',
+  },
+  careers: {
+    href: '/careers',
+    cta: 'Open the careers manager',
+    desc: 'Your open roles and applicants live in the careers manager. Post, edit, or close roles there; published roles appear on your site (and Google for Jobs) automatically.',
+  },
+  dental_plans: {
+    href: '/shop/memberships',
+    cta: 'Open the membership manager',
+    desc: 'Your in-house dental plans live in the membership manager — set pricing, benefits, and which plans are active. Active plans appear on your site automatically.',
+  },
 }
 
 /**
@@ -322,7 +346,7 @@ function StudioModal({
   const isServices = modal.kind === 'section' && modal.field === 'services'
   // Blog management lives in the full /blog manager (editor + scheduling
   // calendar), so its modal is a link-out rather than an inline form.
-  const isLinkOut = modal.kind === 'section' && modal.field === 'blog'
+  const isLinkOut = modal.kind === 'section' && !!LINK_OUTS[modal.field]
 
   async function onSave() {
     setBusy(true)
@@ -659,20 +683,18 @@ function StudioModal({
               )}
             </div>
           )}
-          {modal.kind === 'section' && modal.field === 'blog' && (
+          {modal.kind === 'section' && LINK_OUTS[modal.field] && (
             <div className="space-y-3">
               <p className="text-[13px] text-stone-500 dark:text-stone-400">
-                Your blog posts — drafts, scheduling, and publishing — live in the blog
-                manager, which has the full editor and a publishing calendar. Anything you
-                publish there appears in this “From the blog” section automatically.
+                {LINK_OUTS[modal.field].desc}
               </p>
               <a
-                href="/blog"
+                href={LINK_OUTS[modal.field].href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-sm inline-flex bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
               >
-                Open the blog manager ↗
+                {LINK_OUTS[modal.field].cta} ↗
               </a>
             </div>
           )}

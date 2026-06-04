@@ -189,7 +189,12 @@ export default async function ServiceDetailPage({ params }: Props) {
       )}
 
       {/* ── Hero — copy left, photo-on-color panel right ───────────────── */}
-      <section className="pt-12 pb-14 sm:pt-16 sm:pb-20">
+      <section
+        className="pt-12 pb-14 sm:pt-16 sm:pb-20"
+        data-edit-field="services"
+        data-edit-kind="modal"
+        data-edit-label="services"
+      >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
             <ScrollReveal className="lg:col-span-6">

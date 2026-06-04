@@ -172,7 +172,13 @@ export default async function DentalPlansPage({ params }: Props) {
         </section>
 
         {/* ── Plan cards + join form ──────────────────────────────────────── */}
-        <section className="py-10 sm:py-16" style={{ backgroundColor: SURFACE }}>
+        <section
+          className="py-10 sm:py-16"
+          style={{ backgroundColor: SURFACE }}
+          data-edit-field="dental_plans"
+          data-edit-kind="modal"
+          data-edit-label="membership plans"
+        >
           <div className="max-w-[900px] mx-auto px-5 sm:px-8">
             <ScrollReveal>
               <MembershipJoin slug={slug} brand={brand} plans={plans} />
