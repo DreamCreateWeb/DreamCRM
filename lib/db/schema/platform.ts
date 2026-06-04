@@ -20,6 +20,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   template: text('template').default('modern'),
   logoUrl: text('logo_url'),
   heroImageUrl: text('hero_image_url'),
+  // Second hero photo (the right-hand oval). A dedicated single-image field —
+  // NOT an office-gallery photo. Falls back to officePhotos[0] when null for
+  // back-compat with sites set up before this column existed.
+  heroImageUrl2: text('hero_image_url_2'),
   // Optional ambient background video for the "The {clinic} difference"
   // section on the public site. Plain mp4/webm URL — rendered as
   // <video autoplay muted loop playsInline> when set, falls back to

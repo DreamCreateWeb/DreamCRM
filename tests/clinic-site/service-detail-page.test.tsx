@@ -49,6 +49,7 @@ function makeData(services: ClinicService[]): ClinicSiteData {
       subscriptionStatus: null,
       logoUrl: null,
       heroImageUrl: null,
+      heroImageUrl2: null,
       differenceVideoUrl: null,
       services: services as never,
       staff: null,

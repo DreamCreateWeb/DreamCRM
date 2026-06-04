@@ -218,11 +218,11 @@ export async function savePaymentFinancing(formData: FormData): Promise<SectionR
 const INLINE_TEXT_FIELDS = new Set([
   'tagline', 'about', 'displayName', 'legalName', 'phone', 'email', 'differenceVideoUrl',
 ])
-const INLINE_IMAGE_FIELDS = new Set(['logoUrl', 'heroImageUrl'])
+const INLINE_IMAGE_FIELDS = new Set(['logoUrl', 'heroImageUrl', 'heroImageUrl2'])
 
 export type InlineField =
   | 'tagline' | 'about' | 'displayName' | 'legalName' | 'phone' | 'email'
-  | 'logoUrl' | 'heroImageUrl' | 'differenceVideoUrl'
+  | 'logoUrl' | 'heroImageUrl' | 'heroImageUrl2' | 'differenceVideoUrl'
 
 export async function saveInlineField(field: string, value: string): Promise<SectionResult> {
   // Hardcoded-copy override: field "copy:<key>" merges into the copy_overrides
