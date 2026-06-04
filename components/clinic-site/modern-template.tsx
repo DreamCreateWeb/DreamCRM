@@ -685,8 +685,15 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <h2
               className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
               style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              data-edit-field="copy:home.testimonialsTitle"
+              data-edit-kind="text"
+              data-edit-label="headline"
             >
-              Why people love <strong className="italic font-semibold">{name}</strong>
+              {copyOverride(copyOverrides, 'home.testimonialsTitle', '') || (
+                <>
+                  Why people love <strong className="italic font-semibold">{name}</strong>
+                </>
+              )}
             </h2>
             <TestimonialsCarousel testimonials={testimonials} brand={brand} />
           </div>
@@ -996,7 +1003,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 </p>
           </div>
           <ul className="grid sm:grid-cols-2 gap-4 sm:gap-5 max-w-[860px] mx-auto text-left">
-            {teamCallouts.map((c) => (
+            {teamCallouts.map((c, i) => (
               <li
                 key={c.title}
                 className="flex items-start gap-4 p-5 sm:p-6 rounded-2xl bg-white"
@@ -1010,11 +1017,23 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                         <TeamCalloutIcon kind={c.icon} />
                       </span>
                       <div>
-                        <h3 className="text-[17px] font-semibold mb-1" style={{ color: INK }}>
-                          {c.title}
+                        <h3
+                          className="text-[17px] font-semibold mb-1"
+                          style={{ color: INK }}
+                          data-edit-field={`copy:home.callout.${i}.title`}
+                          data-edit-kind="text"
+                          data-edit-label="title"
+                        >
+                          {copyOverride(copyOverrides, `home.callout.${i}.title`, c.title)}
                         </h3>
-                        <p className="text-[14px] leading-[1.6]" style={{ color: INK_MUTED }}>
-                          {c.copy}
+                        <p
+                          className="text-[14px] leading-[1.6]"
+                          style={{ color: INK_MUTED }}
+                          data-edit-field={`copy:home.callout.${i}.body`}
+                          data-edit-kind="text"
+                          data-edit-label="text"
+                        >
+                          {copyOverride(copyOverrides, `home.callout.${i}.body`, c.copy)}
                         </p>
                       </div>
                     </li>
@@ -1245,17 +1264,29 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-5"
                 style={{ color: brand }}
+                data-edit-field="copy:home.contactEyebrow"
+                data-edit-kind="text"
+                data-edit-label="eyebrow"
               >
-                Get in touch
+                {copyOverride(copyOverrides, 'home.contactEyebrow', 'Get in touch')}
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:home.contactTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                We&apos;d love to see you.
+                {copyOverride(copyOverrides, 'home.contactTitle', "We'd love to see you.")}
               </h2>
-              <p className="text-lg leading-[1.6] mb-10" style={{ color: INK_MUTED }}>
-                Fill out the form and we&apos;ll be in touch to confirm your visit.
+              <p
+                className="text-lg leading-[1.6] mb-10"
+                style={{ color: INK_MUTED }}
+                data-edit-field="copy:home.contactIntro"
+                data-edit-kind="text"
+                data-edit-label="text"
+              >
+                {copyOverride(copyOverrides, 'home.contactIntro', "Fill out the form and we'll be in touch to confirm your visit.")}
               </p>
               <div
                 {...(!isPro
