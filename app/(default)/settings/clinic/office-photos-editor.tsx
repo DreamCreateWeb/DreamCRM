@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import type { ClinicOfficePhoto } from '@/lib/types/clinic-content'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
+import { EmptyHint } from '@/components/ui/editor-kit'
 
 interface Props {
   name: string
@@ -49,10 +50,13 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
     <div>
       <input type="hidden" name={name} value={JSON.stringify(items)} />
       {items.length === 0 ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400 italic mb-3">
-          Add 3–4 photos of your office: reception, treatment room, waiting area. Real interior
-          shots beat stock photography by a mile.
-        </p>
+        <div className="mb-3">
+          <EmptyHint>
+            Add 3–4 photos of your office — reception, a treatment room, the waiting area. Real
+            interior shots beat stock photography by a mile. Drag the focus dot after uploading
+            to choose what stays in frame.
+          </EmptyHint>
+        </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
           {items.map((p, i) => (
@@ -99,9 +103,18 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={uploading}
-        className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 dark:border-stone-600 py-2.5 text-[13px] font-semibold text-stone-500 dark:text-stone-400 hover:border-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800/40 transition disabled:opacity-50"
       >
-        {uploading ? 'Uploading…' : '+ Add Photos'}
+        {uploading ? (
+          'Uploading…'
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 5v10M5 10h10" />
+            </svg>
+            Add photos
+          </>
+        )}
       </button>
     </div>
   )
