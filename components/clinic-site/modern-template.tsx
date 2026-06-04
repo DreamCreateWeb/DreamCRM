@@ -196,6 +196,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // from the clinic's own services first (so it feels personal), padded
   // with universal trust signals every dental practice can honestly claim.
   const differenceChips: string[] = (() => {
+    const explicit = (profile.differenceChips as string[] | null) ?? null
+    if (explicit && explicit.length > 0) return explicit.slice(0, 8)
     const out: string[] = []
     for (const s of services.slice(0, 4)) out.push(s.name)
     out.push('No judgment, ever')
@@ -564,7 +566,12 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               >
                 {bookLabel}
               </a>
-              <ul className="grid sm:grid-cols-2 gap-3">
+              <ul
+                className="grid sm:grid-cols-2 gap-3"
+                data-edit-field="differenceChips"
+                data-edit-kind="modal"
+                data-edit-label="“Why us” highlights"
+              >
                 {differenceChips.map((chip, i) => (
                   <li key={`${chip}-${i}`}>
                     <span
