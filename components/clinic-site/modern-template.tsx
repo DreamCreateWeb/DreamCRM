@@ -538,11 +538,22 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:home.differenceTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                The {name} <strong className="italic font-semibold">difference</strong>
+                {copyOverride(copyOverrides, 'home.differenceTitle', '') || (
+                  <>The {name} <strong className="italic font-semibold">difference</strong></>
+                )}
               </h2>
               {profile.about && (
-                <p className="text-lg leading-[1.55] mb-8" style={{ color: INK }}>
+                <p
+                  className="text-lg leading-[1.55] mb-8"
+                  style={{ color: INK }}
+                  data-edit-field="about"
+                  data-edit-kind="modal"
+                  data-edit-label="intro"
+                >
                   {firstSentence(profile.about)}
                 </p>
               )}
@@ -623,10 +634,14 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-4"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:home.locationTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                {addrLine1
-                  ? `Come meet us at ${addrLine1}`
-                  : `Come meet us in ${[addrCity, addrState].filter(Boolean).join(', ')}`}
+                {copyOverride(copyOverrides, 'home.locationTitle', '') ||
+                  (addrLine1
+                    ? `Come meet us at ${addrLine1}`
+                    : `Come meet us in ${[addrCity, addrState].filter(Boolean).join(', ')}`)}
               </h2>
               {addressOneLine && (
                 <p className="text-base sm:text-lg leading-[1.55]" style={{ color: INK_MUTED }}>
@@ -699,20 +714,34 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <h2
               className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
               style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
+              data-edit-field="copy:home.insuranceTitle"
+              data-edit-kind="text"
+              data-edit-label="headline"
             >
-              Dental insurance coverage
+              {copyOverride(copyOverrides, 'home.insuranceTitle', '') || 'Dental insurance coverage'}
             </h2>
             <p
               className="text-base sm:text-lg leading-[1.55]"
               style={{ color: 'rgba(255, 255, 255, 0.8)' }}
+              data-edit-field="copy:home.insuranceIntro"
+              data-edit-kind="text"
+              data-edit-label="intro"
             >
-              We want to make accessing dental care easy. We work with most major dental
-              insurance carriers and are here to help you navigate your benefits.
+              {copyOverride(copyOverrides, 'home.insuranceIntro', '') || (
+                <>
+                  We want to make accessing dental care easy. We work with most major dental
+                  insurance carriers and are here to help you navigate your benefits.
+                </>
+              )}
             </p>
           </div>
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-12">
             {/* Left: carriers */}
-            <div>
+            <div
+              data-edit-field="acceptedInsuranceCarriers"
+              data-edit-kind="modal"
+              data-edit-label="insurance carriers"
+            >
               <h3
                 className="text-xl sm:text-2xl font-semibold mb-3"
                 style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
@@ -855,6 +884,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   src={officePhotos[1]?.url ?? null}
                   bg={`${brand}22`}
                   variant="left"
+                  editField="officePhotos"
+                  editKind="modal"
+                  editLabel="office photos"
                 />
               </div>
               <div className="max-w-xl mx-auto text-center lg:text-left">
@@ -867,12 +899,27 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <h2
                   className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
                   style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  data-edit-field="copy:home.teamHeading"
+                  data-edit-kind="text"
+                  data-edit-label="headline"
                 >
-                  A team that <strong className="italic font-semibold">truly listens.</strong>
+                  {copyOverride(copyOverrides, 'home.teamHeading', '') || (
+                    <>A team that <strong className="italic font-semibold">truly listens.</strong></>
+                  )}
                 </h2>
-                <p className="text-lg leading-[1.55] mb-8" style={{ color: INK_MUTED }}>
-                  Modern dentistry meets a gentler chairside touch — exactly what you've been
-                  looking for in a dental practice.
+                <p
+                  className="text-lg leading-[1.55] mb-8"
+                  style={{ color: INK_MUTED }}
+                  data-edit-field="copy:home.teamBlurb"
+                  data-edit-kind="text"
+                  data-edit-label="text"
+                >
+                  {copyOverride(copyOverrides, 'home.teamBlurb', '') || (
+                    <>
+                      Modern dentistry meets a gentler chairside touch — exactly what you've been
+                      looking for in a dental practice.
+                    </>
+                  )}
                 </p>
                 <ul className="space-y-5 text-left mb-8">
                   {teamCallouts.map((c) => (
@@ -908,6 +955,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   src={officePhotos[2]?.url ?? officePhotos[0]?.url ?? null}
                   bg="#E9D6BF"
                   variant="right"
+                  editField="officePhotos"
+                  editKind="modal"
+                  editLabel="office photos"
                 />
               </div>
             </div>
@@ -928,8 +978,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                data-edit-field="copy:home.blogTitle"
+                data-edit-kind="text"
+                data-edit-label="headline"
               >
-                From the blog
+                {copyOverride(copyOverrides, 'home.blogTitle', '') || 'From the blog'}
               </h2>
               <a
                 href={`${basePath}/blog`}
@@ -1036,9 +1089,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <h2
                   className="text-3xl sm:text-4xl lg:text-[52px] font-semibold leading-[1.1] tracking-[-0.015em]"
                   style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  data-edit-field="copy:home.closerTitle"
+                  data-edit-kind="text"
+                  data-edit-label="headline"
                 >
-                  Care at {name} isn&apos;t just easy, it&apos;s{' '}
-                  <strong className="italic font-semibold">a pleasure.</strong>
+                  {copyOverride(copyOverrides, 'home.closerTitle', '') || (
+                    <>
+                      Care at {name} isn&apos;t just easy, it&apos;s{' '}
+                      <strong className="italic font-semibold">a pleasure.</strong>
+                    </>
+                  )}
                 </h2>
               </div>
               <div className="lg:col-span-4 lg:text-right">
