@@ -196,7 +196,10 @@ export function buildClinicNavLinks(opts: {
     ...(specialLink ? [specialLink] : []),
     patientsLink,
     aboutLink,
-    { label: 'Contact', href: `${basePath || '/'}#contact` },
+    // Footer carries phone / email / Book / address on every page + tier, so it
+    // is the one contact destination that always resolves. (The old `#contact`
+    // anchor only existed on the basic-tier homepage contact form.)
+    { label: 'Contact', href: '#site-footer-contact' },
   ]
 }
 
