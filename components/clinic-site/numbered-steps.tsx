@@ -20,6 +20,12 @@ interface Props {
   heading?: string
   /** Center-align heading + eyebrow. */
   centered?: boolean
+  /**
+   * When set, each step's title/body is tagged for inline editing in the
+   * Website Studio with the key `copy:{editKeyPrefix}.{i}.{title|body}`. The
+   * caller is responsible for resolving `steps` through those same overrides.
+   */
+  editKeyPrefix?: string
 }
 
 /**
@@ -34,6 +40,7 @@ export default function NumberedSteps({
   eyebrow,
   heading,
   centered = false,
+  editKeyPrefix,
 }: Props) {
   if (steps.length === 0) return null
   const cardBg = surface === 'white' ? SURFACE : '#FAF7F2'
@@ -85,10 +92,22 @@ export default function NumberedSteps({
               {String(i + 1).padStart(2, '0')}
             </span>
             <div>
-              <h3 className="text-lg font-semibold mb-2 leading-tight" style={{ color: INK }}>
+              <h3
+                className="text-lg font-semibold mb-2 leading-tight"
+                style={{ color: INK }}
+                {...(editKeyPrefix
+                  ? { 'data-edit-field': `copy:${editKeyPrefix}.${i}.title`, 'data-edit-kind': 'text', 'data-edit-label': 'title' }
+                  : {})}
+              >
                 {step.title}
               </h3>
-              <p className="text-[15px] leading-[1.6]" style={{ color: INK_MUTED }}>
+              <p
+                className="text-[15px] leading-[1.6]"
+                style={{ color: INK_MUTED }}
+                {...(editKeyPrefix
+                  ? { 'data-edit-field': `copy:${editKeyPrefix}.${i}.body`, 'data-edit-kind': 'text', 'data-edit-label': 'text' }
+                  : {})}
+              >
                 {step.body}
               </p>
             </div>
