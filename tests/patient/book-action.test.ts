@@ -35,6 +35,9 @@ vi.mock('@/lib/services/booking', () => ({
 // PMS write-back is best-effort; stub it so the test never touches the real one.
 vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn(async () => {}) }))
 
+// Booking confirmation is best-effort; stub it (its real impl does its own DB reads).
+vi.mock('@/lib/services/booking-confirmation', () => ({ sendBookingConfirmation: vi.fn(async () => {}) }))
+
 const inserts: unknown[] = []
 
 vi.mock('@/lib/db', async () => {

@@ -8,6 +8,7 @@ import { appointment } from '@/lib/db/schema/clinic'
 import { requireTenant } from '@/lib/auth/context'
 import { isSlotAvailable, SLOT_MINUTES } from '@/lib/services/booking'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
+import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 
 export async function bookAppointment(formData: FormData) {
   const ctx = await requireTenant()
@@ -48,6 +49,14 @@ export async function bookAppointment(formData: FormData) {
 
   // Two-way PMS: queue this portal booking to be written to the clinic's PMS.
   await queueAppointmentWriteBack(ctx.organizationId, apptId)
+  // Send the same confirmation (+ intake link) the public widget sends, so a
+  // portal booking isn't silent.
+  await sendBookingConfirmation({
+    organizationId: ctx.organizationId,
+    patientId: ctx.patientId,
+    appointmentType: type,
+    startTime,
+  })
 
   revalidatePath('/patient/dashboard')
   revalidatePath('/patient/appointments')

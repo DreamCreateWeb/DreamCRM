@@ -16,6 +16,7 @@ import {
 import { getSlotsForDay } from '@/lib/services/booking'
 import { sendNotificationEmail } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
+import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 
 async function requireClinicTenant() {
   const ctx = await requireTenant()
@@ -254,6 +255,14 @@ export async function createInternalAppointmentAction(input: {
   }
   try {
     const id = await createInternalAppointment(create)
+    // Confirm the patient the same way the public widget does — they were
+    // just booked without self-initiating, so they should hear about it.
+    await sendBookingConfirmation({
+      organizationId: ctx.organizationId,
+      patientId: input.patientId,
+      appointmentType: input.type ?? 'cleaning',
+      startTime: start,
+    })
     revalidatePath('/appointments')
     revalidatePath(`/patients/${input.patientId}`)
     revalidatePath('/')

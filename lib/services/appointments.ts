@@ -759,6 +759,20 @@ export async function markCompleted(organizationId: string, appointmentId: strin
     status: 'completed',
     completedAt: new Date(),
   })
+  // Completing a visit is the most significant activity event — bump the
+  // patient's lastActivityAt so recency sorting + the recall heuristic reflect
+  // it (booking already does this; completion didn't).
+  const [appt] = await db
+    .select({ patientId: schema.appointment.patientId })
+    .from(schema.appointment)
+    .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, appointmentId)))
+    .limit(1)
+  if (appt?.patientId) {
+    await db
+      .update(schema.patient)
+      .set({ lastActivityAt: new Date() })
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, appt.patientId)))
+  }
 }
 
 export interface RescheduleInput {
