@@ -78,15 +78,35 @@ const COPY_KEYS: CopyKey[] = [
 
 export interface AppliedEdit {
   label: string
+  /** A short human preview of the new value, so the owner can verify the change. */
+  preview: string
 }
 
+/** Columns the AI bar may write — the allow-list both edits and undo honour. */
+export const EDITABLE_COLUMNS = [
+  'tagline', 'about', 'displayName', 'phone', 'email', 'brandColor',
+  'copyOverrides', 'differenceChips', 'acceptedInsuranceCarriers', 'stats',
+  'paymentMethods', 'cancellationPolicy', 'hours', 'faq',
+] as const
+
 export type AiEditResult =
-  | { ok: true; edits: AppliedEdit[]; page: string; summary: string; anchor: string | null }
-  | { ok: false; error: string }
+  | {
+      ok: true
+      edits: AppliedEdit[]
+      page: string
+      summary: string
+      anchor: string | null
+      /** Previous values of every changed column — pass to revert for one-click undo. */
+      before: Record<string, unknown>
+    }
+  | { ok: false; error: string; clarify?: boolean }
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+const DAY_LABELS: Record<string, string> = {
+  mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
+}
 const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/
 
 const EditItem = z.object({
@@ -108,6 +128,8 @@ const EditEnvelope = z.object({
   summary: z.string().max(160),
   page: z.string().max(80),
   edits: z.array(EditItem).max(24),
+  // When the request is too ambiguous to act on safely, the model asks instead.
+  clarify: z.string().max(200).optional(),
 })
 
 const FIELD_COLS = new Set(['tagline', 'about', 'displayName', 'phone', 'email'])
@@ -154,27 +176,49 @@ ${CORE_VOICE_RULES}
 
 How to respond:
 - Call the apply_edits tool with the smallest set of edits that fulfils the instruction. Do NOT touch anything the instruction didn't ask about.
-- Edit types:
-  - "field": value goes to a clinic field. field ∈ tagline (the hero headline), about, displayName (clinic name), phone, email.
-  - "brandColor": value is a hex color like "#2563EB". Pick a tasteful, accessible color when asked for a vibe ("warmer", "calming blue", etc.).
-  - "copy": key is one of the editableHeadings keys from the context; value is the new text. Use the key whose label matches the section + page the owner means.
-  - "chips": items is the COMPLETE new list of short "why us" highlight chips.
-  - "carriers": items is the COMPLETE new list of accepted insurance carrier names.
-  - "stats": stats is the COMPLETE new list (max 3) of {value, label} trust stats.
-  - "paymentMethods": items is the COMPLETE new list of accepted payment methods (e.g. "Cash", "All major credit cards", "HSA / FSA cards").
-  - "cancellationPolicy": value is the new cancellation-policy prose (or empty string to hide it).
-  - "hours": hours is an object keyed by day (mon,tue,wed,thu,fri,sat,sun), each { open: "HH:MM" (24h), close: "HH:MM", closed: boolean }. Include EVERY day; mark days off with closed:true.
-  - "faq": faq is the COMPLETE new list of { category, question, answer }. category ∈ Booking, Your Visit, Insurance, Billing, Comfort. Start from the current faq and apply the change (add/edit/remove).
-- For any list (chips/carriers/stats/paymentMethods/faq) always return the FULL list, not just additions — start from the current values in the context.
-- Never invent verifiable facts: no fake review counts, prices, years, awards, or carriers the owner didn't mention. Stats stay qualitative ("Same-week", "Most insurance accepted") unless the owner gives a real number. FAQ answers describe cost as an estimate-first process, never a dollar figure.
-- "page" is filled in for you from the edit — you may leave it "/".
-- Set "summary" to a few words naming what you changed, e.g. "Updated the hero headline and brand color".`
+
+PICK THE RIGHT TYPE — this matters more than anything. Match the owner's intent to a TYPE before anything else. Structured data must NEVER be written into a "copy" heading:
+- Open/close times, days open, "we close at…", "closed on…", "open until…", "our hours" → ALWAYS type "hours". NEVER "copy".
+- Accepted insurance / "we take…" / carriers → type "carriers".
+- How patients pay / payment methods / "we accept Apple Pay" → type "paymentMethods".
+- The numbers/trust signals under the hero → type "stats".
+- The short highlight chips by the intro → type "chips".
+- A question patients ask / "add an FAQ about…" → type "faq".
+- The cancellation / no-show policy → type "cancellationPolicy".
+- Brand / accent / theme color → type "brandColor".
+- The clinic name, phone, email, the hero headline, or the about story → type "field".
+- A specific named section heading or block of body text → type "copy" with the editableHeadings key whose label matches the section AND page the owner means.
+
+A "copy" edit's value is ALWAYS the human-readable display text for that one heading/section — never the owner's instruction text, and never structured data (hours, lists, times). If you find yourself about to put hours, days, or a list into a copy value, STOP — you picked the wrong type.
+
+Type details:
+- "field": field ∈ tagline (hero headline), about, displayName, phone, email.
+- "brandColor": value is a hex color like "#2563EB" — tasteful + readable on a light background.
+- "copy": key from editableHeadings; value = new display text.
+- "chips" / "carriers" / "paymentMethods": items = the COMPLETE new list (start from current + apply the change).
+- "stats": stats = COMPLETE new list (max 3) of {value,label}.
+- "cancellationPolicy": value = new prose ("" to hide).
+- "hours": hours keyed by day (mon..sun), each { open:"HH:MM" 24h, close:"HH:MM", closed:boolean }. Only include the days the owner mentioned (the rest are left unchanged).
+- "faq": faq = COMPLETE new list of {category, question, answer}; category ∈ Booking, Your Visit, Insurance, Billing, Comfort.
+
+Examples (instruction → the type you call):
+- "update our hours for Mon, Wed and Fri — we close at 3pm" → hours { mon:{open:"09:00",close:"15:00",closed:false}, wed:{...close:"15:00"...}, fri:{...close:"15:00"...} }
+- "we now take Apple Pay" → paymentMethods ["Cash","All major credit cards","HSA / FSA cards","Apple Pay"]
+- "make the brand a deeper teal" → brandColor "#0F766E"
+- "the contact heading should read 'Come on in'" → copy key "home.contactTitle" value "Come on in"
+- "add an FAQ about parking" → faq [ …current items…, { category:"Your Visit", question:"Where do I park?", answer:"…" } ]
+
+Safety:
+- Never invent verifiable facts: no fake review counts, prices, years, awards, or carriers the owner didn't mention. Stats stay qualitative unless given a real number. FAQ cost answers are estimate-first, never a dollar figure.
+- If the request is genuinely ambiguous (e.g. "change the headline" when several exist, and you can't tell which), DON'T guess — set the "clarify" field to ONE short question and return an empty edits array.
+- "page" is filled in for you; "summary" is a few words naming what you changed.`
 
 const INPUT_SCHEMA = {
   type: 'object',
   properties: {
     summary: { type: 'string', description: 'A few words naming what you changed.' },
     page: { type: 'string', description: 'Site path most affected, e.g. "/" or "/about".' },
+    clarify: { type: 'string', description: 'When the request is too ambiguous to act on, ONE short question; leave edits empty.' },
     edits: {
       type: 'array',
       description: 'The edits to apply.',
@@ -260,6 +304,11 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     return { ok: false, error: 'The AI request failed — please try again.' }
   }
 
+  // Ambiguous request → the model asked instead of guessing wrong.
+  if (envelope.edits.length === 0 && envelope.clarify?.trim()) {
+    return { ok: false, error: envelope.clarify.trim(), clarify: true }
+  }
+
   // ── Apply the edits to a single patch ─────────────────────────────────────
   const patch: Partial<typeof clinicProfile.$inferInsert> = {}
   const overrides: Record<string, string> = {
@@ -279,35 +328,40 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     if (resultPage === null && p) resultPage = p
   }
   const knownCopy = new Map(COPY_KEYS.map((c) => [c.key, c]))
+  const trunc = (s: string, n = 56) => {
+    const t = s.trim()
+    if (!t) return '(cleared)'
+    return t.length > n ? `${t.slice(0, n - 1)}…` : t
+  }
 
   for (const e of envelope.edits) {
     if (e.type === 'field' && e.field && FIELD_COLS.has(e.field) && typeof e.value === 'string') {
       const v = e.value.trim()
       ;(patch as Record<string, unknown>)[e.field] = v || null
-      applied.push({ label: labelForField(e.field) })
+      applied.push({ label: labelForField(e.field), preview: trunc(v) })
       setPage('/')
       if (e.field === 'tagline' || e.field === 'about' || e.field === 'displayName') setAnchor(e.field)
     } else if (e.type === 'brandColor' && e.value && HEX.test(e.value.trim())) {
       patch.brandColor = e.value.trim()
-      applied.push({ label: 'Brand color' })
+      applied.push({ label: 'Brand color', preview: e.value.trim() })
       setPage('/')
     } else if (e.type === 'copy' && e.key && knownCopy.has(e.key) && typeof e.value === 'string') {
       const entry = knownCopy.get(e.key)!
       overrides[e.key] = e.value
       overridesTouched = true
-      applied.push({ label: entry.label })
+      applied.push({ label: entry.label, preview: trunc(e.value) })
       setAnchor(`copy:${e.key}`)
       setPage(entry.page)
     } else if (e.type === 'chips' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 8)
       patch.differenceChips = list.length > 0 ? list : null
-      applied.push({ label: '“Why us” highlights' })
+      applied.push({ label: '“Why us” highlights', preview: trunc(list.join(', ')) })
       setAnchor('differenceChips')
       setPage('/')
     } else if (e.type === 'carriers' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 40)
       patch.acceptedInsuranceCarriers = list.length > 0 ? list : null
-      applied.push({ label: 'Insurance carriers' })
+      applied.push({ label: 'Insurance carriers', preview: trunc(list.join(', ')) })
       setAnchor('acceptedInsuranceCarriers')
       setPage('/')
     } else if (e.type === 'stats' && Array.isArray(e.stats)) {
@@ -316,25 +370,28 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
         .map((s, i) => ({ id: `stat_${i}`, value: s.value.trim(), label: s.label.trim() }))
         .filter((s) => s.value && s.label)
       patch.stats = list.length > 0 ? list : null
-      applied.push({ label: 'Trust stats' })
+      applied.push({ label: 'Trust stats', preview: trunc(list.map((s) => `${s.value} ${s.label}`).join(' · ')) })
       setAnchor('stats')
       setPage('/')
     } else if (e.type === 'paymentMethods' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 12)
       patch.paymentMethods = list.length > 0 ? list : null
-      applied.push({ label: 'Payment methods' })
+      applied.push({ label: 'Payment methods', preview: trunc(list.join(', ')) })
       setAnchor('paymentFinancing')
       setPage('/payment-financing')
     } else if (e.type === 'cancellationPolicy' && typeof e.value === 'string') {
       patch.cancellationPolicy = e.value.trim() || null
-      applied.push({ label: 'Cancellation policy' })
+      applied.push({ label: 'Cancellation policy', preview: trunc(e.value) })
       setAnchor('paymentFinancing')
       setPage('/payment-financing')
     } else if (e.type === 'hours' && e.hours) {
-      const h = cleanHours(e.hours)
-      if (h) {
-        patch.hours = h
-        applied.push({ label: 'Office hours' })
+      const cleaned = cleanHours(e.hours)
+      if (cleaned) {
+        // MERGE onto current hours so unmentioned days are never wiped.
+        const current = (profile.hours as Record<string, unknown> | null) ?? {}
+        patch.hours = { ...current, ...cleaned }
+        const days = Object.keys(cleaned).map((d) => DAY_LABELS[d] ?? d).join(', ')
+        applied.push({ label: 'Office hours', preview: `${days} updated` })
         setAnchor('hours')
         setPage('/')
       }
@@ -344,7 +401,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
         .filter((f) => f.question && f.answer && f.category)
         .slice(0, 14)
       patch.faq = list.length > 0 ? list : null
-      applied.push({ label: 'FAQ' })
+      applied.push({ label: 'FAQ', preview: `${list.length} question${list.length === 1 ? '' : 's'}` })
       setAnchor('faq')
       setPage('/faq')
     }
@@ -355,7 +412,19 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   }
 
   if (applied.length === 0) {
-    return { ok: false, error: 'I couldn’t turn that into an edit — try naming the section to change.' }
+    return {
+      ok: false,
+      error:
+        envelope.clarify?.trim() ||
+        'I couldn’t safely turn that into an edit — try naming the section to change.',
+      clarify: !!envelope.clarify?.trim(),
+    }
+  }
+
+  // Snapshot the previous value of every changed column, for one-click undo.
+  const before: Record<string, unknown> = {}
+  for (const col of Object.keys(patch)) {
+    before[col] = (profile as Record<string, unknown>)[col] ?? null
   }
 
   await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, orgId))
@@ -363,7 +432,37 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   void incrementAiUsage(orgId).catch(() => {})
 
   const page = resultPage ?? (envelope.page.startsWith('/') ? envelope.page : '/')
-  return { ok: true, edits: applied, page, summary: envelope.summary.trim() || 'Updated your site', anchor }
+  return {
+    ok: true,
+    edits: applied,
+    page,
+    summary: envelope.summary.trim() || 'Updated your site',
+    anchor,
+    before,
+  }
+}
+
+/**
+ * Undo: restore the previous column values captured before an AI edit. Only
+ * whitelisted, editable columns are written — the rest are ignored.
+ */
+export async function revertAiWebsiteEdit(
+  orgId: string,
+  before: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!before || typeof before !== 'object') return { ok: false, error: 'Nothing to undo.' }
+  const allowed = new Set<string>(EDITABLE_COLUMNS)
+  const patch: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(before)) {
+    if (allowed.has(k)) patch[k] = v ?? null
+  }
+  if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to undo.' }
+  try {
+    await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, orgId))
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'Could not undo — try again.' }
+  }
 }
 
 function cleanHours(
