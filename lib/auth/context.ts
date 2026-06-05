@@ -84,7 +84,22 @@ export async function getTenantContext(): Promise<TenantContext | null> {
 
   let activeOrgId = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId
 
-  if (!activeOrgId) {
+  // Resolve this user's membership in the active org. If the session still
+  // points at an org the user is NOT a member of (e.g. they were removed from
+  // the clinic but their session carries the stale id, or activeOrganizationId
+  // was never set), fall back to their first real membership — never grant a
+  // default 'member' context for an org they don't belong to.
+  let memberRow = activeOrgId
+    ? (
+        await db
+          .select()
+          .from(member)
+          .where(and(eq(member.organizationId, activeOrgId), eq(member.userId, session.user.id)))
+          .limit(1)
+      )[0]
+    : undefined
+
+  if (!memberRow) {
     const [firstMembership] = await db
       .select()
       .from(member)
@@ -92,7 +107,10 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       .limit(1)
     if (!firstMembership) return null
     activeOrgId = firstMembership.organizationId
+    memberRow = firstMembership
   }
+
+  if (!activeOrgId) return null
 
   const [org] = await db
     .select()
@@ -101,12 +119,6 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     .limit(1)
 
   if (!org) return null
-
-  const [memberRow] = await db
-    .select()
-    .from(member)
-    .where(and(eq(member.organizationId, activeOrgId), eq(member.userId, session.user.id)))
-    .limit(1)
 
   let planTier: PlanTier = 'basic'
   if (org.type === 'clinic') {
@@ -121,7 +133,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   const tenantType: TenantType =
     org.type === 'platform'
       ? 'platform'
-      : memberRow?.role === 'patient'
+      : memberRow.role === 'patient'
         ? 'patient'
         : 'clinic'
 
@@ -144,7 +156,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     organizationName: org.name,
     organizationSlug: org.slug,
     tenantType,
-    role: (memberRow?.role ?? 'member') as Role,
+    role: memberRow.role as Role,
     planTier,
     patientId,
     isDemo: false,

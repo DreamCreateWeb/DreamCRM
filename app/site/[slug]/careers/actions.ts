@@ -43,7 +43,9 @@ export async function submitApplication(formData: FormData) {
   const resume = formData.get('resume')
   if (resume instanceof File && resume.size > 0) {
     if (resume.size > MAX_RESUME_BYTES) throw new Error('Résumé must be under 5MB.')
-    if (resume.type && !ALLOWED_RESUME_TYPES.includes(resume.type)) {
+    // Require a recognised type — an absent/empty Content-Type must NOT slip an
+    // arbitrary file through (it previously short-circuited the check).
+    if (!resume.type || !ALLOWED_RESUME_TYPES.includes(resume.type)) {
       throw new Error('Résumé must be a PDF or Word document.')
     }
     const safe = (resume.name || 'resume').replace(/[^a-z0-9_.-]/gi, '_')

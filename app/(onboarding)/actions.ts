@@ -63,6 +63,13 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect('/signin')
 
+  // Platform admins operate the platform org; running clinic onboarding as one
+  // would create a clinic_profile + Stripe subscription ON the platform org
+  // (its activeOrganizationId is the platform org). Block it outright.
+  if ((session.user as { platformAdmin?: boolean }).platformAdmin) {
+    throw new Error('Platform admins cannot go through clinic onboarding.')
+  }
+
   // Resolve (or create) the user's clinic org.
   let orgId = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId
   if (!orgId) {

@@ -11,12 +11,14 @@ import { renewExpiringWatches } from '@/lib/services/mailbox'
  * dev's terminal must include the same header.
  */
 export async function GET(req: NextRequest) {
+  // Fail CLOSED: if CRON_SECRET is unset the endpoint must reject rather than
+  // run unauthenticated — it triggers Gmail API calls for every connected
+  // mailbox, so an open endpoint is a quota-exhaustion vector. Matches the
+  // guard every other cron/admin route uses.
   const secret = process.env.CRON_SECRET
-  if (secret) {
-    const got = req.headers.get('authorization') ?? ''
-    if (got !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
+  const got = req.headers.get('authorization') ?? ''
+  if (!secret || got !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   if (!process.env.GMAIL_PUBSUB_TOPIC) {
