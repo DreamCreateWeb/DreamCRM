@@ -99,4 +99,39 @@ describe('submitPatientIntakeAction', () => {
     await expect(call(baseInput)).rejects.toThrow(/no longer accepting/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
+
+  it('rejects when a required field is missing from the submitted data', async () => {
+    getFormTemplate.mockResolvedValueOnce({
+      id: 'ft_1',
+      archivedAt: null,
+      schema: {
+        sections: [
+          {
+            id: 's1',
+            title: 'About you',
+            fields: [
+              { id: 'name', label: 'Full name', required: true, type: 'text' },
+              { id: 'consent', label: 'Consent', required: true, type: 'signature' },
+            ],
+          },
+        ],
+      },
+    })
+    // baseInput.data has 'name' but not the required 'consent'.
+    await expect(call(baseInput)).rejects.toThrow(/Consent is required/i)
+    expect(submitForm).not.toHaveBeenCalled()
+  })
+
+  it('submits when all required fields are present (schema-validated)', async () => {
+    getFormTemplate.mockResolvedValueOnce({
+      id: 'ft_1',
+      archivedAt: null,
+      schema: {
+        sections: [{ id: 's1', title: 'About you', fields: [{ id: 'name', label: 'Full name', required: true, type: 'text' }] }],
+      },
+    })
+    submitForm.mockResolvedValueOnce({ id: 'sub_1' })
+    await call(baseInput)
+    expect(submitForm).toHaveBeenCalled()
+  })
 })

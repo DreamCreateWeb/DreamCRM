@@ -55,6 +55,32 @@ describe('getInvitationDetails', () => {
     expect(result?.expired).toBe(true)
   })
 
+  it('marks expired=true when status is canceled (better-auth cancelInvitation)', async () => {
+    stubs.invitation = {
+      email: 'a@x.com',
+      role: 'member',
+      status: 'canceled',
+      expiresAt: new Date(Date.now() + 86400_000),
+      orgId: 'org_1',
+    }
+    stubs.org = { name: 'Acme' }
+    const result = await getInvitationDetails('tok')
+    expect(result?.expired).toBe(true)
+  })
+
+  it('marks expired=true when status is rejected', async () => {
+    stubs.invitation = {
+      email: 'a@x.com',
+      role: 'member',
+      status: 'rejected',
+      expiresAt: new Date(Date.now() + 86400_000),
+      orgId: 'org_1',
+    }
+    stubs.org = { name: 'Acme' }
+    const result = await getInvitationDetails('tok')
+    expect(result?.expired).toBe(true)
+  })
+
   it('marks expired=true when expiresAt has passed', async () => {
     stubs.invitation = {
       email: 'a@x.com',

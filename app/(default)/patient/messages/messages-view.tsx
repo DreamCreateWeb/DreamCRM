@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { sendPatientMessageAction } from './actions'
 
 interface SerializedMessage {
@@ -45,6 +46,7 @@ export default function PatientMessagesView({
   brandColor: string | null
   messages: SerializedMessage[]
 }) {
+  const router = useRouter()
   const [draft, setDraft] = useState('')
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
@@ -67,6 +69,9 @@ export default function PatientMessagesView({
       if (r.ok) {
         setDraft('')
         setFeedback({ kind: 'ok', msg: 'Sent. The clinic will reply during business hours.' })
+        // The message list is a server prop; refresh so the sent message
+        // appears in the stream immediately instead of after a manual reload.
+        router.refresh()
         setTimeout(() => setFeedback(null), 5000)
       } else {
         setFeedback({ kind: 'err', msg: r.error })

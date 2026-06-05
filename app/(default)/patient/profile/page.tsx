@@ -14,7 +14,7 @@ export default async function PatientProfile() {
   if (ctx.tenantType !== 'patient') redirect('/')
   if (!ctx.patientId) redirect('/')
 
-  const me = await getMyPatientRecord(ctx.patientId)
+  const me = await getMyPatientRecord(ctx.patientId, ctx.organizationId)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-2xl mx-auto">
@@ -93,7 +93,7 @@ export default async function PatientProfile() {
               className="form-input w-full"
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <input
               name="city"
               type="text"
@@ -110,6 +110,48 @@ export default async function PatientProfile() {
               className="form-input"
               aria-label="State"
             />
+            <input
+              name="postalCode"
+              type="text"
+              placeholder="ZIP"
+              defaultValue={me?.postalCode ?? ''}
+              className="form-input"
+              aria-label="ZIP / postal code"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1" htmlFor="insuranceProvider">
+            Insurance <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <div className="space-y-2">
+            <input
+              id="insuranceProvider"
+              name="insuranceProvider"
+              type="text"
+              placeholder="Insurance provider (e.g. Delta Dental)"
+              defaultValue={me?.insuranceProvider ?? ''}
+              className="form-input w-full"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                name="insurancePolicyNumber"
+                type="text"
+                placeholder="Member / policy #"
+                defaultValue={me?.insurancePolicyNumber ?? ''}
+                className="form-input"
+                aria-label="Insurance member or policy number"
+              />
+              <input
+                name="insuranceGroupNumber"
+                type="text"
+                placeholder="Group #"
+                defaultValue={me?.insuranceGroupNumber ?? ''}
+                className="form-input"
+                aria-label="Insurance group number"
+              />
+            </div>
           </div>
         </div>
         <div className="flex justify-end pt-2">
