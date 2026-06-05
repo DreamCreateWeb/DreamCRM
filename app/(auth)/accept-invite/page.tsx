@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { authClient, signUp } from '@/lib/auth/client'
 import { getInvitationDetails, type InvitationDetails } from './invite-details'
 import { linkPatientRecord } from './link-patient'
+import { acceptPatientPortalInvite } from './patient-invite'
 import AuthHeader from '../auth-header'
 import AuthImage from '../auth-image'
 
@@ -50,7 +51,7 @@ function AcceptInviteInner() {
 
       if (sessionResult.data?.session) {
         setStep({ type: 'accepting' })
-        acceptNow(details.orgName)
+        acceptNow(details.orgName, details.role)
       } else {
         setStep({ type: 'needsAccount', details })
       }
@@ -60,7 +61,19 @@ function AcceptInviteInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  async function acceptNow(orgName: string) {
+  async function acceptNow(orgName: string, role: string) {
+    // Patient invites use a dedicated accept path — better-auth's role set is
+    // owner/admin/member only, so claiming a patient invite through it would
+    // create a clinic 'member' and drop the patient into the admin dashboard.
+    if (role === 'patient') {
+      const r = await acceptPatientPortalInvite(token)
+      if (!r.ok) {
+        setStep({ type: 'error', message: r.error })
+        return
+      }
+      setStep({ type: 'success', orgName })
+      return
+    }
     const result = await authClient.organization.acceptInvitation({ invitationId: token })
     if (result.error) {
       setStep({
@@ -99,7 +112,7 @@ function AcceptInviteInner() {
     }
 
     setStep({ type: 'accepting' })
-    await acceptNow(details.orgName)
+    await acceptNow(details.orgName, details.role)
     setSubmitting(false)
   }
 
@@ -121,7 +134,7 @@ function AcceptInviteInner() {
     }
 
     setStep({ type: 'accepting' })
-    await acceptNow(details.orgName)
+    await acceptNow(details.orgName, details.role)
     setSubmitting(false)
   }
 

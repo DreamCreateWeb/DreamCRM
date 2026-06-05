@@ -14,6 +14,7 @@ import {
   archivePatientAction,
   openPatientThreadAction,
   sendIntakeRequestAction,
+  sendPatientPortalInviteAction,
   sendReviewRequestForPatientAction,
   viewAsPatientAction,
 } from '../actions'
@@ -378,6 +379,38 @@ function Stat({
   )
 }
 
+function SendPortalInviteButton({ patientId }: { patientId: string }) {
+  const [pending, startTransition] = useTransition()
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  function onClick() {
+    setFeedback(null)
+    startTransition(async () => {
+      const r = await sendPatientPortalInviteAction(patientId)
+      setFeedback(r.ok ? { kind: 'ok', msg: `Invite sent to ${r.sentTo}` } : { kind: 'err', msg: r.error })
+      setTimeout(() => setFeedback(null), 5000)
+    })
+  }
+
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={pending}
+        className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50"
+      >
+        {pending ? 'Sending…' : 'Send portal invite →'}
+      </button>
+      {feedback && (
+        <p className={`text-[11px] mt-0.5 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+          {feedback.msg}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function NeedsAttention({ header }: { header: PatientHeader }) {
   const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string }; sendIntake?: boolean }> = []
   if (header.flags.unconfirmedNext48h) {
@@ -488,6 +521,12 @@ function IdentityCard({ header }: { header: PatientHeader }) {
         <p className="text-xs text-gray-600 dark:text-gray-300">
           {header.hasPortalAccount ? 'Linked to a portal account' : 'Not invited yet'}
         </p>
+        {!header.hasPortalAccount &&
+          (header.email ? (
+            <SendPortalInviteButton patientId={header.id} />
+          ) : (
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Add an email to invite them.</p>
+          ))}
       </div>
     </div>
   )
