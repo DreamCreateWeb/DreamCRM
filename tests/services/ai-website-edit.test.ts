@@ -5,7 +5,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const state: { configured: boolean; toolInput: unknown } = { configured: true, toolInput: null }
+const state: {
+  configured: boolean
+  toolInput: unknown
+  usage: { used: number; limit: number; remaining: number; period: string }
+} = {
+  configured: true,
+  toolInput: null,
+  usage: { used: 1, limit: 50, remaining: 49, period: '2026-06' },
+}
 let capturedPatch: Record<string, unknown> | null = null
 
 const profileRow = {
@@ -38,7 +46,10 @@ vi.mock('@/lib/ai', () => ({
   aiConfigured: () => state.configured,
   runClaudeJson: async () => state.toolInput,
 }))
-vi.mock('@/lib/services/ai-website', () => ({ incrementAiUsage: async () => {} }))
+vi.mock('@/lib/services/ai-website', () => ({
+  incrementAiUsage: async () => {},
+  getAiUsage: async () => state.usage,
+}))
 vi.mock('@/lib/services/service-library-ai', () => ({ CORE_VOICE_RULES: '' }))
 vi.mock('@/lib/db', () => ({
   db: {
@@ -59,6 +70,7 @@ import { applyAiWebsiteEdit, revertAiWebsiteEdit } from '@/lib/services/ai-websi
 beforeEach(() => {
   state.configured = true
   state.toolInput = null
+  state.usage = { used: 1, limit: 50, remaining: 49, period: '2026-06' }
   capturedPatch = null
 })
 
@@ -67,6 +79,27 @@ describe('applyAiWebsiteEdit', () => {
     state.configured = false
     const r = await applyAiWebsiteEdit('org_1', 'change the headline')
     expect(r.ok).toBe(false)
+  })
+
+  it('gates when the monthly AI-edit allowance is spent — no model call, no write', async () => {
+    state.usage = { used: 50, limit: 50, remaining: 0, period: '2026-06' }
+    state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'field', field: 'tagline', value: 'New headline' }] }
+    const r = await applyAiWebsiteEdit('org_1', 'change the headline')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.limit).toBe(true)
+      expect(r.usage?.remaining).toBe(0)
+    }
+    // Gated before the model call + before any DB write.
+    expect(capturedPatch).toBeNull()
+  })
+
+  it('returns a fresh usage snapshot on a successful edit', async () => {
+    state.usage = { used: 10, limit: 50, remaining: 40, period: '2026-06' }
+    state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'field', field: 'tagline', value: 'New headline' }] }
+    const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.usage.remaining).toBe(40)
   })
 
   it('maps a field edit to the column + labels it', async () => {

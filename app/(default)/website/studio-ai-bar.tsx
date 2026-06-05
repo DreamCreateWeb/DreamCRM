@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { runAiWebsiteEdit, undoAiWebsiteEdit } from './ai-edit-action'
+import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 
 /**
  * Floating AI command bar for the Website Studio. The owner types a plain-
@@ -17,6 +18,7 @@ const FOLLOW_KEY = 'dc-studio-follow'
 
 export default function StudioAiBar({
   onApplied,
+  initialUsage,
 }: {
   onApplied: (opts: {
     page: string
@@ -24,6 +26,7 @@ export default function StudioAiBar({
     edits: { anchor: string | null; page: string }[]
     follow: boolean
   }) => void
+  initialUsage: AiUsageSnapshot
 }) {
   const [value, setValue] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
@@ -34,6 +37,10 @@ export default function StudioAiBar({
   const [follow, setFollow] = useState(true)
   const [undoData, setUndoData] = useState<UndoData | null>(null)
   const [undoing, setUndoing] = useState(false)
+  // AI edits spend tokens, so they're metered against the monthly allowance.
+  const [usage, setUsage] = useState<AiUsageSnapshot>(initialUsage)
+  const [isLimit, setIsLimit] = useState(false)
+  const outOfEdits = usage.remaining <= 0
 
   useEffect(() => {
     try {
@@ -56,10 +63,11 @@ export default function StudioAiBar({
 
   async function submit() {
     const text = value.trim()
-    if (!text || phase === 'working') return
+    if (!text || phase === 'working' || outOfEdits) return
     setPhase('working')
     setError('')
     setIsClarify(false)
+    setIsLimit(false)
     setDetails([])
     setSummary('')
     try {
@@ -68,6 +76,7 @@ export default function StudioAiBar({
         setSummary(res.summary)
         setDetails(res.edits)
         setUndoData({ before: res.before, page: res.page, anchor: res.anchor })
+        setUsage(res.usage)
         setValue('')
         setPhase('done')
         onApplied({ page: res.page, anchor: res.anchor, edits: res.edits, follow })
@@ -77,11 +86,14 @@ export default function StudioAiBar({
       } else {
         setError(res.error)
         setIsClarify(!!res.clarify)
+        setIsLimit(!!res.limit)
+        if (res.usage) setUsage(res.usage)
         setPhase('error')
       }
     } catch {
       setError('Something went wrong — try again.')
       setIsClarify(false)
+      setIsLimit(false)
       setPhase('error')
     }
   }
@@ -166,30 +178,42 @@ export default function StudioAiBar({
             {phase === 'error' && (
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium text-white shadow-lg ${
-                  isClarify ? 'bg-amber-500/90' : 'bg-rose-500/90'
+                  isClarify || isLimit ? 'bg-amber-500/90' : 'bg-rose-500/90'
                 }`}
               >
-                {isClarify ? '🤔' : ''} {error}
+                {isLimit ? '✨' : isClarify ? '🤔' : ''} {error}
               </span>
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={toggleFollow}
-            title={
-              follow
-                ? 'Following — the viewport jumps to each change'
-                : 'Background — edits apply without moving the viewport'
-            }
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-stone-900/85 backdrop-blur-xl border border-white/10 pl-2.5 pr-1.5 py-1 text-[11px] font-medium text-stone-300 hover:text-white transition"
-          >
-            {follow ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            <span>Follow along</span>
-            <span className={`relative w-7 h-4 rounded-full transition-colors ${follow ? 'bg-violet-500' : 'bg-stone-600'}`}>
-              <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${follow ? 'translate-x-3' : ''}`} />
+          <div className="shrink-0 flex items-center gap-1.5">
+            {/* Monthly AI-edit allowance — AI edits spend tokens, so they're metered. */}
+            <span
+              title="AI edits use AI and are metered monthly — they reset on the 1st. Editing by hand is always free."
+              className={`inline-flex items-center gap-1 rounded-full bg-stone-900/85 backdrop-blur-xl border px-2.5 py-1 text-[11px] font-medium ${
+                outOfEdits ? 'border-amber-400/40 text-amber-300' : 'border-white/10 text-stone-300'
+              }`}
+            >
+              <Sparkle className="w-3 h-3" />
+              {outOfEdits ? 'No AI edits left' : `${usage.remaining} AI edit${usage.remaining === 1 ? '' : 's'} left`}
             </span>
-          </button>
+            <button
+              type="button"
+              onClick={toggleFollow}
+              title={
+                follow
+                  ? 'Following — the viewport jumps to each change'
+                  : 'Background — edits apply without moving the viewport'
+              }
+              className="inline-flex items-center gap-1.5 rounded-full bg-stone-900/85 backdrop-blur-xl border border-white/10 pl-2.5 pr-1.5 py-1 text-[11px] font-medium text-stone-300 hover:text-white transition"
+            >
+              {follow ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              <span>Follow along</span>
+              <span className={`relative w-7 h-4 rounded-full transition-colors ${follow ? 'bg-violet-500' : 'bg-stone-600'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${follow ? 'translate-x-3' : ''}`} />
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* The bar */}
@@ -204,14 +228,18 @@ export default function StudioAiBar({
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            disabled={working}
-            placeholder="Ask AI to change anything — “close at 3pm on Fridays”"
+            disabled={working || outOfEdits}
+            placeholder={
+              outOfEdits
+                ? 'Out of AI edits this month — edit by hand, or they reset on the 1st'
+                : 'Ask AI to change anything — “close at 3pm on Fridays”'
+            }
             className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-stone-400 focus:outline-none disabled:opacity-60"
             aria-label="Ask the AI to edit your website"
           />
           <button
             type="submit"
-            disabled={!value.trim() || working}
+            disabled={!value.trim() || working || outOfEdits}
             className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-md transition hover:brightness-110 disabled:opacity-40 disabled:cursor-default"
             aria-label="Send"
           >

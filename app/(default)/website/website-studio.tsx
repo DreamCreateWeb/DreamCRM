@@ -15,6 +15,7 @@ import type {
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import StudioAiBar from './studio-ai-bar'
+import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 import { Field, TagListEditor, inputCls, textareaCls } from '@/components/ui/editor-kit'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
 import LeadFormBuilder from './lead-form-builder'
@@ -50,6 +51,7 @@ interface Props {
   profile: ClinicProfile
   orgId: string
   library: ServiceLibraryEntryWithStatus[]
+  initialAiUsage: AiUsageSnapshot
 }
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -151,7 +153,7 @@ const btnSecondary =
  * half: it calls the server actions (persistence is always gated server-side),
  * reloads the canvas on success, and renders the image / section modals on top.
  */
-export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }: Props) {
+export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -338,7 +340,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
         className="flex-1 w-full border-0 bg-white"
       />
 
-      {!modal && <StudioAiBar onApplied={onAiApplied} />}
+      {!modal && <StudioAiBar onApplied={onAiApplied} initialUsage={initialAiUsage} />}
 
       {modal && (
         <StudioModal

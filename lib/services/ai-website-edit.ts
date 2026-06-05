@@ -5,7 +5,8 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { CORE_VOICE_RULES } from '@/lib/services/service-library-ai'
-import { incrementAiUsage } from '@/lib/services/ai-website'
+import { incrementAiUsage, getAiUsage } from '@/lib/services/ai-website'
+import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 
 /**
  * AI command bar for the Website Studio. Translates a clinic owner's plain-
@@ -101,8 +102,10 @@ export type AiEditResult =
       anchor: string | null
       /** Previous values of every changed column — pass to revert for one-click undo. */
       before: Record<string, unknown>
+      /** Fresh allowance snapshot after counting this edit. */
+      usage: AiUsageSnapshot
     }
-  | { ok: false; error: string; clarify?: boolean }
+  | { ok: false; error: string; clarify?: boolean; limit?: boolean; usage?: AiUsageSnapshot }
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
@@ -282,6 +285,19 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     .limit(1)
   if (!profile) return { ok: false, error: 'No website found for this clinic.' }
 
+  // The AI bar spends Claude tokens on every edit, so it's metered against the
+  // monthly allowance (editing by hand stays free + uncounted). Gate BEFORE the
+  // model call so we never spend tokens past the cap.
+  const usage = await getAiUsage(orgId, profile.planTier)
+  if (usage.remaining <= 0) {
+    return {
+      ok: false,
+      limit: true,
+      usage,
+      error: `You've used all ${usage.limit} AI edits this month. They reset on the 1st — you can keep editing by hand anytime.`,
+    }
+  }
+
   let envelope: z.infer<typeof EditEnvelope>
   try {
     const input = await runClaudeJson({
@@ -421,8 +437,15 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   }
 
   await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, orgId))
-  // Best-effort usage tracking (shares the website AI counter).
-  void incrementAiUsage(orgId).catch(() => {})
+  // Count this successful edit against the allowance — best-effort so a counter
+  // hiccup never fails an edit that already applied. Return the fresh snapshot
+  // so the bar shows what's left.
+  await incrementAiUsage(orgId).catch(() => {})
+  const refreshed = await getAiUsage(orgId, profile.planTier).catch(() => ({
+    ...usage,
+    used: usage.used + 1,
+    remaining: Math.max(0, usage.remaining - 1),
+  }))
 
   const page = resultPage ?? (envelope.page.startsWith('/') ? envelope.page : '/')
   return {
@@ -432,6 +455,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     summary: envelope.summary.trim() || 'Updated your site',
     anchor,
     before,
+    usage: refreshed,
   }
 }
 
