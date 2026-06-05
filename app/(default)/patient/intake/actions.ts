@@ -2,7 +2,15 @@
 
 import { requireTenant } from '@/lib/auth/context'
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
-import type { FormSubmissionData } from '@/lib/types/forms'
+import type { FormSubmissionData, FormTemplateSchema } from '@/lib/types/forms'
+
+/** A required field is unsatisfied when its value is missing or empty. */
+function isEmptyValue(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (typeof v === 'string') return v.trim() === ''
+  if (Array.isArray(v)) return v.length === 0
+  return false
+}
 
 interface PatientIntakeInput {
   orgId: string
@@ -34,6 +42,17 @@ export async function submitPatientIntakeAction(input: PatientIntakeInput) {
   // Trust the SESSION orgId, not the prop, to avoid cross-tenant writes.
   const template = await getFormTemplate(ctx.organizationId, input.templateId)
   if (!template || template.archivedAt) throw new Error('Form is no longer accepting submissions')
+
+  // Re-validate required fields server-side — the client runner validates too,
+  // but a direct action call could post partial/empty data otherwise.
+  const schema = template.schema as FormTemplateSchema
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) {
+      if (field.required && isEmptyValue(input.data?.[field.id])) {
+        throw new Error(`${field.label} is required`)
+      }
+    }
+  }
 
   await submitForm({
     organizationId: ctx.organizationId,

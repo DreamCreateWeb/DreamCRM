@@ -19,11 +19,11 @@ import {
   type ThreadMessage,
 } from '@/lib/services/patient-messaging'
 
-export async function getMyPatientRecord(patientId: string) {
+export async function getMyPatientRecord(patientId: string, organizationId: string) {
   const [row] = await db
     .select()
     .from(patient)
-    .where(eq(patient.id, patientId))
+    .where(and(eq(patient.id, patientId), eq(patient.organizationId, organizationId)))
     .limit(1)
   return row ?? null
 }
@@ -37,6 +37,10 @@ export async function getMyUpcomingAppointments(patientId: string, organizationI
         eq(appointment.patientId, patientId),
         eq(appointment.organizationId, organizationId),
         gte(appointment.startTime, new Date()),
+        // A future-dated appointment that's cancelled or a no-show isn't
+        // "upcoming" — don't show it on the dashboard as if the visit stands.
+        ne(appointment.status, 'cancelled'),
+        ne(appointment.status, 'no_show'),
       ),
     )
     .orderBy(appointment.startTime)

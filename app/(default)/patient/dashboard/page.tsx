@@ -28,7 +28,7 @@ export default async function PatientDashboard() {
   if (!ctx.patientId) redirect('/')
 
   const [me, upcoming, clinic] = await Promise.all([
-    getMyPatientRecord(ctx.patientId),
+    getMyPatientRecord(ctx.patientId, ctx.organizationId),
     getMyUpcomingAppointments(ctx.patientId, ctx.organizationId),
     getMyClinicHeader(ctx.organizationId),
   ])

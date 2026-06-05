@@ -36,6 +36,10 @@ export async function getInvitationDetails(token: string): Promise<InvitationDet
     email: row.email,
     orgName: org?.name ?? '',
     role: row.role ?? 'member',
-    expired: row.status === 'accepted' || new Date() > row.expiresAt,
+    // Anything other than a still-pending invitation can't be accepted
+    // (accepted / canceled / rejected all count as no-longer-usable), as does
+    // a past expiry. better-auth blocks non-pending accepts server-side; this
+    // surfaces it as a clean "expired" state instead of a generic error.
+    expired: row.status !== 'pending' || new Date() > row.expiresAt,
   }
 }
