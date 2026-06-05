@@ -116,10 +116,12 @@ export async function validateCoupon(
 
 export async function markCouponUsed(organizationId: string, couponId: string, orderId: string): Promise<void> {
   // Only flips single-use codes; multi-use stays available. Org-scoped so a
-  // caller can never burn a coupon outside the order's clinic.
+  // caller can never burn a coupon outside the order's clinic. Deactivates the
+  // code too, so it stops showing as "active" to admins and the birthday-coupon
+  // generator (which skips patients with an active code) re-issues next month.
   await db
     .update(schema.shopCoupon)
-    .set({ usedAt: new Date(), usedOrderId: orderId, updatedAt: new Date() })
+    .set({ usedAt: new Date(), usedOrderId: orderId, active: 0, updatedAt: new Date() })
     .where(
       and(
         eq(schema.shopCoupon.organizationId, organizationId),

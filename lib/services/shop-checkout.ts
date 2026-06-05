@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, ne, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
@@ -112,7 +112,12 @@ export async function createShopCheckoutSession(
   )
 
   const currency = cfg.currency || 'usd'
-  const feeAmount = cfg.platformFeeBps > 0 ? Math.round((subtotalCents * cfg.platformFeeBps) / 10000) : 0
+  // Fee is computed on the DISCOUNTED subtotal — the customer is charged
+  // subtotal + shipping − discount, so a fee on the pre-discount subtotal could
+  // exceed the charge (Stripe rejects application_fee_amount > amount, blocking
+  // checkout) or skim a fee on money never collected.
+  const feeBaseCents = Math.max(subtotalCents - discountCents, 0)
+  const feeAmount = cfg.platformFeeBps > 0 ? Math.round((feeBaseCents * cfg.platformFeeBps) / 10000) : 0
 
   const lineItems = lines.map((l) => ({
     quantity: l.qty,
@@ -209,7 +214,11 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
     patientId = match?.id ?? null
   }
 
-  await db
+  // Atomically claim the order (pending → paid). Only the caller that actually
+  // flips it runs the side-effects below: the /shop/success page AND the Connect
+  // webhook both finalize, and without this compare-and-swap a near-simultaneous
+  // double-fire would burn the coupon twice + decrement inventory twice.
+  const claimed = await db
     .update(schema.shopOrder)
     .set({
       status: 'paid',
@@ -224,7 +233,9 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
       fulfillmentStatus: order.fulfillmentType === 'pickup' ? 'ready_for_pickup' : 'unfulfilled',
       updatedAt: new Date(),
     })
-    .where(eq(schema.shopOrder.id, order.id))
+    .where(and(eq(schema.shopOrder.id, order.id), ne(schema.shopOrder.status, 'paid')))
+    .returning({ id: schema.shopOrder.id })
+  if (claimed.length === 0) return { ...order, status: 'paid', patientId } // another finalize won the race
 
   // Burn a single-use coupon now that the order is paid.
   if (order.couponId) await markCouponUsed(order.organizationId, order.couponId, order.id)
@@ -236,7 +247,13 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
     await db
       .update(schema.shopProductVariant)
       .set({ inventoryQty: sql`greatest(${schema.shopProductVariant.inventoryQty} - ${it.quantity}, 0)` })
-      .where(and(eq(schema.shopProductVariant.id, it.variantId), sql`${schema.shopProductVariant.inventoryQty} is not null`))
+      .where(
+        and(
+          eq(schema.shopProductVariant.organizationId, order.organizationId),
+          eq(schema.shopProductVariant.id, it.variantId),
+          sql`${schema.shopProductVariant.inventoryQty} is not null`,
+        ),
+      )
   }
 
   return { ...order, status: 'paid', patientId }
