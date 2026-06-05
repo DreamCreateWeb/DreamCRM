@@ -105,7 +105,17 @@ export default function OrdersClient({ orders }: { orders: OrderRow[] }) {
                     <button
                       key={s}
                       disabled={isPending}
-                      onClick={() => run(() => setOrderFulfillmentAction(o.id, s))}
+                      onClick={() =>
+                        run(async () => {
+                          // Collect a tracking number when shipping — the action +
+                          // column already support it; the UI just never asked.
+                          const tracking =
+                            s === 'shipped'
+                              ? window.prompt('Tracking number (optional):')?.trim() || undefined
+                              : undefined
+                          await setOrderFulfillmentAction(o.id, s, tracking)
+                        })
+                      }
                       className="text-[12px] px-2.5 py-1 rounded-lg border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800"
                     >
                       Mark {FULFILLMENT_STATUS_LABELS[s].toLowerCase()}

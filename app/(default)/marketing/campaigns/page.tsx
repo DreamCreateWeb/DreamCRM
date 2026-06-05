@@ -32,12 +32,22 @@ function channelLabel(channel: string): string {
   }
 }
 
-export default async function CampaignsPage() {
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ prefill_audience?: string }>
+}) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   const t = marketingTerminology(ctx.tenantType)
 
   const campaigns = await listMarketingCampaigns(ctx.organizationId)
+  // The Outreach Queue's "Send recall →" CTA links here with the target
+  // audience; consume it so the new campaign starts pre-targeted (it was
+  // silently dropped before).
+  const { prefill_audience } = await searchParams
+  const prefillAudienceId =
+    prefill_audience && Number.isFinite(Number(prefill_audience)) ? Number(prefill_audience) : undefined
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
@@ -57,7 +67,7 @@ export default async function CampaignsPage() {
           >
             Audiences →
           </Link>
-          <NewCampaignButton campaignTypes={t.campaignTypes} />
+          <NewCampaignButton campaignTypes={t.campaignTypes} prefillAudienceId={prefillAudienceId} />
         </div>
       </div>
 

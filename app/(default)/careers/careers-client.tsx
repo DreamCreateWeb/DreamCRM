@@ -314,6 +314,15 @@ function ApplicantDrawer({
           >
             Pass
           </button>
+          {app.status !== 'archived' && (
+            <button
+              disabled={isPending}
+              onClick={() => run(() => setApplicationStatusAction(app.id, 'archived'))}
+              className="text-[12px] px-2.5 py-1 rounded-lg border border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800"
+            >
+              Archive
+            </button>
+          )}
         </div>
       </div>
 

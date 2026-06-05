@@ -1,23 +1,32 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { createCampaignAction } from '../actions'
 
 interface Props {
   campaignTypes: { key: string; label: string; description: string }[]
+  /** When arriving from the Outreach Queue's "Send recall" CTA, the audience to
+   *  pre-target the new campaign with. */
+  prefillAudienceId?: number
 }
 
-export default function NewCampaignButton({ campaignTypes }: Props) {
+export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [type, setType] = useState(campaignTypes[0]?.key ?? '')
   const [pending, startTransition] = useTransition()
+
+  // Arriving from the outreach queue → open ready to go.
+  useEffect(() => {
+    if (prefillAudienceId) setOpen(true)
+  }, [prefillAudienceId])
 
   function create() {
     startTransition(async () => {
       await createCampaignAction({
         name: name.trim() || campaignTypes.find((c) => c.key === type)?.label || 'Untitled campaign',
         sendChannel: 'resend',
+        ...(prefillAudienceId ? { audienceId: prefillAudienceId } : {}),
       })
       // server action redirects to the editor
     })
@@ -44,6 +53,11 @@ export default function NewCampaignButton({ campaignTypes }: Props) {
             <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-3">
               New campaign
             </h2>
+            {prefillAudienceId && (
+              <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3 -mt-1">
+                This campaign will target the recall audience you selected — name it and pick a starting point.
+              </p>
+            )}
             <label className="block mb-3">
               <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
                 Name (internal)
