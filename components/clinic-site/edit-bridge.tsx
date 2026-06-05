@@ -175,6 +175,28 @@ export default function EditBridge() {
     document.body.classList.add('dc-edit-mode')
     post({ type: 'ready' })
 
+    // "Follow the AI": when the Studio navigates here with ?reveal=<field> after
+    // an AI edit, scroll to the changed element and flash it so the eye catches
+    // what just changed. Deferred a beat so layout + fonts settle first.
+    const reveal = new URLSearchParams(window.location.search).get('reveal')
+    let revealTimer: ReturnType<typeof setTimeout> | null = null
+    let flashTimer: ReturnType<typeof setTimeout> | null = null
+    if (reveal) {
+      revealTimer = setTimeout(() => {
+        let el: Element | null = null
+        try {
+          el = document.querySelector(`[data-edit-field="${reveal.replace(/["\\]/g, '')}"]`)
+        } catch {
+          el = null
+        }
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('dc-reveal-flash')
+          flashTimer = setTimeout(() => el?.classList.remove('dc-reveal-flash'), 1800)
+        }
+      }, 160)
+    }
+
     return () => {
       document.removeEventListener('click', onClickCapture, true)
       document.removeEventListener('mouseover', onOver)
@@ -182,6 +204,8 @@ export default function EditBridge() {
       window.removeEventListener('message', onMessage)
       document.body.classList.remove('dc-edit-mode')
       if (hideTimer) clearTimeout(hideTimer)
+      if (revealTimer) clearTimeout(revealTimer)
+      if (flashTimer) clearTimeout(flashTimer)
       editBtn.remove()
     }
   }, [])
@@ -206,6 +230,15 @@ export default function EditBridge() {
         padding: 8px 13px; border-radius: 9px; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
       }
       .dc-edit-btn:hover { background: #7c3aed; }
+      @keyframes dcRevealFlash {
+        0%   { outline-color: rgba(139,92,246,0); background-color: rgba(139,92,246,0); }
+        18%  { outline-color: rgba(139,92,246,0.95); background-color: rgba(139,92,246,0.16); }
+        100% { outline-color: rgba(139,92,246,0); background-color: rgba(139,92,246,0); }
+      }
+      .dc-reveal-flash {
+        animation: dcRevealFlash 1.8s ease-out;
+        outline: 3px solid transparent; outline-offset: 5px; border-radius: 8px;
+      }
     `}</style>
   )
 }

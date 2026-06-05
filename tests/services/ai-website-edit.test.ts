@@ -65,13 +65,15 @@ describe('applyAiWebsiteEdit', () => {
     if (r.ok) {
       expect(r.edits.map((e) => e.label)).toContain('Hero headline')
       expect(r.page).toBe('/')
+      expect(r.anchor).toBe('tagline')
     }
   })
 
-  it('writes a known copy key into copy_overrides', async () => {
+  it('writes a known copy key into copy_overrides + anchors to it', async () => {
     state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'copy', key: 'home.contactTitle', value: 'Come see us' }] }
-    await applyAiWebsiteEdit('org_1', 'x')
+    const r = await applyAiWebsiteEdit('org_1', 'x')
     expect((capturedPatch?.copyOverrides as Record<string, string>)['home.contactTitle']).toBe('Come see us')
+    if (r.ok) expect(r.anchor).toBe('copy:home.contactTitle')
   })
 
   it('ignores an unknown copy key (no edit applied → error)', async () => {

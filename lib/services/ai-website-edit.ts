@@ -46,7 +46,7 @@ export interface AppliedEdit {
 }
 
 export type AiEditResult =
-  | { ok: true; edits: AppliedEdit[]; page: string; summary: string }
+  | { ok: true; edits: AppliedEdit[]; page: string; summary: string; anchor: string | null }
   | { ok: false; error: string }
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
@@ -190,6 +190,12 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   }
   let overridesTouched = false
   const applied: AppliedEdit[] = []
+  // The first edit that maps to a tagged element on the canvas — the Studio
+  // scrolls to + flashes it so "Follow the AI" lands on the change.
+  let anchor: string | null = null
+  const setAnchor = (a: string | null) => {
+    if (anchor === null && a) anchor = a
+  }
   const knownCopy = new Map(COPY_KEYS.map((c) => [c.key, c.label]))
 
   for (const e of envelope.edits) {
@@ -197,6 +203,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
       const v = e.value.trim()
       ;(patch as Record<string, unknown>)[e.field] = v || null
       applied.push({ label: labelForField(e.field) })
+      if (e.field === 'tagline' || e.field === 'about' || e.field === 'displayName') setAnchor(e.field)
     } else if (e.type === 'brandColor' && e.value && HEX.test(e.value.trim())) {
       patch.brandColor = e.value.trim()
       applied.push({ label: 'Brand color' })
@@ -204,14 +211,17 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
       overrides[e.key] = e.value
       overridesTouched = true
       applied.push({ label: knownCopy.get(e.key)! })
+      setAnchor(`copy:${e.key}`)
     } else if (e.type === 'chips' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 8)
       patch.differenceChips = list.length > 0 ? list : null
       applied.push({ label: '“Why us” highlights' })
+      setAnchor('differenceChips')
     } else if (e.type === 'carriers' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 40)
       patch.acceptedInsuranceCarriers = list.length > 0 ? list : null
       applied.push({ label: 'Insurance carriers' })
+      setAnchor('acceptedInsuranceCarriers')
     } else if (e.type === 'stats' && Array.isArray(e.stats)) {
       const list = e.stats
         .slice(0, 3)
@@ -219,6 +229,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
         .filter((s) => s.value && s.label)
       patch.stats = list.length > 0 ? list : null
       applied.push({ label: 'Trust stats' })
+      setAnchor('stats')
     }
   }
 
@@ -235,7 +246,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   void incrementAiUsage(orgId).catch(() => {})
 
   const page = envelope.page.startsWith('/') ? envelope.page : '/'
-  return { ok: true, edits: applied, page, summary: envelope.summary.trim() || 'Updated your site' }
+  return { ok: true, edits: applied, page, summary: envelope.summary.trim() || 'Updated your site', anchor }
 }
 
 function labelForField(field: string): string {

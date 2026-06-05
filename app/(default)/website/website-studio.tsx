@@ -170,29 +170,30 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
     }
   }
 
-  // After an AI edit: bring the canvas to the most-affected page so the change
-  // is visible (reload if already there, otherwise navigate). The edits are
-  // already persisted + revalidated server-side, so the fresh load shows them.
-  const navigateFrame = (page: string) => {
+  // "Follow the AI": bring the canvas to the most-affected page and pass the
+  // changed element as `?reveal=` so the EditBridge scrolls to + flashes it.
+  // The `_` nonce forces a fresh load even when the page is unchanged. The edits
+  // are already persisted + revalidated server-side, so the load shows them.
+  const navigateFrame = (page: string, anchor?: string | null) => {
     const f = iframeRef.current
     if (!f) return
     const path = page && page !== '/' ? page : ''
-    const target = `/site/${slug}${path}`
-    let cur = ''
+    const params = new URLSearchParams({ edit: '1' })
+    if (anchor) params.set('reveal', anchor)
+    params.set('_', String(Date.now()))
+    const url = `/site/${slug}${path}?${params.toString()}`
     try {
-      cur = f.contentWindow?.location.pathname ?? ''
+      f.contentWindow!.location.assign(url)
     } catch {
-      cur = ''
+      f.src = url
     }
-    if (cur === target) {
-      reloadFrame()
-    } else {
-      try {
-        f.contentWindow!.location.assign(`${target}?edit=1`)
-      } catch {
-        f.src = `${target}?edit=1`
-      }
-    }
+  }
+
+  // After an AI edit: follow on → jump the canvas to the change; follow off →
+  // keep the canvas current in place without moving the viewport.
+  const onAiApplied = (page: string, anchor: string | null, follow: boolean) => {
+    if (follow) navigateFrame(page, anchor)
+    else reloadFrame()
   }
 
   async function persist(fn: () => Promise<SectionResult>): Promise<SectionResult> {
@@ -285,7 +286,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
         className="flex-1 w-full border-0 bg-white"
       />
 
-      {!modal && <StudioAiBar onApplied={navigateFrame} />}
+      {!modal && <StudioAiBar onApplied={onAiApplied} />}
 
       {modal && (
         <StudioModal
