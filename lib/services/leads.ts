@@ -320,7 +320,7 @@ export async function convertLeadToPatient(
       convertedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(schema.lead.id, id))
+    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
 
   return { leadId: existing.id, patientId, deduped, patientName }
 }

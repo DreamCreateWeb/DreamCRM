@@ -120,11 +120,19 @@ export async function rescheduleAppointmentAction(input: {
   return { ok: true, newId }
 }
 
-export async function sendReminderAction(
+type ReminderResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * Core reminder send for an ALREADY-resolved clinic context. Internal helper
+ * (not a server action) so bulk send authorizes once instead of re-running
+ * requireClinicTenant — and three extra session/org/member queries — per row.
+ * Callers own revalidation.
+ */
+async function sendReminderForOrg(
+  ctx: { organizationId: string; organizationName: string; userId: string },
   appointmentId: string,
-  channel: 'sms' | 'email' = 'email',
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const ctx = await requireClinicTenant()
+  channel: 'sms' | 'email',
+): Promise<ReminderResult> {
   if (channel === 'sms') {
     // Twilio isn't live yet — log the intent so the audit trail is complete,
     // and let the UI surface the "not yet" message.
@@ -158,11 +166,20 @@ export async function sendReminderAction(
       template: 'default_reminder',
       sentByUserId: ctx.userId,
     })
-    revalidatePath('/appointments')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }
+}
+
+export async function sendReminderAction(
+  appointmentId: string,
+  channel: 'sms' | 'email' = 'email',
+): Promise<ReminderResult> {
+  const ctx = await requireClinicTenant()
+  const r = await sendReminderForOrg(ctx, appointmentId, channel)
+  if (r.ok) revalidatePath('/appointments')
+  return r
 }
 
 export interface BulkSendResult {
@@ -176,7 +193,7 @@ export async function bulkSendRemindersAction(
   appointmentIds: string[],
   channel: 'sms' | 'email' = 'email',
 ): Promise<BulkSendResult> {
-  await requireClinicTenant()
+  const ctx = await requireClinicTenant()
   const result: BulkSendResult = {
     attempted: appointmentIds.length,
     sent: 0,
@@ -184,16 +201,16 @@ export async function bulkSendRemindersAction(
     errors: [],
   }
   for (const id of appointmentIds) {
-    const r = await sendReminderAction(id, channel)
-    if ('ok' in r && r.ok === true) {
+    const r = await sendReminderForOrg(ctx, id, channel)
+    if (r.ok) {
       result.sent += 1
-    } else if ('error' in r && (r.error.includes('no email') || r.error.includes('Cannot send'))) {
+    } else if (r.error.includes('no email') || r.error.includes('Cannot send')) {
       // No-email + cancelled/no-show rows are intentionally-skipped, not
       // errors. Bulk-send toast surfaces them under "skipped N" so the
       // user understands those rows didn't fail — they're just out of scope.
       result.skipped += 1
     } else {
-      result.errors.push({ appointmentId: id, error: 'error' in r ? r.error : 'unknown' })
+      result.errors.push({ appointmentId: id, error: r.error })
     }
   }
   revalidatePath('/appointments')

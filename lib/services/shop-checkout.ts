@@ -227,7 +227,7 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
     .where(eq(schema.shopOrder.id, order.id))
 
   // Burn a single-use coupon now that the order is paid.
-  if (order.couponId) await markCouponUsed(order.couponId, order.id)
+  if (order.couponId) await markCouponUsed(order.organizationId, order.couponId, order.id)
 
   // Decrement tracked inventory.
   const items = await db.select().from(schema.shopOrderItem).where(eq(schema.shopOrderItem.orderId, order.id))

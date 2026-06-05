@@ -123,7 +123,7 @@ export async function savePlan(organizationId: string, input: PlanInput): Promis
     const [existing] = await db
       .select({ priceCents: schema.membershipPlan.priceCents, billingInterval: schema.membershipPlan.billingInterval })
       .from(schema.membershipPlan)
-      .where(eq(schema.membershipPlan.id, id))
+      .where(and(eq(schema.membershipPlan.organizationId, organizationId), eq(schema.membershipPlan.id, id)))
       .limit(1)
     const priceChanged = existing && (existing.priceCents !== priceCents || existing.billingInterval !== input.billingInterval)
     await db
