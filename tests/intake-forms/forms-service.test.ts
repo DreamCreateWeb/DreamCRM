@@ -209,6 +209,42 @@ describe('submitForm', () => {
     expect(vals.submitterName).toBeNull()
     expect(vals.submitterEmail).toBeNull()
   })
+
+  it('auto-links a public submission to a patient when the submitter email matches', async () => {
+    state.selectQueue.push([{ id: 'pat_match' }]) // patient lookup by email
+    await submitForm({
+      organizationId: 'org_1',
+      formTemplateId: 'tmpl_1',
+      data: { x: 'y' },
+      submitterEmail: 'jane@example.com',
+    })
+    const insert = state.ops.find((o) => o.kind === 'insert' && o.table === 'form_submission')!
+    expect((insert.values as { patientId: string | null }).patientId).toBe('pat_match')
+  })
+
+  it('leaves patientId null when no patient matches the submitter email', async () => {
+    state.selectQueue.push([]) // no patient match
+    await submitForm({
+      organizationId: 'org_1',
+      formTemplateId: 'tmpl_1',
+      data: { x: 'y' },
+      submitterEmail: 'nobody@example.com',
+    })
+    const insert = state.ops.find((o) => o.kind === 'insert' && o.table === 'form_submission')!
+    expect((insert.values as { patientId: string | null }).patientId).toBeNull()
+  })
+
+  it('does NOT override an explicitly-supplied patientId with an email lookup', async () => {
+    await submitForm({
+      organizationId: 'org_1',
+      formTemplateId: 'tmpl_1',
+      patientId: 'pat_explicit',
+      data: { x: 'y' },
+      submitterEmail: 'jane@example.com',
+    })
+    const insert = state.ops.find((o) => o.kind === 'insert' && o.table === 'form_submission')!
+    expect((insert.values as { patientId: string | null }).patientId).toBe('pat_explicit')
+  })
 })
 
 describe('getFormTemplateBySlug', () => {

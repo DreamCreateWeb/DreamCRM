@@ -300,7 +300,7 @@ export async function getPatientTimeline(
       subtitle: s.submitterName ?? 'Form submission',
       status: null,
       direction: null,
-      href: '/intake-forms',
+      href: `/intake-forms/submissions/${s.id}`,
       body: null,
       agingDays: null,
     })

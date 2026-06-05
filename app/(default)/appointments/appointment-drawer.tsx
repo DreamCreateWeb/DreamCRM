@@ -287,7 +287,7 @@ export default function AppointmentDrawer({
                   <p className="text-sm text-gray-700 dark:text-gray-200">
                     {detail.intakeAttached.formTitle} · submitted {fmtRelative(detail.intakeAttached.submittedAt)}
                     {' · '}
-                    <Link href="/intake-forms" className="text-violet-600 dark:text-violet-400 hover:underline">View</Link>
+                    <Link href={`/intake-forms/submissions/${detail.intakeAttached.id}`} className="text-violet-600 dark:text-violet-400 hover:underline">View</Link>
                   </p>
                 ) : (
                   <p className="text-xs text-amber-700 dark:text-amber-300">

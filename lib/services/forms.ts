@@ -2,7 +2,7 @@ import 'server-only'
 import { and, desc, eq, isNull, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { formTemplate, formSubmission } from '@/lib/db/schema/clinic'
+import { formTemplate, formSubmission, patient } from '@/lib/db/schema/clinic'
 import type { FormTemplate, FormSubmission } from '@/lib/db/schema/clinic'
 import { newId, slugify } from '@/lib/utils'
 import {
@@ -186,13 +186,25 @@ export interface SubmitFormInput {
 }
 
 export async function submitForm(input: SubmitFormInput): Promise<FormSubmission> {
+  // Public submissions arrive with no patientId. If the submitter's email
+  // matches a patient in this org, link it so the submission shows on that
+  // patient's timeline + records instead of vanishing into an unattached row.
+  let patientId = input.patientId ?? null
+  if (!patientId && input.submitterEmail) {
+    const [p] = await db
+      .select({ id: patient.id })
+      .from(patient)
+      .where(and(eq(patient.organizationId, input.organizationId), eq(patient.email, input.submitterEmail)))
+      .limit(1)
+    patientId = p?.id ?? null
+  }
   const [row] = await db
     .insert(formSubmission)
     .values({
       id: newId('sub'),
       organizationId: input.organizationId,
       formTemplateId: input.formTemplateId,
-      patientId: input.patientId ?? null,
+      patientId,
       appointmentId: input.appointmentId ?? null,
       data: input.data,
       submitterName: input.submitterName ?? null,
@@ -235,6 +247,43 @@ export async function listSubmissionsForTemplate(
     )
     .orderBy(desc(formSubmission.submittedAt))
     .limit(limit)
+}
+
+export interface SubmissionForReview {
+  submission: FormSubmission
+  template: FormTemplate
+  patientId: string | null
+  patientName: string | null
+}
+
+/** Load one submission (org-scoped) with its template + linked patient name,
+ * for the read-only submission viewer. Null when not found in this org. */
+export async function getSubmissionForReview(
+  organizationId: string,
+  submissionId: string,
+): Promise<SubmissionForReview | null> {
+  const [sub] = await db
+    .select()
+    .from(formSubmission)
+    .where(and(eq(formSubmission.organizationId, organizationId), eq(formSubmission.id, submissionId)))
+    .limit(1)
+  if (!sub) return null
+  const [tmpl] = await db
+    .select()
+    .from(formTemplate)
+    .where(and(eq(formTemplate.organizationId, organizationId), eq(formTemplate.id, sub.formTemplateId)))
+    .limit(1)
+  if (!tmpl) return null
+  let patientName: string | null = null
+  if (sub.patientId) {
+    const [p] = await db
+      .select({ firstName: patient.firstName, lastName: patient.lastName })
+      .from(patient)
+      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, sub.patientId)))
+      .limit(1)
+    if (p) patientName = `${p.firstName} ${p.lastName}`.trim()
+  }
+  return { submission: sub, template: tmpl, patientId: sub.patientId, patientName }
 }
 
 /** Used by demo seeder + future onboarding: seed a starter intake form
