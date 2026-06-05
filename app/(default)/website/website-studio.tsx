@@ -14,6 +14,7 @@ import type {
 } from '@/lib/types/clinic-content'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
+import StudioAiBar from './studio-ai-bar'
 import { Field, TagListEditor, inputCls, textareaCls } from '@/components/ui/editor-kit'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
 import LeadFormBuilder from './lead-form-builder'
@@ -169,6 +170,31 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
     }
   }
 
+  // After an AI edit: bring the canvas to the most-affected page so the change
+  // is visible (reload if already there, otherwise navigate). The edits are
+  // already persisted + revalidated server-side, so the fresh load shows them.
+  const navigateFrame = (page: string) => {
+    const f = iframeRef.current
+    if (!f) return
+    const path = page && page !== '/' ? page : ''
+    const target = `/site/${slug}${path}`
+    let cur = ''
+    try {
+      cur = f.contentWindow?.location.pathname ?? ''
+    } catch {
+      cur = ''
+    }
+    if (cur === target) {
+      reloadFrame()
+    } else {
+      try {
+        f.contentWindow!.location.assign(`${target}?edit=1`)
+      } catch {
+        f.src = `${target}?edit=1`
+      }
+    }
+  }
+
   async function persist(fn: () => Promise<SectionResult>): Promise<SectionResult> {
     setStatus('saving')
     setErrorMsg(null)
@@ -258,6 +284,8 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
         title="Your website — edit mode"
         className="flex-1 w-full border-0 bg-white"
       />
+
+      {!modal && <StudioAiBar onApplied={navigateFrame} />}
 
       {modal && (
         <StudioModal
