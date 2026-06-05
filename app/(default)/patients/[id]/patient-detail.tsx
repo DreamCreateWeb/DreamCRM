@@ -9,6 +9,7 @@ import { GlyphCluster } from '../glyph-cluster'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
+import SendIntakeInline from '../send-intake-inline'
 import {
   archivePatientAction,
   openPatientThreadAction,
@@ -378,7 +379,7 @@ function Stat({
 }
 
 function NeedsAttention({ header }: { header: PatientHeader }) {
-  const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string } }> = []
+  const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string }; sendIntake?: boolean }> = []
   if (header.flags.unconfirmedNext48h) {
     items.push({
       severity: 'warn',
@@ -390,7 +391,7 @@ function NeedsAttention({ header }: { header: PatientHeader }) {
     items.push({
       severity: 'warn',
       copy: 'Missing intake form before next visit.',
-      cta: { label: 'Send intake', href: '/intake-forms' },
+      sendIntake: true,
     })
   }
   if (header.outstandingBalanceCents > 0) {
@@ -427,6 +428,13 @@ function NeedsAttention({ header }: { header: PatientHeader }) {
         {items.map((it, i) => (
           <li key={i} className="text-xs text-gray-800 dark:text-gray-100">
             <p>{it.copy}</p>
+            {it.sendIntake && (
+              <SendIntakeInline
+                patientId={header.id}
+                label="Send intake →"
+                className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50"
+              />
+            )}
             {it.cta && (
               <Link
                 href={it.cta.href}

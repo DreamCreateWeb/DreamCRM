@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import type { AppointmentDetail } from '@/lib/services/appointments'
 import { AppointmentGlyphCluster } from './appointment-glyph-cluster'
+import SendIntakeInline from '../patients/send-intake-inline'
 import {
   confirmAppointmentAction,
   cancelAppointmentAction,
@@ -291,7 +292,12 @@ export default function AppointmentDrawer({
                 ) : (
                   <p className="text-xs text-amber-700 dark:text-amber-300">
                     No intake on file for this patient yet.{' '}
-                    <Link href="/intake-forms" className="underline">Send the form</Link>.
+                    <SendIntakeInline
+                      patientId={detail.patient.id}
+                      label="Send the form"
+                      className="underline text-amber-800 dark:text-amber-200 hover:opacity-80 disabled:opacity-50"
+                    />
+                    .
                   </p>
                 )}
               </div>
