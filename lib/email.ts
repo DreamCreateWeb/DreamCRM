@@ -1,6 +1,11 @@
 import { Resend } from 'resend'
 
-const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
+// Sender identity for all transactional + marketing email. Override with the
+// EMAIL_FROM env var (e.g. "Dream Create <hello@dreamcreatestudio.com>") once
+// that domain is verified with the active provider — lets us pivot the From
+// address by changing one env var, with no code deploy. Must always be a domain
+// the current provider (Resend/SES) has verified, or sends are rejected.
+const FROM = process.env.EMAIL_FROM?.trim() || 'Dream Create <Hello@DreamCreateWeb.com>'
 
 function emailDriver(): 'ses' | 'resend' {
   return process.env.EMAIL_DRIVER === 'ses' ? 'ses' : 'resend'
