@@ -73,6 +73,36 @@ export async function sendInvitationEmail(to: string, data: InvitationEmailData)
   })
 }
 
+/**
+ * Patient-portal invite — staff-initiated. Patient-toned (not the team-invite
+ * copy), and goes through `deliver()` so it honours EMAIL_DRIVER (SES).
+ */
+export async function sendPatientPortalInviteEmail(
+  to: string,
+  data: { clinicName: string; patientFirstName: string; inviteUrl: string },
+) {
+  await deliver({
+    to,
+    subject: `${data.clinicName} — set up your patient portal`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
+        <h2 style="margin:0 0 16px;font-size:20px">Hi ${escapeHtml(data.patientFirstName)},</h2>
+        <p style="margin:0 0 20px;line-height:1.55">
+          ${escapeHtml(data.clinicName)} invited you to set up your patient portal —
+          where you can see upcoming appointments, book a visit, message the office,
+          and fill out forms ahead of time.
+        </p>
+        <a href="${data.inviteUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
+          Set up my portal
+        </a>
+        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">
+          If you weren't expecting this, you can safely ignore this email.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export interface ContactRequestData {
   clinicName: string
   patientName: string

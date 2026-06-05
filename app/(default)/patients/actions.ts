@@ -1,7 +1,11 @@
 'use server'
 
+import { randomUUID } from 'crypto'
+import { and, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { db, schema } from '@/lib/db'
+import { sendPatientPortalInviteEmail } from '@/lib/email'
 import { requireTenant } from '@/lib/auth/context'
 import {
   createPatient,
@@ -191,4 +195,69 @@ export async function sendReviewRequestForPatientAction(
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }
+}
+
+/**
+ * Staff-initiated patient portal invite. Creates a `role='patient'` invitation
+ * and emails the patient a set-up link — previously there was NO way for staff
+ * to give a patient portal access (the patient had to discover the self-serve
+ * `/intake-start` page on their own). The /accept-invite flow claims it via the
+ * patient-specific accept path (acceptPatientPortalInvite), which creates the
+ * patient-role membership directly rather than through better-auth (whose role
+ * set doesn't include 'patient').
+ */
+export async function sendPatientPortalInviteAction(
+  patientId: string,
+): Promise<{ ok: true; sentTo: string } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic staff can invite patients' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot send invites' }
+
+  const [p] = await db
+    .select({ email: schema.patient.email, userId: schema.patient.userId, firstName: schema.patient.firstName })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, ctx.organizationId), eq(schema.patient.id, patientId)))
+    .limit(1)
+  if (!p) return { ok: false, error: 'Patient not found' }
+  if (!p.email) return { ok: false, error: 'Add an email to this patient before inviting them to the portal.' }
+  if (p.userId) return { ok: false, error: 'This patient already has portal access.' }
+
+  const email = p.email.toLowerCase().trim()
+  // Reuse a still-pending invite for this email rather than piling up rows.
+  const [existing] = await db
+    .select({ id: schema.invitation.id })
+    .from(schema.invitation)
+    .where(
+      and(
+        eq(schema.invitation.organizationId, ctx.organizationId),
+        eq(schema.invitation.email, email),
+        eq(schema.invitation.status, 'pending'),
+      ),
+    )
+    .limit(1)
+  const id = existing?.id ?? randomUUID()
+  if (!existing) {
+    await db.insert(schema.invitation).values({
+      id,
+      organizationId: ctx.organizationId,
+      email,
+      role: 'patient',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      inviterId: ctx.userId,
+    })
+  }
+
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
+  try {
+    await sendPatientPortalInviteEmail(email, {
+      clinicName: ctx.organizationName,
+      patientFirstName: p.firstName,
+      inviteUrl: `${base}/accept-invite?token=${id}`,
+    })
+  } catch {
+    return { ok: false, error: 'The invite couldn’t be emailed — please try again.' }
+  }
+  revalidatePath(`/patients/${patientId}`)
+  return { ok: true, sentTo: email }
 }
