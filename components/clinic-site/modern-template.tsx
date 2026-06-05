@@ -331,7 +331,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               >
                 {profile.tagline ?? 'Dental care that finally feels human.'}
               </h1>
-              {profile.about && (
+              {profile.about ? (
                 <p
                   className="text-base sm:text-lg leading-[1.55] mb-8 max-w-[460px] mx-auto"
                   style={{ color: INK }}
@@ -341,6 +341,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 >
                   {firstSentence(profile.about)} with{' '}
                   <strong className="font-semibold">no judgment, ever.</strong>
+                </p>
+              ) : (
+                <p
+                  className="dc-edit-only text-base sm:text-lg italic opacity-50 leading-[1.55] mb-8 max-w-[460px] mx-auto"
+                  style={{ color: INK }}
+                  data-edit-field="about"
+                  data-edit-kind="modal"
+                  data-edit-label="intro"
+                >
+                  Add a sentence about your practice…
                 </p>
               )}
               <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
@@ -619,7 +629,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   <>The {name} <strong className="italic font-semibold">difference</strong></>
                 )}
               </h2>
-              {profile.about && (
+              {profile.about ? (
                 <p
                   className="text-lg leading-[1.55] mb-8"
                   style={{ color: INK }}
@@ -628,6 +638,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   data-edit-label="intro"
                 >
                   {firstSentence(profile.about)}
+                </p>
+              ) : (
+                <p
+                  className="dc-edit-only text-lg italic opacity-50 leading-[1.55] mb-8"
+                  style={{ color: INK }}
+                  data-edit-field="about"
+                  data-edit-kind="modal"
+                  data-edit-label="intro"
+                >
+                  Add a sentence about your practice…
                 </p>
               )}
               <a

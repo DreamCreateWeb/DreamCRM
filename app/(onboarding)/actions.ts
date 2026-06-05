@@ -125,7 +125,12 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
       city: data.city?.trim() || null,
       postalCode: data.postalCode?.trim() || null,
       country: data.country?.trim() || 'US',
-      planTier: data.planId,
+      // Start on 'basic'. The paid tier is granted by the Stripe webhook only
+      // AFTER payment confirms (syncSubscriptionFromStripe). Setting the selected
+      // tier here meant an abandoned checkout — or a missing/misconfigured Stripe
+      // price (the { url: null } path below) — left the clinic on a paid tier it
+      // never paid for.
+      planTier: 'basic',
     })
     .onConflictDoUpdate({
       target: schema.clinicProfile.organizationId,
@@ -136,7 +141,8 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
         city: data.city?.trim() || null,
         postalCode: data.postalCode?.trim() || null,
         country: data.country?.trim() || 'US',
-        planTier: data.planId,
+        // Intentionally NOT touching planTier on conflict — the webhook owns it,
+        // so re-running onboarding never downgrades a clinic that already paid.
         updatedAt: new Date(),
       },
     })

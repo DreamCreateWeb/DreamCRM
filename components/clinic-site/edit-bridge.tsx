@@ -249,6 +249,11 @@ export default function EditBridge() {
         animation: dcRevealFlash 1.8s ease-out;
         outline: 3px solid transparent; outline-offset: 5px; border-radius: 8px;
       }
+      /* Affordances that exist ONLY in the editor — e.g. a "write your story"
+         placeholder for a section the clinic hasn't filled in yet. Hidden for
+         public visitors; revealed (and editable) inside the Studio. */
+      .dc-edit-only { display: none; }
+      .dc-edit-mode .dc-edit-only { display: block; }
     `}</style>
   )
 }
