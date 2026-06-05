@@ -25,6 +25,16 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
+// Slot availability gates the insert (race-condition guard). Default: available.
+const slotAvailableMock = vi.fn(async () => true)
+vi.mock('@/lib/services/booking', () => ({
+  isSlotAvailable: (...a: unknown[]) => slotAvailableMock(...(a as [])),
+  SLOT_MINUTES: 30,
+}))
+
+// PMS write-back is best-effort; stub it so the test never touches the real one.
+vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn(async () => {}) }))
+
 const inserts: unknown[] = []
 
 vi.mock('@/lib/db', async () => {
@@ -44,6 +54,8 @@ import { bookAppointment } from '@/app/(default)/patient/book/actions'
 
 beforeEach(() => {
   inserts.length = 0
+  slotAvailableMock.mockReset()
+  slotAvailableMock.mockResolvedValue(true)
   tenantCtx = {
     tenantType: 'patient',
     organizationId: 'org_1',
@@ -82,24 +94,38 @@ describe('bookAppointment', () => {
     ).rejects.toThrow(/patient record/i)
   })
 
-  it('rejects when startTime is missing', async () => {
-    await expect(bookAppointment(form({ type: 'checkup' }))).rejects.toThrow(/time/i)
+  it('redirects with error=invalid_time when startTime is missing', async () => {
+    await expect(bookAppointment(form({ type: 'checkup' }))).rejects.toThrow(
+      /NEXT_REDIRECT:\/patient\/book\?error=invalid_time/,
+    )
+    expect(inserts).toHaveLength(0)
   })
 
-  it('rejects malformed startTime', async () => {
+  it('redirects with error=invalid_time on a malformed startTime', async () => {
     await expect(
       bookAppointment(form({ startTime: 'invalid', type: 'checkup' })),
-    ).rejects.toThrow(/Invalid/i)
+    ).rejects.toThrow(/error=invalid_time/)
+    expect(inserts).toHaveLength(0)
   })
 
-  it('rejects a past startTime', async () => {
+  it('redirects with error=past on a past startTime', async () => {
     const past = new Date(Date.now() - 3600_000).toISOString().slice(0, 16)
     await expect(bookAppointment(form({ startTime: past, type: 'checkup' }))).rejects.toThrow(
-      /future/i,
+      /error=past/,
     )
+    expect(inserts).toHaveLength(0)
   })
 
-  it('inserts appointment scoped to org + patient on happy path and then redirects', async () => {
+  it('redirects with error=unavailable when the slot is taken (race guard)', async () => {
+    slotAvailableMock.mockResolvedValue(false)
+    await expect(
+      bookAppointment(form({ startTime: future(), type: 'checkup' })),
+    ).rejects.toThrow(/error=unavailable/)
+    // No row inserted when the slot guard fails.
+    expect(inserts).toHaveLength(0)
+  })
+
+  it('inserts appointment scoped to org + patient (with an end time) on happy path, then redirects', async () => {
     await expect(
       bookAppointment(form({ startTime: future(), type: 'cleaning', notes: 'Sensitive teeth' })),
     ).rejects.toThrow(/NEXT_REDIRECT:\/patient\/appointments/)
@@ -112,6 +138,8 @@ describe('bookAppointment', () => {
       notes: string | null
       title: string
       source: string
+      startTime: Date
+      endTime: Date
     }
     expect(vals.organizationId).toBe('org_1')
     expect(vals.patientId).toBe('pat_1')
@@ -122,6 +150,9 @@ describe('bookAppointment', () => {
     // Patient-portal bookings get a distinct source so the Appointments
     // filter chip + analytics can tell them apart from public-widget bookings.
     expect(vals.source).toBe('portal')
+    // The row now carries a 30-minute end time (previously inserted as null).
+    expect(vals.endTime).toBeInstanceOf(Date)
+    expect(vals.endTime.getTime() - vals.startTime.getTime()).toBe(30 * 60 * 1000)
   })
 
   it('defaults type to checkup when not provided', async () => {

@@ -69,7 +69,14 @@ function AcceptInviteInner() {
       })
       return
     }
-    linkPatientRecord().catch(() => {})
+    // Link the patient record (org resolved from the invite token) BEFORE
+    // showing success, so the portal has a resolved patientId on the next
+    // request. Awaited but non-fatal — the membership already succeeded.
+    try {
+      await linkPatientRecord(token)
+    } catch {
+      /* non-fatal */
+    }
     setStep({ type: 'success', orgName })
   }
 
@@ -263,7 +270,7 @@ function AcceptInviteInner() {
           {step.orgName ? `Welcome to ${step.orgName} on DreamCRM.` : "You've joined successfully."}
         </p>
         <button
-          onClick={() => router.push('/')}
+          onClick={() => window.location.assign('/')}
           className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
         >
           Go to dashboard
