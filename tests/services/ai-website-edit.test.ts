@@ -20,6 +20,18 @@ const profileRow = {
   stats: null,
   differenceChips: null,
   acceptedInsuranceCarriers: null,
+  paymentMethods: null,
+  cancellationPolicy: null,
+  faq: null,
+  hours: {
+    mon: { open: '09:00', close: '17:00', closed: false },
+    tue: { open: '09:00', close: '17:00', closed: false },
+    wed: { open: '09:00', close: '17:00', closed: false },
+    thu: { open: '09:00', close: '17:00', closed: false },
+    fri: { open: '09:00', close: '17:00', closed: false },
+    sat: { open: null, close: null, closed: true },
+    sun: { open: null, close: null, closed: true },
+  },
 }
 
 vi.mock('@/lib/ai', () => ({
@@ -42,7 +54,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-import { applyAiWebsiteEdit } from '@/lib/services/ai-website-edit'
+import { applyAiWebsiteEdit, revertAiWebsiteEdit } from '@/lib/services/ai-website-edit'
 
 beforeEach(() => {
   state.configured = true
@@ -135,17 +147,46 @@ describe('applyAiWebsiteEdit', () => {
     expect(capturedPatch?.cancellationPolicy).toBe('Please give 24 hours notice.')
   })
 
-  it('validates office hours — keeps valid HH:MM, drops bad times, honors closed', async () => {
+  it('validates + MERGES office hours — changed days update, unmentioned days kept', async () => {
     state.toolInput = {
       summary: 'x',
       page: '/',
-      edits: [{ type: 'hours', hours: { mon: { open: '09:00', close: '17:00', closed: false }, sun: { closed: true }, tue: { open: 'nope', close: '17:00' } } }],
+      edits: [{ type: 'hours', hours: { mon: { open: '09:00', close: '15:00', closed: false }, fri: { open: '09:00', close: '15:00', closed: false }, tue: { open: 'nope', close: '17:00' } } }],
     }
     await applyAiWebsiteEdit('org_1', 'x')
     const h = capturedPatch?.hours as Record<string, { open: string | null; close: string | null; closed: boolean }>
-    expect(h.mon).toEqual({ open: '09:00', close: '17:00', closed: false })
-    expect(h.sun).toEqual({ open: null, close: null, closed: true })
+    // Changed days take the new values…
+    expect(h.mon).toEqual({ open: '09:00', close: '15:00', closed: false })
+    expect(h.fri).toEqual({ open: '09:00', close: '15:00', closed: false })
+    // …bad times are dropped…
     expect(h.tue).toEqual({ open: null, close: '17:00', closed: false })
+    // …and a day the owner never mentioned is preserved, not wiped.
+    expect(h.wed).toEqual(profileRow.hours.wed)
+    expect(h.sun).toEqual(profileRow.hours.sun)
+  })
+
+  it('asks a clarifying question instead of guessing when ambiguous', async () => {
+    state.toolInput = { summary: '', page: '/', edits: [], clarify: 'Which page’s headline did you mean?' }
+    const r = await applyAiWebsiteEdit('org_1', 'change the headline')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.clarify).toBe(true)
+      expect(r.error).toMatch(/which page/i)
+    }
+    expect(capturedPatch).toBeNull()
+  })
+
+  it('returns the previous values (before) for undo', async () => {
+    state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'field', field: 'tagline', value: 'New headline' }] }
+    const r = await applyAiWebsiteEdit('org_1', 'x')
+    if (r.ok) expect(r.before.tagline).toBe('Old headline')
+  })
+
+  it('revert restores whitelisted columns + ignores unknown keys', async () => {
+    await revertAiWebsiteEdit('org_1', { tagline: 'Old headline', evilColumn: 'DROP', brandColor: '#9CAF9F' })
+    expect(capturedPatch?.tagline).toBe('Old headline')
+    expect(capturedPatch?.brandColor).toBe('#9CAF9F')
+    expect(capturedPatch).not.toHaveProperty('evilColumn')
   })
 
   it('replaces the FAQ list with ids + routes to /faq', async () => {

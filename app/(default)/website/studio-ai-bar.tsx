@@ -1,16 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { runAiWebsiteEdit } from './ai-edit-action'
+import { runAiWebsiteEdit, undoAiWebsiteEdit } from './ai-edit-action'
 
 /**
- * Floating AI command bar for the Website Studio. The clinic owner types a
- * plain-language instruction; the AI applies the edits and — when "Follow
- * along" is on — the canvas jumps to the changed section and flashes it. With
- * it off, the edit runs in the background and the viewport stays put, so staff
- * can fire an update and move on to another task.
+ * Floating AI command bar for the Website Studio. The owner types a plain-
+ * language instruction; the AI applies the edits and (when "Follow along" is on)
+ * the canvas jumps to + flashes the change. Every change is shown as a
+ * before→after so mistakes are obvious, with one-click Undo as the safety net.
  */
 type Phase = 'idle' | 'working' | 'done' | 'error'
+type EditDetail = { label: string; preview: string }
+type UndoData = { before: Record<string, unknown>; page: string; anchor: string | null }
 
 const FOLLOW_KEY = 'dc-studio-follow'
 
@@ -22,15 +23,16 @@ export default function StudioAiBar({
   const [value, setValue] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
   const [summary, setSummary] = useState('')
-  const [edits, setEdits] = useState<string[]>([])
+  const [details, setDetails] = useState<EditDetail[]>([])
   const [error, setError] = useState('')
+  const [isClarify, setIsClarify] = useState(false)
   const [follow, setFollow] = useState(true)
+  const [undoData, setUndoData] = useState<UndoData | null>(null)
+  const [undoing, setUndoing] = useState(false)
 
-  // Persist the "follow" preference across sessions.
   useEffect(() => {
     try {
-      const v = window.localStorage.getItem(FOLLOW_KEY)
-      if (v === '0') setFollow(false)
+      if (window.localStorage.getItem(FOLLOW_KEY) === '0') setFollow(false)
     } catch {
       /* ignore */
     }
@@ -52,24 +54,43 @@ export default function StudioAiBar({
     if (!text || phase === 'working') return
     setPhase('working')
     setError('')
-    setEdits([])
+    setIsClarify(false)
+    setDetails([])
     setSummary('')
     try {
       const res = await runAiWebsiteEdit(text)
       if (res.ok) {
         setSummary(res.summary)
-        setEdits(res.edits.map((e) => e.label))
+        setDetails(res.edits)
+        setUndoData({ before: res.before, page: res.page, anchor: res.anchor })
         setValue('')
         setPhase('done')
         onApplied(res.page, res.anchor, follow)
-        window.setTimeout(() => setPhase((p) => (p === 'done' ? 'idle' : p)), 5000)
+        window.setTimeout(() => setPhase((p) => (p === 'done' ? 'idle' : p)), 12000)
       } else {
         setError(res.error)
+        setIsClarify(!!res.clarify)
         setPhase('error')
       }
     } catch {
       setError('Something went wrong — try again.')
+      setIsClarify(false)
       setPhase('error')
+    }
+  }
+
+  async function undo() {
+    if (!undoData || undoing) return
+    setUndoing(true)
+    try {
+      const r = await undoAiWebsiteEdit(undoData.before)
+      if (r.ok) {
+        onApplied(undoData.page, undoData.anchor, follow)
+        setPhase('idle')
+        setUndoData(null)
+      }
+    } finally {
+      setUndoing(false)
     }
   }
 
@@ -78,13 +99,53 @@ export default function StudioAiBar({
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[65] flex justify-center px-4 pb-6">
       <div className="pointer-events-auto w-full max-w-xl relative">
-        {/* Glow behind the bar — intensifies while working */}
+        {/* Glow behind the bar */}
         <div
           aria-hidden="true"
           className={`absolute -inset-3 rounded-full bg-gradient-to-r from-violet-500/50 via-fuchsia-500/40 to-sky-500/50 blur-2xl transition-opacity duration-500 ${
             working ? 'opacity-90 animate-pulse' : 'opacity-0'
           }`}
         />
+
+        {/* Done panel — what changed + Undo */}
+        {phase === 'done' && (
+          <div className="relative mb-2.5 rounded-2xl bg-stone-900/90 backdrop-blur-xl border border-white/10 shadow-2xl p-3 text-stone-100">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-emerald-300 min-w-0">
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 10l3.5 3.5L15 6" /></svg>
+                <span className="truncate">{summary}</span>
+              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={undo}
+                  disabled={undoing}
+                  className="inline-flex items-center gap-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 px-2.5 py-1 text-[12px] font-semibold text-white transition disabled:opacity-50"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 5L4 9l4 4M4 9h8a4 4 0 010 8h-1" /></svg>
+                  {undoing ? 'Undoing…' : 'Undo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhase('idle')}
+                  className="w-6 h-6 inline-flex items-center justify-center rounded-full text-stone-400 hover:text-white hover:bg-white/10 transition"
+                  aria-label="Dismiss"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
+                </button>
+              </div>
+            </div>
+            <ul className="space-y-1">
+              {details.map((e, i) => (
+                <li key={`${e.label}-${i}`} className="flex items-baseline gap-1.5 text-[12px] min-w-0">
+                  <span className="shrink-0 text-stone-400">{e.label}</span>
+                  <span className="shrink-0 text-stone-500">→</span>
+                  <span className="truncate text-stone-100">{e.preview}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Status (left) + Follow toggle (right) */}
         <div className="relative mb-2.5 flex items-center justify-between gap-2 min-h-[28px]">
@@ -95,26 +156,13 @@ export default function StudioAiBar({
                 Updating your site…
               </span>
             )}
-            {phase === 'done' && (
-              <>
-                {summary && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/90 px-3 py-1.5 text-[13px] font-semibold text-white shadow-lg">
-                    ✓ {summary}
-                  </span>
-                )}
-                {edits.map((e) => (
-                  <span
-                    key={e}
-                    className="inline-flex items-center rounded-full bg-stone-900/85 backdrop-blur-xl border border-white/10 px-2.5 py-1 text-[12px] font-medium text-stone-200 shadow"
-                  >
-                    {e}
-                  </span>
-                ))}
-              </>
-            )}
             {phase === 'error' && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/90 px-3.5 py-1.5 text-[13px] font-medium text-white shadow-lg">
-                {error}
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium text-white shadow-lg ${
+                  isClarify ? 'bg-amber-500/90' : 'bg-rose-500/90'
+                }`}
+              >
+                {isClarify ? '🤔' : ''} {error}
               </span>
             )}
           </div>
@@ -131,12 +179,8 @@ export default function StudioAiBar({
           >
             {follow ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             <span>Follow along</span>
-            <span
-              className={`relative w-7 h-4 rounded-full transition-colors ${follow ? 'bg-violet-500' : 'bg-stone-600'}`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${follow ? 'translate-x-3' : ''}`}
-              />
+            <span className={`relative w-7 h-4 rounded-full transition-colors ${follow ? 'bg-violet-500' : 'bg-stone-600'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${follow ? 'translate-x-3' : ''}`} />
             </span>
           </button>
         </div>
@@ -154,7 +198,7 @@ export default function StudioAiBar({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             disabled={working}
-            placeholder="Ask AI to change anything — “make the headline bolder”"
+            placeholder="Ask AI to change anything — “close at 3pm on Fridays”"
             className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-stone-400 focus:outline-none disabled:opacity-60"
             aria-label="Ask the AI to edit your website"
           />
