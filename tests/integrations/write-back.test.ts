@@ -189,6 +189,18 @@ describe('retryPendingWrites — pushing into the PMS', () => {
     expect(String(errUpdate!.set.error)).toMatch(/eConnector/)
   })
 
+  it('advances the attempt counter when the appointment no longer exists (no infinite retry)', async () => {
+    const client = makeFakeClient()
+    queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'gone', status: 'pending', attempts: 2 }])
+    queue('appointment', []) // appointment was deleted on our side
+    await retryPendingWrites('org1', asClient(client))
+    expect(client.createAppointment).not.toHaveBeenCalled()
+    const errUpdate = state.updates.find((u) => u.table === 'pmsWriteOp' && u.set.status === 'error')
+    expect(errUpdate).toBeTruthy()
+    // Counter advanced 2 → 3; previously it stayed at 2 and retried every sync forever.
+    expect(errUpdate!.set.attempts).toBe(3)
+  })
+
   it('skips write_ops past the max attempt cap', async () => {
     const client = makeFakeClient()
     queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'error', attempts: 6 }])

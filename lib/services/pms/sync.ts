@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHash, randomUUID } from 'crypto'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { decryptSecret } from '@/lib/crypto'
 import type { PmsConnection } from '@/lib/db/schema/clinic'
@@ -253,7 +253,7 @@ async function reconcilePatients(organizationId: string, rows: NormalizedPatient
             pmsBalanceUpdatedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(schema.patient.id, existing.internalId))
+          .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, existing.internalId)))
         await touchMap(existing.id, profileHash)
         t.updated++
       }
@@ -275,7 +275,7 @@ async function reconcilePatients(organizationId: string, rows: NormalizedPatient
           pmsBalanceUpdatedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(schema.patient.id, linkId))
+        .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, linkId)))
       await insertMap(organizationId, 'patient', np.externalId, linkId, 'pms', profileHash)
       mappedInternalIds.add(linkId)
       t.updated++
@@ -346,6 +346,17 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
         await touchMap(existing.id, h)
         t.skipped++
       } else {
+        // Only stamp a status timestamp (completedAt / cancelledAt / …) when the
+        // status actually transitions. Re-applying it on every content change
+        // (e.g. an OD note edit, which also changes the hash) kept moving the
+        // timestamp forward to the sync-run time, corrupting the real
+        // visit/cancellation time that analytics + aging rely on.
+        const [cur] = await db
+          .select({ status: schema.appointment.status })
+          .from(schema.appointment)
+          .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, existing.internalId)))
+          .limit(1)
+        const statusChanged = !cur || cur.status !== na.status
         await db
           .update(schema.appointment)
           .set({
@@ -354,10 +365,10 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
             status: na.status,
             providerId: providerInternalId,
             notes: na.note ?? null,
-            ...statusFields,
+            ...(statusChanged ? statusFields : {}),
             updatedAt: new Date(),
           })
-          .where(eq(schema.appointment.id, existing.internalId))
+          .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, existing.internalId)))
         await touchMap(existing.id, h)
         t.updated++
       }
@@ -406,7 +417,17 @@ async function reconcileRecalls(organizationId: string, rows: NormalizedRecall[]
       byPat.set(r.patientExternalId, r)
     }
   }
-  if (byPat.size === 0) return
+  // Patients OD returned a recall for, but with NO active dated recall — their
+  // recall was completed/disabled in OD, so any due date we previously stored
+  // must be cleared (otherwise derivePatientRecallStatus keeps flagging them
+  // 'due'/'overdue' forever in Recall & Outreach). Only clears patients OD
+  // AFFIRMATIVELY returned this sync — a patient absent from `rows` is left
+  // untouched, so a partial/failed recall pull never wrongly clears a valid one.
+  const clearExt = new Set<string>()
+  for (const r of rows) {
+    if (!byPat.has(r.patientExternalId)) clearExt.add(r.patientExternalId)
+  }
+  if (byPat.size === 0 && clearExt.size === 0) return
   const patMap = await loadMap(organizationId, 'patient')
   for (const [patExt, recall] of Array.from(byPat.entries())) {
     const m = patMap.get(patExt)
@@ -423,6 +444,23 @@ async function reconcileRecalls(organizationId: string, rows: NormalizedRecall[]
       })
       .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, m.internalId)))
     t.updated++
+  }
+  const clearIds: string[] = []
+  for (const ext of Array.from(clearExt)) {
+    const m = patMap.get(ext)
+    if (m) clearIds.push(m.internalId)
+  }
+  if (clearIds.length > 0) {
+    await db
+      .update(schema.patient)
+      .set({ pmsRecallDueAt: null, pmsRecallInterval: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.patient.organizationId, organizationId),
+          inArray(schema.patient.id, clearIds),
+          isNotNull(schema.patient.pmsRecallDueAt),
+        ),
+      )
   }
 }
 
@@ -693,12 +731,12 @@ async function processAppointmentWriteOp(
       .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, op.internalId)))
       .limit(1)
     if (!appt) {
-      await failOp(op.id, op.attempts, 'Appointment no longer exists')
+      await failOp(op.id, op.attempts + 1, 'Appointment no longer exists')
       return
     }
     const patientExternalId = await ensurePatientExternalId(organizationId, client, appt.patientId)
     if (!patientExternalId) {
-      await failOp(op.id, op.attempts, 'Patient could not be created in the PMS yet')
+      await failOp(op.id, op.attempts + 1, 'Patient could not be created in the PMS yet')
       return
     }
     const providerExternalId = appt.providerId ? await mapInternalToExternal(organizationId, 'provider', appt.providerId) : null
