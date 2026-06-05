@@ -20,24 +20,33 @@ vi.mock('@/lib/auth/server', () => ({
 const stubs = {
   member: null as null | { userId: string; organizationId: string; role: string },
   patient: null as null | { id: string; userId: string | null },
+  invitation: null as null | { organizationId: string },
 }
 
 const updates: Array<{ table: string; values: Record<string, unknown> }> = []
 
 vi.mock('@/lib/db', async () => {
   const { patient } = await import('@/lib/db/schema/clinic')
-  const { member } = await import('@/lib/db/schema/auth')
+  const { member, invitation } = await import('@/lib/db/schema/auth')
   const chain = () => {
     const obj: any = {}
-    let table: 'patient' | 'member' | 'unknown' = 'unknown'
+    let table: 'patient' | 'member' | 'invitation' | 'unknown' = 'unknown'
     obj.from = (t: unknown) => {
       if (t === patient) table = 'patient'
       else if (t === member) table = 'member'
+      else if (t === invitation) table = 'invitation'
       return obj
     }
     obj.where = () => obj
     obj.limit = async () => {
-      const stub = table === 'patient' ? stubs.patient : stubs.member
+      const stub =
+        table === 'patient'
+          ? stubs.patient
+          : table === 'member'
+            ? stubs.member
+            : table === 'invitation'
+              ? stubs.invitation
+              : null
       return stub ? [stub] : []
     }
     return obj
@@ -62,6 +71,7 @@ beforeEach(() => {
   session.current = null
   stubs.member = null
   stubs.patient = null
+  stubs.invitation = null
   updates.length = 0
 })
 
@@ -122,6 +132,22 @@ describe('linkPatientRecord', () => {
     await linkPatientRecord()
     expect(updates).toHaveLength(1)
     expect(updates[0].table).toBe('patient')
+    expect(updates[0].values.userId).toBe('u_1')
+  })
+
+  it('resolves the org from the invitation token even when the session has no active org', async () => {
+    // The race the fix closes: a brand-new sign-up's session has no
+    // activeOrganizationId yet right after accepting, so resolving the org
+    // from the invite token is what lets the patient record link at all.
+    session.current = {
+      user: { id: 'u_1', email: 'a@x.com' },
+      session: { activeOrganizationId: null },
+    }
+    stubs.invitation = { organizationId: 'org_invited' }
+    stubs.member = { userId: 'u_1', organizationId: 'org_invited', role: 'patient' }
+    stubs.patient = { id: 'pat_1', userId: null }
+    await linkPatientRecord('invite_tok')
+    expect(updates).toHaveLength(1)
     expect(updates[0].values.userId).toBe('u_1')
   })
 })

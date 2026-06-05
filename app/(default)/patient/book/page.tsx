@@ -16,11 +16,35 @@ const APPT_TYPES = [
   { value: 'other', label: 'Other' },
 ]
 
-export default async function PatientBookPage() {
+const ERROR_MESSAGES: Record<string, string> = {
+  unavailable: "That time isn't available — please choose another opening during clinic hours.",
+  past: 'Please choose a time in the future.',
+  invalid_time: 'Please choose a valid date and time.',
+}
+
+export default async function PatientBookPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'patient') redirect('/')
 
-  const minDateTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
+  const { error } = await searchParams
+  const errorMsg = error ? (ERROR_MESSAGES[error] ?? null) : null
+
+  // Earliest bookable time: at least an hour out, rounded up to the next :00/:30
+  // so the picker's 30-minute steps line up with the clinic's bookable slots.
+  const min = new Date(Date.now() + 60 * 60 * 1000)
+  min.setUTCSeconds(0, 0)
+  const m = min.getUTCMinutes()
+  if (m > 30) {
+    min.setUTCMinutes(0)
+    min.setUTCHours(min.getUTCHours() + 1)
+  } else if (m > 0) {
+    min.setUTCMinutes(30)
+  }
+  const minDateTime = min.toISOString().slice(0, 16)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-2xl mx-auto">
@@ -32,6 +56,12 @@ export default async function PatientBookPage() {
           Request an appointment with {ctx.organizationName}.
         </p>
       </div>
+
+      {errorMsg && (
+        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          {errorMsg}
+        </div>
+      )}
 
       <form action={bookAppointment} className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 space-y-5">
         <div>
@@ -56,6 +86,7 @@ export default async function PatientBookPage() {
             type="datetime-local"
             required
             min={minDateTime}
+            step={1800}
             className="form-input w-full"
           />
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
