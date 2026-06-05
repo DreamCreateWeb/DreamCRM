@@ -110,5 +110,8 @@ export async function updateClinicProfile(formData: FormData) {
 
   revalidatePath('/settings/clinic')
   revalidatePath('/website')
-  revalidatePath(`/site/${ctx.organizationSlug}`)
+  // 'layout' cascades to every public subpage (/about, /team, /faq, /insurance,
+  // /payment-financing, /services/*, …) — without it only the home page
+  // refreshed, so a hours/tagline/about/staff edit looked stale everywhere else.
+  revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
 }
