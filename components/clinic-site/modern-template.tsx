@@ -897,7 +897,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 data-edit-label="insurance check form"
               >
                 <InsuranceVerifierForm
-                  orgId={data.orgId}
+                  slug={data.slug}
                   brand={brand}
                   carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
                   services={services.length > 0 ? services.map((s) => s.name) : null}
@@ -1298,7 +1298,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   : {})}
               >
                 <ContactForm
-                  orgId={data.orgId}
+                  slug={data.slug}
                   brand={brand}
                   isPro={isPro}
                   basePath={basePath}

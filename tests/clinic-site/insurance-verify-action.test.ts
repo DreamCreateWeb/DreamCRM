@@ -28,6 +28,12 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+// The action resolves the org from the public slug server-side instead of
+// trusting a client-posted orgId. Map the test slug → org_1; else → null.
+vi.mock('@/lib/services/clinic-site', () => ({
+  resolveClinicOrgIdBySlug: async (slug?: string) => (slug && slug !== 'unknown' ? 'org_1' : null),
+}))
+
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
 
 beforeEach(() => {
@@ -42,18 +48,18 @@ function form(fields: Record<string, string | null>) {
 }
 
 describe('submitInsuranceVerifyRequest', () => {
-  it('returns an error when orgId is missing', async () => {
+  it('returns an error for an unresolvable clinic (missing/unknown slug)', async () => {
     const result = await submitInsuranceVerifyRequest(
       form({ email: 'jane@example.com', phone: '5551234567' }),
     )
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toMatch(/organization/i)
+    if (!result.ok) expect(result.error).toMatch(/clinic/i)
     expect(insertedRows).toHaveLength(0)
   })
 
   it('returns an error when email is missing', async () => {
     const result = await submitInsuranceVerifyRequest(
-      form({ orgId: 'org_1', phone: '5551234567' }),
+      form({ slug: 'acme', phone: '5551234567' }),
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toMatch(/email/i)
@@ -61,7 +67,7 @@ describe('submitInsuranceVerifyRequest', () => {
 
   it('returns an error when email is malformed', async () => {
     const result = await submitInsuranceVerifyRequest(
-      form({ orgId: 'org_1', email: 'not-an-email', phone: '5551234567' }),
+      form({ slug: 'acme', email: 'not-an-email', phone: '5551234567' }),
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toMatch(/valid email/i)
@@ -69,7 +75,7 @@ describe('submitInsuranceVerifyRequest', () => {
 
   it('returns an error when phone is missing', async () => {
     const result = await submitInsuranceVerifyRequest(
-      form({ orgId: 'org_1', email: 'jane@example.com' }),
+      form({ slug: 'acme', email: 'jane@example.com' }),
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toMatch(/phone/i)
@@ -77,7 +83,7 @@ describe('submitInsuranceVerifyRequest', () => {
 
   it('returns an error when phone has too few digits', async () => {
     const result = await submitInsuranceVerifyRequest(
-      form({ orgId: 'org_1', email: 'jane@example.com', phone: '123' }),
+      form({ slug: 'acme', email: 'jane@example.com', phone: '123' }),
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toMatch(/valid phone/i)
@@ -86,7 +92,7 @@ describe('submitInsuranceVerifyRequest', () => {
   it('creates a lead row scoped to the org with sourcePage=insurance_verifier on a happy-path submit', async () => {
     const result = await submitInsuranceVerifyRequest(
       form({
-        orgId: 'org_1',
+        slug: 'acme',
         email: 'jane@example.com',
         phone: '(555) 123-4567',
         carrier: 'Aetna',
@@ -109,7 +115,7 @@ describe('submitInsuranceVerifyRequest', () => {
   it('omits an empty optional field from the lead message (no "unspecified" filler)', async () => {
     await submitInsuranceVerifyRequest(
       form({
-        orgId: 'org_1',
+        slug: 'acme',
         email: 'jane@example.com',
         phone: '5551234567',
       }),
@@ -124,7 +130,7 @@ describe('submitInsuranceVerifyRequest', () => {
   it('drops the "Other / not listed" sentinel rather than leaking it into the message', async () => {
     await submitInsuranceVerifyRequest(
       form({
-        orgId: 'org_1',
+        slug: 'acme',
         email: 'jane@example.com',
         phone: '5551234567',
         carrier: '__other__',
@@ -148,7 +154,7 @@ describe('submitInsuranceVerifyRequest', () => {
       },
     }
     const result = await submitInsuranceVerifyRequest(
-      form({ orgId: 'org_1', name: 'Jane Doe', email: 'jane@example.com', reason: 'Cleaning' }),
+      form({ slug: 'acme', name: 'Jane Doe', email: 'jane@example.com', reason: 'Cleaning' }),
     )
     expect(result.ok).toBe(true)
     const leadInsert = insertedRows.find((r) => r.table === 'lead')!
@@ -168,7 +174,7 @@ describe('submitInsuranceVerifyRequest', () => {
       },
     }
     const result = await submitInsuranceVerifyRequest(
-      form({ orgId: 'org_1', email: 'jane@example.com' }),
+      form({ slug: 'acme', email: 'jane@example.com' }),
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toMatch(/date of birth/i)
@@ -176,7 +182,7 @@ describe('submitInsuranceVerifyRequest', () => {
 
   it('falls back to a clear sentinel name on the lead row (form has no name field)', async () => {
     await submitInsuranceVerifyRequest(
-      form({ orgId: 'org_1', email: 'jane@example.com', phone: '5551234567' }),
+      form({ slug: 'acme', email: 'jane@example.com', phone: '5551234567' }),
     )
     const leadInsert = insertedRows.find((r) => r.table === 'lead')
     expect(leadInsert!.values).toMatchObject({

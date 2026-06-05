@@ -9,15 +9,17 @@ import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/ema
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
-import { publicSiteUrl } from '@/lib/services/clinic-site'
+import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { organization } from '@/lib/db/schema/auth'
 
 export async function submitContactRequest(formData: FormData) {
-  const orgId = formData.get('orgId')?.toString()
-  if (!orgId) throw new Error('Missing organization')
+  // Resolve the org from the PUBLIC slug, never a client-posted orgId — a
+  // submission can only ever target the real clinic whose page it came from.
+  const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
+  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
 
   // Source-attribution fields populated by the client-side ContactForm.
   // All optional — older form versions / programmatic submissions won't
@@ -103,7 +105,7 @@ export async function listBookingSlots(
 }
 
 export async function submitBookingRequest(formData: FormData) {
-  const orgId = formData.get('orgId')?.toString()
+  const slug = formData.get('slug')?.toString()
   const firstName = formData.get('firstName')?.toString().trim()
   const lastName = formData.get('lastName')?.toString().trim()
   const email = formData.get('email')?.toString().trim() || null
@@ -120,7 +122,9 @@ export async function submitBookingRequest(formData: FormData) {
   const utmMedium = formData.get('utm_medium')?.toString().trim() || null
   const utmCampaign = formData.get('utm_campaign')?.toString().trim() || null
 
-  if (!orgId) throw new Error('Missing organization')
+  // Resolve the org from the PUBLIC slug, never a client-posted orgId.
+  const orgId = await resolveClinicOrgIdBySlug(slug ?? '')
+  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
   if (!firstName || !lastName) throw new Error('Name is required')
   if (!startTimeRaw) throw new Error('Appointment date and time are required')
 

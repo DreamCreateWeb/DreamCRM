@@ -5,7 +5,9 @@ import { submitContactRequest } from './actions'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 
 interface Props {
-  orgId: string
+  /** Public slug — the action resolves the org from it server-side (never a
+   *  client-posted orgId). */
+  slug: string
   brand: string
   isPro: boolean
   basePath: string
@@ -17,7 +19,7 @@ interface Props {
   carriers?: string[] | null
 }
 
-export default function ContactForm({ orgId, brand, isPro, basePath, fields, services, carriers }: Props) {
+export default function ContactForm({ slug, brand, isPro, basePath, fields, services, carriers }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -62,7 +64,7 @@ export default function ContactForm({ orgId, brand, isPro, basePath, fields, ser
     setStatus('pending')
     setErrorMsg('')
     const fd = new FormData(e.currentTarget)
-    fd.set('orgId', orgId)
+    fd.set('slug', slug)
     // Source-attribution snapshot — captured at submit time from the
     // browser context. Lets staff see "came from /services, referred by
     // Google" in the Leads drawer + drives a future UTM campaign report.

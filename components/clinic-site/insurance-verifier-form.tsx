@@ -5,7 +5,9 @@ import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 
 interface Props {
-  orgId: string
+  /** Public slug — the action resolves the org from it server-side (never a
+   *  client-posted orgId). */
+  slug: string
   brand: string
   /** Carrier list — feeds the carrier dropdown's options. When null/empty
    *  that dynamic dropdown auto-hides (we don't show an empty carrier picker). */
@@ -31,7 +33,7 @@ interface Props {
  * Success state replaces the form with a calm "we'll be in touch within
  * one business day" message so expectations stay honest.
  */
-export default function InsuranceVerifierForm({ orgId, brand, carriers, services, fields }: Props) {
+export default function InsuranceVerifierForm({ slug, brand, carriers, services, fields }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -75,7 +77,7 @@ export default function InsuranceVerifierForm({ orgId, brand, carriers, services
     setStatus('pending')
     setErrorMsg('')
     const fd = new FormData(e.currentTarget)
-    fd.set('orgId', orgId)
+    fd.set('slug', slug)
     const result = await submitInsuranceVerifyRequest(fd)
     if (result.ok) {
       setStatus('success')

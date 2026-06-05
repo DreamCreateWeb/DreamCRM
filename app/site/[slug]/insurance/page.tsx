@@ -510,7 +510,7 @@ export default async function InsurancePage({ params }: Props) {
                   note and we will get back to you within one business day.
                 </p>
                 <InsuranceVerifierForm
-                  orgId={data.orgId}
+                  slug={data.slug}
                   brand={brand}
                   carriers={insuranceCarriers.length > 0 ? insuranceCarriers : null}
                   services={services.length > 0 ? services.map((s) => s.name) : null}
