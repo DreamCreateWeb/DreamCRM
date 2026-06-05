@@ -262,7 +262,9 @@ export function clinicJsonLd(data: ClinicSiteData): Record<string, unknown> {
         }
       : {}),
     ...(openingHoursSpecification.length ? { openingHoursSpecification } : {}),
-    priceRange: '$$',
+    // No fabricated priceRange — we don't know the clinic's pricing, and the
+    // project rule is no fake values (the hardcoded ratingValue was dropped for
+    // the same reason). schema.org Dentist treats priceRange as optional.
   }
 
   return ld
