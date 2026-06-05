@@ -77,6 +77,31 @@ export type SystemFieldKey = (typeof SYSTEM_FIELD_KEYS)[number]
 export type FormSubmissionData = Record<string, FormFieldValue>
 export type FormFieldValue = string | string[] | boolean | null
 
+/**
+ * Returns the label of the first required field missing a value, or null when
+ * every required field is satisfied. Both the public and patient-portal submit
+ * actions re-check this server-side so a direct action call can't persist
+ * partial data (the client runner validates too, but that can be bypassed).
+ */
+export function firstMissingRequiredField(
+  schema: FormTemplateSchema,
+  data: FormSubmissionData,
+): string | null {
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) {
+      if (!field.required) continue
+      const v = data?.[field.id]
+      const empty =
+        v === undefined ||
+        v === null ||
+        (typeof v === 'string' && v.trim() === '') ||
+        (Array.isArray(v) && v.length === 0)
+      if (empty) return field.label
+    }
+  }
+  return null
+}
+
 /** A reasonable starter form clinics inherit on day one. The standard
  * dental intake: patient info, insurance, medical, dental history,
  * consent. Editable from /settings/clinic/intake-forms. */
