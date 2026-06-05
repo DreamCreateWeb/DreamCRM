@@ -80,6 +80,9 @@ export interface AppliedEdit {
   label: string
   /** A short human preview of the new value, so the owner can verify the change. */
   preview: string
+  /** The canvas element + page this edit touched — used to tour the changes. */
+  anchor: string | null
+  page: string
 }
 
 /** Columns the AI bar may write — the allow-list both edits and undo honour. */
@@ -333,57 +336,49 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     if (!t) return '(cleared)'
     return t.length > n ? `${t.slice(0, n - 1)}…` : t
   }
+  // Record an applied edit + track the primary anchor/page from the first one.
+  const push = (edit: AppliedEdit) => {
+    applied.push(edit)
+    setAnchor(edit.anchor)
+    setPage(edit.page)
+  }
 
   for (const e of envelope.edits) {
     if (e.type === 'field' && e.field && FIELD_COLS.has(e.field) && typeof e.value === 'string') {
       const v = e.value.trim()
       ;(patch as Record<string, unknown>)[e.field] = v || null
-      applied.push({ label: labelForField(e.field), preview: trunc(v) })
-      setPage('/')
-      if (e.field === 'tagline' || e.field === 'about' || e.field === 'displayName') setAnchor(e.field)
+      const a = e.field === 'tagline' || e.field === 'about' || e.field === 'displayName' ? e.field : null
+      push({ label: labelForField(e.field), preview: trunc(v), anchor: a, page: '/' })
     } else if (e.type === 'brandColor' && e.value && HEX.test(e.value.trim())) {
       patch.brandColor = e.value.trim()
-      applied.push({ label: 'Brand color', preview: e.value.trim() })
-      setPage('/')
+      push({ label: 'Brand color', preview: e.value.trim(), anchor: 'tagline', page: '/' })
     } else if (e.type === 'copy' && e.key && knownCopy.has(e.key) && typeof e.value === 'string') {
       const entry = knownCopy.get(e.key)!
       overrides[e.key] = e.value
       overridesTouched = true
-      applied.push({ label: entry.label, preview: trunc(e.value) })
-      setAnchor(`copy:${e.key}`)
-      setPage(entry.page)
+      push({ label: entry.label, preview: trunc(e.value), anchor: `copy:${e.key}`, page: entry.page })
     } else if (e.type === 'chips' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 8)
       patch.differenceChips = list.length > 0 ? list : null
-      applied.push({ label: '“Why us” highlights', preview: trunc(list.join(', ')) })
-      setAnchor('differenceChips')
-      setPage('/')
+      push({ label: '“Why us” highlights', preview: trunc(list.join(', ')), anchor: 'differenceChips', page: '/' })
     } else if (e.type === 'carriers' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 40)
       patch.acceptedInsuranceCarriers = list.length > 0 ? list : null
-      applied.push({ label: 'Insurance carriers', preview: trunc(list.join(', ')) })
-      setAnchor('acceptedInsuranceCarriers')
-      setPage('/')
+      push({ label: 'Insurance carriers', preview: trunc(list.join(', ')), anchor: 'acceptedInsuranceCarriers', page: '/' })
     } else if (e.type === 'stats' && Array.isArray(e.stats)) {
       const list = e.stats
         .slice(0, 3)
         .map((s, i) => ({ id: `stat_${i}`, value: s.value.trim(), label: s.label.trim() }))
         .filter((s) => s.value && s.label)
       patch.stats = list.length > 0 ? list : null
-      applied.push({ label: 'Trust stats', preview: trunc(list.map((s) => `${s.value} ${s.label}`).join(' · ')) })
-      setAnchor('stats')
-      setPage('/')
+      push({ label: 'Trust stats', preview: trunc(list.map((s) => `${s.value} ${s.label}`).join(' · ')), anchor: 'stats', page: '/' })
     } else if (e.type === 'paymentMethods' && Array.isArray(e.items)) {
       const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 12)
       patch.paymentMethods = list.length > 0 ? list : null
-      applied.push({ label: 'Payment methods', preview: trunc(list.join(', ')) })
-      setAnchor('paymentFinancing')
-      setPage('/payment-financing')
+      push({ label: 'Payment methods', preview: trunc(list.join(', ')), anchor: 'paymentFinancing', page: '/payment-financing' })
     } else if (e.type === 'cancellationPolicy' && typeof e.value === 'string') {
       patch.cancellationPolicy = e.value.trim() || null
-      applied.push({ label: 'Cancellation policy', preview: trunc(e.value) })
-      setAnchor('paymentFinancing')
-      setPage('/payment-financing')
+      push({ label: 'Cancellation policy', preview: trunc(e.value), anchor: 'paymentFinancing', page: '/payment-financing' })
     } else if (e.type === 'hours' && e.hours) {
       const cleaned = cleanHours(e.hours)
       if (cleaned) {
@@ -391,9 +386,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
         const current = (profile.hours as Record<string, unknown> | null) ?? {}
         patch.hours = { ...current, ...cleaned }
         const days = Object.keys(cleaned).map((d) => DAY_LABELS[d] ?? d).join(', ')
-        applied.push({ label: 'Office hours', preview: `${days} updated` })
-        setAnchor('hours')
-        setPage('/')
+        push({ label: 'Office hours', preview: `${days} updated`, anchor: 'hours', page: '/' })
       }
     } else if (e.type === 'faq' && Array.isArray(e.faq)) {
       const list = e.faq
@@ -401,9 +394,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
         .filter((f) => f.question && f.answer && f.category)
         .slice(0, 14)
       patch.faq = list.length > 0 ? list : null
-      applied.push({ label: 'FAQ', preview: `${list.length} question${list.length === 1 ? '' : 's'}` })
-      setAnchor('faq')
-      setPage('/faq')
+      push({ label: 'FAQ', preview: `${list.length} question${list.length === 1 ? '' : 's'}`, anchor: 'faq', page: '/faq' })
     }
   }
 

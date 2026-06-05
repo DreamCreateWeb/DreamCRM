@@ -10,7 +10,7 @@ import { runAiWebsiteEdit, undoAiWebsiteEdit } from './ai-edit-action'
  * before→after so mistakes are obvious, with one-click Undo as the safety net.
  */
 type Phase = 'idle' | 'working' | 'done' | 'error'
-type EditDetail = { label: string; preview: string }
+type EditDetail = { label: string; preview: string; anchor: string | null; page: string }
 type UndoData = { before: Record<string, unknown>; page: string; anchor: string | null }
 
 const FOLLOW_KEY = 'dc-studio-follow'
@@ -18,7 +18,12 @@ const FOLLOW_KEY = 'dc-studio-follow'
 export default function StudioAiBar({
   onApplied,
 }: {
-  onApplied: (page: string, anchor: string | null, follow: boolean) => void
+  onApplied: (opts: {
+    page: string
+    anchor: string | null
+    edits: { anchor: string | null; page: string }[]
+    follow: boolean
+  }) => void
 }) {
   const [value, setValue] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
@@ -65,7 +70,7 @@ export default function StudioAiBar({
         setUndoData({ before: res.before, page: res.page, anchor: res.anchor })
         setValue('')
         setPhase('done')
-        onApplied(res.page, res.anchor, follow)
+        onApplied({ page: res.page, anchor: res.anchor, edits: res.edits, follow })
         window.setTimeout(() => setPhase((p) => (p === 'done' ? 'idle' : p)), 12000)
       } else {
         setError(res.error)
@@ -85,7 +90,7 @@ export default function StudioAiBar({
     try {
       const r = await undoAiWebsiteEdit(undoData.before)
       if (r.ok) {
-        onApplied(undoData.page, undoData.anchor, follow)
+        onApplied({ page: undoData.page, anchor: undoData.anchor, edits: [], follow })
         setPhase('idle')
         setUndoData(null)
       }

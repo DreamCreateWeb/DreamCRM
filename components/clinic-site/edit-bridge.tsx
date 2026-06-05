@@ -154,6 +154,27 @@ export default function EditBridge() {
       if (k === 'modal' || k === 'image') scheduleHideBtn()
     }
 
+    // Scroll a tagged element into view + flash it. Used by both the on-load
+    // reveal and the Studio's "tour" postMessages (one per AI change).
+    let flashTimer: ReturnType<typeof setTimeout> | null = null
+    function revealField(field: string) {
+      let el: Element | null = null
+      try {
+        el = document.querySelector(`[data-edit-field="${field.replace(/["\\]/g, '')}"]`)
+      } catch {
+        el = null
+      }
+      if (!el) return
+      const target = el
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      target.classList.remove('dc-reveal-flash')
+      // Force reflow so re-adding the class restarts the animation on repeat hits.
+      void (target as HTMLElement).offsetWidth
+      target.classList.add('dc-reveal-flash')
+      if (flashTimer) clearTimeout(flashTimer)
+      flashTimer = setTimeout(() => target.classList.remove('dc-reveal-flash'), 1800)
+    }
+
     function onMessage(e: MessageEvent) {
       if (e.origin !== origin) return
       const d = e.data as { source?: string; type?: string; field?: string; url?: string; section?: string }
@@ -165,6 +186,8 @@ export default function EditBridge() {
         document
           .querySelector(`[data-edit-section="${d.section}"]`)
           ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else if (d.type === 'reveal' && d.field) {
+        revealField(d.field)
       }
     }
 
@@ -176,25 +199,12 @@ export default function EditBridge() {
     post({ type: 'ready' })
 
     // "Follow the AI": when the Studio navigates here with ?reveal=<field> after
-    // an AI edit, scroll to the changed element and flash it so the eye catches
-    // what just changed. Deferred a beat so layout + fonts settle first.
+    // an AI edit, scroll to the changed element and flash it. Deferred a beat so
+    // layout + fonts settle first.
     const reveal = new URLSearchParams(window.location.search).get('reveal')
     let revealTimer: ReturnType<typeof setTimeout> | null = null
-    let flashTimer: ReturnType<typeof setTimeout> | null = null
     if (reveal) {
-      revealTimer = setTimeout(() => {
-        let el: Element | null = null
-        try {
-          el = document.querySelector(`[data-edit-field="${reveal.replace(/["\\]/g, '')}"]`)
-        } catch {
-          el = null
-        }
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          el.classList.add('dc-reveal-flash')
-          flashTimer = setTimeout(() => el?.classList.remove('dc-reveal-flash'), 1800)
-        }
-      }, 160)
+      revealTimer = setTimeout(() => revealField(reveal), 160)
     }
 
     return () => {
