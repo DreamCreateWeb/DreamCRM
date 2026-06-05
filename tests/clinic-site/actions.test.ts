@@ -65,6 +65,14 @@ vi.mock('@/lib/services/booking', () => ({
   SLOT_MINUTES: 30,
 }))
 
+// The actions now resolve the org from the public slug server-side instead of
+// trusting a client-posted orgId. Map the test slug → org_1; anything else
+// (missing/unknown slug) → null so the "not found" guards fire.
+vi.mock('@/lib/services/clinic-site', () => ({
+  publicSiteUrl: () => 'https://clinic.test',
+  resolveClinicOrgIdBySlug: async (slug?: string) => (slug && slug !== 'unknown' ? 'org_1' : null),
+}))
+
 import { submitContactRequest, submitBookingRequest } from '@/app/site/[slug]/actions'
 import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
 
@@ -83,21 +91,21 @@ describe('submitContactRequest', () => {
     return fd
   }
 
-  it('rejects missing orgId', async () => {
+  it('rejects an unresolvable clinic (missing/unknown slug)', async () => {
     await expect(
       submitContactRequest(form({ name: 'A', phone: '555' })),
-    ).rejects.toThrow(/organization/i)
+    ).rejects.toThrow(/clinic/i)
   })
 
   it('rejects missing name', async () => {
     await expect(
-      submitContactRequest(form({ orgId: 'org_1', phone: '555' })),
+      submitContactRequest(form({ slug: 'acme', phone: '555' })),
     ).rejects.toThrow(/name/i)
   })
 
   it('rejects missing phone', async () => {
     await expect(
-      submitContactRequest(form({ orgId: 'org_1', name: 'Jane' })),
+      submitContactRequest(form({ slug: 'acme', name: 'Jane' })),
     ).rejects.toThrow(/phone/i)
   })
 
@@ -105,7 +113,7 @@ describe('submitContactRequest', () => {
     selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental' }
     await submitContactRequest(
       form({
-        orgId: 'org_1',
+        slug: 'acme',
         name: 'Jane Doe',
         phone: '5551234',
         email: 'jane@example.com',
@@ -129,7 +137,7 @@ describe('submitContactRequest', () => {
   it('does not email when clinic has no email configured', async () => {
     selectStubs.profile = { email: null, displayName: 'X Dental' }
     await submitContactRequest(
-      form({ orgId: 'org_1', name: 'Jane', phone: '555' }),
+      form({ slug: 'acme', name: 'Jane', phone: '555' }),
     )
     expect(sendContactRequestEmail).not.toHaveBeenCalled()
   })
@@ -138,7 +146,7 @@ describe('submitContactRequest', () => {
     selectStubs.profile = null // simulates clinic with no profile/email
     await submitContactRequest(
       form({
-        orgId: 'org_1',
+        slug: 'acme',
         name: 'Jane Doe',
         phone: '5551234',
         email: 'jane@example.com',
@@ -162,7 +170,7 @@ describe('submitContactRequest', () => {
     selectStubs.profile = null
     await submitContactRequest(
       form({
-        orgId: 'org_1',
+        slug: 'acme',
         name: 'Tracked Lead',
         phone: '5552345',
         sourcePage: '/services',
@@ -194,7 +202,7 @@ describe('submitBookingRequest', () => {
   // Always-future startTime so the past-time guard never fires in tests.
   const futureStartTime = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
   const baseFields = {
-    orgId: 'org_1',
+    slug: 'acme',
     firstName: 'Jane',
     lastName: 'Doe',
     email: 'jane@x.com',
@@ -204,10 +212,10 @@ describe('submitBookingRequest', () => {
     notes: null,
   }
 
-  it('rejects missing orgId', async () => {
+  it('rejects an unresolvable clinic (missing/unknown slug)', async () => {
     await expect(
-      submitBookingRequest(form({ ...baseFields, orgId: null })),
-    ).rejects.toThrow(/organization/i)
+      submitBookingRequest(form({ ...baseFields, slug: null })),
+    ).rejects.toThrow(/clinic/i)
   })
 
   it('rejects missing first/last name', async () => {

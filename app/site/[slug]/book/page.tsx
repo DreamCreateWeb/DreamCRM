@@ -265,6 +265,7 @@ export default async function BookPage({ params }: Props) {
                 >
                   <BookForm
                     orgId={data.orgId}
+                    slug={data.slug}
                     brand={brand}
                     clinicName={name}
                     services={(data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES}

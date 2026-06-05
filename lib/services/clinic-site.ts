@@ -1,7 +1,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, clinicLocation } from '@/lib/db/schema/platform'
@@ -15,6 +15,27 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
 export function appBaseUrl(): string {
   const env = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '')
   return env || `https://www.${SITE_DOMAIN}`
+}
+
+/**
+ * Resolve a clinic org id from its PUBLIC slug.
+ *
+ * The public form actions (contact / booking / insurance verifier) use this
+ * instead of trusting an `orgId` posted in FormData. The slug is the clinic's
+ * public identity (it's literally the page the form lives on), so resolving
+ * server-side guarantees a submission can only ever land in a real clinic org
+ * — never the platform org, an arbitrary id, or a non-clinic org. Returns null
+ * when the slug doesn't map to a clinic.
+ */
+export async function resolveClinicOrgIdBySlug(slug: string): Promise<string | null> {
+  const s = slug?.trim()
+  if (!s) return null
+  const [org] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(and(eq(organization.slug, s), eq(organization.type, 'clinic')))
+    .limit(1)
+  return org?.id ?? null
 }
 
 /**

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { createLead } from '@/lib/services/leads'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 
 /**
@@ -36,8 +37,9 @@ export type InsuranceVerifyResult =
 export async function submitInsuranceVerifyRequest(
   formData: FormData,
 ): Promise<InsuranceVerifyResult> {
-  const orgId = formData.get('orgId')?.toString().trim()
-  if (!orgId) return { ok: false, error: 'Missing organization' }
+  // Resolve the org from the PUBLIC slug, never a client-posted orgId.
+  const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
+  if (!orgId) return { ok: false, error: 'We couldn’t find this clinic. Please try again.' }
 
   // Resolve the clinic's (possibly customised) field config from the DB so we
   // map every submitted value by its real definition — system fields to lead

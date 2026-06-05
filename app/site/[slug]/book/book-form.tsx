@@ -37,7 +37,11 @@ const DAY_WINDOW = 14 // show two weeks of days
 const DAY_NAME_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface Props {
+  /** Used only for the read-only slot-availability lookup. */
   orgId: string
+  /** Public slug — the booking write resolves the org from it server-side
+   *  (never the client-posted orgId). */
+  slug: string
   brand: string
   clinicName: string
   /** Visit-type options reflect the clinic's configured services on the
@@ -90,7 +94,7 @@ export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedRe
   return 'Every slot is taken for this day. Try another day.'
 }
 
-export default function BookForm({ orgId, brand, clinicName, services }: Props) {
+export default function BookForm({ orgId, slug, brand, clinicName, services }: Props) {
   const apptTypes = useMemo(() => buildVisitTypeOptions(services), [services])
   const defaultApptType = apptTypes[0]?.value ?? 'other'
   const days = useMemo(() => {
@@ -172,7 +176,7 @@ export default function BookForm({ orgId, brand, clinicName, services }: Props) 
     setSubmitState('pending')
     setErrorMsg('')
     const fd = new FormData(e.currentTarget)
-    fd.set('orgId', orgId)
+    fd.set('slug', slug)
     fd.set('startTime', selectedSlotIso)
     // Source-attribution snapshot (mirrors the contact form) so the SEO
     // module can attribute organic-search traffic to booked appointments.
