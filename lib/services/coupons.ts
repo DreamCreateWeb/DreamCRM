@@ -114,12 +114,19 @@ export async function validateCoupon(
   return { ok: true, couponId: c.id, discountType: c.discountType as DiscountType, discountValue: c.discountValue, discountCents }
 }
 
-export async function markCouponUsed(couponId: string, orderId: string): Promise<void> {
-  // Only flips single-use codes; multi-use stays available.
+export async function markCouponUsed(organizationId: string, couponId: string, orderId: string): Promise<void> {
+  // Only flips single-use codes; multi-use stays available. Org-scoped so a
+  // caller can never burn a coupon outside the order's clinic.
   await db
     .update(schema.shopCoupon)
     .set({ usedAt: new Date(), usedOrderId: orderId, updatedAt: new Date() })
-    .where(and(eq(schema.shopCoupon.id, couponId), eq(schema.shopCoupon.singleUse, 1)))
+    .where(
+      and(
+        eq(schema.shopCoupon.organizationId, organizationId),
+        eq(schema.shopCoupon.id, couponId),
+        eq(schema.shopCoupon.singleUse, 1),
+      ),
+    )
 }
 
 /**

@@ -803,7 +803,10 @@ export async function rescheduleAppointment(input: RescheduleInput) {
     type: original.type,
     status: 'scheduled',
     notes: original.notes,
-    source: 'manual',
+    // Carry the original booking source forward — a rescheduled widget/portal
+    // appointment must keep its attribution, not silently become 'manual'
+    // (which dropped it from the source filter + analytics + PMS context).
+    source: original.source ?? 'manual',
     rescheduledFromAppointmentId: input.appointmentId,
   })
 
@@ -814,7 +817,12 @@ export async function rescheduleAppointment(input: RescheduleInput) {
       cancelledAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(schema.appointment.id, input.appointmentId))
+    .where(
+      and(
+        eq(schema.appointment.organizationId, input.organizationId),
+        eq(schema.appointment.id, input.appointmentId),
+      ),
+    )
 
   // Two-way PMS: cancel the original in the PMS (so the old time stops
   // reminding), then push the new slot as a fresh booking.
@@ -888,7 +896,12 @@ export async function createInternalAppointment(input: CreateInternalAppointment
   await db
     .update(schema.patient)
     .set({ lastActivityAt: new Date() })
-    .where(eq(schema.patient.id, input.patientId))
+    .where(
+      and(
+        eq(schema.patient.organizationId, input.organizationId),
+        eq(schema.patient.id, input.patientId),
+      ),
+    )
   // Two-way PMS: queue this booking to be written into the clinic's PMS on the
   // next sync (best-effort, never blocks booking).
   await queueAppointmentWriteBack(input.organizationId, id)

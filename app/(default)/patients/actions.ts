@@ -47,6 +47,9 @@ export async function updatePatientAction(
   await updatePatient({ organizationId: ctx.organizationId, patientId, patch })
   revalidatePath(`/patients/${patientId}`)
   revalidatePath('/patients')
+  // Overview's "Today's chair" renders patient names / birthday glyph / balance
+  // from the same row — refresh it so a name or DOB fix shows immediately.
+  revalidatePath('/')
   return { ok: true }
 }
 

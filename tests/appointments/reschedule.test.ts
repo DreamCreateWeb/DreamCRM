@@ -164,4 +164,28 @@ describe('rescheduleAppointment — atomic cancel + insert', () => {
     expect(inserted.type).toBe('consultation')
     expect(inserted.notes).toBe('Bring last X-rays')
   })
+
+  it('carries the original booking source forward instead of resetting to manual', async () => {
+    txState.selectResult = [
+      {
+        id: 'appt_old',
+        organizationId: 'org_1',
+        patientId: 'pat_3',
+        locationId: 'loc_1',
+        providerId: 'prov_1',
+        title: 'cleaning — Emma Lopez',
+        type: 'cleaning',
+        notes: null,
+        source: 'booking_widget',
+      },
+    ]
+    await rescheduleAppointment({
+      organizationId: 'org_1',
+      appointmentId: 'appt_old',
+      newStartTime: new Date('2026-07-01T16:00:00Z'),
+      newEndTime: null,
+    })
+    // A widget/portal appointment keeps its attribution through a reschedule.
+    expect(txState.inserts[0].values.source).toBe('booking_widget')
+  })
 })
