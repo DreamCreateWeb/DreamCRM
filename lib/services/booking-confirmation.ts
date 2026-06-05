@@ -1,0 +1,78 @@
+import 'server-only'
+import { and, eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { patient } from '@/lib/db/schema/clinic'
+import { clinicProfile } from '@/lib/db/schema/platform'
+import { organization } from '@/lib/db/schema/auth'
+import { sendBookingConfirmationEmail } from '@/lib/email'
+import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
+import { getDefaultFormTemplate } from '@/lib/services/forms'
+import { publicSiteUrl } from '@/lib/services/clinic-site'
+
+/**
+ * Send a booking confirmation email + mirror it into the PMS CommLog.
+ * Best-effort (never throws) so a booking never fails on comms.
+ *
+ * Used by the patient-portal + front-desk booking paths so a patient gets the
+ * same confirmation (with the intake-form link) the public widget already
+ * sends — previously only the widget confirmed, and a patient booked by staff
+ * or via the portal heard nothing.
+ */
+export async function sendBookingConfirmation(opts: {
+  organizationId: string
+  patientId: string
+  appointmentType: string
+  startTime: Date
+}): Promise<void> {
+  try {
+    const [p] = await db
+      .select({ email: patient.email, firstName: patient.firstName, lastName: patient.lastName })
+      .from(patient)
+      .where(and(eq(patient.organizationId, opts.organizationId), eq(patient.id, opts.patientId)))
+      .limit(1)
+    if (!p?.email) return
+
+    const [profile] = await db
+      .select({
+        email: clinicProfile.email,
+        displayName: clinicProfile.displayName,
+        phone: clinicProfile.phone,
+        websiteDomain: clinicProfile.websiteDomain,
+      })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, opts.organizationId))
+      .limit(1)
+
+    let intakeFormUrl: string | null = null
+    const defaultForm = await getDefaultFormTemplate(opts.organizationId)
+    if (defaultForm) {
+      const [org] = await db
+        .select({ slug: organization.slug })
+        .from(organization)
+        .where(eq(organization.id, opts.organizationId))
+        .limit(1)
+      if (org) {
+        const base = publicSiteUrl({
+          slug: org.slug,
+          profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+        })
+        intakeFormUrl = `${base}/intake/${defaultForm.slug}`
+      }
+    }
+
+    await sendBookingConfirmationEmail(p.email, {
+      patientName: `${p.firstName} ${p.lastName}`.trim(),
+      clinicName: profile?.displayName ?? 'Your Clinic',
+      clinicPhone: profile?.phone ?? null,
+      startTime: opts.startTime,
+      appointmentType: opts.appointmentType,
+      intakeFormUrl,
+    })
+    await queueCommLogWriteBack(opts.organizationId, opts.patientId, {
+      note: `Booking confirmation sent for ${opts.appointmentType.replace(/_/g, ' ')} on ${opts.startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+      mode: 'Email',
+    }).catch(() => {})
+  } catch (err) {
+    console.warn('[booking-confirmation] failed', err)
+  }
+}
