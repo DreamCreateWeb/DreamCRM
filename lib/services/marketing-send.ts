@@ -103,11 +103,16 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
   }
 
   if (!opts.test) {
+    // If literally nothing went out (an SMS campaign in this email-only build,
+    // or a total send failure), don't lock the campaign as 'completed' — leave
+    // it a draft so the clinic can fix the channel/issue and re-send. A partial
+    // success (≥1 sent) still completes.
+    const nothingSent = result.sent === 0 && result.attempted > 0
     await db
       .update(schema.campaigns)
       .set({
-        status: 'completed',
-        sentAt: new Date(),
+        status: nothingSent ? 'draft' : 'completed',
+        sentAt: nothingSent ? null : new Date(),
         sendStats: {
           attempted: result.attempted,
           sent: result.sent,

@@ -306,6 +306,9 @@ export async function listEligiblePatients(
         eq(schema.reviewRequest.organizationId, organizationId),
         inArray(schema.reviewRequest.patientId, patientIds),
         gte(schema.reviewRequest.createdAt, rateLimitCutoff),
+        // Don't let a failed/skipped send hide a patient from "Ready to ask".
+        ne(schema.reviewRequest.status, 'failed'),
+        ne(schema.reviewRequest.status, 'skipped'),
       ),
     )
   const recentlyAsked = new Set(recent.map((r) => r.patientId))
@@ -397,6 +400,10 @@ export async function createAndSendReviewRequest(input: {
         eq(schema.reviewRequest.organizationId, input.organizationId),
         eq(schema.reviewRequest.patientId, input.patientId),
         gte(schema.reviewRequest.createdAt, rateLimitCutoff),
+        // A failed/skipped send never reached the patient — it must not lock
+        // them out of a real ask for the whole rate-limit window.
+        ne(schema.reviewRequest.status, 'failed'),
+        ne(schema.reviewRequest.status, 'skipped'),
       ),
     )
     .limit(1)
