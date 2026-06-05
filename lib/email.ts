@@ -10,14 +10,39 @@ function emailDriver(): 'ses' | 'resend' {
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
 // AWS SDK never loads on the Resend path).
 async function deliver(msg: { to: string; subject: string; html: string }): Promise<void> {
+  // Config errors (missing key) throw raw — they're an ops problem, not a
+  // delivery failure. Only actual SEND failures get the friendly remap so the
+  // raw provider error (e.g. SES's verbose "identities failed the check in
+  // region us-east-1") never leaks to staff.
   if (emailDriver() === 'ses') {
     const { sendEmailViaSes } = await import('./ses')
-    await sendEmailViaSes({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
+    try {
+      await sendEmailViaSes({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
+    } catch (err) {
+      console.warn('[email] SES delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
+      throw new Error(friendlyEmailError(err))
+    }
     return
   }
   const key = process.env.RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY env var is not set')
-  await new Resend(key).emails.send({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
+  try {
+    await new Resend(key).emails.send({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
+  } catch (err) {
+    console.warn('[email] Resend delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
+    throw new Error(friendlyEmailError(err))
+  }
+}
+
+/** Map a raw provider send error to a clean, honest user-facing message. */
+function friendlyEmailError(err: unknown): string {
+  const raw = err instanceof Error ? `${err.name} ${err.message}` : String(err)
+  // SES sandbox: outbound to non-verified recipients is held until AWS grants
+  // production access. This is the most common failure in pre-prod.
+  if (/not verified|MessageRejected|sandbox|verification/i.test(raw)) {
+    return "We couldn’t email this address yet — outbound email is in test mode for unverified recipients until sending is approved."
+  }
+  return 'The email couldn’t be sent right now. Please try again.'
 }
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string) {

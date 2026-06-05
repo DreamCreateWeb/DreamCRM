@@ -62,4 +62,23 @@ describe('transactional email driver dispatch', () => {
     delete process.env.RESEND_API_KEY
     await expect(sendPasswordResetEmail('u@x.com', 'https://reset')).rejects.toThrow(/RESEND_API_KEY/)
   })
+
+  it('maps a raw SES sandbox error to a clean message and never leaks the AWS region text', async () => {
+    process.env.EMAIL_DRIVER = 'ses'
+    mocks.sesSend.mockRejectedValue(
+      Object.assign(
+        new Error('Email address is not verified. The following identities failed the check in region US-EAST-1: x@gmail.com'),
+        { name: 'MessageRejected' },
+      ),
+    )
+    let caught: Error | null = null
+    try {
+      await sendInvitationEmail('x@gmail.com', { inviterName: 'A', orgName: 'B', role: 'member', inviteUrl: 'https://i' })
+    } catch (e) {
+      caught = e as Error
+    }
+    expect(caught).not.toBeNull()
+    expect(caught!.message).toMatch(/test mode/i)
+    expect(caught!.message).not.toMatch(/US-EAST-1/)
+  })
 })

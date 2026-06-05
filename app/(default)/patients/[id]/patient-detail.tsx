@@ -149,7 +149,7 @@ export default function PatientDetail({
               {header.totalBookings > 0 && <> · {header.totalBookings} {header.totalBookings === 1 ? 'booking' : 'bookings'} on file</>}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-start gap-2">
             <form action={openPatientThreadAction}>
               <input type="hidden" name="patientId" value={header.id} />
               <button
@@ -296,7 +296,7 @@ function SendIntakeButton({ patientId }: { patientId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="relative flex flex-col">
       <button
         type="button"
         onClick={onClick}
@@ -307,7 +307,7 @@ function SendIntakeButton({ patientId }: { patientId: string }) {
       </button>
       {feedback && (
         <span
-          className={`text-[11px] ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-[11px] leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
         >
           {feedback.msg}
         </span>
@@ -331,7 +331,7 @@ function SendReviewRequestButton({ patientId }: { patientId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="relative flex flex-col">
       <button
         type="button"
         onClick={onClick}
@@ -342,7 +342,7 @@ function SendReviewRequestButton({ patientId }: { patientId: string }) {
       </button>
       {feedback && (
         <span
-          className={`text-[11px] max-w-[14rem] ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-[11px] leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
         >
           {feedback.msg}
         </span>
