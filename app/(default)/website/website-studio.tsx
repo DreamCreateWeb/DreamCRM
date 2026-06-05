@@ -189,11 +189,61 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
     }
   }
 
-  // After an AI edit: follow on → jump the canvas to the change; follow off →
-  // keep the canvas current in place without moving the viewport.
-  const onAiApplied = (page: string, anchor: string | null, follow: boolean) => {
-    if (follow) navigateFrame(page, anchor)
-    else reloadFrame()
+  // Flash a changed element in place (no reload) — used while touring same-page
+  // edits so the page visibly morphs change-by-change.
+  const postReveal = (field: string) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        { source: 'dreamcrm-studio', type: 'reveal', field },
+        window.location.origin,
+      )
+    } catch {
+      /* cross-origin guard — never happens (same origin) */
+    }
+  }
+
+  // A monotonically-increasing token so a new edit cancels a still-running tour.
+  const tourSeq = useRef(0)
+  const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
+
+  async function runTour(stops: { page: string; anchor: string }[]) {
+    const mine = ++tourSeq.current
+    let cur = ''
+    for (let i = 0; i < stops.length; i++) {
+      if (tourSeq.current !== mine) return // a newer edit started — abandon this tour
+      const s = stops[i]
+      if (s.page !== cur) {
+        navigateFrame(s.page, s.anchor) // full load + on-load reveal/flash
+        cur = s.page
+        await sleep(i === 0 ? 850 : 1250)
+      } else {
+        postReveal(s.anchor) // same page — just scroll + flash the next change
+        await sleep(1050)
+      }
+    }
+  }
+
+  // After an AI edit: follow off → keep the canvas current without moving;
+  // follow on → tour the canvas through each change (flashing each in turn) so
+  // the page visibly morphs. A single change is just one jump + flash.
+  const onAiApplied = (opts: {
+    page: string
+    anchor: string | null
+    edits: { anchor: string | null; page: string }[]
+    follow: boolean
+  }) => {
+    if (!opts.follow) {
+      reloadFrame()
+      return
+    }
+    const stops = opts.edits
+      .filter((e): e is { anchor: string; page: string } => !!e.anchor)
+      .filter((e, i, arr) => arr.findIndex((x) => x.anchor === e.anchor && x.page === e.page) === i)
+    if (stops.length <= 1) {
+      navigateFrame(opts.page, opts.anchor)
+      return
+    }
+    void runTour(stops)
   }
 
   async function persist(fn: () => Promise<SectionResult>): Promise<SectionResult> {

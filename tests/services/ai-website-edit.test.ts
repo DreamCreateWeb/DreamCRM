@@ -202,4 +202,20 @@ describe('applyAiWebsiteEdit', () => {
     expect(faq[0].question).toBe('Do you take walk-ins?')
     if (r.ok) expect(r.page).toBe('/faq')
   })
+
+  it('returns a per-edit anchor + page so the canvas can tour the changes', async () => {
+    state.toolInput = {
+      summary: 'x',
+      page: '/',
+      edits: [
+        { type: 'field', field: 'tagline', value: 'New headline' },
+        { type: 'copy', key: 'insurance.heading', value: 'Insurance, simplified.' },
+      ],
+    }
+    const r = await applyAiWebsiteEdit('org_1', 'x')
+    if (r.ok) {
+      expect(r.edits[0]).toMatchObject({ anchor: 'tagline', page: '/' })
+      expect(r.edits[1]).toMatchObject({ anchor: 'copy:insurance.heading', page: '/insurance' })
+    }
+  })
 })
