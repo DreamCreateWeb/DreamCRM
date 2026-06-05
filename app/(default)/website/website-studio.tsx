@@ -257,7 +257,9 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library }
     } else {
       setStatus('error')
       setErrorMsg(res.error)
-      reloadFrame()
+      // Don't reload on error — the canvas already holds the owner's in-progress
+      // edits (e.g. other open inline fields); reloading would silently discard
+      // them. Only a confirmed save refreshes the canvas.
     }
     return res
   }

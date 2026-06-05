@@ -62,8 +62,9 @@ async function writeServices(ctx: TenantContext, services: ClinicService[]) {
     .set({ services, updatedAt: new Date() })
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
   revalidatePath('/settings/clinic')
-  revalidatePath(`/site/${ctx.organizationSlug}`)
-  revalidatePath(`/site/${ctx.organizationSlug}/services`)
+  // 'layout' cascades to the services index AND every /services/[serviceSlug]
+  // detail page — editing/regenerating a service left those detail pages stale.
+  revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
 }
 
 function buildClinicContextFromProfile(
