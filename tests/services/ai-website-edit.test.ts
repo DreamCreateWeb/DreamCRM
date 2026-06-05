@@ -112,4 +112,53 @@ describe('applyAiWebsiteEdit', () => {
     await applyAiWebsiteEdit('org_1', 'x')
     expect(capturedPatch?.differenceChips).toEqual(['Same-week visits', 'No judgment, ever'])
   })
+
+  it('derives the page from a subpage copy key (model page ignored)', async () => {
+    state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'copy', key: 'insurance.heading', value: 'Insurance, simplified.' }] }
+    const r = await applyAiWebsiteEdit('org_1', 'x')
+    if (r.ok) {
+      expect(r.page).toBe('/insurance')
+      expect(r.anchor).toBe('copy:insurance.heading')
+    }
+  })
+
+  it('sets payment methods + routes to the payment page', async () => {
+    state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'paymentMethods', items: ['Cash', 'All major credit cards'] }] }
+    const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(capturedPatch?.paymentMethods).toEqual(['Cash', 'All major credit cards'])
+    if (r.ok) expect(r.page).toBe('/payment-financing')
+  })
+
+  it('sets the cancellation policy text', async () => {
+    state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'cancellationPolicy', value: 'Please give 24 hours notice.' }] }
+    await applyAiWebsiteEdit('org_1', 'x')
+    expect(capturedPatch?.cancellationPolicy).toBe('Please give 24 hours notice.')
+  })
+
+  it('validates office hours — keeps valid HH:MM, drops bad times, honors closed', async () => {
+    state.toolInput = {
+      summary: 'x',
+      page: '/',
+      edits: [{ type: 'hours', hours: { mon: { open: '09:00', close: '17:00', closed: false }, sun: { closed: true }, tue: { open: 'nope', close: '17:00' } } }],
+    }
+    await applyAiWebsiteEdit('org_1', 'x')
+    const h = capturedPatch?.hours as Record<string, { open: string | null; close: string | null; closed: boolean }>
+    expect(h.mon).toEqual({ open: '09:00', close: '17:00', closed: false })
+    expect(h.sun).toEqual({ open: null, close: null, closed: true })
+    expect(h.tue).toEqual({ open: null, close: '17:00', closed: false })
+  })
+
+  it('replaces the FAQ list with ids + routes to /faq', async () => {
+    state.toolInput = {
+      summary: 'x',
+      page: '/',
+      edits: [{ type: 'faq', faq: [{ category: 'Booking', question: 'Do you take walk-ins?', answer: 'Same-week appointments are usually available.' }] }],
+    }
+    const r = await applyAiWebsiteEdit('org_1', 'x')
+    const faq = capturedPatch?.faq as Array<{ id: string; question: string }>
+    expect(faq).toHaveLength(1)
+    expect(faq[0].id).toBeTruthy()
+    expect(faq[0].question).toBe('Do you take walk-ins?')
+    if (r.ok) expect(r.page).toBe('/faq')
+  })
 })
