@@ -71,7 +71,9 @@ export default function StudioAiBar({
         setValue('')
         setPhase('done')
         onApplied({ page: res.page, anchor: res.anchor, edits: res.edits, follow })
-        window.setTimeout(() => setPhase((p) => (p === 'done' ? 'idle' : p)), 12000)
+        // The done panel (with Undo) stays put until the owner dismisses it or
+        // runs the next edit — the safety net must never vanish on its own while
+        // they're still checking the change across their site.
       } else {
         setError(res.error)
         setIsClarify(!!res.clarify)
@@ -140,7 +142,7 @@ export default function StudioAiBar({
                 </button>
               </div>
             </div>
-            <ul className="space-y-1">
+            <ul className="space-y-1 max-h-48 overflow-y-auto">
               {details.map((e, i) => (
                 <li key={`${e.label}-${i}`} className="flex items-baseline gap-1.5 text-[12px] min-w-0">
                   <span className="shrink-0 text-stone-400">{e.label}</span>

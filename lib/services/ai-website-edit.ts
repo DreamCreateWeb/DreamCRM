@@ -286,7 +286,9 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   try {
     const input = await runClaudeJson({
       model: 'sonnet',
-      maxTokens: 1500,
+      // Headroom so a full FAQ/carrier-list echo (these edit types replace the
+      // whole list) doesn't truncate mid-output into a parse failure.
+      maxTokens: 2400,
       system: SYSTEM,
       messages: [
         {
