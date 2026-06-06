@@ -63,6 +63,21 @@ export async function createShopCheckoutSession(
   const { lines, subtotalCents } = await priceCart(organizationId, input.items)
   if (lines.length === 0) throw new Error('Your cart is empty.')
 
+  // Block oversell before charging. The only stock gate was the storefront's
+  // client-side `inStock` boolean (stale + bypassable); checkout itself never
+  // checked, and the finalize-time decrement floors at 0 — which silently hides
+  // an oversell. Reject here so the clinic never sells more than it has. Untracked
+  // variants (inventoryQty null) are unlimited and skip the check.
+  const oversold = lines.find((l) => l.inventoryQty != null && l.qty > l.inventoryQty)
+  if (oversold) {
+    const left = oversold.inventoryQty ?? 0
+    throw new Error(
+      left <= 0
+        ? `${oversold.productName} is out of stock.`
+        : `Only ${left} of ${oversold.productName} ${left === 1 ? 'is' : 'are'} left — please lower the quantity and try again.`,
+    )
+  }
+
   const shippingCents =
     fulfillmentType === 'ship'
       ? cfg.freeShippingThresholdCents != null && subtotalCents >= cfg.freeShippingThresholdCents

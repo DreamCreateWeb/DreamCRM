@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import type { CouponRow, DiscountType, CouponSource } from '@/lib/types/shop'
@@ -119,6 +119,11 @@ export async function markCouponUsed(organizationId: string, couponId: string, o
   // caller can never burn a coupon outside the order's clinic. Deactivates the
   // code too, so it stops showing as "active" to admins and the birthday-coupon
   // generator (which skips patients with an active code) re-issues next month.
+  //
+  // The `usedAt IS NULL` guard makes the burn atomic + idempotent: if two paid
+  // orders ever finalize with the same single-use code, only the first burns it
+  // (and `usedOrderId` stays pointed at that first order) instead of the second
+  // silently re-stamping the burn onto itself.
   await db
     .update(schema.shopCoupon)
     .set({ usedAt: new Date(), usedOrderId: orderId, active: 0, updatedAt: new Date() })
@@ -127,6 +132,7 @@ export async function markCouponUsed(organizationId: string, couponId: string, o
         eq(schema.shopCoupon.organizationId, organizationId),
         eq(schema.shopCoupon.id, couponId),
         eq(schema.shopCoupon.singleUse, 1),
+        isNull(schema.shopCoupon.usedAt),
       ),
     )
 }
