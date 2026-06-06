@@ -144,6 +144,13 @@ async function sendReminderForOrg(
   if (detail.status === 'cancelled' || detail.status === 'no_show') {
     return { ok: false, error: `Cannot send a reminder for a ${detail.status === 'no_show' ? 'no-show' : 'cancelled'} appointment` }
   }
+  // The reminder template asks the patient to confirm ("Reply CONFIRM…"), so
+  // sending it to an already-confirmed (or completed) visit is contradictory.
+  // "Cannot send" is matched by the bulk handler → counted as skipped, not an
+  // error, so a "select all → Send reminder" quietly skips confirmed rows.
+  if (detail.status === 'confirmed' || detail.status === 'completed') {
+    return { ok: false, error: `Cannot send a reminder — this appointment is already ${detail.status}` }
+  }
   if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
 
   try {
