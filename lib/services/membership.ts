@@ -1,8 +1,8 @@
 import 'server-only'
-import { and, asc, count, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
-import { stripe } from '@/lib/stripe'
+import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import { slugify } from '@/lib/utils'
 import type {
   PlanRow,
@@ -301,17 +301,20 @@ export async function finalizeMembershipFromSession(organizationId: string, sess
   if (subId) {
     try {
       const sub = await stripe.subscriptions.retrieve(subId, undefined, { stripeAccount: accountId })
-      const end = (sub as { current_period_end?: number }).current_period_end
+      const end = subscriptionPeriodEnd(sub)
       if (end) periodEnd = new Date(end * 1000)
     } catch {
       /* leave periodEnd null */
     }
   }
   const now = new Date()
+  // Compare-and-swap: only the caller that flips pending->active runs the write
+  // (the success page AND the Connect webhook both finalize). Mirrors the
+  // shop-order finalizer so future activation side-effects fire exactly once.
   await db
     .update(schema.membership)
     .set({ status: 'active', stripeSubscriptionId: subId, startedAt: now, currentPeriodEnd: periodEnd, updatedAt: now })
-    .where(eq(schema.membership.id, m.id))
+    .where(and(eq(schema.membership.id, m.id), ne(schema.membership.status, 'active')))
   return { active: true, planName }
 }
 
@@ -330,14 +333,20 @@ export async function handleSubscriptionEvent(
         : status === 'canceled'
           ? 'cancelled'
           : 'pending'
+  // Only stamp cancelledAt when actually transitioning to cancelled, and never
+  // clear it on a non-cancel event. Stripe delivers events out of order and
+  // retries them; the old `cancelledAt: mapped==='cancelled' ? now : null` wiped
+  // the cancellation timestamp on every later update (e.g. a past_due->active
+  // recovery), losing the record of when the membership was cancelled.
+  const set: Partial<typeof schema.membership.$inferInsert> = {
+    status: mapped,
+    updatedAt: new Date(),
+  }
+  if (currentPeriodEnd) set.currentPeriodEnd = new Date(currentPeriodEnd * 1000)
+  if (mapped === 'cancelled') set.cancelledAt = new Date()
   await db
     .update(schema.membership)
-    .set({
-      status: mapped,
-      currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : undefined,
-      cancelledAt: mapped === 'cancelled' ? new Date() : null,
-      updatedAt: new Date(),
-    })
+    .set(set)
     .where(and(eq(schema.membership.organizationId, organizationId), eq(schema.membership.stripeSubscriptionId, subscriptionId)))
 }
 

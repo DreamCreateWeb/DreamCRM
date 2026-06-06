@@ -94,4 +94,19 @@ describe('handleSubscriptionEvent', () => {
     await handleSubscriptionEvent('org_1', 'sub_1', 'active', 1800000000)
     expect((state.updates[2] as { status: string }).status).toBe('active')
   })
+
+  it('only stamps cancelledAt on a cancel event and never clears it on later events', async () => {
+    await handleSubscriptionEvent('org_1', 'sub_1', 'canceled', null)
+    expect((state.updates[0] as { cancelledAt?: unknown }).cancelledAt).toBeInstanceOf(Date)
+
+    // A later recovery/update must NOT carry a cancelledAt key at all, so the
+    // existing timestamp is preserved (Stripe retries + reorders events).
+    await handleSubscriptionEvent('org_1', 'sub_1', 'active', 1800000000)
+    expect('cancelledAt' in (state.updates[1] as object)).toBe(false)
+    expect((state.updates[1] as { currentPeriodEnd?: unknown }).currentPeriodEnd).toBeInstanceOf(Date)
+
+    // currentPeriodEnd is omitted (not nulled) when the event doesn't carry one.
+    await handleSubscriptionEvent('org_1', 'sub_1', 'past_due', null)
+    expect('currentPeriodEnd' in (state.updates[2] as object)).toBe(false)
+  })
 })

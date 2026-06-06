@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { stripe } from '@/lib/stripe'
+import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
 import { finalizeMembershipFromSession, handleSubscriptionEvent } from '@/lib/services/membership'
 
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       const sub = event.data.object
       const orgId = sub.metadata?.organizationId as string | undefined
       if (orgId && sub.id) {
-        await handleSubscriptionEvent(orgId, sub.id as string, sub.status as string, (sub.current_period_end as number) ?? null)
+        await handleSubscriptionEvent(orgId, sub.id as string, sub.status as string, subscriptionPeriodEnd(sub))
       }
     }
   } catch (err) {
