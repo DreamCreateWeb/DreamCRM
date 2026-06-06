@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHash, randomUUID } from 'crypto'
-import { and, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { decryptSecret } from '@/lib/crypto'
 import type { PmsConnection } from '@/lib/db/schema/clinic'
@@ -116,9 +116,25 @@ export async function runImport(
   if (!connection || connection.status !== 'connected') throw new Error('No PMS is connected.')
   const client = getProviderClient(connection)
 
+  // Concurrency guard: stand down if a sync is already in flight for this org,
+  // so two overlapping runs (a double-clicked "Sync now", or a future scheduled
+  // run overlapping a manual one) can't both flush the write-op queue and create
+  // DUPLICATE records in the PMS. A 'running' row older than 15 min is treated
+  // as a crashed run and ignored.
+  const RUN_STALE_MS = 15 * 60 * 1000
+  const [inflight] = await db
+    .select({ id: schema.pmsSyncRun.id, startedAt: schema.pmsSyncRun.startedAt })
+    .from(schema.pmsSyncRun)
+    .where(and(eq(schema.pmsSyncRun.organizationId, organizationId), eq(schema.pmsSyncRun.status, 'running')))
+    .orderBy(desc(schema.pmsSyncRun.startedAt))
+    .limit(1)
+  if (inflight && Date.now() - inflight.startedAt.getTime() < RUN_STALE_MS) {
+    throw new Error('A sync is already running for this clinic — please wait for it to finish.')
+  }
+
   // Appointment delta high-water (DateTStamp). Captured at run start so the
-  // next run picks up anything changed during this one; only advanced on a
-  // non-error run so a failure re-reads the same window.
+  // next run picks up anything changed during this one; only advanced when the
+  // appointment phase actually succeeded this run (see appointmentsPulledOk).
   const meta = (connection.meta ?? {}) as Record<string, unknown>
   const since = typeof meta.highWaterAppointments === 'string' ? new Date(meta.highWaterAppointments) : undefined
   const runStart = new Date()
@@ -134,6 +150,11 @@ export async function runImport(
 
   const counts: Record<string, Tally> = { providers: tally(), patients: tally(), appointments: tally(), recalls: tally() }
   let error: string | null = null
+  // Tracks whether the appointment pull+reconcile specifically succeeded this
+  // run. The high-water mark may ONLY advance when it did — otherwise a
+  // transient failure during/before the appointment read would advance the
+  // mark past changes we never pulled, silently skipping them forever.
+  let appointmentsPulledOk = false
 
   try {
     // Flush queued write-backs first so the PMS reflects bookings we originated
@@ -143,6 +164,7 @@ export async function runImport(
     await reconcileProviders(organizationId, await client.listProviders(), counts.providers)
     await reconcilePatients(organizationId, await client.listPatients(), counts.patients)
     await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments)
+    appointmentsPulledOk = true
     await reconcileRecalls(organizationId, await client.listRecalls(), counts.recalls)
   } catch (e) {
     error = (e as Error).message
@@ -158,8 +180,11 @@ export async function runImport(
       lastSyncAt: now,
       lastSyncStatus: status,
       lastError: error,
-      // Advance the appointment high-water only on a clean/partial run.
-      ...(status === 'error' ? {} : { meta: { ...meta, highWaterAppointments: runStart.toISOString() } }),
+      // Advance the appointment high-water ONLY when appointments were actually
+      // pulled this run — not merely when the overall run wasn't a total error.
+      // A 'partial' run that failed before/at the appointment read must re-read
+      // the same window next time.
+      ...(appointmentsPulledOk ? { meta: { ...meta, highWaterAppointments: runStart.toISOString() } } : {}),
       updatedAt: now,
     })
     .where(eq(schema.pmsConnection.organizationId, organizationId))
@@ -187,25 +212,40 @@ async function reconcileProviders(organizationId: string, rows: NormalizedProvid
   }
 }
 
-async function findUnmappedPatientByContact(
+// Exported for unit testing — the shared-phone dedupe rules are correctness-
+// critical (a wrong link corrupts two patient identities). Not part of the
+// module's public surface otherwise.
+export async function findUnmappedPatientByContact(
   organizationId: string,
   mappedInternalIds: Set<string>,
   email: string | null | undefined,
   phone: string | null | undefined,
+  lastName: string | null | undefined,
 ): Promise<string | null> {
-  const conds = []
-  if (email) conds.push(eq(schema.patient.email, email))
-  if (phone) conds.push(eq(schema.patient.phone, phone))
-  if (conds.length === 0) return null
+  if (!email && !phone) return null
   const candidates = await db
-    .select({ id: schema.patient.id, email: schema.patient.email, phone: schema.patient.phone })
+    .select({ id: schema.patient.id, email: schema.patient.email, phone: schema.patient.phone, lastName: schema.patient.lastName })
     .from(schema.patient)
     .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.isActive, 1)))
-  // Manual OR + unmapped check (kept simple; first sync of a large office is a
-  // one-time background job — preloaded maps avoid N map lookups).
-  for (const c of candidates) {
-    if (mappedInternalIds.has(c.id)) continue
-    if ((email && c.email === email) || (phone && c.phone === phone)) return c.id
+  const unmapped = candidates.filter((c) => !mappedInternalIds.has(c.id))
+
+  // 1. Email is a near-unique signal — match it first.
+  if (email) {
+    const hit = unmapped.find((c) => c.email && c.email === email)
+    if (hit) return hit.id
+  }
+
+  // 2. Phone is routinely SHARED across a household in dental (parent + kids on
+  //    one number), so a bare phone match is not enough — it could link a PMS
+  //    child to a DreamCRM parent and corrupt both identities. Require a
+  //    last-name match too, and bail if more than one unmapped patient shares
+  //    the phone (ambiguous → safer to create a fresh row).
+  if (phone) {
+    const phoneHits = unmapped.filter((c) => c.phone && c.phone === phone)
+    const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase()
+    if (phoneHits.length === 1 && norm(lastName) && norm(phoneHits[0].lastName) === norm(lastName)) {
+      return phoneHits[0].id
+    }
   }
   return null
 }
@@ -261,7 +301,7 @@ async function reconcilePatients(organizationId: string, rows: NormalizedPatient
     }
 
     // No map yet — try to link an existing DreamCRM patient by contact.
-    const linkId = await findUnmappedPatientByContact(organizationId, mappedInternalIds, np.email, np.phone)
+    const linkId = await findUnmappedPatientByContact(organizationId, mappedInternalIds, np.email, np.phone, np.lastName)
     if (linkId) {
       await db
         .update(schema.patient)
@@ -780,6 +820,28 @@ async function ensurePatientExternalId(
   const existing = await mapInternalToExternal(organizationId, 'patient', patientId)
   if (existing) return existing
 
+  // Recovery: a prior attempt may have CREATED the patient in the PMS but failed
+  // to write the entity-map (e.g. a DB blip right after createPatient). The
+  // external id is recorded on that patient write-op — reuse it + (re)write the
+  // map instead of creating a DUPLICATE patient in the PMS on the next retry.
+  const [priorOp] = await db
+    .select({ externalId: schema.pmsWriteOp.externalId })
+    .from(schema.pmsWriteOp)
+    .where(
+      and(
+        eq(schema.pmsWriteOp.organizationId, organizationId),
+        eq(schema.pmsWriteOp.entityType, 'patient'),
+        eq(schema.pmsWriteOp.internalId, patientId),
+        isNotNull(schema.pmsWriteOp.externalId),
+      ),
+    )
+    .orderBy(desc(schema.pmsWriteOp.createdAt))
+    .limit(1)
+  if (priorOp?.externalId) {
+    await insertMap(organizationId, 'patient', priorOp.externalId, patientId, 'dreamcrm', null)
+    return priorOp.externalId
+  }
+
   const [pat] = await db
     .select()
     .from(schema.patient)
@@ -807,10 +869,17 @@ async function ensurePatientExternalId(
       phone: pat.phone,
       dateOfBirth: pat.dateOfBirth,
     })
+    // Record the external id on the op BEFORE the map write, so if insertMap
+    // throws, the recovery path above can reuse this id next run rather than
+    // re-creating the patient in the PMS.
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ externalId: res.externalId, responseBody: res.raw ?? null })
+      .where(eq(schema.pmsWriteOp.id, opId))
     await insertMap(organizationId, 'patient', res.externalId, patientId, 'dreamcrm', null)
     await db
       .update(schema.pmsWriteOp)
-      .set({ status: 'success', externalId: res.externalId, responseBody: res.raw ?? null, completedAt: new Date() })
+      .set({ status: 'success', completedAt: new Date() })
       .where(eq(schema.pmsWriteOp.id, opId))
     return res.externalId
   } catch (e) {
