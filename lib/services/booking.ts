@@ -109,9 +109,15 @@ export async function getSlotsForDay(
   }
 
   // Pull every appointment overlapping the day so we can flag taken slots.
+  // The lower bound reaches back before `dayStart` so an appointment that
+  // STARTS before opening but RUNS INTO the open window (e.g. an 8:30 visit
+  // ending 9:30 when the clinic opens at 9:00) is still fetched and blocks the
+  // overlapping slots. The 12-hour reach-back comfortably covers any single
+  // visit's length; the precise overlap is still decided by `isBlocked` below.
+  const fetchFrom = new Date(dayStart.getTime() - 12 * 60 * 60 * 1000)
   const baseFilters = [
     eq(appointment.organizationId, organizationId),
-    gte(appointment.startTime, dayStart),
+    gte(appointment.startTime, fetchFrom),
     lte(appointment.startTime, dayEnd),
   ]
   const filters = excludeAppointmentId

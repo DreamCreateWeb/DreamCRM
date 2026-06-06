@@ -725,11 +725,39 @@ async function setAppointmentState(
     )
 }
 
+/**
+ * Terminal states — a cancelled or completed visit shouldn't transition again.
+ * Without this guard the server actions (callable directly, or via a stale UI /
+ * double-click race) silently allow illegal transitions: e.g. rescheduling a
+ * cancelled appointment resurrects it as a fresh `scheduled` row, or
+ * `markCompleted` overwrites a cancelled visit. The UI gates these, but a page
+ * redirect / hidden button is not an authorization check.
+ */
+const TERMINAL_APPOINTMENT_STATUSES = new Set(['cancelled', 'completed'])
+
+async function assertAppointmentMutable(organizationId: string, appointmentId: string): Promise<void> {
+  const [row] = await db
+    .select({ status: schema.appointment.status })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, organizationId),
+        eq(schema.appointment.id, appointmentId),
+      ),
+    )
+    .limit(1)
+  if (!row) throw new Error('Appointment not found')
+  if (TERMINAL_APPOINTMENT_STATUSES.has(row.status)) {
+    throw new Error(`This appointment is already ${row.status} and can't be changed.`)
+  }
+}
+
 export async function confirmAppointment(
   organizationId: string,
   appointmentId: string,
   via: 'sms' | 'email' | 'manual' | 'auto_sms_keyword' = 'manual',
 ) {
+  await assertAppointmentMutable(organizationId, appointmentId)
   await setAppointmentState(organizationId, appointmentId, {
     status: 'confirmed',
     confirmedAt: new Date(),
@@ -738,6 +766,7 @@ export async function confirmAppointment(
 }
 
 export async function cancelAppointment(organizationId: string, appointmentId: string) {
+  await assertAppointmentMutable(organizationId, appointmentId)
   await setAppointmentState(organizationId, appointmentId, {
     status: 'cancelled',
     cancelledAt: new Date(),
@@ -747,6 +776,7 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
 }
 
 export async function markNoShow(organizationId: string, appointmentId: string) {
+  await assertAppointmentMutable(organizationId, appointmentId)
   await setAppointmentState(organizationId, appointmentId, {
     status: 'no_show',
     noShowedAt: new Date(),
@@ -755,6 +785,7 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
 }
 
 export async function markCompleted(organizationId: string, appointmentId: string) {
+  await assertAppointmentMutable(organizationId, appointmentId)
   await setAppointmentState(organizationId, appointmentId, {
     status: 'completed',
     completedAt: new Date(),
@@ -803,6 +834,26 @@ export async function rescheduleAppointment(input: RescheduleInput) {
     )
     .limit(1)
   if (!original) throw new Error('Appointment not found')
+  if (TERMINAL_APPOINTMENT_STATUSES.has(original.status)) {
+    throw new Error(`This appointment is already ${original.status} and can't be rescheduled.`)
+  }
+
+  // Preserve the original visit's duration when the caller doesn't supply a new
+  // end time (the reschedule drawer only sends a new start). Without this every
+  // reschedule dropped endTime to null, which (a) showed "duration unspecified"
+  // on the agenda and (b) made the slot picker treat the visit as a 30-min
+  // block — so a rescheduled 60-min appointment freed up the adjacent slot.
+  let resolvedEnd = input.newEndTime
+  if (!resolvedEnd) {
+    const DEFAULT_DURATION_MS = 30 * 60 * 1000
+    const durationMs =
+      original.endTime && original.startTime
+        ? new Date(original.endTime).getTime() - new Date(original.startTime).getTime()
+        : DEFAULT_DURATION_MS
+    resolvedEnd = new Date(
+      input.newStartTime.getTime() + (durationMs > 0 ? durationMs : DEFAULT_DURATION_MS),
+    )
+  }
 
   const newId = newAppointmentId()
   await db.insert(schema.appointment).values({
@@ -813,7 +864,7 @@ export async function rescheduleAppointment(input: RescheduleInput) {
     providerId: original.providerId,
     title: original.title,
     startTime: input.newStartTime,
-    endTime: input.newEndTime,
+    endTime: resolvedEnd,
     type: original.type,
     status: 'scheduled',
     notes: original.notes,

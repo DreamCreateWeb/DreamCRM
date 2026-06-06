@@ -165,6 +165,84 @@ describe('rescheduleAppointment — atomic cancel + insert', () => {
     expect(inserted.notes).toBe('Bring last X-rays')
   })
 
+  it('preserves the original visit duration when no new end time is supplied', async () => {
+    // Original is a 60-minute visit; the reschedule drawer only sends a new
+    // start. The new row must keep the 60-minute length, not collapse to null.
+    txState.selectResult = [
+      {
+        id: 'appt_old',
+        organizationId: 'org_1',
+        patientId: 'pat_4',
+        locationId: 'loc_1',
+        providerId: 'prov_1',
+        title: 'crown — Noah Park',
+        type: 'crown',
+        notes: null,
+        status: 'scheduled',
+        startTime: new Date('2026-06-01T14:00:00Z'),
+        endTime: new Date('2026-06-01T15:00:00Z'),
+      },
+    ]
+    const newStart = new Date('2026-06-10T18:00:00Z')
+    await rescheduleAppointment({
+      organizationId: 'org_1',
+      appointmentId: 'appt_old',
+      newStartTime: newStart,
+      newEndTime: null,
+    })
+    const inserted = txState.inserts[0].values
+    expect(inserted.endTime).toEqual(new Date('2026-06-10T19:00:00Z')) // +60 min
+  })
+
+  it('defaults to a 30-minute block when the original had no end time', async () => {
+    txState.selectResult = [
+      {
+        id: 'appt_old',
+        organizationId: 'org_1',
+        patientId: 'pat_5',
+        locationId: null,
+        providerId: null,
+        title: 'consult',
+        type: 'consultation',
+        notes: null,
+        status: 'scheduled',
+        startTime: new Date('2026-06-01T14:00:00Z'),
+        endTime: null,
+      },
+    ]
+    const newStart = new Date('2026-06-10T18:00:00Z')
+    await rescheduleAppointment({
+      organizationId: 'org_1',
+      appointmentId: 'appt_old',
+      newStartTime: newStart,
+      newEndTime: null,
+    })
+    expect(txState.inserts[0].values.endTime).toEqual(new Date('2026-06-10T18:30:00Z')) // +30 min
+  })
+
+  it('refuses to reschedule a cancelled (terminal) appointment', async () => {
+    txState.selectResult = [
+      {
+        id: 'appt_old',
+        organizationId: 'org_1',
+        patientId: 'pat_6',
+        status: 'cancelled',
+        startTime: new Date('2026-06-01T14:00:00Z'),
+        endTime: null,
+      },
+    ]
+    await expect(
+      rescheduleAppointment({
+        organizationId: 'org_1',
+        appointmentId: 'appt_old',
+        newStartTime: new Date('2026-06-10T18:00:00Z'),
+        newEndTime: null,
+      }),
+    ).rejects.toThrow(/already cancelled/i)
+    expect(txState.inserts).toHaveLength(0)
+    expect(txState.updates).toHaveLength(0)
+  })
+
   it('carries the original booking source forward instead of resetting to manual', async () => {
     txState.selectResult = [
       {

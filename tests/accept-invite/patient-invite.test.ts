@@ -17,7 +17,7 @@ vi.mock('@/lib/auth/server', () => ({
   auth: { api: { getSession: vi.fn(async () => session.current) } },
 }))
 
-const linkSpy = vi.fn(async () => {})
+const linkSpy = vi.fn(async (..._args: unknown[]) => {})
 vi.mock('@/app/(auth)/accept-invite/link-patient', () => ({
   linkPatientRecord: (...args: unknown[]) => linkSpy(...args),
 }))
