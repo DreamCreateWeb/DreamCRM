@@ -34,6 +34,14 @@ export async function acceptPatientPortalInvite(
   }
   if (inv.role !== 'patient') return { ok: false, error: 'This is not a patient invitation.' }
 
+  // Bind the invite to its recipient. The better-auth team-accept flow enforces
+  // this internally; this custom patient path bypasses better-auth, so we check
+  // it ourselves — otherwise a forwarded link could be claimed by any signed-in
+  // user, consuming the invitation under the wrong identity.
+  if (sess.user.email.trim().toLowerCase() !== inv.email.trim().toLowerCase()) {
+    return { ok: false, error: 'This invitation was sent to a different email address. Sign in with that email to accept it.' }
+  }
+
   const [org] = await db
     .select({ type: schema.organization.type })
     .from(schema.organization)
