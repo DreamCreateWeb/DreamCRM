@@ -14,15 +14,16 @@ function emailDriver(): 'ses' | 'resend' {
 // Single delivery path for all transactional email. Defaults to Resend;
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
 // AWS SDK never loads on the Resend path).
-async function deliver(msg: { to: string; subject: string; html: string }): Promise<void> {
+async function deliver(msg: { to: string; subject: string; html: string; replyTo?: string | null }): Promise<void> {
   // Config errors (missing key) throw raw — they're an ops problem, not a
   // delivery failure. Only actual SEND failures get the friendly remap so the
   // raw provider error (e.g. SES's verbose "identities failed the check in
   // region us-east-1") never leaks to staff.
+  const replyTo = msg.replyTo?.trim() || undefined
   if (emailDriver() === 'ses') {
     const { sendEmailViaSes } = await import('./ses')
     try {
-      await sendEmailViaSes({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
+      await sendEmailViaSes({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html, replyTo })
     } catch (err) {
       console.warn('[email] SES delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
       throw new Error(friendlyEmailError(err))
@@ -32,7 +33,13 @@ async function deliver(msg: { to: string; subject: string; html: string }): Prom
   const key = process.env.RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY env var is not set')
   try {
-    await new Resend(key).emails.send({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html })
+    await new Resend(key).emails.send({
+      from: FROM,
+      to: msg.to,
+      subject: msg.subject,
+      html: msg.html,
+      ...(replyTo ? { replyTo } : {}),
+    })
   } catch (err) {
     console.warn('[email] Resend delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
     throw new Error(friendlyEmailError(err))
@@ -303,6 +310,43 @@ export async function sendNotificationEmail(input: NotificationEmailInput) {
           You're getting this because of your notification preferences. Manage them at
           <a href="${APP_URL}/settings/notifications" style="color:#57534e">settings → notifications</a>.
         </p>
+      </div>
+    `,
+  })
+}
+
+export interface PatientMessageEmailData {
+  to: string
+  /** Patient first name for the greeting; null falls back to a generic "Hi,". */
+  patientFirstName: string | null
+  /** Clinic display name — signs the message + names the sender in the subject. */
+  clinicName: string
+  /** The staff member's typed message body (plain text, rendered pre-wrap). */
+  body: string
+  /** Clinic inbox the patient's reply should reach (clinic_profile.email). When
+   *  set, replies go to the clinic instead of the unattended platform From. */
+  replyTo?: string | null
+}
+
+/**
+ * Deliver a clinic→patient message (the "email" channel of the Patient
+ * Communications inbox) to the patient's real inbox. Distinct from
+ * sendNotificationEmail, which is a STAFF-facing internal notice (it links to
+ * the CRM + cites "your notification preferences" — neither applies to a
+ * patient). Reply-To points at the clinic so the patient can just hit reply.
+ */
+export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
+  const greeting = data.patientFirstName ? `Hi ${escapeHtml(data.patientFirstName)},` : 'Hi,'
+  await deliver({
+    to: data.to,
+    replyTo: data.replyTo,
+    subject: `A message from ${data.clinicName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1c1917">
+        <p style="margin:0 0 16px;color:#57534e">${greeting}</p>
+        <p style="margin:0 0 20px;color:#1c1917;line-height:1.6;white-space:pre-wrap">${escapeHtml(data.body)}</p>
+        <p style="margin:0;color:#1c1917">— ${escapeHtml(data.clinicName)}</p>
+        ${data.replyTo ? `<p style="margin:20px 0 0;font-size:12px;color:#a8a29e">You can reply directly to this email to reach us.</p>` : ''}
       </div>
     `,
   })

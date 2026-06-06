@@ -2,6 +2,7 @@ import 'server-only'
 import { and, asc, count, desc, eq, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
+import { sendPatientMessageEmail } from '@/lib/email'
 
 /**
  * Patient Communications service. Unified per-patient threads across
@@ -552,14 +553,56 @@ export async function getOrCreatePatientThread(
 }
 
 /**
+ * Deliver the clinic→patient message to the patient's real inbox for the
+ * "email" channel. Looks up the patient's email + the clinic's display name /
+ * reply-to inbox (both org-scoped, so this also rejects a foreign patientId).
+ * Throws on no-email or a send failure so the caller never records a misleading
+ * "sent" bubble for an email that didn't go out.
+ */
+async function deliverPatientMessageEmail(organizationId: string, patientId: string, body: string): Promise<void> {
+  const [p] = await db
+    .select({ email: schema.patient.email, firstName: schema.patient.firstName })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.id, patientId), eq(schema.patient.organizationId, organizationId)))
+    .limit(1)
+  if (!p) throw new Error('Patient not found in this organization')
+  if (!p.email) throw new Error('This patient has no email address on file — switch to the in-app channel.')
+
+  const [profile] = await db
+    .select({ displayName: schema.clinicProfile.displayName, email: schema.clinicProfile.email })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  let clinicName = profile?.displayName?.trim() || null
+  if (!clinicName) {
+    const [org] = await db
+      .select({ name: schema.organization.name })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, organizationId))
+      .limit(1)
+    clinicName = org?.name?.trim() || 'Your dental office'
+  }
+
+  await sendPatientMessageEmail({
+    to: p.email,
+    patientFirstName: p.firstName,
+    clinicName,
+    body,
+    replyTo: profile?.email ?? null,
+  })
+}
+
+/**
  * Send a message to a patient on a specific channel. Creates the thread
  * if it doesn't exist, inserts the patient_message row, denormalizes
  * the lastMessageAt/Direction/Channel on the thread.
  *
- * v1: in-app channel writes go to patient_message only. Email channel
- * recipients still need to receive the actual email — wire that in the
- * outbound-email send path (lib/services/gmail.ts) alongside this insert.
- * SMS channel is stubbed; will land with Phase B Twilio.
+ * Channel behavior:
+ *   - in_app: row only — it surfaces in the patient portal (/patient/messages).
+ *   - email: actually delivers the message to the patient's inbox (Reply-To =
+ *     the clinic) BEFORE recording the row, so a failed send (e.g. no email on
+ *     file, provider error) throws and never leaves a misleading "sent" bubble.
+ *   - sms: stubbed; lands with Phase B.
  */
 export async function sendMessageToPatient(input: {
   organizationId: string
@@ -574,7 +617,15 @@ export async function sendMessageToPatient(input: {
   if (input.channel === 'sms') {
     throw new Error('SMS channel is not enabled in this build (Phase B). Use email or in-app.')
   }
-  // Cross-tenant patient check lives inside getOrCreatePatientThread.
+  // Cross-tenant patient check lives inside getOrCreatePatientThread (and, for
+  // the email channel, inside deliverPatientMessageEmail which runs first).
+
+  // For the email channel, deliver the actual email first — if it fails we throw
+  // before recording the row, so the thread never shows a "sent" email that
+  // never went out.
+  if (input.channel === 'email') {
+    await deliverPatientMessageEmail(input.organizationId, input.patientId, input.body.trim())
+  }
 
   const threadId = await getOrCreatePatientThread(input.organizationId, input.patientId)
   const messageId = newMessageId()
