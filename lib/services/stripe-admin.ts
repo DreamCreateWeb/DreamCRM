@@ -1,6 +1,6 @@
 import 'server-only'
 import { eq, inArray } from 'drizzle-orm'
-import { stripe } from '@/lib/stripe'
+import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import { db, schema } from '@/lib/db'
 
 /**
@@ -102,7 +102,7 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
       id: s.id,
       status: s.status,
       cancelAtPeriodEnd: !!s.cancel_at_period_end,
-      currentPeriodEnd: s.current_period_end ?? null,
+      currentPeriodEnd: subscriptionPeriodEnd(s),
       createdAt: s.created,
       customerId,
       customerEmail: customer?.email ?? null,
