@@ -46,6 +46,21 @@ export interface AddPatientNoteInput {
 export async function addPatientNote(input: AddPatientNoteInput): Promise<string> {
   const trimmed = input.body.trim()
   if (!trimmed) throw new Error('Note body is required')
+
+  // The patientId is caller-supplied; confirm it actually belongs to this org
+  // before writing, so a stale/foreign id can't create an orphan note row.
+  const [owner] = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.id, input.patientId),
+        eq(schema.patient.organizationId, input.organizationId),
+      ),
+    )
+    .limit(1)
+  if (!owner) throw new Error('Patient not found in this organization')
+
   const id = newPatientNoteId()
   await db.insert(schema.patientNote).values({
     id,
