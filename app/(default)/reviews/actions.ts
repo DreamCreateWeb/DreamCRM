@@ -63,6 +63,7 @@ export async function updateReviewConfigAction(updates: Partial<Omit<ReviewConfi
  */
 export async function featureReviewAsTestimonialAction(input: {
   patientId: string
+  reviewRequestId?: string
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
@@ -71,6 +72,7 @@ export async function featureReviewAsTestimonialAction(input: {
     await featureReviewAsTestimonial({
       organizationId: ctx.organizationId,
       patientId: input.patientId,
+      reviewRequestId: input.reviewRequestId,
     })
     revalidatePath('/reviews')
     revalidatePath('/reviews/received')

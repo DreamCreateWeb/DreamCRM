@@ -84,7 +84,7 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
   function feature() {
     setError(null)
     startTransition(async () => {
-      const r = await featureReviewAsTestimonialAction({ patientId: row.patientId })
+      const r = await featureReviewAsTestimonialAction({ patientId: row.patientId, reviewRequestId: row.id })
       if (r.ok) router.refresh()
       else setError(r.error)
     })

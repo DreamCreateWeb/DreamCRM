@@ -635,11 +635,23 @@ export async function submitReviewText(input: {
       id: schema.reviewRequest.id,
       organizationId: schema.reviewRequest.organizationId,
       patientId: schema.reviewRequest.patientId,
+      status: schema.reviewRequest.status,
     })
     .from(schema.reviewRequest)
     .where(eq(schema.reviewRequest.token, input.token))
     .limit(1)
   if (!row) return { ok: false, error: 'This review link is no longer valid.' }
+
+  // Only an in-flight (or already-completed, for an edit) request may be
+  // submitted. Without this, any held/forwarded token could resurrect a
+  // staff-`skipped` request to `completed` (re-surfacing a patient the clinic
+  // deliberately chose not to ask) or complete a `failed` send (which never
+  // reached the patient and must not lock the rate limit). recordReviewClick
+  // only promotes 'sent'->'clicked', so skipped/failed never sneak in via a click.
+  const SUBMITTABLE_STATUSES = new Set(['sent', 'clicked', 'completed'])
+  if (!SUBMITTABLE_STATUSES.has(row.status)) {
+    return { ok: false, error: 'This review link is no longer active.' }
+  }
 
   const now = new Date()
   await db
@@ -947,6 +959,12 @@ export async function listFeaturedTestimonialPatientIds(
 export interface FeatureReviewInput {
   organizationId: string
   patientId: string
+  /** Feature this specific completed review's text. When the patient has more
+   *  than one completed review, the received-list passes the id of the exact
+   *  card the operator clicked — otherwise "most recent" could publish a
+   *  different review than the one on screen. Omitted = most recent (back-compat).
+   *  Still org+patient-scoped, so a foreign id never matches. */
+  reviewRequestId?: string
 }
 
 /**
@@ -984,18 +1002,22 @@ export async function featureReviewAsTestimonial(
     .limit(1)
   if (!patient) throw new Error('Patient not found in this organization')
 
-  // Source the quote from the patient's most recent completed review.
+  // Source the quote from the exact review the operator clicked (when supplied),
+  // else the patient's most recent completed review. Always org+patient-scoped,
+  // so an id from another patient/clinic simply doesn't match.
+  const reviewWhere = [
+    eq(schema.reviewRequest.organizationId, input.organizationId),
+    eq(schema.reviewRequest.patientId, input.patientId),
+    eq(schema.reviewRequest.status, 'completed'),
+    isNotNull(schema.reviewRequest.reviewText),
+  ]
+  if (input.reviewRequestId) {
+    reviewWhere.push(eq(schema.reviewRequest.id, input.reviewRequestId))
+  }
   const [review] = await db
     .select({ reviewText: schema.reviewRequest.reviewText })
     .from(schema.reviewRequest)
-    .where(
-      and(
-        eq(schema.reviewRequest.organizationId, input.organizationId),
-        eq(schema.reviewRequest.patientId, input.patientId),
-        eq(schema.reviewRequest.status, 'completed'),
-        isNotNull(schema.reviewRequest.reviewText),
-      ),
-    )
+    .where(and(...reviewWhere))
     .orderBy(desc(schema.reviewRequest.completedAt))
     .limit(1)
   const quote = review?.reviewText?.trim() ?? ''
