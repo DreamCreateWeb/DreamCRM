@@ -559,6 +559,28 @@ export async function getOrCreatePatientThread(
  * Throws on no-email or a send failure so the caller never records a misleading
  * "sent" bubble for an email that didn't go out.
  */
+/**
+ * A clinic email may only be used as the message's Reply-To if it's plausibly
+ * deliverable. Reserved / non-routable domains (RFC 2606 / 6761 — `.example`,
+ * `.test`, `.invalid`, `.localhost`, plus the `example.com/org/net`
+ * placeholders) MUST be skipped, or the patient's reply bounces — the demo
+ * clinic's `hello@acme-dental.example` placeholder is the canonical case.
+ * Returns the email when usable, else null (replies then go to the deliverable
+ * From address instead of bouncing).
+ */
+export function deliverableReplyTo(email: string | null | undefined): string | null {
+  const trimmed = (email ?? '').trim()
+  const lower = trimmed.toLowerCase()
+  const at = lower.indexOf('@')
+  if (at <= 0 || at === lower.length - 1) return null
+  const domain = lower.slice(at + 1)
+  if (!domain.includes('.')) return null
+  const tld = domain.slice(domain.lastIndexOf('.') + 1)
+  if (['example', 'test', 'invalid', 'localhost'].includes(tld)) return null
+  if (/(^|\.)example\.(com|org|net)$/.test(domain)) return null
+  return trimmed
+}
+
 async function deliverPatientMessageEmail(organizationId: string, patientId: string, body: string): Promise<void> {
   const [p] = await db
     .select({ email: schema.patient.email, firstName: schema.patient.firstName })
@@ -588,7 +610,9 @@ async function deliverPatientMessageEmail(organizationId: string, patientId: str
     patientFirstName: p.firstName,
     clinicName,
     body,
-    replyTo: profile?.email ?? null,
+    // Skip a non-deliverable clinic email (e.g. the demo's *.example placeholder)
+    // so the patient's reply doesn't bounce.
+    replyTo: deliverableReplyTo(profile?.email),
   })
 }
 
