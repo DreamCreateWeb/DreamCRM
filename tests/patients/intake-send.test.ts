@@ -6,6 +6,7 @@ const state = {
   org: null as Record<string, unknown> | null,
   profile: null as Record<string, unknown> | null,
   defaultForm: null as Record<string, unknown> | null,
+  formById: null as Record<string, unknown> | null,
   sentEmails: [] as Array<{ to: string; data: Record<string, unknown> }>,
 }
 
@@ -49,6 +50,7 @@ vi.mock('@/lib/email', () => ({
 
 vi.mock('@/lib/services/forms', () => ({
   getDefaultFormTemplate: vi.fn(async () => state.defaultForm),
+  getFormTemplate: vi.fn(async () => state.formById),
 }))
 
 vi.mock('@/lib/services/clinic-site', () => ({
@@ -63,6 +65,7 @@ beforeEach(() => {
   state.org = null
   state.profile = null
   state.defaultForm = null
+  state.formById = null
   state.sentEmails = []
 })
 
@@ -90,11 +93,12 @@ describe('sendIntakeRequestToPatient', () => {
     state.patient = { id: 'pat_1', firstName: 'Mia', email: 'mia@example.com' }
     state.org = { slug: 'acme-dental-demo' }
     state.profile = { displayName: 'Acme Dental', websiteDomain: null }
-    state.defaultForm = { id: 'form_1', slug: 'new-patient-intake' }
+    state.defaultForm = { id: 'form_1', slug: 'new-patient-intake', title: 'New Patient Intake' }
 
     const result = await sendIntakeRequestToPatient('org_1', 'pat_1')
 
     expect(result.sentTo).toBe('mia@example.com')
+    expect(result.formTitle).toBe('New Patient Intake')
     expect(state.sentEmails).toHaveLength(1)
     const sent = state.sentEmails[0]
     expect(sent.to).toBe('mia@example.com')
@@ -103,5 +107,27 @@ describe('sendIntakeRequestToPatient', () => {
     expect(sent.data.intakeFormUrl).toBe(
       'https://dreamcreatestudio.com/site/acme-dental-demo/intake/new-patient-intake',
     )
+  })
+
+  it('sends the SELECTED form (by id) instead of the default when formId is given', async () => {
+    state.patient = { id: 'pat_1', firstName: 'Mia', email: 'mia@example.com' }
+    state.org = { slug: 'acme-dental-demo' }
+    state.profile = { displayName: 'Acme Dental', websiteDomain: null }
+    state.defaultForm = { id: 'form_default', slug: 'new-patient-intake', title: 'New Patient Intake' }
+    state.formById = { id: 'form_perio', slug: 'perio-history', title: 'Perio History' }
+
+    const result = await sendIntakeRequestToPatient('org_1', 'pat_1', 'form_perio')
+
+    expect(result.formTitle).toBe('Perio History')
+    expect(state.sentEmails[0].data.intakeFormUrl).toBe(
+      'https://dreamcreatestudio.com/site/acme-dental-demo/intake/perio-history',
+    )
+  })
+
+  it('rejects when the chosen form is missing or archived', async () => {
+    state.patient = { id: 'pat_1', firstName: 'Mia', email: 'mia@example.com' }
+    state.formById = { id: 'form_x', slug: 'x', title: 'X', archivedAt: new Date() }
+    await expect(sendIntakeRequestToPatient('org_1', 'pat_1', 'form_x')).rejects.toThrow(/no longer available/i)
+    expect(state.sentEmails).toHaveLength(0)
   })
 })

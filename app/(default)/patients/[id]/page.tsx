@@ -5,6 +5,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { getPatientHeader } from '@/lib/services/patients'
 import { getPatientTimeline, countTimeline } from '@/lib/services/patient-timeline'
 import { listPatientNotes } from '@/lib/services/patient-notes'
+import { listFormTemplates } from '@/lib/services/forms'
 import PatientDetail from './patient-detail'
 
 interface PageProps {
@@ -22,14 +23,16 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes] = await Promise.all([
+  const [header, timeline, notes, forms] = await Promise.all([
     getPatientHeader(ctx.organizationId, id),
     getPatientTimeline(ctx.organizationId, id),
     listPatientNotes(ctx.organizationId, id),
+    listFormTemplates(ctx.organizationId),
   ])
   if (!header) notFound()
 
   const counts = countTimeline(timeline)
+  const intakeForms = forms.map((f) => ({ id: f.id, title: f.title }))
 
   return (
     <PatientDetail
@@ -37,6 +40,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       timeline={timeline}
       counts={counts}
       notes={notes}
+      intakeForms={intakeForms}
       isPlatformAdmin={ctx.platformAdmin}
     />
   )

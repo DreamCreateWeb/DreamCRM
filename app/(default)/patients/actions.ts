@@ -152,13 +152,14 @@ export async function viewAsPatientAction(formData: FormData) {
  */
 export async function sendIntakeRequestAction(
   patientId: string,
-): Promise<{ ok: true; sentTo: string } | { ok: false; error: string }> {
+  formId?: string,
+): Promise<{ ok: true; sentTo: string; formTitle: string } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can send intake requests' }
   try {
-    const result = await sendIntakeRequestToPatient(ctx.organizationId, patientId)
+    const result = await sendIntakeRequestToPatient(ctx.organizationId, patientId, formId)
     revalidatePath(`/patients/${patientId}`)
-    return { ok: true, sentTo: result.sentTo }
+    return { ok: true, sentTo: result.sentTo, formTitle: result.formTitle }
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }

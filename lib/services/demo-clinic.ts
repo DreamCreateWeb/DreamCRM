@@ -1197,6 +1197,39 @@ async function seedDemoAiUsage(orgId: string) {
     .onConflictDoNothing()
 }
 
+/**
+ * A SECOND (non-default) intake form so the demo exercises the "pick which
+ * form" dropdown on the patient detail "Send intake" control — which only
+ * appears when a clinic has more than one form. Idempotent by slug.
+ */
+async function seedSecondDemoIntakeForm(orgId: string) {
+  // Idempotent on the (org, slug) unique index — no pre-select needed.
+  await db
+    .insert(schema.formTemplate)
+    .values({
+      id: newId('form'),
+      organizationId: orgId,
+      title: 'Returning Patient Update',
+      description: "A short check-in for returning patients — what's changed since their last visit.",
+      slug: 'returning-patient-update',
+      schema: {
+        sections: [
+          {
+            id: 'updates',
+            title: 'Since your last visit',
+            fields: [
+              { id: 'changes_health', type: 'yes_no', label: 'Any changes to your health or medications?', required: true },
+              { id: 'changes_insurance', type: 'yes_no', label: 'Any changes to your dental insurance?', required: true },
+              { id: 'concerns', type: 'textarea', label: "Anything you'd like us to know before your visit?", required: false },
+            ],
+          },
+        ],
+      },
+      isDefault: 0,
+    })
+    .onConflictDoNothing({ target: [schema.formTemplate.organizationId, schema.formTemplate.slug] })
+}
+
 export async function createDemoClinic(): Promise<DemoClinicResult> {
   const name = 'Acme Dental Demo'
   const slug = slugify(name)
@@ -1449,6 +1482,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     }
     // Seed the default intake form if the demo predates the forms feature.
     await seedDefaultIntakeForm(existing.id)
+    await seedSecondDemoIntakeForm(existing.id)
 
     // Self-heal patient_note + form_submission rows when missing. We can't
     // re-pick the original persona indices (those IDs are gone), so we
@@ -2200,6 +2234,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Default intake form template — the standard dental new-patient form.
   await seedDefaultIntakeForm(orgId)
+  // A second form so the "Send intake" dropdown (multi-form picker) is visible.
+  await seedSecondDemoIntakeForm(orgId)
 
   // Form submissions — one per persona that already filled out the intake.
   // Persona [1] (new patient, future visit) is intentionally *missing* a

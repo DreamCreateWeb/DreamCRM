@@ -4,24 +4,26 @@ import { db, schema } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { sendIntakeRequestEmail } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
-import { getDefaultFormTemplate } from '@/lib/services/forms'
+import { getDefaultFormTemplate, getFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 
-export interface SendIntakeRequestResult { sentTo: string }
+export interface SendIntakeRequestResult { sentTo: string; formTitle: string }
 
 /**
- * Email a patient the link to their clinic's default intake form. Used
- * by the "Send intake" CTA on the patient detail page; previously the
- * button was just a `<Link>` to the templates list and did NOT send
- * anything.
+ * Email a patient the link to an intake form. When `formId` is given (the
+ * front desk picked a specific form from the dropdown) that form is used;
+ * otherwise the clinic's default form is sent. Used by the "Send intake" CTA
+ * on the patient detail page; previously the button was just a `<Link>` to the
+ * templates list and did NOT send anything.
  *
- * Throws on the actionable failure cases (no patient, no email on file,
- * no default form configured) so the calling action can surface the
- * cause back to staff.
+ * Throws on the actionable failure cases (no patient, no email on file, the
+ * chosen/default form is missing or archived) so the calling action can
+ * surface the cause back to staff.
  */
 export async function sendIntakeRequestToPatient(
   organizationId: string,
   patientId: string,
+  formId?: string,
 ): Promise<SendIntakeRequestResult> {
   const [patient] = await db
     .select({
@@ -35,9 +37,15 @@ export async function sendIntakeRequestToPatient(
   if (!patient) throw new Error('Patient not found')
   if (!patient.email) throw new Error('Patient has no email on file. Add an email first.')
 
-  const form = await getDefaultFormTemplate(organizationId)
-  if (!form) {
-    throw new Error('No default intake form set. Configure one in Intake Forms first.')
+  const form = formId
+    ? await getFormTemplate(organizationId, formId)
+    : await getDefaultFormTemplate(organizationId)
+  if (!form || form.archivedAt) {
+    throw new Error(
+      formId
+        ? 'That intake form is no longer available — pick another one.'
+        : 'No default intake form set. Configure one in Intake Forms first.',
+    )
   }
 
   const [org] = await db
@@ -73,5 +81,5 @@ export async function sendIntakeRequestToPatient(
     mode: 'Email',
   })
 
-  return { sentTo: patient.email }
+  return { sentTo: patient.email, formTitle: form.title }
 }
