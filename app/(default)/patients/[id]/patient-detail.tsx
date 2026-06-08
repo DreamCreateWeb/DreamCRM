@@ -9,7 +9,7 @@ import { GlyphCluster } from '../glyph-cluster'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
-import SendIntakeInline from '../send-intake-inline'
+import SendIntakeInline, { type IntakeFormOption } from '../send-intake-inline'
 import {
   archivePatientAction,
   openPatientThreadAction,
@@ -90,12 +90,14 @@ export default function PatientDetail({
   timeline,
   counts,
   notes,
+  intakeForms = [],
   isPlatformAdmin = false,
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
   counts: TimelineCounts
   notes: PatientNoteRow[]
+  intakeForms?: IntakeFormOption[]
   isPlatformAdmin?: boolean
 }) {
   const [filter, setFilter] = useState<TimelineKind | 'all'>('all')
@@ -166,7 +168,7 @@ export default function PatientDetail({
             >
               Book appointment
             </button>
-            <SendIntakeButton patientId={header.id} />
+            <SendIntakeButton patientId={header.id} forms={intakeForms} />
             <SendReviewRequestButton patientId={header.id} />
             {isPlatformAdmin && (
               <form action={viewAsPatientAction}>
@@ -209,7 +211,7 @@ export default function PatientDetail({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ── Identity rail ──────────────────────────────────────────── */}
         <aside className="lg:col-span-3 space-y-4">
-          <NeedsAttention header={header} />
+          <NeedsAttention header={header} forms={intakeForms} />
           <IdentityCard header={header} />
         </aside>
 
@@ -281,22 +283,38 @@ export default function PatientDetail({
   )
 }
 
-function SendIntakeButton({ patientId }: { patientId: string }) {
+function SendIntakeButton({ patientId, forms = [] }: { patientId: string; forms?: IntakeFormOption[] }) {
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const [formId, setFormId] = useState<string>(forms[0]?.id ?? '')
 
   function onClick() {
     setFeedback(null)
     startTransition(async () => {
-      const r = await sendIntakeRequestAction(patientId)
-      if (r.ok) setFeedback({ kind: 'ok', msg: `Intake link sent to ${r.sentTo}` })
+      const r = await sendIntakeRequestAction(patientId, formId || undefined)
+      if (r.ok) setFeedback({ kind: 'ok', msg: `"${r.formTitle}" sent to ${r.sentTo}` })
       else setFeedback({ kind: 'err', msg: r.error })
       setTimeout(() => setFeedback(null), 4000)
     })
   }
 
   return (
-    <div className="relative flex flex-col">
+    <div className="relative flex items-center gap-1">
+      {forms.length > 1 && (
+        <select
+          value={formId}
+          onChange={(e) => setFormId(e.target.value)}
+          disabled={pending}
+          aria-label="Choose intake form"
+          className="text-xs rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-1.5 py-1 max-w-[9rem]"
+        >
+          {forms.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.title}
+            </option>
+          ))}
+        </select>
+      )}
       <button
         type="button"
         onClick={onClick}
@@ -411,7 +429,7 @@ function SendPortalInviteButton({ patientId }: { patientId: string }) {
   )
 }
 
-function NeedsAttention({ header }: { header: PatientHeader }) {
+function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?: IntakeFormOption[] }) {
   const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string }; sendIntake?: boolean }> = []
   if (header.flags.unconfirmedNext48h) {
     items.push({
@@ -464,6 +482,7 @@ function NeedsAttention({ header }: { header: PatientHeader }) {
             {it.sendIntake && (
               <SendIntakeInline
                 patientId={header.id}
+                forms={forms}
                 label="Send intake →"
                 className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50"
               />

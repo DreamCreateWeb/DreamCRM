@@ -215,9 +215,12 @@ describe('createDemoClinic', () => {
     expect(out.organizationId).toBe('org_existing')
     expect(out.patientCount).toBe(3)
     expect(out.appointmentCount).toBe(1)
-    // Self-heal re-seeds no demo *entities* — the only insert it issues is the
-    // non-destructive AI-usage meter backfill (onConflictDoNothing).
-    expect(state.inserts.filter((i) => i.table !== 'ai_usage_counter')).toHaveLength(0)
+    // Self-heal re-seeds no demo *entities*. The only inserts it issues are
+    // non-destructive onConflictDoNothing backfills: the AI-usage meter and the
+    // second intake form (idempotent on the org+slug unique index).
+    expect(
+      state.inserts.filter((i) => i.table !== 'ai_usage_counter' && i.table !== 'form_template'),
+    ).toHaveLength(0)
     expect(state.inserts.some((i) => i.table === 'ai_usage_counter')).toBe(true)
   })
 
@@ -570,7 +573,7 @@ describe('createDemoClinic', () => {
     expect(counts.tasks).toBe(3)
     expect(counts.customers).toBe(10)
     expect(counts.products).toBe(4)
-    expect(counts.form_template).toBe(1)
+    expect(counts.form_template).toBe(2) // default new-patient + returning-patient (for the Send-intake dropdown)
     expect(counts.orders).toBe(5)
     expect(counts.invoices).toBe(6)
     expect(counts.form_submission).toBe(5)
