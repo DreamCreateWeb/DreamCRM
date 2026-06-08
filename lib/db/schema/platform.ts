@@ -87,6 +87,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   phone: text('phone'),
   email: text('email'),
   websiteDomain: text('website_domain'),
+  // Display name patients see in the "From" of clinic→patient email
+  // ("Acme Dental"). Null = fall back to the clinic's display name. The email
+  // address itself stays on the platform's verified sending domain (Tier 1 —
+  // no per-clinic DNS); `email` above is used as the Reply-To.
+  emailSenderName: text('email_sender_name'),
 
   // Address
   addressLine1: text('address_line1'),

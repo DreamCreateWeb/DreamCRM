@@ -75,6 +75,16 @@ vi.mock('@/lib/email', () => ({
   sendPatientMessageEmail: (...args: unknown[]) => sendEmailSpy(...args),
 }))
 
+// The clinic sender identity is resolved here; mock it so the message-send
+// path doesn't hit the DB. getClinicSenderIdentity has its own unit test.
+vi.mock('@/lib/services/clinic-sender', () => ({
+  getClinicSenderIdentity: vi.fn(async () => ({
+    from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+    replyTo: 'front@acme.com',
+    name: 'Acme Dental',
+  })),
+}))
+
 beforeEach(() => {
   state.patient = { id: 'pat_1', email: 'mia@example.com', firstName: 'Mia' }
   state.profile = { displayName: 'Acme Dental', email: 'front@acme.com' }
@@ -101,6 +111,7 @@ describe('sendMessageToPatient — email channel delivery', () => {
         to: 'mia@example.com',
         patientFirstName: 'Mia',
         clinicName: 'Acme Dental',
+        from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
         replyTo: 'front@acme.com',
         body: expect.stringContaining('results look great'),
       }),
@@ -153,19 +164,9 @@ describe('sendMessageToPatient — email channel delivery', () => {
     expect(state.inserts.some((i) => i.table === 'patientMessage' && i.values.channel === 'in_app')).toBe(true)
   })
 
-  it('omits Reply-To when the clinic email is a non-deliverable placeholder (no reply bounce)', async () => {
-    // The demo clinic's hello@acme-dental.example placeholder bounced replies.
-    state.profile = { displayName: 'Acme Dental', email: 'hello@acme-dental.example' }
-    const { sendMessageToPatient } = await import('@/lib/services/patient-messaging')
-    await sendMessageToPatient({
-      organizationId: 'org_1',
-      patientId: 'pat_1',
-      body: 'hi',
-      channel: 'email',
-      sentByUserId: 'usr_1',
-    })
-    expect(sendEmailSpy).toHaveBeenCalledWith(expect.objectContaining({ replyTo: null }))
-  })
+  // (The non-deliverable-Reply-To guard now lives in getClinicSenderIdentity /
+  // deliverableReplyTo — covered by the deliverableReplyTo block below + the
+  // clinic-sender unit test.)
 })
 
 describe('deliverableReplyTo', () => {

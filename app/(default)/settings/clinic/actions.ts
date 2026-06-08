@@ -36,6 +36,9 @@ export async function updateClinicProfile(formData: FormData) {
   const about = clean('about', formData)
   const phone = clean('phone', formData)
   const email = clean('email', formData)
+  // Display name patients see in the "From" of clinic→patient email. Null falls
+  // back to the clinic display name in getClinicSenderIdentity.
+  const emailSenderName = clean('emailSenderName', formData)
   const addressLine1 = clean('addressLine1', formData)
   const addressLine2 = clean('addressLine2', formData)
   const city = clean('city', formData)
@@ -72,6 +75,7 @@ export async function updateClinicProfile(formData: FormData) {
     about,
     phone,
     email,
+    emailSenderName,
     addressLine1,
     addressLine2,
     city,

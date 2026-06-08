@@ -136,6 +136,21 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library }:
               </div>
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="emailSenderName">Email sender name</label>
+              <input
+                id="emailSenderName"
+                name="emailSenderName"
+                className="form-input w-full"
+                type="text"
+                defaultValue={profile?.emailSenderName ?? ''}
+                placeholder={profile?.displayName ?? orgName}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                The name patients see as the sender when you email them (reminders, intake forms, messages).
+                Defaults to your clinic name. Replies go to the contact email above.
+              </p>
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1" htmlFor="addressLine1">Street Address</label>
               <input id="addressLine1" name="addressLine1" className="form-input w-full" type="text" defaultValue={profile?.addressLine1 ?? ''} />
             </div>

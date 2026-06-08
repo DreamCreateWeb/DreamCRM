@@ -8,6 +8,7 @@ import { sendBookingConfirmationEmail } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 
 /**
  * Send a booking confirmation email + mirror it into the PMS CommLog.
@@ -60,14 +61,19 @@ export async function sendBookingConfirmation(opts: {
       }
     }
 
-    await sendBookingConfirmationEmail(p.email, {
-      patientName: `${p.firstName} ${p.lastName}`.trim(),
-      clinicName: profile?.displayName ?? 'Your Clinic',
-      clinicPhone: profile?.phone ?? null,
-      startTime: opts.startTime,
-      appointmentType: opts.appointmentType,
-      intakeFormUrl,
-    })
+    const sender = await getClinicSenderIdentity(opts.organizationId)
+    await sendBookingConfirmationEmail(
+      p.email,
+      {
+        patientName: `${p.firstName} ${p.lastName}`.trim(),
+        clinicName: sender.name,
+        clinicPhone: profile?.phone ?? null,
+        startTime: opts.startTime,
+        appointmentType: opts.appointmentType,
+        intakeFormUrl,
+      },
+      sender,
+    )
     await queueCommLogWriteBack(opts.organizationId, opts.patientId, {
       note: `Booking confirmation sent for ${opts.appointmentType.replace(/_/g, ' ')} on ${opts.startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
       mode: 'Email',

@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/appointments'
 import { getSlotsForDay } from '@/lib/services/booking'
 import { sendNotificationEmail } from '@/lib/email'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 
@@ -100,12 +101,13 @@ export async function rescheduleAppointmentAction(input: {
     try {
       const detail = await getAppointmentDetail(ctx.organizationId, newId)
       if (detail?.patient.email) {
+        const sender = await getClinicSenderIdentity(ctx.organizationId)
         await sendNotificationEmail({
           to: detail.patient.email,
           name: detail.patient.fullName,
           title: 'Your appointment was rescheduled',
-          body: `Hi ${detail.patient.fullName.split(' ')[0]} — your ${detail.type.replace(/_/g, ' ')} at ${ctx.organizationName} has been moved to ${start.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Reply or call if this doesn't work.`,
-        })
+          body: `Hi ${detail.patient.fullName.split(' ')[0]} — your ${detail.type.replace(/_/g, ' ')} at ${sender.name} has been moved to ${start.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Reply or call if this doesn't work.`,
+        }, sender)
         await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
           note: `Appointment rescheduled to ${start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} — patient notified by email.`,
           mode: 'Email',
@@ -157,12 +159,13 @@ async function sendReminderForOrg(
     const startStr = detail.startTime.toLocaleString('en-US', {
       weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
     })
+    const sender = await getClinicSenderIdentity(ctx.organizationId)
     await sendNotificationEmail({
       to: detail.patient.email,
       name: detail.patient.fullName,
       title: `Reminder: your ${detail.type.replace(/_/g, ' ')} on ${detail.startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}`,
-      body: `Hi ${detail.patient.fullName.split(' ')[0]} — just a quick reminder of your ${detail.type.replace(/_/g, ' ')} appointment at ${ctx.organizationName} on ${startStr}. Reply CONFIRM or call us back to confirm. Thanks!`,
-    })
+      body: `Hi ${detail.patient.fullName.split(' ')[0]} — just a quick reminder of your ${detail.type.replace(/_/g, ' ')} appointment at ${sender.name} on ${startStr}. Reply CONFIRM or call us back to confirm. Thanks!`,
+    }, sender)
     await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
       note: `Appointment reminder sent for ${startStr}.`,
       mode: 'Email',

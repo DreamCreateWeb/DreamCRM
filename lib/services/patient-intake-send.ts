@@ -6,6 +6,7 @@ import { sendIntakeRequestEmail } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getDefaultFormTemplate, getFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 
 export interface SendIntakeRequestResult { sentTo: string; formTitle: string }
 
@@ -70,11 +71,16 @@ export async function sendIntakeRequestToPatient(
   })
   const intakeFormUrl = `${base}/intake/${form.slug}`
 
-  await sendIntakeRequestEmail(patient.email, {
-    patientFirstName: patient.firstName,
-    clinicName: profile?.displayName ?? 'Your dental clinic',
-    intakeFormUrl,
-  })
+  const sender = await getClinicSenderIdentity(organizationId)
+  await sendIntakeRequestEmail(
+    patient.email,
+    {
+      patientFirstName: patient.firstName,
+      clinicName: sender.name,
+      intakeFormUrl,
+    },
+    sender,
+  )
 
   await queueCommLogWriteBack(organizationId, patient.id, {
     note: `Intake form "${form.title}" sent to ${patient.email}.`,

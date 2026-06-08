@@ -59,6 +59,14 @@ vi.mock('@/lib/db', () => {
   }
 })
 
+vi.mock('@/lib/services/clinic-sender', () => ({
+  getClinicSenderIdentity: vi.fn(async () => ({
+    from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+    replyTo: 'front@acmedental.com',
+    name: 'Acme Dental',
+  })),
+}))
+
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({ _: 'and' })),
   eq: vi.fn(() => ({ _: 'eq' })),

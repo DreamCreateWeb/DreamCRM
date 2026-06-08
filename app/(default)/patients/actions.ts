@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { db, schema } from '@/lib/db'
 import { sendPatientPortalInviteEmail } from '@/lib/email'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { requireTenant } from '@/lib/auth/context'
 import {
   createPatient,
@@ -251,11 +252,16 @@ export async function sendPatientPortalInviteAction(
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
   try {
-    await sendPatientPortalInviteEmail(email, {
-      clinicName: ctx.organizationName,
-      patientFirstName: p.firstName,
-      inviteUrl: `${base}/accept-invite?token=${id}`,
-    })
+    const sender = await getClinicSenderIdentity(ctx.organizationId)
+    await sendPatientPortalInviteEmail(
+      email,
+      {
+        clinicName: sender.name,
+        patientFirstName: p.firstName,
+        inviteUrl: `${base}/accept-invite?token=${id}`,
+      },
+      sender,
+    )
   } catch {
     return { ok: false, error: 'The invite couldn’t be emailed — please try again.' }
   }

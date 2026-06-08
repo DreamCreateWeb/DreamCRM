@@ -48,6 +48,14 @@ vi.mock('@/lib/email', () => ({
   }),
 }))
 
+vi.mock('@/lib/services/clinic-sender', () => ({
+  getClinicSenderIdentity: vi.fn(async () => ({
+    from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+    replyTo: 'front@acmedental.com',
+    name: 'Acme Dental',
+  })),
+}))
+
 vi.mock('@/lib/services/forms', () => ({
   getDefaultFormTemplate: vi.fn(async () => state.defaultForm),
   getFormTemplate: vi.fn(async () => state.formById),
