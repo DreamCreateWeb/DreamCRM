@@ -33,22 +33,34 @@ async function deliver(msg: { to: string; subject: string; html: string; replyTo
   const key = process.env.RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY env var is not set')
   try {
-    await new Resend(key).emails.send({
+    // Resend's SDK does NOT throw on API errors (invalid key, unverified
+    // domain, rejected recipient) — it RETURNS `{ data, error }`. If we don't
+    // inspect `error`, a failed send is silently reported as success: the app
+    // shows "sent" while nothing is ever delivered. So check it and throw.
+    const res = await new Resend(key).emails.send({
       from: FROM,
       to: msg.to,
       subject: msg.subject,
       html: msg.html,
       ...(replyTo ? { replyTo } : {}),
     })
+    if (res?.error) throw res.error
   } catch (err) {
-    console.warn('[email] Resend delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
+    console.warn('[email] Resend delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : JSON.stringify(err))
     throw new Error(friendlyEmailError(err))
   }
 }
 
-/** Map a raw provider send error to a clean, honest user-facing message. */
+/** Map a raw provider send error to a clean, honest user-facing message.
+ *  Handles both thrown Errors (SES) and Resend's returned `{ name, message }`
+ *  error object. */
 function friendlyEmailError(err: unknown): string {
-  const raw = err instanceof Error ? `${err.name} ${err.message}` : String(err)
+  const raw =
+    err instanceof Error
+      ? `${err.name} ${err.message}`
+      : err && typeof err === 'object'
+        ? `${(err as { name?: string }).name ?? ''} ${(err as { message?: string }).message ?? ''}`
+        : String(err)
   // SES sandbox: outbound to non-verified recipients is held until AWS grants
   // production access. This is the most common failure in pre-prod.
   if (/not verified|MessageRejected|sandbox|verification/i.test(raw)) {

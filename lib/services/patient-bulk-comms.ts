@@ -94,7 +94,7 @@ export async function sendBulkPatientEmail(input: BulkEmailInput): Promise<BulkE
       // Per-recipient personalization — first name prefix if the body
       // doesn't start with a greeting already.
       const greeting = `Hi ${p.firstName},`
-      await resend.emails.send({
+      const res = await resend.emails.send({
         from,
         to: p.email,
         subject,
@@ -108,6 +108,8 @@ export async function sendBulkPatientEmail(input: BulkEmailInput): Promise<BulkE
           </div>
         `,
       })
+      // Resend returns `{ data, error }` and does not throw — record real failures.
+      if (res?.error) throw new Error(res.error.message || 'Resend send failed')
       result.sent += 1
     } catch (err) {
       result.errors.push({ patientId: p.id, error: (err as Error).message })

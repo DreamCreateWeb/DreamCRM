@@ -63,6 +63,26 @@ describe('transactional email driver dispatch', () => {
     await expect(sendPasswordResetEmail('u@x.com', 'https://reset')).rejects.toThrow(/RESEND_API_KEY/)
   })
 
+  it('throws when Resend RETURNS an error object (false-success guard)', async () => {
+    // Resend's SDK returns `{ data, error }` and does NOT throw on a bad key /
+    // unverified domain. Before the guard, deliver() ignored `error` and the
+    // app reported "sent" while nothing was delivered — the exact prod bug.
+    mocks.resendSend.mockResolvedValue({
+      data: null,
+      error: { name: 'validation_error', message: 'API key is invalid' },
+    })
+    let caught: Error | null = null
+    try {
+      await sendPasswordResetEmail('u@x.com', 'https://reset')
+    } catch (e) {
+      caught = e as Error
+    }
+    expect(caught).not.toBeNull()
+    expect(caught!.message).toMatch(/couldn.t be sent|test mode/i)
+    // The raw provider text must not leak to the caller.
+    expect(caught!.message).not.toMatch(/API key/)
+  })
+
   it('maps a raw SES sandbox error to a clean message and never leaks the AWS region text', async () => {
     process.env.EMAIL_DRIVER = 'ses'
     mocks.sesSend.mockRejectedValue(
