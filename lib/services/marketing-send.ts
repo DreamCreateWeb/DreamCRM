@@ -196,7 +196,9 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
     if (r.patientId != null) tags.push({ name: 'patientId', value: r.patientId })
 
     try {
-      await resend.emails.send({
+      // Resend returns `{ data, error }` and does not throw — surface a send
+      // failure so it's recorded as 'failed', not silently counted as 'sent'.
+      const res = await resend.emails.send({
         from: opts.fromName ? `${opts.fromName} <Hello@DreamCreateWeb.com>` : FROM_DEFAULT,
         to: r.email,
         subject: opts.campaign.subject!,
@@ -204,6 +206,7 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
         text,
         tags,
       })
+      if (res?.error) throw new Error(res.error.message || 'Resend send failed')
       if (!opts.test) {
         await db.insert(schema.campaignEvents).values({
           campaignId: opts.campaign.id,

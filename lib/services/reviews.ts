@@ -501,13 +501,16 @@ Leave a review: ${opts.reviewUrl}
 
 Thank you,
 The team at ${opts.clinicName}`
-  await resend.emails.send({
+  // Resend returns `{ data, error }` and does not throw — check it so a failed
+  // review-request send surfaces instead of being reported as sent.
+  const res = await resend.emails.send({
     from: `Dream Create <Hello@DreamCreateWeb.com>`,
     to: opts.to,
     subject: `Quick favor from ${opts.clinicName}`,
     html,
     text,
   })
+  if (res?.error) throw new Error(res.error.message || 'Resend send failed')
 }
 
 function escapeHtml(s: string): string {
