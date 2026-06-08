@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import type { ClinicSender } from './email-identity'
 
 // Sender identity for all transactional + marketing email. Override with the
 // EMAIL_FROM env var (e.g. "Dream Create <hello@dreamcreatestudio.com>") once
@@ -13,17 +14,19 @@ function emailDriver(): 'ses' | 'resend' {
 
 // Single delivery path for all transactional email. Defaults to Resend;
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
-// AWS SDK never loads on the Resend path).
-async function deliver(msg: { to: string; subject: string; html: string; replyTo?: string | null }): Promise<void> {
+// AWS SDK never loads on the Resend path). `from` overrides the default
+// platform identity (used to send patient-facing mail as the clinic).
+async function deliver(msg: { to: string; subject: string; html: string; from?: string; replyTo?: string | null }): Promise<void> {
   // Config errors (missing key) throw raw — they're an ops problem, not a
   // delivery failure. Only actual SEND failures get the friendly remap so the
   // raw provider error (e.g. SES's verbose "identities failed the check in
   // region us-east-1") never leaks to staff.
+  const from = msg.from?.trim() || FROM
   const replyTo = msg.replyTo?.trim() || undefined
   if (emailDriver() === 'ses') {
     const { sendEmailViaSes } = await import('./ses')
     try {
-      await sendEmailViaSes({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html, replyTo })
+      await sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, replyTo })
     } catch (err) {
       console.warn('[email] SES delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
       throw new Error(friendlyEmailError(err))
@@ -38,7 +41,7 @@ async function deliver(msg: { to: string; subject: string; html: string; replyTo
     // inspect `error`, a failed send is silently reported as success: the app
     // shows "sent" while nothing is ever delivered. So check it and throw.
     const res = await new Resend(key).emails.send({
-      from: FROM,
+      from,
       to: msg.to,
       subject: msg.subject,
       html: msg.html,
@@ -129,9 +132,12 @@ export async function sendInvitationEmail(to: string, data: InvitationEmailData)
 export async function sendPatientPortalInviteEmail(
   to: string,
   data: { clinicName: string; patientFirstName: string; inviteUrl: string },
+  sender?: ClinicSender,
 ) {
   await deliver({
     to,
+    from: sender?.from,
+    replyTo: sender?.replyTo,
     subject: `${data.clinicName} — set up your patient portal`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
@@ -195,7 +201,7 @@ export interface BookingConfirmationData {
   intakeFormUrl?: string | null
 }
 
-export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData) {
+export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData, sender?: ClinicSender) {
   const typeLabel = data.appointmentType.replace('_', ' ').replace(/^\w/, c => c.toUpperCase())
   const timeStr = data.startTime.toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -218,6 +224,8 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
     : ''
   await deliver({
     to,
+    from: sender?.from,
+    replyTo: sender?.replyTo,
     subject: `Appointment confirmed at ${data.clinicName}`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
@@ -250,9 +258,11 @@ export interface IntakeRequestEmailData {
  * link to the public intake form; the form's submission lands as a
  * `form_submission` row attached to the patient (matched by email).
  */
-export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmailData) {
+export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmailData, sender?: ClinicSender) {
   await deliver({
     to,
+    from: sender?.from,
+    replyTo: sender?.replyTo,
     subject: `${data.clinicName} — quick intake form before your visit`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
@@ -306,9 +316,32 @@ export interface NotificationEmailInput {
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dreamcreatestudio.com'
 
-export async function sendNotificationEmail(input: NotificationEmailInput) {
-  const link = input.linkPath ? `${APP_URL}${input.linkPath}` : null
+export async function sendNotificationEmail(input: NotificationEmailInput, sender?: ClinicSender) {
   const greeting = input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'
+
+  // Clinic sender supplied → this is a PATIENT-facing message (e.g. an
+  // appointment reminder). Drop the staff chrome (the "Open in DreamCRM" button
+  // + "manage your notification preferences" footer don't belong in a patient's
+  // inbox) and send from the clinic with a clean, signed body.
+  if (sender) {
+    await deliver({
+      to: input.to,
+      from: sender.from,
+      replyTo: sender.replyTo,
+      subject: input.title,
+      html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
+        <p style="margin:0 0 12px;color:#57534e">${greeting}</p>
+        ${input.body ? `<p style="margin:0 0 16px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(input.body)}</p>` : ''}
+        <p style="margin:24px 0 0;color:#1c1917">— ${escapeHtml(sender.name)}</p>
+      </div>
+    `,
+    })
+    return
+  }
+
+  // Staff-facing internal notification (default platform identity + chrome).
+  const link = input.linkPath ? `${APP_URL}${input.linkPath}` : null
   await deliver({
     to: input.to,
     subject: input.title,
@@ -338,6 +371,9 @@ export interface PatientMessageEmailData {
   /** Clinic inbox the patient's reply should reach (clinic_profile.email). When
    *  set, replies go to the clinic instead of the unattended platform From. */
   replyTo?: string | null
+  /** Per-clinic From header so the message comes FROM the clinic, not the
+   *  platform. Falls back to the default platform identity when absent. */
+  from?: string
 }
 
 /**
@@ -351,6 +387,7 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
   const greeting = data.patientFirstName ? `Hi ${escapeHtml(data.patientFirstName)},` : 'Hi,'
   await deliver({
     to: data.to,
+    from: data.from,
     replyTo: data.replyTo,
     subject: `A message from ${data.clinicName}`,
     html: `

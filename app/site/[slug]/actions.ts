@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
@@ -240,14 +241,19 @@ export async function submitBookingRequest(formData: FormData) {
       }
     }
 
-    sendBookingConfirmationEmail(email, {
-      patientName: `${firstName} ${lastName}`,
-      clinicName: profile?.displayName ?? 'Your Clinic',
-      clinicPhone: profile?.phone ?? null,
-      startTime,
-      appointmentType,
-      intakeFormUrl,
-    }).catch((err) => {
+    const sender = await getClinicSenderIdentity(orgId)
+    sendBookingConfirmationEmail(
+      email,
+      {
+        patientName: `${firstName} ${lastName}`,
+        clinicName: sender.name,
+        clinicPhone: profile?.phone ?? null,
+        startTime,
+        appointmentType,
+        intakeFormUrl,
+      },
+      sender,
+    ).catch((err) => {
       console.error('[clinic-site] booking email failed', err)
     })
     // Mirror the booking confirmation into OD's CommLog (best-effort).

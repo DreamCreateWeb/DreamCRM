@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { Resend } from 'resend'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 
 /**
@@ -434,7 +435,8 @@ export async function createAndSendReviewRequest(input: {
     .from(schema.organization)
     .where(eq(schema.organization.id, input.organizationId))
     .limit(1)
-  const clinicName = orgRow?.name ?? 'your clinic'
+  const sender = await getClinicSenderIdentity(input.organizationId)
+  const clinicName = sender.name || orgRow?.name || 'your clinic'
   const reviewUrl = buildReviewRedirectUrl(token)
 
   try {
@@ -443,6 +445,8 @@ export async function createAndSendReviewRequest(input: {
       patientFirstName: patient.firstName,
       clinicName,
       reviewUrl,
+      from: sender.from,
+      replyTo: sender.replyTo,
     })
     // Mirror into OD's CommLog so the front desk sees the ask in the chart.
     await queueCommLogWriteBack(input.organizationId, input.patientId, {
@@ -478,6 +482,9 @@ async function sendReviewRequestEmail(opts: {
   patientFirstName: string
   clinicName: string
   reviewUrl: string
+  /** Per-clinic From header + Reply-To so the ask comes FROM the clinic. */
+  from?: string
+  replyTo?: string | null
 }): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) throw new Error('RESEND_API_KEY env var is not set')
@@ -504,11 +511,12 @@ The team at ${opts.clinicName}`
   // Resend returns `{ data, error }` and does not throw — check it so a failed
   // review-request send surfaces instead of being reported as sent.
   const res = await resend.emails.send({
-    from: `Dream Create <Hello@DreamCreateWeb.com>`,
+    from: opts.from || `Dream Create <Hello@DreamCreateWeb.com>`,
     to: opts.to,
     subject: `Quick favor from ${opts.clinicName}`,
     html,
     text,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
   })
   if (res?.error) throw new Error(res.error.message || 'Resend send failed')
 }

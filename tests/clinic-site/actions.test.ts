@@ -65,6 +65,14 @@ vi.mock('@/lib/services/booking', () => ({
   SLOT_MINUTES: 30,
 }))
 
+vi.mock('@/lib/services/clinic-sender', () => ({
+  getClinicSenderIdentity: vi.fn(async () => ({
+    from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+    replyTo: 'front@acmedental.com',
+    name: 'Acme Dental',
+  })),
+}))
+
 // The actions now resolve the org from the public slug server-side instead of
 // trusting a client-posted orgId. Map the test slug → org_1; anything else
 // (missing/unknown slug) → null so the "not found" guards fire.
@@ -291,9 +299,10 @@ describe('submitBookingRequest', () => {
       'jane@x.com',
       expect.objectContaining({
         patientName: 'Jane Doe',
-        clinicName: 'X Dental',
+        clinicName: 'Acme Dental', // from the mocked clinic sender identity
         appointmentType: 'cleaning',
       }),
+      expect.objectContaining({ from: 'Acme Dental <acme-dental@dreamcreatestudio.com>' }),
     )
   })
 

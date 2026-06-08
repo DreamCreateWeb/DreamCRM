@@ -36,6 +36,7 @@ function makeData(services: ClinicService[]): ClinicSiteData {
       phone: '(555) 555-0100',
       email: null,
       websiteDomain: null,
+      emailSenderName: null,
       addressLine1: null,
       addressLine2: null,
       city: 'Austin',

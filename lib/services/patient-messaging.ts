@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, ilike, inArray, isNotNull, isNull, lte, or, 
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { sendPatientMessageEmail } from '@/lib/email'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 
 /**
  * Patient Communications service. Unified per-patient threads across
@@ -552,35 +553,18 @@ export async function getOrCreatePatientThread(
   return id
 }
 
+// Re-exported for back-compat (its tests import it here); the implementation
+// now lives in lib/email-identity alongside the rest of the sender helpers.
+export { deliverableReplyTo } from '@/lib/email-identity'
+
 /**
  * Deliver the clinic→patient message to the patient's real inbox for the
- * "email" channel. Looks up the patient's email + the clinic's display name /
- * reply-to inbox (both org-scoped, so this also rejects a foreign patientId).
+ * "email" channel. Sends FROM the clinic's sender identity (name + verified
+ * platform address) with Reply-To = the clinic's inbox when deliverable. The
+ * patient lookup is org-scoped, so this also rejects a foreign patientId.
  * Throws on no-email or a send failure so the caller never records a misleading
  * "sent" bubble for an email that didn't go out.
  */
-/**
- * A clinic email may only be used as the message's Reply-To if it's plausibly
- * deliverable. Reserved / non-routable domains (RFC 2606 / 6761 — `.example`,
- * `.test`, `.invalid`, `.localhost`, plus the `example.com/org/net`
- * placeholders) MUST be skipped, or the patient's reply bounces — the demo
- * clinic's `hello@acme-dental.example` placeholder is the canonical case.
- * Returns the email when usable, else null (replies then go to the deliverable
- * From address instead of bouncing).
- */
-export function deliverableReplyTo(email: string | null | undefined): string | null {
-  const trimmed = (email ?? '').trim()
-  const lower = trimmed.toLowerCase()
-  const at = lower.indexOf('@')
-  if (at <= 0 || at === lower.length - 1) return null
-  const domain = lower.slice(at + 1)
-  if (!domain.includes('.')) return null
-  const tld = domain.slice(domain.lastIndexOf('.') + 1)
-  if (['example', 'test', 'invalid', 'localhost'].includes(tld)) return null
-  if (/(^|\.)example\.(com|org|net)$/.test(domain)) return null
-  return trimmed
-}
-
 async function deliverPatientMessageEmail(organizationId: string, patientId: string, body: string): Promise<void> {
   const [p] = await db
     .select({ email: schema.patient.email, firstName: schema.patient.firstName })
@@ -590,29 +574,17 @@ async function deliverPatientMessageEmail(organizationId: string, patientId: str
   if (!p) throw new Error('Patient not found in this organization')
   if (!p.email) throw new Error('This patient has no email address on file — switch to the in-app channel.')
 
-  const [profile] = await db
-    .select({ displayName: schema.clinicProfile.displayName, email: schema.clinicProfile.email })
-    .from(schema.clinicProfile)
-    .where(eq(schema.clinicProfile.organizationId, organizationId))
-    .limit(1)
-  let clinicName = profile?.displayName?.trim() || null
-  if (!clinicName) {
-    const [org] = await db
-      .select({ name: schema.organization.name })
-      .from(schema.organization)
-      .where(eq(schema.organization.id, organizationId))
-      .limit(1)
-    clinicName = org?.name?.trim() || 'Your dental office'
-  }
+  const sender = await getClinicSenderIdentity(organizationId)
 
   await sendPatientMessageEmail({
     to: p.email,
     patientFirstName: p.firstName,
-    clinicName,
+    clinicName: sender.name,
     body,
-    // Skip a non-deliverable clinic email (e.g. the demo's *.example placeholder)
-    // so the patient's reply doesn't bounce.
-    replyTo: deliverableReplyTo(profile?.email),
+    from: sender.from,
+    // deliverableReplyTo (inside getClinicSenderIdentity) skips a non-deliverable
+    // clinic email (e.g. the demo's *.example placeholder) so replies don't bounce.
+    replyTo: sender.replyTo,
   })
 }
 
