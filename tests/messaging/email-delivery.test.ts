@@ -152,4 +152,47 @@ describe('sendMessageToPatient — email channel delivery', () => {
     expect(sendEmailSpy).not.toHaveBeenCalled()
     expect(state.inserts.some((i) => i.table === 'patientMessage' && i.values.channel === 'in_app')).toBe(true)
   })
+
+  it('omits Reply-To when the clinic email is a non-deliverable placeholder (no reply bounce)', async () => {
+    // The demo clinic's hello@acme-dental.example placeholder bounced replies.
+    state.profile = { displayName: 'Acme Dental', email: 'hello@acme-dental.example' }
+    const { sendMessageToPatient } = await import('@/lib/services/patient-messaging')
+    await sendMessageToPatient({
+      organizationId: 'org_1',
+      patientId: 'pat_1',
+      body: 'hi',
+      channel: 'email',
+      sentByUserId: 'usr_1',
+    })
+    expect(sendEmailSpy).toHaveBeenCalledWith(expect.objectContaining({ replyTo: null }))
+  })
+})
+
+describe('deliverableReplyTo', () => {
+  it('accepts a real clinic address', async () => {
+    const { deliverableReplyTo } = await import('@/lib/services/patient-messaging')
+    expect(deliverableReplyTo('front@smilebright.com')).toBe('front@smilebright.com')
+    expect(deliverableReplyTo('  Front@SmileBright.com  ')).toBe('Front@SmileBright.com')
+  })
+
+  it('rejects reserved / non-routable domains so replies never bounce', async () => {
+    const { deliverableReplyTo } = await import('@/lib/services/patient-messaging')
+    for (const bad of [
+      'hello@acme-dental.example',
+      'x@foo.test',
+      'x@foo.invalid',
+      'x@localhost',
+      'x@example.com',
+      'x@sub.example.org',
+    ]) {
+      expect(deliverableReplyTo(bad), bad).toBeNull()
+    }
+  })
+
+  it('rejects empty / malformed addresses', async () => {
+    const { deliverableReplyTo } = await import('@/lib/services/patient-messaging')
+    for (const bad of [null, undefined, '', '   ', 'no-at-sign', 'trailing@', '@leading.com', 'no-dot@domain']) {
+      expect(deliverableReplyTo(bad as string | null)).toBeNull()
+    }
+  })
 })
