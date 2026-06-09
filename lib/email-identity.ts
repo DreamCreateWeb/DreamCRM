@@ -14,6 +14,9 @@ export interface ClinicSender {
   from: string
   replyTo: string | null
   name: string
+  /** The clinic's IANA timezone — used to render appointment times in
+   *  patient-facing email at the clinic's wall-clock, not the server's (UTC). */
+  timeZone: string
   /** Tier 2: when present, send via this connected Gmail account AS the clinic's
    *  real address. `from` here is the full header ("Acme Dental" <front@clinic.com>).
    *  Transport falls back to the platform `from`/`replyTo` above if Gmail fails. */

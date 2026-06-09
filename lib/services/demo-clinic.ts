@@ -1279,6 +1279,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         paymentMethods: schema.clinicProfile.paymentMethods,
         financingPartners: schema.clinicProfile.financingPartners,
         cancellationPolicy: schema.clinicProfile.cancellationPolicy,
+        timezone: schema.clinicProfile.timezone,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1286,6 +1287,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
     const patch: Partial<typeof schema.clinicProfile.$inferInsert> = {}
     if (profile?.brandColor === '#0ea5e9') patch.brandColor = '#9CAF9F'
+    // Backfill the clinic timezone on legacy demos (seeded before the column).
+    if (!profile?.timezone) patch.timezone = 'America/Chicago'
     // About + tagline upgrade: legacy demos shipped with a meta-disclosure
     // "this is a demonstration clinic seeded by..." paragraph that broke the
     // public-site immersion. Replace it with real warm copy so the demo looks
@@ -1847,6 +1850,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       sat: { open: null, close: null },
       sun: { open: null, close: null },
     },
+    // Central time — a non-UTC, non-default zone so the demo exercises the
+    // timezone-aware booking grid + appointment-email rendering.
+    timezone: 'America/Chicago',
     services: DEMO_SERVICES,
     staff: DEMO_STAFF,
     stats: DEMO_STATS,

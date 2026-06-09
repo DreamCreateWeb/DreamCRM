@@ -106,7 +106,7 @@ export async function rescheduleAppointmentAction(input: {
           to: detail.patient.email,
           name: detail.patient.fullName,
           title: 'Your appointment was rescheduled',
-          body: `Hi ${detail.patient.fullName.split(' ')[0]} — your ${detail.type.replace(/_/g, ' ')} at ${sender.name} has been moved to ${start.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Reply or call if this doesn't work.`,
+          body: `Hi ${detail.patient.fullName.split(' ')[0]} — your ${detail.type.replace(/_/g, ' ')} at ${sender.name} has been moved to ${start.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone })}. Reply or call if this doesn't work.`,
         }, sender)
         await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
           note: `Appointment rescheduled to ${start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} — patient notified by email.`,
@@ -156,14 +156,17 @@ async function sendReminderForOrg(
   if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
 
   try {
-    const startStr = detail.startTime.toLocaleString('en-US', {
-      weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
-    })
     const sender = await getClinicSenderIdentity(ctx.organizationId)
+    const startStr = detail.startTime.toLocaleString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
+    })
+    const dateStr = detail.startTime.toLocaleDateString('en-US', {
+      weekday: 'long', month: 'short', day: 'numeric', timeZone: sender.timeZone,
+    })
     await sendNotificationEmail({
       to: detail.patient.email,
       name: detail.patient.fullName,
-      title: `Reminder: your ${detail.type.replace(/_/g, ' ')} on ${detail.startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}`,
+      title: `Reminder: your ${detail.type.replace(/_/g, ' ')} on ${dateStr}`,
       body: `Hi ${detail.patient.fullName.split(' ')[0]} — just a quick reminder of your ${detail.type.replace(/_/g, ' ')} appointment at ${sender.name} on ${startStr}. Reply CONFIRM or call us back to confirm. Thanks!`,
     }, sender)
     await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {

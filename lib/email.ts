@@ -247,6 +247,9 @@ export interface BookingConfirmationData {
   /** When the clinic has a default intake form configured, the absolute
    * URL we want the patient to land on to fill it out. */
   intakeFormUrl?: string | null
+  /** Clinic IANA timezone so the appointment time renders at the clinic's
+   *  wall-clock (the server runs in UTC). */
+  timeZone?: string
 }
 
 export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData, sender?: ClinicSender) {
@@ -254,6 +257,7 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
   const timeStr = data.startTime.toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
     year: 'numeric', hour: 'numeric', minute: '2-digit',
+    ...(data.timeZone ? { timeZone: data.timeZone } : {}),
   })
   const intakeBlock = data.intakeFormUrl
     ? `

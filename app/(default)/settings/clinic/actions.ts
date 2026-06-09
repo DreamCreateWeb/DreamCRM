@@ -79,6 +79,7 @@ export async function updateClinicProfile(formData: FormData) {
   )
   const cancellationPolicy = clean('cancellationPolicy', formData)
   const hours = parseHours(formData)
+  const timezone = clean('timezone', formData)
 
   const payload = {
     displayName,
@@ -101,6 +102,7 @@ export async function updateClinicProfile(formData: FormData) {
     heroImageUrl,
     differenceVideoUrl,
     hours,
+    timezone,
     services,
     staff,
     stats,

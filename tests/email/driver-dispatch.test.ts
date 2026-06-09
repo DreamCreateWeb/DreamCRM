@@ -24,6 +24,7 @@ const GMAIL_SENDER = {
   name: 'Acme Dental',
   from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
   replyTo: 'front@acmedental.com',
+  timeZone: 'America/New_York',
   gmail: { accountId: 'acct_1', from: 'Acme Dental <frontdesk@acmedental.com>' },
 }
 
