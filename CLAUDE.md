@@ -15,10 +15,19 @@ aesthetic — keep it; wire logic to it rather than replacing components.
 - **Drizzle ORM** on **AWS RDS Postgres** (`us-east-1`; node-postgres driver, private/VPC-only)
 - **better-auth** with Organizations plugin (multi-tenant)
 - **Stripe** for billing (Checkout + Customer Portal + webhooks) — unchanged (own BAA)
-- **Email: AWS SES** (`EMAIL_DRIVER=ses`; verified domain `dreamcreateweb.com`
-  with DKIM + DMARC). Resend kept as a fallback driver. **SES is still in the
-  sandbox — production-access request pending AWS review**, so outbound to
-  non-verified recipients is held until approved.
+- **Email: Resend (LIVE), sending from the verified domain `dreamcreatestudio.com`.**
+  `EMAIL_DRIVER=resend` on App Runner; `EMAIL_FROM` is the platform default
+  (`Dream Create <hello@dreamcreatestudio.com>`). **SES is NOT in use** —
+  production-access was denied twice and the app fell back to Resend (the SES
+  driver code + `lib/ses.ts` remain as a fallback; `EMAIL_DRIVER=ses` would
+  re-enable it). **Per-clinic sender identity (Tier 1 + Tier 2) is live** — see
+  the "Patient-facing email sender identity" bullet under What's wired. The
+  `lib/email.ts` `deliver()` routes Gmail (Tier 2) → Resend/SES; it now CHECKS
+  Resend's `{ data, error }` return and throws (the SDK doesn't throw on a bad
+  key — a prior silent-failure bug). **Ops note:** the prod `RESEND_API_KEY` in
+  Secrets Manager was an invalid/dead key (`re_T8fyc…`); it was swapped to the
+  working account's key. **Both that Resend key and the AWS access key were
+  shared in chat and still need rotating** (see priority list).
 - **Storage: AWS S3** (`STORAGE_DRIVER=s3`, bucket `dreamcrm-uploads-prod`).
   Vercel Blob kept as a fallback driver.
 - **AI: Anthropic API (direct)**. A Bedrock driver exists (`AI_DRIVER=bedrock`,
@@ -107,6 +116,24 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Patient-facing email sender identity (Tier 1 + Tier 2)** — clinic→patient
+  email comes FROM the clinic, not "Dream Create". `lib/email-identity.ts` (pure:
+  `ClinicSender`, `clinicSenderFrom`, `formatFromHeader`, `deliverableReplyTo`) +
+  `lib/services/clinic-sender.ts` (`getClinicSenderIdentity(orgId)` +
+  `listClinicGmailAccounts`). **Tier 1 (default, zero-config):** `"Acme Dental"
+  <{slug}@dreamcreatestudio.com>` (display name = clinic, address on the verified
+  platform domain → no per-clinic DNS), Reply-To = the clinic's contact email
+  (skipped when non-deliverable, e.g. the demo's `*.example`). Name precedence:
+  `clinic_profile.email_sender_name` → display name → org name → default.
+  **Tier 2 (one-click upgrade):** clinic connects Google (the existing
+  `/api/oauth/gmail/start` Inbox OAuth) and picks it in `/settings/clinic` →
+  patient email sends AS their real address via the Gmail API
+  (`clinic_profile.email_sending_account_id`, migration 0049); `deliver()` routes
+  Gmail and FALLS BACK to Tier 1 on any Gmail failure. Threaded through every
+  patient-facing send: intake, booking confirmation, patient message, portal
+  invite, review request, appointment reminder/reschedule. Editable field:
+  Settings → Clinic Profile → "Email sender name" + "Send patient email from".
+  Migrations 0048 (`email_sender_name`) + 0049 (`email_sending_account_id`).
 - Auth (sign-in/up/reset, sign-out) with timeout + hard-reload to avoid
   cookie races on the next request
 - Onboarding 01→02→03→04 (`sessionStorage` draft → plan picker →
@@ -1062,6 +1089,54 @@ Blog are NO LONGER top-level — they live only inside About.
   DEMO_STAFF when null + skips staff overwrite when clinic-edited).
 
 ## What's NOT yet wired (priorities for next session)
+
+### Maintenance session 2026-06-09 — what shipped + what's still open
+
+A bug-hunt + email-deliverability session shipped PRs **#265–#276** (all merged
+to main, all green). Highlights:
+- **Email now works end-to-end via Resend** (#273 + an ops fix): the prod
+  `RESEND_API_KEY` was a dead key — swapped to the working account's key in
+  Secrets Manager; `deliver()` now surfaces Resend's `{error}` return instead of
+  reporting false success. **Per-clinic sender identity Tier 1 + Tier 2**
+  (#274/#275/#276) — see the What's-wired bullet.
+- **Bug-hunt fixes:** auth/role-gating (#265: email-bind patient invites, gate
+  marketing actions, org-check patient notes); appointment lifecycle (#266:
+  reschedule keeps duration, terminal-state guards, reminders skip confirmed,
+  slot pre-open overlap); Stripe membership period-end silently null (#267);
+  shop oversell + atomic coupon burn (#268); `/messages` email channel actually
+  delivers now (#269); reviews submit status-gate + feature-exact-review (#270);
+  PMS sync hardening (#271: high-water skip, overlap guard, family-phone dedupe,
+  patient-map recovery); intake form picker (#272).
+
+**Still open (priority order):**
+1. **CLINIC TIMEZONE (HIGH — found, NOT fixed).** Prod runs in UTC; the booking
+   slot grid (`lib/services/booking.ts` `setHours`/`getDay`) and appointment
+   email time formatting (`toLocaleString` with no `timeZone`) interpret clinic
+   hours in UTC — a clinic open 9–5 Eastern offers 5 AM–1 PM slots + emails wrong
+   times. Fix = add `clinic_profile.timezone` (IANA, default `America/New_York`,
+   matches the existing PMS default), thread through `getSlotsForDay` (generate
+   the grid in the clinic tz; reuse the dependency-free `lib/services/pms/
+   datetime.ts` `parseOdDateTime` helper; have the date-strip send a date-only
+   day) + the 3 appointment email formatters + a `/settings/clinic` field + demo
+   seed. Reworking `tests/booking/availability.test.ts` (which assumes
+   server-tz == clinic-tz) is the fiddly part. The user is aware and wants it
+   done — it was deferred only because it's a migration + behavior-changing.
+2. **ROTATE TWO SECRETS shared in chat (compromised):** the Resend key
+   `re_BZDw…` (now the live prod key — create a fresh one in Resend, swap it into
+   `dreamcrm/app-secrets`, redeploy; also delete the dead `re_T8fyc…`) and the
+   AWS access key `AKIA53LCNZ3Y66OJGLOI`.
+3. **Lower-severity audit findings (deferred, low risk):** Connect OAuth state
+   cookie delete-path; platform Stripe webhook idempotency ledger (dup
+   owner-notifications on retries); orphan `pending` membership on abandoned
+   checkout; review auto-send timing anchored to `completedAt` vs visit time;
+   restore real `db.transaction()` in `rescheduleAppointment`/`convertLeadToPatient`/
+   `moveTask` (the "Neon has no transactions" comments are STALE — it's
+   node-postgres now, which supports them).
+4. **Patient email replies don't loop back into `/messages`** for arbitrary
+   addresses — inbound email is only ingested via the Gmail integration. With
+   Tier 2 (clinic's connected Gmail = the sender), replies to that mailbox DO
+   surface; for Tier 1 (platform domain) they go to the clinic's contact email,
+   not back into the thread. A dedicated inbound-parse path is the full fix.
 
 ### Tend-clone epic — DONE (Checkpoints 1A/1B/2/3 shipped this session)
 
