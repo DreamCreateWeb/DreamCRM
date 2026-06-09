@@ -82,6 +82,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   // soft-card on /payment-financing. Null = section hides (we don't fake a
   // cancellation policy, since specific dollar fees vary per clinic).
   cancellationPolicy: text('cancellation_policy'),
+  // Patient-portal customization (Settings → Patient portal): feature
+  // toggles + booking/reschedule notice windows + clinic-editable copy.
+  // Shape: PortalSettings in lib/types/portal.ts. Null = defaults; partial
+  // values merge over defaults via resolvePortalSettings(), so new settings
+  // never need a backfill.
+  portalSettings: jsonb('portal_settings'),
 
   // Contact
   phone: text('phone'),

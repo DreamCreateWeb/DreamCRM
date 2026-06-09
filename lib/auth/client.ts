@@ -1,7 +1,7 @@
 'use client'
 
 import { createAuthClient } from 'better-auth/react'
-import { organizationClient } from 'better-auth/client/plugins'
+import { organizationClient, magicLinkClient } from 'better-auth/client/plugins'
 
 // IMPORTANT: do NOT set baseURL here. Leaving it undefined makes the client
 // post to the same origin the page was served from, which:
@@ -14,7 +14,7 @@ import { organizationClient } from 'better-auth/client/plugins'
 // alias produces "Failed to fetch" (CORS) and / or sets cookies on the
 // wrong origin so middleware never sees them.
 export const authClient = createAuthClient({
-  plugins: [organizationClient()],
+  plugins: [organizationClient(), magicLinkClient()],
 })
 
 export const {

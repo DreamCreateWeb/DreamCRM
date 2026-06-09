@@ -755,7 +755,7 @@ async function assertAppointmentMutable(organizationId: string, appointmentId: s
 export async function confirmAppointment(
   organizationId: string,
   appointmentId: string,
-  via: 'sms' | 'email' | 'manual' | 'auto_sms_keyword' = 'manual',
+  via: 'sms' | 'email' | 'manual' | 'auto_sms_keyword' | 'portal' = 'manual',
 ) {
   await assertAppointmentMutable(organizationId, appointmentId)
   await setAppointmentState(organizationId, appointmentId, {

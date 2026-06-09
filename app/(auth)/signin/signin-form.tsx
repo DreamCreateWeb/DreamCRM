@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { signIn } from '@/lib/auth-client'
+import { signIn, authClient } from '@/lib/auth-client'
 
 // If the sign-in fetch ever exceeds this, surface an error so the user
 // isn't stuck staring at "Signing In…". Cold DB cold start should be
@@ -18,6 +18,36 @@ export default function SignInForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Passwordless mode — patients especially sign in twice a year; a one-tap
+  // emailed link beats a forgotten password. 'sent' renders the check-your-
+  // inbox state.
+  const [mode, setMode] = useState<'password' | 'magic' | 'sent'>('password')
+
+  async function onSendMagicLink(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+    try {
+      const { error: authError } = await authClient.signIn.magicLink({
+        email,
+        callbackURL: redirectTo,
+      })
+      if (authError) {
+        // Don't reveal whether the email exists — the generic copy covers
+        // both "sent" and "no such account" identically.
+        if (authError.status === 429) {
+          setError('Too many requests — wait a moment and try again.')
+          setLoading(false)
+          return
+        }
+      }
+      setMode('sent')
+      setLoading(false)
+    } catch {
+      setError('We couldn’t send the link right now. Try again in a moment.')
+      setLoading(false)
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -61,8 +91,32 @@ export default function SignInForm() {
     }
   }
 
+  if (mode === 'sent') {
+    return (
+      <div className="text-center py-6">
+        <p className="text-3xl mb-3">📬</p>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+          Check your inbox
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
+          If an account exists for <span className="font-medium">{email}</span>, a one-tap
+          sign-in link is on its way. It works once and expires in 15 minutes.
+        </p>
+        <button
+          type="button"
+          className="mt-5 text-sm underline hover:no-underline text-gray-600 dark:text-gray-300"
+          onClick={() => setMode('password')}
+        >
+          ← Back to sign in
+        </button>
+      </div>
+    )
+  }
+
+  const magicMode = mode === 'magic'
+
   return (
-    <form onSubmit={onSubmit}>
+    <form onSubmit={magicMode ? onSendMagicLink : onSubmit}>
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="email">Email Address</label>
@@ -76,19 +130,21 @@ export default function SignInForm() {
             required
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="password">Password</label>
-          <input
-            id="password"
-            className="form-input w-full"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-            minLength={8}
-          />
-        </div>
+        {!magicMode && (
+          <div>
+            <label className="block text-sm font-medium mb-1" htmlFor="password">Password</label>
+            <input
+              id="password"
+              className="form-input w-full"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+              minLength={8}
+            />
+          </div>
+        )}
       </div>
       {error && (
         <div className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
@@ -97,16 +153,38 @@ export default function SignInForm() {
       )}
       <div className="flex items-center justify-between mt-6">
         <div className="mr-1">
-          <Link className="text-sm underline hover:no-underline" href="/reset-password">Forgot Password?</Link>
+          {magicMode ? (
+            <button
+              type="button"
+              className="text-sm underline hover:no-underline"
+              onClick={() => setMode('password')}
+            >
+              Use a password instead
+            </button>
+          ) : (
+            <Link className="text-sm underline hover:no-underline" href="/reset-password">Forgot Password?</Link>
+          )}
         </div>
         <button
           type="submit"
           disabled={loading}
           className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3 disabled:opacity-60"
         >
-          {loading ? 'Signing In…' : 'Sign In'}
+          {loading ? (magicMode ? 'Sending…' : 'Signing In…') : magicMode ? 'Email me a link' : 'Sign In'}
         </button>
       </div>
+      {!magicMode && (
+        <button
+          type="button"
+          className="mt-4 w-full text-center text-sm text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 font-medium"
+          onClick={() => {
+            setError(null)
+            setMode('magic')
+          }}
+        >
+          No password? Email me a sign-in link instead
+        </button>
+      )}
     </form>
   )
 }

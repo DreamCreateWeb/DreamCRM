@@ -143,6 +143,29 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   })
 }
 
+export async function sendMagicLinkEmail(to: string, url: string) {
+  await deliver({
+    to,
+    subject: 'Your sign-in link',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Sign in with one tap</h2>
+        <p style="margin:0 0 24px;color:#444;line-height:1.5">
+          Here's the sign-in link you asked for — no password needed.
+          It works once and expires in 15 minutes.
+        </p>
+        <a href="${url}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
+          Sign me in
+        </a>
+        <p style="margin:24px 0 0;font-size:12px;color:#888">
+          If you didn't ask for this, you can safely ignore it — nobody can
+          sign in without this exact link.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export interface InvitationEmailData {
   inviterName: string
   orgName: string

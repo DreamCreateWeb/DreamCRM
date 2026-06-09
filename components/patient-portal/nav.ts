@@ -1,0 +1,52 @@
+import type { PortalSettings } from '@/lib/types/portal'
+
+/**
+ * Portal navigation model, derived from the clinic's portal settings —
+ * a feature toggled off disappears from nav AND its page (the page checks
+ * the same flag), never a dead link.
+ *
+ * `primary` feeds the mobile bottom tab bar (max 4 + More) and the desktop
+ * header nav; `more` lands in the More sheet / desktop overflow.
+ */
+export interface PortalNavItem {
+  href: string
+  label: string
+  icon: PortalIconName
+}
+
+export type PortalIconName =
+  | 'home'
+  | 'calendar'
+  | 'chat'
+  | 'card'
+  | 'folder'
+  | 'doc'
+  | 'users'
+  | 'bag'
+  | 'user'
+  | 'dots'
+
+export function buildPortalNav(opts: {
+  settings: PortalSettings
+  /** Clinic storefront is enabled (Shop module) — gates the Shop link. */
+  hasShop: boolean
+  /** Signed-in patient has linked dependents — gates the Family entry. */
+  hasDependents: boolean
+}): { primary: PortalNavItem[]; more: PortalNavItem[] } {
+  const f = opts.settings.features
+
+  const all: Array<PortalNavItem & { enabled: boolean }> = [
+    { href: '/patient/dashboard', label: 'Home', icon: 'home', enabled: true },
+    { href: '/patient/appointments', label: 'Visits', icon: 'calendar', enabled: true },
+    { href: '/patient/messages', label: 'Messages', icon: 'chat', enabled: f.messages },
+    { href: '/patient/invoices', label: 'Billing', icon: 'card', enabled: f.billing },
+    { href: '/patient/records', label: 'Records', icon: 'folder', enabled: f.records },
+    { href: '/patient/intake', label: 'Forms', icon: 'doc', enabled: f.forms },
+    { href: '/patient/family', label: 'Family', icon: 'users', enabled: f.family && opts.hasDependents },
+    { href: '/patient/shop', label: 'Shop', icon: 'bag', enabled: f.shopLink && opts.hasShop },
+    { href: '/patient/profile', label: 'My info', icon: 'user', enabled: true },
+  ]
+
+  const enabled = all.filter((i) => i.enabled).map(({ enabled: _e, ...item }) => item)
+  return { primary: enabled.slice(0, 4), more: enabled.slice(4) }
+}

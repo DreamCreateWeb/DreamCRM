@@ -88,6 +88,8 @@ export interface PatientHeader {
   firstSeenAt: Date | null
   lastActivityAt: Date | null
   hasPortalAccount: boolean
+  /** Family access: the patient whose portal login manages this one. */
+  guardianPatientId: string | null
   flags: PatientRowFlags
   // Aggregates pulled in the same call so the header has no extra round-trip.
   outstandingBalanceCents: number
@@ -641,6 +643,7 @@ export async function getPatientHeader(
     firstSeenAt: p.firstSeenAt,
     lastActivityAt: p.lastActivityAt,
     hasPortalAccount: !!p.userId,
+    guardianPatientId: p.guardianPatientId ?? null,
     flags: {
       newPatient,
       birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, now),
@@ -678,6 +681,9 @@ export interface CreatePatientInput {
   source?: PatientSource | null
   lifecycle?: PatientLifecycle
   notes?: string | null
+  // Family access (patient portal): the patient whose portal login may see
+  // and manage this patient. Null = no guardian.
+  guardianPatientId?: string | null
 }
 
 export async function createPatient(input: CreatePatientInput) {
@@ -713,6 +719,29 @@ export interface UpdatePatientInput {
 }
 
 export async function updatePatient({ organizationId, patientId, patch }: UpdatePatientInput) {
+  // Guardian linkage is a portal-access grant — validate before writing:
+  // same org, not self, and the guardian can't be someone's dependent
+  // themselves (one-level family tree; rules out cycles entirely).
+  if (patch.guardianPatientId) {
+    if (patch.guardianPatientId === patientId) {
+      throw new Error('A patient can’t be their own guardian')
+    }
+    const [guardian] = await db
+      .select({ id: schema.patient.id, guardianPatientId: schema.patient.guardianPatientId })
+      .from(schema.patient)
+      .where(
+        and(
+          eq(schema.patient.organizationId, organizationId),
+          eq(schema.patient.id, patch.guardianPatientId),
+        ),
+      )
+      .limit(1)
+    if (!guardian) throw new Error('Guardian patient not found')
+    if (guardian.guardianPatientId) {
+      throw new Error('That patient is a dependent themselves — pick the family’s account holder')
+    }
+  }
+
   const update: Record<string, unknown> = { updatedAt: new Date() }
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue
@@ -724,6 +753,23 @@ export async function updatePatient({ organizationId, patientId, patch }: Update
     .where(
       and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)),
     )
+}
+
+/** Lightweight id+name list for pickers (e.g. the guardian select). */
+export async function listPatientOptions(
+  organizationId: string,
+): Promise<Array<{ id: string; name: string }>> {
+  const rows = await db
+    .select({
+      id: schema.patient.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+    })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.isActive, 1)))
+    .orderBy(schema.patient.firstName, schema.patient.lastName)
+    .limit(500)
+  return rows.map((r) => ({ id: r.id, name: `${r.firstName} ${r.lastName}` }))
 }
 
 export async function archivePatient(organizationId: string, patientId: string) {

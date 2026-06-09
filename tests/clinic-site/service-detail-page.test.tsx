@@ -68,6 +68,7 @@ function makeData(services: ClinicService[]): ClinicSiteData {
       paymentMethods: null,
       financingPartners: null,
       cancellationPolicy: null,
+      portalSettings: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as ClinicSiteData['profile'],

@@ -49,7 +49,13 @@ export async function updatePatientAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can update patients' }
-  await updatePatient({ organizationId: ctx.organizationId, patientId, patch })
+  try {
+    await updatePatient({ organizationId: ctx.organizationId, patientId, patch })
+  } catch (err) {
+    // Guardian-linkage validation throws human-readable messages — surface
+    // them in the modal instead of a server error.
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save changes' }
+  }
   revalidatePath(`/patients/${patientId}`)
   revalidatePath('/patients')
   // Overview's "Today's chair" renders patient names / birthday glyph / balance
