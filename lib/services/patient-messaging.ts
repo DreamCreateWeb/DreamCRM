@@ -582,6 +582,7 @@ async function deliverPatientMessageEmail(organizationId: string, patientId: str
     clinicName: sender.name,
     body,
     from: sender.from,
+    gmail: sender.gmail,
     // deliverableReplyTo (inside getClinicSenderIdentity) skips a non-deliverable
     // clinic email (e.g. the demo's *.example placeholder) so replies don't bounce.
     replyTo: sender.replyTo,

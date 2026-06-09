@@ -14,15 +14,25 @@ export interface ClinicSender {
   from: string
   replyTo: string | null
   name: string
+  /** Tier 2: when present, send via this connected Gmail account AS the clinic's
+   *  real address. `from` here is the full header ("Acme Dental" <front@clinic.com>).
+   *  Transport falls back to the platform `from`/`replyTo` above if Gmail fails. */
+  gmail?: { accountId: string; from: string }
+}
+
+/** Build a "Display Name <address>" header, sanitizing the name against header
+ *  injection. The display name is what patients actually read in their inbox. */
+export function formatFromHeader(name: string, address: string): string {
+  const safeName = (name || '').replace(/[\r\n"<>]/g, '').trim().slice(0, 78) || 'Your dental office'
+  return `${safeName} <${address}>`
 }
 
 /** Build a From header from a clinic display name + a per-clinic local-part on
  *  the platform's verified sending domain. Sanitizes both against header
- *  injection. The display name is what patients actually read in their inbox. */
+ *  injection. */
 export function clinicSenderFrom(name: string, localPart: string, domain: string): string {
-  const safeName = (name || '').replace(/[\r\n"<>]/g, '').trim().slice(0, 78) || 'Your dental office'
   const safeLocal = (localPart || 'clinic').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 64) || 'clinic'
-  return `${safeName} <${safeLocal}@${domain}>`
+  return formatFromHeader(name, `${safeLocal}@${domain}`)
 }
 
 /** A clinic email is only usable as a Reply-To if it's plausibly deliverable.

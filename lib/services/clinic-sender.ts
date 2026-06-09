@@ -1,7 +1,7 @@
 import 'server-only'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { clinicSenderFrom, deliverableReplyTo, type ClinicSender } from '@/lib/email-identity'
+import { clinicSenderFrom, deliverableReplyTo, formatFromHeader, type ClinicSender } from '@/lib/email-identity'
 
 /**
  * Tier 1 sender identity: patient-facing clinic email goes out as
@@ -26,6 +26,7 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
         senderName: schema.clinicProfile.emailSenderName,
         displayName: schema.clinicProfile.displayName,
         email: schema.clinicProfile.email,
+        sendingAccountId: schema.clinicProfile.emailSendingAccountId,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -38,9 +39,50 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
     org?.name?.trim() ||
     'Your dental office'
 
-  return {
+  const sender: ClinicSender = {
     name,
     from: clinicSenderFrom(name, org?.slug || 'clinic', SENDING_DOMAIN),
     replyTo: deliverableReplyTo(profile?.email),
   }
+
+  // Tier 2 — when the clinic designated a connected Google mailbox, send AS
+  // their real address. Validated here (org-scoped + not disabled), so a stale
+  // reference simply falls back to the Tier 1 platform sender above.
+  if (profile?.sendingAccountId) {
+    const [acct] = await db
+      .select({ id: schema.emailAccount.id, address: schema.emailAccount.emailAddress, disabled: schema.emailAccount.disabled })
+      .from(schema.emailAccount)
+      .where(
+        and(
+          eq(schema.emailAccount.id, profile.sendingAccountId),
+          eq(schema.emailAccount.organizationId, organizationId),
+        ),
+      )
+      .limit(1)
+    if (acct && !acct.disabled) {
+      sender.gmail = { accountId: acct.id, from: formatFromHeader(name, acct.address) }
+    }
+  }
+
+  return sender
+}
+
+/** Connected Google mailboxes available to use as the clinic's email sender. */
+export async function listClinicGmailAccounts(
+  organizationId: string,
+): Promise<Array<{ id: string; emailAddress: string; displayName: string | null }>> {
+  return db
+    .select({
+      id: schema.emailAccount.id,
+      emailAddress: schema.emailAccount.emailAddress,
+      displayName: schema.emailAccount.displayName,
+    })
+    .from(schema.emailAccount)
+    .where(
+      and(
+        eq(schema.emailAccount.organizationId, organizationId),
+        eq(schema.emailAccount.provider, 'gmail'),
+        eq(schema.emailAccount.disabled, false),
+      ),
+    )
 }

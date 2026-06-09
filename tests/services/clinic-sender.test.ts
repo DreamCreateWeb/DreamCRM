@@ -8,7 +8,8 @@ import { clinicSenderFrom, deliverableReplyTo } from '@/lib/email-identity'
 
 const state = {
   org: null as null | { slug: string | null; name: string | null },
-  profile: null as null | { senderName: string | null; displayName: string | null; email: string | null },
+  profile: null as null | { senderName: string | null; displayName: string | null; email: string | null; sendingAccountId?: string | null },
+  account: null as null | { id: string; address: string; disabled: boolean },
 }
 
 vi.mock('@/lib/db', () => ({
@@ -19,22 +20,24 @@ vi.mock('@/lib/db', () => ({
           limit: async () => {
             if (t === 'organization') return state.org ? [state.org] : []
             if (t === 'clinicProfile') return state.profile ? [state.profile] : []
+            if (t === 'emailAccount') return state.account ? [state.account] : []
             return []
           },
         }),
       }),
     }),
   },
-  schema: { organization: 'organization', clinicProfile: 'clinicProfile' },
+  schema: { organization: 'organization', clinicProfile: 'clinicProfile', emailAccount: 'emailAccount' },
 }))
 
-vi.mock('drizzle-orm', () => ({ eq: vi.fn(() => ({ _: 'eq' })) }))
+vi.mock('drizzle-orm', () => ({ eq: vi.fn(() => ({ _: 'eq' })), and: vi.fn(() => ({ _: 'and' })) }))
 
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 
 beforeEach(() => {
   state.org = { slug: 'acme-dental', name: 'Acme Dental Org' }
-  state.profile = { senderName: null, displayName: 'Acme Dental', email: 'front@acmedental.com' }
+  state.profile = { senderName: null, displayName: 'Acme Dental', email: 'front@acmedental.com', sendingAccountId: null }
+  state.account = null
 })
 
 describe('clinicSenderFrom', () => {
@@ -80,6 +83,30 @@ describe('getClinicSenderIdentity', () => {
   it('drops a non-deliverable clinic email from Reply-To (no reply bounce)', async () => {
     state.profile = { senderName: null, displayName: 'Acme Dental', email: 'hello@acme-dental.example' }
     expect((await getClinicSenderIdentity('org_1')).replyTo).toBeNull()
+  })
+
+  it('has no gmail transport when no sending account is configured', async () => {
+    state.profile = { senderName: null, displayName: 'Acme Dental', email: 'front@acmedental.com', sendingAccountId: null }
+    expect((await getClinicSenderIdentity('org_1')).gmail).toBeUndefined()
+  })
+
+  it('resolves a Tier 2 gmail transport (From = clinic name + real address) when a sending account is set', async () => {
+    state.profile = { senderName: null, displayName: 'Acme Dental', email: 'front@acmedental.com', sendingAccountId: 'acct_1' }
+    state.account = { id: 'acct_1', address: 'frontdesk@acmedental.com', disabled: false }
+    const s = await getClinicSenderIdentity('org_1')
+    expect(s.gmail).toEqual({ accountId: 'acct_1', from: 'Acme Dental <frontdesk@acmedental.com>' })
+  })
+
+  it('ignores a disabled sending account (falls back to Tier 1, no gmail)', async () => {
+    state.profile = { senderName: null, displayName: 'Acme Dental', email: 'front@acmedental.com', sendingAccountId: 'acct_1' }
+    state.account = { id: 'acct_1', address: 'frontdesk@acmedental.com', disabled: true }
+    expect((await getClinicSenderIdentity('org_1')).gmail).toBeUndefined()
+  })
+
+  it('ignores a stale sending-account id that no longer exists', async () => {
+    state.profile = { senderName: null, displayName: 'Acme Dental', email: 'front@acmedental.com', sendingAccountId: 'acct_gone' }
+    state.account = null
+    expect((await getClinicSenderIdentity('org_1')).gmail).toBeUndefined()
   })
 })
 

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mocks = vi.hoisted(() => ({
   resendSend: vi.fn<(msg: unknown) => Promise<unknown>>(),
   sesSend: vi.fn<(msg: unknown) => Promise<unknown>>(),
+  gmailSend: vi.fn<(token: string, msg: unknown) => Promise<unknown>>(),
 }))
 
 vi.mock('resend', () => ({
@@ -11,14 +12,25 @@ vi.mock('resend', () => ({
   },
 }))
 vi.mock('@/lib/ses', () => ({ sendEmailViaSes: mocks.sesSend }))
+vi.mock('@/lib/services/gmail', () => ({
+  getAccessToken: vi.fn(async () => 'access-tok'),
+  sendMessage: mocks.gmailSend,
+}))
 
-import { sendPasswordResetEmail, sendInvitationEmail } from '@/lib/email'
+import { sendPasswordResetEmail, sendInvitationEmail, sendIntakeRequestEmail } from '@/lib/email'
 
 const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
+const GMAIL_SENDER = {
+  name: 'Acme Dental',
+  from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+  replyTo: 'front@acmedental.com',
+  gmail: { accountId: 'acct_1', from: 'Acme Dental <frontdesk@acmedental.com>' },
+}
 
 beforeEach(() => {
   mocks.resendSend.mockReset()
   mocks.sesSend.mockReset()
+  mocks.gmailSend.mockReset()
   process.env.RESEND_API_KEY = 'test-key'
   delete process.env.EMAIL_DRIVER
 })
@@ -100,5 +112,41 @@ describe('transactional email driver dispatch', () => {
     expect(caught).not.toBeNull()
     expect(caught!.message).toMatch(/test mode/i)
     expect(caught!.message).not.toMatch(/US-EAST-1/)
+  })
+})
+
+describe('Tier 2 — send via the clinic Gmail account', () => {
+  it('routes through the Gmail API (as the clinic address) and skips Resend', async () => {
+    mocks.gmailSend.mockResolvedValue({ id: 'g1', threadId: 't1' })
+    await sendIntakeRequestEmail(
+      'mia@example.com',
+      { patientFirstName: 'Mia', clinicName: 'Acme Dental', intakeFormUrl: 'https://x/intake/f' },
+      GMAIL_SENDER,
+    )
+    expect(mocks.gmailSend).toHaveBeenCalledOnce()
+    expect(mocks.gmailSend).toHaveBeenCalledWith(
+      'access-tok',
+      expect.objectContaining({
+        from: 'Acme Dental <frontdesk@acmedental.com>',
+        to: ['mia@example.com'],
+        bodyHtml: expect.stringContaining('intake form'),
+      }),
+    )
+    expect(mocks.resendSend).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the platform sender (Resend) when the Gmail send fails', async () => {
+    mocks.gmailSend.mockRejectedValue(new Error('invalid_grant'))
+    await sendIntakeRequestEmail(
+      'mia@example.com',
+      { patientFirstName: 'Mia', clinicName: 'Acme Dental', intakeFormUrl: 'https://x/intake/f' },
+      GMAIL_SENDER,
+    )
+    expect(mocks.gmailSend).toHaveBeenCalledOnce()
+    // The patient still gets the email — from the clinic-named platform address.
+    expect(mocks.resendSend).toHaveBeenCalledOnce()
+    expect(mocks.resendSend).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 'Acme Dental <acme-dental@dreamcreatestudio.com>', to: 'mia@example.com' }),
+    )
   })
 })
