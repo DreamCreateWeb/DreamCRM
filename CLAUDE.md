@@ -1108,31 +1108,29 @@ to main, all green). Highlights:
   PMS sync hardening (#271: high-water skip, overlap guard, family-phone dedupe,
   patient-map recovery); intake form picker (#272).
 
+**Clinic timezone — DONE (#278, migration 0050).** `clinic_profile.timezone`
+(null = `CLINIC_DEFAULT_TZ` = America/New_York) + `lib/clinic-timezone.ts`.
+`getSlotsForDay` generates the booking grid in the clinic zone (accepts a
+date-only `YYYY-MM-DD` key — the booking form now sends the patient's calendar
+day — or a Date → clinic-local; open/close resolved via the DST-aware
+`lib/services/pms/datetime.ts` `parseOdDateTime`); appointment-time emails
+(booking confirmation / reminder / reschedule) render in the clinic zone via
+`ClinicSender.timeZone`; Settings → Clinic Profile has a Timezone picker. So
+booking slots + emails are now timezone-correct (no longer UTC).
+
 **Still open (priority order):**
-1. **CLINIC TIMEZONE (HIGH — found, NOT fixed).** Prod runs in UTC; the booking
-   slot grid (`lib/services/booking.ts` `setHours`/`getDay`) and appointment
-   email time formatting (`toLocaleString` with no `timeZone`) interpret clinic
-   hours in UTC — a clinic open 9–5 Eastern offers 5 AM–1 PM slots + emails wrong
-   times. Fix = add `clinic_profile.timezone` (IANA, default `America/New_York`,
-   matches the existing PMS default), thread through `getSlotsForDay` (generate
-   the grid in the clinic tz; reuse the dependency-free `lib/services/pms/
-   datetime.ts` `parseOdDateTime` helper; have the date-strip send a date-only
-   day) + the 3 appointment email formatters + a `/settings/clinic` field + demo
-   seed. Reworking `tests/booking/availability.test.ts` (which assumes
-   server-tz == clinic-tz) is the fiddly part. The user is aware and wants it
-   done — it was deferred only because it's a migration + behavior-changing.
-2. **ROTATE TWO SECRETS shared in chat (compromised):** the Resend key
+1. **ROTATE TWO SECRETS shared in chat (compromised):** the Resend key
    `re_BZDw…` (now the live prod key — create a fresh one in Resend, swap it into
    `dreamcrm/app-secrets`, redeploy; also delete the dead `re_T8fyc…`) and the
-   AWS access key `AKIA53LCNZ3Y66OJGLOI`.
-3. **Lower-severity audit findings (deferred, low risk):** Connect OAuth state
+   AWS access key `AKIA53LCNZ3Y66OJGLOI`. **This is the user's action item.**
+2. **Lower-severity audit findings (deferred, low risk):** Connect OAuth state
    cookie delete-path; platform Stripe webhook idempotency ledger (dup
    owner-notifications on retries); orphan `pending` membership on abandoned
    checkout; review auto-send timing anchored to `completedAt` vs visit time;
    restore real `db.transaction()` in `rescheduleAppointment`/`convertLeadToPatient`/
    `moveTask` (the "Neon has no transactions" comments are STALE — it's
    node-postgres now, which supports them).
-4. **Patient email replies don't loop back into `/messages`** for arbitrary
+3. **Patient email replies don't loop back into `/messages`** for arbitrary
    addresses — inbound email is only ingested via the Gmail integration. With
    Tier 2 (clinic's connected Gmail = the sender), replies to that mailbox DO
    surface; for Tier 1 (platform domain) they go to the clinic's contact email,
