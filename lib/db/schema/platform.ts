@@ -92,6 +92,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   // address itself stays on the platform's verified sending domain (Tier 1 —
   // no per-clinic DNS); `email` above is used as the Reply-To.
   emailSenderName: text('email_sender_name'),
+  // Tier 2 — when set, patient-facing email is sent FROM the clinic's own
+  // connected Google mailbox (email_account.id) via the Gmail API, so the From
+  // is the clinic's real address. Null = use the Tier 1 platform sender. No hard
+  // FK (cross-schema-file); validated on read, falls back to Tier 1 if missing.
+  emailSendingAccountId: text('email_sending_account_id'),
 
   // Address
   addressLine1: text('address_line1'),

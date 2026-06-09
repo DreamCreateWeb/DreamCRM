@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
 import { listLibraryForPicker } from '@/lib/services/service-library'
+import { listClinicGmailAccounts } from '@/lib/services/clinic-sender'
 import SettingsSidebar from '../settings-sidebar'
 import ClinicProfilePanel from './clinic-profile-panel'
 
@@ -29,6 +30,9 @@ export default async function ClinicSettings() {
   // Library available to this clinic's picker — every `active` entry plus
   // any `pending` entries this org submitted (1B own-pending visibility).
   const library = await listLibraryForPicker(ctx.organizationId)
+
+  // Connected Google mailboxes the clinic can send patient email from (Tier 2).
+  const gmailAccounts = await listClinicGmailAccounts(ctx.organizationId)
 
   const siteUrl = profile?.websiteDomain
     ? `https://${profile.websiteDomain}`
@@ -60,6 +64,7 @@ export default async function ClinicSettings() {
             orgName={ctx.organizationName}
             orgId={ctx.organizationId}
             library={library}
+            gmailAccounts={gmailAccounts}
           />
         </div>
       </div>

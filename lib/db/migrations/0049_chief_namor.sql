@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "email_sending_account_id" text;

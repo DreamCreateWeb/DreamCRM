@@ -447,6 +447,7 @@ export async function createAndSendReviewRequest(input: {
       reviewUrl,
       from: sender.from,
       replyTo: sender.replyTo,
+      gmail: sender.gmail,
     })
     // Mirror into OD's CommLog so the front desk sees the ask in the chart.
     await queueCommLogWriteBack(input.organizationId, input.patientId, {
@@ -485,10 +486,10 @@ async function sendReviewRequestEmail(opts: {
   /** Per-clinic From header + Reply-To so the ask comes FROM the clinic. */
   from?: string
   replyTo?: string | null
+  /** Tier 2: send via the clinic's connected Gmail account AS their address. */
+  gmail?: { accountId: string; from: string }
 }): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) throw new Error('RESEND_API_KEY env var is not set')
-  const resend = new Resend(apiKey)
+  const subject = `Quick favor from ${opts.clinicName}`
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Quick favor from ${escapeHtml(opts.clinicName)}</title></head>
 <body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c1917">
   <div style="max-width:560px;margin:0 auto;background:#fff;padding:32px 40px">
@@ -508,12 +509,29 @@ Leave a review: ${opts.reviewUrl}
 
 Thank you,
 The team at ${opts.clinicName}`
+
+  // Tier 2 — send AS the clinic's own Google mailbox. Fall back to the platform
+  // sender (below) if the Gmail connection is broken, so the ask still goes out.
+  if (opts.gmail) {
+    try {
+      const { getAccessToken, sendMessage } = await import('@/lib/services/gmail')
+      const token = await getAccessToken(opts.gmail.accountId)
+      await sendMessage(token, { from: opts.gmail.from, to: [opts.to], subject, bodyText: text, bodyHtml: html })
+      return
+    } catch (err) {
+      console.warn('[reviews] Gmail send failed; falling back to platform sender:', err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) throw new Error('RESEND_API_KEY env var is not set')
+  const resend = new Resend(apiKey)
   // Resend returns `{ data, error }` and does not throw — check it so a failed
   // review-request send surfaces instead of being reported as sent.
   const res = await resend.emails.send({
     from: opts.from || `Dream Create <Hello@DreamCreateWeb.com>`,
     to: opts.to,
-    subject: `Quick favor from ${opts.clinicName}`,
+    subject,
     html,
     text,
     ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),

@@ -1,9 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { emailAccount } from '@/lib/db/schema/email'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
 import {
@@ -39,6 +40,17 @@ export async function updateClinicProfile(formData: FormData) {
   // Display name patients see in the "From" of clinic→patient email. Null falls
   // back to the clinic display name in getClinicSenderIdentity.
   const emailSenderName = clean('emailSenderName', formData)
+  // Tier 2 — the connected Google mailbox to send patient email from. Validated
+  // to belong to this org so a client can't point it at another clinic's account.
+  let emailSendingAccountId = clean('emailSendingAccountId', formData)
+  if (emailSendingAccountId) {
+    const [acct] = await db
+      .select({ id: emailAccount.id })
+      .from(emailAccount)
+      .where(and(eq(emailAccount.id, emailSendingAccountId), eq(emailAccount.organizationId, orgId)))
+      .limit(1)
+    if (!acct) emailSendingAccountId = null
+  }
   const addressLine1 = clean('addressLine1', formData)
   const addressLine2 = clean('addressLine2', formData)
   const city = clean('city', formData)
@@ -76,6 +88,7 @@ export async function updateClinicProfile(formData: FormData) {
     phone,
     email,
     emailSenderName,
+    emailSendingAccountId,
     addressLine1,
     addressLine2,
     city,

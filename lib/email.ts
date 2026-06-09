@@ -12,17 +12,64 @@ function emailDriver(): 'ses' | 'resend' {
   return process.env.EMAIL_DRIVER === 'ses' ? 'ses' : 'resend'
 }
 
+/** Plain-text fallback for the Gmail multipart/alternative text part. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<\/(p|div|h\d|li|tr)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 // Single delivery path for all transactional email. Defaults to Resend;
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
 // AWS SDK never loads on the Resend path). `from` overrides the default
 // platform identity (used to send patient-facing mail as the clinic).
-async function deliver(msg: { to: string; subject: string; html: string; from?: string; replyTo?: string | null }): Promise<void> {
+async function deliver(msg: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+  replyTo?: string | null
+  /** Tier 2: send via the clinic's connected Gmail account AS their real
+   *  address. On any Gmail failure we fall back to the platform sender below. */
+  gmail?: { accountId: string; from: string }
+}): Promise<void> {
   // Config errors (missing key) throw raw — they're an ops problem, not a
   // delivery failure. Only actual SEND failures get the friendly remap so the
   // raw provider error (e.g. SES's verbose "identities failed the check in
   // region us-east-1") never leaks to staff.
   const from = msg.from?.trim() || FROM
   const replyTo = msg.replyTo?.trim() || undefined
+
+  // Tier 2 — send AS the clinic's own Google mailbox via the Gmail API. If the
+  // connection is broken (token revoked, etc.) we DON'T fail the send: fall
+  // through to the platform sender so the patient still gets the email.
+  if (msg.gmail) {
+    try {
+      const { getAccessToken, sendMessage } = await import('./services/gmail')
+      const token = await getAccessToken(msg.gmail.accountId)
+      await sendMessage(token, {
+        from: msg.gmail.from,
+        to: [msg.to],
+        subject: msg.subject,
+        bodyText: htmlToText(msg.html),
+        bodyHtml: msg.html,
+      })
+      return
+    } catch (err) {
+      console.warn(
+        '[email] Gmail send failed; falling back to platform sender:',
+        err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      )
+      // fall through to Resend/SES with the platform `from` + `replyTo`
+    }
+  }
   if (emailDriver() === 'ses') {
     const { sendEmailViaSes } = await import('./ses')
     try {
@@ -138,6 +185,7 @@ export async function sendPatientPortalInviteEmail(
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
+    gmail: sender?.gmail,
     subject: `${data.clinicName} — set up your patient portal`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
@@ -226,6 +274,7 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
+    gmail: sender?.gmail,
     subject: `Appointment confirmed at ${data.clinicName}`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
@@ -263,6 +312,7 @@ export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmai
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
+    gmail: sender?.gmail,
     subject: `${data.clinicName} — quick intake form before your visit`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
@@ -328,6 +378,7 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
       to: input.to,
       from: sender.from,
       replyTo: sender.replyTo,
+      gmail: sender.gmail,
       subject: input.title,
       html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
@@ -374,6 +425,8 @@ export interface PatientMessageEmailData {
   /** Per-clinic From header so the message comes FROM the clinic, not the
    *  platform. Falls back to the default platform identity when absent. */
   from?: string
+  /** Tier 2: send via the clinic's connected Gmail account. */
+  gmail?: { accountId: string; from: string }
 }
 
 /**
@@ -389,6 +442,7 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
     to: data.to,
     from: data.from,
     replyTo: data.replyTo,
+    gmail: data.gmail,
     subject: `A message from ${data.clinicName}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1c1917">

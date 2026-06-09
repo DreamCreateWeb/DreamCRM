@@ -26,6 +26,7 @@ interface Props {
   orgName: string
   orgId: string
   library: ServiceLibraryEntryWithStatus[]
+  gmailAccounts: Array<{ id: string; emailAddress: string; displayName: string | null }>
 }
 
 const DAYS = [
@@ -40,7 +41,7 @@ const DAYS = [
 
 interface HoursEntry { open?: string | null; close?: string | null; closed?: boolean }
 
-export default function ClinicProfilePanel({ profile, orgName, orgId, library }: Props) {
+export default function ClinicProfilePanel({ profile, orgName, orgId, library, gmailAccounts }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -149,6 +150,53 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library }:
                 The name patients see as the sender when you email them (reminders, intake forms, messages).
                 Defaults to your clinic name. Replies go to the contact email above.
               </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Send patient email from</label>
+              {gmailAccounts.length > 0 ? (
+                <div className="space-y-1.5">
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="emailSendingAccountId"
+                      value=""
+                      defaultChecked={!profile?.emailSendingAccountId}
+                      className="form-radio mt-0.5"
+                    />
+                    <span>
+                      <span className="text-gray-800 dark:text-gray-100">DreamCRM (default)</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">
+                        Sent from your clinic name on our secure mail server — no setup needed.
+                      </span>
+                    </span>
+                  </label>
+                  {gmailAccounts.map((a) => (
+                    <label key={a.id} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="emailSendingAccountId"
+                        value={a.id}
+                        defaultChecked={profile?.emailSendingAccountId === a.id}
+                        className="form-radio mt-0.5"
+                      />
+                      <span>
+                        <span className="text-gray-800 dark:text-gray-100">Your Google inbox — {a.emailAddress}</span>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">
+                          Patients see your real address; replies land back in your inbox.
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Want patient email to come from your own address? {' '}
+                  <a href="/api/oauth/gmail/start" className="text-violet-600 dark:text-violet-400 hover:underline font-medium">
+                    Connect your Google account
+                  </a>{' '}
+                  — then pick it here. Until then, email sends from your clinic name on our mail server.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="addressLine1">Street Address</label>
