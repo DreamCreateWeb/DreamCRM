@@ -3,6 +3,8 @@ import { and, eq, gte, lte, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { parseOdDateTime, formatOdDate } from './pms/datetime'
+import { CLINIC_DEFAULT_TZ, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 
 /**
  * Public-site booking availability service. Computes the slot grid for a
@@ -10,18 +12,24 @@ import { clinicProfile } from '@/lib/db/schema/platform'
  * already on the books. Returns 30-minute slots within the clinic's open
  * window, marking each as available or taken.
  *
- * Slot granularity is 30 minutes for the v1 — dental appointments span
- * roughly 30-60 minutes for hygiene + most general procedures, so 30-min
- * granularity hits the right user expectation. Configurable later.
+ * Timezone: the clinic's `hours` are wall-clock strings ("09:00") with no zone,
+ * and prod runs in UTC — so the grid is generated against the clinic's IANA
+ * timezone (`clinic_profile.timezone`, default CLINIC_DEFAULT_TZ), not the
+ * server's. Open/close are resolved to absolute instants via the DST-aware
+ * `parseOdDateTime`; slot labels are rendered in the clinic's zone. All slot
+ * instants (`startIso`) are absolute, so the booking submission stays correct
+ * regardless of the patient's browser timezone.
+ *
+ * Slot granularity is 30 minutes for v1.
  */
 
 export const SLOT_MINUTES = 30
 const SLOT_MS = SLOT_MINUTES * 60_000
 
 export interface BookingSlot {
-  /** ISO datetime — the start of this slot. */
+  /** ISO datetime — the start of this slot (absolute instant). */
   startIso: string
-  /** Render label, e.g. "8:00 AM". */
+  /** Render label in the clinic's timezone, e.g. "8:00 AM". */
   label: string
   /** Slot is open: clinic is open at this time and nothing is on the books. */
   available: boolean
@@ -49,9 +57,7 @@ interface HourEntry {
 type HoursMap = Record<string, HourEntry | undefined>
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
-function dayKey(d: Date): (typeof DAY_KEYS)[number] {
-  return DAY_KEYS[d.getDay()]
-}
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function parseHHMM(s: string): { h: number; m: number } | null {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(s)
@@ -59,12 +65,9 @@ function parseHHMM(s: string): { h: number; m: number } | null {
   return { h: parseInt(match[1], 10), m: parseInt(match[2], 10) }
 }
 
-function fmtLabel(d: Date): string {
-  const h = d.getHours()
-  const m = d.getMinutes()
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
-  return `${h12}:${String(m).padStart(2, '0')} ${period}`
+/** Format an absolute instant as a "9:00 AM" label in the clinic's timezone. */
+function fmtLabel(d: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(d)
 }
 
 /**
@@ -74,22 +77,36 @@ function fmtLabel(d: Date): string {
  * "no more openings today — try tomorrow" are very different signals to
  * a patient.
  *
+ * `date` accepts a date-only `YYYY-MM-DD` key (the public booking UI sends the
+ * patient's selected calendar day) OR a `Date` (reschedule guard /
+ * isSlotAvailable) — a Date is converted to the clinic-local calendar date.
+ *
  * `excludeAppointmentId` lets the reschedule flow ignore the appointment
  * being moved so its current slot still appears as available.
  */
 export async function getSlotsForDay(
   organizationId: string,
-  date: Date,
+  date: Date | string,
   excludeAppointmentId?: string,
 ): Promise<SlotsForDay> {
   const [profile] = await db
-    .select({ hours: clinicProfile.hours })
+    .select({ hours: clinicProfile.hours, timezone: clinicProfile.timezone })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
 
+  const timeZone = profile?.timezone?.trim() || CLINIC_DEFAULT_TZ
   const hours = (profile?.hours ?? {}) as HoursMap
-  const entry = hours[dayKey(date)]
+
+  // Resolve the clinic-local calendar date (YYYY-MM-DD). A date-only string is
+  // used as-is; a Date is converted to the clinic's local date so the weekday
+  // + open/close are computed in the clinic's zone, not the server's (UTC).
+  const dateKey =
+    typeof date === 'string' && DATE_KEY_RE.test(date)
+      ? date
+      : formatOdDate(date instanceof Date ? date : new Date(date), timeZone)
+
+  const entry = hours[DAY_KEYS[dayOfWeekForDateKey(dateKey)]]
   if (!entry || entry.closed || !entry.open || !entry.close) {
     return { slots: [], closedReason: 'day_closed' }
   }
@@ -100,10 +117,10 @@ export async function getSlotsForDay(
     return { slots: [], closedReason: 'invalid_hours' }
   }
 
-  const dayStart = new Date(date)
-  dayStart.setHours(openParts.h, openParts.m, 0, 0)
-  const dayEnd = new Date(date)
-  dayEnd.setHours(closeParts.h, closeParts.m, 0, 0)
+  // Open/close as absolute instants, interpreting the clinic's wall-clock hours
+  // in the clinic's timezone (DST-aware via parseOdDateTime's two-pass offset).
+  const dayStart = parseOdDateTime(`${dateKey} ${entry.open}:00`, timeZone)
+  const dayEnd = parseOdDateTime(`${dateKey} ${entry.close}:00`, timeZone)
   if (dayEnd.getTime() <= dayStart.getTime()) {
     return { slots: [], closedReason: 'invalid_hours' }
   }
@@ -157,7 +174,7 @@ export async function getSlotsForDay(
     if (slotStart.getTime() < now) continue
     slots.push({
       startIso: slotStart.toISOString(),
-      label: fmtLabel(slotStart),
+      label: fmtLabel(slotStart, timeZone),
       available: !isBlocked(slotStart),
     })
   }
@@ -174,7 +191,7 @@ export async function getSlotsForDay(
  */
 export async function getAvailableSlots(
   organizationId: string,
-  date: Date,
+  date: Date | string,
   excludeAppointmentId?: string,
 ): Promise<BookingSlot[]> {
   const { slots } = await getSlotsForDay(organizationId, date, excludeAppointmentId)

@@ -12,6 +12,7 @@ import type {
   ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
 import { DEFAULT_PAYMENT_METHODS } from '@/lib/types/clinic-content'
+import { US_TIMEZONES } from '@/lib/clinic-timezone'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import ServicesLibraryPicker from './services-library-picker'
@@ -234,6 +235,22 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
 
         <section>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Office Hours</h3>
+          <div className="mb-4 max-w-xs">
+            <label className="block text-sm font-medium mb-1" htmlFor="timezone">Timezone</label>
+            <select
+              id="timezone"
+              name="timezone"
+              className="form-select w-full"
+              defaultValue={profile?.timezone ?? 'America/New_York'}
+            >
+              {US_TIMEZONES.map((tz) => (
+                <option key={tz.id} value={tz.id}>{tz.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              The hours below + appointment times in patient emails are shown in this timezone.
+            </p>
+          </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">24-hour format (HH:MM). Leave blank to omit a day.</p>
           <div className="space-y-2">
             {DAYS.map(({ id, label }) => {

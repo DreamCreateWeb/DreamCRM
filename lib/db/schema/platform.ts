@@ -108,6 +108,11 @@ export const clinicProfile = pgTable('clinic_profile', {
 
   // Operating hours stored as JSON: { mon: { open: '09:00', close: '17:00' }, ... }
   hours: jsonb('hours'),
+  // IANA timezone the clinic's hours + appointment times are expressed in
+  // (e.g. 'America/New_York'). Null = CLINIC_DEFAULT_TZ. The prod server runs
+  // in UTC, so booking slots + appointment emails MUST resolve against this or
+  // they render at the wrong wall-clock time.
+  timezone: text('timezone'),
 
   // Which Dream Create plan tier this clinic is on. Drives module gating.
   // Mirrors Stripe subscription state; updated by the Stripe webhook.

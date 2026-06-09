@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicSenderFrom, deliverableReplyTo, formatFromHeader, type ClinicSender } from '@/lib/email-identity'
+import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
 
 /**
  * Tier 1 sender identity: patient-facing clinic email goes out as
@@ -27,6 +28,7 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
         displayName: schema.clinicProfile.displayName,
         email: schema.clinicProfile.email,
         sendingAccountId: schema.clinicProfile.emailSendingAccountId,
+        timezone: schema.clinicProfile.timezone,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -43,6 +45,7 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
     name,
     from: clinicSenderFrom(name, org?.slug || 'clinic', SENDING_DOMAIN),
     replyTo: deliverableReplyTo(profile?.email),
+    timeZone: resolveClinicTimeZone(profile?.timezone),
   }
 
   // Tier 2 — when the clinic designated a connected Google mailbox, send AS

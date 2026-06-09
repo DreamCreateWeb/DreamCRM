@@ -100,6 +100,12 @@ export async function listBookingSlots(
   dateIso: string,
 ): Promise<SlotsForDay> {
   if (!orgId || !dateIso) return { slots: [], closedReason: 'invalid_hours' }
+  // The booking UI sends the patient's selected calendar day as 'YYYY-MM-DD',
+  // interpreted in the CLINIC's timezone server-side. Tolerate a full ISO from
+  // a stale client (pre-deploy) by converting to a Date.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+    return getSlotsForDay(orgId, dateIso)
+  }
   const date = new Date(dateIso)
   if (isNaN(date.getTime())) return { slots: [], closedReason: 'invalid_hours' }
   return getSlotsForDay(orgId, date)
@@ -251,6 +257,7 @@ export async function submitBookingRequest(formData: FormData) {
         startTime,
         appointmentType,
         intakeFormUrl,
+        timeZone: sender.timeZone,
       },
       sender,
     ).catch((err) => {

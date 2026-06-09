@@ -57,7 +57,13 @@ function startOfDay(d: Date): Date {
 }
 
 function isoDate(d: Date): string {
-  return startOfDay(d).toISOString()
+  // Send the selected CALENDAR day (YYYY-MM-DD), not an instant — the server
+  // interprets it in the clinic's timezone. Sending an instant (toISOString)
+  // shifts the day across timezones for non-local patients.
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function sameDay(a: Date, b: Date): boolean {

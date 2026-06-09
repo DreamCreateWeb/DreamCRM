@@ -351,6 +351,13 @@
       "when": 1780999041012,
       "tag": "0049_chief_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1781036320610,
+      "tag": "0050_thankful_shooting_star",
+      "breakpoints": true
     }
   ]
 }

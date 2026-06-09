@@ -71,6 +71,7 @@ export async function sendBookingConfirmation(opts: {
         startTime: opts.startTime,
         appointmentType: opts.appointmentType,
         intakeFormUrl,
+        timeZone: sender.timeZone,
       },
       sender,
     )
