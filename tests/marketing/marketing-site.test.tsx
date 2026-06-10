@@ -78,9 +78,13 @@ describe('pricing page', () => {
     for (const plan of PLANS) {
       expect(screen.getAllByText(`$${plan.price}`).length).toBeGreaterThanOrEqual(1)
     }
-    // Annual billing isn't wired in checkout yet — the page must not promise it.
-    expect(screen.queryByText(/two months free/i)).toBeNull()
-    expect(screen.getAllByText(/annual billing coming soon/i).length).toBeGreaterThanOrEqual(1)
+    // Annual prices are live in Stripe checkout — the page advertises 2 months free.
+    expect(screen.queryByText(/annual billing coming soon/i)).toBeNull()
+    for (const plan of PLANS) {
+      expect(
+        screen.getByText(`or $${plan.annualPrice.toLocaleString('en-US')}/yr — 2 months free`),
+      ).toBeInTheDocument()
+    }
     // Premium-only rows render in the matrix (also present in plan-card
     // feature lists, hence getAllByText).
     expect(screen.getByText('Open Dental two-way sync (official API)')).toBeInTheDocument()

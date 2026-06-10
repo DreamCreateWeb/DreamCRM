@@ -6,7 +6,7 @@ import { SectionTitle, PrimaryCta, CheckIcon, MatrixMark, PageHero } from '@/com
 export const metadata = {
   title: 'Pricing — DreamCRM',
   description:
-    'Flat, published pricing: Basic $99/mo (website tier), Pro $149/mo (front office), Premium $199/mo (growth + PMS sync). Month-to-month, no contract.',
+    'Flat, published pricing: Basic $99/mo (website tier), Pro $149/mo (front office), Premium $199/mo (growth + PMS sync). Month-to-month, no contract — or annual with 2 months free.',
 }
 
 /** Tier matrix — mirrors the real module gating in lib/modules/clinic.ts. */
@@ -60,7 +60,7 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Is there a contract or setup fee?',
-    a: 'No. Every plan is month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Annual billing (with a discount) is coming soon; we won\u2019t list it until checkout actually supports it.',
+    a: 'No. Every plan is month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Prefer annual? Pay for 10 months, get 12: Basic $990, Pro $1,490, Premium $1,990 per year \u2014 two months free.',
   },
   {
     q: 'Can I switch tiers later?',
@@ -112,7 +112,9 @@ export default function PricingPage() {
                 ${plan.price}
                 <span className="text-[0.9rem] font-medium text-gray-500"> /mo</span>
               </p>
-              <p className="text-[0.8rem] text-gray-500">Billed monthly · annual billing coming soon</p>
+              <p className="text-[0.8rem] text-gray-500">
+                or ${plan.annualPrice.toLocaleString('en-US')}/yr — 2 months free
+              </p>
               <ul className="mt-5 flex-1 space-y-2.5">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-[0.875rem] leading-snug text-gray-700">
