@@ -14,6 +14,7 @@ import {
 } from '@/lib/services/reviews'
 import ReviewConfigPanel from './review-config-panel'
 import EligibleList from './eligible-list'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = {
   title: 'Reviews & Reputation - DreamCRM',
@@ -86,6 +87,7 @@ export default async function ReviewsPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <ModuleHint id="reviews" />
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>

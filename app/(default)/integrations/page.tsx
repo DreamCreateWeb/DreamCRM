@@ -21,6 +21,7 @@ import {
 import type { PmsSyncRun } from '@/lib/db/schema/clinic'
 import ConnectPanel from './connect-panel'
 import SyncControls from './sync-controls'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = {
   title: 'Integrations - DreamCRM',
@@ -98,6 +99,7 @@ export default async function IntegrationsPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <ModuleHint id="integrations" />
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">

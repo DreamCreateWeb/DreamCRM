@@ -8,6 +8,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listBlogPosts, getBlogStats } from '@/lib/services/blog'
 import { createBlogPostAction, createAiBlogPostAction } from './actions'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = { title: 'Blog - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -66,6 +67,7 @@ export default async function BlogPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <ModuleHint id="blog" />
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>

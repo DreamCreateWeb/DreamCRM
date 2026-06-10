@@ -116,6 +116,35 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Platform marketing site** at the root of `www.dreamcreatestudio.com` —
+  signed-out visitors get a warm single-page marketing site (same design
+  language as clinic sites: `#FAF7F2` ground, Fraunces display via runtime
+  `<link>`, sage accent, forest-teal bands) with hero, consolidation pitch
+  ("replace 5-6 vendor subscriptions"), 8-card feature tour, how-it-works,
+  pricing cards read LIVE from `lib/stripe-config.ts` `PLANS` (copy refreshed
+  to match real module gating), FAQ (`<details>`, zero client JS), Sign in /
+  Get started CTAs, and "live demo" links to the public Acme site. `/` is now
+  a PUBLIC path (exact match) in `middleware.ts`; `app/page.tsx` routes:
+  signed-out → marketing, patient → portal, staff/platform → dashboard,
+  session-without-org → resume onboarding (fixes a signin loop for abandoned
+  signups). Component: `components/marketing/marketing-home.tsx`.
+- **Staff tutorial system** (migration 0052, `staff_onboarding` per org+user) —
+  three layers, per-staff-member dismissals, clinic tenants only (works in
+  demo mode so it's showcasable): (1) **first-run welcome modal** on the
+  Overview (one screen explaining the 5 sidebar sections — deliberately not a
+  multi-step tour, those get skipped); (2) **Getting-started checklist** on
+  Overview — completion is DERIVED from live org data (logo/hero set, staff
+  added, hours set, >1 member, patient exists, Gmail connected, portal
+  settings saved, review config exists, PMS connected, shop product exists)
+  so it ticks itself and can't lie; plan-tier-filtered via the same
+  basic<pro<premium ordering as the sidebar; collapsible, dismissible,
+  auto-hides when all done; (3) **per-module hint banners** on first visit to
+  12 module pages (patients/appointments/leads/intake-forms/marketing/reviews
+  /analytics/blog/seo/careers/shop/integrations) — one warm orientation line +
+  dismiss, self-gating server component `components/onboarding/module-hint.tsx`
+  (skipped on the two-pane inbox/messages + full-canvas /website). Defs in
+  `lib/types/onboarding.ts`, service `lib/services/staff-onboarding.ts`,
+  actions in `app/(default)/dashboard/onboarding-actions.ts`.
 - **Patient Portal v2 — clinic-branded, research-grounded, clinic-customizable**
   (migration 0051). The portal moved OUT of the Mosaic admin shell into its own
   route group `app/(portal)/patient/*` (same `/patient/*` URLs) with warm

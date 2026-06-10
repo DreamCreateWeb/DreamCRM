@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { createBlankFormAction } from './actions'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export default async function IntakeFormsListPage() {
   const ctx = await requireTenant()
@@ -38,6 +39,7 @@ export default async function IntakeFormsListPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <ModuleHint id="intake-forms" />
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">

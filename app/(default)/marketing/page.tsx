@@ -12,6 +12,7 @@ import { listCampaigns } from '@/lib/services/campaigns'
 import { getSubscriptionStats } from '@/lib/services/projects'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
 import ClinicRecallDashboard from './clinic-recall-dashboard'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = {
   title: 'Marketing - DreamCRM',
@@ -63,6 +64,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <ModuleHint id="marketing" />
       <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl text-stone-800 dark:text-stone-100 font-bold tracking-tight">

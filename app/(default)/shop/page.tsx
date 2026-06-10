@@ -7,6 +7,7 @@ import { getShopConfig, listProducts, getShopStats, getOrderStats, shopConnectCo
 import { refreshConnectStatus } from '@/lib/services/shop-connect'
 import { getMembershipStats } from '@/lib/services/membership'
 import ShopClient from './shop-client'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = { title: 'Shop - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -31,7 +32,11 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
 
   const publicBase = orgRow[0] ? `/site/${orgRow[0].slug}/shop` : null
 
-  return (
+    return (
+    <>
+      <div className="px-4 sm:px-6 lg:px-8 pt-6 w-full max-w-[96rem] mx-auto -mb-2">
+        <ModuleHint id="shop" />
+      </div>
     <ShopClient
       config={config}
       products={products}
@@ -42,5 +47,6 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       connectConfigured={shopConnectConfigured()}
       connectBanner={connected ? 'connected' : connectError ? `error:${connectError}` : null}
     />
+    </>
   )
 }

@@ -14,6 +14,7 @@ import {
   type AppointmentListFilters,
 } from '@/lib/services/appointments'
 import AgendaView from './agenda-view'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -53,12 +54,17 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
   ])
   const groups = groupByDay(rows)
 
-  return (
+    return (
+    <>
+      <div className="px-4 sm:px-6 lg:px-8 pt-6 w-full max-w-[96rem] mx-auto -mb-2">
+        <ModuleHint id="appointments" />
+      </div>
     <AgendaView
       groups={groups}
       meta={meta}
       filters={filters}
       orgName={ctx.organizationName}
     />
+    </>
   )
 }

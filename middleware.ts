@@ -29,6 +29,10 @@ const PUBLIC_PATHS = [
 const PUBLIC_PREFIXES = ['/_next', '/images', '/favicon', '/css', '/fonts']
 
 function isPublicPath(pathname: string) {
+  // The root is the public marketing site (the page itself routes signed-in
+  // users to their dashboard). Exact match only — every other path keeps its
+  // auth gate.
+  if (pathname === '/') return true
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return true
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
