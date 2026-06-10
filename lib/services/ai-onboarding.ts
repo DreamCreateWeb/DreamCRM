@@ -25,6 +25,15 @@ const newId = (p: string) => `${p}_${Math.random().toString(36).slice(2, 10)}`
 const DraftSchema = z.object({
   tagline: z.string().min(1).max(90),
   about: z.string().min(1).max(1600),
+  // "Why us" highlight chips for the homepage difference section. Short
+  // phrases drawn from what the clinic said sets them apart. Optional in the
+  // model output — the template auto-builds chips from services + standard
+  // reassurances when this is absent, so a missing list is never a dead end.
+  // Lenient element validation (plain string, generous cap) on purpose: a
+  // single blank/oversized chip must NEVER fail-validate the whole draft and
+  // dead-end the interview — the persistence step below trims, drops blanks,
+  // de-dupes, and caps to the real ceiling.
+  differenceChips: z.array(z.string().max(200)).max(20).optional().default([]),
   stats: z
     .array(z.object({ value: z.string().min(1).max(32), label: z.string().min(1).max(64) }))
     .min(3)
@@ -82,6 +91,7 @@ ${CORE_VOICE_RULES}
 Extra rules:
 - NEVER invent verifiable specifics they didn't give you: no founding year, patient/review counts, awards, doctor names, prices, or insurance carriers.
 - Stats are QUALITATIVE trust signals, not fabricated numbers — e.g. value "Same-week" label "appointments", value "Judgment-free" label "always", value "Most insurance" label "accepted". Never a made-up figure.
+- differenceChips: 4 to 6 SHORT "why us" phrases (2–4 words each, no period) drawn from what they said sets them apart — e.g. "No judgment, ever", "Same-week visits", "Gentle with kids", "Easy billing". These are scannable badges, not sentences.
 - Choose services ONLY from the provided library list (by slug) that match what they said — 4 to 8 of them.
 - Warm, plain, anti-shame. Reference their city naturally when it helps, never force it.`
 
@@ -114,6 +124,14 @@ Draft the website by calling the emit_site_draft tool.`
           about: {
             type: 'string',
             description: 'A warm About section, 2–4 short paragraphs, under 1500 characters.',
+          },
+          differenceChips: {
+            type: 'array',
+            minItems: 4,
+            maxItems: 6,
+            description:
+              'Short "why us" badge phrases (2–4 words, no period) from what sets them apart.',
+            items: { type: 'string' },
           },
           stats: {
             type: 'array',
@@ -190,6 +208,22 @@ Draft the website by calling the emit_site_draft tool.`
     answer: f.answer,
   }))
 
+  // Trim / drop blanks / de-dupe (case-insensitive) / cap at 8 — the template
+  // reads this as an explicit chip list. Empty → leave the column null so the
+  // template's auto-built fallback (top services + standard reassurances) wins.
+  const seenChip = new Set<string>()
+  const differenceChips = draft.differenceChips
+    .map((c) => c.trim())
+    .filter((c) => {
+      // Drop blanks + anything too long to read as a scannable badge.
+      if (!c || c.length > 40) return false
+      const key = c.toLowerCase()
+      if (seenChip.has(key)) return false
+      seenChip.add(key)
+      return true
+    })
+    .slice(0, 8)
+
   await db
     .update(clinicProfile)
     .set({
@@ -197,6 +231,7 @@ Draft the website by calling the emit_site_draft tool.`
       about: draft.about,
       stats,
       faq,
+      ...(differenceChips.length > 0 ? { differenceChips } : {}),
       ...(services.length > 0 ? { services } : {}),
     })
     .where(eq(clinicProfile.organizationId, orgId))

@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { sendInvitationEmail } from '@/lib/email'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
+import { seedClinicDay0Defaults } from '@/lib/onboarding/defaults'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN, isValidClinicSlug } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -146,6 +147,15 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     await seedDefaultIntakeForm(organizationId)
   } catch (err) {
     console.warn('[provisioning] could not seed default intake form', err)
+  }
+
+  // Day-0 operational defaults (standard office hours). A managed clinic's
+  // public /book page is live the moment the org exists, so the same
+  // "closed every day" trap applies as self-serve. Idempotent + best-effort.
+  try {
+    await seedClinicDay0Defaults(organizationId)
+  } catch (err) {
+    console.warn('[provisioning] could not seed day-0 defaults', err)
   }
 
   // Invitation row in the exact shape better-auth's acceptInvitation expects

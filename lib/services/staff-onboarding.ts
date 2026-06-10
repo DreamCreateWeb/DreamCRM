@@ -130,6 +130,9 @@ export async function getActivationChecklist(
       staff: schema.clinicProfile.staff,
       hours: schema.clinicProfile.hours,
       portalSettings: schema.clinicProfile.portalSettings,
+      tagline: schema.clinicProfile.tagline,
+      about: schema.clinicProfile.about,
+      services: schema.clinicProfile.services,
     })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -211,10 +214,19 @@ export async function getActivationChecklist(
   }))
 
   const doneCount = tasks.filter((t) => t.done).length
+
+  // The public site is "unfilled" when it has none of the three content
+  // signals the AI interview drafts (tagline / about / services). Used to
+  // surface the one-tap "Draft my website with AI" re-entry to /welcome.
+  const servicesArr = Array.isArray(profileRow?.services) ? (profileRow!.services as unknown[]) : []
+  const siteUnfilled =
+    !profileRow?.tagline?.trim() && !profileRow?.about?.trim() && servicesArr.length === 0
+
   return {
     tasks,
     doneCount,
     totalCount: tasks.length,
     allDone: doneCount === tasks.length,
+    siteUnfilled,
   }
 }

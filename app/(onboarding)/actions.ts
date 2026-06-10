@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth/server'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
+import { seedClinicDay0Defaults } from '@/lib/onboarding/defaults'
 import { PLANS, type BillingInterval } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -232,6 +233,15 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     await seedDefaultIntakeForm(orgId)
   } catch (err) {
     console.warn('[onboarding] could not seed default intake form', err)
+  }
+
+  // Day-0 operational defaults (standard office hours) so the clinic's live
+  // /book page + public footer don't read as "closed every day" before they
+  // finish setup. Idempotent (only seeds null fields) + best-effort.
+  try {
+    await seedClinicDay0Defaults(orgId)
+  } catch (err) {
+    console.warn('[onboarding] could not seed day-0 defaults', err)
   }
 
   const [profile] = await db

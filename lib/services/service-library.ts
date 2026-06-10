@@ -355,10 +355,14 @@ function normalizeCategory(c: unknown): ServiceCategory {
  * loaded it don't re-query; omit it and we fetch.
  */
 export async function resolveClinicServices(
-  services: ClinicService[],
+  services: ClinicService[] | null | undefined,
   ctx: { clinicName: string; city?: string | null },
   library?: ServiceLibraryEntry[],
 ): Promise<EnrichedService[]> {
+  // Defensive: a fresh clinic's `services` jsonb is null. Most callers already
+  // coalesce, but tolerate a raw null here so a missed `?? []` can't crash a
+  // public page.
+  if (!Array.isArray(services) || services.length === 0) return []
   const lib = library ?? (await getServiceLibrary())
   const bySlug = new Map(lib.map((e) => [e.slug, e]))
   const tokCtx: TokenizeContext = { clinicName: ctx.clinicName, city: ctx.city }
