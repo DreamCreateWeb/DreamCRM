@@ -23,5 +23,13 @@ export default async function MembershipsPage() {
 
   const publicBase = orgRow[0] ? `/site/${orgRow[0].slug}/membership` : null
 
-  return <MembershipsClient plans={plans} members={members} stats={stats} publicBase={publicBase} />
+  return (
+    <MembershipsClient
+      plans={plans}
+      members={members}
+      stats={stats}
+      publicBase={publicBase}
+      orgName={ctx.organizationName}
+    />
+  )
 }

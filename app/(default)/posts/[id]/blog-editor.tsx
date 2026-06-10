@@ -10,6 +10,8 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import { cn, excerptFromHtml } from '@/lib/utils'
 import ImageUploader from '@/components/ui/image-uploader'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
 import {
   updateBlogPostAction,
   publishBlogPostAction,
@@ -222,7 +224,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       <div className="mb-4 flex items-center justify-between gap-3">
         <Link
           href="/posts"
-          className="text-[13px] font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100"
+          className="text-sm font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100"
         >
           ← All posts
         </Link>
@@ -231,12 +233,12 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             type="button"
             onClick={preview}
             disabled={pending}
-            className="text-[12px] font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 disabled:opacity-50"
+            className="text-xs font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 disabled:opacity-50"
             title="See exactly how this looks on your live site"
           >
             Preview ↗
           </button>
-          <span className="text-[11px] text-stone-400 dark:text-stone-500">
+          <span className="text-xs text-stone-400 dark:text-stone-500">
             {pending ? 'Saving…' : dirty ? 'Editing…' : savedAt ? 'Saved' : 'Up to date'}
           </span>
         </div>
@@ -253,7 +255,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               placeholder="Post title"
               className="w-full text-2xl font-bold text-stone-900 dark:text-stone-100 bg-transparent border-none focus:outline-none focus:ring-0 px-0 placeholder:text-stone-300 dark:placeholder:text-stone-600"
             />
-            <div className="flex items-center gap-1 text-[12px] text-stone-400 dark:text-stone-500">
+            <div className="flex items-center gap-1 text-xs text-stone-400 dark:text-stone-500">
               <span className="shrink-0">/blog/</span>
               <input
                 value={draft.slug}
@@ -269,11 +271,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               type="button"
               onClick={() => setShowAi(true)}
               disabled={pending}
-              className="text-[11px] font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+              className="text-xs font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
             >
               ✨ Draft with AI
             </button>
-            <span className="text-[10px] text-stone-400 dark:text-stone-500 ml-auto">
+            <span className="text-xs text-stone-400 dark:text-stone-500 ml-auto">
               {aiBusy ? 'AI working…' : 'AI drafts are never auto-published'}
             </span>
           </div>
@@ -286,7 +288,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
           <div className="px-5 py-4 border-t border-stone-100 dark:border-stone-700/40">
             <label className="block">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
                 Excerpt
               </span>
               <textarea
@@ -296,7 +298,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 placeholder={derivedExcerpt || 'One or two sentences shown on the blog index + used as the search description.'}
                 className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
               />
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">
+              <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
                 Leave blank and we&apos;ll use the opening of your post.
               </p>
             </label>
@@ -317,46 +319,34 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
           {/* Status + publish */}
           <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
             <div className="flex items-center justify-between mb-3">
-              <span
-                className={cn(
-                  'text-[10px] font-medium px-1.5 py-0.5 rounded',
-                  published
-                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-                    : scheduled
-                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
-                      : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
-                )}
-              >
-                {published ? 'Published' : scheduled ? 'Scheduled' : 'Draft'}
-              </span>
+              <StatusPill
+                tone={published ? 'ok' : scheduled ? 'info' : 'neutral'}
+                label={published ? 'Published' : scheduled ? 'Scheduled' : 'Draft'}
+              />
               {published && liveUrl && (
                 <a
                   href={liveUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[12px] text-stone-400 hover:text-violet-600 dark:text-stone-500 dark:hover:text-violet-400"
+                  className="text-xs text-stone-500 hover:text-violet-600 dark:text-stone-400 dark:hover:text-violet-400"
                 >
                   View ↗
                 </a>
               )}
             </div>
             {published && (
-              <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3 tabular-nums">
+              <p className="text-xs text-stone-500 dark:text-stone-400 mb-3 tabular-nums">
                 {post.viewCount} {post.viewCount === 1 ? 'read' : 'reads'}
               </p>
             )}
             {published ? (
-              <button
-                onClick={unpublish}
-                disabled={pending}
-                className="w-full text-sm font-medium py-2 rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 disabled:opacity-50"
-              >
+              <ActionButton variant="secondary" onClick={unpublish} disabled={pending} className="w-full">
                 Unpublish
-              </button>
+              </ActionButton>
             ) : scheduled ? (
               <>
                 {post.scheduledFor && (
-                  <p className="text-[12px] text-amber-700 dark:text-amber-300 mb-2 tabular-nums">
+                  <p className="text-xs text-sky-700 dark:text-sky-300 mb-2 tabular-nums">
                     Goes live{' '}
                     {new Date(post.scheduledFor).toLocaleString('en-US', {
                       month: 'short',
@@ -366,31 +356,23 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     })}
                   </p>
                 )}
-                <button
-                  onClick={unschedule}
-                  disabled={pending}
-                  className="w-full text-sm font-medium py-2 rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 disabled:opacity-50"
-                >
+                <ActionButton variant="secondary" onClick={unschedule} disabled={pending} className="w-full">
                   Unschedule
-                </button>
-                <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2 leading-snug">
+                </ActionButton>
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 leading-snug">
                   Reschedule from the content calendar.
                 </p>
               </>
             ) : (
-              <button
-                onClick={publish}
-                disabled={pending}
-                className="w-full text-sm font-semibold py-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-white dark:text-stone-900 disabled:opacity-50"
-              >
+              <ActionButton variant="primary" onClick={publish} disabled={pending} className="w-full">
                 Publish
-              </button>
+              </ActionButton>
             )}
             {publishError && (
-              <p className="text-[12px] text-rose-600 dark:text-rose-400 mt-2">{publishError}</p>
+              <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{publishError}</p>
             )}
             {!published && !scheduled && (
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2 leading-snug">
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 leading-snug">
                 Publishing needs a title, some content, and an author byline.
               </p>
             )}
@@ -398,7 +380,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
           {/* Author */}
           <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
-            <h3 className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+            <h3 className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
               Author
             </h3>
             {authors.length === 0 ? (
@@ -410,7 +392,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   placeholder="Byline, e.g. The DreamCRM team"
                   className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
                 />
-                <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
                   No staff directory on this org — type the byline directly (required to publish).
                 </p>
               </>
@@ -429,7 +411,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     </option>
                   ))}
                 </select>
-                <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
                   Real bylines with credentials are how Google trusts health content.
                 </p>
               </>
@@ -439,7 +421,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
           {/* Medically reviewed by (optional) */}
           {authors.length > 0 && (
             <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
-              <h3 className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+              <h3 className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
                 Medically reviewed by{' '}
                 <span className="normal-case font-normal text-stone-400 dark:text-stone-500">· optional</span>
               </h3>
@@ -456,7 +438,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+              <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
                 Adds a &ldquo;Medically reviewed by&rdquo; line — a strong trust signal on clinical posts.
               </p>
             </div>
@@ -465,7 +447,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
           {/* Category + tags */}
           <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 space-y-3">
             <label className="block">
-              <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
                 Category
               </span>
               <input
@@ -482,7 +464,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               </datalist>
             </label>
             <label className="block">
-              <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
                 Tags
               </span>
               <input
@@ -507,7 +489,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             />
             {draft.coverImageUrl && (
               <label className="block mt-3">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+                <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
                   Image description (alt text)
                 </span>
                 <input
@@ -516,7 +498,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   placeholder="e.g. A dental hygienist smiling with a patient"
                   className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
                 />
-                <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
                   Describe the photo for screen readers + image search.
                 </p>
               </label>
@@ -528,7 +510,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             <button
               type="button"
               onClick={() => setShowSeo((s) => !s)}
-              className="w-full flex items-center justify-between text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400"
+              className="w-full flex items-center justify-between text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400"
             >
               <span>SEO (optional)</span>
               <span>{showSeo ? '−' : '+'}</span>
@@ -536,7 +518,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             {showSeo && (
               <div className="space-y-3 mt-3">
                 <label className="block">
-                  <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-1">
+                  <span className="text-xs text-stone-500 dark:text-stone-400 block mb-1">
                     Search title
                   </span>
                   <input
@@ -547,7 +529,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-1">
+                  <span className="text-xs text-stone-500 dark:text-stone-400 block mb-1">
                     Search description
                   </span>
                   <textarea
@@ -569,7 +551,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 type="button"
                 onClick={() => startTransition(async () => { await emailThisPostAction(post.id) })}
                 disabled={pending}
-                className="w-full text-[12px] font-medium px-2 py-1.5 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 disabled:opacity-50"
+                className="w-full text-xs font-medium px-2 py-1.5 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 disabled:opacity-50"
                 title="Create a Recall & Outreach email from this post"
               >
                 ✉️ Email to patients
@@ -583,14 +565,14 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 setSocial({ open: true, busy: false, text: text ?? 'AI is unavailable right now — try again in a moment.' })
               }}
               disabled={pending || !draft.title.trim()}
-              className="w-full text-[12px] font-medium px-2 py-1.5 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+              className="w-full text-xs font-medium px-2 py-1.5 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
             >
               ✨ Draft a social caption
             </button>
             <button
               onClick={destroy}
               disabled={pending}
-              className="w-full text-[12px] font-medium px-2 py-1.5 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
+              className="w-full text-xs font-medium px-2 py-1.5 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
             >
               Archive post
             </button>
@@ -671,7 +653,7 @@ function AiDraftModal({
         <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
           ✨ Draft with AI
         </h2>
-        <p className="text-[12px] text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
           Give a topic — Claude writes a first draft in your clinic&apos;s warm, no-judgment voice.
           You review and edit it, add an author, and publish when it&apos;s right.{' '}
           <strong>It never publishes on its own.</strong>
@@ -683,7 +665,7 @@ function AiDraftModal({
           placeholder="e.g. Why electric toothbrushes are worth it, for nervous patients. Keep it reassuring and practical."
           className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
         />
-        <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1">
+        <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
           This replaces the current title, content, and excerpt.
         </p>
         <div className="flex justify-end gap-2 mt-4">
@@ -729,7 +711,7 @@ function SocialModal({
         <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
           ✨ Social caption
         </h2>
-        <p className="text-[12px] text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
           Copy this into Instagram, Facebook, or wherever you post. Scheduling is coming later.
         </p>
         <div className="text-sm text-stone-700 dark:text-stone-200 bg-stone-50 dark:bg-stone-800/50 rounded-lg p-3 min-h-[80px] whitespace-pre-wrap">
@@ -769,7 +751,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         type="button"
         onClick={onClick}
         className={cn(
-          'text-[11px] font-medium px-2 py-1 rounded-md',
+          'text-xs font-medium px-2 py-1 rounded-md',
           active
             ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
             : 'text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700',
@@ -861,17 +843,17 @@ function FaqEditor({
           type="button"
           onClick={generate}
           disabled={busy || pending}
-          className="text-[11px] font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+          className="text-xs font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
         >
           {busy ? 'Generating…' : '✨ Generate with AI'}
         </button>
       </div>
-      <p className="text-[11px] text-stone-400 dark:text-stone-500 mb-3">
+      <p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
         Common questions about this topic. Shown on the post + added as FAQ structured data — helps you appear in
         Google and AI answers.
       </p>
       {faq.length === 0 ? (
-        <p className="text-[12px] text-stone-400 dark:text-stone-500 italic mb-3">
+        <p className="text-xs text-stone-400 dark:text-stone-500 italic mb-3">
           No FAQs yet — add your own or generate them.
         </p>
       ) : (
@@ -910,7 +892,7 @@ function FaqEditor({
       <button
         type="button"
         onClick={() => onChange([...faq, { q: '', a: '' }])}
-        className="text-[12px] font-medium text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-100"
+        className="text-xs font-medium text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-100"
       >
         + Add question
       </button>

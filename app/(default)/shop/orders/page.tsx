@@ -11,5 +11,5 @@ export default async function ShopOrdersPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   const orders = await listOrders(ctx.organizationId)
-  return <OrdersClient orders={orders} />
+  return <OrdersClient orders={orders} orgName={ctx.organizationName} />
 }

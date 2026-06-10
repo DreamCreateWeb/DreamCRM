@@ -43,5 +43,5 @@ export default async function BlogCalendarPage() {
     }
   })
 
-  return <CalendarView items={items} />
+  return <CalendarView items={items} orgName={ctx.organizationName} />
 }
