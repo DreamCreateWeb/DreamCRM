@@ -4,6 +4,7 @@ import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { addTask } from '../actions'
 import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/tasks'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface AddTaskButtonProps {
   defaultStatus?: TaskStatus
@@ -51,12 +52,9 @@ export default function AddTaskButton({
         </svg>
       </button>
     ) : (
-      <button
-        onClick={() => setOpen(true)}
-        className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-      >
+      <ActionButton variant="primary" onClick={() => setOpen(true)}>
         {label}
-      </button>
+      </ActionButton>
     )
 
   return (
@@ -76,7 +74,7 @@ export default function AddTaskButton({
                 <form onSubmit={onSubmit}>
                   <div className="px-5 py-4 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Title <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium mb-1">Title <span className="text-rose-500">*</span></label>
                       <input className="form-input w-full" required value={title} onChange={(e) => setTitle(e.target.value)} />
                     </div>
                     <div>
@@ -102,14 +100,14 @@ export default function AddTaskButton({
                       </div>
                     </div>
                     {error && (
-                      <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{error}</div>
+                      <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{error}</div>
                     )}
                   </div>
-                  <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end space-x-2">
-                    <button type="button" onClick={() => setOpen(false)} className="btn-sm border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300">Cancel</button>
-                    <button type="submit" disabled={pending} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60">
+                  <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2">
+                    <ActionButton variant="secondary" size="sm" onClick={() => setOpen(false)}>Cancel</ActionButton>
+                    <ActionButton variant="primary" size="sm" type="submit" disabled={pending}>
                       {pending ? 'Adding…' : 'Add Task'}
-                    </button>
+                    </ActionButton>
                   </div>
                 </form>
               </DialogPanel>

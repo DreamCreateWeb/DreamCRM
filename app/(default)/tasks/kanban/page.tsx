@@ -16,6 +16,7 @@ import KanbanBoard from './kanban-board'
 import AddTaskButton from './add-task-button'
 import FilterBar from '../_components/filter-bar'
 import TaskListClient from '../list/task-list-client'
+import { PageHeader } from '@/components/ui/page-header'
 
 export const metadata = {
   title: 'Kanban - DreamCRM',
@@ -92,12 +93,12 @@ export default async function Kanban({ searchParams }: { searchParams: Promise<S
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
-      <div className="sm:flex sm:justify-between sm:items-center mb-4">
-        <div className="mb-3 sm:mb-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">Tasks</h1>
-        </div>
-        <AddTaskButton label="Add Task" />
-      </div>
+      <PageHeader
+        eyebrow="Platform · Dream Create"
+        title="Tasks"
+        subtitle="Plan and track work across statuses."
+        actions={<AddTaskButton label="Add Task" />}
+      />
 
       <div className="mb-4">
         <FilterBar total={tasks.length} tags={tags} layout="kanban" />

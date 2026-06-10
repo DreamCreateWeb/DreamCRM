@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { sendFeedback } from '../actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 export default function FeedbackPanel() {
   const [rating, setRating] = useState<number | null>(3)
@@ -34,7 +35,7 @@ export default function FeedbackPanel() {
         <div className="p-6 space-y-6">
           <div>
             <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Give Feedback</h2>
-            <div className="text-sm">Our product depends on customer feedback to improve.</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Our product depends on customer feedback to improve.</div>
           </div>
 
           <section>
@@ -86,16 +87,16 @@ export default function FeedbackPanel() {
         <footer>
           <div className="flex flex-col px-6 py-5 border-t border-gray-200 dark:border-gray-700/60">
             {feedback?.error && (
-              <div className="mb-3 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{feedback.error}</div>
+              <div className="mb-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
             )}
             {feedback?.ok && (
-              <div className="mb-3 text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">{feedback.ok}</div>
+              <div className="mb-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
             )}
-            <div className="flex self-end">
-              <button type="button" onClick={() => { setMessage(''); setRating(3); setFeedback(null) }} className="btn dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300">Cancel</button>
-              <button type="submit" disabled={pending} className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3 disabled:opacity-60">
+            <div className="flex self-end gap-3">
+              <ActionButton variant="secondary" onClick={() => { setMessage(''); setRating(3); setFeedback(null) }}>Cancel</ActionButton>
+              <ActionButton variant="primary" type="submit" disabled={pending}>
                 {pending ? 'Sending…' : 'Send Feedback'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </footer>

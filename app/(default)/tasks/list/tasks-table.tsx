@@ -15,6 +15,7 @@ import { cn, relativeTime } from '@/lib/utils'
 import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/tasks'
 import { moveTask, removeTasks } from '../actions'
 import DueDateChip from '../_components/due-date-chip'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export interface TasksTableRow {
   id: number
@@ -102,7 +103,7 @@ export default function TasksTable({ tasks }: Props) {
                 className={cn(
                   'truncate font-medium',
                   isDone
-                    ? 'text-stone-400 dark:text-stone-500 line-through'
+                    ? 'text-stone-500 dark:text-stone-400 line-through'
                     : 'text-stone-800 dark:text-stone-100',
                 )}
               >
@@ -111,7 +112,7 @@ export default function TasksTable({ tasks }: Props) {
               {t.tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag}
-                  className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300 shrink-0"
+                  className="text-xs font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300 shrink-0"
                 >
                   #{tag}
                 </span>
@@ -126,7 +127,7 @@ export default function TasksTable({ tasks }: Props) {
         header: 'Status',
         size: 130,
         cell: ({ row }) => (
-          <span className="text-[12px] text-stone-600 dark:text-stone-300">
+          <span className="text-xs text-stone-600 dark:text-stone-300">
             {TASK_STATUS_LABEL[row.original.status]}
           </span>
         ),
@@ -138,7 +139,7 @@ export default function TasksTable({ tasks }: Props) {
         size: 100,
         sortingFn: (a, b) => (PRIORITY_RANK[a.original.priority] ?? 99) - (PRIORITY_RANK[b.original.priority] ?? 99),
         cell: ({ row }) => (
-          <span className="text-[12px] text-stone-600 dark:text-stone-300 capitalize">
+          <span className="text-xs text-stone-600 dark:text-stone-300 capitalize">
             {row.original.priority}
           </span>
         ),
@@ -157,7 +158,7 @@ export default function TasksTable({ tasks }: Props) {
           row.original.dueDate ? (
             <DueDateChip dueDate={row.original.dueDate} completed={row.original.status === 'completed'} />
           ) : (
-            <span className="text-[12px] text-stone-300 dark:text-stone-600">—</span>
+            <span className="text-xs text-stone-400 dark:text-stone-500">—</span>
           ),
       },
       {
@@ -166,7 +167,7 @@ export default function TasksTable({ tasks }: Props) {
         header: 'Created',
         size: 110,
         cell: ({ row }) => (
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 tabular-nums">
+          <span className="text-xs text-stone-500 dark:text-stone-400 tabular-nums">
             {relativeTime(row.original.createdAt)}
           </span>
         ),
@@ -219,17 +220,17 @@ export default function TasksTable({ tasks }: Props) {
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
       {selectedCount > 0 && (
         <div className="flex items-center gap-3 px-3 py-2 bg-stone-50 dark:bg-stone-800/60 border-b border-stone-200 dark:border-stone-700/60">
-          <span className="text-[12px] font-medium text-stone-700 dark:text-stone-200">
+          <span className="text-xs font-medium text-stone-700 dark:text-stone-200">
             {selectedCount} selected
           </span>
           <div className="w-px h-4 bg-stone-200 dark:bg-stone-700" />
-          <span className="text-[11px] text-stone-500 dark:text-stone-400">Move to:</span>
+          <span className="text-xs text-stone-500 dark:text-stone-400">Move to:</span>
           {TASK_STATUSES.map((s) => (
             <button
               key={s}
               onClick={() => handleBulkStatus(s)}
               disabled={pending}
-              className="text-[11px] font-medium px-2 py-1 rounded-md text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-300 dark:hover:text-stone-100 dark:hover:bg-stone-700 disabled:opacity-50"
+              className="text-xs font-medium px-2 py-1 rounded-md text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-300 dark:hover:text-stone-100 dark:hover:bg-stone-700 disabled:opacity-50"
             >
               {TASK_STATUS_LABEL[s]}
             </button>
@@ -237,16 +238,17 @@ export default function TasksTable({ tasks }: Props) {
           <button
             onClick={handleBulkDelete}
             disabled={pending}
-            className="ml-auto text-[11px] font-medium px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
+            className="ml-auto text-xs font-medium px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
           >
             Delete
           </button>
         </div>
       )}
       {tasks.length === 0 ? (
-        <div className="text-center text-[13px] text-stone-400 dark:text-stone-500 italic py-12">
-          No tasks match the current filters.
-        </div>
+        <EmptyState
+          title="No tasks match the current filters"
+          body="Try clearing a filter, or add a task."
+        />
       ) : (
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-stone-50/80 dark:bg-stone-900/80 backdrop-blur z-10 border-b border-stone-200 dark:border-stone-700/60">
@@ -259,7 +261,7 @@ export default function TasksTable({ tasks }: Props) {
                       key={header.id}
                       style={{ width: header.getSize() }}
                       className={cn(
-                        'text-left text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 px-3 py-2',
+                        'text-left text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 px-3 py-2',
                         sortable && 'cursor-pointer hover:text-stone-800 dark:hover:text-stone-200',
                       )}
                       onClick={sortable ? header.column.getToggleSortingHandler() : undefined}
@@ -267,7 +269,7 @@ export default function TasksTable({ tasks }: Props) {
                       <span className="inline-flex items-center gap-1">
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {sortable && (
-                          <span className="text-stone-400 dark:text-stone-600 text-[10px]">
+                          <span className="text-stone-400 dark:text-stone-600 text-xs">
                             {header.column.getIsSorted() === 'asc' ? '▲' : header.column.getIsSorted() === 'desc' ? '▼' : ''}
                           </span>
                         )}

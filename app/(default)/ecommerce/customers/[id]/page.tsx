@@ -15,6 +15,11 @@ import {
   type AgencyProjectType,
 } from '@/lib/db/schema/platform'
 import { formatRelativeDate } from '@/lib/utils/format'
+import { type Tone } from '@/lib/ui/encodings'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { KpiStat } from '@/components/ui/kpi-stat'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -28,17 +33,25 @@ const TYPE_ICONS: Record<AgencyProjectType, string> = {
   other: '📦',
 }
 
-const STATUS_COLORS: Record<AgencyProjectStatus, string> = {
-  lead: 'bg-gray-500/20 text-gray-700 dark:text-gray-300',
-  discovery: 'bg-amber-500/20 text-amber-700 dark:text-amber-400',
-  in_progress: 'bg-violet-500/20 text-violet-700 dark:text-violet-400',
-  review: 'bg-sky-500/20 text-sky-700 dark:text-sky-400',
-  completed: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400',
-  on_hold: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-  cancelled: 'bg-red-500/20 text-red-700 dark:text-red-400',
+const STATUS_TONE: Record<AgencyProjectStatus, Tone> = {
+  lead: 'neutral',
+  discovery: 'warn',
+  in_progress: 'special',
+  review: 'info',
+  completed: 'ok',
+  on_hold: 'warn',
+  cancelled: 'urgent',
 }
 
 const PLAN_LABEL = { basic: 'Basic', pro: 'Pro', premium: 'Premium' } as const
+
+// Subscription status → tone (active/trialing healthy, past-due family a
+// problem, everything else inert).
+function subStatusTone(status: string): Tone {
+  if (status === 'active' || status === 'trialing') return 'ok'
+  if (status === 'past_due' || status === 'unpaid' || status === 'incomplete_expired') return 'urgent'
+  return 'neutral'
+}
 
 function moneyFull(cents: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -74,6 +87,9 @@ export default async function ClinicDetailPage({
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       {/* Header */}
       <div className="mb-6">
+        <div className="text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-2">
+          Platform · Dream Create
+        </div>
         <Link
           href="/ecommerce/customers"
           className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-3 inline-block"
@@ -107,47 +123,39 @@ export default async function ClinicDetailPage({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a
-              href={siteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-            >
+            <ActionButton href={siteUrl} variant="secondary" size="sm" target="_blank">
               View site ↗
-            </a>
-            <Link
-              href="/ecommerce/invoices"
-              className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-            >
+            </ActionButton>
+            <ActionButton href="/ecommerce/invoices" variant="primary" size="sm">
               Manage subscription
-            </Link>
+            </ActionButton>
           </div>
         </div>
       </div>
 
       {clinic.stripeUnavailable && (
-        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-400">
+        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
           Stripe couldn't be reached, so subscription invoice history isn't shown.
         </div>
       )}
 
       {/* Top stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Stat label="Plan" value={PLAN_LABEL[planTier]} hint={`Status: ${status.replace('_', ' ')}`} />
-        <Stat
+        <KpiStat label="Plan" value={PLAN_LABEL[planTier]} sub={`Status: ${status.replace('_', ' ')}`} />
+        <KpiStat
           label="Lifetime Revenue"
           value={moneyFull(totalRevenue)}
-          hint={`Subs ${moneyFull(clinic.lifetimeSubscriptionCents)} · Proj ${moneyFull(clinic.lifetimeProjectCents)}`}
+          sub={`Subs ${moneyFull(clinic.lifetimeSubscriptionCents)} · Proj ${moneyFull(clinic.lifetimeProjectCents)}`}
         />
-        <Stat
+        <KpiStat
           label="Patients"
           value={String(clinic.patientCount)}
-          hint={`${clinic.upcomingAppointmentCount} upcoming appt${clinic.upcomingAppointmentCount === 1 ? '' : 's'}`}
+          sub={`${clinic.upcomingAppointmentCount} upcoming appt${clinic.upcomingAppointmentCount === 1 ? '' : 's'}`}
         />
-        <Stat
+        <KpiStat
           label="Active Projects"
           value={String(activeProjects.length)}
-          hint={`${completedProjects.length} delivered all-time`}
+          sub={`${completedProjects.length} delivered all-time`}
         />
       </div>
 
@@ -158,9 +166,10 @@ export default async function ClinicDetailPage({
             Profile
           </h2>
           {!clinic.profile ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-              No clinic profile data yet. Owner hasn&apos;t filled in their website details.
-            </p>
+            <EmptyState
+              title="No clinic profile data yet"
+              body="The owner hasn't filled in their website details."
+            />
           ) : (
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
               <ProfileRow label="Legal name" value={clinic.profile.legalName} />
@@ -204,7 +213,7 @@ export default async function ClinicDetailPage({
             Members ({clinic.members.length})
           </h2>
           {clinic.members.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic">No members yet.</p>
+            <EmptyState title="No members yet" body="Invite-accepted members will appear here." />
           ) : (
             <ul className="space-y-3">
               {clinic.members.map((m) => (
@@ -222,7 +231,7 @@ export default async function ClinicDetailPage({
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {m.email}
                     </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5" suppressHydrationWarning>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5" suppressHydrationWarning>
                       {m.role} · joined {formatRelativeDate(m.joinedAt)}
                     </div>
                   </div>
@@ -239,19 +248,17 @@ export default async function ClinicDetailPage({
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Projects
           </h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
             {clinic.projects.length} total · {activeProjects.length} active
           </span>
         </div>
         {clinic.projects.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-6">
-            No projects logged for this clinic yet.
-          </p>
+          <EmptyState title="No projects logged yet" body="Agency projects for this clinic will appear here." />
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {clinic.projects.slice(0, 12).map((p) => (
               <li key={p.id} className="flex items-center gap-4 py-3">
-                <span className="text-xl shrink-0">
+                <span className="text-xl shrink-0" aria-hidden="true">
                   {TYPE_ICONS[p.type as AgencyProjectType] ?? '📦'}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -267,15 +274,14 @@ export default async function ClinicDetailPage({
                   </div>
                 </div>
                 {p.budgetCents != null && (
-                  <span className="shrink-0 text-sm text-gray-600 dark:text-gray-300">
+                  <span className="shrink-0 text-sm text-gray-600 dark:text-gray-300 tabular-nums">
                     {moneyFull(p.budgetCents)}
                   </span>
                 )}
-                <span
-                  className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${STATUS_COLORS[p.status as AgencyProjectStatus]}`}
-                >
-                  {AGENCY_PROJECT_STATUS_LABELS[p.status as AgencyProjectStatus]}
-                </span>
+                <StatusPill
+                  tone={STATUS_TONE[p.status as AgencyProjectStatus]}
+                  label={AGENCY_PROJECT_STATUS_LABELS[p.status as AgencyProjectStatus]}
+                />
               </li>
             ))}
           </ul>
@@ -288,16 +294,19 @@ export default async function ClinicDetailPage({
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Subscription Invoices
           </h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
             From Stripe · {clinic.invoices.length} most recent
           </span>
         </div>
         {clinic.invoices.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-6">
-            {clinic.profile?.stripeCustomerId
-              ? 'No invoices yet for this customer.'
-              : 'This clinic has no Stripe customer linked yet.'}
-          </p>
+          <EmptyState
+            title={clinic.profile?.stripeCustomerId ? 'No invoices yet' : 'No Stripe customer linked'}
+            body={
+              clinic.profile?.stripeCustomerId
+                ? 'Paid subscription invoices will appear here.'
+                : 'This clinic has no Stripe customer linked yet.'
+            }
+          />
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {clinic.invoices.map((inv) => (
@@ -321,7 +330,7 @@ export default async function ClinicDetailPage({
                   </div>
                 </div>
                 <span
-                  className={`shrink-0 font-semibold ${inv.paid ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}
+                  className={`shrink-0 font-semibold tabular-nums ${inv.paid ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}
                 >
                   {inv.paid ? '+' : ''}
                   {moneyFull(inv.amountCents)}
@@ -335,40 +344,14 @@ export default async function ClinicDetailPage({
   )
 }
 
-function Stat({
-  label,
-  value,
-  hint,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  hint?: string
-  tone?: 'default' | 'warn'
-}) {
-  return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4">
-      <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold mb-1">
-        {label}
-      </div>
-      <div
-        className={`text-2xl font-bold ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-100'}`}
-      >
-        {value}
-      </div>
-      {hint && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{hint}</div>}
-    </div>
-  )
-}
-
 function ProfileRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold mb-0.5">
+      <dt className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-0.5">
         {label}
       </dt>
       <dd className="text-gray-800 dark:text-gray-100">
-        {value && value.trim() ? value : <span className="text-gray-400 italic">—</span>}
+        {value && value.trim() ? value : <span className="text-gray-500 dark:text-gray-400 italic">—</span>}
       </dd>
     </div>
   )

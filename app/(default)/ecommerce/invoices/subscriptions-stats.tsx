@@ -1,5 +1,6 @@
 import type { SubscriptionStats } from '@/lib/services/stripe-admin'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
+import { KpiStat } from '@/components/ui/kpi-stat'
 
 interface Props {
   stats: SubscriptionStats
@@ -7,52 +8,31 @@ interface Props {
 
 export default function SubscriptionsStats({ stats }: Props) {
   const arrCents = stats.mrrCents * 12
+  const attentionCount = stats.pastDue + stats.trialEndingSoon
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <StatCard
+      <KpiStat
         label="Monthly Recurring Revenue"
         value={formatMoneyShort(stats.mrrCents)}
         sub={`${formatMoneyShort(arrCents)} annualized`}
-        tone="emerald"
       />
-      <StatCard
+      <KpiStat
         label="Active subscribers"
         value={formatNumberShort(stats.active + stats.trialing)}
         sub={`${stats.active} paid · ${stats.trialing} trialing`}
-        tone="violet"
       />
-      <StatCard
+      <KpiStat
         label="Needs attention"
-        value={formatNumberShort(stats.pastDue + stats.trialEndingSoon)}
+        value={formatNumberShort(attentionCount)}
         sub={`${stats.pastDue} past due · ${stats.trialEndingSoon} trial ending`}
-        tone={stats.pastDue + stats.trialEndingSoon > 0 ? 'amber' : 'gray'}
+        tone={attentionCount > 0 ? 'warn' : undefined}
       />
-      <StatCard
+      <KpiStat
         label="Scheduled to cancel"
         value={formatNumberShort(stats.scheduledCancel)}
         sub={stats.scheduledCancel > 0 ? 'At next renewal' : 'No churn risk flagged'}
-        tone={stats.scheduledCancel > 0 ? 'red' : 'gray'}
+        tone={stats.scheduledCancel > 0 ? 'urgent' : undefined}
       />
-    </div>
-  )
-}
-
-const TONE_CLASSES: Record<string, string> = {
-  emerald: 'text-emerald-600 dark:text-emerald-400',
-  violet: 'text-violet-600 dark:text-violet-400',
-  amber: 'text-amber-600 dark:text-amber-400',
-  red: 'text-red-600 dark:text-red-400',
-  gray: 'text-gray-800 dark:text-gray-100',
-}
-
-function StatCard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: keyof typeof TONE_CLASSES }) {
-  return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4">
-      <p className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold">
-        {label}
-      </p>
-      <p className={`text-2xl font-bold mt-1 ${TONE_CLASSES[tone]}`}>{value}</p>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{sub}</p>
     </div>
   )
 }
@@ -82,7 +62,7 @@ export function PlanMixCard({ stats }: { stats: SubscriptionStats }) {
             <li key={p.productName} className="px-5 py-3">
               <div className="flex items-center justify-between gap-3 mb-1.5">
                 <div className="font-medium text-sm text-gray-800 dark:text-gray-100">{p.productName}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                   {p.count} {p.count === 1 ? 'sub' : 'subs'} · {formatMoneyShort(p.mrrCents)}/mo
                 </div>
               </div>

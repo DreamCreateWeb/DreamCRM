@@ -3,6 +3,9 @@
 import { useState, useTransition } from 'react'
 import { formatShortDate } from '@/lib/utils'
 import { cancelTeamInvitation, inviteTeamMember, removeTeamMember } from './actions'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export interface TeamMemberView {
   userId: string
@@ -101,21 +104,17 @@ export default function TeamPanel({ members, invitations }: Props) {
               <option value="member">Member</option>
               <option value="admin">Admin</option>
             </select>
-            <button
-              type="submit"
-              disabled={pending || !email}
-              className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60"
-            >
+            <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !email}>
               {pending ? 'Sending…' : 'Send invite'}
-            </button>
+            </ActionButton>
           </form>
           {feedback?.error && (
-            <div className="mt-3 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded max-w-2xl">
+            <div className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded max-w-2xl">
               {feedback.error}
             </div>
           )}
           {feedback?.ok && (
-            <div className="mt-3 text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded max-w-2xl">
+            <div className="mt-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded max-w-2xl">
               {feedback.ok}
             </div>
           )}
@@ -124,7 +123,7 @@ export default function TeamPanel({ members, invitations }: Props) {
         {/* Pending invitations */}
         <section>
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
-            Pending invitations <span className="text-gray-400 dark:text-gray-500 font-medium">({invitations.length})</span>
+            Pending invitations <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({invitations.length})</span>
           </h3>
           {invitations.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">No pending invitations.</p>
@@ -139,14 +138,15 @@ export default function TeamPanel({ members, invitations }: Props) {
                       {formatShortDate(inv.expiresAt as unknown as string)}
                     </div>
                   </div>
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleCancel(inv.id, inv.email)}
                     disabled={pending}
-                    className="text-xs text-gray-500 hover:text-red-600 disabled:opacity-60"
+                    className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
                   >
                     Cancel invite
-                  </button>
+                  </ActionButton>
                 </li>
               ))}
             </ul>
@@ -156,33 +156,30 @@ export default function TeamPanel({ members, invitations }: Props) {
         {/* Current members */}
         <section>
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
-            Team members <span className="text-gray-400 dark:text-gray-500 font-medium">({members.length})</span>
+            Team members <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({members.length})</span>
           </h3>
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 border border-gray-100 dark:border-gray-700/60 rounded-lg overflow-hidden">
             {members.map((m) => (
               <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <div>
-                  <div className="font-medium text-gray-800 dark:text-gray-100">
+                  <div className="font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
                     {m.name ?? m.email}
-                    {m.isCurrent && (
-                      <span className="ml-2 text-[10px] uppercase font-semibold bg-violet-500/15 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded">
-                        You
-                      </span>
-                    )}
+                    {m.isCurrent && <StatusPill tone="special" label="You" />}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {m.email} · {m.role} · joined {formatShortDate(m.joinedAt as unknown as string)}
                   </div>
                 </div>
                 {m.role !== 'owner' && !m.isCurrent && (
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRemove(m.userId, m.name ?? m.email)}
                     disabled={pending}
-                    className="text-xs text-gray-500 hover:text-red-600 disabled:opacity-60"
+                    className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
                   >
                     Remove
-                  </button>
+                  </ActionButton>
                 )}
               </li>
             ))}

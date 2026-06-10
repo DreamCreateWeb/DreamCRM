@@ -65,7 +65,7 @@ export default function FilterBar({ total, tags, layout }: Props) {
               key={v.key}
               href={updateUrl(pathname, sp, { view: v.key || null })}
               className={cn(
-                'text-[12px] font-medium px-2.5 py-1 rounded-md transition-colors',
+                'text-xs font-medium px-2.5 py-1 rounded-md transition-colors',
                 isActive
                   ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-300 dark:hover:text-stone-100 dark:hover:bg-stone-800',
@@ -75,12 +75,12 @@ export default function FilterBar({ total, tags, layout }: Props) {
             </Link>
           )
         })}
-        <span className="ml-1 text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">{total}</span>
+        <span className="ml-1 text-xs text-stone-500 dark:text-stone-400 tabular-nums">{total}</span>
         <div className="ml-auto flex items-center rounded-md border border-stone-200 dark:border-stone-700 p-0.5">
           <Link
             href={`/tasks/kanban${searchAndFilterQs(sp)}`}
             className={cn(
-              'text-[11px] font-medium px-2 py-1 rounded',
+              'text-xs font-medium px-2 py-1 rounded',
               layout === 'kanban'
                 ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                 : 'text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800',
@@ -91,7 +91,7 @@ export default function FilterBar({ total, tags, layout }: Props) {
           <Link
             href={`/tasks/list${searchAndFilterQs(sp)}`}
             className={cn(
-              'text-[11px] font-medium px-2 py-1 rounded',
+              'text-xs font-medium px-2 py-1 rounded',
               layout === 'list'
                 ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                 : 'text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800',
@@ -114,7 +114,7 @@ export default function FilterBar({ total, tags, layout }: Props) {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search tasks…"
-            className="w-full pl-8 pr-3 py-1.5 text-[12px] rounded-md border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/40 focus:bg-white dark:focus:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 dark:focus:ring-stone-100/10 placeholder:text-stone-400"
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/40 focus:bg-white dark:focus:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 dark:focus:ring-stone-100/10 placeholder:text-stone-400"
           />
         </div>
 
@@ -126,7 +126,7 @@ export default function FilterBar({ total, tags, layout }: Props) {
                 key={p.key}
                 href={updateUrl(pathname, sp, { priority: active ? null : p.key })}
                 className={cn(
-                  'inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors',
+                  'inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md transition-colors',
                   active
                     ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 ring-1 ring-stone-300 dark:ring-stone-600'
                     : 'text-stone-500 hover:text-stone-800 hover:bg-stone-50 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-800',
@@ -150,7 +150,7 @@ export default function FilterBar({ total, tags, layout }: Props) {
                     key={tag}
                     href={updateUrl(pathname, sp, { tag: active ? null : tag })}
                     className={cn(
-                      'text-[11px] font-medium px-1.5 py-0.5 rounded transition-colors',
+                      'text-xs font-medium px-1.5 py-0.5 rounded transition-colors',
                       active
                         ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                         : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-800',

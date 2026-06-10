@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { saveNotificationPrefs } from '../actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface Prefs {
   comments: boolean
@@ -97,10 +98,10 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
       <li className="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-700/60">
         <div>
           <div className="text-gray-800 dark:text-gray-100 font-semibold">{title}</div>
-          <div className="text-sm">{description}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{description}</div>
         </div>
         <div className="flex items-center ml-4">
-          <div className="text-sm text-gray-400 dark:text-gray-500 italic mr-2">{value ? 'On' : 'Off'}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 italic mr-2">{value ? 'On' : 'Off'}</div>
           <div className="form-switch">
             <input type="checkbox" id={id} className="sr-only" checked={value} onChange={() => toggle(prefKey)} />
             <label htmlFor={id}>
@@ -141,16 +142,16 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
         <footer>
           <div className="flex flex-col px-6 py-5 border-t border-gray-200 dark:border-gray-700/60">
             {feedback?.error && (
-              <div className="mb-3 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{feedback.error}</div>
+              <div className="mb-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
             )}
             {feedback?.ok && (
-              <div className="mb-3 text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">{feedback.ok}</div>
+              <div className="mb-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
             )}
-            <div className="flex self-end">
-              <button type="button" onClick={() => setPrefs(initial)} className="btn dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300">Cancel</button>
-              <button type="submit" disabled={pending} className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3 disabled:opacity-60">
+            <div className="flex self-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setPrefs(initial)}>Cancel</ActionButton>
+              <ActionButton variant="primary" type="submit" disabled={pending}>
                 {pending ? 'Saving…' : 'Save Changes'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </footer>

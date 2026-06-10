@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { saveAccount } from '../actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface InitialUser {
   id: string
@@ -99,7 +100,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
         <form id="account-form" onSubmit={handleSubmit} className="space-y-6">
           <section>
             <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Profile</h2>
-            <div className="text-sm">Update your display name, company and address.</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Update your display name, company and address.</div>
             <div className="sm:flex sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 mt-5">
               <div className="sm:w-1/3">
                 <label className="block text-sm font-medium mb-1" htmlFor="acct-name">Full Name</label>
@@ -122,7 +123,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
 
           <section>
             <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Email</h2>
-            <div className="text-sm">Used for sign-in and account notifications.</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Used for sign-in and account notifications.</div>
             <div className="flex flex-wrap mt-5">
               <div className="mr-2 w-full sm:w-auto">
                 <label className="sr-only" htmlFor="acct-email">Business email</label>
@@ -134,7 +135,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
 
         <section>
           <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Password & sessions</h2>
-          <div className="text-sm mb-3">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
             Manage your password and signed-in devices on the{' '}
             <Link href="/settings/security" className="text-violet-600 dark:text-violet-400 hover:underline">
               Security
@@ -147,27 +148,18 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
       <footer>
         <div className="flex flex-col px-6 py-5 border-t border-gray-200 dark:border-gray-700/60">
           {feedback?.error && (
-            <div className="mb-3 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{feedback.error}</div>
+            <div className="mb-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
           )}
           {feedback?.ok && (
-            <div className="mb-3 text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">{feedback.ok}</div>
+            <div className="mb-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
           )}
-          <div className="flex self-end">
-            <button
-              type="button"
-              onClick={() => router.refresh()}
-              className="btn dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-            >
+          <div className="flex self-end gap-3">
+            <ActionButton variant="secondary" onClick={() => router.refresh()}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              form="account-form"
-              disabled={pending}
-              className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3 disabled:opacity-60"
-            >
+            </ActionButton>
+            <ActionButton variant="primary" type="submit" form="account-form" disabled={pending}>
               {pending ? 'Saving…' : 'Save Changes'}
-            </button>
+            </ActionButton>
           </div>
         </div>
       </footer>

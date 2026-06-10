@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { changePassword } from '@/lib/auth-client'
 import { relativeTime } from '@/lib/utils'
 import { revokeOtherSessions, revokeSession } from './security-actions'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
 
 export interface SessionRow {
   id: string
@@ -85,13 +87,15 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
               </p>
             </div>
             {otherCount > 0 && (
-              <button
+              <ActionButton
+                variant="ghost"
+                size="sm"
                 onClick={handleRevokeOthers}
                 disabled={pending}
-                className="text-sm font-medium px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-500/40 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10 disabled:opacity-50"
+                className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
               >
                 Sign out all other devices
-              </button>
+              </ActionButton>
             )}
           </div>
           <ul className="border border-gray-200 dark:border-gray-700/60 rounded-xl overflow-hidden divide-y divide-gray-100 dark:divide-gray-700/40">
@@ -100,27 +104,25 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                 <DeviceIcon ua={s.userAgent} />
                 <div className="min-w-0 grow">
                   <div className="flex items-center gap-2">
-                    <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 truncate">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                       {prettyUserAgent(s.userAgent)}
                     </p>
-                    {s.isCurrent && (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                        This device
-                      </span>
-                    )}
+                    {s.isCurrent && <StatusPill tone="ok" label="This device" />}
                   </div>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     {s.ipAddress ?? 'IP unknown'} · last active {relativeTime(s.updatedAt)}
                   </p>
                 </div>
                 {!s.isCurrent && (
-                  <button
+                  <ActionButton
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRevoke(s.id)}
                     disabled={pending}
-                    className="text-[11px] font-medium px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
+                    className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
                   >
                     Sign out
-                  </button>
+                  </ActionButton>
                 )}
               </li>
             ))}
@@ -134,12 +136,9 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
             Set a new password. You'll be signed out of every other device.
           </p>
           {!pwOpen ? (
-            <button
-              onClick={() => setPwOpen(true)}
-              className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-            >
+            <ActionButton variant="secondary" size="sm" onClick={() => setPwOpen(true)}>
               Change password
-            </button>
+            </ActionButton>
           ) : (
             <form onSubmit={handlePasswordChange} className="space-y-3 max-w-md">
               <div>
@@ -171,35 +170,31 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                 />
               </div>
               {pwFeedback?.error && (
-                <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
+                <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">
                   {pwFeedback.error}
                 </div>
               )}
               {pwFeedback?.ok && (
-                <div className="text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">
+                <div className="text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">
                   {pwFeedback.ok}
                 </div>
               )}
               <div className="flex gap-2">
-                <button
-                  type="button"
+                <ActionButton
+                  variant="secondary"
+                  size="sm"
                   onClick={() => {
                     setPwOpen(false)
                     setCurrentPw('')
                     setNewPw('')
                     setPwFeedback(null)
                   }}
-                  className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300"
                 >
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={pwBusy}
-                  className="text-sm font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 disabled:opacity-50"
-                >
+                </ActionButton>
+                <ActionButton variant="primary" size="sm" type="submit" disabled={pwBusy}>
                   {pwBusy ? 'Updating…' : 'Update password'}
-                </button>
+                </ActionButton>
               </div>
             </form>
           )}

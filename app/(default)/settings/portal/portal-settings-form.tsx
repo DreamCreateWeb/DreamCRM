@@ -8,6 +8,7 @@ import {
   type PortalFeatureFlags,
 } from '@/lib/types/portal'
 import { savePortalSettingsAction } from './actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 /**
  * Settings → Patient portal. Everything the clinic can shape about the
@@ -125,12 +126,12 @@ export default function PortalSettingsForm({
                   {meta.description}
                 </p>
                 {paymentsLocked && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
                     Connect Stripe under Shop first — until then patients see the call-to-pay fallback.
                   </p>
                 )}
                 {shopNote && (
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Your storefront is currently disabled, so this link stays hidden either way.
                   </p>
                 )}
@@ -229,7 +230,7 @@ export default function PortalSettingsForm({
             className="form-input w-full text-sm mt-1.5"
             maxLength={80}
           />
-          <span className="text-xs text-gray-400 dark:text-gray-500 mt-1 block">
+          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
             {'{firstName}'} fills in the patient&apos;s name.
           </span>
         </label>
@@ -254,7 +255,7 @@ export default function PortalSettingsForm({
             className="form-input w-full text-sm mt-1.5"
             maxLength={160}
           />
-          <span className="text-xs text-gray-400 dark:text-gray-500 mt-1 block">
+          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
             Shows at the top of every portal page until a patient dismisses it. Empty = hidden.
           </span>
         </label>
@@ -268,7 +269,7 @@ export default function PortalSettingsForm({
             className="form-textarea w-full text-sm mt-1.5"
             maxLength={1000}
           />
-          <span className="text-xs text-gray-400 dark:text-gray-500 mt-1 block">
+          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
             Shown on a patient&apos;s portal home for a week after a completed visit. Empty = hidden.
           </span>
         </label>
@@ -287,33 +288,23 @@ export default function PortalSettingsForm({
       </Section>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={save}
-          disabled={pending}
-          className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50"
-        >
+        <ActionButton variant="primary" onClick={save} disabled={pending}>
           {pending ? 'Saving…' : 'Save portal settings'}
-        </button>
-        <a
-          href="/settings/portal/preview"
-          target="_blank"
-          rel="noreferrer"
-          className="btn border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 hover:border-gray-300"
-        >
+        </ActionButton>
+        <ActionButton href="/settings/portal/preview" variant="secondary" target="_blank">
           Preview as a patient ↗
-        </a>
+        </ActionButton>
         {feedback && (
           <span
             className={`text-sm font-medium ${
-              feedback.kind === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+              feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
             }`}
           >
             {feedback.msg}
           </span>
         )}
       </div>
-      <p className="text-xs text-gray-400 dark:text-gray-500">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
         Preview uses your saved settings — save first to see your latest changes.
       </p>
     </div>

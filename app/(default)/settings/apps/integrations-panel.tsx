@@ -1,9 +1,12 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { disconnectMailbox } from './integration-actions'
+import { type Tone } from '@/lib/ui/encodings'
+import { StatusPill } from '@/components/ui/status-pill'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export interface IntegrationAccount {
   id: string
@@ -44,11 +47,11 @@ const ACCENT_BG: Record<Integration['accent'], string> = {
   emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
 }
 
-const STATUS_PILL: Record<Integration['status']['kind'], string> = {
-  connected: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
-  available: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
-  partial: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-  misconfigured: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+const STATUS_TONE: Record<Integration['status']['kind'], Tone> = {
+  connected: 'ok',
+  available: 'neutral',
+  partial: 'warn',
+  misconfigured: 'urgent',
 }
 
 const STATUS_LABEL: Record<Integration['status']['kind'], string> = {
@@ -72,9 +75,11 @@ export default function IntegrationsPanel({ integrations, tenantType }: Props) {
         </p>
 
         {integrations.length === 0 ? (
-          <div className="text-sm italic text-gray-400 dark:text-gray-500 py-12 text-center">
-            No integrations are available for this account.
-          </div>
+          <EmptyState
+            icon="🔌"
+            title="No integrations available"
+            body="There's nothing to connect for this account yet."
+          />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {integrations.map((i) => (
@@ -97,18 +102,16 @@ function IntegrationCard({ integration: i }: { integration: Integration }) {
         <div className="grow min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">{i.name}</h3>
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${STATUS_PILL[i.status.kind]}`}>
-              {STATUS_LABEL[i.status.kind]}
-            </span>
+            <StatusPill tone={STATUS_TONE[i.status.kind]} label={STATUS_LABEL[i.status.kind]} />
           </div>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold mt-0.5">
+          <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold mt-0.5">
             {i.category}
           </p>
         </div>
       </div>
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 leading-snug">{i.description}</p>
       {i.status.detail && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">{i.status.detail}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{i.status.detail}</p>
       )}
       {i.accounts && i.accounts.length > 0 && (
         <ul className="mb-3 space-y-1.5">
@@ -119,30 +122,25 @@ function IntegrationCard({ integration: i }: { integration: Integration }) {
       )}
       <div className="mt-auto flex items-center gap-2 pt-2">
         {i.status.kind !== 'connected' && i.connectHref && (
-          <a
-            href={i.connectHref}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-          >
+          <ActionButton href={i.connectHref} variant="primary" size="sm">
             Connect
-          </a>
+          </ActionButton>
         )}
         {i.connectHref && i.accounts && i.accounts.length > 0 && (
-          <a
-            href={i.connectHref}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300"
-          >
+          <ActionButton href={i.connectHref} variant="secondary" size="sm">
             Add another
-          </a>
+          </ActionButton>
         )}
         {i.manageHref && (
-          <Link
+          <ActionButton
             href={i.manageHref}
+            variant="ghost"
+            size="sm"
             target={i.manageHref.startsWith('http') ? '_blank' : undefined}
-            rel={i.manageHref.startsWith('http') ? 'noopener noreferrer' : undefined}
-            className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 ml-auto"
+            className="ml-auto"
           >
             {i.manageHref.startsWith('http') ? 'Open dashboard ↗' : 'Manage →'}
-          </Link>
+          </ActionButton>
         )}
       </div>
     </div>
@@ -165,17 +163,19 @@ function AccountRow({ integrationKey, account }: { integrationKey: string; accou
   return (
     <li className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/40">
       <div className="min-w-0 grow">
-        <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 truncate">{account.label}</p>
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{account.sub}</p>
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{account.label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{account.sub}</p>
       </div>
       {integrationKey === 'gmail' && (
-        <button
+        <ActionButton
+          variant="ghost"
+          size="sm"
           onClick={handleDisconnect}
           disabled={pending}
-          className="text-[11px] font-medium px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
+          className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
         >
           Disconnect
-        </button>
+        </ActionButton>
       )}
     </li>
   )

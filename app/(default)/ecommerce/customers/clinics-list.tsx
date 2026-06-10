@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
 import { enterDemoMode, seedAndEnterDemoClinic, deleteClinicAction } from './admin-actions'
+import { type Tone } from '@/lib/ui/encodings'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { StatusPill } from '@/components/ui/status-pill'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Props {
   rows: ClinicListRow[]
@@ -12,10 +17,11 @@ interface Props {
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
-const PLAN_BADGES: Record<ClinicListRow['planTier'], string> = {
-  basic: 'bg-gray-500/20 text-gray-700 dark:text-gray-300',
-  pro: 'bg-sky-500/20 text-sky-700 dark:text-sky-400',
-  premium: 'bg-violet-500/20 text-violet-700 dark:text-violet-400',
+// Plan tier → tone (hue matches the prior gray/sky/violet, mapped to the contract).
+const PLAN_TONE: Record<ClinicListRow['planTier'], Tone> = {
+  basic: 'neutral',
+  pro: 'info',
+  premium: 'special',
 }
 
 const PLAN_LABELS: Record<ClinicListRow['planTier'], string> = {
@@ -24,14 +30,12 @@ const PLAN_LABELS: Record<ClinicListRow['planTier'], string> = {
   premium: 'Premium',
 }
 
-const STATUS_BADGES: Record<string, string> = {
-  active: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400',
-  trialing: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400',
-  past_due: 'bg-amber-500/20 text-amber-700 dark:text-amber-400',
-  unpaid: 'bg-amber-500/20 text-amber-700 dark:text-amber-400',
-  canceled: 'bg-red-500/20 text-red-700 dark:text-red-400',
-  incomplete: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-  incomplete_expired: 'bg-red-500/20 text-red-700 dark:text-red-400',
+// Subscription status → tone. active/trialing healthy; the past-due family is a
+// problem now; everything else is inert.
+function statusTone(status: string): Tone {
+  if (status === 'active' || status === 'trialing') return 'ok'
+  if (status === 'past_due' || status === 'unpaid' || status === 'incomplete_expired') return 'urgent'
+  return 'neutral'
 }
 
 type Filter = 'all' | 'basic' | 'pro' | 'premium' | 'past_due' | 'inactive'
@@ -122,23 +126,23 @@ export default function ClinicsList({ rows }: Props) {
       {/* Filter chips + search + sort */}
       <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="flex flex-wrap gap-2">
-          <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
-            All <span className="ml-1 text-xs opacity-70">({counts.all})</span>
+          <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} count={counts.all}>
+            All
           </FilterChip>
-          <FilterChip active={filter === 'basic'} onClick={() => setFilter('basic')}>
-            Basic <span className="ml-1 text-xs opacity-70">({counts.basic})</span>
+          <FilterChip active={filter === 'basic'} onClick={() => setFilter('basic')} count={counts.basic}>
+            Basic
           </FilterChip>
-          <FilterChip active={filter === 'pro'} onClick={() => setFilter('pro')}>
-            Pro <span className="ml-1 text-xs opacity-70">({counts.pro})</span>
+          <FilterChip active={filter === 'pro'} onClick={() => setFilter('pro')} count={counts.pro}>
+            Pro
           </FilterChip>
-          <FilterChip active={filter === 'premium'} onClick={() => setFilter('premium')}>
-            Premium <span className="ml-1 text-xs opacity-70">({counts.premium})</span>
+          <FilterChip active={filter === 'premium'} onClick={() => setFilter('premium')} count={counts.premium}>
+            Premium
           </FilterChip>
-          <FilterChip active={filter === 'past_due'} onClick={() => setFilter('past_due')}>
-            Past due <span className="ml-1 text-xs opacity-70">({counts.past_due})</span>
+          <FilterChip active={filter === 'past_due'} onClick={() => setFilter('past_due')} count={counts.past_due}>
+            Past due
           </FilterChip>
-          <FilterChip active={filter === 'inactive'} onClick={() => setFilter('inactive')}>
-            Inactive <span className="ml-1 text-xs opacity-70">({counts.inactive})</span>
+          <FilterChip active={filter === 'inactive'} onClick={() => setFilter('inactive')} count={counts.inactive}>
+            Inactive
           </FilterChip>
         </div>
         <div className="flex-1 flex gap-2 lg:justify-end">
@@ -183,18 +187,19 @@ export default function ClinicsList({ rows }: Props) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={8} className="px-0 py-0">
                     {rows.length === 0 ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <p className="text-3xl">🏢</p>
-                        <p>No clinics signed up yet — your first one will appear here after onboarding.</p>
-                        <p className="text-xs">
-                          Want to preview the clinic dashboard right now? Seed a demo clinic and jump straight in.
-                        </p>
-                        <SeedDemoClinicButton />
-                      </div>
+                      <EmptyState
+                        icon="🏢"
+                        title="No clinics signed up yet"
+                        body="Your first one will appear here after onboarding. Want to preview the clinic dashboard right now? Seed a demo clinic and jump straight in."
+                        action={<SeedDemoClinicButton />}
+                      />
                     ) : (
-                      <>No clinics match your filter.</>
+                      <EmptyState
+                        title="No clinics match your filter"
+                        body="Try a different plan, status, or search term."
+                      />
                     )}
                   </td>
                 </tr>
@@ -209,7 +214,7 @@ export default function ClinicsList({ rows }: Props) {
       </div>
 
       {filtered.length > 0 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 text-right">
+        <p className="text-xs text-gray-500 dark:text-gray-400 text-right tabular-nums">
           Showing {filtered.length} of {rows.length}
         </p>
       )}
@@ -220,7 +225,6 @@ export default function ClinicsList({ rows }: Props) {
 function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
   const siteUrl = `https://${c.slug}.${SITE_DOMAIN}`
   const statusKey = c.subscriptionStatus ?? 'inactive'
-  const statusBadge = STATUS_BADGES[statusKey] ?? 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300'
   const name = c.displayName ?? c.name
   const initials = name.charAt(0).toUpperCase()
 
@@ -263,25 +267,21 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         </Link>
       </td>
       <td className="px-3 py-3">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PLAN_BADGES[c.planTier]}`}>
-          {PLAN_LABELS[c.planTier]}
-        </span>
+        <StatusPill tone={PLAN_TONE[c.planTier]} label={PLAN_LABELS[c.planTier]} />
       </td>
       <td className="px-3 py-3">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadge}`}>
-          {statusKey.replace('_', ' ')}
-        </span>
+        <StatusPill tone={statusTone(statusKey)} label={statusKey.replace('_', ' ')} />
       </td>
-      <td className="px-3 py-3 text-right font-medium text-gray-800 dark:text-gray-100">
+      <td className="px-3 py-3 text-right font-medium text-gray-800 dark:text-gray-100 tabular-nums">
         {moneyShort(c.monthlyContributionCents)}
       </td>
-      <td className="px-3 py-3 text-right text-gray-700 dark:text-gray-200">
+      <td className="px-3 py-3 text-right text-gray-700 dark:text-gray-200 tabular-nums">
         {c.patientCount}
       </td>
-      <td className="px-3 py-3 text-right text-gray-700 dark:text-gray-200">
+      <td className="px-3 py-3 text-right text-gray-700 dark:text-gray-200 tabular-nums">
         {c.activeProjectCount}
       </td>
-      <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400">
+      <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
         {c.createdAt.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -289,22 +289,15 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         })}
       </td>
       <td className="px-5 py-3 text-right">
-        <div className="flex items-center justify-end gap-3 text-xs font-medium">
+        <div className="flex items-center justify-end gap-2">
+          {/* View as is the demo gateway — the row primary. */}
           <ViewAsButton orgId={c.orgId} />
-          <a
-            href={siteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400"
-          >
+          <ActionButton href={siteUrl} variant="ghost" size="sm" target="_blank">
             Site ↗
-          </a>
-          <Link
-            href={`/ecommerce/customers/${c.orgId}`}
-            className="text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
-          >
+          </ActionButton>
+          <ActionButton href={`/ecommerce/customers/${c.orgId}`} variant="ghost" size="sm">
             Open
-          </Link>
+          </ActionButton>
           <DeleteClinicButton clinic={c} />
         </div>
       </td>
@@ -316,14 +309,15 @@ function DeleteClinicButton({ clinic }: { clinic: ClinicListRow }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button
-        type="button"
+      <ActionButton
+        variant="ghost"
+        size="sm"
         onClick={() => setOpen(true)}
-        className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition"
+        className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
         title="Delete this clinic and all its data"
       >
         Delete
-      </button>
+      </ActionButton>
       {open && <DeleteClinicModal clinic={clinic} onClose={() => setOpen(false)} />}
     </>
   )
@@ -386,9 +380,9 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
               </p>
             )}
             <div className="mt-5 flex justify-end">
-              <button onClick={finish} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800">
+              <ActionButton variant="primary" size="sm" onClick={finish}>
                 Done
-              </button>
+              </ActionButton>
             </div>
           </div>
         ) : (
@@ -416,23 +410,15 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
                 autoFocus
                 className="form-input w-full text-sm font-mono"
               />
-              {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
-              <button
-                onClick={onClose}
-                disabled={pending}
-                className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200"
-              >
+              <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
                 Cancel
-              </button>
-              <button
-                onClick={submit}
-                disabled={pending || !matches}
-                className="btn-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-              >
+              </ActionButton>
+              <ActionButton variant="danger" size="sm" onClick={submit} disabled={pending || !matches}>
                 {pending ? 'Deleting…' : 'Delete forever'}
-              </button>
+              </ActionButton>
             </div>
           </>
         )}
@@ -444,52 +430,28 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
 function ViewAsButton({ orgId }: { orgId: string }) {
   const [pending, start] = useTransition()
   return (
-    <button
-      type="button"
+    <ActionButton
+      variant="primary"
+      size="sm"
       disabled={pending}
       onClick={() => start(() => enterDemoMode({ orgId, role: 'owner' }))}
-      className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 disabled:opacity-50"
       title="Drop into this clinic's dashboard as their owner"
     >
       {pending ? 'Switching…' : 'View as'}
-    </button>
+    </ActionButton>
   )
 }
 
 function SeedDemoClinicButton() {
   const [pending, start] = useTransition()
   return (
-    <button
-      type="button"
+    <ActionButton
+      variant="primary"
+      size="sm"
       disabled={pending}
       onClick={() => start(() => seedAndEnterDemoClinic('owner'))}
-      className="btn-sm bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
     >
       {pending ? 'Seeding…' : 'Create demo clinic & view'}
-    </button>
-  )
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-sm font-medium px-3 py-1.5 rounded-full transition ${
-        active
-          ? 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800'
-          : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300'
-      }`}
-    >
-      {children}
-    </button>
+    </ActionButton>
   )
 }

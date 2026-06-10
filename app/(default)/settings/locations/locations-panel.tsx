@@ -3,6 +3,9 @@
 import { useState, useTransition } from 'react'
 import { addLocation, deleteLocation, setPrimaryLocation } from './actions'
 import type { ClinicLocation } from '@/lib/db/schema/platform'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Props {
   locations: ClinicLocation[]
@@ -31,17 +34,14 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
     <div className="grow">
       <div className="p-6 space-y-6">
 
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-1">Locations</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Physical practice locations for your clinic. Most clinics have one — multi-location practices can add more.
-            </p>
-          </div>
+        <div className="flex items-start justify-between gap-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Most clinics have one — multi-location practices can add more.
+          </p>
           {canEdit && !showForm && (
-            <button onClick={() => setShowForm(true)} className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white">
+            <ActionButton variant="primary" onClick={() => setShowForm(true)}>
               + Add Location
-            </button>
+            </ActionButton>
           )}
         </div>
 
@@ -49,7 +49,7 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
           <form onSubmit={handleAdd} className="p-5 bg-gray-50 dark:bg-gray-900/30 rounded-lg space-y-4">
             <div className="flex space-x-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium mb-1" htmlFor="name">Location Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium mb-1" htmlFor="name">Location Name <span className="text-rose-500">*</span></label>
                 <input id="name" name="name" type="text" required className="form-input w-full" placeholder="e.g. Main Office, Downtown" />
               </div>
               <div className="w-48">
@@ -83,22 +83,31 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
               <input type="checkbox" name="isPrimary" className="form-checkbox" defaultChecked={locations.length === 0} />
               <span>Set as primary location</span>
             </label>
-            {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
+            {error && <div className="text-sm text-rose-700 dark:text-rose-300">{error}</div>}
             <div className="flex items-center gap-2">
-              <button type="submit" className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white">
+              <ActionButton variant="primary" type="submit">
                 Save Location
-              </button>
-              <button type="button" onClick={() => { setShowForm(false); setError(null) }} className="btn-sm bg-white border-gray-200 hover:border-gray-300 text-gray-600 dark:bg-gray-800 dark:border-gray-700 dark:hover:border-gray-600 dark:text-gray-300">
+              </ActionButton>
+              <ActionButton variant="secondary" onClick={() => { setShowForm(false); setError(null) }}>
                 Cancel
-              </button>
+              </ActionButton>
             </div>
           </form>
         )}
 
         {locations.length === 0 ? (
-          <div className="text-center py-12 text-sm text-gray-400 dark:text-gray-500">
-            No locations yet. Add one to power your clinic website's address block.
-          </div>
+          <EmptyState
+            icon="📍"
+            title="No locations yet"
+            body="Add one to power your clinic website's address block."
+            action={
+              canEdit && !showForm ? (
+                <ActionButton variant="primary" onClick={() => setShowForm(true)}>
+                  + Add Location
+                </ActionButton>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="space-y-3">
             {locations.map((loc) => (
@@ -106,9 +115,7 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-semibold text-gray-800 dark:text-gray-100">{loc.name}</span>
-                    {loc.isPrimary === 1 && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full text-violet-700 bg-violet-500/20">Primary</span>
-                    )}
+                    {loc.isPrimary === 1 && <StatusPill tone="special" label="Primary" />}
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
                     {[loc.addressLine1, loc.addressLine2].filter(Boolean).join(', ') || <span className="italic">No address</span>}
@@ -119,23 +126,26 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
                   {loc.phone && <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{loc.phone}</div>}
                 </div>
                 {canEdit && (
-                  <div className="flex items-center gap-3 text-xs">
+                  <div className="flex items-center gap-2">
                     {loc.isPrimary !== 1 && (
-                      <button
+                      <ActionButton
+                        variant="ghost"
+                        size="sm"
                         onClick={() => startTransition(() => setPrimaryLocation(loc.id))}
                         disabled={pending}
-                        className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-50"
                       >
                         Make Primary
-                      </button>
+                      </ActionButton>
                     )}
-                    <button
+                    <ActionButton
+                      variant="ghost"
+                      size="sm"
                       onClick={() => startTransition(() => deleteLocation(loc.id))}
                       disabled={pending}
-                      className="font-medium text-red-500 hover:text-red-600 disabled:opacity-50"
+                      className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
                     >
                       Remove
-                    </button>
+                    </ActionButton>
                   </div>
                 )}
               </div>
