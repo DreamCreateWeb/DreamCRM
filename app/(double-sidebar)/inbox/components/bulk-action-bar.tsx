@@ -54,24 +54,25 @@ export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
         <button
           type="button"
           onClick={clear}
+          aria-label="Clear selection"
           className="p-1.5 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:hover:bg-stone-800 dark:hover:text-stone-100"
           title="Clear selection (Esc)"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
           </svg>
         </button>
-        <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100 px-2 tabular-nums">
+        <div className="text-sm font-medium text-stone-900 dark:text-stone-100 px-2 tabular-nums">
           {count} selected
         </div>
         <button
           type="button"
           onClick={() => selectAll(visibleIds)}
-          className="text-[11px] font-medium text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 px-2 py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-800"
+          className="text-xs font-medium text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 px-2 py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-800"
         >
           {allVisibleSelected ? 'Deselect all' : `Select all ${visibleIds.length}`}
         </button>
-        <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
+        <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
         <BarButton onClick={() => run('archive')} pending={pending} label="Archive">
           <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <rect x="3" y="4" width="18" height="4" rx="1" />
@@ -121,8 +122,9 @@ function BarButton({
       onClick={onClick}
       disabled={pending}
       title={label}
+      aria-label={label}
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors',
+        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors',
         pending && 'opacity-50 cursor-wait',
       )}
     >

@@ -6,6 +6,8 @@ import { cn, formatShortDate, formatTime } from '@/lib/utils'
 import type { EmailMessage, EmailThreadDetail } from '@/lib/services/mailbox'
 import type { InboxPatientContext } from '@/lib/types/patient-context'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   archiveThreadAction,
   markThreadAction,
@@ -57,26 +59,24 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
 
   if (!thread) {
     return (
-      <div className="grow flex flex-col items-center justify-center text-stone-400 dark:text-stone-500 px-8">
-        <div className="w-16 h-16 rounded-full bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center mb-4">
-          <svg className="w-7 h-7 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <div className="text-sm font-medium text-stone-600 dark:text-stone-400">Nothing selected</div>
-        <div className="text-[12px] mt-1.5 text-stone-400 dark:text-stone-500">Pick a conversation from the list</div>
-        <div className="mt-6 flex items-center gap-2.5 text-[10px] text-stone-400 dark:text-stone-500 tabular-nums tracking-wider">
+      <div className="grow flex flex-col items-center justify-center px-8">
+        <EmptyState
+          icon="✉️"
+          title="Nothing selected"
+          body="Pick a conversation from the list to read and reply."
+        />
+        <div className="mt-2 flex items-center gap-2.5 text-xs text-stone-500 dark:text-stone-400 tabular-nums tracking-wider">
           <Kbd>j</Kbd><Kbd>k</Kbd>
-          <span className="opacity-80">navigate</span>
-          <span className="opacity-30">·</span>
+          <span>navigate</span>
+          <span className="opacity-40">·</span>
           <Kbd>x</Kbd>
-          <span className="opacity-80">select</span>
-          <span className="opacity-30">·</span>
+          <span>select</span>
+          <span className="opacity-40">·</span>
           <Kbd>e</Kbd>
-          <span className="opacity-80">archive</span>
-          <span className="opacity-30">·</span>
+          <span>archive</span>
+          <span className="opacity-40">·</span>
           <Kbd>r</Kbd>
-          <span className="opacity-80">reply</span>
+          <span>reply</span>
         </div>
       </div>
     )
@@ -135,13 +135,14 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
       {/* Sticky toolbar — operates on the whole thread */}
       <div className="sticky top-0 z-10 bg-white/85 dark:bg-stone-900/85 backdrop-blur border-b border-stone-200 dark:border-stone-700/60">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-1.5">
-          <ToolbarButton onClick={handleReplyClick} variant="primary" shortcut="R" pending={pendingAction}>
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          {/* The thread's single primary action. */}
+          <ActionButton variant="primary" size="sm" onClick={handleReplyClick} disabled={pendingAction} title="Reply (R)" className="gap-1.5">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path d="M9 17l-5-5 5-5M4 12h11a5 5 0 015 5v0" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Reply
-          </ToolbarButton>
-          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
+          </ActionButton>
+          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
           <ToolbarButton onClick={handleStar} active={anyStarred} shortcut="S" pending={pendingAction}>
             <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill={anyStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
               <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" strokeLinejoin="round" />
@@ -176,7 +177,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
           </ToolbarButton>
           <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
           <MoveToMenu messageId={latest.id} currentCategory={t.category} />
-          <div className="ml-auto text-[11px] text-stone-500 dark:text-stone-400 tabular-nums tracking-wider hidden sm:block">
+          <div className="ml-auto text-xs text-stone-500 dark:text-stone-400 tabular-nums tracking-wider hidden sm:block">
             {formatShortDate(latest.receivedAt)} · {formatTime(latest.receivedAt)}
           </div>
         </div>
@@ -192,7 +193,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
               </h1>
               <div className="pt-1"><IntentBadge intent={t.intent} /></div>
               {t.messages.length > 1 && (
-                <span className="pt-1.5 text-[11px] text-stone-500 dark:text-stone-400 tabular-nums">
+                <span className="pt-1.5 text-xs text-stone-500 dark:text-stone-400 tabular-nums">
                   {t.messages.length} messages
                 </span>
               )}
@@ -287,16 +288,16 @@ function MessageCard({
               {senderName}
             </span>
             {message.fromName && (
-              <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+              <span className="text-xs text-stone-500 dark:text-stone-400 truncate">
                 &lt;{message.fromEmail}&gt;
               </span>
             )}
-            <span className="ml-auto text-[11px] text-stone-400 dark:text-stone-500 tabular-nums whitespace-nowrap shrink-0">
+            <span className="ml-auto text-xs text-stone-500 dark:text-stone-400 tabular-nums whitespace-nowrap shrink-0">
               {formatShortDate(message.receivedAt)}, {formatTime(message.receivedAt)}
             </span>
           </div>
           {open ? (
-            <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+            <div className="text-xs text-stone-500 dark:text-stone-400 truncate">
               to {message.toEmails.join(', ')}
               {message.ccEmails.length > 0 && <> · cc {message.ccEmails.join(', ')}</>}
             </div>
@@ -377,7 +378,7 @@ function Avatar({ name }: { name: string }) {
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="px-1.5 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-mono text-[10px] shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
+    <kbd className="px-1.5 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-mono text-xs shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
       {children}
     </kbd>
   )

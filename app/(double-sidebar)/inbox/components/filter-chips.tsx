@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { TONE_PILL } from '@/lib/ui/encodings'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
-import { INTENT_COLORS } from './intent-badge'
+import { INTENT_COLORS, INTENT_TONE } from './intent-badge'
 
 interface Props {
   intentCounts: Record<string, number>
@@ -57,7 +58,7 @@ export default function FilterChips({
   return (
     <div className="px-4 pt-3 pb-2 border-b border-stone-100 dark:border-stone-700/40 space-y-2">
       {/* View toggles row */}
-      <div className="flex items-center gap-1.5 text-[11px]">
+      <div className="flex items-center gap-1.5 text-xs">
         <Chip
           label="All"
           count={totalCount}
@@ -82,9 +83,9 @@ export default function FilterChips({
         />
       </div>
 
-      {/* Intent row */}
+      {/* Intent row — categories sourced from the tone contract */}
       {showIntents && Object.keys(intentCounts).length > 0 && (
-        <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs flex-wrap">
           {Object.entries(INTENT_COLORS).map(([key, c]) => {
             const count = intentCounts[key]
             if (!count) return null
@@ -93,14 +94,16 @@ export default function FilterChips({
               <Link
                 key={key}
                 href={href({ intent: active ? null : key })}
+                aria-pressed={active}
+                title={`Filter to ${c.label} (${count})`}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors',
                   active
-                    ? cn(c.bg, c.text, 'ring-1 ring-current/30')
-                    : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800',
+                    ? cn(TONE_PILL[INTENT_TONE[key] ?? 'neutral'], 'ring-1 ring-current/30')
+                    : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800',
                 )}
               >
-                <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} />
+                <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} aria-hidden="true" />
                 <span className="font-medium">{c.label}</span>
                 <span className="tabular-nums opacity-70">{count}</span>
               </Link>
@@ -116,6 +119,7 @@ function Chip({ label, count, active, href }: { label: string; count?: number; a
   return (
     <Link
       href={href}
+      aria-pressed={active}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium transition-colors',
         active

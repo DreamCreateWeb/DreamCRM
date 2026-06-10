@@ -1,7 +1,7 @@
-import Link from 'next/link'
 import { formatShortDate, formatTime, cn } from '@/lib/utils'
 import { patientAge, type InboxPatientContext } from '@/lib/types/patient-context'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface Props {
   ctx: InboxPatientContext
@@ -36,18 +36,18 @@ export default function PatientCard({ ctx, terminology }: Props) {
           <div className="font-semibold text-stone-900 dark:text-stone-100 truncate">
             {patient.firstName} {patient.lastName}
           </div>
-          <div className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-1.5 flex-wrap">
-            {isClinical && age !== null && <span>{age}y</span>}
+          <div className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-1.5 flex-wrap">
+            {isClinical && age !== null && <span className="tabular-nums">{age}y</span>}
             {patient.phone && (
               <>
-                {isClinical && age !== null && <span className="text-stone-300 dark:text-stone-600">·</span>}
+                {isClinical && age !== null && <span className="text-stone-300 dark:text-stone-600" aria-hidden="true">·</span>}
                 <a href={`tel:${patient.phone}`} className="hover:text-stone-700 dark:hover:text-stone-200">
                   {patient.phone}
                 </a>
               </>
             )}
             {isClinical && (
-              <span className="ml-auto rounded-full bg-stone-100 dark:bg-stone-700/50 px-1.5 py-0.5 text-[10px] tabular-nums">
+              <span className="ml-auto rounded-full bg-stone-100 dark:bg-stone-700/50 px-1.5 py-0.5 text-xs tabular-nums">
                 {appointmentCount} visit{appointmentCount === 1 ? '' : 's'}
               </span>
             )}
@@ -65,7 +65,7 @@ export default function PatientCard({ ctx, terminology }: Props) {
                   <span className="text-stone-500 dark:text-stone-400 ml-1">({nextAppointment.type})</span>
                 </span>
               ) : (
-                <span className="text-stone-400 dark:text-stone-500">none scheduled</span>
+                <span className="text-stone-500 dark:text-stone-400">none scheduled</span>
               )}
             </Row>
             <Row label="Last visit">
@@ -75,7 +75,7 @@ export default function PatientCard({ ctx, terminology }: Props) {
                   <span className="text-stone-500 dark:text-stone-400 ml-1">({lastAppointment.type})</span>
                 </span>
               ) : (
-                <span className="text-stone-400 dark:text-stone-500">no past visits</span>
+                <span className="text-stone-500 dark:text-stone-400">no past visits</span>
               )}
             </Row>
             {patient.insuranceProvider && (
@@ -94,35 +94,37 @@ export default function PatientCard({ ctx, terminology }: Props) {
         )}
         {patient.notes && (
           <div className="mt-3 pt-3 border-t border-stone-200/60 dark:border-stone-700/40">
-            <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">Notes</div>
-            <p className="text-[12px] text-stone-700 dark:text-stone-300 line-clamp-3">{patient.notes}</p>
+            <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1">Notes</div>
+            <p className="text-xs text-stone-700 dark:text-stone-300 line-clamp-3">{patient.notes}</p>
           </div>
         )}
       </div>
 
+      {/* Primary action first (Book / View the record); the secondary View is
+          ghost so it doesn't compete. */}
       <div className="mt-4 flex items-center gap-2">
         {isClinical ? (
-          <Link
-            href="/appointments"
-            className="flex-1 text-center text-[12px] font-medium rounded-md bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white px-2.5 py-1.5 transition-colors"
-          >
+          <ActionButton variant="primary" size="sm" href="/appointments" className="flex-1 justify-center">
             Book appointment
-          </Link>
+          </ActionButton>
         ) : (
-          <Link
+          <ActionButton
+            variant="primary"
+            size="sm"
             href={`/ecommerce/customers?email=${encodeURIComponent(patient.email ?? '')}`}
-            className="flex-1 text-center text-[12px] font-medium rounded-md bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white px-2.5 py-1.5 transition-colors"
+            className="flex-1 justify-center"
           >
             View {terminology.contact}
-          </Link>
+          </ActionButton>
         )}
         {isClinical && (
-          <Link
+          <ActionButton
+            variant="secondary"
+            size="sm"
             href={`/ecommerce/customers?email=${encodeURIComponent(patient.email ?? '')}`}
-            className="text-[12px] font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 px-2.5 py-1.5 transition-colors"
           >
             View
-          </Link>
+          </ActionButton>
         )}
       </div>
     </aside>
@@ -132,7 +134,7 @@ export default function PatientCard({ ctx, terminology }: Props) {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">
-      <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 w-16 shrink-0">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 w-16 shrink-0">{label}</div>
       <div className={cn('grow min-w-0 truncate')}>{children}</div>
     </div>
   )

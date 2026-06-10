@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import MessagesHeader from './messages-header'
 import { sendChatMessage } from './actions'
 import { relativeTime } from '@/lib/utils'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export interface ChatMessage {
   id: number
@@ -47,15 +49,17 @@ export default function MessagesBody({
       <MessagesHeader />
       <div className="px-4 sm:px-6 md:px-5 py-6 flex-1 overflow-y-auto">
         {!conversationId ? (
-          <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-10">
-            Pick a conversation from the sidebar or start a new one.
-          </div>
+          <EmptyState
+            icon="💬"
+            title="No conversation selected"
+            body="Pick a conversation from the sidebar, or start a new one."
+          />
         ) : (
           <>
-            <h2 className="text-sm uppercase tracking-wide text-gray-400 mb-3">{title}</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">{title}</h2>
             <div className="space-y-3">
               {messages.length === 0 ? (
-                <div className="text-sm text-gray-500 italic">No messages yet — say hi.</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 italic">No messages yet — say hi.</div>
               ) : (
                 messages.map((m) => {
                   const mine = m.authorId === currentUserId
@@ -64,7 +68,7 @@ export default function MessagesBody({
                       <div
                         className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${
                           mine
-                            ? 'bg-violet-500 text-white'
+                            ? 'bg-violet-600 text-white'
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100'
                         }`}
                       >
@@ -74,7 +78,7 @@ export default function MessagesBody({
                           </div>
                         )}
                         <div className="whitespace-pre-wrap">{m.body}</div>
-                        <div className={`text-[10px] mt-0.5 ${mine ? 'text-white/70' : 'text-gray-400'}`}>
+                        <div className={`text-xs mt-0.5 tabular-nums ${mine ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>
                           {relativeTime(m.createdAt)}
                         </div>
                       </div>
@@ -102,16 +106,17 @@ export default function MessagesBody({
                 disabled={!conversationId || pending}
               />
             </div>
-            <button
+            <ActionButton
+              variant="primary"
               type="submit"
               disabled={!conversationId || pending || !body.trim()}
-              className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white whitespace-nowrap disabled:opacity-60"
+              className="whitespace-nowrap"
             >
               {pending ? 'Sending…' : 'Send →'}
-            </button>
+            </ActionButton>
           </form>
         </div>
-        {error && <div className="absolute bottom-16 right-4 text-xs text-red-600 bg-red-50 dark:bg-red-500/10 px-2 py-1 rounded">{error}</div>}
+        {error && <div className="absolute bottom-16 right-4 text-xs text-rose-700 dark:text-rose-300 bg-rose-500/10 px-2 py-1 rounded" role="alert">{error}</div>}
       </div>
     </div>
   )
