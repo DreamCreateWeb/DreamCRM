@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { docsByCategory } from '@/lib/marketing/docs'
-import { Eyebrow } from '@/components/marketing/ui'
+import { PageHero } from '@/components/marketing/ui'
 
 export const metadata = {
   title: 'Help docs — DreamCRM',
@@ -12,18 +12,11 @@ export default function DocsIndexPage() {
   const groups = docsByCategory()
   return (
     <>
-      <section className="border-b border-gray-100 bg-gradient-to-b from-violet-50/60 to-white">
-        <div className="mx-auto max-w-3xl px-4 py-14 text-center sm:px-6">
-          <Eyebrow>Help docs</Eyebrow>
-          <h1 className="text-[2.1rem] font-extrabold leading-tight tracking-tight sm:text-[2.6rem]">
-            Everything, explained in front-desk language
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-[0.98rem] leading-relaxed text-gray-600">
-            Short, honest guides — most under five minutes. The product also explains itself the
-            first time you open each page.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="Help docs"
+        title="Everything, explained in front-desk language"
+        sub="Short, honest guides — most under five minutes. The product also explains itself the first time you open each page."
+      />
 
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="grid gap-10 md:grid-cols-2">

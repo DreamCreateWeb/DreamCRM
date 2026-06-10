@@ -153,9 +153,20 @@ describe('content config integrity', () => {
 
   it('nav links point at real top-level marketing routes', () => {
     const tops = MARKETING_NAV.map((n) => n.href)
-    expect(tops).toEqual(['/product', '/pricing', '/compare', '/docs', '/blog'])
+    expect(tops).toEqual(['/product', '/compare', '/pricing', '/docs'])
+    // Every Compare child resolves to a real comparison page.
     for (const child of MARKETING_NAV.find((n) => n.label === 'Compare')!.children!) {
       expect(getComparison(child.href.replace('/compare/', ''))).toBeDefined()
+    }
+    // Every internal Resources doc link resolves to a real article.
+    for (const child of MARKETING_NAV.find((n) => n.label === 'Resources')!.children!) {
+      if (child.href.startsWith('/docs/')) {
+        expect(getDoc(child.href.replace('/docs/', ''))).toBeDefined()
+      }
+    }
+    // Product megamenu anchors all point into /product.
+    for (const child of MARKETING_NAV.find((n) => n.label === 'Product')!.children!) {
+      expect(child.href.startsWith('/product#')).toBe(true)
     }
   })
 })

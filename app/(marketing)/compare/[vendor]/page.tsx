@@ -31,11 +31,11 @@ export default async function ComparePage({ params }: Props) {
     <>
       <section className="border-b border-gray-100 bg-gradient-to-b from-violet-50/60 to-white">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-          <Eyebrow>Comparison</Eyebrow>
-          <h1 className="text-[2.1rem] font-extrabold leading-tight tracking-tight sm:text-[2.7rem]">
+          <div className="mkt-enter"><Eyebrow>Comparison</Eyebrow></div>
+          <h1 className="mkt-enter mkt-d1 text-[2.1rem] font-extrabold leading-tight tracking-tight sm:text-[2.7rem]">
             DreamCRM vs {c.name}
           </h1>
-          <p className="mt-2 text-[0.95rem] font-medium text-violet-700">{c.category}</p>
+          <p className="mkt-enter mkt-d2 mt-2 text-[0.95rem] font-medium text-violet-700">{c.category}</p>
           <p className="mt-5 text-[0.98rem] leading-relaxed text-gray-700">{c.summary}</p>
           <p className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-[0.82rem] text-gray-500">
             <span className="font-semibold text-gray-700">Reported pricing:</span> {c.reportedPricing}.
