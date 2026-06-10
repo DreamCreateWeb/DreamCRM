@@ -8,6 +8,15 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
 const RESERVED_SUBDOMAINS = new Set(['www', 'app'])
 
 const PUBLIC_PATHS = [
+  // Public marketing site (the root itself is allowed as an exact match in
+  // isPublicPath; these are its subpages).
+  '/product',
+  '/pricing',
+  '/compare',
+  '/docs',
+  '/blog',
+  '/sitemap.xml',
+  '/robots.txt',
   '/signin',
   '/signup',
   '/reset-password',

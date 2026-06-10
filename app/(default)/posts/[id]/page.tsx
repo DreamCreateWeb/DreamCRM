@@ -19,7 +19,7 @@ interface Props {
 export default async function BlogPostEditorPage({ params, searchParams }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
 
   const { id } = await params
   const { ai } = await searchParams

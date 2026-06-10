@@ -189,7 +189,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   function preview() {
     startTransition(async () => {
       if (dirty) await save()
-      window.open(`/blog/${post.id}/preview`, '_blank', 'noopener')
+      window.open(`/posts/${post.id}/preview`, '_blank', 'noopener')
     })
   }
 
@@ -218,7 +218,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       {/* ── Top bar ───────────────────────────────────────────────────── */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <Link
-          href="/blog"
+          href="/posts"
           className="text-[13px] font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100"
         >
           ← All posts

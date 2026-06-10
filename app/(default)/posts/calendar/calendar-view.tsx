@@ -66,7 +66,7 @@ export default function CalendarView({ items }: { items: CalendarItem[] }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Link
-            href="/blog"
+            href="/posts"
             className="text-[13px] font-medium px-3 py-2 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
           >
             All posts
@@ -90,7 +90,7 @@ export default function CalendarView({ items }: { items: CalendarItem[] }) {
           {ideasToDraft.map((i) => (
             <Row key={i.id} item={i}>
               <Link
-                href={`/blog/${i.id}?ai=1`}
+                href={`/posts/${i.id}?ai=1`}
                 className="text-[12px] font-semibold px-2.5 py-1.5 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300"
               >
                 ✨ Draft this
@@ -172,7 +172,7 @@ function Row({ item, children }: { item: CalendarItem; children: React.ReactNode
     <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
       <div className="min-w-0">
         <Link
-          href={`/blog/${item.id}`}
+          href={`/posts/${item.id}`}
           className="font-medium text-[14px] text-stone-800 dark:text-stone-100 hover:text-violet-600 dark:hover:text-violet-400"
         >
           {item.title}

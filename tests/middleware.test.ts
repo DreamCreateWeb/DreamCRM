@@ -99,8 +99,22 @@ describe('middleware auth gate', () => {
     expect(res.headers.get('location')).toBeNull()
   })
 
+  it('allows the marketing subpages without auth', () => {
+    for (const path of ['/product', '/pricing', '/compare/weave', '/docs/connecting-open-dental', '/blog', '/sitemap.xml', '/robots.txt']) {
+      const req = makeRequest(`https://dreamcreatestudio.com${path}`)
+      const res = middleware(req) as NextResponse
+      expect(res.headers.get('location'), path).toBeNull()
+    }
+  })
+
   it('the public root is exact — sibling paths stay auth-gated', () => {
     const req = makeRequest('https://dreamcreatestudio.com/patients')
+    const res = middleware(req) as NextResponse
+    expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
+  })
+
+  it('the dashboard posts manager (moved off /blog) stays auth-gated', () => {
+    const req = makeRequest('https://dreamcreatestudio.com/posts')
     const res = middleware(req) as NextResponse
     expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
   })

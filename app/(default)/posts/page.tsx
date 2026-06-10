@@ -36,7 +36,7 @@ function fmtDate(d: Date | null): string {
 export default async function BlogPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
 
   const [posts, stats] = await Promise.all([
     listBlogPosts(ctx.organizationId),
@@ -95,7 +95,7 @@ export default async function BlogPage() {
             </a>
           )}
           <Link
-            href="/blog/calendar"
+            href="/posts/calendar"
             className="text-[13px] font-medium px-3 py-2 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
           >
             Calendar
@@ -176,7 +176,7 @@ export default async function BlogPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Link
-                          href={`/blog/${p.id}`}
+                          href={`/posts/${p.id}`}
                           className="font-medium text-stone-800 dark:text-stone-100 hover:text-violet-600 dark:hover:text-violet-400"
                         >
                           {p.title}
