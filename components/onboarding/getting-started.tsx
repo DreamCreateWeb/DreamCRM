@@ -70,6 +70,31 @@ export default function GettingStarted({ checklist }: { checklist: ActivationChe
         <div className="h-1 rounded-r bg-violet-500 transition-all" style={{ width: `${pct}%` }} />
       </div>
 
+      {/* Re-entry to the post-checkout AI website interview. Shown only while
+          the site is still empty (no tagline/about/services) — this is the
+          only path back to /welcome for a clinic that skipped it, and the only
+          path TO it for a managed clinic that never saw the post-checkout step.
+          Auto-disappears once the site has any content. */}
+      {checklist.siteUnfilled && !collapsed && (
+        <div className="mx-5 mt-4 flex flex-col gap-3 rounded-xl bg-violet-500/10 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">
+              Let&apos;s build your website
+            </p>
+            <p className="mt-0.5 text-xs leading-snug text-violet-700/80 dark:text-violet-300/80">
+              Answer a few quick questions and we&apos;ll draft the whole thing — free, about two
+              minutes. You can edit anything after.
+            </p>
+          </div>
+          <Link
+            href="/welcome"
+            className="btn-sm shrink-0 bg-violet-600 text-white hover:bg-violet-700"
+          >
+            Draft with AI →
+          </Link>
+        </div>
+      )}
+
       {!collapsed && (
         <ul className="grid gap-x-6 px-5 py-4 sm:grid-cols-2">
           {checklist.tasks.map((task) => (

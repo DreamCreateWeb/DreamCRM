@@ -66,8 +66,10 @@ export function resolveCopyList<T extends { title: string; body: string }>(
 /** "Open today · 8:00 AM – 5:00 PM" or "Closed today" — the footer's
  *  at-a-glance availability blurb. */
 export function todaysHoursLabel(
-  hours: Record<string, { open?: string; close?: string; closed?: boolean }>,
+  hours: Record<string, { open?: string; close?: string; closed?: boolean }> | null | undefined,
 ): string {
+  // Defensive: a fresh clinic can have null hours and some callers don't guard.
+  if (!hours || typeof hours !== 'object') return 'Closed today'
   const KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
   const todayKey = KEY[new Date().getDay()]
   const entry = hours[todayKey]

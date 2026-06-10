@@ -22,6 +22,16 @@ export interface ActivationChecklist {
   doneCount: number
   totalCount: number
   allDone: boolean
+  /**
+   * True when the clinic's public site has no real content yet (no tagline,
+   * no about, no services). Drives the "Draft my website with AI" re-entry
+   * banner on the Getting-started card — the only way back to the `/welcome`
+   * onboarding interview for a clinic that skipped it (or a managed clinic
+   * that never saw the post-checkout step). Flips false the moment the site
+   * has any of those, so the banner stops nagging once they've drafted or
+   * hand-written content.
+   */
+  siteUnfilled: boolean
 }
 
 /** Definition side of a task — the service pairs each with a live `done` check. */
