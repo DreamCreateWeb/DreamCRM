@@ -1,5 +1,8 @@
 import Link from 'next/link'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
+import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
+import WelcomeModal from '@/components/onboarding/welcome-modal'
+import GettingStarted from '@/components/onboarding/getting-started'
 import type { TenantContext } from '@/lib/auth/context'
 import { formatRelativeDate } from '@/lib/utils/format'
 
@@ -49,12 +52,22 @@ function fmtDayHeader(d: Date): string {
 }
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const data = await getClinicOverview(ctx.organizationId)
+  const [data, onboarding] = await Promise.all([
+    getClinicOverview(ctx.organizationId),
+    getStaffOnboarding(ctx.organizationId, ctx.userId),
+  ])
+  // The checklist derives from live org data — only compute it while it's
+  // still showing (not dismissed; auto-hides once everything is done).
+  const checklist = onboarding.checklistDismissed
+    ? null
+    : await getActivationChecklist(ctx.organizationId, ctx.planTier)
   const name = ctx.organizationName
   const mtdDelta = data.trends.newPatientsMTD - data.trends.newPatientsLastMTD
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      {!onboarding.welcomeSeen && <WelcomeModal clinicName={name} />}
+      {checklist && !checklist.allDone && <GettingStarted checklist={checklist} />}
       {/* ── Sticky hero ──────────────────────────────────────────────── */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>

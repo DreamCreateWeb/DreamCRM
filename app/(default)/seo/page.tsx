@@ -15,6 +15,7 @@ import {
   type ClinicSeoResult,
 } from '@/lib/services/gsc'
 import { setGscSiteAction, disconnectGscAction } from './actions'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = { title: 'SEO - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -82,6 +83,7 @@ export default async function SeoPage({ searchParams }: Props) {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <ModuleHint id="seo" />
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">

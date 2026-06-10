@@ -1099,3 +1099,29 @@ export const patientBalancePayment = pgTable(
   ],
 )
 export type PatientBalancePayment = typeof patientBalancePayment.$inferSelect
+
+// Per-staff-member onboarding state for the clinic dashboard tutorial
+// system: the first-run welcome tour, the Getting-started checklist
+// dismissal, and per-module hint dismissals. One row per (org, user) —
+// progress itself is NOT stored here: the checklist derives done/not-done
+// from real org data (a patient exists, a logo is set, ...) so it can
+// never lie.
+export const staffOnboarding = pgTable(
+  'staff_onboarding',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    // First-run welcome modal acknowledged.
+    welcomeSeenAt: timestamp('welcome_seen_at'),
+    // Getting-started checklist hidden by the user (it also auto-hides when
+    // every task is done).
+    checklistDismissedAt: timestamp('checklist_dismissed_at'),
+    // Ids of per-module hint banners this user has dismissed.
+    dismissedHints: jsonb('dismissed_hints').$type<string[]>(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('staff_onboarding_org_user_idx').on(t.organizationId, t.userId)],
+)
+export type StaffOnboarding = typeof staffOnboarding.$inferSelect

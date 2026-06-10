@@ -36,14 +36,16 @@ describe('middleware subdomain rewrite', () => {
     expect(rewrite).toContain('/site/acme/book')
   })
 
-  it('does NOT rewrite www subdomain', () => {
+  it('does NOT rewrite www subdomain — root serves the public marketing site', () => {
     const req = makeRequest(
       'https://www.dreamcreatestudio.com/',
       'www.dreamcreatestudio.com',
     )
     const res = middleware(req) as NextResponse
-    // Apex / www without a session cookie should redirect to signin
-    expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
+    // The root is public (marketing site); the page itself routes signed-in
+    // users onward. No rewrite, no auth redirect.
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull()
+    expect(res.headers.get('location')).toBeNull()
   })
 
   it('redirects app subdomain → canonical www host (preserving path)', () => {
@@ -89,6 +91,18 @@ describe('middleware auth gate', () => {
     const res = middleware(req) as NextResponse
     const loc = res.headers.get('location')!
     expect(loc).toMatch(/\/signin\?redirect=%2Fdashboard$/)
+  })
+
+  it('allows the apex root without auth (marketing site)', () => {
+    const req = makeRequest('https://dreamcreatestudio.com/')
+    const res = middleware(req) as NextResponse
+    expect(res.headers.get('location')).toBeNull()
+  })
+
+  it('the public root is exact — sibling paths stay auth-gated', () => {
+    const req = makeRequest('https://dreamcreatestudio.com/patients')
+    const res = middleware(req) as NextResponse
+    expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
   })
 
   it('allows /signin without auth', () => {

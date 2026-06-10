@@ -14,6 +14,7 @@ import {
   type PatientListSort,
 } from '@/lib/services/patients'
 import PatientsList from './patients-list'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -56,7 +57,11 @@ export default async function PatientsPage({ searchParams }: PageProps) {
     getPatientListMeta(ctx.organizationId),
   ])
 
-  return (
+    return (
+    <>
+      <div className="px-4 sm:px-6 lg:px-8 pt-6 w-full max-w-[96rem] mx-auto -mb-2">
+        <ModuleHint id="patients" />
+      </div>
     <PatientsList
       rows={rows}
       meta={meta}
@@ -64,5 +69,6 @@ export default async function PatientsPage({ searchParams }: PageProps) {
       sort={sort}
       orgName={ctx.organizationName}
     />
+    </>
   )
 }

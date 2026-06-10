@@ -9,6 +9,22 @@ vi.mock('@/lib/services/clinic-overview', () => ({
   getClinicOverview: mockGetOverview,
 }))
 
+// Tutorial system: pretend this staff member has seen the welcome + hidden
+// the checklist so these tests keep asserting the core overview UI.
+vi.mock('@/lib/services/staff-onboarding', () => ({
+  getStaffOnboarding: vi.fn(async () => ({
+    welcomeSeen: true,
+    checklistDismissed: true,
+    dismissedHints: [],
+  })),
+  getActivationChecklist: vi.fn(async () => ({
+    tasks: [],
+    doneCount: 0,
+    totalCount: 0,
+    allDone: true,
+  })),
+}))
+
 import ClinicOverview from '@/app/(default)/dashboard/clinic-overview'
 import type { TenantContext } from '@/lib/auth/context'
 import type { ClinicOverviewData } from '@/lib/services/clinic-overview'

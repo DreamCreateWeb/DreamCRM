@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
+import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = { title: 'Practice Analytics - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <ModuleHint id="analytics" />
       {/* ── Hero + range toggle ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
         <div>
