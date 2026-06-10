@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { gscConnection } from '@/lib/db/schema/clinic'
@@ -233,14 +234,14 @@ export async function getGscPerformance(organizationId: string, days = 28): Prom
 }
 
 /** The single platform org that owns the shared Search Console connection. */
-export async function getPlatformOrgId(): Promise<string | null> {
+export const getPlatformOrgId = cache(async (): Promise<string | null> => {
   const [org] = await db
     .select({ id: organization.id })
     .from(organization)
     .where(eq(organization.type, 'platform'))
     .limit(1)
   return org?.id ?? null
-}
+})
 
 /** The `page contains` substring scoping the shared domain property to one
  * clinic. Path-based sites match `/site/<slug>`; subdomain sites match

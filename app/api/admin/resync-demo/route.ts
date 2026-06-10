@@ -24,9 +24,15 @@ export async function POST(request: Request) {
   try {
     const result = await createDemoClinic()
     // Marketing launch posts (idempotent by slug; platform org). Rides the
-    // same deploy hook so the public /blog is never empty on a fresh stack.
-    const blog = await seedPlatformBlogPosts()
-    return NextResponse.json({ ok: true, ...result, marketingPostsCreated: blog.created })
+    // same deploy hook — but isolated: a blog-seed hiccup must never fail
+    // the demo resync (the deploy script retries the WHOLE route on non-ok).
+    let marketingPostsCreated = 0
+    try {
+      marketingPostsCreated = (await seedPlatformBlogPosts()).created
+    } catch (err) {
+      console.error('[resync-demo] marketing blog seed failed (non-fatal):', err)
+    }
+    return NextResponse.json({ ok: true, ...result, marketingPostsCreated })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }

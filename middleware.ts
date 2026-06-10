@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
+import { MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -9,17 +10,25 @@ const RESERVED_SUBDOMAINS = new Set(['www', 'app'])
 
 const PUBLIC_PATHS = [
   // Public marketing site (the root itself is allowed as an exact match in
-  // isPublicPath; these are its subpages).
-  '/product',
-  '/pricing',
-  '/compare',
-  '/docs',
-  '/blog',
+  // isPublicPath; these are its subpages). Single-sourced from
+  // lib/marketing/site.ts so a new marketing page can't ship auth-walled.
+  ...MARKETING_PUBLIC_PATHS,
   '/sitemap.xml',
   '/robots.txt',
-  // Root OG card — social scrapers fetch it unauthenticated; without this
-  // they get bounced to /signin and link previews render blank.
+  // Next.js metadata-file conventions mint top-level public routes that
+  // social scrapers + browsers fetch unauthenticated. Allowlist the CLASS —
+  // '/opengraph-image' alone already shipped broken once (blank link
+  // previews) before being added here.
   '/opengraph-image',
+  '/twitter-image',
+  '/icon',
+  '/apple-icon',
+  '/apple-touch-icon',
+  '/manifest.webmanifest',
+  // Public pageview beacon for blog posts (clinic public blogs + the
+  // marketing blog). The route is a best-effort counter that no-ops on
+  // drafts; without this the POST 307s to /signin and views never count.
+  '/api/blog',
   '/signin',
   '/signup',
   '/reset-password',

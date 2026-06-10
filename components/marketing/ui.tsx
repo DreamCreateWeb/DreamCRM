@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { FOOTER_COLUMNS, MARKETING } from '@/lib/marketing/site'
+import { COMPARISONS } from '@/lib/marketing/comparisons'
 
 /**
  * Server-side primitives for the marketing site: footer, section scaffolds,
@@ -69,6 +70,20 @@ export function MarqueeStrip() {
 /* ── Footer ─────────────────────────────────────────────────────────── */
 
 export function MarketingFooter() {
+  // The Compare column derives from the comparisons config so a new vendor
+  // page can never be missing from the footer (the hand-written list already
+  // drifted once).
+  const columns = FOOTER_COLUMNS.map((col) =>
+    col.title === 'Compare'
+      ? {
+          title: 'Compare',
+          links: [
+            { label: 'All comparisons', href: '/compare' },
+            ...COMPARISONS.map((c) => ({ label: `DreamCRM vs ${c.name}`, href: `/compare/${c.slug}` })),
+          ],
+        }
+      : col,
+  )
   return (
     <footer className="bg-gray-950 text-gray-400">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.2fr_repeat(4,1fr)]">
@@ -84,7 +99,7 @@ export function MarketingFooter() {
             the PMS you already run.
           </p>
         </div>
-        {FOOTER_COLUMNS.map((col) => (
+        {columns.map((col) => (
           <nav key={col.title} aria-label={col.title}>
             <p className="text-[0.75rem] font-bold uppercase tracking-wider text-gray-500">{col.title}</p>
             <ul className="mt-3 space-y-2">
@@ -138,7 +153,9 @@ export function SectionTitle({ children, sub }: { children: React.ReactNode; sub
   )
 }
 
-const HERO_DOT_GRID = {
+/** The marketing brand texture — exported so the home hero and PageHero
+ *  can never drift apart. */
+export const HERO_DOT_GRID = {
   backgroundImage: 'radial-gradient(circle, #ddd6fe 1px, transparent 1px)',
   backgroundSize: '22px 22px',
 } as const
@@ -288,7 +305,7 @@ export function DashboardMock() {
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
         <span className="ml-3 rounded-md bg-white px-2 py-0.5 text-[0.62rem] font-medium text-gray-400">
-          app.dreamcreatestudio.com
+          www.dreamcreatestudio.com
         </span>
       </div>
       <div className="flex">

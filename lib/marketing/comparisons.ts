@@ -60,7 +60,7 @@ function baseMatrix(vendor: {
     { feature: 'Careers page + applicant tracking', dreamcrm: 'yes', vendor: vendor.careers[0], vendorNote: vendor.careers[1] },
     { feature: 'PMS sync', dreamcrm: 'yes', dreamcrmNote: 'Open Dental two-way via the official API only', vendor: vendor.pms[0], vendorNote: vendor.pms[1] },
     { feature: 'VoIP phones', dreamcrm: 'no', dreamcrmNote: 'Keep your existing phone system', vendor: vendor.phones[0], vendorNote: vendor.phones[1] },
-    { feature: 'Two-way SMS texting', dreamcrm: 'no', dreamcrmNote: 'On the roadmap (carrier registration underway)', vendor: vendor.sms[0], vendorNote: vendor.sms[1] },
+    { feature: 'Two-way SMS texting', dreamcrm: 'no', dreamcrmNote: 'On the roadmap — not available yet', vendor: vendor.sms[0], vendorNote: vendor.sms[1] },
     { feature: 'Month-to-month, no contract', dreamcrm: 'yes', dreamcrmNote: '$99–199/mo flat', vendor: vendor.contract[0], vendorNote: vendor.contract[1] },
   ]
 }

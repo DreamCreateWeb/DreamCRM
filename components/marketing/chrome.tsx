@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
+import { MARKETING, MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
 
 /**
  * Marketing-site header: megamenu dropdowns for Product / Compare /
@@ -14,11 +14,9 @@ import { MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
 function ChildLink({
   child,
   onNavigate,
-  wide,
 }: {
   child: MarketingNavChild
   onNavigate: () => void
-  wide?: boolean
 }) {
   const inner = (
     <>
@@ -31,7 +29,7 @@ function ChildLink({
       )}
     </>
   )
-  const cls = `group/item block rounded-lg px-3 py-2 hover:bg-gray-50 ${wide ? '' : ''}`
+  const cls = 'group/item block rounded-lg px-3 py-2 hover:bg-gray-50 focus-visible:bg-gray-50'
   if (child.external) {
     return (
       <a href={child.href} target="_blank" rel="noreferrer" className={cls} onClick={onNavigate}>
@@ -81,7 +79,7 @@ export function MarketingHeader() {
             <span className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-600 text-[0.8rem] font-extrabold text-white">
               D
             </span>
-            <span className="text-[0.98rem] font-bold tracking-tight text-gray-950">DreamCRM</span>
+            <span className="text-[0.98rem] font-bold tracking-tight text-gray-950">{MARKETING.productName}</span>
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
@@ -92,6 +90,15 @@ export function MarketingHeader() {
                   className="relative"
                   onMouseEnter={() => setOpenMenu(item.label)}
                   onMouseLeave={() => setOpenMenu(null)}
+                  // Keyboard parity with hover: tabbing into the trigger (or
+                  // any child) opens the panel; tabbing out or Escape closes.
+                  onFocusCapture={() => setOpenMenu(item.label)}
+                  onBlurCapture={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpenMenu(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setOpenMenu(null)
+                  }}
                 >
                   <Link
                     href={item.href}

@@ -7,6 +7,8 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { getBlogPost, listAuthorOptions, BLOG_CATEGORY_SUGGESTIONS } from '@/lib/services/blog'
 import BlogEditor from './blog-editor'
+import { postsAccessRedirect } from '../access'
+import { blogPublicBaseUrl } from '../public-base-url'
 
 export const metadata = { title: 'Edit post - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -18,8 +20,8 @@ interface Props {
 
 export default async function BlogPostEditorPage({ params, searchParams }: Props) {
   const ctx = await requireTenant()
-  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
+  const dest = postsAccessRedirect(ctx)
+  if (dest) redirect(dest)
 
   const { id } = await params
   const { ai } = await searchParams
@@ -28,22 +30,7 @@ export default async function BlogPostEditorPage({ params, searchParams }: Props
 
   const authors = await listAuthorOptions(ctx.organizationId)
 
-  const [profile] = await db
-    .select({ websiteDomain: clinicProfile.websiteDomain })
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
-  const [org] = await db
-    .select({ slug: organization.slug })
-    .from(organization)
-    .where(eq(organization.id, ctx.organizationId))
-    .limit(1)
-  const baseUrl = org
-    ? publicSiteUrl({
-        slug: org.slug,
-        profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
-      })
-    : ''
+  const baseUrl = await blogPublicBaseUrl(ctx)
 
   return (
     <BlogEditor
@@ -62,6 +49,7 @@ export default async function BlogPostEditorPage({ params, searchParams }: Props
         status: post.status,
         source: post.source,
         authorStaffId: post.authorStaffId ?? '',
+        authorName: post.authorName ?? '',
         medicallyReviewedByStaffId: post.medicallyReviewedByStaffId ?? '',
         seoTitle: post.seoTitle ?? '',
         seoDescription: post.seoDescription ?? '',

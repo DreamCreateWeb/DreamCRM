@@ -5,6 +5,9 @@ import ReviewForm from './review-form'
 export const metadata = {
   title: 'Leave a review',
   description: 'Share how your visit went.',
+  // Token-authenticated patient page (renders the patient's name) — never
+  // index, never follow. robots.txt also disallows /r/.
+  robots: { index: false, follow: false },
 }
 
 export const dynamic = 'force-dynamic'

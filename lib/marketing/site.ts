@@ -11,6 +11,14 @@ export const MARKETING = {
 } as const
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
+
+/**
+ * Top-level marketing routes. SINGLE SOURCE for the middleware public-path
+ * allowlist and the sitemap's static pages — adding a marketing page here
+ * makes it public + indexed in one move (a page that exists in nav but is
+ * auth-walled has shipped twice before; see middleware.ts history).
+ */
+export const MARKETING_PUBLIC_PATHS = ['/product', '/pricing', '/compare', '/docs', '/blog'] as const
 export const DEMO_URL = `https://acme-dental-demo.${SITE_DOMAIN}`
 
 export interface MarketingNavChild {

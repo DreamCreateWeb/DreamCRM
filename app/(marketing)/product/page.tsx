@@ -29,7 +29,7 @@ interface ModuleSection {
   title: string
   body: string
   bullets: string[]
-  docHref?: string
+  docHref: string
   visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop'
 }
 
@@ -121,7 +121,7 @@ const SECTIONS: ModuleSection[] = [
       'System templates with your voice: reactivation, birthday, welcome',
       'Sent → Opened → Clicked → Booked attribution to real appointments',
       'One-click unsubscribe honored everywhere automatically',
-      'SMS channel on the roadmap (carrier registration in progress)',
+      'SMS channel on the roadmap — not available yet',
     ],
     docHref: '/docs/recall-campaigns',
     visual: 'recall',
@@ -158,6 +158,23 @@ const SECTIONS: ModuleSection[] = [
     visual: 'dashboard',
   },
 ]
+
+// Exhaustive by construction: a new section's `visual` value won't compile
+// until it has a mock here (the old ternary chain silently fell through).
+const VISUALS: Record<ModuleSection['visual'], React.ReactNode> = {
+  dashboard: <DashboardMock />,
+  portal: (
+    <div className="flex justify-center py-2">
+      <PortalMock />
+    </div>
+  ),
+  editor: <EditorMock />,
+  booking: <BookingMock />,
+  messages: <MessagesMock />,
+  reviews: <ReviewsMock />,
+  recall: <RecallFunnelMock />,
+  shop: <ShopMock />,
+}
 
 export default function ProductPage() {
   return (
@@ -208,27 +225,7 @@ export default function ProductPage() {
                 )}
               </div>
               <div>
-                <ScrollReveal>
-                  {s.visual === 'portal' ? (
-                    <div className="flex justify-center py-2">
-                      <PortalMock />
-                    </div>
-                  ) : s.visual === 'dashboard' ? (
-                    <DashboardMock />
-                  ) : s.visual === 'editor' ? (
-                    <EditorMock />
-                  ) : s.visual === 'booking' ? (
-                    <BookingMock />
-                  ) : s.visual === 'messages' ? (
-                    <MessagesMock />
-                  ) : s.visual === 'reviews' ? (
-                    <ReviewsMock />
-                  ) : s.visual === 'recall' ? (
-                    <RecallFunnelMock />
-                  ) : (
-                    <ShopMock />
-                  )}
-                </ScrollReveal>
+                <ScrollReveal>{VISUALS[s.visual]}</ScrollReveal>
                 <ul className="mt-5 grid gap-2 sm:grid-cols-2">
                   {s.bullets.map((b) => (
                     <li key={b} className="flex items-start gap-2 text-[0.85rem] leading-snug text-gray-700">

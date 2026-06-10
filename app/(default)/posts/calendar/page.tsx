@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
+import { postsAccessRedirect } from '../access'
 import { listBlogPosts } from '@/lib/services/blog'
 import CalendarView from './calendar-view'
 
@@ -21,8 +22,8 @@ export interface CalendarItem {
 
 export default async function BlogCalendarPage() {
   const ctx = await requireTenant()
-  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
+  const dest = postsAccessRedirect(ctx)
+  if (dest) redirect(dest)
 
   const posts = await listBlogPosts(ctx.organizationId)
   const items: CalendarItem[] = posts.map((p) => {
