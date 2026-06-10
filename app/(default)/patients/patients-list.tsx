@@ -91,7 +91,9 @@ export default function PatientsList({
   const params = useSearchParams()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
-  const [addOpen, setAddOpen] = useState(false)
+  // ?new=1 (the global palette's "Add a patient" quick action) opens the
+  // add modal on arrival.
+  const [addOpen, setAddOpen] = useState(() => params.get('new') === '1')
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
   const [isPending, startTransition] = useTransition()
 

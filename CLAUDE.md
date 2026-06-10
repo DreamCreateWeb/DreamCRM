@@ -116,6 +116,19 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Global ⌘K command palette** — the unification layer. The Mosaic header's
+  fake search stub (hardcoded template links) was replaced with a real,
+  org-scoped palette: ⌘K/Ctrl+K anywhere in the dashboard (or the header
+  button, which now shows the shortcut). Empty query = launcher (plan-gated
+  quick actions: Add a patient (`/patients?new=1` opens the add modal),
+  today's agenda, edit website, preview portal + a Go-to page index from
+  `getVisibleModules` + settings subpages). Typing searches patients
+  (name/email/phone), upcoming visits (by patient name → agenda pre-filtered
+  `?q=`), leads, message threads (→ `/messages?thread=`), and pages; platform
+  tenants search clinics instead. Service `lib/services/global-search.ts`
+  (ILIKE w/ escaped wildcards, LIMIT-capped, parallel; `likePattern` exported
+  for tests), action `app/(default)/search/actions.ts`, UI
+  `components/search-modal.tsx` (debounced, grouped, full keyboard nav).
 - **Platform marketing site** at the root of `www.dreamcreatestudio.com` —
   signed-out visitors get a warm single-page marketing site (same design
   language as clinic sites: `#FAF7F2` ground, Fraunces display via runtime
