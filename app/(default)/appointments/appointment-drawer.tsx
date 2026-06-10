@@ -4,7 +4,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import type { AppointmentDetail } from '@/lib/services/appointments'
-import { AppointmentGlyphCluster } from './appointment-glyph-cluster'
+import { appointmentFlagGlyphs, type Tone } from '@/lib/ui/encodings'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { FlashToast } from '@/components/ui/flash-toast'
 import SendIntakeInline from '../patients/send-intake-inline'
 import {
   confirmAppointmentAction,
@@ -20,10 +24,6 @@ function money(cents: number): string {
   const d = cents / 100
   if (d >= 1000) return `$${(d / 1000).toFixed(1)}k`
   return `$${d.toFixed(0)}`
-}
-
-function fmtTime(d: Date): string {
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
 function fmtFull(d: Date): string {
@@ -50,12 +50,19 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: 'Cancelled',
   no_show: 'No-show',
 }
-const STATUS_PILL: Record<string, string> = {
-  scheduled: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  confirmed: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  completed: 'bg-stone-500/15 text-stone-600 dark:text-stone-300',
-  cancelled: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-  no_show: 'bg-red-500/15 text-red-700 dark:text-red-300',
+const STATUS_TONE: Record<string, Tone> = {
+  scheduled: 'warn',
+  confirmed: 'ok',
+  completed: 'neutral',
+  cancelled: 'urgent',
+  no_show: 'urgent',
+}
+const STATUS_TITLE: Record<string, string> = {
+  scheduled: "Hasn't confirmed yet — send a reminder",
+  confirmed: 'The patient confirmed this visit',
+  completed: 'This visit is done',
+  cancelled: 'This visit was cancelled',
+  no_show: "The patient didn't show",
 }
 
 export default function AppointmentDrawer({
@@ -121,7 +128,6 @@ export default function AppointmentDrawer({
 
   function flash(msg: string) {
     setToast(msg)
-    setTimeout(() => setToast(null), 3000)
   }
 
   function onConfirm() {
@@ -171,22 +177,26 @@ export default function AppointmentDrawer({
     })
   }
 
+  const isScheduled = detail?.status === 'scheduled'
+  const isOpenState = detail?.status === 'scheduled' || detail?.status === 'confirmed'
+  const isPastOpen = !!detail && isOpenState && detail.startTime < new Date()
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
       <div className="bg-white dark:bg-gray-800 w-full sm:w-[480px] h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Appointment</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
 
         {loading ? (
-          <div className="px-5 py-10 text-center text-sm text-gray-500">Loading…</div>
+          <div className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">Loading…</div>
         ) : error ? (
-          <div className="px-5 py-10 text-center text-sm text-red-600">{error}</div>
+          <div className="px-5 py-10 text-center text-sm text-rose-600 dark:text-rose-400">{error}</div>
         ) : detail ? (
           <div className="flex-1 flex flex-col">
             <div className="px-5 py-5 space-y-4">
-              {/* Patient header */}
+              {/* ── Identity header ──────────────────────────────────── */}
               <div>
                 <Link
                   href={`/patients/${detail.patient.id}`}
@@ -195,14 +205,14 @@ export default function AppointmentDrawer({
                   {detail.patient.fullName}
                 </Link>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_PILL[detail.status]}`}>
+                  <StatusPill tone={STATUS_TONE[detail.status] ?? 'neutral'} title={STATUS_TITLE[detail.status]}>
                     {STATUS_LABEL[detail.status] ?? detail.status}
-                  </span>
-                  <AppointmentGlyphCluster flags={detail.flags} cap={Infinity} />
+                  </StatusPill>
+                  <GlyphCluster glyphs={appointmentFlagGlyphs(detail.flags)} cap={Infinity} />
                 </div>
               </div>
 
-              {/* Appointment facts */}
+              {/* ── Appointment facts ────────────────────────────────── */}
               <div className="space-y-1 text-sm">
                 <p className="text-gray-800 dark:text-gray-100 font-medium capitalize">{detail.type.replace(/_/g, ' ')}</p>
                 <p className="text-gray-700 dark:text-gray-200">{fmtFull(detail.startTime)}</p>
@@ -213,50 +223,68 @@ export default function AppointmentDrawer({
                 </p>
               </div>
 
-              {/* Action buttons */}
-              <div className="flex flex-wrap gap-2">
-                {detail.status === 'scheduled' && (
-                  <button onClick={onConfirm} disabled={pending} className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
-                    Mark confirmed
-                  </button>
-                )}
-                <button onClick={onSendReminder} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50">
-                  Send reminder email
-                </button>
-                {detail.status !== 'completed' && detail.status !== 'cancelled' && (
-                  <button onClick={() => setReschedOpen(true)} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50">
-                    Reschedule
-                  </button>
-                )}
-                {detail.status === 'scheduled' || detail.status === 'confirmed' ? (
-                  <>
-                    {detail.startTime < new Date() && (
-                      <>
-                        <button onClick={onComplete} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50">
-                          Mark completed
-                        </button>
-                        <button onClick={onNoShow} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-red-600 disabled:opacity-50">
-                          No-show
-                        </button>
-                      </>
-                    )}
-                    <button onClick={onCancel} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-red-600 disabled:opacity-50">
-                      Cancel appointment
-                    </button>
-                  </>
-                ) : null}
+              {/* ── Context stats ────────────────────────────────────── */}
+              <div className="grid grid-cols-2 gap-3 rounded-lg bg-stone-50 dark:bg-gray-900/40 p-3">
+                <Stat label="Last visit" value={fmtRelative(detail.patient.lastVisitAt)} />
+                <Stat label="Balance" value={money(detail.patient.outstandingBalanceCents)} tone={detail.patient.outstandingBalanceCents > 0 ? 'warn' : 'ok'} />
+                <Stat label="Lifetime spend" value={money(detail.patient.lifetimeValueCents)} />
+                <Stat label="Total bookings" value={String(detail.patient.totalBookings)} />
               </div>
+
+              {/* ── Action group — exactly one primary ───────────────── */}
+              <div className="flex flex-wrap gap-2">
+                {isScheduled ? (
+                  <ActionButton variant="primary" size="sm" onClick={onConfirm} disabled={pending}>
+                    Mark confirmed
+                  </ActionButton>
+                ) : (
+                  <ActionButton variant="primary" size="sm" onClick={onSendReminder} disabled={pending}>
+                    Send reminder email
+                  </ActionButton>
+                )}
+                {/* When scheduled, "Send reminder" is a secondary verb (the
+                    primary is "Mark confirmed"). */}
+                {isScheduled && (
+                  <ActionButton variant="secondary" size="sm" onClick={onSendReminder} disabled={pending}>
+                    Send reminder email
+                  </ActionButton>
+                )}
+                {detail.status !== 'completed' && detail.status !== 'cancelled' && (
+                  <ActionButton variant="secondary" size="sm" onClick={() => setReschedOpen(true)} disabled={pending}>
+                    Reschedule
+                  </ActionButton>
+                )}
+                {isPastOpen && (
+                  <ActionButton variant="secondary" size="sm" onClick={onComplete} disabled={pending}>
+                    Mark completed
+                  </ActionButton>
+                )}
+              </div>
+
+              {/* ── Destructive actions — separated, never beside primary ── */}
+              {isOpenState && (
+                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+                  {isPastOpen && (
+                    <ActionButton variant="danger" size="sm" onClick={onNoShow} disabled={pending}>
+                      Mark no-show
+                    </ActionButton>
+                  )}
+                  <ActionButton variant="danger" size="sm" onClick={onCancel} disabled={pending}>
+                    Cancel appointment
+                  </ActionButton>
+                </div>
+              )}
 
               {detail.notes && (
                 <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Notes</p>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Notes</p>
                   <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{detail.notes}</p>
                 </div>
               )}
 
               {/* Reminder activity */}
               <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Reminder activity</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Reminder activity</p>
                 {detail.reminders.length === 0 ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400 italic">
                     No reminders sent yet for this appointment.
@@ -265,7 +293,7 @@ export default function AppointmentDrawer({
                   <ul className="space-y-1.5">
                     {detail.reminders.map((r) => (
                       <li key={r.id} className="text-xs text-gray-700 dark:text-gray-300">
-                        <span className="font-medium uppercase tracking-wider text-[10px] text-gray-500 dark:text-gray-400">
+                        <span className="font-medium uppercase tracking-wider text-xs text-gray-500 dark:text-gray-400">
                           {r.channel}
                         </span>{' '}
                         sent {fmtRelative(r.sentAt)}
@@ -273,7 +301,7 @@ export default function AppointmentDrawer({
                         {r.repliedAt && (
                           <span className="text-emerald-700 dark:text-emerald-300"> · patient replied {fmtRelative(r.repliedAt)}</span>
                         )}
-                        {r.replyBody && <p className="ml-4 mt-0.5 text-[11px] italic">&ldquo;{r.replyBody}&rdquo;</p>}
+                        {r.replyBody && <p className="ml-4 mt-0.5 text-xs italic">&ldquo;{r.replyBody}&rdquo;</p>}
                       </li>
                     ))}
                   </ul>
@@ -282,7 +310,7 @@ export default function AppointmentDrawer({
 
               {/* Intake attached */}
               <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Intake</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Intake</p>
                 {detail.intakeAttached ? (
                   <p className="text-sm text-gray-700 dark:text-gray-200">
                     {detail.intakeAttached.formTitle} · submitted {fmtRelative(detail.intakeAttached.submittedAt)}
@@ -302,20 +330,9 @@ export default function AppointmentDrawer({
                 )}
               </div>
 
-              {/* Patient context mini-card */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Patient context</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Stat label="Last visit" value={fmtRelative(detail.patient.lastVisitAt)} />
-                  <Stat label="Balance" value={money(detail.patient.outstandingBalanceCents)} tone={detail.patient.outstandingBalanceCents > 0 ? 'warn' : 'ok'} />
-                  <Stat label="Lifetime spend" value={money(detail.patient.lifetimeValueCents)} />
-                  <Stat label="Total bookings" value={String(detail.patient.totalBookings)} />
-                </div>
-              </div>
-
               {/* Source / created */}
               <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Booking source</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Booking source</p>
                 <p className="text-xs text-gray-700 dark:text-gray-200">
                   {detail.source
                     ? `via ${detail.source.replace(/_/g, ' ')}`
@@ -335,11 +352,7 @@ export default function AppointmentDrawer({
           />
         )}
 
-        {toast && (
-          <div className="absolute bottom-4 right-4 bg-emerald-700 text-white text-xs px-3 py-2 rounded shadow">
-            {toast}
-          </div>
-        )}
+        {toast && <FlashToast message={toast} onDone={() => setToast(null)} duration={3000} />}
       </div>
     </div>
   )
@@ -356,14 +369,14 @@ function Stat({
 }) {
   const valueClass =
     tone === 'warn'
-      ? 'text-red-700 dark:text-red-300'
+      ? 'text-amber-700 dark:text-amber-300'
       : tone === 'ok'
         ? 'text-emerald-700 dark:text-emerald-300'
         : 'text-gray-800 dark:text-gray-100'
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
-      <p className={`text-sm font-semibold ${valueClass}`}>{value}</p>
+      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
+      <p className={`text-sm font-semibold tabular-nums ${valueClass}`}>{value}</p>
     </div>
   )
 }
@@ -410,7 +423,7 @@ function RescheduleSubDrawer({
     <div className="absolute inset-0 bg-white dark:bg-gray-800 flex flex-col">
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Reschedule</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">← Back</button>
+        <button onClick={onClose} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">← Back</button>
       </div>
       <div className="px-5 py-5 space-y-3 flex-1">
         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -418,26 +431,26 @@ function RescheduleSubDrawer({
           <strong>{fmtFull(detail.startTime)}</strong> to a new slot. The original row stays in the audit trail as cancelled.
         </p>
         <label className="block">
-          <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">New date</span>
+          <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">New date</span>
           <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
         </label>
         <label className="block">
-          <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">New time</span>
+          <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">New time</span>
           <input type="time" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
         </label>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="form-checkbox" />
           Notify patient via email
         </label>
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       </div>
       <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
-        <button onClick={onClose} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200">
+        <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
           Cancel
-        </button>
-        <button onClick={submit} disabled={pending} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 disabled:opacity-50">
+        </ActionButton>
+        <ActionButton variant="primary" size="sm" onClick={submit} disabled={pending}>
           {pending ? 'Rescheduling…' : 'Confirm reschedule'}
-        </button>
+        </ActionButton>
       </div>
     </div>
   )

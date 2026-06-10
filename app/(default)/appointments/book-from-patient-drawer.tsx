@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { ActionButton } from '@/components/ui/action-button'
 import { createInternalAppointmentAction } from './actions'
 
 const APPT_TYPES = [
@@ -75,34 +76,34 @@ export default function BookFromPatientDrawer({
         </div>
         <div className="px-6 py-5 space-y-3">
           <label className="block">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Type</span>
+            <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Type</span>
             <select value={type} onChange={(e) => setType(e.target.value)} className="form-select w-full mt-1 text-sm">
               {APPT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Date</span>
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Date</span>
               <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
             </label>
             <label className="block">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Time</span>
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Time</span>
               <input type="time" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
             </label>
           </div>
           <label className="block">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Notes</span>
+            <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Notes</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the front desk should know…" className="form-textarea w-full mt-1 text-sm min-h-[80px]" />
           </label>
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
         </div>
         <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
-          <button onClick={onClose} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200">
+          <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
             Cancel
-          </button>
-          <button onClick={submit} disabled={pending} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 disabled:opacity-50">
-            {pending ? 'Saving…' : 'Book'}
-          </button>
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={submit} disabled={pending}>
+            {pending ? 'Saving…' : 'Book appointment'}
+          </ActionButton>
         </div>
       </div>
     </div>

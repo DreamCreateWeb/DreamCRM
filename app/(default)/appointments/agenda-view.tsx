@@ -8,19 +8,36 @@ import type {
   AppointmentDayGroup,
   AppointmentListFilters,
   AppointmentFilterMeta,
-  AgingLevel,
   AppointmentStatus,
 } from '@/lib/services/appointments'
-import { AppointmentGlyphCluster } from './appointment-glyph-cluster'
+import {
+  APPOINTMENT_AGING_TIER,
+  agingBorderClass,
+  appointmentFlagGlyphs,
+  type Tone,
+} from '@/lib/ui/encodings'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import { BulkBar } from '@/components/ui/bulk-bar'
+import { FlashToast } from '@/components/ui/flash-toast'
 import AppointmentDrawer from './appointment-drawer'
 import { confirmAppointmentAction, bulkSendRemindersAction } from './actions'
 
-const STATUS_PILL: Record<AppointmentStatus, string> = {
-  scheduled: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  confirmed: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  completed: 'bg-stone-500/15 text-stone-600 dark:text-stone-300',
-  cancelled: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-  no_show: 'bg-red-500/15 text-red-700 dark:text-red-300',
+// Status carries categorical state only (timing lives on the aging border,
+// per-row flags on the glyphs). Tones from the semantic contract:
+// scheduled = warn (needs OUR confirmation text), confirmed = ok,
+// completed = neutral (inert/done), cancelled + no-show = urgent (problem).
+const STATUS_TONE: Record<AppointmentStatus, Tone> = {
+  scheduled: 'warn',
+  confirmed: 'ok',
+  completed: 'neutral',
+  cancelled: 'urgent',
+  no_show: 'urgent',
 }
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
   scheduled: 'Unconfirmed',
@@ -29,14 +46,35 @@ const STATUS_LABEL: Record<AppointmentStatus, string> = {
   cancelled: 'Cancelled',
   no_show: 'No-show',
 }
-
-const AGING_BORDER: Record<AgingLevel, string> = {
-  none: 'border-l-transparent',
-  neutral: 'border-l-stone-300 dark:border-l-stone-600',
-  amber: 'border-l-amber-400',
-  darkAmber: 'border-l-amber-600',
-  red: 'border-l-red-600',
+const STATUS_TITLE: Record<AppointmentStatus, string> = {
+  scheduled: "Hasn't confirmed yet — send a reminder",
+  confirmed: 'The patient confirmed this visit',
+  completed: 'This visit is done',
+  cancelled: 'This visit was cancelled',
+  no_show: "The patient didn't show",
 }
+
+// Legend glyphs, in the order appointmentFlagGlyphs emits them.
+const LEGEND_GLYPHS = [
+  'newPatient',
+  'lapsedReturning',
+  'birthday',
+  'balance',
+  'missingIntakeThis',
+  'unconfirmed48h',
+  'bookedJustNow',
+  'rescheduled',
+  'reminderSent',
+  'optedOut',
+] as const
+
+const LEGEND_PILLS = [
+  { tone: 'warn' as Tone, label: 'Unconfirmed', meaning: "Hasn't confirmed yet — send a reminder" },
+  { tone: 'ok' as Tone, label: 'Confirmed', meaning: 'The patient confirmed this visit' },
+  { tone: 'neutral' as Tone, label: 'Completed', meaning: 'This visit is done' },
+  { tone: 'urgent' as Tone, label: 'Cancelled', meaning: 'This visit was cancelled' },
+  { tone: 'urgent' as Tone, label: 'No-show', meaning: "The patient didn't show" },
+]
 
 const WINDOW_LABELS: Array<{ key: NonNullable<AppointmentListFilters['window']>; label: string }> = [
   { key: 'today', label: 'Today' },
@@ -47,14 +85,19 @@ const WINDOW_LABELS: Array<{ key: NonNullable<AppointmentListFilters['window']>;
   { key: 'past_30d', label: 'Past 30 days' },
 ]
 
-const ATTENTION_LABELS: Array<{ key: NonNullable<AppointmentListFilters['attention']>[number]; label: string }> = [
-  { key: 'unconfirmed', label: 'Unconfirmed' },
-  { key: 'needs_intake', label: '📝 Needs intake' },
-  { key: 'new_patients', label: '★ New patients' },
-  { key: 'has_balance', label: '$ Has balance' },
-  { key: 'lapsed_rebooking', label: '💤 Lapsed rebooking' },
-  { key: 'cancelled', label: 'Cancelled' },
-  { key: 'no_show', label: 'No-show' },
+// Attention chips carrying an emoji/icon MUST pass `title` (design-system rule).
+const ATTENTION_LABELS: Array<{
+  key: NonNullable<AppointmentListFilters['attention']>[number]
+  label: string
+  title?: string
+}> = [
+  { key: 'unconfirmed', label: 'Unconfirmed', title: 'Visits the patient still needs to confirm' },
+  { key: 'needs_intake', label: '📝 Needs intake', title: 'Visits with no intake form on file yet' },
+  { key: 'new_patients', label: '★ New patients', title: 'First-time or recently-joined patients' },
+  { key: 'has_balance', label: '$ Has balance', title: 'Patients who owe an outstanding balance' },
+  { key: 'lapsed_rebooking', label: '💤 Lapsed rebooking', title: 'Lapsed patients who booked again — welcome them back' },
+  { key: 'cancelled', label: 'Cancelled', title: 'Cancelled visits to recover' },
+  { key: 'no_show', label: 'No-show', title: 'Visits the patient missed' },
 ]
 
 function fmtTime(d: Date): string {
@@ -73,23 +116,23 @@ function sourceLabel(s: string): string {
   }
 }
 
-function emptyCopy(filters: AppointmentListFilters): { emoji: string; title: string; subtitle: string } {
+function emptyCopy(filters: AppointmentListFilters): { icon: string; title: string; body: string } {
   if (filters.attention?.includes('unconfirmed')) {
-    return { emoji: '✅', title: 'No unconfirmed appointments — nice.', subtitle: 'Everything in this window is confirmed.' }
+    return { icon: '✅', title: 'No unconfirmed appointments — nice.', body: 'Everything in this window is confirmed.' }
   }
   if (filters.attention?.includes('cancelled') || filters.attention?.includes('no_show')) {
-    return { emoji: '🌿', title: 'No cancellations to recover from — keep going.', subtitle: 'Great front-desk discipline.' }
+    return { icon: '🌿', title: 'No cancellations to recover from — keep going.', body: 'Great front-desk discipline.' }
   }
   if (filters.attention?.includes('needs_intake')) {
-    return { emoji: '📋', title: 'All upcoming visitors have their intake on file.', subtitle: 'Nothing to chase.' }
+    return { icon: '📋', title: 'All upcoming visitors have their intake on file.', body: 'Nothing to chase.' }
   }
   if (filters.attention?.includes('lapsed_rebooking')) {
-    return { emoji: '🌱', title: 'No lapsed-patient rebookings in this window.', subtitle: 'Run a recall campaign to bring them back.' }
+    return { icon: '🌱', title: 'No lapsed-patient rebookings in this window.', body: 'Run a recall campaign to bring them back.' }
   }
   if (filters.window === 'today') {
-    return { emoji: '☕', title: 'Nothing booked today.', subtitle: 'Go enjoy a quiet morning, or send your booking link out to fill the gaps.' }
+    return { icon: '☕', title: 'Nothing booked today.', body: 'Go enjoy a quiet morning, or send your booking link out to fill the gaps.' }
   }
-  return { emoji: '📅', title: 'No appointments in this window.', subtitle: 'Try a wider date range, or share your booking link.' }
+  return { icon: '📅', title: 'No appointments in this window.', body: 'Try a wider date range, or share your booking link.' }
 }
 
 export default function AgendaView({
@@ -165,7 +208,6 @@ export default function AgendaView({
       const r = await bulkSendRemindersAction(ids, 'email')
       setToast(`Sent ${r.sent} reminder${r.sent === 1 ? '' : 's'}${r.skipped ? ` · skipped ${r.skipped}` : ''}${r.errors.length ? ` · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}` : ''}`)
       setSelected(new Set())
-      setTimeout(() => setToast(null), 4000)
     })
   }
 
@@ -173,46 +215,60 @@ export default function AgendaView({
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
-            Appointments · {orgName}
-          </p>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            {totalRows} {totalRows === 1 ? 'booking' : 'bookings'}
-          </h1>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={`Daily · ${orgName}`}
+        title="Appointments"
+        subtitle={
+          totalRows === 0
+            ? 'Confirm, reschedule, and follow up on the visits on your books.'
+            : `${totalRows} ${totalRows === 1 ? 'booking' : 'bookings'} in view — confirm, reschedule, and follow up.`
+        }
+        legend={
+          <EncodingLegend
+            glyphs={[...LEGEND_GLYPHS]}
+            aging="appointments"
+            pills={LEGEND_PILLS}
+          />
+        }
+        actions={
+          <ActionButton variant="primary" href="/appointments?window=today">
+            + New booking
+          </ActionButton>
+        }
+      />
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 mb-4 space-y-3">
         {/* Date window row */}
         <div className="flex flex-wrap gap-2 items-center">
           {WINDOW_LABELS.map((w) => (
-            <Chip
+            <FilterChip
               key={w.key}
-              label={w.label}
               active={(filters.window ?? 'next_14d') === w.key}
               onClick={() => setParam('window', w.key === 'next_14d' ? null : w.key)}
-            />
+            >
+              {w.label}
+            </FilterChip>
           ))}
         </div>
         {/* Needs-attention row + search */}
         <div className="flex flex-wrap gap-2 items-center">
           {ATTENTION_LABELS.map((a) => (
-            <Chip
+            <FilterChip
               key={a.key}
-              label={a.label}
               active={(filters.attention ?? []).includes(a.key)}
               onClick={() => toggleAttention(a.key)}
-            />
+              title={a.title}
+            >
+              {a.label}
+            </FilterChip>
           ))}
           {meta.providers.length > 0 && (
             <select
               value={filters.providerId ?? ''}
               onChange={(e) => setParam('provider', e.target.value || null)}
               className="form-select text-xs py-1"
+              title="Filter by staff member"
             >
               <option value="">Any staff</option>
               {meta.providers.map((p) => (
@@ -247,7 +303,7 @@ export default function AgendaView({
 
       {/* ── Agenda ───────────────────────────────────────────────────── */}
       {groups.length === 0 ? (
-        <EmptyState filters={filters} />
+        <AgendaEmptyState filters={filters} />
       ) : (
         <div className="space-y-6">
           {groups.map((g) => (
@@ -266,30 +322,13 @@ export default function AgendaView({
       )}
 
       {/* ── Sticky bulk action bar ───────────────────────────────────── */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-0 inset-x-0 sm:bottom-6 sm:right-6 sm:left-auto sm:rounded-xl bg-gray-900 dark:bg-gray-100 text-gray-100 dark:text-gray-900 shadow-2xl px-5 py-3 flex items-center gap-3 z-30">
-          <span className="text-sm font-medium">{selected.size} selected</span>
-          <button
-            onClick={onBulkSend}
-            disabled={bulkPending}
-            className="text-xs font-semibold uppercase tracking-wider bg-white/10 dark:bg-black/10 hover:bg-white/20 dark:hover:bg-black/20 px-3 py-1.5 rounded-md disabled:opacity-50"
-          >
-            {bulkPending ? 'Sending…' : 'Send reminder'}
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="text-xs text-gray-300 dark:text-gray-600 hover:text-white dark:hover:text-black px-2"
-          >
-            Clear
-          </button>
-        </div>
-      )}
+      <BulkBar count={selected.size} onClear={() => setSelected(new Set())}>
+        <ActionButton variant="primary" size="sm" onClick={onBulkSend} disabled={bulkPending}>
+          {bulkPending ? 'Sending…' : `Send ${selected.size} reminder${selected.size === 1 ? '' : 's'}`}
+        </ActionButton>
+      </BulkBar>
 
-      {toast && (
-        <div className="fixed bottom-24 right-6 bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-40">
-          {toast}
-        </div>
-      )}
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
 
       {openDetail && (
         <AppointmentDrawer
@@ -298,21 +337,6 @@ export default function AgendaView({
         />
       )}
     </div>
-  )
-}
-
-function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-xs px-3 py-1.5 rounded-full font-medium transition ${
-        active
-          ? 'bg-gray-900 dark:bg-gray-100 text-gray-100 dark:text-gray-800'
-          : 'bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-      }`}
-    >
-      {label}
-    </button>
   )
 }
 
@@ -346,7 +370,7 @@ function DaySection({
           aria-label={`Select all ${group.label}`}
         />
         <p className="text-sm font-semibold text-stone-700 dark:text-gray-200">{group.label}</p>
-        <p className="text-xs text-stone-500 dark:text-gray-400">
+        <p className="text-xs text-stone-600 dark:text-gray-300 tabular-nums">
           {group.totals.booked} booked
           {group.totals.confirmed > 0 && ` · ${group.totals.confirmed} confirmed`}
           {stillUnconfirmed > 0 && ` · ${stillUnconfirmed} still need a text`}
@@ -388,7 +412,7 @@ function AppointmentRowCard({
   return (
     <li
       onClick={onOpen}
-      className={`bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-3 cursor-pointer hover:bg-stone-50 dark:hover:bg-gray-900/30 transition border-l-4 ${AGING_BORDER[row.agingLevel]}`}
+      className={`bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-3 cursor-pointer hover:bg-stone-50 dark:hover:bg-gray-900/30 transition border-l-4 ${agingBorderClass(APPOINTMENT_AGING_TIER[row.agingLevel])}`}
     >
       <div className="flex items-center gap-3">
         <input
@@ -399,7 +423,7 @@ function AppointmentRowCard({
           className="form-checkbox shrink-0"
           aria-label={`Select ${row.patientName}`}
         />
-        <div className="shrink-0 w-20 text-sm font-mono font-medium text-gray-700 dark:text-gray-300">
+        <div className="shrink-0 w-20 text-sm font-mono font-medium text-gray-700 dark:text-gray-300 tabular-nums">
           {fmtTime(row.startTime)}
         </div>
         <div className="flex-1 min-w-0">
@@ -408,7 +432,7 @@ function AppointmentRowCard({
               {typeLabel}
             </span>
             {row.durationMinutes && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">{row.durationMinutes}m</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{row.durationMinutes}m</span>
             )}
             {row.providerName && (
               <span className="text-xs text-gray-500 dark:text-gray-400">· with {row.providerName}</span>
@@ -418,11 +442,11 @@ function AppointmentRowCard({
             <Link
               href={`/patients/${row.patientId}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-sm text-gray-700 dark:text-gray-200 hover:underline truncate"
+              className="text-sm font-medium text-gray-700 dark:text-gray-200 hover:underline truncate"
             >
               {row.patientName}
             </Link>
-            <AppointmentGlyphCluster flags={row.flags} cap={4} />
+            <GlyphCluster glyphs={appointmentFlagGlyphs(row.flags)} cap={4} />
           </div>
           {row.notes && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1 italic">&ldquo;{row.notes}&rdquo;</p>
@@ -430,31 +454,39 @@ function AppointmentRowCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {row.status === 'scheduled' && (
-            <button
+            <ActionButton
+              variant="secondary"
+              size="sm"
               onClick={onConfirm}
               disabled={confirming}
-              className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 disabled:opacity-50"
               title="Mark as confirmed (manual override)"
             >
               {confirming ? '…' : 'Confirm'}
-            </button>
+            </ActionButton>
           )}
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_PILL[row.status]}`}>
+          <StatusPill tone={STATUS_TONE[row.status]} title={STATUS_TITLE[row.status]}>
             {STATUS_LABEL[row.status]}
-          </span>
+          </StatusPill>
         </div>
       </div>
     </li>
   )
 }
 
-function EmptyState({ filters }: { filters: AppointmentListFilters }) {
+function AgendaEmptyState({ filters }: { filters: AppointmentListFilters }) {
   const copy = emptyCopy(filters)
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-6 py-16 text-center">
-      <p className="text-4xl mb-3">{copy.emoji}</p>
-      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">{copy.title}</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">{copy.subtitle}</p>
+    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+      <EmptyState
+        icon={copy.icon}
+        title={copy.title}
+        body={copy.body}
+        action={
+          <ActionButton variant="primary" href="/appointments?window=today">
+            + New booking
+          </ActionButton>
+        }
+      />
     </div>
   )
 }
