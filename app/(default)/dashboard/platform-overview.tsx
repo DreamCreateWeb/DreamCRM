@@ -2,6 +2,10 @@ import Link from 'next/link'
 import { getSubscriptionStats } from '@/lib/services/projects'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { KpiStat } from '@/components/ui/kpi-stat'
 
 const KIND_ICONS: Record<string, string> = {
   past_due_invoice: '⚠️',
@@ -14,11 +18,13 @@ const KIND_ICONS: Record<string, string> = {
   subscription_paid: '💵',
 }
 
+// Decorative reinforcement of the already-labeled item text — color is never
+// the only signal here (each row carries an emoji + a full text title).
 const KIND_COLOR: Record<string, string> = {
-  past_due_invoice: 'bg-red-500/15 text-red-700 dark:text-red-400',
-  stalled_project: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
-  overdue_project: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
-  new_signup: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+  past_due_invoice: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+  stalled_project: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  overdue_project: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  new_signup: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
 }
 
 function moneyFull(cents: number): string {
@@ -38,62 +44,53 @@ export default async function PlatformOverview() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            Overview
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Today's pulse and what needs your attention.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/dashboard/analytics"
-            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-          >
-            Platform Metrics →
-          </Link>
-          <Link
-            href="/dashboard/fintech"
-            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-          >
-            Revenue →
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform · Dream Create"
+        title="Overview"
+        subtitle="Today's pulse and what needs your attention."
+        actions={
+          <>
+            <ActionButton href="/dashboard/analytics" variant="secondary">
+              Platform Metrics →
+            </ActionButton>
+            <ActionButton href="/dashboard/fintech" variant="secondary">
+              Revenue →
+            </ActionButton>
+          </>
+        }
+      />
 
       {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Kpi
+        <KpiStat
           label="Active Clinics"
           value={formatNumberShort(subs.activeClinics)}
-          hint={`${subs.newClinics30d} new in 30d`}
+          sub={`${subs.newClinics30d} new in 30d`}
         />
-        <Kpi
+        <KpiStat
           label="MRR"
           value={formatMoneyShort(subs.monthlyRecurringCents)}
-          hint="From active plan tiers"
+          sub="From active plan tiers"
         />
-        <Kpi
+        <KpiStat
           label="Open Projects"
           value={formatNumberShort(attention.stalledProjectCount + attention.overdueProjectCount + (activity.rows.filter((a) => a.kind === 'project_started').length))}
-          hint="See Platform Metrics for trend"
+          sub="See Platform Metrics for trend"
         />
-        <Kpi
+        <KpiStat
           label="Needs Attention"
           value={formatNumberShort(attention.total)}
-          hint={
+          sub={
             attention.total === 0
               ? "You're caught up"
               : `${attention.pastDueInvoiceCount} past-due · ${attention.stalledProjectCount + attention.overdueProjectCount} project flags`
           }
-          tone={attention.total > 0 ? 'warn' : 'default'}
+          tone={attention.total > 0 ? 'warn' : undefined}
         />
       </div>
 
       {attention.stripeUnavailable && (
-        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-400">
+        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
           Stripe couldn't be reached — past-due invoice checks skipped this load.
         </div>
       )}
@@ -110,18 +107,17 @@ export default async function PlatformOverview() {
             </p>
           </div>
           {attention.pastDueInvoiceCents > 0 && (
-            <span className="text-sm font-semibold text-red-600 dark:text-red-400">
+            <span className="text-sm font-semibold text-rose-700 dark:text-rose-300 tabular-nums">
               {moneyFull(attention.pastDueInvoiceCents)} past-due
             </span>
           )}
         </div>
         {attention.items.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-3xl mb-2">✅</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              All clear — no past-due invoices, no stalled projects, no new signups waiting.
-            </p>
-          </div>
+          <EmptyState
+            icon="✅"
+            title="All clear"
+            body="No past-due invoices, no stalled projects, no new signups waiting."
+          />
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {attention.items.map((item, i) => (
@@ -143,11 +139,11 @@ export default async function PlatformOverview() {
                   )}
                 </div>
                 {item.amountCents != null && (
-                  <span className="shrink-0 font-semibold text-red-600 dark:text-red-400">
+                  <span className="shrink-0 font-semibold text-rose-700 dark:text-rose-300 tabular-nums">
                     {moneyFull(item.amountCents)}
                   </span>
                 )}
-                <span className="shrink-0 text-xs text-gray-400 hidden sm:inline" suppressHydrationWarning>
+                <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 hidden sm:inline tabular-nums" suppressHydrationWarning>
                   {formatRelativeDate(item.ts)}
                 </span>
               </li>
@@ -167,9 +163,10 @@ export default async function PlatformOverview() {
           </span>
         </div>
         {activity.rows.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-8">
-            No activity yet. Once clinics sign up and projects start moving, you'll see them here.
-          </p>
+          <EmptyState
+            title="No activity yet"
+            body="Once clinics sign up and projects start moving, you'll see them here."
+          />
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {activity.rows.map((row) => (
@@ -191,11 +188,11 @@ export default async function PlatformOverview() {
                   )}
                 </div>
                 {row.amountCents != null && (
-                  <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">
+                  <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
                     +{moneyFull(row.amountCents)}
                   </span>
                 )}
-                <span className="shrink-0 text-xs text-gray-400 hidden sm:inline" suppressHydrationWarning>
+                <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 hidden sm:inline tabular-nums" suppressHydrationWarning>
                   {formatRelativeDate(row.ts)}
                 </span>
               </li>
@@ -222,32 +219,6 @@ export default async function PlatformOverview() {
           subtitle="Manage clinic accounts"
         />
       </div>
-    </div>
-  )
-}
-
-function Kpi({
-  label,
-  value,
-  hint,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  hint?: string
-  tone?: 'default' | 'warn'
-}) {
-  return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4">
-      <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold mb-1">
-        {label}
-      </div>
-      <div
-        className={`text-2xl font-bold ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-100'}`}
-      >
-        {value}
-      </div>
-      {hint && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{hint}</div>}
     </div>
   )
 }

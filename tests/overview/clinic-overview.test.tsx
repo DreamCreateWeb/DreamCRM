@@ -326,7 +326,9 @@ describe("Today's chair", () => {
     )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByLabelText(/No intake form on file/)).toBeInTheDocument()
+    // Glyph now comes from the shared registry; its aria-label is the
+    // canonical "missing intake before next visit" wording.
+    expect(screen.getByLabelText(/Missing intake form before next visit/)).toBeInTheDocument()
   })
 })
 
