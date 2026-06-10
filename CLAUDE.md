@@ -129,18 +129,34 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (ILIKE w/ escaped wildcards, LIMIT-capped, parallel; `likePattern` exported
   for tests), action `app/(default)/search/actions.ts`, UI
   `components/search-modal.tsx` (debounced, grouped, full keyboard nav).
-- **Platform marketing site** at the root of `www.dreamcreatestudio.com` —
-  signed-out visitors get a warm single-page marketing site (same design
-  language as clinic sites: `#FAF7F2` ground, Fraunces display via runtime
-  `<link>`, sage accent, forest-teal bands) with hero, consolidation pitch
-  ("replace 5-6 vendor subscriptions"), 8-card feature tour, how-it-works,
-  pricing cards read LIVE from `lib/stripe-config.ts` `PLANS` (copy refreshed
-  to match real module gating), FAQ (`<details>`, zero client JS), Sign in /
-  Get started CTAs, and "live demo" links to the public Acme site. `/` is now
-  a PUBLIC path (exact match) in `middleware.ts`; `app/page.tsx` routes:
-  signed-out → marketing, patient → portal, staff/platform → dashboard,
-  session-without-org → resume onboarding (fixes a signin loop for abandoned
-  signups). Component: `components/marketing/marketing-home.tsx`.
+- **Platform marketing site v2 — multi-page B2B SaaS site** at the root of
+  `www.dreamcreatestudio.com` (route group `app/(marketing)/`, shared
+  header/footer chrome in `components/marketing/`). Deliberately NOT the warm
+  Tend-style language clinics get — ink/white/violet-600 (the product's own
+  accent), Inter, dense SaaS register (the buyer is a practice owner, not a
+  patient). Pages: **/** (hero w/ CSS dashboard+portal mocks, consolidation
+  table, 8 pillar cards, comparison teaser, pricing teaser, dark CTA),
+  **/product** (8 anchor-linked deep-dive sections w/ sticky in-page nav:
+  website/booking/portal/messages/reviews/recall/shop/integrations),
+  **/pricing** (plan cards + a full tier matrix mirroring the REAL module
+  gating + pricing FAQ), **/compare** + **/compare/[vendor]** (5 data-driven
+  pages from `lib/marketing/comparisons.ts`: Weave/NexHealth/RevenueWell/
+  Solutionreach/Adit — each leads with the vendor's honest strengths, then
+  ours, then a 12-row feature matrix; all competitor claims hedged
+  "reported" + dated disclaimer; our SMS row is honestly 'no' until Phase B
+  ships), **/docs** + **/docs/[slug]** (16 repo-checked help articles in 4
+  categories, `lib/marketing/docs.ts`, accurate to the shipping product),
+  **/blog** + **/blog/[slug]** (the PLATFORM org's posts through the SAME
+  blog system clinics use — `lib/services/marketing-blog.ts`; 3 launch posts
+  seed idempotently-by-slug via the resync-demo deploy hook; prose styling
+  via @tailwindcss/typography). Root `app/sitemap.ts` + `app/robots.ts`
+  (marketing pages; authenticated paths disallowed). Middleware publics:
+  `/` (exact), /product, /pricing, /compare, /docs, /blog, /sitemap.xml,
+  /robots.txt. **Dashboard blog manager moved `/blog` → `/posts`** to free
+  the public path (sidebar, hints id stays 'blog', editor/calendar/preview
+  links + revalidatePaths all renamed); the posts manager + actions now
+  ALSO allow the platform tenant (new 'Platform Blog' entry in
+  `lib/modules/platform.ts`) so marketing posts are authored in-app.
 - **Staff tutorial system** (migration 0052, `staff_onboarding` per org+user) —
   three layers, per-staff-member dismissals, clinic tenants only (works in
   demo mode so it's showcasable): (1) **first-run welcome modal** on the

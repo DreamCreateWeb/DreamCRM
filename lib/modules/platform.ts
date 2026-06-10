@@ -18,6 +18,7 @@ export const platformModules: ModuleRegistry = {
     { id: 'calendar',         path: '/calendar',            label: 'Calendar',         section: 'Pages', icon: 'cal',      status: 'live' },
     { id: 'tasks',            path: '/tasks/kanban',        label: 'Tasks',            section: 'Pages', icon: 'check',    status: 'live' },
     { id: 'campaigns',        path: '/marketing',           label: 'Marketing',        section: 'Pages', icon: 'megaphone',status: 'live' },
+    { id: 'marketing_blog',   path: '/posts',               label: 'Platform Blog',    section: 'Pages', icon: 'pen',      status: 'live' },
     { id: 'search_console',   path: '/seo',                 label: 'Search Console',   section: 'Settings', icon: 'search', status: 'live' },
     { id: 'service_library',  path: '/platform/service-library', label: 'Service Library', section: 'Settings', icon: 'gear', status: 'live' },
     { id: 'settings',         path: '/settings/account',    label: 'Settings',         section: 'Settings', icon: 'gear', status: 'live' },

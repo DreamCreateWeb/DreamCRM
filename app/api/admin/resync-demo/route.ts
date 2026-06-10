@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createDemoClinic } from '@/lib/services/demo-clinic'
+import { seedPlatformBlogPosts } from '@/lib/services/marketing-blog'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,10 @@ export async function POST(request: Request) {
   }
   try {
     const result = await createDemoClinic()
-    return NextResponse.json({ ok: true, ...result })
+    // Marketing launch posts (idempotent by slug; platform org). Rides the
+    // same deploy hook so the public /blog is never empty on a fresh stack.
+    const blog = await seedPlatformBlogPosts()
+    return NextResponse.json({ ok: true, ...result, marketingPostsCreated: blog.created })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }

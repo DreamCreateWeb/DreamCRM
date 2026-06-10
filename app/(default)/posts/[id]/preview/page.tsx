@@ -18,7 +18,7 @@ export const metadata = { title: 'Preview — DreamCRM' }
 export default async function BlogPreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
 
   const { id } = await params
   const post = await getBlogPost(ctx.organizationId, id)
@@ -44,7 +44,7 @@ export default async function BlogPreviewPage({ params }: { params: Promise<{ id
         <span>
           Preview · {post.status === 'published' ? 'published' : 'draft'} — only you can see this
         </span>
-        <Link href={`/blog/${post.id}`} className="underline hover:no-underline">
+        <Link href={`/posts/${post.id}`} className="underline hover:no-underline">
           Back to editor
         </Link>
       </div>

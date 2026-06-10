@@ -22,7 +22,7 @@ export interface CalendarItem {
 export default async function BlogCalendarPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
 
   const posts = await listBlogPosts(ctx.organizationId)
   const items: CalendarItem[] = posts.map((p) => {

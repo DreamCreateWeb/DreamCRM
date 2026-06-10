@@ -125,7 +125,7 @@ const SECTION_TITLES: Record<string, string> = {
  */
 const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
   blog: {
-    href: '/blog',
+    href: '/posts',
     cta: 'Open the blog manager',
     desc: 'Your blog posts — drafts, scheduling, and publishing — live in the blog manager, which has the full editor and a publishing calendar. Anything you publish there appears on your site automatically.',
   },
