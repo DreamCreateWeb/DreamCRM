@@ -17,6 +17,9 @@ const PUBLIC_PATHS = [
   '/blog',
   '/sitemap.xml',
   '/robots.txt',
+  // Root OG card — social scrapers fetch it unauthenticated; without this
+  // they get bounced to /signin and link previews render blank.
+  '/opengraph-image',
   '/signin',
   '/signup',
   '/reset-password',
