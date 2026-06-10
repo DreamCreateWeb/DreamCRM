@@ -85,6 +85,13 @@ describe('pricing page', () => {
         screen.getByText(`or $${plan.annualPrice.toLocaleString('en-US')}/yr — 2 months free`),
       ).toBeInTheDocument()
     }
+    // Plan-card CTAs carry the picked plan into signup → onboarding.
+    for (const plan of PLANS) {
+      expect(screen.getByRole('link', { name: `Choose ${plan.name}` })).toHaveAttribute(
+        'href',
+        `/signup?plan=${plan.id}`,
+      )
+    }
     // Premium-only rows render in the matrix (also present in plan-card
     // feature lists, hence getAllByText).
     expect(screen.getByText('Open Dental two-way sync (official API)')).toBeInTheDocument()
