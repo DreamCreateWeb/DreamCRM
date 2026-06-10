@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { AppointmentGlyphCluster } from '@/app/(default)/appointments/appointment-glyph-cluster'
+import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { appointmentFlagGlyphs } from '@/lib/ui/encodings'
 import type { AppointmentRowFlags } from '@/lib/services/appointments'
 
+/**
+ * The Appointments module now renders the shared <GlyphCluster> driven by the
+ * appointmentFlagGlyphs() builder from lib/ui/encodings (the per-module
+ * glyph component was deleted in the design-system migration). These tests
+ * pin the same INTENT as before: the appointment flag shape maps to the
+ * right registry glyphs (aria-labels preserved), and cap/overflow behaves.
+ */
 function flags(overrides: Partial<AppointmentRowFlags> = {}): AppointmentRowFlags {
   return {
     newPatient: false,
@@ -19,22 +27,24 @@ function flags(overrides: Partial<AppointmentRowFlags> = {}): AppointmentRowFlag
   }
 }
 
-describe('AppointmentGlyphCluster', () => {
+describe('Appointments glyph cluster (shared GlyphCluster + appointmentFlagGlyphs)', () => {
   it('renders nothing when no flags are set', () => {
-    const { container } = render(<AppointmentGlyphCluster flags={flags()} />)
+    const { container } = render(<GlyphCluster glyphs={appointmentFlagGlyphs(flags())} />)
     expect(container.firstChild).toBeNull()
   })
 
   it('renders patient-carried glyphs (★/🎂/$/📝!/⚠️)', () => {
     render(
-      <AppointmentGlyphCluster
-        flags={flags({
-          newPatient: true,
-          birthdayThisWeek: true,
-          hasOutstandingBalance: true,
-          missingIntakeBeforeAppt: true,
-          unconfirmedNext48h: true,
-        })}
+      <GlyphCluster
+        glyphs={appointmentFlagGlyphs(
+          flags({
+            newPatient: true,
+            birthdayThisWeek: true,
+            hasOutstandingBalance: true,
+            missingIntakeBeforeAppt: true,
+            unconfirmedNext48h: true,
+          }),
+        )}
         cap={Infinity}
       />,
     )
@@ -46,36 +56,38 @@ describe('AppointmentGlyphCluster', () => {
   })
 
   it('renders the lapsed-returning 💤 celebration glyph', () => {
-    render(<AppointmentGlyphCluster flags={flags({ lapsedReturning: true })} />)
+    render(<GlyphCluster glyphs={appointmentFlagGlyphs(flags({ lapsedReturning: true }))} />)
     expect(screen.getByLabelText(/Lapsed patient returning/)).toBeInTheDocument()
   })
 
   it('renders the 🆕 booked-just-now glyph', () => {
-    render(<AppointmentGlyphCluster flags={flags({ bookedJustNow: true })} />)
+    render(<GlyphCluster glyphs={appointmentFlagGlyphs(flags({ bookedJustNow: true }))} />)
     expect(screen.getByLabelText(/Booked in the last hour/)).toBeInTheDocument()
   })
 
   it('renders the 📅 rescheduled glyph', () => {
-    render(<AppointmentGlyphCluster flags={flags({ rescheduled: true })} />)
+    render(<GlyphCluster glyphs={appointmentFlagGlyphs(flags({ rescheduled: true }))} />)
     expect(screen.getByLabelText(/Rescheduled from an earlier slot/)).toBeInTheDocument()
   })
 
   it('renders the ⏱ reminder-sent-recently glyph', () => {
-    render(<AppointmentGlyphCluster flags={flags({ reminderSentRecently: true })} />)
+    render(<GlyphCluster glyphs={appointmentFlagGlyphs(flags({ reminderSentRecently: true }))} />)
     expect(screen.getByLabelText(/Reminder sent in the last 24h/)).toBeInTheDocument()
   })
 
   it('caps at the configured number with +N overflow', () => {
     render(
-      <AppointmentGlyphCluster
-        flags={flags({
-          newPatient: true,
-          birthdayThisWeek: true,
-          hasOutstandingBalance: true,
-          missingIntakeBeforeAppt: true,
-          unconfirmedNext48h: true,
-          bookedJustNow: true,
-        })}
+      <GlyphCluster
+        glyphs={appointmentFlagGlyphs(
+          flags({
+            newPatient: true,
+            birthdayThisWeek: true,
+            hasOutstandingBalance: true,
+            missingIntakeBeforeAppt: true,
+            unconfirmedNext48h: true,
+            bookedJustNow: true,
+          }),
+        )}
         cap={3}
       />,
     )

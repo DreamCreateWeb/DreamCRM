@@ -264,6 +264,7 @@ describe('AgendaView', () => {
     expect(screen.queryByText(/1 selected/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Select Mia Hayes'))
     expect(screen.getByText(/1 selected/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Send reminder/ })).toBeInTheDocument()
+    // BulkBar uses an explicit-verb label that pluralizes by count.
+    expect(screen.getByRole('button', { name: /Send 1 reminder/ })).toBeInTheDocument()
   })
 })
