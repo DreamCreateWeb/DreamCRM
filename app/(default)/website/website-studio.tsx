@@ -142,6 +142,22 @@ const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
   },
 }
 
+/**
+ * Reduce a list of AI edits to the ordered, de-duplicated set of canvas "stops"
+ * the Follow-along tour visits — one per distinct (page, anchor). Edits with no
+ * anchor (nothing to flash on the canvas, e.g. a phone-number change) are
+ * dropped, and a (page, anchor) seen earlier wins so we don't bounce back to a
+ * spot we already flashed. Pure + exported so the tour/single-jump branch logic
+ * is unit-testable without the iframe.
+ */
+export function tourStops(
+  edits: { anchor: string | null; page: string }[],
+): { anchor: string; page: string }[] {
+  return edits
+    .filter((e): e is { anchor: string; page: string } => !!e.anchor)
+    .filter((e, i, arr) => arr.findIndex((x) => x.anchor === e.anchor && x.page === e.page) === i)
+}
+
 const btnPrimary =
   'inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 transition disabled:opacity-60'
 const btnSecondary =
@@ -159,6 +175,10 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const [status, setStatus] = useState<Status>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>(null)
+  // The pending "Saved ✓ → idle" timer. Tracked so a second save can clear a
+  // stale one — otherwise the old timer fires mid-save and flips the live
+  // "Saving…" indicator back to idle while a write is still in flight.
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const reloadFrame = () => {
     const f = iframeRef.current
@@ -205,8 +225,29 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     }
   }
 
+  // Swap an image's `src` in place so the new photo shows the instant the save
+  // lands, before the (also-issued) reload re-renders the page. The EditBridge
+  // applies it to the matching `[data-edit-field]` <img>.
+  const postSetImage = (field: string, url: string) => {
+    if (!url) return
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        { source: 'dreamcrm-studio', type: 'setImage', field, url },
+        window.location.origin,
+      )
+    } catch {
+      /* cross-origin guard — never happens (same origin) */
+    }
+  }
+
   // A monotonically-increasing token so a new edit cancels a still-running tour.
   const tourSeq = useRef(0)
+  // Abandon any in-flight AI tour. Bumping the token makes the running loop bail
+  // on its next `tourSeq.current !== mine` check, so a manual save's reload (or
+  // an Undo) never fights the tour still navigating the canvas underneath it.
+  const cancelTour = () => {
+    tourSeq.current++
+  }
   const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
 
   async function runTour(stops: { page: string; anchor: string }[]) {
@@ -235,13 +276,15 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     edits: { anchor: string | null; page: string }[]
     follow: boolean
   }) => {
+    // A fresh AI result (or an Undo) supersedes any tour still running from the
+    // previous edit. runTour bumps the token itself, but the single-jump and
+    // follow-off branches below don't — so cancel here to cover every path.
+    cancelTour()
     if (!opts.follow) {
       reloadFrame()
       return
     }
-    const stops = opts.edits
-      .filter((e): e is { anchor: string; page: string } => !!e.anchor)
-      .filter((e, i, arr) => arr.findIndex((x) => x.anchor === e.anchor && x.page === e.page) === i)
+    const stops = tourStops(opts.edits)
     if (stops.length <= 1) {
       navigateFrame(opts.page, opts.anchor)
       return
@@ -250,12 +293,25 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   }
 
   async function persist(fn: () => Promise<SectionResult>): Promise<SectionResult> {
+    // A manual save and a running AI tour both drive the canvas — cancel the
+    // tour first so it stops navigating before this save reloads the page
+    // (otherwise the two fight over the viewport).
+    cancelTour()
+    // Clear a stale "→ idle" timer from a previous save so it can't fire mid-
+    // write and flip the live "Saving…" indicator back to idle.
+    if (savedTimer.current) {
+      clearTimeout(savedTimer.current)
+      savedTimer.current = null
+    }
     setStatus('saving')
     setErrorMsg(null)
     const res = await fn()
     if (res.ok) {
       setStatus('saved')
-      window.setTimeout(() => setStatus('idle'), 1800)
+      savedTimer.current = setTimeout(() => {
+        setStatus('idle')
+        savedTimer.current = null
+      }, 1800)
       reloadFrame()
     } else {
       setStatus('error')
@@ -283,6 +339,13 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
+  }, [])
+
+  // Drop any pending saved-state timer if the Studio unmounts mid-save.
+  useEffect(() => {
+    return () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+    }
   }, [])
 
   return (
@@ -347,6 +410,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           onClose={() => setModal(null)}
           persist={persist}
           reload={reloadFrame}
+          onImageSaved={postSetImage}
         />
       )}
     </div>
@@ -361,6 +425,7 @@ function StudioModal({
   onClose,
   persist,
   reload,
+  onImageSaved,
 }: {
   modal: NonNullable<ModalState>
   profile: ClinicProfile
@@ -369,6 +434,8 @@ function StudioModal({
   onClose: () => void
   persist: (fn: () => Promise<SectionResult>) => Promise<SectionResult>
   reload: () => void
+  /** Instant in-canvas image swap once an image save lands (before the reload). */
+  onImageSaved: (field: string, url: string) => void
 }) {
   const formRef = useRef<HTMLFormElement | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(
@@ -388,6 +455,21 @@ function StudioModal({
   const videoFileRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+
+  // ESC closes the modal — matching the backdrop-click affordance (the two were
+  // inconsistent before: only backdrop closed). Held off while a save or upload
+  // is in flight so an accidental ESC can't drop work mid-write. Inline
+  // contentEditable lives in the iframe, not here, so there's no conflict.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !busy && !uploading) {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [busy, uploading, onClose])
 
   // Direct video upload — reuses the auth-gated /api/upload route (S3), the
   // same path ImageUploader uses. On success the resolved URL fills the URL
@@ -444,6 +526,9 @@ function StudioModal({
     let res: SectionResult
     if (modal.kind === 'image') {
       res = await persist(() => saveImageField(modal.field, imageUrl ?? '', position))
+      // Show the new photo instantly in the canvas (the reload also re-renders
+      // it, but this avoids a flash of the old image while the page reloads).
+      if (res.ok && imageUrl) onImageSaved(modal.field, imageUrl)
     } else if (modal.field === 'differenceVideoUrl') {
       res = await persist(() => saveInlineField('differenceVideoUrl', videoUrl))
     } else if (FORM_SECTION_SAVES[modal.field]) {

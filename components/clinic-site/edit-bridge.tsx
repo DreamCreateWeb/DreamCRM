@@ -41,6 +41,7 @@ export default function EditBridge() {
       const finish = (commit: boolean) => {
         el.removeEventListener('blur', onBlur)
         el.removeEventListener('keydown', onKey)
+        el.removeEventListener('paste', onPaste)
         el.setAttribute('contenteditable', 'false')
         const value = (el.textContent ?? '').trim()
         if (commit && value !== original.trim()) post({ type: 'save', field, value })
@@ -57,8 +58,29 @@ export default function EditBridge() {
           el.blur()
         }
       }
+      // Force paste-as-plain-text. The save reads textContent (so the STORED
+      // value is always plain), but without this the browser injects the
+      // clipboard's rich HTML into the live page mid-edit — styled spans, even
+      // <img> — which looks broken and pollutes the canvas DOM until reload.
+      const onPaste = (ev: ClipboardEvent) => {
+        ev.preventDefault()
+        const text = ev.clipboardData?.getData('text/plain') ?? ''
+        if (!text) return
+        const sel = window.getSelection()
+        if (sel && sel.rangeCount > 0) {
+          const r = sel.getRangeAt(0)
+          r.deleteContents()
+          r.insertNode(document.createTextNode(text))
+          r.collapse(false)
+          sel.removeAllRanges()
+          sel.addRange(r)
+        } else {
+          el.textContent = (el.textContent ?? '') + text
+        }
+      }
       el.addEventListener('blur', onBlur)
       el.addEventListener('keydown', onKey)
+      el.addEventListener('paste', onPaste)
     }
 
     function onClickCapture(e: MouseEvent) {
@@ -179,9 +201,19 @@ export default function EditBridge() {
       if (e.origin !== origin) return
       const d = e.data as { source?: string; type?: string; field?: string; url?: string; section?: string }
       if (!d || d.source !== 'dreamcrm-studio') return
-      if (d.type === 'setImage' && d.field) {
-        const el = document.querySelector(`[data-edit-field="${d.field}"]`)
-        if (el instanceof HTMLImageElement && d.url) el.src = d.url
+      if (d.type === 'setImage' && d.field && d.url) {
+        // The image's `data-edit-field` sits on the wrapper (the click target),
+        // not the <img>, so swap the <img> inside it — or the element itself if
+        // it happens to be the <img>.
+        let region: Element | null = null
+        try {
+          region = document.querySelector(`[data-edit-field="${d.field.replace(/["\\]/g, '')}"]`)
+        } catch {
+          region = null
+        }
+        const img =
+          region instanceof HTMLImageElement ? region : (region?.querySelector('img') ?? null)
+        if (img instanceof HTMLImageElement) img.src = d.url
       } else if (d.type === 'scrollTo' && d.section) {
         document
           .querySelector(`[data-edit-section="${d.section}"]`)
