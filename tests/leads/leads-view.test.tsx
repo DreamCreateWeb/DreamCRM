@@ -111,6 +111,25 @@ describe('LeadsView — list + filters + drawer trigger', () => {
     expect(badges).toHaveLength(1)
   })
 
+  it('tones the status pills per the contract — Contacted is sky (ball is theirs), not amber', () => {
+    // Tone remap: new=violet (special), contacted=sky (info — amber would
+    // imply WE still owe action), converted=emerald (ok), archived=gray.
+    const rows = [
+      makeRow({ id: 'l1', name: 'New Person', status: 'new' }),
+      makeRow({ id: 'l2', name: 'Contacted Person', status: 'contacted' }),
+      makeRow({ id: 'l3', name: 'Converted Person', status: 'converted' }),
+      makeRow({ id: 'l4', name: 'Archived Person', status: 'archived' }),
+    ]
+    render(<LeadsView rows={rows} counts={{ ...baseCounts, total: 4 }} status="all" search="" />)
+    const pillFor = (name: string) =>
+      // the row's status pill sits right after the patient name in the header row
+      screen.getByText(name).parentElement!.querySelector('span.rounded-full') as HTMLElement
+    expect(pillFor('Contacted Person').className).toContain('text-sky-700')
+    expect(pillFor('Contacted Person').className).not.toContain('amber')
+    expect(pillFor('New Person').className).toContain('text-violet-700')
+    expect(pillFor('Converted Person').className).toContain('text-emerald-700')
+  })
+
   it('shows a link back to the converted patient on converted rows', () => {
     const row = makeRow({
       id: 'l3',

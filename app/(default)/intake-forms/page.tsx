@@ -12,6 +12,10 @@ import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { createBlankFormAction } from './actions'
 import ModuleHint from '@/components/onboarding/module-hint'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export default async function IntakeFormsListPage() {
   const ctx = await requireTenant()
@@ -40,36 +44,38 @@ export default async function IntakeFormsListPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <ModuleHint id="intake-forms" />
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            Intake Forms
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Digital forms patients fill out before their visit. Sent automatically with booking
-            confirmations, or share the link directly.
-          </p>
-        </div>
-        <form action={createBlankFormAction}>
-          <button
-            type="submit"
-            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-          >
-            + New Form
-          </button>
-        </form>
-      </div>
+      <PageHeader
+        eyebrow={`Daily · ${ctx.organizationName}`}
+        title="Intake forms"
+        subtitle="Digital forms patients fill out before their visit. Sent automatically with booking confirmations, or share the link directly."
+        actions={
+          <form action={createBlankFormAction}>
+            <ActionButton type="submit" variant="primary" size="sm">
+              + New Form
+            </ActionButton>
+          </form>
+        }
+      />
 
       {templates.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-12 text-center">
-          <p className="text-3xl mb-3">📝</p>
-          <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">
-            No intake forms yet
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Click <strong>New Form</strong> above — we&apos;ll seed it with the standard dental
-            new-patient template you can edit.
-          </p>
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+          <EmptyState
+            icon="📝"
+            title="No intake forms yet"
+            body={
+              <>
+                Click <strong>New Form</strong> — we&apos;ll seed it with the standard dental
+                new-patient template you can edit.
+              </>
+            }
+            action={
+              <form action={createBlankFormAction}>
+                <ActionButton type="submit" variant="primary" size="sm">
+                  + New Form
+                </ActionButton>
+              </form>
+            }
+          />
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
@@ -96,35 +102,37 @@ export default async function IntakeFormsListPage() {
                         {t.title}
                       </Link>
                       {t.isDefault === 1 && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
-                          Default
-                        </span>
+                        <StatusPill
+                          tone="special"
+                          label="Default"
+                          title="Sent automatically with booking confirmations"
+                        />
                       )}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {sections.length} section{sections.length === 1 ? '' : 's'} · {fieldCount}{' '}
-                      field{fieldCount === 1 ? '' : 's'}
+                      <span className="tabular-nums">{sections.length}</span> section{sections.length === 1 ? '' : 's'} ·{' '}
+                      <span className="tabular-nums">{fieldCount}</span> field{fieldCount === 1 ? '' : 's'}
                       <span className="mx-2">·</span>
                       <span className="font-mono truncate inline-block max-w-[24ch] align-middle">
                         {fillUrl}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-sm">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Plain <a> (not ActionButton) because the shared button
+                        primitive doesn't forward target/rel for new-tab links;
+                        styled to match a secondary ActionButton. */}
                     <a
                       href={fillUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400"
+                      className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
                     >
                       Preview ↗
                     </a>
-                    <Link
-                      href={`/intake-forms/${t.id}`}
-                      className="text-violet-600 dark:text-violet-400 hover:text-violet-700"
-                    >
+                    <ActionButton variant="ghost" size="sm" href={`/intake-forms/${t.id}`}>
                       Edit
-                    </Link>
+                    </ActionButton>
                   </div>
                 </li>
               )

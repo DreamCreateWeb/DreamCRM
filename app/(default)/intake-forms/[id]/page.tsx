@@ -24,7 +24,7 @@ export default async function EditFormPage({ params }: Props) {
 
       <div className="mt-10">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">
-          Submissions <span className="text-gray-400 font-normal">({submissions.length})</span>
+          Submissions <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums">({submissions.length})</span>
         </h2>
         {submissions.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -41,7 +41,7 @@ export default async function EditFormPage({ params }: Props) {
                   <span className="text-sm text-gray-800 dark:text-gray-100">
                     {s.submitterName ?? s.submitterEmail ?? 'Anonymous'}
                   </span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                     {new Date(s.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </Link>
