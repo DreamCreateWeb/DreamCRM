@@ -3,7 +3,7 @@ import { appBaseUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
-import { DEFAULT_SERVICES, type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
+import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -58,7 +58,7 @@ export default async function BlogChrome({
     hasTeam,
     hasCareers,
     services: navServicesFromClinicServices(
-      (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+      (profile.services as ClinicService[] | null) ?? [],
     ),
   })
 

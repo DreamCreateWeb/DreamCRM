@@ -9,12 +9,14 @@ const {
   mockCustomersCreate,
   mockCheckoutCreate,
   mockSendInvitationEmail,
+  mockSeedIntake,
 } = vi.hoisted(() => {
   process.env.STRIPE_PRICE_STARTER_MONTHLY = 'price_basic_m'
   process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY = 'price_pro_m'
   process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY = 'price_premium_m'
   process.env.NEXT_PUBLIC_APP_URL = 'https://www.dreamcreatestudio.com'
   return {
+    mockSeedIntake: vi.fn(async () => undefined),
     mockSelect: vi.fn(),
     mockInsert: vi.fn(),
     mockUpdate: vi.fn(),
@@ -28,6 +30,7 @@ const {
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/email', () => ({ sendInvitationEmail: mockSendInvitationEmail }))
+vi.mock('@/lib/services/forms', () => ({ seedDefaultIntakeForm: mockSeedIntake }))
 vi.mock('@/lib/stripe', () => ({
   stripe: {
     coupons: { create: mockCouponsCreate, retrieve: mockCouponsRetrieve },
@@ -114,6 +117,9 @@ describe('createManagedClinic', () => {
         inviteUrl: expect.stringContaining(`/accept-invite?token=${result.invitationId}`),
       }),
     )
+
+    // Every new clinic starts with the standard intake form.
+    expect(mockSeedIntake).toHaveBeenCalledWith(result.organizationId)
   })
 
   it('managed + percent off forever: creates the coupon, stays on basic with the plan reserved', async () => {

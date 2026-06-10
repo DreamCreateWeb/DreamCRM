@@ -9,7 +9,6 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicService, ClinicStaff, ClinicTestimonial } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import {
   resolveClinicServices,
   type EnrichedService,
@@ -38,7 +37,7 @@ async function loadServiceContext(slug: string, serviceSlug: string) {
   if (!data) return null
   const name = data.profile.displayName ?? data.orgName
   const rawServices: ClinicService[] =
-    (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
+    (data.profile.services as ClinicService[] | null) ?? []
   const resolved = await resolveClinicServices(rawServices, {
     clinicName: name,
     city: data.profile.city,

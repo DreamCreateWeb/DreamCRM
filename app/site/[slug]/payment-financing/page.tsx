@@ -15,7 +15,6 @@ import type {
   ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
 import {
-  DEFAULT_SERVICES,
   DEFAULT_PAYMENT_METHODS,
 } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
@@ -157,7 +156,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
     hasTeam,
     hasCareers,
     services: navServicesFromClinicServices(
-      (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+      (profile.services as ClinicService[] | null) ?? [],
     ),
   })
 

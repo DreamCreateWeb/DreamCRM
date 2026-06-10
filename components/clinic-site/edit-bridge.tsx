@@ -205,6 +205,17 @@ export default function EditBridge() {
     let revealTimer: ReturnType<typeof setTimeout> | null = null
     if (reveal) {
       revealTimer = setTimeout(() => revealField(reveal), 160)
+      // Consume the param: the Studio reloads this SAME url after every later
+      // manual save, and a lingering ?reveal would yank the scroll position
+      // back to this (old) AI edit on each of those reloads.
+      try {
+        const u = new URL(window.location.href)
+        u.searchParams.delete('reveal')
+        u.searchParams.delete('_')
+        window.history.replaceState(null, '', u.pathname + u.search + u.hash)
+      } catch {
+        /* non-fatal — worst case the old behavior */
+      }
     }
 
     return () => {

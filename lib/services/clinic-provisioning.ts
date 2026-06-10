@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { sendInvitationEmail } from '@/lib/email'
+import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN, isValidClinicSlug } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -138,6 +139,14 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     stripeCouponId: couponId,
     managedNote: input.note?.trim() || null,
   })
+
+  // Every clinic starts with the standard new-patient intake form. Best-effort
+  // — provisioning must not fail because form seeding hiccuped.
+  try {
+    await seedDefaultIntakeForm(organizationId)
+  } catch (err) {
+    console.warn('[provisioning] could not seed default intake form', err)
+  }
 
   // Invitation row in the exact shape better-auth's acceptInvitation expects
   // (the same table the org plugin writes via the team-invite flow).
