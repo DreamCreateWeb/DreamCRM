@@ -5,13 +5,24 @@ import WelcomeModal from '@/components/onboarding/welcome-modal'
 import GettingStarted from '@/components/onboarding/getting-started'
 import type { TenantContext } from '@/lib/auth/context'
 import { formatRelativeDate } from '@/lib/utils/format'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import { KpiStat } from '@/components/ui/kpi-stat'
+import { patientFlagGlyphs, type Tone, type GlyphId, type PillLegendRow } from '@/lib/ui/encodings'
 
-const STATUS_PILLS: Record<string, string> = {
-  scheduled: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  confirmed: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  completed: 'bg-gray-500/15 text-gray-600 dark:text-gray-300',
-  cancelled: 'bg-red-500/15 text-red-700 dark:text-red-300',
-  no_show: 'bg-red-500/15 text-red-700 dark:text-red-300',
+// Appointment status → semantic tone + plain-language label. The tone carries
+// the meaning per the design-system contract (warn = needs our action,
+// ok = good, neutral = inert, urgent = problem now).
+const STATUS_TONE: Record<string, Tone> = {
+  scheduled: 'warn',
+  confirmed: 'ok',
+  completed: 'neutral',
+  cancelled: 'urgent',
+  no_show: 'urgent',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -21,6 +32,26 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
   no_show: 'No-show',
 }
+
+const STATUS_TITLES: Record<string, string> = {
+  scheduled: "Hasn't replied to a confirmation yet — send a reminder",
+  confirmed: 'Patient confirmed this visit',
+  completed: 'This visit is done',
+  cancelled: 'This visit was cancelled',
+  no_show: "Patient didn't show — follow up to rebook",
+}
+
+// Legend rows declaring exactly the pills this page shows on Today's chair.
+const PILL_LEGEND: PillLegendRow[] = [
+  { tone: 'warn', label: 'Unconfirmed', meaning: STATUS_TITLES.scheduled },
+  { tone: 'ok', label: 'Confirmed', meaning: STATUS_TITLES.confirmed },
+  { tone: 'neutral', label: 'Completed', meaning: STATUS_TITLES.completed },
+  { tone: 'urgent', label: 'Cancelled', meaning: STATUS_TITLES.cancelled },
+  { tone: 'urgent', label: 'No-show', meaning: STATUS_TITLES.no_show },
+]
+
+// The glyphs this page renders on Today's chair (in registry display order).
+const PAGE_GLYPHS: GlyphId[] = ['newPatient', 'birthday', 'balance', 'missingIntakeNext']
 
 const ACTIVITY_ICON: Record<ActivityKind, string> = {
   appointment_booked: '📅',
@@ -68,31 +99,24 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       {!onboarding.welcomeSeen && <WelcomeModal clinicName={name} />}
       {checklist && !checklist.allDone && <GettingStarted checklist={checklist} />}
-      {/* ── Sticky hero ──────────────────────────────────────────────── */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
-            Morning huddle · {fmtDayHeader(data.date)}
-          </p>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            {name}
-          </h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/appointments"
-            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-          >
-            Open agenda
-          </Link>
-          <Link
-            href="/appointments?window=today"
-            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-          >
-            + New booking
-          </Link>
-        </div>
-      </div>
+
+      {/* ── Header ────────────────────────────────────────────────────── */}
+      <PageHeader
+        eyebrow={`Morning huddle · ${fmtDayHeader(data.date)}`}
+        title={name}
+        subtitle="The six things worth your attention this morning — every number opens the list behind it."
+        legend={<EncodingLegend glyphs={PAGE_GLYPHS} pills={PILL_LEGEND} />}
+        actions={
+          <>
+            <ActionButton href="/appointments" variant="secondary">
+              Open agenda
+            </ActionButton>
+            <ActionButton href="/appointments?window=today" variant="primary">
+              + New booking
+            </ActionButton>
+          </>
+        }
+      />
 
       {/* ── Integrations sync-health banner (renders only when unhealthy) ── */}
       {data.integrationsHealth && data.integrationsHealth.severity !== 'info' && (
@@ -129,10 +153,10 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               </p>
               <p
                 className={[
-                  'text-[12px] mt-0.5',
+                  'text-xs mt-0.5',
                   data.integrationsHealth.severity === 'error'
-                    ? 'text-rose-800/80 dark:text-rose-300/80'
-                    : 'text-amber-800/80 dark:text-amber-300/80',
+                    ? 'text-rose-800/90 dark:text-rose-300/90'
+                    : 'text-amber-800/90 dark:text-amber-300/90',
                 ].join(' ')}
               >
                 {data.integrationsHealth.message}
@@ -141,7 +165,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             <Link
               href="/integrations"
               className={[
-                'text-[12px] font-medium px-3 py-1.5 rounded-lg shrink-0 self-center',
+                'text-xs font-medium px-3 py-1.5 rounded-lg shrink-0 self-center',
                 data.integrationsHealth.severity === 'error'
                   ? 'bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-200 dark:hover:bg-rose-500/30'
                   : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30',
@@ -166,7 +190,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             {data.unconfirmed.preview.map((r) => (
               <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
                 <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3">
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
                   {r.startTime.toLocaleString('en-US', {
                     weekday: 'short',
                     hour: 'numeric',
@@ -227,7 +251,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             {data.newLeads.preview.map((l) => (
               <li key={l.id} className="flex items-center justify-between text-sm py-1.5">
                 <span className="truncate text-gray-700 dark:text-gray-200">{l.name}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3">
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
                   {l.ageHours < 1 ? 'just now' : `${l.ageHours}h ago`}
                 </span>
               </li>
@@ -243,21 +267,17 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
               Today&rsquo;s chair
             </h2>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
               {data.todaysAppointments.length}{' '}
               {data.todaysAppointments.length === 1 ? 'appointment' : 'appointments'}
             </span>
           </div>
           {data.todaysAppointments.length === 0 ? (
-            <div className="px-5 py-12 text-center">
-              <p className="text-3xl mb-2">☕</p>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
-                Nothing booked today.
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Go enjoy a quiet morning.
-              </p>
-            </div>
+            <EmptyState
+              icon="☕"
+              title="Nothing booked today."
+              body="Go enjoy a quiet morning."
+            />
           ) : (
             <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
               {data.todaysAppointments.map((a) => (
@@ -271,30 +291,32 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       {/* ── Row 3 — Trend tiles ──────────────────────────────────────── */}
       <section className="mb-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <TrendTile
+          <KpiStat
             label="Bookings today"
-            value={data.trends.bookingsToday.toString()}
-            hint="across all channels"
+            value={data.trends.bookingsToday}
+            sub="across all channels"
           />
-          <TrendTile
+          <KpiStat
             label="New patients MTD"
-            value={data.trends.newPatientsMTD.toString()}
-            hint={
+            value={data.trends.newPatientsMTD}
+            sub={
               data.trends.newPatientsLastMTD === 0
                 ? 'first month tracking'
                 : `${mtdDelta >= 0 ? '+' : ''}${mtdDelta} vs last month`
             }
-            tone={mtdDelta >= 0 ? 'positive' : 'negative'}
+            tone={data.trends.newPatientsLastMTD === 0 ? undefined : mtdDelta >= 0 ? 'ok' : 'urgent'}
           />
-          <TrendTile
+          <KpiStat
             label="Upcoming"
-            value={data.trends.upcomingNext7d.toString()}
-            hint="next 7 days"
+            value={data.trends.upcomingNext7d}
+            sub="next 7 days"
+            href="/appointments?window=week"
           />
-          <TrendTile
+          <KpiStat
             label="Intake forms"
-            value={data.trends.activeIntakeForms.toString()}
-            hint={data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'}
+            value={data.trends.activeIntakeForms}
+            sub={data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'}
+            href="/intake-forms"
           />
         </div>
       </section>
@@ -308,17 +330,16 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             </h2>
           </div>
           {data.recentActivity.length === 0 ? (
-            <div className="px-5 py-10 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                No activity yet. Bookings, intake submissions, and paid invoices will appear here.
-              </p>
-            </div>
+            <EmptyState
+              title="No activity yet."
+              body="Bookings, intake submissions, and paid invoices will appear here."
+            />
           ) : (
             <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
               {data.recentActivity.map((a) => {
                 const inner = (
                   <div className="flex items-start gap-3">
-                    <span className="text-xl shrink-0">{ACTIVITY_ICON[a.kind]}</span>
+                    <span className="text-xl shrink-0" aria-hidden="true">{ACTIVITY_ICON[a.kind]}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-gray-800 dark:text-gray-100 truncate">
                         {a.title}
@@ -329,7 +350,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                         </div>
                       )}
                     </div>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0" suppressHydrationWarning>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 tabular-nums" suppressHydrationWarning>
                       {formatRelativeDate(a.occurredAt)}
                     </span>
                   </div>
@@ -391,7 +412,8 @@ function AttentionCard({
         {title}
       </p>
       <div className="flex items-baseline gap-2 mb-2">
-        <span className={`text-3xl font-bold ${count > 0 ? 'text-gray-800 dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'}`}>
+        {/* Zero keeps full contrast — an empty queue is information, not decoration. */}
+        <span className="text-3xl font-bold tabular-nums text-gray-800 dark:text-gray-100">
           {count}
         </span>
         <span className="text-xs text-gray-500 dark:text-gray-400">{countSuffix}</span>
@@ -417,13 +439,23 @@ function AttentionCard({
 
 function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
   const statusKey = appt.status
-  const statusClass = STATUS_PILLS[statusKey] ?? STATUS_PILLS.scheduled
+  const tone = STATUS_TONE[statusKey] ?? STATUS_TONE.scheduled
   const statusLabel = STATUS_LABELS[statusKey] ?? statusKey
+  const statusTitle = STATUS_TITLES[statusKey]
   const typeLabel = appt.type.replace('_', ' ')
+
+  // Map the overview's row flags onto the shared glyph registry. Missing-intake
+  // only fires for new patients with no form on file (the original gating).
+  const glyphs = patientFlagGlyphs({
+    newPatient: appt.flags.newPatient,
+    birthdayThisWeek: appt.flags.birthdayThisWeek,
+    hasOutstandingBalance: appt.flags.hasOutstandingBalance,
+    missingIntakeBeforeAppt: appt.flags.newPatient && !appt.flags.hasIntakeOnFile,
+  })
 
   return (
     <li className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
-      <div className="shrink-0 w-16 text-sm font-mono font-medium text-gray-600 dark:text-gray-300">
+      <div className="shrink-0 w-16 text-sm font-mono font-medium text-gray-600 dark:text-gray-300 tabular-nums">
         {fmtTime(appt.startTime)}
       </div>
       <div className="flex-1 min-w-0">
@@ -434,71 +466,12 @@ function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
           >
             {appt.patientName}
           </Link>
-          {appt.flags.newPatient && (
-            <span title="New patient" className="text-amber-500 text-sm" aria-label="New patient">
-              ★
-            </span>
-          )}
-          {appt.flags.birthdayThisWeek && (
-            <span title="Birthday this week" className="text-pink-500 text-sm" aria-label="Birthday this week">
-              🎂
-            </span>
-          )}
-          {appt.flags.hasOutstandingBalance && (
-            <span
-              title="Outstanding balance on file"
-              className="text-red-500 text-sm"
-              aria-label="Outstanding balance"
-            >
-              $
-            </span>
-          )}
-          {!appt.flags.hasIntakeOnFile && appt.flags.newPatient && (
-            <span
-              title="No intake form on file"
-              className="text-amber-500 text-sm"
-              aria-label="No intake form on file"
-            >
-              📝!
-            </span>
-          )}
+          <GlyphCluster glyphs={glyphs} />
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{typeLabel}</div>
       </div>
-      <span
-        className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${statusClass}`}
-      >
-        {statusLabel}
-      </span>
+      <StatusPill tone={tone} label={statusLabel} title={statusTitle} className="shrink-0" />
     </li>
-  )
-}
-
-function TrendTile({
-  label,
-  value,
-  hint,
-  tone = 'neutral',
-}: {
-  label: string
-  value: string
-  hint: string
-  tone?: 'neutral' | 'positive' | 'negative'
-}) {
-  const hintClass =
-    tone === 'positive'
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : tone === 'negative'
-        ? 'text-red-600 dark:text-red-400'
-        : 'text-gray-500 dark:text-gray-400'
-  return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4">
-      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">
-        {label}
-      </p>
-      <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">{value}</div>
-      <div className={`text-xs mt-1 ${hintClass}`}>{hint}</div>
-    </div>
   )
 }
 
@@ -509,7 +482,7 @@ function ComingSoonCard({ title, blurb }: { title: string; blurb: string }) {
         <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           {title}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+        <span className="text-xs font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
           Coming soon
         </span>
       </div>
