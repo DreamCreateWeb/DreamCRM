@@ -1,4 +1,18 @@
-import { Eyebrow, PrimaryCta, GhostCta, CheckIcon, DashboardMock, PortalMock } from '@/components/marketing/ui'
+import {
+  Eyebrow,
+  PrimaryCta,
+  GhostCta,
+  CheckIcon,
+  DashboardMock,
+  PortalMock,
+  EditorMock,
+  BookingMock,
+  MessagesMock,
+  ReviewsMock,
+  RecallFunnelMock,
+  ShopMock,
+} from '@/components/marketing/ui'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { DEMO_URL } from '@/lib/marketing/site'
 import Link from 'next/link'
 
@@ -15,7 +29,7 @@ interface ModuleSection {
   body: string
   bullets: string[]
   docHref?: string
-  visual?: 'dashboard' | 'portal'
+  visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop'
 }
 
 const SECTIONS: ModuleSection[] = [
@@ -33,6 +47,7 @@ const SECTIONS: ModuleSection[] = [
       'Careers page with JobPosting schema — Google for Jobs indexes your openings free',
     ],
     docHref: '/docs/editing-your-website',
+    visual: 'editor',
   },
   {
     id: 'booking',
@@ -48,6 +63,7 @@ const SECTIONS: ModuleSection[] = [
       'With Open Dental connected, bookings push into the PMS and cancellations clear the slot',
     ],
     docHref: '/docs/online-booking-rules',
+    visual: 'booking',
   },
   {
     id: 'portal',
@@ -78,6 +94,7 @@ const SECTIONS: ModuleSection[] = [
       'Patient-facing email sends from your practice identity, not ours',
     ],
     docHref: '/docs/messages-and-your-inbox',
+    visual: 'messages',
   },
   {
     id: 'reviews',
@@ -91,6 +108,7 @@ const SECTIONS: ModuleSection[] = [
       'Per-patient rate limiting so nobody gets over-asked',
     ],
     docHref: '/docs/reviews-collection',
+    visual: 'reviews',
   },
   {
     id: 'recall',
@@ -105,6 +123,7 @@ const SECTIONS: ModuleSection[] = [
       'SMS channel on the roadmap (carrier registration in progress)',
     ],
     docHref: '/docs/recall-campaigns',
+    visual: 'recall',
   },
   {
     id: 'shop',
@@ -119,6 +138,7 @@ const SECTIONS: ModuleSection[] = [
       'Order pipeline from paid to picked-up/shipped',
     ],
     docHref: '/docs/setting-up-your-shop',
+    visual: 'shop',
   },
   {
     id: 'integrations',
@@ -191,32 +211,35 @@ export default function ProductPage() {
                 )}
               </div>
               <div>
-                {s.visual === 'portal' ? (
-                  <div className="flex justify-center py-2">
-                    <PortalMock />
-                  </div>
-                ) : s.visual === 'dashboard' ? (
-                  <DashboardMock />
-                ) : (
-                  <ul className="space-y-2.5 rounded-xl border border-gray-200 bg-gray-50/60 p-6">
-                    {s.bullets.map((b) => (
-                      <li key={b} className="flex items-start gap-2.5 text-[0.9rem] leading-snug text-gray-800">
-                        <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {s.visual && (
-                  <ul className="mt-5 grid gap-2 sm:grid-cols-2">
-                    {s.bullets.map((b) => (
-                      <li key={b} className="flex items-start gap-2 text-[0.85rem] leading-snug text-gray-700">
-                        <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ScrollReveal>
+                  {s.visual === 'portal' ? (
+                    <div className="flex justify-center py-2">
+                      <PortalMock />
+                    </div>
+                  ) : s.visual === 'dashboard' ? (
+                    <DashboardMock />
+                  ) : s.visual === 'editor' ? (
+                    <EditorMock />
+                  ) : s.visual === 'booking' ? (
+                    <BookingMock />
+                  ) : s.visual === 'messages' ? (
+                    <MessagesMock />
+                  ) : s.visual === 'reviews' ? (
+                    <ReviewsMock />
+                  ) : s.visual === 'recall' ? (
+                    <RecallFunnelMock />
+                  ) : (
+                    <ShopMock />
+                  )}
+                </ScrollReveal>
+                <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {s.bullets.map((b) => (
+                    <li key={b} className="flex items-start gap-2 text-[0.85rem] leading-snug text-gray-700">
+                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </section>
