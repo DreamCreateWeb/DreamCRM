@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import Link from 'next/link'
 import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { submitOnboarding } from '../actions'
 import { clearOnboardingState, loadOnboardingState } from '@/lib/onboarding/storage'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
+import { ActionButton } from '@/components/ui/action-button'
 
 export default function Onboarding04() {
   const [planId, setPlanId] = useState<PlanId>('pro')
@@ -16,7 +18,11 @@ export default function Onboarding04() {
   const [draft, setDraft] = useState<ReturnType<typeof loadOnboardingState>>({})
 
   useEffect(() => {
-    setDraft(loadOnboardingState())
+    const loaded = loadOnboardingState()
+    setDraft(loaded)
+    // Honor the plan they picked on the marketing /pricing page.
+    if (loaded.planId) setPlanId(loaded.planId)
+    if (loaded.interval) setInterval(loaded.interval)
   }, [])
 
   function onSubmit(e: React.FormEvent) {
@@ -25,11 +31,15 @@ export default function Onboarding04() {
     startTransition(async () => {
       try {
         const { url } = await submitOnboarding({
-          companyName: draft.companyName,
-          city: draft.city,
-          postalCode: draft.postalCode,
+          practiceName: draft.practiceName,
+          phone: draft.phone,
           street: draft.street,
+          city: draft.city,
+          state: draft.state,
+          postalCode: draft.postalCode,
           country: draft.country,
+          slug: draft.slug,
+          brandColor: draft.brandColor,
           planId,
           interval,
         })
@@ -60,9 +70,12 @@ export default function Onboarding04() {
             </div>
             <div className="px-4 py-8">
               <div className="max-w-md mx-auto">
-                <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">
-                  Pick a plan to finish setting up
+                <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">
+                  Pick your plan
                 </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                  Month-to-month, no contract — switch or cancel anytime in Settings.
+                </p>
 
                 <form onSubmit={onSubmit} className="space-y-4">
                   <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
@@ -73,6 +86,7 @@ export default function Onboarding04() {
                           key={iv}
                           type="button"
                           onClick={() => setInterval(iv)}
+                          aria-pressed={interval === iv}
                           className={`px-3 py-1 rounded text-sm font-medium transition ${
                             interval === iv
                               ? 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800'
@@ -120,8 +134,8 @@ export default function Onboarding04() {
                               </ul>
                             </div>
                             <div className="text-right">
-                              <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                                ${price}
+                              <div className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                                ${price.toLocaleString('en-US')}
                                 <span className="text-xs font-normal text-gray-500">{suffix}</span>
                               </div>
                             </div>
@@ -131,24 +145,32 @@ export default function Onboarding04() {
                     })}
                   </div>
 
-                  {draft.companyName && (
+                  {draft.practiceName && (
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Setting up <strong>{draft.companyName}</strong>
-                      {draft.city ? `, ${draft.city}` : ''}
+                      Setting up <strong>{draft.practiceName}</strong>
+                      {draft.slug ? (
+                        <>
+                          {' '}at <strong>{draft.slug}.dreamcreatestudio.com</strong>
+                        </>
+                      ) : draft.city ? `, ${draft.city}` : ''}
                     </div>
                   )}
 
                   {error && (
-                    <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{error}</div>
+                    <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>
                   )}
 
-                  <button
-                    type="submit"
-                    disabled={pending}
-                    className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60"
-                  >
+                  <ActionButton type="submit" variant="primary" disabled={pending} className="w-full">
                     {pending ? 'Setting up…' : 'Continue to checkout →'}
-                  </button>
+                  </ActionButton>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    Have a promo or partner code? You can apply it on the checkout page.
+                  </p>
+                  <div className="text-center">
+                    <Link className="text-sm underline hover:no-underline text-gray-600 dark:text-gray-400" href="/onboarding-03">
+                      ← Back
+                    </Link>
+                  </div>
                 </form>
               </div>
             </div>

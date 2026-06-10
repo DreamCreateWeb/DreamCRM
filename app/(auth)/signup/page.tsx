@@ -1,12 +1,14 @@
-export const metadata = {
-  title: 'Sign Up - DreamCRM',
-  description: 'Page description',
-}
-
+import { Suspense } from 'react'
 import Link from 'next/link'
 import AuthHeader from '../auth-header'
 import AuthImage from '../auth-image'
 import SignUpForm from './signup-form'
+
+export const metadata = {
+  title: 'Create your account — DreamCRM',
+  description:
+    'Set up your practice on DreamCRM: website, online booking, patient records, messages, and reviews in one calm system.',
+}
 
 export default function SignUp() {
   return (
@@ -21,8 +23,13 @@ export default function SignUp() {
             <AuthHeader />
 
             <div className="max-w-sm mx-auto w-full px-4 py-8">
-              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">Create your Account</h1>
-              <SignUpForm />
+              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">Create your account</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                A few details now, then a quick practice setup — most clinics are live the same day.
+              </p>
+              <Suspense>
+                <SignUpForm />
+              </Suspense>
               {/* Footer */}
               <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
                 <div className="text-sm">

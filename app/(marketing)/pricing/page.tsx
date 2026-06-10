@@ -124,7 +124,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               <Link
-                href="/signup"
+                href={`/signup?plan=${plan.id}`}
                 className={`mt-7 block rounded-lg py-2.5 text-center text-[0.9rem] font-semibold ${
                   plan.id === 'pro'
                     ? 'bg-violet-600 text-white hover:bg-violet-700'
