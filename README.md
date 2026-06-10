@@ -10,27 +10,18 @@ See [`CLAUDE.md`](./CLAUDE.md) for current implementation context + module statu
 ## Stack
 
 - **Next.js 16** (App Router, Turbopack) · **TypeScript** · **Tailwind 4**
-- **Drizzle ORM** on **Neon Postgres**
-- **better-auth** with Organizations plugin (multi-tenant)
-- **Stripe** (Checkout + Customer Portal + webhooks)
-- **Gmail OAuth** (staff inbox + clinic-side workspace-mailbox sends)
-- Currently deployed on **Vercel**, **iad1** region
+- **Drizzle ORM** on **AWS RDS Postgres** (private/VPC-only)
+- **better-auth** with Organizations plugin (multi-tenant) + magic-link sign-in
+- **Stripe** (Checkout + Customer Portal + Connect + webhooks)
+- **Resend** for transactional + patient-facing email (per-clinic sender identity)
+- **AWS S3** for uploads · **Anthropic API** for AI features
+- **Gmail OAuth** (staff inbox + clinic-side sends)
+- Deployed on **AWS App Runner** (`us-east-1`); merge to `main` auto-deploys
+  via GitHub Actions → CodeBuild → ECR
 
-**AWS migration in flight.** Every PHI-touching dependency that has an
-AWS-native equivalent is being consolidated under a single AWS BAA:
-
-- **Email**: Resend → **AWS SES**
-- **SMS** (Phase B, never shipped on Twilio): planned Twilio → **AWS End User Messaging SMS**
-- **File storage**: `@vercel/blob` → **AWS S3**
-- **AI / LLM calls**: Anthropic API direct → **AWS Bedrock**
-- **Hosting**: Vercel → AWS (deploy shape TBD — SST / Amplify / Fargate)
-
-Stays as-is: Stripe (no AWS equivalent for card processing), Gmail OAuth
-(it's the clinic's own mailbox — not replaceable), Neon Postgres
-(serverless, already us-east-aligned).
-
-See [`CLAUDE.md`](./CLAUDE.md) "Vercel + third-party → AWS migration"
-section for the full inventory + migration shape per service.
+Canonical URL: **https://www.dreamcreatestudio.com** (public marketing site;
+signed-in users land on their dashboard). Clinic public sites serve at
+`{slug}.dreamcreatestudio.com`.
 
 ## Quickstart
 
