@@ -7,6 +7,8 @@ import { useFlyoutContext } from '@/app/flyout-context'
 import { cn, relativeTime } from '@/lib/utils'
 import type { EmailAccountSummary, EmailThreadListItem } from '@/lib/services/mailbox'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 import ComposeButton from '../compose-button'
 import { bulkThreadAction, syncMailbox } from '../mailbox-actions'
 import FilterChips from './filter-chips'
@@ -189,43 +191,38 @@ export default function MailboxSidebar({
 
         {showArchiveAll && (
           <div className="px-4 py-2 border-b border-stone-100 dark:border-stone-700/40 bg-stone-50/60 dark:bg-stone-800/30">
-            <button
-              type="button"
+            {/* Bulk archive of a junk tab — routine triage, so secondary not danger. */}
+            <ActionButton
+              size="sm"
+              variant="secondary"
               onClick={handleArchiveAll}
               disabled={archivingAll}
-              className={cn(
-                'w-full inline-flex items-center justify-center gap-2 px-3 py-1.5 text-[11.5px] font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-800 transition-colors',
-                archivingAll && 'opacity-60 cursor-wait',
-              )}
+              className="w-full justify-center"
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="4" rx="1" />
                 <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
               </svg>
               {archivingAll ? 'Archiving…' : `Archive all ${threads.length}`}
-            </button>
+            </ActionButton>
           </div>
         )}
 
         {threads.length === 0 ? (
-          <div className="px-4 py-16 text-center">
-            <div className="mx-auto w-10 h-10 rounded-full bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center mb-3">
-              <svg className="w-5 h-5 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M5 7l7 5 7-5M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div className="text-sm font-medium text-stone-600 dark:text-stone-300">
-              {unreadOnly ? 'No unread' : starredOnly ? 'No starred' : 'Nothing here'}
-            </div>
-            <div className="text-[12px] text-stone-400 dark:text-stone-500 mt-1">
-              {unreadOnly || starredOnly ? 'Try clearing filters.' : 'You’re all caught up.'}
-            </div>
-          </div>
+          <EmptyState
+            icon="📭"
+            title={unreadOnly ? 'No unread email' : starredOnly ? 'Nothing starred' : "You're all caught up"}
+            body={
+              unreadOnly || starredOnly
+                ? 'Try clearing the filters to see the rest of your inbox.'
+                : 'New email lands here the moment it arrives.'
+            }
+          />
         ) : (
           <ul>
             {groups.map((group) => (
               <li key={group.label}>
-                <div className="sticky top-0 z-10 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500 bg-white/95 dark:bg-stone-900/95 backdrop-blur border-b border-stone-100/80 dark:border-stone-700/30">
+                <div className="sticky top-0 z-10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 bg-white/95 dark:bg-stone-900/95 backdrop-blur border-b border-stone-100/80 dark:border-stone-700/30">
                   {group.label}
                 </div>
                 <ul>
@@ -290,7 +287,7 @@ export default function MailboxSidebar({
                                 {t.totalCount > 1 && (
                                   <span
                                     className={cn(
-                                      'text-[10px] tabular-nums rounded-full px-1.5 py-0.5 leading-none shrink-0',
+                                      'text-xs tabular-nums rounded-full px-1.5 py-0.5 leading-none shrink-0',
                                       t.unreadCount > 0
                                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-medium'
                                         : 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
@@ -301,19 +298,19 @@ export default function MailboxSidebar({
                                   </span>
                                 )}
                                 {t.isStarred && (
-                                  <svg className="w-3 h-3 text-amber-500 shrink-0 self-center" viewBox="0 0 24 24" fill="currentColor">
+                                  <svg className="w-3 h-3 text-amber-500 shrink-0 self-center" viewBox="0 0 24 24" fill="currentColor" aria-label="Starred" role="img">
                                     <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" />
                                   </svg>
                                 )}
-                                <span className="ml-auto text-[10px] text-stone-400 dark:text-stone-500 shrink-0 tabular-nums whitespace-nowrap">
+                                <span className="ml-auto text-xs text-stone-500 dark:text-stone-400 shrink-0 tabular-nums whitespace-nowrap">
                                   {relativeTime(t.receivedAt)}
                                 </span>
                               </div>
                               <div
                                 className={cn(
-                                  'text-[12px] truncate leading-snug',
+                                  'text-xs truncate leading-snug',
                                   t.isRead
-                                    ? 'text-stone-500 dark:text-stone-500'
+                                    ? 'text-stone-500 dark:text-stone-400'
                                     : 'text-stone-800 dark:text-stone-200',
                                 )}
                               >
@@ -321,7 +318,7 @@ export default function MailboxSidebar({
                                   {t.subject ?? '(no subject)'}
                                 </span>
                                 {t.snippet && (
-                                  <span className="text-stone-400 dark:text-stone-500 font-normal">
+                                  <span className="text-stone-500 dark:text-stone-400 font-normal">
                                     {' — '}
                                     {t.snippet}
                                   </span>
@@ -330,13 +327,13 @@ export default function MailboxSidebar({
                               {(patientName || (accounts.length > 1 && t.accountEmail)) && (
                                 <div className="flex items-center gap-1.5 mt-1">
                                   {patientName && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full bg-emerald-100/70 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 px-1.5 py-0.5">
-                                      <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                                    <span className="inline-flex items-center gap-1 text-xs font-medium rounded-full bg-emerald-100/70 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 px-1.5 py-0.5" title={`Linked to ${patientName}`}>
+                                      <span className="w-1 h-1 rounded-full bg-emerald-500" aria-hidden="true" />
                                       {patientName}
                                     </span>
                                   )}
                                   {accounts.length > 1 && t.accountEmail && (
-                                    <span className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
+                                    <span className="text-xs text-stone-500 dark:text-stone-400 truncate" title={t.accountEmail}>
                                       {t.accountEmail}
                                     </span>
                                   )}
@@ -378,17 +375,19 @@ function SidebarHeader({
   return (
     <div className="px-4 pt-3 pb-2 border-b border-stone-100 dark:border-stone-700/40">
       <div className="flex items-center gap-2 mb-2">
-        <div className="text-base font-semibold text-stone-900 dark:text-stone-100 tracking-tight">Inbox</div>
+        <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100 tracking-tight">Inbox</h2>
         <button
           type="button"
           onClick={onSync}
           disabled={syncing !== null}
-          className="text-[11px] text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-60"
-          title="Refresh"
+          aria-label="Refresh inbox"
+          className="text-xs text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 disabled:opacity-60"
+          title="Check for new mail"
         >
           {syncing ? 'syncing…' : 'refresh'}
         </button>
         <div className="ml-auto">
+          {/* The sidebar's single primary action. */}
           <ComposeButton accounts={accounts} />
         </div>
       </div>
@@ -411,12 +410,13 @@ function SidebarHeader({
         ))}
         <Link
           href="/inbox/settings"
-          className="text-[11px] text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 ml-auto"
+          className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 ml-auto"
+          title="Connect another mailbox"
         >
           + Add
         </Link>
       </div>
-      {syncError && <div className="mt-1 text-[11px] text-rose-600">{syncError}</div>}
+      {syncError && <div className="mt-1 text-xs text-rose-600 dark:text-rose-400">{syncError}</div>}
     </div>
   )
 }
@@ -437,8 +437,9 @@ function AccountChip({
   return (
     <Link
       href={href}
+      aria-current={active ? 'true' : undefined}
       className={cn(
-        'text-[11px] font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 max-w-[12rem] transition-colors',
+        'text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 max-w-[12rem] transition-colors',
         active
           ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
           : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800',
@@ -446,11 +447,13 @@ function AccountChip({
     >
       <span className="truncate">{label}</span>
       {count > 0 && (
-        <span className={cn('text-[10px] rounded-full px-1 tabular-nums', active ? 'opacity-80' : 'text-stone-500 dark:text-stone-400')}>
+        <span className={cn('text-xs rounded-full px-1 tabular-nums', active ? 'opacity-80' : 'text-stone-500 dark:text-stone-400')}>
           {count}
         </span>
       )}
-      {status === 'error' && <span className="text-rose-500" title="Sync error">!</span>}
+      {status === 'error' && (
+        <span className="text-rose-600 dark:text-rose-400 font-bold" title="Sync error — try refreshing" aria-label="Sync error">!</span>
+      )}
     </Link>
   )
 }

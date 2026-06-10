@@ -3,6 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
+import { ActionButton } from '@/components/ui/action-button'
 import { newConversation } from './actions'
 
 export default function NewConversationButton({ users }: { users: { id: string; name: string }[] }) {
@@ -84,14 +85,15 @@ export default function NewConversationButton({ users }: { users: { id: string; 
                       </div>
                     </div>
                     {error && (
-                      <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{error}</div>
+                      <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded" role="alert">{error}</div>
                     )}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end space-x-2">
-                    <button type="button" onClick={() => setOpen(false)} className="btn-sm border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300">Cancel</button>
-                    <button type="submit" disabled={pending || participantIds.length === 0} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60">
+                    <ActionButton variant="secondary" size="sm" onClick={() => setOpen(false)}>Cancel</ActionButton>
+                    {/* The modal's single primary action. */}
+                    <ActionButton variant="primary" size="sm" type="submit" disabled={pending || participantIds.length === 0}>
                       {pending ? 'Creating…' : 'Start'}
-                    </button>
+                    </ActionButton>
                   </div>
                 </form>
               </DialogPanel>

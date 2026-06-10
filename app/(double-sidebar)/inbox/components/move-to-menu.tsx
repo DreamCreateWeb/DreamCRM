@@ -95,7 +95,7 @@ export default function MoveToMenu({ messageId, currentCategory }: Props) {
       </button>
       {open && (
         <div className="absolute right-0 mt-1.5 w-64 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-lg z-30 overflow-hidden">
-          <div className="px-3 py-2 text-[11px] uppercase tracking-wider text-stone-400 dark:text-stone-500 border-b border-stone-100 dark:border-stone-700/60">
+          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 border-b border-stone-100 dark:border-stone-700/60">
             Move thread to
           </div>
           {CATEGORIES.map((c) => {
@@ -113,15 +113,15 @@ export default function MoveToMenu({ messageId, currentCategory }: Props) {
                     : 'hover:bg-stone-50 dark:hover:bg-stone-800/60',
                 )}
               >
-                <span className={cn('mt-0.5 w-2 h-2 rounded-full shrink-0 mt-1.5', c.color.replace('text-', 'bg-'))} />
+                <span className={cn('mt-1.5 w-2 h-2 rounded-full shrink-0', c.color.replace('text-', 'bg-'))} aria-hidden="true" />
                 <div className="min-w-0">
-                  <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100">
+                  <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
                     {c.label}
                     {isCurrent && (
-                      <span className="ml-1.5 text-[10px] font-normal text-stone-400 dark:text-stone-500">(current)</span>
+                      <span className="ml-1.5 text-xs font-normal text-stone-500 dark:text-stone-400">(current)</span>
                     )}
                   </div>
-                  <div className="text-[11px] text-stone-500 dark:text-stone-400 leading-tight">
+                  <div className="text-xs text-stone-500 dark:text-stone-400 leading-tight">
                     {c.hint}
                   </div>
                 </div>

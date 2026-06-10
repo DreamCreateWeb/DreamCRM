@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react'
 import { useFlyoutContext } from '@/app/flyout-context'
 import { relativeTime } from '@/lib/utils'
 import type { ClientConversation, ClientMessagingStats, ClinicContact } from '@/lib/services/messages'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { EmptyState } from '@/components/ui/empty-state'
 import ClientMessagingStatsCard from './client-messaging-stats'
 import NewConversationButton from './new-conversation-button'
 
@@ -57,6 +59,16 @@ export default function ClientMessagingSidebar({
     }
     return { clients, team, clientUnread, teamUnread }
   }, [conversations])
+
+  // Count of *conversations* (not messages) with unread in the current tab —
+  // the number the Unread filter chip shows.
+  const unreadInTab = useMemo(
+    () =>
+      conversations.filter(
+        (c) => c.unreadCount > 0 && (tab === 'team' ? c.kind === 'team' : c.kind !== 'team'),
+      ).length,
+    [conversations, tab],
+  )
 
   // Pick the right contact set + label formatter for the current tab.
   const pickerUsers = useMemo(() => {
@@ -134,7 +146,7 @@ export default function ClientMessagingSidebar({
               <div className="text-base font-semibold text-gray-800 dark:text-gray-100">
                 {tab === 'team' ? 'Team Messaging' : 'Client Messaging'}
               </div>
-              <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {tab === 'team'
                   ? 'Conversations with your Dream Create teammates'
                   : 'Conversations with clinic owners & admins'}
@@ -169,31 +181,54 @@ export default function ClientMessagingSidebar({
           />
           <div className="flex gap-1.5">
             <FilterChip
-              label={`All (${tab === 'team' ? tabCounts.team : tabCounts.clients})`}
               active={filter === 'all'}
+              count={tab === 'team' ? tabCounts.team : tabCounts.clients}
               onClick={() => setFilter('all')}
-            />
+              title="Every conversation in this tab"
+            >
+              All
+            </FilterChip>
             <FilterChip
-              label={`Unread (${(tab === 'team' ? tabCounts.teamUnread : tabCounts.clientUnread) > 0 ? conversations.filter((c) => c.unreadCount > 0 && (tab === 'team' ? c.kind === 'team' : c.kind !== 'team')).length : 0})`}
               active={filter === 'unread'}
+              count={unreadInTab}
               onClick={() => setFilter('unread')}
-            />
+              title="Only conversations with messages you haven't read"
+            >
+              Unread
+            </FilterChip>
             <FilterChip
-              label={`Stale (${stats.staleConversations})`}
               active={filter === 'stale'}
+              count={stats.staleConversations}
               onClick={() => setFilter('stale')}
-            />
+              title="Waiting on a reply for 3+ days"
+            >
+              Stale
+            </FilterChip>
           </div>
         </div>
         <div className="px-2 py-2">
           {grouped.length === 0 ? (
-            <div className="px-3 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
-              {conversations.length === 0
-                ? tab === 'team'
-                  ? 'No team conversations yet. Invite a teammate from /settings/team, then start a thread.'
-                  : 'No client conversations yet. Start one with a clinic admin to begin.'
-                : 'Nothing matches these filters.'}
-            </div>
+            conversations.length === 0 ? (
+              tab === 'team' ? (
+                <EmptyState
+                  icon="👋"
+                  title="No team conversations yet"
+                  body="Invite a teammate from /settings/team, then start a thread."
+                />
+              ) : (
+                <EmptyState
+                  icon="💬"
+                  title="No client conversations yet"
+                  body="Start one with a clinic admin to begin."
+                />
+              )
+            ) : (
+              <EmptyState
+                icon="🔍"
+                title="Nothing matches these filters"
+                body="Try a different tab, clear the search, or switch back to All."
+              />
+            )
           ) : (
             grouped.map((g) => (
               <ClinicBucket
@@ -235,28 +270,15 @@ function TabButton({
           : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'
       }`}
     >
-      {label} <span className="text-gray-400 dark:text-gray-500 font-normal">({count})</span>
+      {label} <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums">({count})</span>
       {unread > 0 && (
-        <span className="ml-1 inline-flex items-center justify-center text-[10px] font-bold bg-violet-500 text-white rounded-full px-1.5 align-middle">
+        <span
+          className="ml-1 inline-flex items-center justify-center text-xs font-bold bg-violet-600 text-white rounded-full px-1.5 align-middle tabular-nums"
+          title={`${unread} unread`}
+        >
           {unread}
         </span>
       )}
-    </button>
-  )
-}
-
-function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
-        active
-          ? 'bg-violet-500 border-violet-500 text-white'
-          : 'border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-      }`}
-    >
-      {label}
     </button>
   )
 }
@@ -278,11 +300,11 @@ function ClinicBucket({
   return (
     <div className="mb-2">
       <div className="flex items-center justify-between px-2 py-1">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">
           {clinicOrgId ? (
             <Link
               href={`/ecommerce/customers/${clinicOrgId}`}
-              className="hover:text-violet-600 dark:hover:text-violet-400"
+              className="hover:text-violet-700 dark:hover:text-violet-300"
             >
               {clinicName}
             </Link>
@@ -291,7 +313,10 @@ function ClinicBucket({
           )}
         </div>
         {bucketUnread > 0 && (
-          <span className="text-[10px] font-bold bg-violet-500 text-white rounded-full px-1.5 py-0.5">
+          <span
+            className="text-xs font-bold bg-violet-600 text-white rounded-full px-1.5 py-0.5 tabular-nums"
+            title={`${bucketUnread} unread in this clinic`}
+          >
             {bucketUnread}
           </span>
         )}
@@ -299,34 +324,39 @@ function ClinicBucket({
       <ul className="space-y-0.5">
         {convos.map((c) => {
           const isActive = c.id === activeId
+          const title = c.counterpartName ?? c.title ?? `Conversation #${c.id}`
           return (
             <li key={c.id}>
               <Link
                 href={`/messages?c=${c.id}`}
                 onClick={onPick}
+                aria-current={isActive ? 'true' : undefined}
                 className={`flex flex-col gap-0.5 p-2 rounded-lg ${
                   isActive
-                    ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                    ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
                     : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-                    {c.counterpartName ?? c.title ?? `Conversation #${c.id}`}
+                  <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate" title={title}>
+                    {title}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {c.unreadCount > 0 && (
-                      <span className="text-[10px] font-bold bg-violet-500 text-white rounded-full px-1.5 py-0.5">
+                      <span
+                        className="text-xs font-bold bg-violet-600 text-white rounded-full px-1.5 py-0.5 tabular-nums"
+                        title={`${c.unreadCount} unread`}
+                      >
                         {c.unreadCount}
                       </span>
                     )}
                     {c.lastAt && (
-                      <span className="text-[10px] text-gray-500">{relativeTime(c.lastAt)}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{relativeTime(c.lastAt)}</span>
                     )}
                   </div>
                 </div>
                 {c.lastMessage && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.lastMessage}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate" title={c.lastMessage}>{c.lastMessage}</div>
                 )}
               </Link>
             </li>

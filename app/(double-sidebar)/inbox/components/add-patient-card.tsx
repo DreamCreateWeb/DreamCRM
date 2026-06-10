@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { ActionButton } from '@/components/ui/action-button'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { addPatientFromEmailAction } from '../mailbox-actions'
 
@@ -59,9 +59,9 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
         </div>
-        <div className="text-[12px] font-medium text-stone-700 dark:text-stone-200">Not in CRM yet</div>
+        <div className="text-xs font-medium text-stone-700 dark:text-stone-200">Not in CRM yet</div>
       </div>
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3 leading-relaxed">
+      <p className="text-xs text-stone-500 dark:text-stone-400 mb-3 leading-relaxed">
         Add <span className="text-stone-700 dark:text-stone-300">{fromEmail}</span> as a {terminology.contact} so future emails from them link to a record.
       </p>
 
@@ -74,20 +74,19 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
       </div>
 
       {error && (
-        <div className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">{error}</div>
+        <div className="mt-2 text-xs text-rose-600 dark:text-rose-400" role="alert">{error}</div>
       )}
 
-      <button
+      {/* The card's single primary action. */}
+      <ActionButton
+        variant="primary"
+        size="sm"
         onClick={handleSubmit}
         disabled={pending || !firstName.trim() || !lastName.trim()}
-        className={cn(
-          'w-full mt-3 text-[12px] font-medium rounded-md px-2.5 py-1.5 transition-colors',
-          'bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white',
-          'disabled:opacity-50 disabled:cursor-not-allowed',
-        )}
+        className="w-full justify-center mt-3"
       >
         {pending ? 'Adding…' : `Add as ${terminology.contact}`}
-      </button>
+      </ActionButton>
     </aside>
   )
 }
@@ -95,12 +94,12 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="block">
-      <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-0.5">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-0.5">{label}</div>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1 text-[12px] rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/40 text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-900/10 dark:focus:ring-stone-100/10"
+        className="w-full px-2 py-1 text-sm rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/40 text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-900/10 dark:focus:ring-stone-100/10"
       />
     </label>
   )

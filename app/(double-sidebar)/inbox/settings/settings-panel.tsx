@@ -1,10 +1,11 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatShortDate, formatTime } from '@/lib/utils'
 import type { EmailAccountSummary } from '@/lib/services/mailbox'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
 import { disconnectMailbox, reclassifyAllAction, syncMailbox } from '../mailbox-actions'
 
 interface Props {
@@ -69,29 +70,29 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
 
   return (
     <div className="px-6 py-8 max-w-3xl">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Inbox accounts</h1>
-        <Link href="/inbox" className="text-sm text-gray-500 hover:text-violet-600 dark:hover:text-violet-400">
-          ← Back to inbox
-        </Link>
-      </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Connect Gmail accounts to bring their inboxes into DreamCRM. Each org can connect as many addresses as you
-        need — info@, billing@, support@, etc.
-      </p>
+      <PageHeader
+        eyebrow="Daily · Inbox"
+        title="Inbox accounts"
+        subtitle="Connect Gmail accounts to bring their inboxes into DreamCRM. Connect as many addresses as you need — info@, billing@, support@, and more."
+        actions={
+          <ActionButton variant="secondary" size="sm" href="/inbox">
+            ← Back to inbox
+          </ActionButton>
+        }
+      />
 
       {flash.connectedEmail && (
-        <div className="mb-4 text-sm bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 px-4 py-3 rounded">
+        <div className="mb-4 text-sm bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded" role="status">
           Connected <strong>{flash.connectedEmail}</strong>. We&apos;re pulling in your recent inbox in the background.
         </div>
       )}
       {flash.error && (
-        <div className="mb-4 text-sm bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 px-4 py-3 rounded">
+        <div className="mb-4 text-sm bg-rose-500/10 text-rose-700 dark:text-rose-300 px-4 py-3 rounded" role="alert">
           {flash.error}
         </div>
       )}
       {error && (
-        <div className="mb-4 text-sm bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 px-4 py-3 rounded">
+        <div className="mb-4 text-sm bg-rose-500/10 text-rose-700 dark:text-rose-300 px-4 py-3 rounded" role="alert">
           {error}
         </div>
       )}
@@ -103,16 +104,17 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
           from this app.
         </p>
         {configured ? (
+          // Plain anchor — full-page OAuth redirect, not an in-app navigation.
           <a
             href="/api/oauth/gmail/start"
-            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 inline-flex items-center gap-2"
+            className="btn-sm bg-violet-600 hover:bg-violet-700 text-white inline-flex items-center gap-2"
           >
             Connect Gmail →
           </a>
         ) : (
-          <div className="text-sm bg-amber-500/10 text-amber-700 dark:text-amber-400 px-3 py-2 rounded">
+          <div className="text-sm bg-amber-500/10 text-amber-700 dark:text-amber-300 px-3 py-2 rounded">
             Gmail OAuth isn&apos;t configured yet. A platform admin needs to set{' '}
-            <code>GOOGLE_OAUTH_CLIENT_ID</code> and <code>GOOGLE_OAUTH_CLIENT_SECRET</code> in Vercel.
+            <code>GOOGLE_OAUTH_CLIENT_ID</code> and <code>GOOGLE_OAUTH_CLIENT_SECRET</code> in the environment.
           </div>
         )}
       </div>
@@ -126,15 +128,16 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
             Click below to re-run the classifier over your existing inbox so older mis-categorized messages get
             sorted with the new logic. Manual moves and Gmail-labeled messages stay locked.
           </p>
-          <button
-            type="button"
+          <ActionButton
+            variant="primary"
+            size="sm"
             onClick={handleReclassify}
             disabled={reclassifying}
-            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60 inline-flex items-center gap-2"
+            className="gap-2"
           >
             {reclassifying ? (
               <>
-                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
                   <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
                 </svg>
                 Reclassifying…
@@ -142,9 +145,9 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
             ) : (
               'Reclassify everything'
             )}
-          </button>
+          </ActionButton>
           {reclassifyResult && (
-            <div className="mt-3 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 rounded">
+            <div className="mt-3 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded" role="status">
               Reset {reclassifyResult.reset.toLocaleString()} messages.{' '}
               {reclassifyResult.viaHeuristic.toLocaleString()} sorted via heuristic (Gmail label, thread inheritance, or known sender).{' '}
               {reclassifyResult.classified.toLocaleString()} sorted via AI.
@@ -158,7 +161,7 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
 
       <div>
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
-          Connected accounts <span className="text-gray-400 font-medium">({accounts.length})</span>
+          Connected accounts <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({accounts.length})</span>
         </h2>
         {accounts.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -171,7 +174,7 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
                 <div className="min-w-0">
                   <div className="font-medium text-gray-800 dark:text-gray-100">
                     {a.emailAddress}
-                    <span className="ml-2 text-[10px] uppercase font-semibold bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-300 px-1.5 py-0.5 rounded">
+                    <span className="ml-2 text-xs uppercase font-semibold bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
                       {a.provider}
                     </span>
                   </div>
@@ -181,12 +184,12 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
                     <span
                       className={
                         a.syncStatus === 'ready'
-                          ? 'text-emerald-600 dark:text-emerald-400'
+                          ? 'text-emerald-700 dark:text-emerald-300 font-medium'
                           : a.syncStatus === 'syncing'
-                            ? 'text-amber-600 dark:text-amber-400'
+                            ? 'text-amber-700 dark:text-amber-300 font-medium'
                             : a.syncStatus === 'error'
-                              ? 'text-red-600 dark:text-red-400'
-                              : 'text-gray-500'
+                              ? 'text-rose-700 dark:text-rose-300 font-medium'
+                              : 'text-gray-500 dark:text-gray-400'
                       }
                     >
                       {a.syncStatus}
@@ -197,26 +200,27 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
                     {a.unreadCount > 0 && <> · {a.unreadCount} unread</>}
                   </div>
                   {a.syncError && (
-                    <div className="text-xs text-red-600 mt-1 max-w-xl truncate">{a.syncError}</div>
+                    <div className="text-xs text-rose-700 dark:text-rose-300 mt-1 max-w-xl truncate" role="alert">{a.syncError}</div>
                   )}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
                     onClick={() => handleSync(a.id)}
                     disabled={busy === a.id}
-                    className="btn-xs border border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-300 px-2 py-1 rounded disabled:opacity-60"
                   >
                     {busy === a.id ? 'Working…' : 'Refresh'}
-                  </button>
-                  <button
-                    type="button"
+                  </ActionButton>
+                  {/* Disconnect removes the mailbox link — genuinely destructive. */}
+                  <ActionButton
+                    variant="danger"
+                    size="sm"
                     onClick={() => handleDisconnect(a.id, a.emailAddress)}
                     disabled={busy === a.id}
-                    className="btn-xs border border-red-200 dark:border-red-500/40 text-red-600 px-2 py-1 rounded disabled:opacity-60"
                   >
                     Disconnect
-                  </button>
+                  </ActionButton>
                 </div>
               </li>
             ))}

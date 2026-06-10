@@ -3,6 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import type { EmailAccountSummary } from '@/lib/services/mailbox'
+import { ActionButton } from '@/components/ui/action-button'
 import { sendMailbox } from './mailbox-actions'
 
 interface Props {
@@ -48,14 +49,15 @@ export default function ComposeButton({ accounts }: Props) {
 
   return (
     <>
-      <button
-        type="button"
+      {/* The mailbox sidebar's single primary action. */}
+      <ActionButton
+        variant="primary"
+        size="sm"
         onClick={() => setOpen(true)}
         disabled={accounts.length === 0}
-        className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60"
       >
         Compose
-      </button>
+      </ActionButton>
       <Transition show={open} as={Fragment}>
         <Dialog
           onClose={() => {
@@ -146,34 +148,34 @@ export default function ComposeButton({ accounts }: Props) {
                       />
                     </div>
                     {error && (
-                      <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
+                      <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded" role="alert">
                         {error}
                       </div>
                     )}
                     {ok && (
-                      <div className="text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">
+                      <div className="text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded" role="status">
                         Sent.
                       </div>
                     )}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2">
-                    <button
-                      type="button"
+                    <ActionButton
+                      variant="secondary"
                       onClick={() => {
                         setOpen(false)
                         reset()
                       }}
-                      className="btn-sm border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300"
                     >
                       Cancel
-                    </button>
-                    <button
+                    </ActionButton>
+                    {/* The modal's single primary action. */}
+                    <ActionButton
+                      variant="primary"
                       type="submit"
                       disabled={pending || !accountId || !to || !subject || !body}
-                      className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60"
                     >
                       {pending ? 'Sending…' : 'Send'}
-                    </button>
+                    </ActionButton>
                   </div>
                 </form>
               </DialogPanel>

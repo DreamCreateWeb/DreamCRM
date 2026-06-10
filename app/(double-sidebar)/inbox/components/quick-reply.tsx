@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { ActionButton } from '@/components/ui/action-button'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { draftReplyAction, sendMailbox } from '../mailbox-actions'
 
@@ -109,15 +110,16 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
       )}
     >
       <div className="px-4 pt-3 flex items-center justify-between gap-3">
-        <div className="text-[11px] text-stone-500 dark:text-stone-400 min-w-0 truncate">
+        <div className="text-xs text-stone-500 dark:text-stone-400 min-w-0 truncate">
           Reply to <span className="font-medium text-stone-700 dark:text-stone-200">{toName ?? toEmail}</span>
         </div>
         <button
           type="button"
           onClick={handleDraft}
           disabled={drafting || pending}
+          aria-label="Draft a reply with AI"
           className={cn(
-            'shrink-0 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+            'shrink-0 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
             drafting
               ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 cursor-wait'
               : 'text-violet-700 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-500/10',
@@ -126,14 +128,14 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
         >
           {drafting ? (
             <>
-              <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
                 <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
               </svg>
               Drafting…
             </>
           ) : (
             <>
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <path d="M12 2l1.7 4.7L18 8.4l-4.3 1.7L12 14.8l-1.7-4.7L6 8.4l4.3-1.7zM19 14l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" strokeLinejoin="round" />
               </svg>
               Draft with AI
@@ -156,31 +158,28 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
         }}
         rows={2}
         placeholder={drafting ? `AI is drafting a reply with ${contact} context…` : 'Write a reply, or click Draft with AI…'}
-        className="w-full px-4 pt-2 pb-3 text-[14px] leading-relaxed text-stone-800 dark:text-stone-100 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none placeholder:text-stone-400 dark:placeholder:text-stone-500"
+        className="w-full px-4 pt-2 pb-3 text-sm leading-relaxed text-stone-800 dark:text-stone-100 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none placeholder:text-stone-500 dark:placeholder:text-stone-400"
         style={{ minHeight: 64 }}
       />
       <div className="px-4 py-2 border-t border-stone-100 dark:border-stone-700/40 flex items-center justify-between bg-stone-50/40 dark:bg-stone-800/30 rounded-b-xl">
-        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+        <div className="text-xs text-stone-500 dark:text-stone-400 truncate" role="status" aria-live="polite">
           {error ? (
             <span className="text-rose-600 dark:text-rose-400">{error}</span>
           ) : sent ? (
-            <span className="text-emerald-600 dark:text-emerald-400">Sent ✓</span>
+            <span className="text-emerald-700 dark:text-emerald-300">Sent ✓</span>
           ) : (
             <span className="tabular-nums tracking-wider">⌘ Enter to send · Esc to blur</span>
           )}
         </div>
-        <button
+        {/* The reply card's single primary action. */}
+        <ActionButton
+          variant="primary"
+          size="sm"
           onClick={handleSend}
           disabled={pending || drafting || !body.trim() || sent}
-          className={cn(
-            'rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors',
-            sent
-              ? 'bg-emerald-600 text-white'
-              : 'bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed',
-          )}
         >
           {sent ? 'Sent' : pending ? 'Sending…' : 'Send'}
-        </button>
+        </ActionButton>
       </div>
     </div>
   )

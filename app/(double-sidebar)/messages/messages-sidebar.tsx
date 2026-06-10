@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useFlyoutContext } from '@/app/flyout-context'
 import { relativeTime } from '@/lib/utils'
+import { EmptyState } from '@/components/ui/empty-state'
 import NewConversationButton from './new-conversation-button'
 
 export interface ConvoListItem {
@@ -37,34 +38,38 @@ export default function MessagesSidebar({
             <NewConversationButton users={users} />
           </header>
           {conversations.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              No conversations yet. Start a new one.
-            </div>
+            <EmptyState
+              icon="💬"
+              title="No conversations yet"
+              body="Start a new one with the + button above."
+            />
           ) : (
             <ul className="space-y-1">
               {conversations.map((c) => {
                 const isActive = c.id === activeId
+                const label = c.title ?? `Conversation #${c.id}`
                 return (
                   <li key={c.id}>
                     <Link
                       href={`/messages?c=${c.id}`}
                       onClick={() => setFlyoutOpen(false)}
+                      aria-current={isActive ? 'true' : undefined}
                       className={`flex flex-col p-2 rounded-lg ${
                         isActive
-                          ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                          ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
                           : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
-                          {c.title ?? `Conversation #${c.id}`}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate" title={label}>
+                          {label}
                         </div>
                         {c.lastAt && (
-                          <div className="text-xs text-gray-500">{relativeTime(c.lastAt)}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">{relativeTime(c.lastAt)}</div>
                         )}
                       </div>
                       {c.lastMessage && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.lastMessage}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate" title={c.lastMessage}>{c.lastMessage}</div>
                       )}
                     </Link>
                   </li>

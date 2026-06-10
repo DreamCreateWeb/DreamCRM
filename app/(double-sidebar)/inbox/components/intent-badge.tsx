@@ -1,28 +1,48 @@
 import { cn } from '@/lib/utils'
+import { TONE_PILL, type Tone } from '@/lib/ui/encodings'
 
-const INTENT_COLORS: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  booking:    { bg: 'bg-emerald-50 dark:bg-emerald-500/10',  text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500', label: 'Booking' },
-  insurance:  { bg: 'bg-amber-50 dark:bg-amber-500/10',      text: 'text-amber-700 dark:text-amber-300',     dot: 'bg-amber-500',   label: 'Insurance' },
-  billing:    { bg: 'bg-rose-50 dark:bg-rose-500/10',        text: 'text-rose-700 dark:text-rose-300',       dot: 'bg-rose-500',    label: 'Billing' },
-  records:    { bg: 'bg-sky-50 dark:bg-sky-500/10',          text: 'text-sky-700 dark:text-sky-300',         dot: 'bg-sky-500',     label: 'Records' },
-  follow_up:  { bg: 'bg-violet-50 dark:bg-violet-500/10',    text: 'text-violet-700 dark:text-violet-300',   dot: 'bg-violet-500',  label: 'Follow up' },
-  marketing:  { bg: 'bg-stone-100 dark:bg-stone-500/10',     text: 'text-stone-600 dark:text-stone-400',     dot: 'bg-stone-400',   label: 'Marketing' },
-  other:      { bg: 'bg-stone-100 dark:bg-stone-500/10',     text: 'text-stone-600 dark:text-stone-400',     dot: 'bg-stone-400',   label: 'Other' },
+/**
+ * AI-classified email *intent* (booking / insurance / …). Intent is an
+ * editorial CATEGORY, not a workflow status — but each category maps cleanly
+ * onto a semantic tone whose hue already matched the legacy palette, so we
+ * source the badge color from the contract (`TONE_PILL`) and keep `dot` for
+ * the dense list/avatar cues. The label is always rendered as text, so the
+ * color never carries meaning alone.
+ */
+const INTENT_TONE: Record<string, Tone> = {
+  booking: 'ok',
+  insurance: 'warn',
+  billing: 'urgent',
+  records: 'info',
+  follow_up: 'special',
+  marketing: 'neutral',
+  other: 'neutral',
+}
+
+const INTENT_COLORS: Record<string, { dot: string; label: string }> = {
+  booking:   { dot: 'bg-emerald-500', label: 'Booking' },
+  insurance: { dot: 'bg-amber-500',   label: 'Insurance' },
+  billing:   { dot: 'bg-rose-500',    label: 'Billing' },
+  records:   { dot: 'bg-sky-500',     label: 'Records' },
+  follow_up: { dot: 'bg-violet-500',  label: 'Follow up' },
+  marketing: { dot: 'bg-gray-400',    label: 'Marketing' },
+  other:     { dot: 'bg-gray-400',    label: 'Other' },
 }
 
 export function IntentBadge({ intent, size = 'sm' }: { intent: string | null; size?: 'xs' | 'sm' }) {
   if (!intent) return null
   const c = INTENT_COLORS[intent] ?? INTENT_COLORS.other
+  const tone = INTENT_TONE[intent] ?? 'neutral'
   return (
     <span
+      title={`Intent: ${c.label}`}
       className={cn(
-        'inline-flex items-center gap-1 rounded-full font-medium',
-        c.bg,
-        c.text,
-        size === 'xs' ? 'text-[10px] px-1.5 py-0.5' : 'text-[11px] px-2 py-0.5',
+        'inline-flex items-center gap-1 rounded-full font-medium text-xs',
+        TONE_PILL[tone],
+        size === 'xs' ? 'px-1.5 py-0.5' : 'px-2 py-0.5',
       )}
     >
-      <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} />
+      <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} aria-hidden="true" />
       {c.label}
     </span>
   )
@@ -35,4 +55,4 @@ export function IntentDot({ intent }: { intent: string | null }) {
 }
 
 export const INTENT_LIST = Object.keys(INTENT_COLORS) as Array<keyof typeof INTENT_COLORS>
-export { INTENT_COLORS }
+export { INTENT_COLORS, INTENT_TONE }

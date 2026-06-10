@@ -61,8 +61,9 @@ export default function CategoryTabs({ counts, activeCategory }: Props) {
             <Link
               key={tab.key}
               href={href(tab.key)}
+              aria-current={active ? 'page' : undefined}
               className={cn(
-                'relative inline-flex items-center gap-1.5 px-2.5 py-2 text-[12px] font-medium transition-colors whitespace-nowrap shrink-0',
+                'relative inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-colors whitespace-nowrap shrink-0',
                 active
                   ? 'text-stone-900 dark:text-stone-100'
                   : 'text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200',
@@ -72,7 +73,7 @@ export default function CategoryTabs({ counts, activeCategory }: Props) {
               {count > 0 && (
                 <span
                   className={cn(
-                    'tabular-nums text-[10px] rounded-full px-1.5 py-0.5 leading-none',
+                    'tabular-nums text-xs rounded-full px-1.5 py-0.5 leading-none',
                     active
                       ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                       : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400',

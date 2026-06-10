@@ -1,3 +1,5 @@
+import { EmptyState } from '@/components/ui/empty-state'
+
 interface Props {
   configured: boolean
 }
@@ -5,30 +7,32 @@ interface Props {
 export default function ConnectPrompt({ configured }: Props) {
   return (
     <div className="grow flex items-center justify-center px-6 py-12">
-      <div className="max-w-md text-center">
-        <div className="text-5xl mb-4">📬</div>
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
-          Connect your first inbox
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Link a Gmail account (info@, support@, billing@…) and we&apos;ll bring its inbox right
-          into DreamCRM. You can connect as many as you need.
-        </p>
-        {configured ? (
-          <a
-            href="/api/oauth/gmail/start"
-            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 inline-flex items-center gap-2"
-          >
-            <GoogleIcon />
-            Connect Gmail
-          </a>
-        ) : (
-          <div className="text-sm bg-amber-500/10 text-amber-700 dark:text-amber-400 px-4 py-3 rounded">
+      <div className="max-w-md">
+        <EmptyState
+          icon="📬"
+          title="Connect your first inbox"
+          body="Link a Gmail account (info@, support@, billing@…) and we'll bring its inbox right into DreamCRM. Connect as many as you need."
+          action={
+            configured ? (
+              // Plain anchor — this kicks off a full-page OAuth redirect, not an
+              // in-app navigation, so it must not be a next/link.
+              <a
+                href="/api/oauth/gmail/start"
+                className="btn-sm bg-violet-600 hover:bg-violet-700 text-white inline-flex items-center gap-2"
+              >
+                <GoogleIcon />
+                Connect Gmail
+              </a>
+            ) : undefined
+          }
+        />
+        {!configured && (
+          <div className="mt-4 text-sm bg-amber-500/10 text-amber-700 dark:text-amber-300 px-4 py-3 rounded text-center" role="status">
             Gmail OAuth isn&apos;t configured yet. A platform admin needs to set <code>GOOGLE_OAUTH_CLIENT_ID</code> and{' '}
-            <code>GOOGLE_OAUTH_CLIENT_SECRET</code> in the Vercel project, then redeploy.
+            <code>GOOGLE_OAUTH_CLIENT_SECRET</code> in the environment, then redeploy.
           </div>
         )}
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-6">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-6 text-center">
           Microsoft 365 / Outlook support coming soon.
         </p>
       </div>
