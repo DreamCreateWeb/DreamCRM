@@ -13,6 +13,14 @@ import {
   type ShopStats,
 } from '@/lib/types/shop'
 import { setProductStatusAction, deleteProductAction, updateShopConfigAction, disconnectStripeAction } from './actions'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import { KpiStat } from '@/components/ui/kpi-stat'
+import { FlashToast } from '@/components/ui/flash-toast'
+import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
 
 interface OrderStatsView {
   paidCount: number
@@ -20,11 +28,24 @@ interface OrderStatsView {
   revenueCents: number
 }
 
-const STATUS_STYLE: Record<ProductStatus, string> = {
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-  draft: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
-  archived: 'bg-stone-200 text-stone-500 dark:bg-stone-700 dark:text-stone-400',
+// Product lifecycle → tone contract. draft + archived are inert (neutral); an
+// active product is live and selling (ok).
+const PRODUCT_STATUS_TONE: Record<ProductStatus, Tone> = {
+  active: 'ok',
+  draft: 'neutral',
+  archived: 'neutral',
 }
+const PRODUCT_STATUS_LABEL: Record<ProductStatus, string> = {
+  active: 'Live',
+  draft: 'Draft',
+  archived: 'Archived',
+}
+
+const PRODUCT_PILL_LEGEND: PillLegendRow[] = [
+  { tone: 'ok', label: 'Live', meaning: 'Published and buyable on your storefront' },
+  { tone: 'neutral', label: 'Draft', meaning: 'Not yet published — only you can see it' },
+  { tone: 'neutral', label: 'Archived', meaning: 'Hidden from the storefront' },
+]
 
 interface Props {
   config: ShopConfigView
@@ -35,103 +56,135 @@ interface Props {
   publicBase: string | null
   connectConfigured: boolean
   connectBanner: string | null
+  orgName?: string
 }
 
-export default function ShopClient({ config, products, stats, orderStats, membershipStats, publicBase, connectConfigured, connectBanner }: Props) {
+export default function ShopClient({
+  config,
+  products,
+  stats,
+  orderStats,
+  membershipStats,
+  publicBase,
+  connectConfigured,
+  connectBanner,
+  orgName = 'Your clinic',
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [toast, setToast] = useState<string | null>(null)
 
-  function run(fn: () => Promise<unknown>) {
+  function run(fn: () => Promise<unknown>, done?: string) {
     startTransition(async () => {
       await fn()
+      if (done) setToast(done)
       router.refresh()
     })
   }
 
   const connectReady = config.stripeAccountStatus === 'active' && config.chargesEnabled
 
+  // The primary action is "Add product" once payments are wired; before that the
+  // setup action (connect Stripe) IS the work, so it leads the header.
+  const primaryAction =
+    connectConfigured && !connectReady ? (
+      <ActionButton variant="primary" size="sm" href="/api/connect/shop/start">
+        {config.stripeAccountStatus === 'pending' ? 'Finish Stripe setup' : 'Connect Stripe'}
+      </ActionButton>
+    ) : (
+      <ActionButton variant="primary" size="sm" href="/shop/products/new">
+        + Add product
+      </ActionButton>
+    )
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">Commerce</p>
-          <h1 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">Shop</h1>
-          <p className="text-[13px] text-stone-500 dark:text-stone-400 mt-1 max-w-2xl">
-            Sell whitening kits, brushes, and branded products on your own site. Payouts land in your bank — full margin
-            to the practice.
-          </p>
-        </div>
-        <Link
-          href="/shop/products/new"
-          className="inline-flex items-center px-4 py-2 rounded-lg text-[13px] font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
-        >
-          + New product
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow={`Business · ${orgName}`}
+        title="Shop"
+        subtitle="Sell whitening kits, brushes, and branded products on your own site. Payouts land in your bank — full margin to the practice."
+        legend={<EncodingLegend pills={PRODUCT_PILL_LEGEND} />}
+        actions={primaryAction}
+      />
 
       {connectBanner === 'connected' && (
-        <div className="mb-4 text-[13px] px-4 py-2.5 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+        <div className="mb-4 text-sm px-4 py-2.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
           Stripe connected — payouts will go to your bank account.
         </div>
       )}
       {connectBanner?.startsWith('error:') && (
-        <div className="mb-4 text-[13px] px-4 py-2.5 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+        <div className="mb-4 text-sm px-4 py-2.5 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-300">
           Couldn&apos;t connect Stripe: {connectBanner.slice(6)}
         </div>
       )}
 
       {config.storefrontEnabled ? (
-        <div className="mb-6 text-[13px] px-4 py-2.5 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300 flex items-center justify-between gap-3">
-          <span>Your storefront is live{publicBase ? '.' : '.'}</span>
+        <div className="mb-6 text-sm px-4 py-2.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-between gap-3">
+          <span>Your storefront is live.</span>
           {publicBase && (
-            <a href={publicBase} target="_blank" rel="noopener" className="font-semibold underline shrink-0">View storefront →</a>
+            <a href={publicBase} target="_blank" rel="noopener noreferrer" className="font-semibold underline shrink-0">
+              View storefront →
+            </a>
           )}
         </div>
       ) : (
-        <div className="mb-6 text-[13px] px-4 py-2.5 rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-          Your storefront is off — turn on “Publish storefront” below once you’ve added products and connected Stripe.
+        <div className="mb-6 text-sm px-4 py-2.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300">
+          Your storefront is off — turn on &ldquo;Publish storefront&rdquo; below once you&apos;ve added products and
+          connected Stripe.
         </div>
       )}
 
       {/* Stripe Connect status */}
-      <div className="mb-6 rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 p-5">
+      <div className="mb-6 rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Payments</h2>
-            <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5 max-w-xl">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Payments</h2>
+              <StatusPill
+                tone={connectReady ? 'ok' : 'warn'}
+                label={connectReady ? 'Connected' : 'Not connected'}
+                title={
+                  connectReady
+                    ? 'Stripe is connected — payouts go to your bank'
+                    : 'Connect Stripe to start taking payments'
+                }
+              />
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
               {!connectConfigured
-                ? 'Card payments are being finalized at the platform level. Your “Connect Stripe” button appears here once it’s ready — then payouts go straight to your bank.'
+                ? 'Card payments are being finalized at the platform level. Your "Connect Stripe" button appears here once it\'s ready — then payouts go straight to your bank.'
                 : connectReady
                   ? 'Connected. Payouts go straight to your bank account; you keep full margin.'
                   : 'Connect your Stripe account to start accepting payments. Payouts land in your bank, not ours.'}
             </p>
           </div>
-          <span
-            className={`text-[11px] font-semibold uppercase tracking-wide px-2 py-1 rounded ${
-              connectReady
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-            }`}
-          >
-            {connectReady ? 'Connected' : 'Not connected'}
-          </span>
         </div>
         {connectConfigured && !connectReady && (
-          <a
-            href="/api/connect/shop/start"
-            className="inline-flex items-center mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
-          >
+          <ActionButton variant="primary" size="sm" href="/api/connect/shop/start" className="mt-3">
             {config.stripeAccountStatus === 'pending' ? 'Finish Stripe setup' : 'Connect Stripe'}
-          </a>
+          </ActionButton>
         )}
         {connectReady && (
           <div className="flex items-center gap-3 mt-3">
-            <a href="https://dashboard.stripe.com" target="_blank" rel="noopener" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
+            <a
+              href="https://dashboard.stripe.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+            >
               Manage payouts in Stripe →
             </a>
-            <button disabled={isPending} onClick={() => { if (confirm('Disconnect Stripe? You won’t be able to take payments until you reconnect.')) run(() => disconnectStripeAction()) }} className="text-[12px] text-stone-400 hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400">
+            <ActionButton
+              variant="ghost"
+              size="sm"
+              disabled={isPending}
+              onClick={() => {
+                if (confirm('Disconnect Stripe? You won’t be able to take payments until you reconnect.'))
+                  run(() => disconnectStripeAction(), 'Stripe disconnected.')
+              }}
+            >
               Disconnect
-            </button>
+            </ActionButton>
           </div>
         )}
       </div>
@@ -140,30 +193,77 @@ export default function ShopClient({ config, products, stats, orderStats, member
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4 mb-6">
         <div>
           <div className="grid grid-cols-2 gap-3">
-            <Stat label="Products" value={stats.productCount} />
-            <Stat label="Live" value={stats.activeCount} tone={stats.activeCount > 0 ? 'ok' : undefined} />
-            <Stat label="Paid orders" value={orderStats.paidCount} />
-            <Stat label="Revenue" value={formatCents(orderStats.revenueCents)} tone={orderStats.revenueCents > 0 ? 'ok' : undefined} />
+            <KpiStat label="Products" value={stats.productCount} />
+            <KpiStat
+              label="Live"
+              value={stats.activeCount}
+              tone={stats.activeCount > 0 ? 'ok' : undefined}
+              sub={stats.activeCount > 0 ? 'On your storefront' : undefined}
+            />
+            <KpiStat label="Paid orders" value={orderStats.paidCount} href="/shop/orders" />
+            <KpiStat
+              label="Revenue"
+              value={formatCents(orderStats.revenueCents)}
+              tone={orderStats.revenueCents > 0 ? 'ok' : undefined}
+            />
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            <Link href="/shop/orders" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
-              View orders{orderStats.unfulfilledCount > 0 ? ` · ${orderStats.unfulfilledCount} to fulfill` : ''} →
+            <Link href="/shop/orders" className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline">
+              View orders
+              {orderStats.unfulfilledCount > 0 ? ` · ${orderStats.unfulfilledCount} to fulfill` : ''} →
             </Link>
-            <Link href="/shop/memberships" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
-              Membership plans{membershipStats.activeMembers > 0 ? ` · ${membershipStats.activeMembers} active (${formatCents(membershipStats.mrrCents)}/mo)` : ''} →
+            <Link
+              href="/shop/memberships"
+              className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+            >
+              Membership plans
+              {membershipStats.activeMembers > 0
+                ? ` · ${membershipStats.activeMembers} active (${formatCents(membershipStats.mrrCents)}/mo)`
+                : ''}{' '}
+              →
             </Link>
-            <Link href="/shop/coupons" className="text-[12px] font-medium text-violet-600 dark:text-violet-400 hover:underline">
+            <Link
+              href="/shop/coupons"
+              className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+            >
               Coupons &amp; birthday codes →
             </Link>
           </div>
         </div>
-        <div className="rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 p-4">
-          <p className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">Fulfillment &amp; storefront</p>
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-4">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
+            Fulfillment &amp; storefront
+          </p>
           <div className="flex flex-wrap gap-2">
-            <Toggle label="In-office pickup" on={config.pickupEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ pickupEnabled: !config.pickupEnabled }))} />
-            <Toggle label="Ship to patient" on={config.shippingEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ shippingEnabled: !config.shippingEnabled }))} />
-            <Toggle label="Collect sales tax" on={config.taxEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ taxEnabled: !config.taxEnabled }))} />
-            <Toggle label="Publish storefront" on={config.storefrontEnabled} disabled={isPending} onClick={() => run(() => updateShopConfigAction({ storefrontEnabled: !config.storefrontEnabled }))} />
+            <Toggle
+              label="In-office pickup"
+              on={config.pickupEnabled}
+              disabled={isPending}
+              onClick={() => run(() => updateShopConfigAction({ pickupEnabled: !config.pickupEnabled }))}
+            />
+            <Toggle
+              label="Ship to patient"
+              on={config.shippingEnabled}
+              disabled={isPending}
+              onClick={() => run(() => updateShopConfigAction({ shippingEnabled: !config.shippingEnabled }))}
+            />
+            <Toggle
+              label="Collect sales tax"
+              on={config.taxEnabled}
+              disabled={isPending}
+              onClick={() => run(() => updateShopConfigAction({ taxEnabled: !config.taxEnabled }))}
+            />
+            <Toggle
+              label="Publish storefront"
+              on={config.storefrontEnabled}
+              disabled={isPending}
+              onClick={() =>
+                run(
+                  () => updateShopConfigAction({ storefrontEnabled: !config.storefrontEnabled }),
+                  config.storefrontEnabled ? 'Storefront hidden.' : 'Storefront published.',
+                )
+              }
+            />
           </div>
         </div>
       </div>
@@ -171,53 +271,84 @@ export default function ShopClient({ config, products, stats, orderStats, member
       {/* Product list */}
       <div className="space-y-2.5">
         {products.length === 0 ? (
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-8 text-center text-[13px] text-stone-400 dark:text-stone-500">
-            No products yet. Click &ldquo;New product&rdquo; to add your first.
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
+            <EmptyState
+              icon="🛍️"
+              title="No products yet"
+              body="Add your first product — a whitening kit, an electric brush, or branded merch — and it goes live on your storefront."
+              action={
+                <ActionButton variant="primary" size="sm" href="/shop/products/new">
+                  + Add product
+                </ActionButton>
+              }
+            />
           </div>
         ) : (
           products.map((p) => (
-            <div key={p.id} className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-lg bg-stone-100 dark:bg-stone-800 overflow-hidden shrink-0 flex items-center justify-center">
+            <div
+              key={p.id}
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4 flex items-center gap-4"
+            >
+              <div className="w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden shrink-0 flex items-center justify-center">
                 {p.images[0] ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-stone-300 dark:text-stone-600 text-xs">No image</span>
+                  <span className="text-gray-500 dark:text-gray-400 text-xs">No image</span>
                 )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-stone-900 dark:text-stone-100 truncate">{p.name}</span>
-                  <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${STATUS_STYLE[p.status]}`}>{p.status}</span>
-                  {p.fsaEligible && <span className="text-[10px] text-sky-600 dark:text-sky-400">FSA (Rx)</span>}
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{p.name}</span>
+                  <StatusPill tone={PRODUCT_STATUS_TONE[p.status]} label={PRODUCT_STATUS_LABEL[p.status]} />
+                  {p.fsaEligible && <span className="text-xs text-sky-700 dark:text-sky-300">FSA (Rx)</span>}
                 </div>
-                <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5">
-                  {CATEGORY_LABELS[p.category]} · {priceRangeLabel(p)} · {p.variants.length} variant{p.variants.length === 1 ? '' : 's'}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">
+                  {CATEGORY_LABELS[p.category]} · {priceRangeLabel(p)} · {p.variants.length} variant
+                  {p.variants.length === 1 ? '' : 's'}
                   {p.totalInventory != null && ` · ${p.totalInventory} in stock`}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 text-[12px] shrink-0">
-                <Link href={`/shop/products/${p.id}`} className="px-2 py-1 rounded text-stone-600 hover:text-violet-600 dark:text-stone-300">Edit</Link>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <ActionButton variant="ghost" size="sm" href={`/shop/products/${p.id}`}>
+                  Edit
+                </ActionButton>
                 {p.status === 'active' ? (
-                  <button disabled={isPending} onClick={() => run(() => setProductStatusAction(p.id, 'archived'))} className="px-2 py-1 rounded text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">Unpublish</button>
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
+                    disabled={isPending}
+                    onClick={() => run(() => setProductStatusAction(p.id, 'archived'), `${p.name} unpublished.`)}
+                  >
+                    Unpublish
+                  </ActionButton>
                 ) : (
-                  <button disabled={isPending} onClick={() => run(() => setProductStatusAction(p.id, 'active'))} className="px-2 py-1 rounded font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10">Publish</button>
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
+                    disabled={isPending}
+                    onClick={() => run(() => setProductStatusAction(p.id, 'active'), `${p.name} is live.`)}
+                  >
+                    Publish
+                  </ActionButton>
                 )}
-                <button disabled={isPending} onClick={() => { if (confirm(`Delete "${p.name}"?`)) run(() => deleteProductAction(p.id)) }} className="px-2 py-1 rounded text-stone-400 hover:text-rose-600 dark:hover:text-rose-400">Delete</button>
+                <ActionButton
+                  variant="danger"
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (confirm(`Delete "${p.name}"?`)) run(() => deleteProductAction(p.id), `${p.name} deleted.`)
+                  }}
+                >
+                  Delete
+                </ActionButton>
               </div>
             </div>
           ))
         )}
       </div>
-    </div>
-  )
-}
 
-function Stat({ label, value, tone }: { label: string; value: number | string; tone?: 'ok' }) {
-  return (
-    <div className="px-3 py-2.5 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/60">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">{label}</p>
-      <p className={`text-2xl font-bold tabular-nums mt-0.5 ${tone === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-900 dark:text-stone-100'}`}>{value}</p>
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
   )
 }
@@ -225,12 +356,14 @@ function Stat({ label, value, tone }: { label: string; value: number | string; t
 function Toggle({ label, on, disabled, onClick }: { label: string; on: boolean; disabled: boolean; onClick: () => void }) {
   return (
     <button
+      type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`text-[12px] px-3 py-1.5 rounded-full border transition ${
+      aria-pressed={on}
+      className={`text-xs px-3 py-1.5 rounded-full border transition disabled:opacity-60 ${
         on
-          ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/40 dark:text-emerald-300'
-          : 'border-stone-200 text-stone-500 dark:border-stone-700 dark:text-stone-400'
+          ? 'bg-emerald-500/15 border-emerald-300 text-emerald-700 dark:border-emerald-500/40 dark:text-emerald-300'
+          : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'
       }`}
     >
       {on ? '✓ ' : ''}

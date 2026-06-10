@@ -11,5 +11,5 @@ export default async function CouponsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   const coupons = await listCoupons(ctx.organizationId)
-  return <CouponsClient coupons={coupons} />
+  return <CouponsClient coupons={coupons} orgName={ctx.organizationName} />
 }

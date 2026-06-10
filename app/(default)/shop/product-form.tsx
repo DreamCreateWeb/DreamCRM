@@ -13,9 +13,10 @@ import {
   type VariantInput,
 } from '@/lib/types/shop'
 import { saveProductAction } from './actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 const FIELD = 'w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800'
-const LABEL = 'block text-[12px] font-medium text-stone-700 dark:text-stone-200 mb-1'
+const LABEL = 'block text-xs font-medium text-stone-700 dark:text-stone-200 mb-1'
 
 type VariantState = VariantInput & { key: string }
 
@@ -107,7 +108,7 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
       <div className="mb-5">
-        <Link href="/shop" className="text-[12px] text-stone-500 dark:text-stone-400 hover:underline">← Back to Shop</Link>
+        <Link href="/shop" className="text-xs text-stone-500 dark:text-stone-400 hover:underline">← Back to Shop</Link>
         <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight mt-1">{product ? 'Edit product' : 'New product'}</h1>
       </div>
 
@@ -148,7 +149,7 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
                 <button onClick={() => setImages((imgs) => imgs.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-none">×</button>
               </div>
             ))}
-            <label className="w-20 h-20 rounded-lg border border-dashed border-stone-300 dark:border-stone-600 flex items-center justify-center text-[11px] text-stone-400 cursor-pointer hover:border-violet-400">
+            <label className="w-20 h-20 rounded-lg border border-dashed border-stone-300 dark:border-stone-600 flex items-center justify-center text-xs text-stone-400 cursor-pointer hover:border-violet-400">
               {uploading ? '…' : '+ Photo'}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f) }} />
             </label>
@@ -159,10 +160,10 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className={LABEL + ' mb-0'}>Variants &amp; pricing</label>
-            <button onClick={() => setVariants((vs) => [...vs, emptyVariant()])} className="text-[12px] font-medium text-violet-600 dark:text-violet-400">+ Add variant</button>
+            <button onClick={() => setVariants((vs) => [...vs, emptyVariant()])} className="text-xs font-medium text-violet-600 dark:text-violet-400">+ Add variant</button>
           </div>
           <div className="space-y-2">
-            <div className="grid grid-cols-[1fr_5rem_5rem_4rem_1.5rem] gap-2 text-[10px] uppercase tracking-wider text-stone-400 px-1">
+            <div className="grid grid-cols-[1fr_5rem_5rem_4rem_1.5rem] gap-2 text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 px-1">
               <span>Variant</span><span>Price $</span><span>Compare $</span><span>Stock</span><span></span>
             </div>
             {variants.map((v) => (
@@ -175,14 +176,14 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-stone-400 mt-1.5">Leave Stock blank for unlimited (untracked) inventory.</p>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1.5">Leave Stock blank for unlimited (untracked) inventory.</p>
         </div>
 
         <div className="flex flex-wrap gap-4">
-          <label className="flex items-center gap-2 text-[13px] text-stone-600 dark:text-stone-300">
+          <label className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-300">
             <input type="checkbox" checked={fsaEligible} onChange={(e) => setFsaEligible(e.target.checked)} className="rounded" /> FSA/HSA-eligible (with Rx)
           </label>
-          <label className="flex items-center gap-2 text-[13px] text-stone-600 dark:text-stone-300">
+          <label className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-300">
             <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="rounded" /> Featured
           </label>
         </div>
@@ -196,13 +197,13 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
           </select>
         </div>
 
-        {error && <p className="text-[13px] text-rose-600">{error}</p>}
+        {error && <p className="text-sm text-rose-600">{error}</p>}
 
         <div className="flex items-center gap-3 pt-2">
-          <button disabled={isPending || uploading} onClick={submit} className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-60 dark:bg-stone-100 dark:text-stone-900">
+          <ActionButton variant="primary" disabled={isPending || uploading} onClick={submit}>
             {isPending ? 'Saving…' : product ? 'Save changes' : 'Create product'}
-          </button>
-          <Link href="/shop" className="text-[13px] text-stone-500 dark:text-stone-400 hover:underline">Cancel</Link>
+          </ActionButton>
+          <Link href="/shop" className="text-sm text-stone-500 dark:text-stone-400 hover:underline">Cancel</Link>
         </div>
       </div>
     </div>

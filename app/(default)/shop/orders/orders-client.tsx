@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import {
   formatCents,
   ORDER_STATUS_LABELS,
@@ -12,12 +11,34 @@ import {
   type FulfillmentStatus,
 } from '@/lib/types/shop'
 import { setOrderFulfillmentAction } from '../actions'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import { FlashToast } from '@/components/ui/flash-toast'
+import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
 
-const ORDER_STATUS_STYLE: Record<OrderStatus, string> = {
-  paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  cancelled: 'bg-stone-200 text-stone-500 dark:bg-stone-700 dark:text-stone-400',
-  refunded: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+// Payment status → tone. `pending` is the ball in Stripe's court (info, not
+// warn — we don't act on it); `paid` is done-good; cancelled/refunded are
+// terminal (neutral).
+const ORDER_STATUS_TONE: Record<OrderStatus, Tone> = {
+  paid: 'ok',
+  pending: 'info',
+  cancelled: 'neutral',
+  refunded: 'neutral',
+}
+
+// Fulfillment status → tone, with ball-in-court applied: `unfulfilled` is OUR
+// move (warn); `ready_for_pickup` + `shipped` are in flight / in the patient's
+// court (info); `picked_up` + `delivered` are done (ok).
+const FULFILLMENT_TONE: Record<FulfillmentStatus, Tone> = {
+  unfulfilled: 'warn',
+  ready_for_pickup: 'info',
+  shipped: 'info',
+  picked_up: 'ok',
+  delivered: 'ok',
 }
 
 // Fulfillment transitions offered per current state (paid orders only).
@@ -29,14 +50,25 @@ const NEXT_STEPS: Record<FulfillmentStatus, FulfillmentStatus[]> = {
   delivered: [],
 }
 
-export default function OrdersClient({ orders }: { orders: OrderRow[] }) {
+const PILL_LEGEND: PillLegendRow[] = [
+  { tone: ORDER_STATUS_TONE.paid, label: 'Paid', meaning: 'Payment captured by Stripe' },
+  { tone: ORDER_STATUS_TONE.pending, label: 'Pending payment', meaning: 'Waiting on Stripe to finish checkout' },
+  { tone: FULFILLMENT_TONE.unfulfilled, label: 'Unfulfilled', meaning: 'Paid — your move to fulfill it' },
+  { tone: FULFILLMENT_TONE.ready_for_pickup, label: 'Ready for pickup', meaning: 'Set aside — waiting on the patient' },
+  { tone: FULFILLMENT_TONE.shipped, label: 'Shipped', meaning: 'On its way to the patient' },
+  { tone: FULFILLMENT_TONE.delivered, label: 'Picked up / Delivered', meaning: 'Order complete' },
+]
+
+export default function OrdersClient({ orders, orgName = 'Your clinic' }: { orders: OrderRow[]; orgName?: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all')
+  const [toast, setToast] = useState<string | null>(null)
 
-  function run(fn: () => Promise<unknown>) {
+  function run(fn: () => Promise<unknown>, done?: string) {
     startTransition(async () => {
       await fn()
+      if (done) setToast(done)
       router.refresh()
     })
   }
@@ -50,83 +82,122 @@ export default function OrdersClient({ orders }: { orders: OrderRow[] }) {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
-      <div className="mb-6">
-        <Link href="/shop" className="text-[12px] text-stone-500 dark:text-stone-400 hover:underline">← Back to Shop</Link>
-        <h1 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight mt-1">Orders</h1>
-      </div>
+      <PageHeader
+        eyebrow={`Business · ${orgName}`}
+        title="Orders"
+        subtitle="Storefront orders and where each one is in fulfillment. Unfulfilled paid orders are waiting on you."
+        legend={<EncodingLegend pills={PILL_LEGEND} />}
+        actions={
+          <ActionButton variant="secondary" size="sm" href="/shop">
+            ← Back to Shop
+          </ActionButton>
+        }
+      />
 
       <div className="flex flex-wrap gap-1.5 mb-4">
         {(['all', 'paid', 'pending'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`text-[12px] px-2.5 py-1 rounded-full border ${
-              filter === f
-                ? 'bg-stone-900 text-white border-stone-900 dark:bg-stone-100 dark:text-stone-900 dark:border-stone-100'
-                : 'border-stone-200 text-stone-600 dark:border-stone-700 dark:text-stone-300'
-            }`}
-          >
-            {f === 'all' ? 'All' : ORDER_STATUS_LABELS[f]} <span className="opacity-60">{counts[f]}</span>
-          </button>
+          <FilterChip key={f} active={filter === f} count={counts[f]} onClick={() => setFilter(f)}>
+            {f === 'all' ? 'All' : ORDER_STATUS_LABELS[f]}
+          </FilterChip>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-8 text-center text-[13px] text-stone-400 dark:text-stone-500">
-          No orders yet.
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
+          <EmptyState
+            icon="📦"
+            title={filter === 'all' ? 'No orders yet' : 'Nothing in this view'}
+            body={
+              filter === 'all'
+                ? 'When a patient checks out on your storefront, the order lands here so you can fulfill it.'
+                : 'No orders match this filter right now.'
+            }
+          />
         </div>
       ) : (
         <div className="space-y-2.5">
           {filtered.map((o) => (
-            <div key={o.id} className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
+            <div
+              key={o.id}
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-stone-900 dark:text-stone-100">{o.name || o.email}</span>
-                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${ORDER_STATUS_STYLE[o.status]}`}>{ORDER_STATUS_LABELS[o.status]}</span>
-                    <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                      {o.fulfillmentType === 'pickup' ? 'Pickup' : 'Ship'} · {FULFILLMENT_STATUS_LABELS[o.fulfillmentStatus]}
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{o.name || o.email}</span>
+                    <StatusPill tone={ORDER_STATUS_TONE[o.status]} label={ORDER_STATUS_LABELS[o.status]} />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {o.fulfillmentType === 'pickup' ? 'Pickup' : 'Ship'}
                     </span>
-                    {o.patientName && <span className="text-[11px] text-violet-600 dark:text-violet-400">· {o.patientName}</span>}
+                    {o.status === 'paid' && (
+                      <StatusPill
+                        tone={FULFILLMENT_TONE[o.fulfillmentStatus]}
+                        label={FULFILLMENT_STATUS_LABELS[o.fulfillmentStatus]}
+                        title={
+                          o.fulfillmentStatus === 'unfulfilled'
+                            ? 'Your move — mark it ready or shipped'
+                            : undefined
+                        }
+                      />
+                    )}
+                    {o.patientName && (
+                      <span className="text-xs text-violet-600 dark:text-violet-400">· {o.patientName}</span>
+                    )}
                   </div>
-                  <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5">
-                    {o.items.map((i) => `${i.quantity}× ${i.productName}${i.variantName ? ` (${i.variantName})` : ''}`).join(', ')}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {o.items
+                      .map((i) => `${i.quantity}× ${i.productName}${i.variantName ? ` (${i.variantName})` : ''}`)
+                      .join(', ')}
                   </p>
-                  {o.trackingNumber && <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5">Tracking: {o.trackingNumber}</p>}
+                  {o.trackingNumber && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tracking: {o.trackingNumber}</p>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="font-bold tabular-nums text-stone-900 dark:text-stone-100">{formatCents(o.totalCents)}</p>
-                  <p className="text-[11px] text-stone-400">{o.ageHours < 24 ? `${o.ageHours}h ago` : `${Math.floor(o.ageHours / 24)}d ago`}</p>
+                  <p className="text-sm font-bold tabular-nums text-gray-800 dark:text-gray-100">
+                    {formatCents(o.totalCents)}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                    {o.ageHours < 24 ? `${o.ageHours}h ago` : `${Math.floor(o.ageHours / 24)}d ago`}
+                  </p>
                 </div>
               </div>
               {o.status === 'paid' && NEXT_STEPS[o.fulfillmentStatus].length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-stone-100 dark:border-stone-700/40">
-                  {NEXT_STEPS[o.fulfillmentStatus].map((s) => (
-                    <button
-                      key={s}
-                      disabled={isPending}
-                      onClick={() =>
-                        run(async () => {
-                          // Collect a tracking number when shipping — the action +
-                          // column already support it; the UI just never asked.
-                          const tracking =
-                            s === 'shipped'
-                              ? window.prompt('Tracking number (optional):')?.trim() || undefined
-                              : undefined
-                          await setOrderFulfillmentAction(o.id, s, tracking)
-                        })
-                      }
-                      className="text-[12px] px-2.5 py-1 rounded-lg border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800"
-                    >
-                      Mark {FULFILLMENT_STATUS_LABELS[s].toLowerCase()}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
+                  {NEXT_STEPS[o.fulfillmentStatus].map((s, i) => {
+                    // One primary per row — the most likely next move leads;
+                    // the alternate (e.g. "Mark shipped" vs "Mark ready") is secondary.
+                    const statusLabel = FULFILLMENT_STATUS_LABELS[s].toLowerCase()
+                    return (
+                      <ActionButton
+                        key={s}
+                        variant={i === 0 ? 'primary' : 'secondary'}
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() =>
+                          run(async () => {
+                            // Collect a tracking number when shipping — the action +
+                            // column already support it; the UI just asks here.
+                            const tracking =
+                              s === 'shipped'
+                                ? window.prompt('Tracking number (optional):')?.trim() || undefined
+                                : undefined
+                            await setOrderFulfillmentAction(o.id, s, tracking)
+                          }, `Marked ${statusLabel}.`)
+                        }
+                      >
+                        Mark {statusLabel}
+                      </ActionButton>
+                    )
+                  })}
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
+
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
   )
 }

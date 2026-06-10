@@ -46,6 +46,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       publicBase={publicBase}
       connectConfigured={shopConnectConfigured()}
       connectBanner={connected ? 'connected' : connectError ? `error:${connectError}` : null}
+      orgName={ctx.organizationName}
     />
     </>
   )

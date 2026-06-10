@@ -14,6 +14,7 @@ import type {
 } from '@/lib/types/clinic-content'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
+import { ActionButton } from '@/components/ui/action-button'
 import StudioAiBar from './studio-ai-bar'
 import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 import { Field, TagListEditor, inputCls, textareaCls } from '@/components/ui/editor-kit'
@@ -309,27 +310,22 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
             🏠 Home
           </button>
           <span className="text-sm font-semibold whitespace-nowrap">Editing your website</span>
-          <span className="hidden sm:inline text-[11px] text-stone-400 truncate">
+          <span className="hidden sm:inline text-xs text-stone-300 truncate">
             Click text to edit it · hover a section for its “Edit” button · click the hero image to replace it.
           </span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {status === 'saving' && <span className="text-[12px] text-stone-300">Saving…</span>}
-          {status === 'saved' && <span className="text-[12px] text-emerald-400">Saved ✓ live</span>}
+          {status === 'saving' && <span className="text-xs text-stone-300">Saving…</span>}
+          {status === 'saved' && <span className="text-xs text-emerald-400">Saved ✓ live</span>}
           {status === 'error' && (
-            <span className="text-[12px] text-rose-400 max-w-[16rem] truncate">{errorMsg ?? 'Could not save'}</span>
+            <span className="text-xs text-rose-400 max-w-[16rem] truncate">{errorMsg ?? 'Could not save'}</span>
           )}
-          <Link href="/settings/clinic" className="hidden sm:inline text-[12px] text-stone-300 hover:text-white">
+          <Link href="/settings/clinic" className="hidden sm:inline text-xs text-stone-300 hover:text-white">
             Advanced edits
           </Link>
-          <a
-            href={siteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[12px] font-semibold px-3 py-1 rounded bg-white text-stone-900 hover:bg-stone-100"
-          >
+          <ActionButton variant="secondary" size="sm" href={siteUrl} target="_blank">
             View live ↗
-          </a>
+          </ActionButton>
         </div>
       </div>
 
@@ -782,11 +778,15 @@ function StudioModal({
             </div>
           )}
           {modal.kind === 'section' && !SECTION_TITLES[modal.field] && (
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              This section’s editor isn’t available in your current tab — it was likely added
-              in a newer version of the editor. Refresh the page (⌘⇧R / Ctrl+Shift+R) and try
-              again.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-stone-600 dark:text-stone-300">
+                This editor was added in a newer version of the Studio than this tab is running.
+                Refresh to pick it up — your saved edits are safe.
+              </p>
+              <ActionButton variant="primary" size="sm" onClick={() => window.location.reload()}>
+                Refresh to edit
+              </ActionButton>
+            </div>
           )}
         </div>
 
