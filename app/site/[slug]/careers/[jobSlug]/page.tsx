@@ -37,7 +37,12 @@ export async function generateMetadata({ params }: Props) {
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/careers/${job.slug}`
   const title = `${job.title} — ${name}`
-  const description = job.description.slice(0, 180)
+  // description is .notNull().default('') — a published role can carry a blank
+  // description, so fall back to a warm generic line rather than emit an empty
+  // meta description.
+  const description = job.description.trim()
+    ? job.description.slice(0, 180)
+    : `Join the team at ${name} — apply for our ${job.title} opening.`
   return {
     title,
     description,

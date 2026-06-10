@@ -196,12 +196,18 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // complementary panels regardless of brand color so the composition
   // reads the same on every palette. Decorative chrome, not content.
   const leftPortraitImage = heroImageUrl ?? null
-  // "Why us" feature media — office photos only (never the hero image).
-  const differenceMediaUrl = officePhotos[1]?.url ?? officePhotos[0]?.url ?? null
   // Right hero oval = its own dedicated second hero photo (single-image replace).
   // Falls back to the first office photo for sites set up before the column.
   const rightPortraitImage =
     (profile.heroImageUrl2 as string | null) ?? officePhotos[0]?.url ?? null
+  // "Why us" feature media — office photos only (never the hero image). Pick
+  // the first office photo NOT already shown in the right hero oval, so a
+  // clinic with a single office photo (and no second hero image) doesn't see
+  // the same photo twice on one page. When the only office photo is already
+  // feeding the hero oval, the slot stays EMPTY (collapses publicly, shows a
+  // Studio add-prompt) rather than duplicating the image.
+  const differenceMediaUrl =
+    officePhotos.find((p) => p.url && p.url !== rightPortraitImage)?.url ?? null
   const leftPortraitBg = '#B8D4E8'
   const rightPortraitBg = '#F0D9BD'
 
@@ -590,9 +596,12 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── "The {clinic} difference" — 2-col feature/checklist ────────── */}
       {/* Left: feature media — video when `differenceVideoUrl` is set
-          (ambient autoplay loop, no controls), otherwise heroImageUrl or
-          officePhoto fallback. Right: H2 + leadin + Book CTA + 2-col chip
-          checklist. Mirrors Tend's "Tend Dental difference" block. */}
+          (ambient autoplay loop, no controls), else an office photo that
+          isn't already in the hero oval (never the hero image — see
+          `differenceMediaUrl`). With no media at all the media column hides
+          publicly and the layout collapses to a single column. Right: H2 +
+          leadin + Book CTA + 2-col chip checklist. Mirrors Tend's "Tend
+          Dental difference" block. */}
       <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div
@@ -724,6 +733,69 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           </div>
         </div>
       </section>
+
+      {/* ── Studio-only: finish-your-homepage prompts ──────────────────── */}
+      {/* The optional homepage sections (trust stats, team photos, patient
+          reviews) each hide PUBLICLY when empty so a fresh clinic never shows
+          a heading with nothing under it. But that also means there is nothing
+          on the canvas to click to add them. This strip is invisible to the
+          public (dc-edit-only) and gives the Studio one click target per
+          still-empty section — same pattern #304 used for services. Each card
+          carries the section's data-edit-field so clicking opens its editor.
+          The whole strip disappears once every optional section has content. */}
+      {(stats.length === 0 ||
+        teamGalleryMembers.length === 0 ||
+        testimonials.length === 0) && (
+        <section className="dc-edit-only py-12 sm:py-16">
+          <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
+            <p
+              className="text-xs font-semibold uppercase tracking-[0.16em] mb-4 text-center"
+              style={{ color: INK_MUTED }}
+            >
+              Finish your homepage
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {stats.length === 0 && (
+                <button
+                  type="button"
+                  className="rounded-2xl border-2 border-dashed text-center py-7 px-5 text-sm font-medium"
+                  style={{ borderColor: BORDER, color: INK_MUTED }}
+                  data-edit-field="stats"
+                  data-edit-kind="modal"
+                  data-edit-label="trust stats"
+                >
+                  + Add trust stats — years open, happy patients, and more.
+                </button>
+              )}
+              {teamGalleryMembers.length === 0 && (
+                <button
+                  type="button"
+                  className="rounded-2xl border-2 border-dashed text-center py-7 px-5 text-sm font-medium"
+                  style={{ borderColor: BORDER, color: INK_MUTED }}
+                  data-edit-field="staff"
+                  data-edit-kind="modal"
+                  data-edit-label="team photos"
+                >
+                  + Add your team — photos appear here and on your About page.
+                </button>
+              )}
+              {testimonials.length === 0 && (
+                <button
+                  type="button"
+                  className="rounded-2xl border-2 border-dashed text-center py-7 px-5 text-sm font-medium"
+                  style={{ borderColor: BORDER, color: INK_MUTED }}
+                  data-edit-field="testimonials"
+                  data-edit-kind="modal"
+                  data-edit-label="reviews"
+                >
+                  + Feature patient reviews — collect them under Reviews, then
+                  star your favorites.
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Testimonials — promoted to this slot (was: services pillars,
           deleted). Tend's verbatim: "Why people love {clinic}" left-aligned
@@ -1022,10 +1094,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         </div>
       </section>
 
-      {/* ── Clinical-team trust — 3-col with oval portraits + 4 callouts ── */}
-      {/* Renders only when we have ≥2 office photos (so both flanking
-          portraits have real content). Hides cleanly when missing — no
-          half-empty grid. */}
+      {/* ── Care-that-puts-you-first trust band — heading + 4 callouts ──── */}
+      {/* Always renders: the 4 callouts are universal anti-shame trust
+          signals (no clinic data), so this is never an empty husk even on a
+          brand-new clinic. The headings are copy-overridable in the Studio
+          but ship with warm defaults. */}
       <section className="py-16 sm:py-24" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1040px] mx-auto px-5 sm:px-8">
           <div className="text-center max-w-[680px] mx-auto mb-10 sm:mb-14">
@@ -1442,6 +1515,21 @@ function OvalPortrait({
           className="absolute inset-0 w-full h-full object-cover"
           style={position ? { objectPosition: position } : undefined}
         />
+      ) : editField ? (
+        /* Empty oval. Publicly it stays a clean solid-color decorative shape
+           (no broken-image, no alt). In the Studio (dc-edit-only) it surfaces
+           a hint so the owner knows the empty oval is a click target for
+           adding a hero photo. dc-edit-only flips display:block, so the
+           centering lives on an inner element that stays absolutely
+           positioned. */
+        <span className="dc-edit-only">
+          <span
+            className="absolute inset-0 flex items-center justify-center text-center px-6 text-[13px] font-semibold"
+            style={{ color: 'rgba(28, 26, 23, 0.55)' }}
+          >
+            + Add a photo
+          </span>
+        </span>
       ) : null}
     </div>
   )

@@ -1164,4 +1164,118 @@ describe('new-clinic baseline (no phantom content)', () => {
     expect(img?.getAttribute('src')).toBe('https://img.test/office-2.jpg')
     expect(img?.getAttribute('src')).not.toBe('https://img.test/hero.jpg')
   })
+
+  it('does not show the SAME office photo in the right hero oval and the "Why us" media', () => {
+    // Partial-fill regression: a clinic with exactly ONE office photo and no
+    // second hero image used to render that single photo in BOTH the right
+    // hero oval (heroImageUrl2 fallback) AND the difference-section media —
+    // the same image twice on one page. The difference media must now pick a
+    // DIFFERENT office photo, or hide if there isn't one.
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({
+          heroImageUrl: 'https://img.test/hero.jpg',
+          heroImageUrl2: null,
+          officePhotos: [{ id: 'p1', url: 'https://img.test/only-office.jpg' }],
+        } as never)}
+        basePath="/site/test"
+      />,
+    )
+    // Right hero oval falls back to the single office photo.
+    const rightOval = container.querySelector('[data-edit-field="heroImageUrl2"] img')
+    expect(rightOval?.getAttribute('src')).toBe('https://img.test/only-office.jpg')
+    // The difference media must NOT reuse it — with no other photo, it stays
+    // empty (Studio-only prompt) rather than duplicating.
+    const mediaBox = container.querySelector('[data-edit-field="differenceVideoUrl"]')
+    expect(mediaBox!.querySelector('img')).toBeNull()
+    expect(mediaBox!.closest('.dc-edit-only')).not.toBeNull()
+  })
+
+  it('picks a distinct office photo for the "Why us" media when the first feeds the hero oval', () => {
+    // With two office photos and no second hero image, the right oval takes
+    // photo[0] and the difference media takes photo[1] — two distinct images.
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({
+          heroImageUrl: 'https://img.test/hero.jpg',
+          heroImageUrl2: null,
+          officePhotos: [
+            { id: 'p1', url: 'https://img.test/office-1.jpg' },
+            { id: 'p2', url: 'https://img.test/office-2.jpg' },
+          ],
+        } as never)}
+        basePath="/site/test"
+      />,
+    )
+    const rightOval = container.querySelector('[data-edit-field="heroImageUrl2"] img')
+    expect(rightOval?.getAttribute('src')).toBe('https://img.test/office-1.jpg')
+    const media = container.querySelector('[data-edit-field="differenceVideoUrl"] img')
+    expect(media?.getAttribute('src')).toBe('https://img.test/office-2.jpg')
+    expect(media?.getAttribute('src')).not.toBe(rightOval?.getAttribute('src'))
+  })
+
+  it('hides empty trust-stats / team / testimonials sections publicly but offers Studio add-prompts', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({
+          stats: null as never,
+          staff: null as never,
+          testimonials: null as never,
+          officePhotos: null as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    // No public stat / testimonial section headings leak on a fresh clinic.
+    expect(screen.queryByText(/Why people love/i)).not.toBeInTheDocument()
+    // The three add-prompts exist and are all gated to the Studio.
+    const statPrompt = screen.getByText(/\+ Add trust stats/i)
+    const teamPrompt = screen.getByText(/\+ Add your team/i)
+    const reviewPrompt = screen.getByText(/\+ Feature patient reviews/i)
+    expect(statPrompt.closest('.dc-edit-only')).not.toBeNull()
+    expect(teamPrompt.closest('.dc-edit-only')).not.toBeNull()
+    expect(reviewPrompt.closest('.dc-edit-only')).not.toBeNull()
+    // Each prompt is a real edit target wired to its section's modal field.
+    expect(statPrompt.closest('[data-edit-field="stats"]')).not.toBeNull()
+    expect(teamPrompt.closest('[data-edit-field="staff"]')).not.toBeNull()
+    expect(reviewPrompt.closest('[data-edit-field="testimonials"]')).not.toBeNull()
+  })
+
+  it('drops the finish-your-homepage prompts once those sections have content', () => {
+    render(
+      <ModernTemplate
+        data={makeData({
+          stats: [{ id: 's1', value: '10+', label: 'Years' }] as never,
+          staff: [{ id: 'st1', name: 'Dr. Jane Lee', photoUrl: 'https://img.test/jane.jpg' }] as never,
+          testimonials: [
+            { id: 't1', quote: 'Lovely.', authorName: 'A. B.', authorLocation: 'City, ST', authorPhotoUrl: null },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    expect(screen.queryByText(/\+ Add trust stats/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\+ Add your team/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\+ Feature patient reviews/i)).not.toBeInTheDocument()
+  })
+
+  it('renders empty hero ovals as clean decorative shapes with a Studio-only add hint (no broken image)', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({ heroImageUrl: null, heroImageUrl2: null, officePhotos: null as never })}
+        basePath="/site/test"
+      />,
+    )
+    const leftOval = container.querySelector('[data-edit-field="heroImageUrl"]')
+    const rightOval = container.querySelector('[data-edit-field="heroImageUrl2"]')
+    expect(leftOval).not.toBeNull()
+    expect(rightOval).not.toBeNull()
+    // No <img> at all when empty — so there is no broken-image / empty-alt state.
+    expect(leftOval!.querySelector('img')).toBeNull()
+    expect(rightOval!.querySelector('img')).toBeNull()
+    // The "+ Add a photo" hint exists and is Studio-gated (hidden publicly).
+    const hints = screen.getAllByText(/\+ Add a photo/i)
+    expect(hints.length).toBeGreaterThanOrEqual(2)
+    for (const h of hints) expect(h.closest('.dc-edit-only')).not.toBeNull()
+  })
 })
