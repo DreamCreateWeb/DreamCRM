@@ -71,7 +71,7 @@ function makeData(services: ClinicService[]): ClinicSiteData {
       portalSettings: null,
       createdAt: new Date(),
       updatedAt: new Date(),
-    } as ClinicSiteData['profile'],
+    } as unknown as ClinicSiteData['profile'],
   }
 }
 

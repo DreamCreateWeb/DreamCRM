@@ -372,6 +372,13 @@
       "when": 1781064756876,
       "tag": "0052_peaceful_la_nuit",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1781121797042,
+      "tag": "0053_exotic_gateway",
+      "breakpoints": true
     }
   ]
 }

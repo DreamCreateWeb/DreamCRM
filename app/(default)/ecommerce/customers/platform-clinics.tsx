@@ -6,6 +6,7 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { type PillLegendRow } from '@/lib/ui/encodings'
 import ClinicsList from './clinics-list'
+import AddClinicModal from './add-clinic-modal'
 
 const PLAN_PILLS: PillLegendRow[] = [
   { tone: 'neutral', label: 'Basic', meaning: 'Basic plan tier' },
@@ -17,6 +18,8 @@ const STATUS_PILLS: PillLegendRow[] = [
   { tone: 'ok', label: 'active', meaning: 'Paying or trialing — healthy' },
   { tone: 'urgent', label: 'past due', meaning: 'Payment failed — needs intervention' },
   { tone: 'neutral', label: 'canceled', meaning: 'Inactive — no live subscription' },
+  { tone: 'info', label: 'setup pending', meaning: 'You created this clinic — owner hasn’t accepted the invite / added billing yet' },
+  { tone: 'neutral', label: 'comped', meaning: 'Platform-granted plan, no Stripe subscription (free account)' },
 ]
 
 export default async function PlatformClinics() {
@@ -58,6 +61,7 @@ export default async function PlatformClinics() {
             <ActionButton href="/ecommerce/invoices" variant="secondary">
               Subscriptions
             </ActionButton>
+            <AddClinicModal />
           </>
         }
       />

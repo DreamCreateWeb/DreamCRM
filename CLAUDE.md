@@ -118,6 +118,31 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Launch-ready signup + managed clinic provisioning (2026-06-10, PRs #302
+  + #303)** — the two acquisition paths. **Self-serve:** /pricing CTAs carry
+  `?plan=` → dental signup (name/email/practice/password — Mosaic Role-
+  dropdown junk deleted) → 4-step wizard, all answers wired to real columns:
+  (1) practice name + phone, (2) address incl. state, (3) `{slug}.dream
+  createstudio.com` picker w/ live availability (`checkClinicSlug`,
+  reserved-subdomain list in `lib/onboarding/slug.ts`) + brand-color
+  presets, (4) plan picker (pre-seeded from the marketing pick) → Stripe
+  Checkout with `allow_promotion_codes` → /onboarding-complete → /welcome AI
+  interview. `submitOnboarding` honors the picked slug (suffix on race),
+  writes phone/state/brandColor; planTier stays webhook-owned. **Managed
+  (platform-side):** "+ Add clinic" on /ecommerce/customers (platform) —
+  clinic + owner invite + reserved plan + per-clinic custom pricing as a
+  real Stripe coupon (%-off / $-off · once / N-months / forever) or
+  **comped** (tier granted, no Stripe). Service
+  `lib/services/clinic-provisioning.ts`; migration 0053 adds
+  `clinic_profile.billing_mode/pending_plan_id/pending_billing_interval/
+  stripe_coupon_id/managed_note`. Owner accepts the standard invite →
+  amber "finish billing setup" banner (DashboardShell, driven by
+  `ctx.billingActivationPending`) → `/billing/activate` shows their
+  negotiated price → checkout with the coupon **pre-applied** (no code
+  typing; falls back to promo-code entry if the coupon was deleted).
+  Webhook clears the pending reservation on activation. Clinics list shows
+  "setup pending"/"comped" pills + Resend invite. Tests:
+  `tests/onboarding/` + `tests/provisioning/`.
 - **Actions-first dashboard design system (2026-06-10, PRs #290–#300)** —
   the entire authenticated dashboard (app/(default) + app/(double-sidebar))
   was migrated to a unified actions-first UI system. **Read

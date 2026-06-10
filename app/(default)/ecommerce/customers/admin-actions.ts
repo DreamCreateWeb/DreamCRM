@@ -9,6 +9,11 @@ import { db, schema } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
 import { createDemoClinic } from '@/lib/services/demo-clinic'
+import {
+  createManagedClinic,
+  resendClinicOwnerInvite,
+  type CreateManagedClinicResult,
+} from '@/lib/services/clinic-provisioning'
 import { cancelSubscriptionNow } from '@/lib/services/stripe-admin'
 import type { Role } from '@/lib/modules/types'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
@@ -165,6 +170,72 @@ export async function deleteClinicAction(input: unknown): Promise<DeleteClinicRe
 
   revalidatePath('/ecommerce/customers')
   return { ok: true, name: org.name, subscriptionCanceled }
+}
+
+const ManagedPricingInput = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('standard') }),
+  z.object({
+    kind: z.literal('percent_off'),
+    percentOff: z.number().int().min(1).max(100),
+    durationMonths: z.number().int().min(1).max(36).optional(),
+  }),
+  z.object({
+    kind: z.literal('amount_off'),
+    amountOffCents: z.number().int().min(50),
+    durationMonths: z.number().int().min(1).max(36).optional(),
+  }),
+  z.object({ kind: z.literal('comped') }),
+])
+
+const CreateManagedClinicInput = z.object({
+  name: z.string().trim().min(1, 'Clinic name is required').max(200),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(40)
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  ownerEmail: z.string().trim().email('Enter a valid owner email'),
+  ownerName: z.string().trim().min(1, 'Owner name is required').max(120),
+  planId: z.enum(['basic', 'pro', 'premium']),
+  interval: z.enum(['monthly', 'annual']),
+  pricing: ManagedPricingInput,
+  note: z.string().trim().max(2000).optional(),
+})
+
+/**
+ * Platform admin creates a clinic for a client: org + profile + reserved
+ * plan (optionally at a negotiated price via a Stripe coupon, or comped),
+ * and emails the owner an invite. The owner activates billing from the
+ * in-app banner → checkout with the discount pre-applied.
+ */
+export async function createManagedClinicAction(input: unknown): Promise<CreateManagedClinicResult> {
+  const ctx = await requirePlatformAdmin()
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Forbidden: platform owner or admin only')
+  }
+  const data = CreateManagedClinicInput.parse(input)
+  const result = await createManagedClinic({
+    ...data,
+    inviterUserId: ctx.userId,
+    inviterName: ctx.userName,
+  })
+  revalidatePath('/ecommerce/customers')
+  return result
+}
+
+/** Re-send the pending owner invite for a platform-created clinic. */
+export async function resendClinicInviteAction(orgId: string): Promise<{ email: string }> {
+  const ctx = await requirePlatformAdmin()
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Forbidden: platform owner or admin only')
+  }
+  const result = await resendClinicOwnerInvite({
+    organizationId: z.string().min(1).parse(orgId),
+    inviterName: ctx.userName,
+  })
+  return result
 }
 
 /**

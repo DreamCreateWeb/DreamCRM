@@ -127,6 +127,20 @@ export const clinicProfile = pgTable('clinic_profile', {
   stripeSubscriptionId: text('stripe_subscription_id'),
   subscriptionStatus: text('subscription_status'),
 
+  // How this clinic's billing came to be: 'self_serve' = signed up through
+  // onboarding; 'managed' = created by the platform admin, owner activates
+  // billing from an invite; 'comped' = platform-granted tier, no Stripe sub.
+  billingMode: text('billing_mode').default('self_serve'),
+  // Managed clinics: the plan the platform admin reserved, awaiting owner
+  // checkout. Cleared by the Stripe webhook when the subscription activates.
+  pendingPlanId: text('pending_plan_id'),
+  pendingBillingInterval: text('pending_billing_interval'),
+  // Per-clinic custom pricing: a Stripe coupon pre-applied at activation
+  // checkout (the platform admin's negotiated price).
+  stripeCouponId: text('stripe_coupon_id'),
+  // Internal operator note (why comped / pricing context). Never patient-facing.
+  managedNote: text('managed_note'),
+
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
