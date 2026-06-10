@@ -104,9 +104,11 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
 
 ## Stripe wiring
 - Plans live in `lib/stripe-config.ts` (Basic / Pro / Premium, monthly + annual)
-- **Note:** the `*_ANNUAL` env vars currently point to the same Stripe prices
-  as `*_MONTHLY`. The Plans UI offers annual billing but charges monthly until
-  real annual prices are created in Stripe and 3 envs are updated.
+- **Annual billing is LIVE (2026-06-10):** real annual prices exist in live
+  Stripe (Basic $990 / Pro $1,490 / Premium $1,990 per year = 2 months free)
+  and the 3 `STRIPE_PRICE_*_ANNUAL` envs in `dreamcrm/app-secrets` point at
+  them. Marketing /pricing advertises it; onboarding + Settings → Plan
+  charge it.
 - Webhook endpoint `we_…` registered at
   `https://dreamcrm-dreamcreatewebs-projects.vercel.app/api/webhooks/stripe`
   (legacy URL — fine, Vercel routes both). Subscribed events:
@@ -1381,8 +1383,10 @@ eventual App Runner → ECS move) are tracked in that section.
    --domain-name "*.dreamcreatestudio.com" --no-enable-www-subdomain`,
    then add the returned validation records + the `*` routing CNAME.
    Path-based URLs (`/site/[slug]/...`) still work as before.
-4. **Real annual Stripe prices** — split the 3 `STRIPE_PRICE_*_ANNUAL`
-   envs (they currently point to the same monthly prices).
+4. ~~**Real annual Stripe prices**~~ — **DONE (2026-06-10).** Annual prices
+   live in Stripe (Basic $990 / Pro $1,490 / Premium $1,990 = 2 months free),
+   the 3 `STRIPE_PRICE_*_ANNUAL` envs point at them, and the marketing
+   /pricing page advertises annual instead of "coming soon".
 5. **Multi-page Website editor (v1.1)** — about page, services detail,
    custom landing pages, blog posts. Template switcher with preview
    (Cosmetic / Pediatric variants per DESIGN.md). Custom domain wiring
