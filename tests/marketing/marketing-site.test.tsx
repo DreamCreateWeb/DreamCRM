@@ -38,7 +38,7 @@ import { MARKETING_NAV } from '@/lib/marketing/site'
 describe('marketing home', () => {
   it('renders the hero + plan prices from the real PLANS config for signed-out visitors', async () => {
     render(await MarketingHome())
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/one system/i)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/one calm system/i)
     for (const plan of PLANS) {
       expect(screen.getAllByText(`$${plan.price}`).length).toBeGreaterThanOrEqual(1)
     }

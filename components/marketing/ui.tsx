@@ -248,3 +248,208 @@ export function PortalMock() {
     </div>
   )
 }
+
+/** Slot-grid mock for the booking section. */
+export function BookingMock() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-xl shadow-gray-200/60" aria-hidden="true">
+      <div className="mb-3 h-3.5 w-36 rounded bg-gray-300" />
+      <div className="mb-4 flex gap-2">
+        {['Mon 15', 'Tue 16', 'Wed 17', 'Thu 18'].map((d, i) => (
+          <div
+            key={d}
+            className={`flex-1 rounded-lg border px-2 py-2 text-center text-[0.7rem] font-semibold ${
+              i === 1 ? 'border-violet-600 bg-violet-600 text-white' : 'border-gray-200 text-gray-500'
+            }`}
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {['8:00', '8:30', '9:00', '9:30', '10:00', '10:30'].map((t, i) => (
+          <div
+            key={t}
+            className={`rounded-lg border px-2 py-2 text-center text-[0.75rem] font-semibold ${
+              i === 2
+                ? 'border-gray-100 bg-gray-50 text-gray-300 line-through'
+                : i === 4
+                  ? 'border-violet-600 bg-violet-50 text-violet-700'
+                  : 'border-gray-200 text-gray-700'
+            }`}
+          >
+            {t} AM
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 h-9 rounded-lg bg-violet-600" />
+    </div>
+  )
+}
+
+/** Unified-thread mock for the messages section. */
+export function MessagesMock() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-xl shadow-gray-200/60" aria-hidden="true">
+      <div className="mb-4 flex items-center gap-2.5 border-b border-gray-100 pb-3">
+        <span className="h-8 w-8 rounded-full bg-violet-100" />
+        <div className="space-y-1">
+          <div className="h-3 w-24 rounded bg-gray-300" />
+          <div className="h-2 w-32 rounded bg-gray-200" />
+        </div>
+        <span className="ml-auto h-5 w-14 rounded-full bg-amber-100" />
+      </div>
+      <div className="space-y-2.5">
+        <div className="flex justify-start">
+          <div className="w-3/5 space-y-1.5 rounded-2xl rounded-bl-md bg-gray-100 p-2.5">
+            <div className="h-2 w-full rounded bg-gray-300/70" />
+            <div className="h-2 w-2/3 rounded bg-gray-300/70" />
+          </div>
+        </div>
+        <p className="pl-1 text-[0.62rem] font-semibold uppercase tracking-wide text-gray-400">via portal</p>
+        <div className="flex justify-end">
+          <div className="w-1/2 space-y-1.5 rounded-2xl rounded-br-md bg-violet-600 p-2.5">
+            <div className="h-2 w-full rounded bg-white/50" />
+            <div className="h-2 w-1/2 rounded bg-white/50" />
+          </div>
+        </div>
+        <div className="flex justify-start">
+          <div className="w-2/5 rounded-2xl rounded-bl-md bg-gray-100 p-2.5">
+            <div className="h-2 w-full rounded bg-gray-300/70" />
+          </div>
+        </div>
+        <p className="pl-1 text-[0.62rem] font-semibold uppercase tracking-wide text-gray-400">via email — same thread</p>
+      </div>
+      <div className="mt-4 flex gap-2">
+        <div className="h-9 flex-1 rounded-lg border border-gray-200 bg-gray-50" />
+        <div className="h-9 w-16 rounded-lg bg-violet-600" />
+      </div>
+    </div>
+  )
+}
+
+/** Review-request mock: patient quote → featured on the website. */
+export function ReviewsMock() {
+  return (
+    <div className="space-y-3" aria-hidden="true">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xl shadow-gray-200/60">
+        <div className="flex items-center gap-1 text-amber-400">
+          {[...Array(5)].map((_, i) => (
+            <svg key={i} viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+              <path d="M10 1.5 12.6 7l6 .9-4.3 4.2 1 6-5.3-2.9L4.7 18l1-6L1.4 7.9l6-.9L10 1.5Z" />
+            </svg>
+          ))}
+        </div>
+        <div className="mt-2.5 space-y-1.5">
+          <div className="h-2 w-full rounded bg-gray-200" />
+          <div className="h-2 w-5/6 rounded bg-gray-200" />
+          <div className="h-2 w-2/3 rounded bg-gray-200" />
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <div className="h-2.5 w-20 rounded bg-gray-300" />
+          <div className="rounded-full bg-violet-600 px-3 py-1 text-[0.68rem] font-bold text-white">
+            Feature on website →
+          </div>
+        </div>
+      </div>
+      <div className="ml-8 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+        <p className="text-[0.68rem] font-bold uppercase tracking-wide text-emerald-700">✓ Live on your testimonials</p>
+        <div className="mt-1.5 h-2 w-3/4 rounded bg-emerald-200" />
+      </div>
+    </div>
+  )
+}
+
+/** Sent → Opened → Clicked → Booked funnel mock for recall. */
+export function RecallFunnelMock() {
+  const stages: Array<[string, string, string]> = [
+    ['Sent', 'w-full', 'bg-violet-200'],
+    ['Opened', 'w-3/4', 'bg-violet-300'],
+    ['Clicked', 'w-1/2', 'bg-violet-400'],
+    ['Booked', 'w-1/3', 'bg-violet-600'],
+  ]
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-xl shadow-gray-200/60" aria-hidden="true">
+      <div className="mb-1 h-3.5 w-44 rounded bg-gray-300" />
+      <p className="mb-4 text-[0.7rem] font-medium text-gray-400">Audience: due or overdue · builds itself</p>
+      <div className="space-y-2.5">
+        {stages.map(([label, width, color]) => (
+          <div key={label}>
+            <div className="mb-1 flex items-center justify-between text-[0.7rem] font-semibold text-gray-500">
+              <span>{label}</span>
+            </div>
+            <div className={`h-6 rounded-md ${width} ${color}`} />
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[0.7rem] font-semibold text-emerald-700">↳ attributed to real booked visits</p>
+    </div>
+  )
+}
+
+/** Storefront mock for the shop section. */
+export function ShopMock() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-xl shadow-gray-200/60" aria-hidden="true">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="h-3.5 w-28 rounded bg-gray-300" />
+        <div className="rounded-full bg-emerald-100 px-2.5 py-1 text-[0.65rem] font-bold text-emerald-700">
+          Payouts → your bank
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="rounded-lg border border-gray-100 p-2.5">
+            <div className={`mb-2 h-14 rounded-md ${['bg-violet-50', 'bg-amber-50', 'bg-sky-50', 'bg-emerald-50'][i]}`} />
+            <div className="h-2.5 w-4/5 rounded bg-gray-300" />
+            <div className="mt-1.5 flex items-center justify-between">
+              <div className="h-2.5 w-8 rounded bg-gray-400" />
+              <div className="h-5 w-10 rounded-md bg-violet-600" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Edit-in-place canvas mock for the website section. */
+export function EditorMock() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl shadow-gray-200/60" aria-hidden="true">
+      <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-3 py-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-gray-300" />
+        <span className="h-2.5 w-2.5 rounded-full bg-gray-300" />
+        <span className="ml-3 h-4 w-40 rounded bg-gray-200" />
+        <span className="ml-auto rounded-md bg-violet-600 px-2 py-0.5 text-[0.62rem] font-bold text-white">Editing</span>
+      </div>
+      <div className="bg-[#FAF7F2] p-4">
+        <div className="relative rounded-lg border-2 border-dashed border-violet-400 bg-white/60 p-4">
+          <span className="absolute -top-2.5 right-3 rounded-full bg-violet-600 px-2 py-0.5 text-[0.62rem] font-bold text-white">
+            ✎ Edit headline
+          </span>
+          <div className="h-4 w-3/4 rounded bg-gray-800/80" />
+          <div className="mt-2 h-2.5 w-1/2 rounded bg-gray-400/60" />
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-lg bg-white p-2">
+              <div className="h-8 rounded-md bg-[#9CAF9F]/30" />
+              <div className="mt-1.5 h-2 w-3/4 rounded bg-gray-200" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-2 rounded-lg bg-white p-2.5">
+          <span className="h-10 w-10 rounded-full bg-[#9CAF9F]/40" />
+          <div className="space-y-1.5">
+            <div className="h-2.5 w-24 rounded bg-gray-300" />
+            <div className="h-2 w-32 rounded bg-gray-200" />
+          </div>
+          <span className="ml-auto rounded-full border border-violet-300 bg-violet-50 px-2 py-0.5 text-[0.62rem] font-bold text-violet-700">
+            📷 Replace
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}

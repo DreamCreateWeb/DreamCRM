@@ -120,6 +120,36 @@ export default async function ComparePage({ params }: Props) {
       <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
         <h2 className="text-[1.5rem] font-bold tracking-tight">The bottom line</h2>
         <p className="mx-auto mt-4 max-w-2xl text-[0.98rem] leading-relaxed text-gray-700">{c.bottomLine}</p>
+
+        <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 p-5">
+            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-400">
+              Choose {c.name} if
+            </p>
+            <ul className="mt-3 space-y-2">
+              {c.theirStrengths.map((s) => (
+                <li key={s.title} className="flex items-start gap-2 text-[0.88rem] text-gray-700">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" aria-hidden="true" />
+                  {s.title} matters most to you
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-5">
+            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-violet-600">
+              Choose DreamCRM if
+            </p>
+            <ul className="mt-3 space-y-2">
+              {c.ourStrengths.slice(0, 3).map((s) => (
+                <li key={s.title} className="flex items-start gap-2 text-[0.88rem] text-gray-800">
+                  <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
+                  {s.title.toLowerCase().replace(/^./, (ch) => ch.toUpperCase())} is what you&apos;re missing
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <PrimaryCta href="/signup">Start free setup</PrimaryCta>
           <GhostCta href={DEMO_URL} external>
