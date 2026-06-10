@@ -25,6 +25,17 @@ describe('ActionButton', () => {
     expect(screen.getByRole('link', { name: 'Open patients' })).toHaveAttribute('href', '/patients')
   })
 
+  it('renders new-tab links with a safe rel default', () => {
+    render(
+      <ActionButton href="/site/acme/intake/new-patient" target="_blank">
+        Preview ↗
+      </ActionButton>,
+    )
+    const link = screen.getByRole('link', { name: 'Preview ↗' })
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
   it('renders danger in rose and supports disabled', () => {
     render(
       <ActionButton variant="danger" disabled>

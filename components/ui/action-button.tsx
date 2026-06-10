@@ -25,6 +25,8 @@ export function ActionButton({
   variant = 'secondary',
   size = 'md',
   href,
+  target,
+  rel,
   className = '',
   children,
   ...rest
@@ -32,6 +34,9 @@ export function ActionButton({
   variant?: ActionButtonVariant
   size?: 'sm' | 'md'
   href?: string
+  /** Link-only: pass '_blank' for new-tab links (rel defaults safely). */
+  target?: string
+  rel?: string
   className?: string
   children: ReactNode
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
@@ -39,7 +44,13 @@ export function ActionButton({
 
   if (href) {
     return (
-      <Link href={href} className={classes} title={rest.title}>
+      <Link
+        href={href}
+        className={classes}
+        title={rest.title}
+        target={target}
+        rel={rel ?? (target === '_blank' ? 'noopener noreferrer' : undefined)}
+      >
         {children}
       </Link>
     )
