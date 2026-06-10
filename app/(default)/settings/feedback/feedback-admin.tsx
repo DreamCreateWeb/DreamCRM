@@ -2,6 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import { relativeTime } from '@/lib/utils'
+import { type Tone } from '@/lib/ui/encodings'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export interface FeedbackEntry {
   id: number
@@ -15,12 +19,21 @@ export interface FeedbackEntry {
   organizationType: 'platform' | 'clinic' | null
 }
 
-const TONE_BY_RATING: Record<number, string> = {
-  1: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
-  2: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
-  3: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-  4: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
-  5: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
+// Rating → tone: low scores are a problem (rose), 3 is a nudge (amber),
+// 4–5 are healthy (emerald).
+const TONE_BY_RATING: Record<number, Tone> = {
+  1: 'urgent',
+  2: 'urgent',
+  3: 'warn',
+  4: 'ok',
+  5: 'ok',
+}
+
+const FILTER_LABELS: Record<'all' | 'platform' | 'clinic' | 'unhappy', string> = {
+  all: 'All',
+  platform: 'Platform',
+  clinic: 'Clinic',
+  unhappy: 'Rating ≤ 2',
 }
 
 export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] }) {
@@ -46,29 +59,27 @@ export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] })
             All feedback submitted across DreamCRM. Visible only to platform admins.
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           {(['all', 'platform', 'clinic', 'unhappy'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={
-                filter === f
-                  ? 'text-[11px] font-medium px-2 py-1 rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 capitalize'
-                  : 'text-[11px] font-medium px-2 py-1 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 capitalize'
-              }
-            >
-              {f === 'unhappy' ? 'Rating ≤ 2' : f}
-            </button>
+            <FilterChip key={f} active={filter === f} onClick={() => setFilter(f)}>
+              {FILTER_LABELS[f]}
+            </FilterChip>
           ))}
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-sm italic text-gray-400 dark:text-gray-500 py-8 text-center">
-          {entries.length === 0
-            ? 'No feedback has been submitted yet.'
-            : 'No entries match this filter.'}
-        </div>
+        entries.length === 0 ? (
+          <EmptyState
+            title="No feedback yet"
+            body="Submissions from clinics and platform users will land here."
+          />
+        ) : (
+          <EmptyState
+            title="No entries match this filter"
+            body="Try a different filter."
+          />
+        )
       ) : (
         <ul className="space-y-3">
           {filtered.map((e) => (
@@ -78,10 +89,10 @@ export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] })
             >
               <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
                 <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
                     {e.submitterName ?? 'Anonymous'}
                   </p>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     {e.submitterEmail ?? '—'}
                     {e.organizationName && (
                       <>
@@ -94,11 +105,9 @@ export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] })
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {e.rating != null && (
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${TONE_BY_RATING[e.rating] ?? ''}`}>
-                      {e.rating}/5
-                    </span>
+                    <StatusPill tone={TONE_BY_RATING[e.rating] ?? 'neutral'} label={`${e.rating}/5`} />
                   )}
-                  <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                     {relativeTime(e.createdAt)}
                   </span>
                 </div>

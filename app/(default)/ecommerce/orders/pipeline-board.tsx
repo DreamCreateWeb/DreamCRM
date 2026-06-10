@@ -13,6 +13,10 @@ import {
 import type { PipelineProject } from '@/lib/services/projects'
 import { formatMoneyShort } from '@/lib/utils/format'
 import { deletePipelineProject, moveProjectStage } from './pipeline-actions'
+import { TONE_PILL, type Tone } from '@/lib/ui/encodings'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const PRIMARY_STATUSES: AgencyProjectStatus[] = ['lead', 'discovery', 'in_progress', 'review', 'completed']
 const SIDE_STATUSES: AgencyProjectStatus[] = ['on_hold', 'cancelled']
@@ -98,11 +102,12 @@ export default function PipelineBoard({ projects }: Props) {
 
   if (projects.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-12 text-center">
-        <p className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">No projects in the pipeline yet</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-          Add your first agency project — a website build, intake form, photo or video shoot, etc. — to see it appear in the kanban below.
-        </p>
+      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+        <EmptyState
+          icon="🗂"
+          title="No projects in the pipeline yet"
+          body="Add your first agency project — a website build, intake form, photo or video shoot, etc. — to see it appear in the kanban below."
+        />
       </div>
     )
   }
@@ -113,18 +118,19 @@ export default function PipelineBoard({ projects }: Props) {
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-3 mb-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            <FilterChip
-              label={`All (${projects.length})`}
-              active={typeFilter === 'all'}
-              onClick={() => setTypeFilter('all')}
-            />
+            <FilterChip active={typeFilter === 'all'} onClick={() => setTypeFilter('all')} count={projects.length}>
+              All
+            </FilterChip>
             {AGENCY_PROJECT_TYPES.map((t) => (
               <FilterChip
                 key={t}
-                label={`${TYPE_ICONS[t]} ${AGENCY_PROJECT_TYPE_LABELS[t]} (${typeCounts[t]})`}
                 active={typeFilter === t}
                 onClick={() => setTypeFilter(t)}
-              />
+                count={typeCounts[t]}
+                title={AGENCY_PROJECT_TYPE_LABELS[t]}
+              >
+                <span aria-hidden="true">{TYPE_ICONS[t]}</span> {AGENCY_PROJECT_TYPE_LABELS[t]}
+              </FilterChip>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -186,22 +192,6 @@ export default function PipelineBoard({ projects }: Props) {
   )
 }
 
-function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
-        active
-          ? 'bg-violet-500 border-violet-500 text-white'
-          : 'border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-      }`}
-    >
-      {label}
-    </button>
-  )
-}
-
 function Column({ status, projects }: { status: AgencyProjectStatus; projects: PipelineProject[] }) {
   const totalValue = projects.reduce((acc, p) => acc + (p.budgetCents ?? 0), 0)
   return (
@@ -209,19 +199,19 @@ function Column({ status, projects }: { status: AgencyProjectStatus; projects: P
       <header className="flex items-center justify-between px-2 py-1.5">
         <div className="text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
           {AGENCY_PROJECT_STATUS_LABELS[status]}
-          <span className="ml-1.5 text-gray-400 dark:text-gray-500 font-medium normal-case">
+          <span className="ml-1.5 text-gray-500 dark:text-gray-400 font-medium normal-case tabular-nums">
             {projects.length}
           </span>
         </div>
         {totalValue > 0 && (
-          <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+          <div className="text-xs text-gray-500 dark:text-gray-400 font-medium tabular-nums">
             {formatMoneyShort(totalValue)}
           </div>
         )}
       </header>
       <div className="space-y-2 mt-1.5 min-h-[80px]">
         {projects.length === 0 ? (
-          <div className="text-[11px] text-gray-400 dark:text-gray-500 text-center py-4">No projects</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">No projects</div>
         ) : (
           projects.map((p) => <ProjectCard key={p.id} project={p} />)
         )}
@@ -273,7 +263,7 @@ function ProjectCard({ project }: { project: PipelineProject }) {
           <div className="font-medium text-sm text-gray-800 dark:text-gray-100 leading-tight truncate">
             {project.title}
           </div>
-          <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
             {project.organizationId && project.clinicName ? (
               <Link
                 href={`/ecommerce/customers/${project.organizationId}`}
@@ -282,7 +272,7 @@ function ProjectCard({ project }: { project: PipelineProject }) {
                 {project.clinicName}
               </Link>
             ) : (
-              <span className="italic text-gray-400">No clinic linked</span>
+              <span className="italic text-gray-500 dark:text-gray-400">No clinic linked</span>
             )}
           </div>
         </div>
@@ -290,16 +280,16 @@ function ProjectCard({ project }: { project: PipelineProject }) {
 
       <div className="mt-2 flex flex-wrap gap-1.5" suppressHydrationWarning>
         {project.budgetCents != null && project.budgetCents > 0 && (
-          <Pill tone="gray">{formatMoneyShort(project.budgetCents)}</Pill>
+          <Pill tone="neutral">{formatMoneyShort(project.budgetCents)}</Pill>
         )}
         {project.dueDate && (
-          <Pill tone={isOverdue ? 'red' : 'gray'}>
+          <Pill tone={isOverdue ? 'urgent' : 'neutral'}>
             {isOverdue ? 'Overdue ' : 'Due '}
             {new Date(project.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </Pill>
         )}
         {daysInStage >= 14 && !['completed', 'cancelled'].includes(project.status) && (
-          <Pill tone="amber">{daysInStage}d in stage</Pill>
+          <Pill tone="warn">{daysInStage}d in stage</Pill>
         )}
       </div>
 
@@ -317,27 +307,23 @@ function ProjectCard({ project }: { project: PipelineProject }) {
             </option>
           ))}
         </select>
-        <button
-          type="button"
+        <ActionButton
+          variant="ghost"
+          size="sm"
           onClick={handleDelete}
           disabled={pending}
           aria-label={`Delete ${project.title}`}
-          className="text-[10px] text-gray-400 hover:text-red-600 px-1"
+          className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 px-1"
           title="Delete"
         >
           ×
-        </button>
+        </ActionButton>
       </div>
-      {error && <div className="text-[11px] text-red-600 mt-1.5">{error}</div>}
+      {error && <div className="text-xs text-rose-700 dark:text-rose-300 mt-1.5">{error}</div>}
     </div>
   )
 }
 
-function Pill({ children, tone }: { children: React.ReactNode; tone: 'gray' | 'red' | 'amber' }) {
-  const toneClasses = {
-    gray: 'bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300',
-    red: 'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20',
-    amber: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  }[tone]
-  return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${toneClasses}`}>{children}</span>
+function Pill({ children, tone }: { children: React.ReactNode; tone: Tone }) {
+  return <span className={`text-xs font-medium px-1.5 py-0.5 rounded tabular-nums ${TONE_PILL[tone]}`}>{children}</span>
 }

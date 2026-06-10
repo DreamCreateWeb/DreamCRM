@@ -56,11 +56,13 @@ describe('SubscriptionsPanel', () => {
         products={PRODUCTS}
       />,
     )
-    expect(screen.getByRole('button', { name: /^All \(5\)/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Active \(2\)/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Trialing \(1\)/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Past due \(1\)/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Canceled \(1\)/ })).toBeInTheDocument()
+    // FilterChip renders the count as a separate span next to the label, so the
+    // accessible name is "<label> <count>" (no parens).
+    expect(screen.getByRole('button', { name: /^All 5$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Active 2$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Trialing 1$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Past due 1$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Canceled 1$/ })).toBeInTheDocument()
   })
 
   it('filters subscriptions when a status chip is clicked', async () => {

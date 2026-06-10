@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
 import { listAllLibraryEntriesForAdmin } from '@/lib/services/service-library'
+import { PageHeader } from '@/components/ui/page-header'
 import ReviewBoard from './review-board'
 
 export default async function PlatformServiceLibraryPage() {
@@ -38,16 +39,11 @@ export default async function PlatformServiceLibraryPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-          Service Library
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Review clinic-submitted services. Approved entries become available
-          to every clinic; rejected entries are hidden but kept for the audit
-          trail.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Platform · Dream Create"
+        title="Service Library"
+        subtitle="Review clinic-submitted services. Approved entries become available to every clinic; rejected entries are hidden but kept for the audit trail."
+      />
       <ReviewBoard entries={entries} orgNames={orgNames} />
     </div>
   )

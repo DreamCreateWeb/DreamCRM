@@ -21,6 +21,8 @@ import {
   summarizeSubscriptions,
 } from '@/lib/services/stripe-admin'
 import { formatShortDate } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
 
 export const metadata = {
   title: 'Subscriptions - DreamCRM',
@@ -53,19 +55,19 @@ export default async function InvoicesOrSubscriptions({
 
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-        <div className="sm:flex sm:justify-between sm:items-center mb-5">
-          <div className="mb-4 sm:mb-0">
-            <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-              Subscriptions
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage Stripe subscriptions and plans without leaving DreamCRM.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          eyebrow="Platform · Dream Create"
+          title="Subscriptions"
+          subtitle="Manage Stripe subscriptions and plans without leaving DreamCRM."
+          actions={
+            <ActionButton href="/dashboard/fintech" variant="secondary">
+              Revenue →
+            </ActionButton>
+          }
+        />
 
         {stripeError && (
-          <div className="mb-5 text-sm text-red-700 bg-red-50 dark:bg-red-500/10 px-4 py-3 rounded">
+          <div className="mb-5 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 border border-rose-500/30 px-4 py-3 rounded-lg">
             Couldn&apos;t reach Stripe: {stripeError}
           </div>
         )}

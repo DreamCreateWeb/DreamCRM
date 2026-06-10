@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { openBillingPortal, startStripeCheckout } from '../actions'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
 
 type PlanKey = 'free' | 'pro' | 'team' | 'enterprise'
 
@@ -63,28 +65,23 @@ export default function PlansPanel({ currentPlan }: { currentPlan: PlanKey }) {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Plans</h2>
-            <div className="text-sm">
+            <div className="text-sm text-gray-600 dark:text-gray-300">
               You&apos;re currently on the{' '}
-              <strong className="font-medium capitalize">
+              <strong className="font-medium capitalize text-gray-800 dark:text-gray-100">
                 {currentPlanId ?? 'free'}
               </strong>{' '}
               plan.
             </div>
           </div>
           {currentPlanId && (
-            <button
-              type="button"
-              onClick={handlePortal}
-              disabled={pending}
-              className="btn-sm border border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300 disabled:opacity-60"
-            >
+            <ActionButton variant="secondary" size="sm" onClick={handlePortal} disabled={pending}>
               Manage billing →
-            </button>
+            </ActionButton>
           )}
         </div>
 
         <div className="flex items-center space-x-3">
-          <div className="text-sm text-gray-500 font-medium">Monthly</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">Monthly</div>
           <div className="form-switch">
             <input
               type="checkbox"
@@ -98,16 +95,16 @@ export default function PlansPanel({ currentPlan }: { currentPlan: PlanKey }) {
               <span className="sr-only">Pay annually</span>
             </label>
           </div>
-          <div className="text-sm text-gray-500 font-medium">
-            Annually <span className="text-green-500">(2 months free)</span>
+          <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+            Annually <span className="text-emerald-600 dark:text-emerald-400">(2 months free)</span>
           </div>
         </div>
 
         {feedback?.error && (
-          <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{feedback.error}</div>
+          <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
         )}
         {feedback?.ok && (
-          <div className="text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">{feedback.ok}</div>
+          <div className="text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
         )}
 
         <div className="grid grid-cols-12 gap-6">
@@ -123,40 +120,43 @@ export default function PlansPanel({ currentPlan }: { currentPlan: PlanKey }) {
               >
                 <div className={`absolute top-0 left-0 right-0 h-0.5 bg-${p.color}-500`} aria-hidden="true"></div>
                 <div className="px-5 pt-5 pb-6 border-b border-gray-200 dark:border-gray-700/60">
-                  <header className="flex items-center mb-2">
-                    <div className={`w-6 h-6 rounded-full shrink-0 bg-${p.color}-500 mr-3`} />
+                  <header className="flex items-center gap-3 mb-2">
+                    <div className={`w-6 h-6 rounded-full shrink-0 bg-${p.color}-500`} aria-hidden="true" />
                     <h3 className="text-lg text-gray-800 dark:text-gray-100 font-semibold">{p.name}</h3>
+                    {isCurrent && <StatusPill tone="special" label="Current plan" className="ml-auto" />}
                   </header>
-                  <div className="text-gray-800 dark:text-gray-100 font-bold mb-1">
+                  <div className="text-gray-800 dark:text-gray-100 font-bold mb-1 tabular-nums">
                     <span className="text-2xl">$</span>
                     <span className="text-3xl">{displayed}</span>
-                    <span className="text-gray-500 font-medium text-sm">/{interval === 'annual' ? 'yr' : 'mo'}</span>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium text-sm">/{interval === 'annual' ? 'yr' : 'mo'}</span>
                   </div>
                   {interval === 'annual' && (
-                    <div className="text-xs text-gray-500 mb-3">${monthlyEquivalent}/mo billed annually</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-3 tabular-nums">${monthlyEquivalent}/mo billed annually</div>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(p.id)}
-                    disabled={isCurrent || pending}
-                    className={`btn w-full mt-3 ${
-                      isCurrent
-                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 cursor-default'
-                        : 'bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white'
-                    } disabled:opacity-60`}
-                  >
-                    {isPending ? 'Redirecting…' : isCurrent ? 'Current plan' : `Switch to ${p.name}`}
-                  </button>
+                  {isCurrent ? (
+                    <div className="btn w-full mt-3 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-default">
+                      Current plan
+                    </div>
+                  ) : (
+                    <ActionButton
+                      variant="primary"
+                      onClick={() => handleSelect(p.id)}
+                      disabled={pending}
+                      className="w-full mt-3 justify-center"
+                    >
+                      {isPending ? 'Redirecting…' : `Switch to ${p.name}`}
+                    </ActionButton>
+                  )}
                 </div>
                 <div className="px-5 pt-4 pb-5">
                   <div className="text-xs text-gray-800 dark:text-gray-100 font-semibold uppercase mb-4">What&apos;s included</div>
                   <ul>
                     {p.features.map((f) => (
                       <li key={f} className="flex items-center py-1">
-                        <svg className="w-3 h-3 fill-current text-green-500 mr-2 shrink-0" viewBox="0 0 12 12">
+                        <svg className="w-3 h-3 fill-current text-emerald-500 mr-2 shrink-0" viewBox="0 0 12 12" aria-hidden="true">
                           <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
                         </svg>
-                        <span className="text-sm">{f}</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-200">{f}</span>
                       </li>
                     ))}
                   </ul>

@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import {
   getStripeRevenueWindow,
   getProjectRevenueWindow,
@@ -9,6 +8,10 @@ import {
 import { getMrrSnapshot } from '@/lib/services/platform-metrics'
 import { formatMoneyShort, formatRelativeDate } from '@/lib/utils/format'
 import Sparkline from '@/components/ui/sparkline'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { KpiStat } from '@/components/ui/kpi-stat'
+import { EmptyState } from '@/components/ui/empty-state'
 
 function moneyFull(cents: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -38,33 +41,24 @@ export default async function PlatformRevenue() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            Revenue
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Subscriptions, project work, and outstanding receivables.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            href="/ecommerce/invoices"
-            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-          >
-            Subscriptions
-          </Link>
-          <Link
-            href="/dashboard/analytics"
-            className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
-          >
-            Platform Metrics
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform · Dream Create"
+        title="Revenue"
+        subtitle="Subscriptions, project work, and outstanding receivables."
+        actions={
+          <>
+            <ActionButton href="/ecommerce/invoices" variant="secondary">
+              Subscriptions
+            </ActionButton>
+            <ActionButton href="/dashboard/analytics" variant="secondary">
+              Platform Metrics
+            </ActionButton>
+          </>
+        }
+      />
 
       {(stripeWindow.stripeUnavailable || outstanding.stripeUnavailable || recent.stripeUnavailable) && (
-        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-400">
+        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
           Stripe couldn&apos;t be reached, so subscription revenue numbers are
           incomplete. Check the <code>STRIPE_SECRET_KEY</code> env var.
         </div>
@@ -72,26 +66,26 @@ export default async function PlatformRevenue() {
 
       {/* Top-line KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Stat
+        <KpiStat
           label="Total (12 weeks)"
           value={formatMoneyShort(totalRevenue12w)}
-          hint={`${stripeWindow.paidInvoiceCount} invoices · ${projectWindow.completedCount} projects`}
+          sub={`${stripeWindow.paidInvoiceCount} invoices · ${projectWindow.completedCount} projects`}
         />
-        <Stat
+        <KpiStat
           label="MRR"
           value={formatMoneyShort(mrr.monthlyRecurringCents)}
-          hint={`${mrr.activeClinics} active subs · ARR ${formatMoneyShort(mrr.annualRunRateCents)}`}
+          sub={`${mrr.activeClinics} active subs · ARR ${formatMoneyShort(mrr.annualRunRateCents)}`}
         />
-        <Stat
+        <KpiStat
           label="Project Revenue (12w)"
           value={formatMoneyShort(projectWindow.totalCents)}
-          hint={`${projectWindow.completedCount} completed`}
+          sub={`${projectWindow.completedCount} completed`}
         />
-        <Stat
+        <KpiStat
           label="Outstanding"
           value={formatMoneyShort(outstandingTotal)}
-          hint={`${outstanding.pastDueInvoiceCount} past-due · ${outstanding.openProjectCount} open projects`}
-          tone={outstandingTotal > 0 ? 'warn' : 'default'}
+          sub={`${outstanding.pastDueInvoiceCount} past-due · ${outstanding.openProjectCount} open projects`}
+          tone={outstandingTotal > 0 ? 'warn' : undefined}
         />
       </div>
 
@@ -141,10 +135,10 @@ export default async function PlatformRevenue() {
             Top Revenue Contributors (lifetime)
           </h3>
           {top.rows.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-6">
-              No revenue recorded yet — once Stripe invoices start coming in or projects
-              start completing, your top clinics will show up here.
-            </p>
+            <EmptyState
+              title="No revenue recorded yet"
+              body="Once Stripe invoices start coming in or projects start completing, your top clinics will show up here."
+            />
           ) : (
             <ul className="space-y-3">
               {top.rows.map((r) => (
@@ -153,7 +147,7 @@ export default async function PlatformRevenue() {
                     <span className="font-medium text-gray-800 dark:text-gray-100">
                       {r.clinicName}
                     </span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-100">
+                    <span className="font-semibold text-gray-800 dark:text-gray-100 tabular-nums">
                       {moneyFull(r.total)}
                     </span>
                   </div>
@@ -173,7 +167,7 @@ export default async function PlatformRevenue() {
                       />
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1 tabular-nums">
                     {r.subscriptionCents > 0 && (
                       <span>Subs {moneyFull(r.subscriptionCents)}</span>
                     )}
@@ -192,9 +186,11 @@ export default async function PlatformRevenue() {
             Outstanding
           </h3>
           {outstandingTotal === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-              No outstanding receivables. 🎉
-            </p>
+            <EmptyState
+              icon="🎉"
+              title="No outstanding receivables"
+              body="Every invoice is paid and no open project value is on the books."
+            />
           ) : (
             <ul className="space-y-3 text-sm">
               <li className="flex items-center justify-between">
@@ -205,7 +201,7 @@ export default async function PlatformRevenue() {
                   </div>
                 </div>
                 <span
-                  className={`font-semibold ${outstanding.pastDueInvoiceCents > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-100'}`}
+                  className={`font-semibold tabular-nums ${outstanding.pastDueInvoiceCents > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-800 dark:text-gray-100'}`}
                 >
                   {moneyFull(outstanding.pastDueInvoiceCents)}
                 </span>
@@ -217,13 +213,13 @@ export default async function PlatformRevenue() {
                     {outstanding.openProjectCount} active engagements
                   </div>
                 </div>
-                <span className="font-semibold text-gray-800 dark:text-gray-100">
+                <span className="font-semibold text-gray-800 dark:text-gray-100 tabular-nums">
                   {moneyFull(outstanding.openProjectCents)}
                 </span>
               </li>
               <li className="pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Total</span>
-                <span className="font-bold text-gray-800 dark:text-gray-100">
+                <span className="font-bold text-gray-800 dark:text-gray-100 tabular-nums">
                   {moneyFull(outstandingTotal)}
                 </span>
               </li>
@@ -238,14 +234,15 @@ export default async function PlatformRevenue() {
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Recent Transactions
           </h3>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
             {recent.rows.length} most recent
           </span>
         </div>
         {recent.rows.length === 0 ? (
-          <div className="p-12 text-center text-sm text-gray-500 dark:text-gray-400 italic">
-            No transactions to show yet.
-          </div>
+          <EmptyState
+            title="No transactions yet"
+            body="Paid invoices and completed project budgets will appear here."
+          />
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {recent.rows.map((tx) => (
@@ -268,7 +265,7 @@ export default async function PlatformRevenue() {
                     {tx.clinicName ?? 'Unknown clinic'} · {formatRelativeDate(tx.occurredAt)}
                   </div>
                 </div>
-                <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">
+                <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
                   +{moneyFull(tx.amountCents)}
                 </span>
               </li>
@@ -276,32 +273,6 @@ export default async function PlatformRevenue() {
           </ul>
         )}
       </div>
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  hint,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  hint?: string
-  tone?: 'default' | 'warn'
-}) {
-  return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4">
-      <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold mb-1">
-        {label}
-      </div>
-      <div
-        className={`text-2xl font-bold ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-100'}`}
-      >
-        {value}
-      </div>
-      {hint && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{hint}</div>}
     </div>
   )
 }

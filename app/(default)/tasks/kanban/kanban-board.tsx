@@ -156,15 +156,15 @@ function Column({ status, tasks }: { status: TaskStatus; tasks: TaskCardData[] }
       )}
     >
       <div className="px-1.5 pb-2 pt-1 flex items-center justify-between">
-        <h2 className="text-[11px] uppercase tracking-wider font-semibold text-stone-600 dark:text-stone-300">
+        <h2 className="text-xs uppercase tracking-wider font-semibold text-stone-600 dark:text-stone-300">
           {TASK_STATUS_LABEL[status]}
         </h2>
-        <span className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">{tasks.length}</span>
+        <span className="text-xs text-stone-500 dark:text-stone-400 tabular-nums">{tasks.length}</span>
       </div>
       <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-1.5">
           {tasks.length === 0 ? (
-            <div className="text-[11px] text-stone-400 dark:text-stone-500 italic px-1.5 py-1.5">
+            <div className="text-xs text-stone-500 dark:text-stone-400 italic px-1.5 py-1.5">
               Drop a task here
             </div>
           ) : (

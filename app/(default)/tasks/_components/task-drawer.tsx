@@ -135,14 +135,14 @@ export default function TaskDrawer({ task, onClose }: Props) {
           onChange={(e) => { setTitle(e.target.value); setTitleDirty(true) }}
           onBlur={() => { if (titleDirty && title.trim()) { commit({ title: title.trim() }); setTitleDirty(false) } }}
           placeholder="Untitled task"
-          className="w-full bg-transparent border-0 focus:outline-none focus:ring-0 text-[14px] font-medium text-stone-900 dark:text-stone-100 placeholder:text-stone-400"
+          className="w-full bg-transparent border-0 focus:outline-none focus:ring-0 text-sm font-medium text-stone-900 dark:text-stone-100 placeholder:text-stone-400"
         />
       }
       actions={
         <button
           onClick={handleDelete}
           disabled={pending}
-          className="px-2 py-1 text-[12px] font-medium rounded-md text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-500/10 disabled:opacity-50"
+          className="px-2 py-1 text-xs font-medium rounded-md text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-500/10 disabled:opacity-50"
         >
           Delete
         </button>
@@ -171,7 +171,7 @@ export default function TaskDrawer({ task, onClose }: Props) {
                     key={p}
                     onClick={() => commit({ priority: p })}
                     className={cn(
-                      'flex-1 inline-flex items-center justify-center gap-1 text-[11px] font-medium px-1.5 py-1 rounded transition-colors',
+                      'flex-1 inline-flex items-center justify-center gap-1 text-xs font-medium px-1.5 py-1 rounded transition-colors',
                       active
                         ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 ring-1 ring-stone-300 dark:ring-stone-600'
                         : 'text-stone-500 hover:text-stone-800 hover:bg-stone-50 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-800/60',
@@ -200,7 +200,7 @@ export default function TaskDrawer({ task, onClose }: Props) {
             {t.tags.map((t) => (
               <span
                 key={t}
-                className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300"
+                className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300"
               >
                 #{t}
                 <button
@@ -223,7 +223,7 @@ export default function TaskDrawer({ task, onClose }: Props) {
               }}
               onBlur={handleAddTag}
               placeholder={t.tags.length ? '+ tag' : 'Add tag…'}
-              className="text-[11px] px-1.5 py-0.5 bg-transparent border-0 focus:outline-none focus:ring-0 w-20"
+              className="text-xs px-1.5 py-0.5 bg-transparent border-0 focus:outline-none focus:ring-0 w-20"
             />
           </div>
         </Field>
@@ -242,9 +242,9 @@ export default function TaskDrawer({ task, onClose }: Props) {
 
         {/* Subtasks */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1.5">
+          <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1.5">
             Subtasks {t.subtasks.length > 0 && (
-              <span className="text-stone-400 dark:text-stone-600 normal-case tracking-normal">
+              <span className="text-stone-500 dark:text-stone-400 normal-case tracking-normal tabular-nums">
                 · {t.subtasks.filter((s) => s.done).length} of {t.subtasks.length} done
               </span>
             )}
@@ -258,7 +258,7 @@ export default function TaskDrawer({ task, onClose }: Props) {
                   onChange={() => handleToggleSubtask(s.id)}
                   className="accent-stone-900 dark:accent-stone-100"
                 />
-                <span className={cn('text-[13px]', s.done ? 'text-stone-400 dark:text-stone-500 line-through' : 'text-stone-800 dark:text-stone-200')}>
+                <span className={cn('text-sm', s.done ? 'text-stone-500 dark:text-stone-400 line-through' : 'text-stone-800 dark:text-stone-200')}>
                   {s.title}
                 </span>
               </label>
@@ -270,14 +270,14 @@ export default function TaskDrawer({ task, onClose }: Props) {
                 onChange={(e) => setSubtaskInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubtask() } }}
                 placeholder="Add a subtask and press Enter"
-                className="grow text-[12px] px-2 py-1 rounded border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/40 focus:bg-white dark:focus:bg-stone-900 focus:outline-none placeholder:text-stone-400"
+                className="grow text-xs px-2 py-1 rounded border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/40 focus:bg-white dark:focus:bg-stone-900 focus:outline-none placeholder:text-stone-400"
               />
             </div>
           </div>
         </div>
 
         {/* Metadata footer */}
-        <div className="pt-3 border-t border-stone-200/60 dark:border-stone-700/40 text-[11px] text-stone-500 dark:text-stone-500 space-y-0.5">
+        <div className="pt-3 border-t border-stone-200/60 dark:border-stone-700/40 text-xs text-stone-500 dark:text-stone-500 space-y-0.5">
           <div>Created by {t.authorName ?? 'unknown'}</div>
           <div>Created {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
         </div>
@@ -289,11 +289,11 @@ export default function TaskDrawer({ task, onClose }: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">{label}</div>
       {children}
     </label>
   )
 }
 
 const inputClass =
-  'w-full px-2 py-1 text-[12px] rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/40 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-900/10 dark:focus:ring-stone-100/10'
+  'w-full px-2 py-1 text-xs rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/40 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-900/10 dark:focus:ring-stone-100/10'

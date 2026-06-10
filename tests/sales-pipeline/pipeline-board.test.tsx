@@ -82,7 +82,9 @@ describe('PipelineBoard', () => {
         ]}
       />,
     )
-    await user.click(screen.getByRole('button', { name: /^🎥 Videography/ }))
+    // FilterChip hides the emoji from the accessible name (aria-hidden) and
+    // renders the count in a trailing span → name is "Videography <count>".
+    await user.click(screen.getByRole('button', { name: /^Videography\b/ }))
     expect(screen.queryByText('Web Build')).not.toBeInTheDocument()
     expect(screen.getByText('Video Shoot')).toBeInTheDocument()
   })

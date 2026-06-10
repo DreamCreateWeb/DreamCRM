@@ -15,6 +15,7 @@ import { DEFAULT_PAYMENT_METHODS } from '@/lib/types/clinic-content'
 import { US_TIMEZONES } from '@/lib/clinic-timezone'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
+import { ActionButton } from '@/components/ui/action-button'
 import ServicesLibraryPicker from './services-library-picker'
 import StaffEditor from './staff-editor'
 import StatsEditor from './stats-editor'
@@ -94,18 +95,11 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
   return (
     <div className="grow">
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <div>
-          <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-1">Clinic Profile</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            These details power your public clinic website.
-          </p>
-        </div>
-
         <section>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Basics</h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="displayName">Display Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-1" htmlFor="displayName">Display Name <span className="text-rose-500">*</span></label>
               <input id="displayName" name="displayName" className="form-input w-full" type="text" required defaultValue={profile?.displayName ?? orgName} />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Shown on your website and in the dashboard.</p>
             </div>
@@ -462,11 +456,11 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
         </section>
 
         <div className="flex items-center gap-3 pt-2 border-t border-gray-200 dark:border-gray-700/60">
-          <button type="submit" disabled={saving} className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-60">
+          <ActionButton variant="primary" type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Save Changes'}
-          </button>
-          {saved && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved ✓</span>}
-          {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+          </ActionButton>
+          {saved && <span className="text-sm text-emerald-700 dark:text-emerald-300">Saved ✓</span>}
+          {error && <span className="text-sm text-rose-700 dark:text-rose-300">{error}</span>}
         </div>
       </form>
     </div>

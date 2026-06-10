@@ -67,11 +67,11 @@ export default function TaskCard({ task, isDragging }: { task: TaskCardData; isD
           title={`Priority: ${task.priority}`}
         />
         <div className="min-w-0 grow">
-          <h3 className={cn('font-medium text-[13px] leading-snug', isDone ? 'text-stone-400 dark:text-stone-500 line-through' : 'text-stone-900 dark:text-stone-100')}>
+          <h3 className={cn('font-medium text-sm leading-snug', isDone ? 'text-stone-500 dark:text-stone-400 line-through' : 'text-stone-900 dark:text-stone-100')}>
             {task.title}
           </h3>
           {task.description && (
-            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1 line-clamp-2">{task.description}</p>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 line-clamp-2">{task.description}</p>
           )}
         </div>
       </div>
@@ -79,14 +79,14 @@ export default function TaskCard({ task, isDragging }: { task: TaskCardData; isD
         {task.tags.slice(0, 3).map((t) => (
           <span
             key={t}
-            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+            className="text-xs font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
           >
             #{t}
           </span>
         ))}
         {task.dueDate && <DueDateChip dueDate={task.dueDate} completed={isDone} size="xs" />}
         <select
-          className="ml-auto text-[10px] px-1 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 cursor-pointer hover:border-stone-300 dark:hover:border-stone-600"
+          className="ml-auto text-xs px-1.5 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 cursor-pointer hover:border-stone-300 dark:hover:border-stone-600"
           value={task.status}
           disabled={pending}
           onClick={(e) => e.stopPropagation()}

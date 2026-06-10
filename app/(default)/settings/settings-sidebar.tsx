@@ -138,7 +138,7 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
     <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-auto px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60 min-w-[15rem] md:space-y-3">
       {sections.map((section) => (
         <div key={section.title}>
-          <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">
+          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
             {section.title}
           </div>
           <ul className="flex flex-nowrap md:block mr-3 md:mr-0">

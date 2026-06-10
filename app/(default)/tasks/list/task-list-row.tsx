@@ -65,9 +65,9 @@ export default function TaskListRow({ task }: Props) {
       />
       <span
         className={cn(
-          'text-[13px] grow truncate',
+          'text-sm grow truncate',
           isDone
-            ? 'text-stone-400 dark:text-stone-500 line-through'
+            ? 'text-stone-500 dark:text-stone-400 line-through'
             : 'text-stone-800 dark:text-stone-100',
         )}
       >
@@ -77,7 +77,7 @@ export default function TaskListRow({ task }: Props) {
         {task.tags.slice(0, 2).map((t) => (
           <span
             key={t}
-            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+            className="text-xs font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
           >
             #{t}
           </span>

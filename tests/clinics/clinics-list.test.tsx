@@ -171,9 +171,10 @@ describe('ClinicsList', () => {
         ]}
       />,
     )
-    // Filter chip counts are in parentheses inside the buttons
-    expect(screen.getByRole('button', { name: /^All \(4\)/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Pro \(2\)/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Premium \(1\)/ })).toBeInTheDocument()
+    // FilterChip renders the count as a span next to the label, so the
+    // accessible name is "<label> <count>" (no parens).
+    expect(screen.getByRole('button', { name: /^All 4$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Pro 2$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Premium 1$/ })).toBeInTheDocument()
   })
 })

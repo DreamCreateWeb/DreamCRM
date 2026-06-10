@@ -2,6 +2,8 @@ import Link from 'next/link'
 import type { AdminSubscription, SubscriptionAttention } from '@/lib/services/stripe-admin'
 import { formatMoney } from '@/lib/utils'
 import { formatRelativeDate } from '@/lib/utils/format'
+import { EmptyState } from '@/components/ui/empty-state'
+import { type Tone } from '@/lib/ui/encodings'
 
 interface Props {
   attention: SubscriptionAttention
@@ -12,8 +14,12 @@ export default function SubscriptionsAttention({ attention }: Props) {
   const hasAny = trialEndingSoon.length || pastDue.length || scheduledCancel.length
   if (!hasAny) {
     return (
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-6 mb-6 text-sm text-gray-500 dark:text-gray-400 text-center">
-        ✅ No subscriptions need attention. Every active customer is paid up and not scheduled to cancel.
+      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-6">
+        <EmptyState
+          icon="✅"
+          title="No subscriptions need attention"
+          body="Every active customer is paid up and not scheduled to cancel."
+        />
       </div>
     )
   }
@@ -21,7 +27,7 @@ export default function SubscriptionsAttention({ attention }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
       <AttentionBucket
         title="Trial ending soon"
-        tone="amber"
+        tone="warn"
         subs={trialEndingSoon}
         emptyMessage="No trials wrapping up."
         labelFor={(s) =>
@@ -32,7 +38,7 @@ export default function SubscriptionsAttention({ attention }: Props) {
       />
       <AttentionBucket
         title="Past due"
-        tone="red"
+        tone="urgent"
         subs={pastDue}
         emptyMessage="No failed payments."
         labelFor={(s) =>
@@ -43,7 +49,7 @@ export default function SubscriptionsAttention({ attention }: Props) {
       />
       <AttentionBucket
         title="Scheduled to cancel"
-        tone="violet"
+        tone="special"
         subs={scheduledCancel}
         emptyMessage="No churn risk flagged."
         labelFor={(s) =>
@@ -56,11 +62,15 @@ export default function SubscriptionsAttention({ attention }: Props) {
   )
 }
 
-const TONES = {
-  amber: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
-  red: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
-  violet: 'bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20',
-} as const
+// Header accent per bucket — color paired with the title text, never alone.
+const HEADER_ACCENT: Record<Tone, string> = {
+  warn: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  urgent: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  special: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
+  ok: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  info: 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  neutral: 'border-gray-500/40 bg-gray-500/10 text-gray-600 dark:text-gray-300',
+}
 
 function AttentionBucket({
   title,
@@ -70,22 +80,22 @@ function AttentionBucket({
   labelFor,
 }: {
   title: string
-  tone: keyof typeof TONES
+  tone: Tone
   subs: AdminSubscription[]
   emptyMessage: string
   labelFor: (s: AdminSubscription) => string
 }) {
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-      <header className={`px-4 py-2.5 border-l-4 rounded-t-xl ${TONES[tone]}`}>
+      <header className={`px-4 py-2.5 border-l-4 rounded-t-xl ${HEADER_ACCENT[tone]}`}>
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm">{title}</h3>
-          <span className="text-xs font-medium">{subs.length}</span>
+          <span className="text-xs font-medium tabular-nums">{subs.length}</span>
         </div>
       </header>
       <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 max-h-72 overflow-y-auto">
         {subs.length === 0 ? (
-          <li className="px-4 py-6 text-center text-xs text-gray-400">{emptyMessage}</li>
+          <li className="px-4 py-6 text-center text-xs text-gray-500 dark:text-gray-400">{emptyMessage}</li>
         ) : (
           subs.slice(0, 6).map((s) => (
             <li key={s.id} className="px-4 py-3">
@@ -114,7 +124,7 @@ function AttentionBucket({
                   </div>
                 </div>
                 <div
-                  className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0 text-right"
+                  className="text-xs text-gray-500 dark:text-gray-400 shrink-0 text-right tabular-nums"
                   suppressHydrationWarning
                 >
                   {labelFor(s)}
@@ -125,7 +135,7 @@ function AttentionBucket({
         )}
       </ul>
       {subs.length > 6 && (
-        <div className="px-4 py-2 text-[11px] text-gray-400 text-right border-t border-gray-100 dark:border-gray-700/60">
+        <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 text-right border-t border-gray-100 dark:border-gray-700/60 tabular-nums">
           + {subs.length - 6} more
         </div>
       )}

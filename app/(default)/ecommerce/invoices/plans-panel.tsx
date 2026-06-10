@@ -10,22 +10,26 @@ import {
   unarchivePlanPrice,
 } from './admin-actions'
 import type { AdminProduct } from '@/lib/services/stripe-admin'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export default function PlansPanel({ products }: { products: AdminProduct[] }) {
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-      <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+      <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between gap-3">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">
           Plans & products{' '}
-          <span className="text-gray-400 dark:text-gray-500 font-medium">{products.length}</span>
+          <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">{products.length}</span>
         </h2>
         <NewPlanButton />
       </header>
       <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
         {products.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-            No active products in Stripe yet.
-          </div>
+          <EmptyState
+            icon="📦"
+            title="No active products in Stripe yet"
+            body="Create a plan to start charging clinics."
+          />
         ) : (
           products.map((p) => <ProductRow key={p.id} product={p} />)
         )}
@@ -65,35 +69,30 @@ function ProductRow({ product }: { product: AdminProduct }) {
   return (
     <div className="px-5 py-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="font-semibold text-gray-800 dark:text-gray-100">{product.name}</div>
           {product.description && (
             <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{product.description}</div>
           )}
-          <div className="text-[10px] text-gray-400 font-mono mt-0.5">{product.id}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{product.id}</div>
         </div>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={handleArchiveProduct}
-          className="btn-xs border border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-300 px-2 py-1 rounded disabled:opacity-60"
-        >
+        <ActionButton variant="danger" size="sm" disabled={pending} onClick={handleArchiveProduct}>
           Archive product
-        </button>
+        </ActionButton>
       </div>
-      {error && <div className="text-xs text-red-600 mt-2">{error}</div>}
+      {error && <div className="text-xs text-rose-700 dark:text-rose-300 mt-2">{error}</div>}
       <ul className="mt-3 space-y-1">
         {product.prices.map((pr) => (
           <li
             key={pr.id}
-            className={`flex items-center justify-between text-sm py-1.5 px-3 rounded border ${
+            className={`flex items-center justify-between gap-3 text-sm py-1.5 px-3 rounded border ${
               pr.active
                 ? 'border-gray-200 dark:border-gray-700/60'
                 : 'border-gray-100 dark:border-gray-800 opacity-60'
             }`}
           >
-            <div>
-              <span className="font-medium">
+            <div className="min-w-0">
+              <span className="font-medium tabular-nums">
                 {pr.unitAmountCents != null
                   ? formatMoney(pr.unitAmountCents, pr.currency.toUpperCase())
                   : '—'}
@@ -101,17 +100,17 @@ function ProductRow({ product }: { product: AdminProduct }) {
               <span className="text-gray-500 dark:text-gray-400 ml-1">
                 {pr.interval ? `/ ${pr.interval}` : '(one-time)'}
               </span>
-              {!pr.active && <span className="ml-2 text-xs text-gray-400">archived</span>}
-              <span className="ml-2 text-[10px] text-gray-400 font-mono">{pr.id}</span>
+              {!pr.active && <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">archived</span>}
+              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 font-mono">{pr.id}</span>
             </div>
-            <button
-              type="button"
+            <ActionButton
+              variant="secondary"
+              size="sm"
               disabled={pending}
               onClick={() => handleTogglePrice(pr.id, pr.active)}
-              className="btn-xs border border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-xs disabled:opacity-60"
             >
               {pr.active ? 'Archive' : 'Unarchive'}
-            </button>
+            </ActionButton>
           </li>
         ))}
       </ul>
@@ -153,13 +152,9 @@ function NewPlanButton() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800"
-      >
-        Add Plan
-      </button>
+      <ActionButton variant="primary" size="sm" onClick={() => setOpen(true)}>
+        + New plan
+      </ActionButton>
       <Transition show={open} as={Fragment}>
         <Dialog onClose={() => setOpen(false)} className="relative z-50">
           <TransitionChild as={Fragment} enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
@@ -177,7 +172,7 @@ function NewPlanButton() {
                 <form onSubmit={onSubmit}>
                   <div className="px-5 py-4 space-y-3">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Plan name <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium mb-1">Plan name <span className="text-rose-500">*</span></label>
                       <input className="form-input w-full" required value={name} onChange={(e) => setName(e.target.value)} />
                     </div>
                     <div>
@@ -195,14 +190,16 @@ function NewPlanButton() {
                       </div>
                     </div>
                     {error && (
-                      <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{error}</div>
+                      <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{error}</div>
                     )}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2">
-                    <button type="button" onClick={() => setOpen(false)} className="btn-sm border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300">Cancel</button>
-                    <button type="submit" disabled={pending || !name} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60">
+                    <ActionButton variant="secondary" size="sm" onClick={() => setOpen(false)}>
+                      Cancel
+                    </ActionButton>
+                    <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !name}>
                       {pending ? 'Creating…' : 'Create plan'}
-                    </button>
+                    </ActionButton>
                   </div>
                 </form>
               </DialogPanel>

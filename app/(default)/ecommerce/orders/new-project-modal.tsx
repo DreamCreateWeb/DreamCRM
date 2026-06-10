@@ -8,6 +8,7 @@ import {
   type AgencyProjectType,
 } from '@/lib/db/schema/platform'
 import { createPipelineProject } from './pipeline-actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface Props {
   clinics: { id: string; name: string }[]
@@ -57,13 +58,9 @@ export default function NewProjectModal({ clinics }: Props) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800"
-      >
+      <ActionButton variant="primary" onClick={() => setOpen(true)}>
         + New project
-      </button>
+      </ActionButton>
       <Transition show={open} as={Fragment}>
         <Dialog onClose={() => setOpen(false)} className="relative z-50">
           <TransitionChild
@@ -98,7 +95,7 @@ export default function NewProjectModal({ clinics }: Props) {
                   <div className="px-5 py-4 space-y-3">
                     <div>
                       <label className="block text-sm font-medium mb-1">
-                        Title <span className="text-red-500">*</span>
+                        Title <span className="text-rose-500">*</span>
                       </label>
                       <input
                         className="form-input w-full"
@@ -173,29 +170,25 @@ export default function NewProjectModal({ clinics }: Props) {
                       />
                     </div>
                     {error && (
-                      <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
+                      <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">
                         {error}
                       </div>
                     )}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2">
-                    <button
-                      type="button"
+                    <ActionButton
+                      variant="secondary"
+                      size="sm"
                       onClick={() => {
                         setOpen(false)
                         reset()
                       }}
-                      className="btn-sm border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300"
                     >
                       Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={pending || !title}
-                      className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 disabled:opacity-60"
-                    >
+                    </ActionButton>
+                    <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !title}>
                       {pending ? 'Creating…' : 'Create project'}
-                    </button>
+                    </ActionButton>
                   </div>
                 </form>
               </DialogPanel>

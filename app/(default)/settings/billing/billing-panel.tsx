@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { formatMoney, formatShortDate } from '@/lib/utils'
 import { openBillingPortal, saveBilling } from '../actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface BillingInitial {
   plan: 'free' | 'pro' | 'team' | 'enterprise'
@@ -88,8 +89,8 @@ export default function BillingPanel({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Billing & Invoices</h2>
-              <div className="text-sm">
-                Current plan: <strong className="font-medium">{planLabel}</strong>
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                Current plan: <strong className="font-medium text-gray-800 dark:text-gray-100">{planLabel}</strong>
                 {monthly > 0 ? (
                   <>
                     {' '}— <strong className="font-medium">{formatMoney(monthly)}</strong> / month
@@ -107,14 +108,9 @@ export default function BillingPanel({
               </div>
             </div>
             {initial.hasStripeCustomer && (
-              <button
-                type="button"
-                onClick={handlePortal}
-                disabled={pending}
-                className="btn-sm border border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-300 disabled:opacity-60"
-              >
+              <ActionButton variant="secondary" size="sm" onClick={handlePortal} disabled={pending}>
                 Manage in Stripe →
-              </button>
+              </ActionButton>
             )}
           </div>
 
@@ -160,7 +156,7 @@ export default function BillingPanel({
               <div className="text-sm text-gray-500 dark:text-gray-400 mt-2">No paid invoices yet.</div>
             ) : (
               <table className="table-auto w-full dark:text-gray-400 mt-2">
-                <thead className="text-xs uppercase text-gray-400 dark:text-gray-500">
+                <thead className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="py-2 text-left">Year</th>
                     <th className="py-2 text-left">Invoice</th>
@@ -170,9 +166,9 @@ export default function BillingPanel({
                 <tbody className="text-sm">
                   {pastInvoices.map((inv) => (
                     <tr key={inv.id} className="border-b border-gray-200 dark:border-gray-700/60">
-                      <td className="py-2 font-medium text-gray-800 dark:text-gray-100">{inv.year}</td>
+                      <td className="py-2 font-medium text-gray-800 dark:text-gray-100 tabular-nums">{inv.year}</td>
                       <td className="py-2">{inv.invoiceNumber}</td>
-                      <td className="py-2 font-medium">{formatMoney(inv.totalCents, inv.currency)}</td>
+                      <td className="py-2 font-medium tabular-nums">{formatMoney(inv.totalCents, inv.currency)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -184,16 +180,16 @@ export default function BillingPanel({
         <footer>
           <div className="flex flex-col px-6 py-5 border-t border-gray-200 dark:border-gray-700/60">
             {feedback?.error && (
-              <div className="mb-3 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{feedback.error}</div>
+              <div className="mb-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
             )}
             {feedback?.ok && (
-              <div className="mb-3 text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-2 rounded">{feedback.ok}</div>
+              <div className="mb-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
             )}
-            <div className="flex self-end">
-              <button type="reset" className="btn dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300">Cancel</button>
-              <button type="submit" disabled={pending} className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3 disabled:opacity-60">
+            <div className="flex self-end gap-3">
+              <ActionButton variant="secondary" type="reset">Cancel</ActionButton>
+              <ActionButton variant="primary" type="submit" disabled={pending}>
                 {pending ? 'Saving…' : 'Save Changes'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </footer>
