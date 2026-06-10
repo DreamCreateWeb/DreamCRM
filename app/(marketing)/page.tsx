@@ -29,6 +29,10 @@ export const metadata = {
     description:
       'Replace the website vendor, booking tool, portal, review tool, and recall service with one system. Keep your PMS.',
     type: 'website',
+    // A page-level openGraph block replaces the inherited one wholesale,
+    // dropping the root file-convention image — re-add it explicitly
+    // (resolved absolute via metadataBase).
+    images: ['/opengraph-image'],
   },
 }
 

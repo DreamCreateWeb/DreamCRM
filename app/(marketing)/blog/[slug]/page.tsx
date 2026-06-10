@@ -23,6 +23,13 @@ export async function generateMetadata({ params }: Props) {
   const description =
     post.seoDescription?.trim() || post.excerpt?.trim() || excerptFromHtml(post.bodyHtml)
   const url = `${BASE}/blog/${post.slug}`
+  // Posts without a cover fall back to the brand OG image — a page-level
+  // openGraph block replaces the inherited one, so without this the share
+  // card would have no image at all. '/opengraph-image' resolves absolute
+  // via metadataBase (1200×630, so large-card works either way).
+  const image = post.coverImageUrl
+    ? { url: post.coverImageUrl, alt: post.coverImageAlt ?? post.title }
+    : { url: '/opengraph-image', alt: title }
   return {
     title,
     description,
@@ -34,13 +41,13 @@ export async function generateMetadata({ params }: Props) {
       siteName: 'DreamCRM',
       type: 'article',
       ...(post.publishedAt ? { publishedTime: post.publishedAt.toISOString() } : {}),
-      ...(post.coverImageUrl ? { images: [{ url: post.coverImageUrl, alt: post.coverImageAlt ?? post.title }] } : {}),
+      images: [image],
     },
     twitter: {
-      card: post.coverImageUrl ? 'summary_large_image' : 'summary',
+      card: 'summary_large_image',
       title,
       description,
-      ...(post.coverImageUrl ? { images: [post.coverImageUrl] } : {}),
+      images: [image.url],
     },
   }
 }
