@@ -1,7 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { cn, relativeTime } from '@/lib/utils'
+import { relativeTime } from '@/lib/utils'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { StatusPill } from '@/components/ui/status-pill'
+import type { Tone } from '@/lib/ui/encodings'
 
 export interface RecipientRow {
   email: string
@@ -24,6 +27,20 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'unsubscribed', label: 'Unsubscribed' },
 ]
 
+// Per-recipient delivery outcome → tone contract. Sent/Opened = in flight,
+// ball in their court (info); Clicked = the good outcome (ok); Bounce/Fail =
+// a delivery problem (urgent); Unsubscribed = inert (neutral); Pending =
+// not yet sent (neutral).
+function recipientStatus(r: RecipientRow): { label: string; tone: Tone; title: string } {
+  if (r.unsubAt) return { label: 'Unsubscribed', tone: 'neutral', title: 'They opted out from this send' }
+  if (r.bouncedAt) return { label: 'Bounced', tone: 'urgent', title: "The address bounced — it couldn't be delivered" }
+  if (r.failedAt) return { label: 'Failed', tone: 'urgent', title: 'The send failed — check the address' }
+  if (r.clickedAt) return { label: 'Clicked', tone: 'ok', title: 'They opened and clicked a link' }
+  if (r.openedAt) return { label: 'Opened', tone: 'info', title: 'They opened the email' }
+  if (r.sentAt) return { label: 'Sent', tone: 'info', title: "Delivered — waiting to see if they open" }
+  return { label: 'Pending', tone: 'neutral', title: 'Not sent yet' }
+}
+
 export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
@@ -44,40 +61,31 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
   }, [rows, filter, q])
 
   return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
-      <div className="px-4 py-3 border-b border-stone-200 dark:border-stone-700/60 flex items-center gap-3 flex-wrap">
-        <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60 flex items-center gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
           Recipients
         </h3>
-        <span className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">
+        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
           {filtered.length} of {rows.length}
         </span>
-        <div className="flex items-center gap-1 ml-auto flex-wrap">
+        <div className="flex items-center gap-1.5 ml-auto flex-wrap">
           {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={cn(
-                'text-[11px] font-medium px-2 py-1 rounded-md',
-                filter === f.key
-                  ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700',
-              )}
-            >
+            <FilterChip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)}>
               {f.label}
-            </button>
+            </FilterChip>
           ))}
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search email…"
-            className="text-[12px] px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 w-40"
+            className="text-sm px-2 py-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 w-40"
           />
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-stone-50/80 dark:bg-stone-900/80 border-b border-stone-200 dark:border-stone-700/60 text-left text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+          <thead className="bg-stone-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60 text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-3 py-2">Recipient</th>
               <th className="px-3 py-2">Status</th>
@@ -89,43 +97,31 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-[12px] italic text-stone-400 dark:text-stone-500">
+                <td colSpan={5} className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                   No recipients in this view.
                 </td>
               </tr>
             ) : (
               filtered.map((r) => {
-                const status = r.unsubAt
-                  ? { label: 'Unsubscribed', tone: 'rose' }
-                  : r.bouncedAt
-                    ? { label: 'Bounced', tone: 'amber' }
-                    : r.failedAt
-                      ? { label: 'Failed', tone: 'amber' }
-                      : r.clickedAt
-                        ? { label: 'Clicked', tone: 'emerald' }
-                        : r.openedAt
-                          ? { label: 'Opened', tone: 'sky' }
-                          : r.sentAt
-                            ? { label: 'Sent', tone: 'stone' }
-                            : { label: 'Pending', tone: 'stone' }
+                const status = recipientStatus(r)
                 return (
                   <tr
                     key={r.email}
-                    className="border-b border-stone-100 dark:border-stone-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-stone-800/30"
+                    className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-gray-900/30"
                   >
-                    <td className="px-3 py-2 text-stone-700 dark:text-stone-200 font-medium truncate max-w-[18rem]">
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-medium truncate max-w-[18rem]">
                       {r.email}
                     </td>
                     <td className="px-3 py-2">
-                      <StatusPill status={status} />
+                      <StatusPill tone={status.tone} label={status.label} title={status.title} />
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums">
+                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {r.sentAt ? relativeTime(r.sentAt) : '—'}
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums">
+                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {r.openedAt ? relativeTime(r.openedAt) : '—'}
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums">
+                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {r.clickedAt ? relativeTime(r.clickedAt) : '—'}
                     </td>
                   </tr>
@@ -136,20 +132,5 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
         </table>
       </div>
     </div>
-  )
-}
-
-function StatusPill({ status }: { status: { label: string; tone: string } }) {
-  const map: Record<string, string> = {
-    stone: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
-    sky: 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
-    emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
-    amber: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-    rose: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
-  }
-  return (
-    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${map[status.tone] ?? map.stone}`}>
-      {status.label}
-    </span>
   )
 }

@@ -4,6 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
 import type { AudienceFilterT, PatientAudienceFilterT } from '@/lib/services/marketing'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { EmptyState } from '@/components/ui/empty-state'
+import { FlashToast } from '@/components/ui/flash-toast'
 import {
   createAudienceAction,
   deleteAudienceAction,
@@ -30,74 +35,80 @@ interface Props {
   tenantType: 'platform' | 'clinic'
   stages: PipelineStage[]
   sources: string[]
+  orgName: string
+  /** "patients" (clinic) | "leads" (platform) — drives header copy. */
+  leadsLabel: string
 }
 
-export default function AudiencesClient({ initial, tenantType, stages, sources }: Props) {
+export default function AudiencesClient({ initial, tenantType, stages, sources, orgName, leadsLabel }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState<AudienceRow | 'new' | null>(null)
   const [pending, startTransition] = useTransition()
+  const [toast, setToast] = useState<string | null>(null)
 
   function handleDelete(id: number) {
     if (!confirm('Delete this audience? Campaigns referencing it will lose their target list.')) return
     startTransition(async () => {
       await deleteAudienceAction(id)
+      setToast('Audience deleted.')
       router.refresh()
     })
   }
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={() => setEditing('new')}
-          className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900"
-        >
-          + New audience
-        </button>
-      </div>
+      <PageHeader
+        eyebrow={`Growth · ${orgName}`}
+        title="Audiences"
+        subtitle={`Saved segments of ${leadsLabel} you can target with a campaign send.`}
+        actions={
+          <>
+            <ActionButton variant="secondary" href="/marketing">
+              ← Recall dashboard
+            </ActionButton>
+            <ActionButton variant="primary" onClick={() => setEditing('new')}>
+              + New audience
+            </ActionButton>
+          </>
+        }
+      />
 
       {initial.length === 0 ? (
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-10 text-center">
-          <p className="text-sm text-stone-400 dark:text-stone-500 italic">
-            No saved segments yet. Audiences let you slice the pipeline into reusable
-            recipient lists for campaign sends.
-          </p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
+          <EmptyState
+            icon="🎯"
+            title="No saved segments yet."
+            body='Use "+ New audience" above to slice your roster into a reusable list for campaign sends.'
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {initial.map((a) => (
             <div
               key={a.id}
-              className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4"
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4"
             >
               <div className="flex items-start justify-between gap-2 mb-1">
-                <h3 className="font-semibold text-sm text-stone-900 dark:text-stone-100">
+                <h3 className="font-semibold text-sm text-gray-800 dark:text-gray-100">
                   {a.name}
                 </h3>
-                <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 tabular-nums">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0 tabular-nums">
                   {a.recipientCount} {a.recipientCount === 1 ? 'recipient' : 'recipients'}
                 </span>
               </div>
               {a.description && (
-                <p className="text-[12px] text-stone-500 dark:text-stone-400 mb-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                   {a.description}
                 </p>
               )}
-              <FilterChips audience={a} stages={stages} />
-              <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-stone-100 dark:border-stone-700/40">
-                <button
-                  onClick={() => setEditing(a)}
-                  className="text-[11px] font-medium px-2 py-1 rounded-md text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-300 dark:hover:text-stone-100 dark:hover:bg-stone-700"
-                >
+              <AudienceFilterSummary audience={a} stages={stages} />
+              <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
+                <ActionButton variant="ghost" size="sm" onClick={() => setEditing(a)}>
                   Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(a.id)}
-                  disabled={pending}
-                  className="text-[11px] font-medium px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
-                >
+                </ActionButton>
+                <ActionButton variant="danger" size="sm" onClick={() => handleDelete(a.id)} disabled={pending}>
                   Delete
-                </button>
+                </ActionButton>
               </div>
             </div>
           ))}
@@ -119,6 +130,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources }
               onClose={() => setEditing(null)}
               onSaved={() => {
                 setEditing(null)
+                setToast('Audience saved.')
                 router.refresh()
               }}
             />
@@ -132,16 +144,21 @@ export default function AudiencesClient({ initial, tenantType, stages, sources }
             onClose={() => setEditing(null)}
             onSaved={() => {
               setEditing(null)
+              setToast('Audience saved.')
               router.refresh()
             }}
           />
         )
       })()}
+
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </>
   )
 }
 
-function FilterChips({
+/** Read-only summary of an audience's filters — descriptive badges, not
+ * interactive filters, so these stay plain spans (not FilterChip). */
+function AudienceFilterSummary({
   audience,
   stages,
 }: {
@@ -185,7 +202,7 @@ function FilterChips({
       {chips.map((c, i) => (
         <span
           key={i}
-          className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+          className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700/40 dark:text-gray-300"
         >
           {c}
         </span>
@@ -260,95 +277,73 @@ function CustomerAudienceEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/60 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-700/60 sticky top-0 bg-white/95 dark:bg-stone-900/95 backdrop-blur">
-          <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100">
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/60 sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             {audience ? 'Edit audience' : 'New audience'}
           </h2>
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Name
             </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Trial users week 1"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Description (optional)
             </label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What this segment is used for"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             />
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-2">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-2">
               Pipeline stages
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {stages.map((s) => {
-                const on = filter.stages?.includes(s.key) ?? false
-                return (
-                  <button
-                    key={s.key}
-                    onClick={() => toggleStage(s.key)}
-                    className={
-                      on
-                        ? 'text-[11px] font-medium px-2 py-1 rounded-md bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                        : 'text-[11px] font-medium px-2 py-1 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
-                    }
-                  >
-                    {s.label}
-                  </button>
-                )
-              })}
+              {stages.map((s) => (
+                <FilterChip key={s.key} active={filter.stages?.includes(s.key) ?? false} onClick={() => toggleStage(s.key)}>
+                  {s.label}
+                </FilterChip>
+              ))}
             </div>
-            <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Empty = all stages
             </p>
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-2">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-2">
               Sources
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {sources.map((s) => {
-                const on = filter.sources?.includes(s) ?? false
-                return (
-                  <button
-                    key={s}
-                    onClick={() => toggleSource(s)}
-                    className={
-                      on
-                        ? 'text-[11px] font-medium px-2 py-1 rounded-md bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                        : 'text-[11px] font-medium px-2 py-1 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
-                    }
-                  >
-                    {s}
-                  </button>
-                )
-              })}
+              {sources.map((s) => (
+                <FilterChip key={s} active={filter.sources?.includes(s) ?? false} onClick={() => toggleSource(s)}>
+                  {s}
+                </FilterChip>
+              ))}
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Activity window
             </label>
             <select
@@ -360,7 +355,7 @@ function CustomerAudienceEditor({
                   lastActivityWithinDays: v === '' ? undefined : Number(v),
                 }))
               }}
-              className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             >
               <option value="">Any</option>
               <option value="7">Active in last 7 days</option>
@@ -371,31 +366,27 @@ function CustomerAudienceEditor({
             </select>
           </div>
 
-          <div className="bg-stone-50 dark:bg-stone-800/50 rounded-lg p-3">
+          <div className="bg-stone-50 dark:bg-gray-900/40 rounded-lg p-3">
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-semibold text-stone-700 dark:text-stone-200">
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                 Preview
               </span>
-              <button
-                onClick={refreshPreview}
-                disabled={pending}
-                className="text-[11px] font-medium px-2 py-1 rounded-md bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-600 disabled:opacity-50"
-              >
+              <ActionButton variant="secondary" size="sm" onClick={refreshPreview} disabled={pending}>
                 Refresh
-              </button>
+              </ActionButton>
             </div>
             {preview ? (
               <>
-                <p className="text-[13px] font-semibold text-stone-800 dark:text-stone-100">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 tabular-nums">
                   {preview.count} {preview.count === 1 ? 'recipient' : 'recipients'}
                 </p>
                 {preview.sample.length > 0 && (
-                  <ul className="text-[11px] text-stone-500 dark:text-stone-400 mt-1 space-y-0.5">
+                  <ul className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-0.5">
                     {preview.sample.map((s, i) => (
                       <li key={i}>{s.name} · {s.email}</li>
                     ))}
                     {preview.count > preview.sample.length && (
-                      <li className="text-stone-400 dark:text-stone-500 italic">
+                      <li className="text-gray-500 dark:text-gray-400 italic">
                         … and {preview.count - preview.sample.length} more
                       </li>
                     )}
@@ -403,27 +394,19 @@ function CustomerAudienceEditor({
                 )}
               </>
             ) : (
-              <p className="text-[11px] text-stone-400 dark:text-stone-500 italic">
+              <p className="text-xs text-gray-500 dark:text-gray-400 italic">
                 Click Refresh to see who's in this audience.
               </p>
             )}
           </div>
         </div>
-        <div className="px-5 py-3 border-t border-stone-200 dark:border-stone-700/60 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-stone-900">
-          <button
-            onClick={onClose}
-            disabled={pending}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700"
-          >
+        <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-gray-800">
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
             Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={pending || !name.trim()}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 disabled:opacity-50"
-          >
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !name.trim()}>
             {pending ? 'Saving…' : audience ? 'Save' : 'Create'}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -535,44 +518,44 @@ function PatientAudienceEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/60 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-700/60 sticky top-0 bg-white/95 dark:bg-stone-900/95 backdrop-blur z-10">
-          <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100">
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/60 sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur z-10">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             {audience ? 'Edit patient segment' : 'New patient segment'}
           </h2>
-          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             Filter the patient roster into a reusable list for campaign sends.
           </p>
         </div>
 
         <div className="px-5 py-4 space-y-5">
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Name
             </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Lapsed family patients"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             />
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Description (optional)
             </label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What this segment is used for"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             />
           </div>
 
@@ -601,7 +584,7 @@ function PatientAudienceEditor({
           />
 
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Last visit was at least
             </label>
             <select
@@ -613,7 +596,7 @@ function PatientAudienceEditor({
                   lastVisitAtLeastDaysAgo: v === '' ? undefined : Number(v),
                 }))
               }}
-              className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             >
               {LAST_VISIT_OPTIONS.map((o) => (
                 <option key={o.key} value={o.key}>{o.label}</option>
@@ -636,8 +619,8 @@ function PatientAudienceEditor({
             />
           </div>
 
-          <div className="bg-stone-50 dark:bg-stone-800/40 rounded-lg p-3 space-y-2">
-            <p className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+          <div className="bg-stone-50 dark:bg-gray-900/40 rounded-lg p-3 space-y-2">
+            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
               Channel eligibility
             </p>
             <ToggleField
@@ -663,16 +646,12 @@ function PatientAudienceEditor({
           {/* Live preview — every product researched ships this */}
           <div className="bg-violet-50 dark:bg-violet-500/10 rounded-lg p-3 border border-violet-200 dark:border-violet-500/30">
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-semibold text-violet-800 dark:text-violet-300">
+              <span className="text-xs font-semibold text-violet-800 dark:text-violet-300">
                 Live preview
               </span>
-              <button
-                onClick={refreshPreview}
-                disabled={pending}
-                className="text-[11px] font-medium px-2 py-1 rounded-md bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-600 disabled:opacity-50"
-              >
+              <ActionButton variant="secondary" size="sm" onClick={refreshPreview} disabled={pending}>
                 {pending ? 'Counting…' : 'Refresh'}
-              </button>
+              </ActionButton>
             </div>
             {preview ? (
               <>
@@ -680,39 +659,31 @@ function PatientAudienceEditor({
                   {preview.count} {preview.count === 1 ? 'patient' : 'patients'} match
                 </p>
                 {preview.sample.length > 0 && (
-                  <ul className="text-[11px] text-violet-800/80 dark:text-violet-300/80 mt-1 space-y-0.5">
+                  <ul className="text-xs text-violet-800/80 dark:text-violet-300/80 mt-1 space-y-0.5">
                     {preview.sample.map((s, i) => (
-                      <li key={i}>{s.name}{s.email && <span className="text-violet-700/60 dark:text-violet-400/60"> · {s.email}</span>}</li>
+                      <li key={i}>{s.name}{s.email && <span className="text-violet-700/70 dark:text-violet-400/70"> · {s.email}</span>}</li>
                     ))}
                     {preview.count > preview.sample.length && (
-                      <li className="italic opacity-70">… and {preview.count - preview.sample.length} more</li>
+                      <li className="italic opacity-80">… and {preview.count - preview.sample.length} more</li>
                     )}
                   </ul>
                 )}
               </>
             ) : (
-              <p className="text-[11px] text-violet-700/80 dark:text-violet-300/80 italic">
+              <p className="text-xs text-violet-700/80 dark:text-violet-300/80 italic">
                 Click Refresh to see who matches.
               </p>
             )}
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-stone-200 dark:border-stone-700/60 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-stone-900">
-          <button
-            onClick={onClose}
-            disabled={pending}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700"
-          >
+        <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-gray-800">
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
             Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={pending || !name.trim()}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 disabled:opacity-50"
-          >
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !name.trim()}>
             {pending ? 'Saving…' : audience ? 'Save' : 'Create'}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -734,31 +705,19 @@ function ChipRow({
 }) {
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+      <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
         {label}
       </label>
-      <p className="text-[10px] text-stone-400 dark:text-stone-500 mb-2">{help}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{help}</p>
       <div className="flex flex-wrap gap-1.5">
-        {options.map((o) => {
-          const on = selected.includes(o.key)
-          return (
-            <button
-              key={o.key}
-              type="button"
-              onClick={() => onToggle(o.key)}
-              className={
-                on
-                  ? 'text-[11px] font-medium px-2 py-1 rounded-md bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                  : 'text-[11px] font-medium px-2 py-1 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
-              }
-            >
-              {o.label}
-            </button>
-          )
-        })}
+        {options.map((o) => (
+          <FilterChip key={o.key} active={selected.includes(o.key)} onClick={() => onToggle(o.key)}>
+            {o.label}
+          </FilterChip>
+        ))}
       </div>
       {selected.length === 0 && (
-        <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">Empty = no filter on this dimension</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Empty = no filter on this dimension</p>
       )}
     </div>
   )
@@ -781,11 +740,11 @@ function ToggleField({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 rounded border-stone-300 dark:border-stone-600 text-stone-900 focus:ring-stone-400"
+        className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-400"
       />
       <div className="min-w-0">
-        <p className="text-[12px] font-medium text-stone-700 dark:text-stone-200 leading-tight">{label}</p>
-        <p className="text-[10px] text-stone-400 dark:text-stone-500 leading-tight">{help}</p>
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-200 leading-tight">{label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">{help}</p>
       </div>
     </label>
   )

@@ -16,12 +16,41 @@ import {
 import { listOrgEmailAccounts } from '@/lib/services/mailbox'
 import CampaignEditor from './campaign-editor'
 import RecipientsTable from './recipients-table'
+import { StatusPill } from '@/components/ui/status-pill'
+import type { Tone } from '@/lib/ui/encodings'
 
 export const metadata = {
   title: 'Campaign editor - DreamCRM',
 }
 
 export const dynamic = 'force-dynamic'
+
+// Mirrors the tone map in ../page.tsx (campaign list). draft = inert,
+// scheduled/active = in flight (info), completed = sent + done (ok).
+const CAMPAIGN_STATUS_TONE: Record<string, Tone> = {
+  draft: 'neutral',
+  scheduled: 'info',
+  active: 'info',
+  completed: 'ok',
+  paused: 'neutral',
+}
+
+const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  scheduled: 'Scheduled',
+  active: 'Sending',
+  completed: 'Sent',
+  paused: 'Paused',
+}
+
+function channelLabel(channel: string): string {
+  switch (channel) {
+    case 'resend': return 'Email (branded)'
+    case 'gmail': return 'From your Gmail'
+    case 'twilio_sms': return 'SMS'
+    default: return channel
+  }
+}
 
 export default async function CampaignEditorPage({
   params,
@@ -63,14 +92,16 @@ export default async function CampaignEditorPage({
       <div className="mb-4 flex items-center gap-3">
         <Link
           href="/marketing/campaigns"
-          className="text-[12px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+          className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
         >
           ← Campaigns
         </Link>
-        <span className="text-stone-300 dark:text-stone-600">·</span>
-        <span className="text-[12px] text-stone-500 dark:text-stone-400">
-          {campaign.status} · {campaign.sendChannel}
-        </span>
+        <span className="text-gray-300 dark:text-gray-600" aria-hidden="true">·</span>
+        <StatusPill
+          tone={CAMPAIGN_STATUS_TONE[campaign.status] ?? 'neutral'}
+          label={CAMPAIGN_STATUS_LABEL[campaign.status] ?? campaign.status}
+        />
+        <span className="text-xs text-gray-500 dark:text-gray-400">{channelLabel(campaign.sendChannel)}</span>
       </div>
 
       <CampaignEditor

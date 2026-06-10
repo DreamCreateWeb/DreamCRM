@@ -15,6 +15,13 @@ import {
 import ReviewConfigPanel from './review-config-panel'
 import EligibleList from './eligible-list'
 import ModuleHint from '@/components/onboarding/module-hint'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { KpiStat } from '@/components/ui/kpi-stat'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import type { Tone } from '@/lib/ui/encodings'
 
 export const metadata = {
   title: 'Reviews & Reputation - DreamCRM',
@@ -38,13 +45,17 @@ export const dynamic = 'force-dynamic'
  *   - Skip transparency — eligibility list shows WHY a patient qualifies.
  */
 
-const STATUS_PILL: Record<ReviewStatus, string> = {
-  pending: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
-  sent: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-  clicked: 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
-  completed: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
-  skipped: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
-  failed: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+// Request-funnel state → tone contract. pending = created-not-sent (neutral),
+// sent/clicked = in flight, ball in the patient's court (info), completed =
+// they wrote a review (ok), skipped = inert (neutral), failed = send problem
+// we should fix (urgent).
+const STATUS_TONE: Record<ReviewStatus, Tone> = {
+  pending: 'neutral',
+  sent: 'info',
+  clicked: 'info',
+  completed: 'ok',
+  skipped: 'neutral',
+  failed: 'urgent',
 }
 
 const STATUS_LABEL: Record<ReviewStatus, string> = {
@@ -55,6 +66,17 @@ const STATUS_LABEL: Record<ReviewStatus, string> = {
   skipped: 'Skipped',
   failed: 'Failed',
 }
+
+const STATUS_MEANING: Record<ReviewStatus, string> = {
+  pending: 'Created, not yet sent',
+  sent: "Email delivered — ball's in their court",
+  clicked: 'They opened the form',
+  completed: 'They wrote a review',
+  skipped: 'Skipped (opted out, no email, or rate-limited)',
+  failed: 'Send failed — check their email',
+}
+
+const STATUS_ORDER: ReviewStatus[] = ['pending', 'sent', 'clicked', 'completed', 'skipped', 'failed']
 
 function fmtRelative(d: Date | null): string {
   if (!d) return '—'
@@ -88,30 +110,28 @@ export default async function ReviewsPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <ModuleHint id="reviews" />
-      {/* ── Hero ──────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
-            Reviews this month · {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
-          <h1 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
-            Reviews &amp; Reputation
-          </h1>
-          <p className="text-[13px] text-stone-500 dark:text-stone-400 mt-1 max-w-2xl">
-            Post-visit review requests sent to your real patients on Google, Healthgrades, and Facebook. Same outcome
-            as Birdeye / Weave / Podium, without the $300/mo separate subscription or the gating-the-FTC-just-banned tradeoff.
-          </p>
-        </div>
-        {stats.completed30d > 0 && (
-          <Link
-            href="/reviews/received"
-            className="shrink-0 inline-flex items-center gap-2 text-[12px] font-semibold px-3 py-2 rounded-md bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
-          >
-            Browse received reviews
-            <span aria-hidden="true">→</span>
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        eyebrow={`Growth · ${ctx.organizationName}`}
+        title="Reviews & Reputation"
+        subtitle="Post-visit review requests sent to your real patients on Google, Healthgrades, and Facebook. Same outcome as Birdeye / Weave / Podium, without the $300/mo separate subscription or the gating the FTC just banned."
+        legend={
+          <EncodingLegend
+            label="What the statuses mean"
+            pills={STATUS_ORDER.map((s) => ({
+              tone: STATUS_TONE[s],
+              label: STATUS_LABEL[s],
+              meaning: STATUS_MEANING[s],
+            }))}
+          />
+        }
+        actions={
+          stats.completed30d > 0 ? (
+            <ActionButton variant="primary" href="/reviews/received">
+              Browse received reviews
+            </ActionButton>
+          ) : undefined
+        }
+      />
 
       {/* ── Config gate ───────────────────────────────────────────── */}
       {!configured && (
@@ -119,7 +139,7 @@ export default async function ReviewsPage() {
           <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">
             Connect at least one review platform to start sending requests
           </p>
-          <p className="text-[12px] text-amber-800/80 dark:text-amber-300/80 mb-3">
+          <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mb-3">
             We need your Google Place ID (most important — ~80% of dental review value), Healthgrades URL,
             or Facebook Page ID. Yelp is opt-in only — their solicited-review filter penalizes prompted reviews.
           </p>
@@ -129,38 +149,44 @@ export default async function ReviewsPage() {
 
       {/* ── Funnel KPIs ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <Kpi label="Sent · 30 days" value={stats.sent30d} hint={stats.pending > 0 ? `${stats.pending} queued` : undefined} />
-        <Kpi
+        <KpiStat
+          label="Sent · 30 days"
+          value={stats.sent30d}
+          sub={stats.pending > 0 ? `${stats.pending} queued to send` : undefined}
+          tone={stats.pending > 0 ? 'warn' : undefined}
+        />
+        <KpiStat
           label="Opened"
           value={stats.clickRate30d != null ? `${stats.clickRate30d}%` : '—'}
-          hint={stats.clickRate30d != null ? 'Sent → opened' : 'No sends yet'}
+          sub={stats.clickRate30d != null ? 'Sent → opened' : 'No sends yet'}
         />
-        <Kpi
+        <KpiStat
           label="Reviewed"
           value={stats.completed30d}
-          hint={stats.completionRate30d != null ? `${stats.completionRate30d}% of opens` : undefined}
-          tone="ok"
+          sub={stats.completionRate30d != null ? `${stats.completionRate30d}% of opens` : undefined}
+          href={stats.completed30d > 0 ? '/reviews/received' : undefined}
         />
-        <Kpi
+        <KpiStat
           label="Ready to ask"
           value={stats.eligibleCount}
-          hint={stats.eligibleCount > 0 ? 'Visits completed, no recent request' : 'Nobody eligible right now'}
+          sub={stats.eligibleCount > 0 ? 'Visits completed, no recent request' : 'Nobody eligible right now'}
+          tone={stats.eligibleCount > 0 ? 'warn' : undefined}
         />
       </div>
 
       {/* ── Platform mix ──────────────────────────────────────────── */}
       {stats.completed30d > 0 && (
-        <section className="mb-8 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 mb-3">
+        <section className="mb-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
             Where they reviewed · last 30 days
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(['google', 'healthgrades', 'facebook', 'yelp'] as ReviewSite[]).map((site) => (
-              <div key={site} className="px-3 py-2 rounded-lg bg-stone-50 dark:bg-stone-800/40">
-                <p className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+              <div key={site} className="px-3 py-2 rounded-lg bg-stone-50 dark:bg-gray-900/40">
+                <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   {PLATFORM_LABEL[site]}
                 </p>
-                <p className="text-xl font-bold text-stone-900 dark:text-stone-100 tabular-nums mt-0.5">
+                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 tabular-nums mt-0.5">
                   {stats.byPlatform[site]}
                 </p>
               </div>
@@ -171,27 +197,36 @@ export default async function ReviewsPage() {
 
       {/* ── Ready to ask ──────────────────────────────────────────── */}
       <section className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
             Ready to ask · {eligible.length} {eligible.length === 1 ? 'patient' : 'patients'}
           </h2>
           {configured && (
-            <p className="text-[11px] text-stone-400 dark:text-stone-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400 text-right">
               Visits completed in the last 30 days · no request in the last {config.minDaysBetweenRequests}d · email opt-in
             </p>
           )}
         </div>
         {!configured ? (
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-8 text-center">
-            <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              Connect a review platform above to start sending.
-            </p>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
+            <EmptyState
+              icon="🔌"
+              title="Connect a review platform to start."
+              body="Add your Google Place ID, Healthgrades URL, or Facebook Page above, then patients ready for a request show up here."
+            />
           </div>
         ) : eligible.length === 0 ? (
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-8 text-center">
-            <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              Nobody&apos;s ready to ask right now. Complete an appointment in the agenda + come back here.
-            </p>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
+            <EmptyState
+              icon="🌟"
+              title="Nobody's ready to ask right now."
+              body="Mark an appointment completed in the agenda and the patient will appear here for a request."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/appointments">
+                  Go to the agenda
+                </ActionButton>
+              }
+            />
           </div>
         ) : (
           <EligibleList rows={eligible.map((r) => ({
@@ -203,20 +238,22 @@ export default async function ReviewsPage() {
 
       {/* ── Recent requests ───────────────────────────────────────── */}
       <section className="mb-8">
-        <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 mb-3">
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
           Recent activity
         </h2>
         {recent.length === 0 ? (
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-8 text-center">
-            <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              No review requests sent yet. Send your first one from the Ready-to-ask list above.
-            </p>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
+            <EmptyState
+              icon="📮"
+              title="No review requests sent yet."
+              body="Send your first one from the Ready-to-ask list above, and it'll track here."
+            />
           </div>
         ) : (
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-stone-50/80 dark:bg-stone-900/80 border-b border-stone-200 dark:border-stone-700/60">
-                <tr className="text-left text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+              <thead className="bg-stone-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60">
+                <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   <th className="px-3 py-2">Patient</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2">Sent</th>
@@ -226,36 +263,38 @@ export default async function ReviewsPage() {
               </thead>
               <tbody>
                 {recent.map((r) => (
-                  <tr key={r.id} className="border-b border-stone-100 dark:border-stone-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-stone-800/30">
+                  <tr key={r.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-gray-900/30">
                     <td className="px-3 py-2.5">
-                      <Link href={`/patients/${r.patientId}`} className="font-medium text-stone-800 dark:text-stone-100 hover:underline">
+                      <Link href={`/patients/${r.patientId}`} className="font-medium text-gray-800 dark:text-gray-100 hover:underline">
                         {r.patientName}
                       </Link>
-                      <p className="text-[11px] text-stone-400 dark:text-stone-500">{r.patientEmail ?? 'no email'}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{r.patientEmail ?? 'no email'}</p>
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${STATUS_PILL[r.status]}`}>
-                          {STATUS_LABEL[r.status]}
-                        </span>
+                        <StatusPill
+                          tone={STATUS_TONE[r.status]}
+                          label={STATUS_LABEL[r.status]}
+                          title={STATUS_MEANING[r.status]}
+                        />
                         {r.status === 'completed' && featuredIds.has(r.patientId) && (
                           <Link
                             href="/reviews/received"
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300 hover:underline"
+                            className="rounded-full"
                             title="This patient is featured on your website"
                           >
-                            ✓ Featured
+                            <StatusPill tone="special" label="✓ Featured" />
                           </Link>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-[11px] text-stone-500 dark:text-stone-400 tabular-nums">
+                    <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {fmtRelative(r.sentAt)}
                     </td>
-                    <td className="px-3 py-2.5 text-[11px] text-stone-500 dark:text-stone-400 tabular-nums">
+                    <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {fmtRelative(r.completedAt)}
                     </td>
-                    <td className="px-3 py-2.5 text-[11px] text-stone-500 dark:text-stone-400">
+                    <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
                       {r.selectedSite ? PLATFORM_LABEL[r.selectedSite] : '—'}
                     </td>
                   </tr>
@@ -269,10 +308,10 @@ export default async function ReviewsPage() {
       {/* ── Settings panel (always visible when configured) ───────── */}
       {configured && (
         <section className="mb-8">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 mb-3">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
             Settings
           </h2>
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
             <ReviewConfigPanel config={config} />
           </div>
         </section>
@@ -280,11 +319,11 @@ export default async function ReviewsPage() {
 
       {/* ── Coming next ───────────────────────────────────────────── */}
       <section>
-        <div className="bg-stone-100 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-5">
-          <p className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+        <div className="bg-stone-100 dark:bg-gray-800/40 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-5">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Coming next
           </p>
-          <ul className="text-[12px] text-stone-600 dark:text-stone-300 space-y-1">
+          <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
             <li>· Auto-trigger 24h after appointment completion (cron-driven; toggle in Settings)</li>
             <li>· SMS channel via Twilio (Phase B — schema in place)</li>
             <li>· Read live reviews into the dashboard via Google Business Profile API + reply from inside DreamCRM</li>
@@ -293,30 +332,6 @@ export default async function ReviewsPage() {
           </ul>
         </div>
       </section>
-    </div>
-  )
-}
-
-function Kpi({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string
-  value: string | number
-  hint?: string
-  tone?: 'ok' | 'warn'
-}) {
-  return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 px-4 py-3">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
-        {label}
-      </p>
-      <p className={`text-2xl font-bold tabular-nums mt-0.5 ${tone === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : tone === 'warn' ? 'text-amber-700 dark:text-amber-300' : 'text-stone-900 dark:text-stone-100'}`}>
-        {value}
-      </p>
-      {hint && <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-0.5">{hint}</p>}
     </div>
   )
 }

@@ -9,6 +9,7 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import { DOMSerializer } from 'prosemirror-model'
 import { cn } from '@/lib/utils'
+import { ActionButton } from '@/components/ui/action-button'
 import {
   deleteCampaignAction,
   draftCampaignAction,
@@ -174,7 +175,7 @@ export default function CampaignEditor({
             type="button"
             onClick={() => setShowAiDraft(true)}
             disabled={sent}
-            className="text-[11px] font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+            className="text-xs font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
             title="Write a draft from a brief"
           >
             ✨ AI draft
@@ -191,12 +192,12 @@ export default function CampaignEditor({
               setAiImproveInstruction('')
             }}
             disabled={sent}
-            className="text-[11px] font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+            className="text-xs font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
             title="Rewrite the selected text"
           >
             ✨ Rewrite selection
           </button>
-          <span className="text-[10px] text-stone-400 dark:text-stone-500 ml-auto">
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
             {aiBusy ? 'AI working…' : 'AI is tenant-aware (platform / clinic voice)'}
           </span>
         </div>
@@ -207,7 +208,7 @@ export default function CampaignEditor({
           <EditorContent editor={editor} />
         </div>
 
-        <div className="px-5 py-2 border-t border-stone-100 dark:border-stone-700/40 flex items-center justify-between text-[11px] text-stone-400 dark:text-stone-500">
+        <div className="px-5 py-2 border-t border-gray-100 dark:border-gray-700/40 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <span>
             {dirty
               ? 'Editing…'
@@ -218,7 +219,7 @@ export default function CampaignEditor({
           <button
             onClick={destroy}
             disabled={pending}
-            className="text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 px-2 py-0.5 rounded-md disabled:opacity-50"
+            className="text-xs font-medium text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 px-2 py-0.5 rounded-md disabled:opacity-50"
           >
             Delete campaign
           </button>
@@ -227,8 +228,8 @@ export default function CampaignEditor({
 
       {/* ── Sidebar ── */}
       <aside className="space-y-3">
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
-          <h3 className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+          <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Send channel
           </h3>
           <div className="grid grid-cols-2 gap-1.5">
@@ -236,7 +237,7 @@ export default function CampaignEditor({
               onClick={() => field('sendChannel', 'resend')}
               disabled={sent}
               className={cn(
-                'text-[12px] font-medium px-2 py-1.5 rounded-md',
+                'text-xs font-medium px-2 py-1.5 rounded-md',
                 draft.sendChannel === 'resend'
                   ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                   : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700',
@@ -249,7 +250,7 @@ export default function CampaignEditor({
               onClick={() => field('sendChannel', 'gmail')}
               disabled={sent || gmailAccounts.length === 0}
               className={cn(
-                'text-[12px] font-medium px-2 py-1.5 rounded-md',
+                'text-xs font-medium px-2 py-1.5 rounded-md',
                 draft.sendChannel === 'gmail'
                   ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
                   : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700',
@@ -264,22 +265,22 @@ export default function CampaignEditor({
               Gmail
             </button>
           </div>
-          <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2 leading-snug">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
             {draft.sendChannel === 'resend'
               ? `Branded email from ${defaultFromEmail || 'a verified sender'}. Best deliverability at volume; requires DNS verification on your domain.`
               : 'From your connected Gmail / Workspace mailbox. Patients see a familiar address; replies land in your inbox. Lower daily volume cap (~500/day).'}
           </p>
         </div>
 
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
-          <h3 className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+          <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Audience
           </h3>
           <select
             value={draft.audienceId ?? ''}
             onChange={(e) => field('audienceId', e.target.value ? Number(e.target.value) : null)}
             disabled={sent}
-            className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 disabled:opacity-60"
+            className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 disabled:opacity-60"
           >
             <option value="">Choose…</option>
             {audiences.map((a) => (
@@ -289,11 +290,11 @@ export default function CampaignEditor({
             ))}
           </select>
           {audiences.length === 0 ? (
-            <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-2 italic">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">
               No audiences yet. <a className="underline" href="/marketing/audiences">Create one</a>.
             </p>
           ) : audience ? (
-            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-2 tabular-nums">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 tabular-nums">
               {audience.recipientCount} recipient{audience.recipientCount === 1 ? '' : 's'}
             </p>
           ) : null}
@@ -302,7 +303,8 @@ export default function CampaignEditor({
         {sent ? (
           <StatsPanel stats={stats} />
         ) : (
-          <button
+          <ActionButton
+            variant="primary"
             onClick={() => setShowSend(true)}
             disabled={
               pending ||
@@ -311,10 +313,10 @@ export default function CampaignEditor({
               !draft.audienceId ||
               (draft.sendChannel === 'gmail' && gmailAccounts.length === 0)
             }
-            className="w-full text-sm font-semibold py-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 disabled:opacity-50"
+            className="w-full justify-center"
           >
             Send campaign
-          </button>
+          </ActionButton>
         )}
       </aside>
 
@@ -422,7 +424,7 @@ function AiDraftModal({
         <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
           ✨ Draft with AI
         </h2>
-        <p className="text-[12px] text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           One short brief — Claude writes a tenant-appropriate subject, preheader, and body.
           You can edit everything afterwards.
         </p>
@@ -433,24 +435,16 @@ function AiDraftModal({
           placeholder="e.g. Announce that DreamCRM now supports automated patient recall by SMS and email. Target: existing clinic owners on Basic plan. Encourage them to upgrade to Pro to unlock it. Keep it warm and short."
           className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
         />
-        <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           This replaces the current subject, preheader, and body.
         </p>
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            disabled={busy}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700 disabled:opacity-50"
-          >
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={busy}>
             Cancel
-          </button>
-          <button
-            onClick={() => onApply(brief)}
-            disabled={busy || !brief.trim()}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
-          >
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={() => onApply(brief)} disabled={busy || !brief.trim()}>
             {busy ? 'Drafting…' : 'Draft it'}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -483,7 +477,7 @@ function AiImproveModal({
         <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
           ✨ Rewrite selection
         </h2>
-        <p className="text-[12px] text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           How should Claude rewrite the highlighted text?
         </p>
         <input
@@ -497,27 +491,19 @@ function AiImproveModal({
             <button
               key={p}
               onClick={() => onChange(p)}
-              className="text-[11px] font-medium px-2 py-1 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              className="text-xs font-medium px-2 py-1 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700/40 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               {p}
             </button>
           ))}
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            disabled={busy}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700 disabled:opacity-50"
-          >
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={busy}>
             Cancel
-          </button>
-          <button
-            onClick={onApply}
-            disabled={busy || !instruction.trim()}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
-          >
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={onApply} disabled={busy || !instruction.trim()}>
             {busy ? 'Rewriting…' : 'Rewrite'}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -527,7 +513,7 @@ function AiImproveModal({
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+      <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
         {label}
       </span>
       {children}
@@ -544,10 +530,10 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         type="button"
         onClick={onClick}
         className={cn(
-          'text-[11px] font-medium px-2 py-1 rounded-md',
+          'text-xs font-medium px-2 py-1 rounded-md',
           active
-            ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-            : 'text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700',
+            ? 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800'
+            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
         )}
       >
         {label}
@@ -598,8 +584,8 @@ function StatsPanel({ stats }: { stats: CampaignStats }) {
   const openRate = stats.sent ? Math.round((stats.uniqueOpens / stats.sent) * 100) : 0
   const clickRate = stats.sent ? Math.round((stats.uniqueClicks / stats.sent) * 100) : 0
   return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
-      <h3 className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-3">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+      <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">
         Performance
       </h3>
       <div className="space-y-2 text-sm">
@@ -607,20 +593,20 @@ function StatsPanel({ stats }: { stats: CampaignStats }) {
         <StatRow label="Delivered" value={stats.delivered} />
         <StatRow label="Opens" value={`${stats.uniqueOpens} (${openRate}%)`} />
         <StatRow label="Clicks" value={`${stats.uniqueClicks} (${clickRate}%)`} />
-        {stats.bounce > 0 && <StatRow label="Bounces" value={stats.bounce} tone="warn" />}
-        {stats.unsubscribe > 0 && <StatRow label="Unsubscribes" value={stats.unsubscribe} tone="warn" />}
+        {stats.bounce > 0 && <StatRow label="Bounces" value={stats.bounce} tone="urgent" />}
+        {stats.unsubscribe > 0 && <StatRow label="Unsubscribes" value={stats.unsubscribe} tone="neutral" />}
       </div>
     </div>
   )
 }
 
-function StatRow({ label, value, tone }: { label: string; value: string | number; tone?: 'warn' }) {
+function StatRow({ label, value, tone }: { label: string; value: string | number; tone?: 'urgent' | 'neutral' }) {
   return (
     <div className="flex items-center justify-between">
-      <span className={tone === 'warn' ? 'text-amber-700 dark:text-amber-400' : 'text-stone-600 dark:text-stone-300'}>
+      <span className={tone === 'urgent' ? 'text-rose-700 dark:text-rose-300' : 'text-gray-600 dark:text-gray-300'}>
         {label}
       </span>
-      <span className="font-semibold tabular-nums text-stone-800 dark:text-stone-100">{value}</span>
+      <span className="font-semibold tabular-nums text-gray-800 dark:text-gray-100">{value}</span>
     </div>
   )
 }
@@ -662,32 +648,29 @@ function SendConfirmModal({
       onClick={result ? onClose : onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-md p-5"
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5"
         onClick={(e) => e.stopPropagation()}
       >
         {result ? (
           <>
-            <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-2">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-2">
               {result.failed === 0 ? '✅ Sent' : 'Done with errors'}
             </h2>
-            <p className="text-sm text-stone-600 dark:text-stone-300 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
               {result.sent} delivered, {result.failed} failed.
             </p>
             <div className="flex justify-end">
-              <button
-                onClick={onSent}
-                className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900"
-              >
+              <ActionButton variant="primary" size="sm" onClick={onSent}>
                 OK
-              </button>
+              </ActionButton>
             </div>
           </>
         ) : (
           <>
-            <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-3">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
               Send campaign
             </h2>
-            <p className="text-sm text-stone-600 dark:text-stone-300 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
               Sending to {audience?.recipientCount ?? 0} recipient
               {audience?.recipientCount === 1 ? '' : 's'} via{' '}
               <strong>
@@ -696,13 +679,13 @@ function SendConfirmModal({
             </p>
             {channel === 'gmail' && gmailAccounts.length > 1 && (
               <label className="block mb-3">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
                   From
                 </span>
                 <select
                   value={gmailAccountId}
                   onChange={(e) => setGmailAccountId(e.target.value)}
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 >
                   {gmailAccounts.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -712,24 +695,16 @@ function SendConfirmModal({
                 </select>
               </label>
             )}
-            <p className="text-[11px] text-stone-400 dark:text-stone-500 mb-4 italic">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 italic">
               This actually sends real emails. The action can't be undone.
             </p>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={onClose}
-                disabled={pending}
-                className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700"
-              >
+              <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
                 Cancel
-              </button>
-              <button
-                onClick={send}
-                disabled={pending}
-                className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 disabled:opacity-50"
-              >
+              </ActionButton>
+              <ActionButton variant="primary" size="sm" onClick={send} disabled={pending}>
                 {pending ? 'Sending…' : 'Send now'}
-              </button>
+              </ActionButton>
             </div>
           </>
         )}

@@ -5,6 +5,12 @@ import { marketingTerminology } from '@/lib/marketing/terminology'
 import { listMarketingCampaigns } from '@/lib/services/marketing-campaigns'
 import { formatRelativeDate } from '@/lib/utils/format'
 import NewCampaignButton from './new-campaign-button'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import type { Tone } from '@/lib/ui/encodings'
 
 export const metadata = {
   title: 'Campaigns - DreamCRM',
@@ -13,13 +19,35 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-const STATUS_PILL: Record<string, string> = {
-  draft: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
-  scheduled: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-  active: 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
-  completed: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
-  paused: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
+// Tone contract: draft = inert (neutral), scheduled = queued/in-flight
+// (info), active = sending now (info), completed = sent + done (ok),
+// paused = parked (neutral). No status carries warn/urgent — a campaign's
+// own state never demands the front desk act on it.
+const STATUS_TONE: Record<string, Tone> = {
+  draft: 'neutral',
+  scheduled: 'info',
+  active: 'info',
+  completed: 'ok',
+  paused: 'neutral',
 }
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  scheduled: 'Scheduled',
+  active: 'Sending',
+  completed: 'Sent',
+  paused: 'Paused',
+}
+
+const STATUS_MEANING: Record<string, string> = {
+  draft: "Saved, not sent — nobody's received it yet",
+  scheduled: 'Queued to go out at a set time',
+  active: 'Sending to recipients right now',
+  completed: 'Delivered — opens and clicks are tracking',
+  paused: 'Parked mid-flight; resume when ready',
+}
+
+const STATUS_ORDER = ['draft', 'scheduled', 'active', 'completed', 'paused'] as const
 
 /** User-facing label for the send channel. Hides vendor names (Resend) +
  * surfaces the deliverability story instead (Email vs. From your Gmail). */
@@ -50,38 +78,43 @@ export default async function CampaignsPage({
     prefill_audience && Number.isFinite(Number(prefill_audience)) ? Number(prefill_audience) : undefined
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
-      <div className="sm:flex sm:justify-between sm:items-center mb-4">
-        <div className="mb-3 sm:mb-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
-            Campaigns
-          </h1>
-          <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5">
-            Email campaigns you've drafted, scheduled, or sent.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/marketing/audiences"
-            className="text-[12px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
-          >
-            Audiences →
-          </Link>
-          <NewCampaignButton campaignTypes={t.campaignTypes} prefillAudienceId={prefillAudienceId} />
-        </div>
-      </div>
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <PageHeader
+        eyebrow={`Growth · ${ctx.organizationName}`}
+        title="Campaigns"
+        subtitle="Email campaigns you've drafted, scheduled, or sent."
+        legend={
+          <EncodingLegend
+            pills={STATUS_ORDER.map((s) => ({
+              tone: STATUS_TONE[s],
+              label: STATUS_LABEL[s],
+              meaning: STATUS_MEANING[s],
+            }))}
+          />
+        }
+        actions={
+          <>
+            <ActionButton variant="secondary" href="/marketing/audiences">
+              Audiences
+            </ActionButton>
+            <NewCampaignButton campaignTypes={t.campaignTypes} prefillAudienceId={prefillAudienceId} />
+          </>
+        }
+      />
 
       {campaigns.length === 0 ? (
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-10 text-center">
-          <p className="text-sm text-stone-400 dark:text-stone-500 italic">
-            No campaigns yet. Create one to start writing your first email.
-          </p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
+          <EmptyState
+            icon="✉️"
+            title="No campaigns yet."
+            body='Use "+ New campaign" above to write your first email — name it, pick an audience, and write.'
+          />
         </div>
       ) : (
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-stone-50/80 dark:bg-stone-900/80 border-b border-stone-200 dark:border-stone-700/60">
-              <tr className="text-left text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+            <thead className="bg-stone-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60">
+              <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Subject</th>
                 <th className="px-3 py-2">Status</th>
@@ -94,39 +127,37 @@ export default async function CampaignsPage({
               {campaigns.map((c) => (
                 <tr
                   key={c.id}
-                  className="border-b border-stone-100 dark:border-stone-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-stone-800/30"
+                  className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-gray-900/30"
                 >
                   <td className="px-3 py-2.5">
                     <Link
                       href={`/marketing/campaigns/${c.id}`}
-                      className="font-medium text-stone-800 dark:text-stone-100 hover:underline"
+                      className="font-medium text-gray-800 dark:text-gray-100 hover:underline"
                     >
                       {c.name}
                     </Link>
                   </td>
-                  <td className="px-3 py-2.5 text-stone-500 dark:text-stone-400 max-w-[24rem] truncate">
-                    {c.subject || <span className="italic text-stone-300 dark:text-stone-600">no subject</span>}
+                  <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400 max-w-[24rem] truncate">
+                    {c.subject || <span className="italic text-gray-400 dark:text-gray-500">no subject</span>}
                   </td>
                   <td className="px-3 py-2.5">
-                    <span
-                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                        STATUS_PILL[c.status] ?? STATUS_PILL.draft
-                      }`}
-                    >
-                      {c.status}
-                    </span>
+                    <StatusPill
+                      tone={STATUS_TONE[c.status] ?? 'neutral'}
+                      label={STATUS_LABEL[c.status] ?? c.status}
+                      title={STATUS_MEANING[c.status]}
+                    />
                   </td>
-                  <td className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400">
+                  <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
                     {channelLabel(c.sendChannel)}
                   </td>
                   <td
-                    className="px-3 py-2.5 text-[12px] text-stone-500 dark:text-stone-400 tabular-nums"
+                    className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
                     suppressHydrationWarning
                   >
                     {c.sentAt ? formatRelativeDate(c.sentAt) : '—'}
                   </td>
                   <td
-                    className="px-3 py-2.5 text-[11px] text-stone-400 dark:text-stone-500 tabular-nums"
+                    className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
                     suppressHydrationWarning
                   >
                     {formatRelativeDate(c.updatedAt)}

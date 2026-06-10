@@ -2,6 +2,11 @@ import Link from 'next/link'
 import type { TenantContext } from '@/lib/auth/context'
 import { getRecallStats, type RecallActivityKind } from '@/lib/services/recall-stats'
 import { listAudiences } from '@/lib/services/marketing'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { KpiStat } from '@/components/ui/kpi-stat'
+import { EmptyState } from '@/components/ui/empty-state'
+import type { Tone } from '@/lib/ui/encodings'
 
 /**
  * Clinic-tenant Recall & Outreach dashboard. Mirrors the morning-huddle
@@ -60,132 +65,119 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
   ])
 
   const now = new Date()
+  const orgName = ctx.organizationName ?? 'Your clinic'
   const patientAudiences = audiences.filter((a) => (a.recipientSource ?? 'customers') === 'patients')
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
-            Recall this week · {fmtDate(now)}
-          </p>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold tracking-tight">
-            Recall &amp; Outreach
-          </h1>
-          <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">
-            Patients needing outreach, scheduled campaigns, and performance.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/marketing/outreach"
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-stone-300 text-stone-700 dark:text-stone-200"
-          >
-            Outreach queue
-          </Link>
-          <Link
-            href="/marketing/audiences"
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-stone-300 text-stone-700 dark:text-stone-200"
-          >
-            Audiences
-          </Link>
-          <Link
-            href="/marketing/campaigns"
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900"
-          >
-            New campaign →
-          </Link>
-        </div>
-      </div>
+      {/* ── Header — primary action is the outreach queue (the highest-
+          leverage next step: it's where the recall sends actually start).
+          Audiences + Campaigns are secondary. ──────────────────────────── */}
+      <PageHeader
+        eyebrow={`Growth · ${orgName}`}
+        title="Recall & Outreach"
+        subtitle={`Patients who need a nudge, what's scheduled to send, and how recent sends performed — for ${fmtDate(now)}.`}
+        actions={
+          <>
+            <ActionButton variant="secondary" href="/marketing/audiences">
+              Audiences
+            </ActionButton>
+            <ActionButton variant="secondary" href="/marketing/campaigns">
+              Campaigns
+            </ActionButton>
+            <ActionButton variant="primary" href="/marketing/outreach">
+              Open outreach queue
+            </ActionButton>
+          </>
+        }
+      />
 
       {/* ── Row 1 — Needs your outreach ────────────────────────────────── */}
       <section className="mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <AttentionCard
-            title="Recall due"
+          <RecallKpi
+            label="Recall due"
             count={stats.recallDueCount}
-            countSuffix={stats.recallDueCount === 1 ? 'patient over 6 months' : 'patients over 6 months'}
-            ctaHref={stats.recallDueCount > 0 ? '/marketing/outreach?tier=recall_due' : null}
-            ctaLabel="Send recall campaign"
-            footer={
+            href={stats.recallDueCount > 0 ? '/marketing/outreach?tier=recall_due' : undefined}
+            sub={
               stats.recallDueCount > 0
-                ? `${stats.recallDueReachableCount} reachable by email`
-                : 'Everyone\'s on schedule.'
+                ? `${stats.recallDueReachableCount} reachable by email · send a recall`
+                : "Everyone's on schedule."
             }
-            accent="amber"
+            tone={stats.recallDueCount > 0 ? 'warn' : 'neutral'}
           />
-          <AttentionCard
-            title="Lapsed"
+          <RecallKpi
+            label="Lapsed"
             count={stats.lapsedCount}
-            countSuffix={stats.lapsedCount === 1 ? 'patient over 9 months' : 'patients over 9 months'}
-            ctaHref={stats.lapsedCount > 0 ? '/marketing/outreach?tier=lapsed' : null}
-            ctaLabel="Send reactivation"
-            footer={
+            href={stats.lapsedCount > 0 ? '/marketing/outreach?tier=lapsed' : undefined}
+            sub={
               stats.lapsedCount > 0
-                ? `${stats.lapsedReachableCount} reachable by email`
+                ? `${stats.lapsedReachableCount} reachable · send a reactivation`
                 : 'No lapsed patients. Healthy roster.'
             }
-            accent="rose"
+            tone={stats.lapsedCount > 0 ? 'warn' : 'neutral'}
           />
-          <AttentionCard
-            title="Birthday this month"
+          <RecallKpi
+            label="Birthday this month"
             count={stats.birthdayThisMonthCount}
-            countSuffix={stats.birthdayThisMonthCount === 1 ? 'patient' : 'patients'}
-            ctaHref={stats.birthdayThisMonthCount > 0 ? '/marketing/outreach?tier=birthday' : null}
-            ctaLabel="Send birthday wishes"
-            footer={
+            href={stats.birthdayThisMonthCount > 0 ? '/marketing/outreach?tier=birthday' : undefined}
+            sub={
               stats.birthdayThisMonthCount > 0
                 ? 'A low-key warm touchpoint.'
                 : 'No birthdays this month.'
             }
-            accent="violet"
+            tone={stats.birthdayThisMonthCount > 0 ? 'special' : 'neutral'}
           />
-          <AttentionCard
-            title="New patient welcome"
+          <RecallKpi
+            label="New patient welcome"
             count={stats.newPatientsCount}
-            countSuffix={stats.newPatientsCount === 1 ? 'patient · first 60 days' : 'patients · first 60 days'}
-            ctaHref={stats.newPatientsCount > 0 ? '/marketing/outreach?tier=new_patient' : null}
-            ctaLabel="Send welcome"
-            footer={
+            href={stats.newPatientsCount > 0 ? '/marketing/outreach?tier=new_patient' : undefined}
+            sub={
               stats.newPatientsCount > 0
-                ? 'Catch first-visit follow-ups.'
+                ? 'First 60 days · catch first-visit follow-ups.'
                 : 'No new patients in the window.'
             }
-            accent="emerald"
+            tone={stats.newPatientsCount > 0 ? 'special' : 'neutral'}
           />
         </div>
       </section>
 
       {/* ── Row 2 — Upcoming sends + Recent performance ────────────────── */}
       <section className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Upcoming sends · next 14 days</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Upcoming sends · next 14 days</h2>
             <Link
               href="/marketing/campaigns"
-              className="text-[11px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+              className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
             >
               All campaigns →
             </Link>
           </div>
           {stats.upcomingSends.length === 0 ? (
-            <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              Nothing scheduled. <Link href="/marketing/campaigns" className="underline">Draft a campaign</Link> to queue one up.
-            </p>
+            <EmptyState
+              icon="🗓️"
+              title="Nothing scheduled."
+              body="Draft a campaign to queue your next recall or newsletter send."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/marketing/campaigns">
+                  Draft a campaign
+                </ActionButton>
+              }
+            />
           ) : (
-            <ul className="divide-y divide-stone-100 dark:divide-stone-700/40">
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
               {stats.upcomingSends.map((s) => (
                 <li key={s.id} className="py-2.5">
-                  <Link href={`/marketing/campaigns/${s.id}`} className="block hover:bg-stone-50 dark:hover:bg-stone-800/40 -mx-2 px-2 py-1 rounded">
+                  <Link href={`/marketing/campaigns/${s.id}`} className="block hover:bg-stone-50 dark:hover:bg-gray-900/30 -mx-2 px-2 py-1 rounded">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate">{s.name}</p>
-                        <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{s.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {s.audienceName ?? 'No audience set'}
                         </p>
                       </div>
-                      <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300 tabular-nums shrink-0">
+                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300 tabular-nums shrink-0">
                         {fmtTime(s.scheduledAt)}
                       </span>
                     </div>
@@ -196,30 +188,32 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           )}
         </div>
 
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Recent performance · last 30 days</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Recent performance · last 30 days</h2>
             {stats.openRate30d != null && (
-              <span className="text-[11px] text-stone-500 dark:text-stone-400 tabular-nums">
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                 {stats.openRate30d}% open · {stats.clickRate30d}% click
               </span>
             )}
           </div>
           {stats.recentSends.length === 0 ? (
-            <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              No sends in the last 30 days. Performance numbers populate once you send your first campaign.
-            </p>
+            <EmptyState
+              icon="📊"
+              title="No sends in the last 30 days."
+              body="Performance numbers populate once you send your first campaign."
+            />
           ) : (
             <ul className="space-y-2">
               {stats.recentSends.map((r) => (
                 <li key={r.id}>
                   <Link
                     href={`/marketing/campaigns/${r.id}`}
-                    className="block hover:bg-stone-50 dark:hover:bg-stone-800/40 -mx-2 px-2 py-1.5 rounded"
+                    className="block hover:bg-stone-50 dark:hover:bg-gray-900/30 -mx-2 px-2 py-1.5 rounded"
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate">{r.name}</p>
-                      <span className="text-[10px] text-stone-400 dark:text-stone-500 tabular-nums shrink-0 ml-2">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{r.name}</p>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0 ml-2">
                         {fmtRelative(r.sentAt)}
                       </span>
                     </div>
@@ -235,31 +229,38 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
 
       {/* ── Row 3 — Audiences + Activity ───────────────────────────────── */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Saved segments</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Saved segments</h2>
             <Link
               href="/marketing/audiences"
-              className="text-[11px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+              className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
             >
               Manage →
             </Link>
           </div>
           {patientAudiences.length === 0 ? (
-            <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              No patient segments yet. <Link href="/marketing/audiences" className="underline">Create one</Link>.
-            </p>
+            <EmptyState
+              icon="🎯"
+              title="No patient segments yet."
+              body="Save a segment to slice your roster into reusable lists for campaign sends."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/marketing/audiences">
+                  Create a segment
+                </ActionButton>
+              }
+            />
           ) : (
             <ul className="space-y-2">
               {patientAudiences.slice(0, 6).map((a) => (
                 <li key={a.id}>
                   <Link
                     href={`/marketing/campaigns?audience=${a.id}`}
-                    className="flex items-center justify-between text-[13px] hover:bg-stone-50 dark:hover:bg-stone-800/40 -mx-2 px-2 py-1.5 rounded"
+                    className="flex items-center justify-between text-sm hover:bg-stone-50 dark:hover:bg-gray-900/30 -mx-2 px-2 py-1.5 rounded"
                   >
-                    <span className="font-medium text-stone-700 dark:text-stone-200">{a.name}</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-200">{a.name}</span>
                     {a.description && (
-                      <span className="text-[11px] text-stone-400 dark:text-stone-500 truncate ml-2 max-w-[60%]">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate ml-2 max-w-[60%]">
                         {a.description}
                       </span>
                     )}
@@ -268,33 +269,35 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               ))}
             </ul>
           )}
-          <div className="mt-3 pt-3 border-t border-stone-100 dark:border-stone-700/40">
-            <div className="flex items-center justify-between text-[11px] text-stone-500 dark:text-stone-400">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 tabular-nums">
               <span>{stats.marketableCount} marketable · {stats.optedOutCount} opted out</span>
               <span>{stats.sentThisMonthCount} sent this month</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 mb-3">Recent activity</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Recent activity</h2>
           {stats.recentActivity.length === 0 ? (
-            <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-              Activity from sent campaigns shows up here — opens, clicks, and booked appointments.
-            </p>
+            <EmptyState
+              icon="📨"
+              title="No activity yet."
+              body="Opens, clicks, and booked appointments from sent campaigns show up here."
+            />
           ) : (
-            <ul className="divide-y divide-stone-100 dark:divide-stone-700/40">
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
               {stats.recentActivity.map((a) => (
                 <li key={a.id} className="py-2 flex items-center gap-3">
                   <span className="text-base shrink-0" aria-hidden="true">{ACTIVITY_ICON[a.kind]}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] text-stone-700 dark:text-stone-200 truncate">
+                    <p className="text-sm text-gray-700 dark:text-gray-200 truncate">
                       <span className="font-medium">{a.patientName ?? 'A recipient'}</span>{' '}
-                      <span className="text-stone-500 dark:text-stone-400">{ACTIVITY_LABEL[a.kind]}</span>{' '}
+                      <span className="text-gray-500 dark:text-gray-400">{ACTIVITY_LABEL[a.kind]}</span>{' '}
                       <span className="font-medium">{a.campaignName ?? 'a campaign'}</span>
                     </p>
                   </div>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
                     {fmtRelative(a.occurredAt)}
                   </span>
                 </li>
@@ -309,67 +312,50 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
 
 // ── Components ────────────────────────────────────────────────────────
 
-interface AttentionCardProps {
-  title: string
+/**
+ * Attention KPI — the whole tile drills into the matching outreach tier
+ * (KpiStat's drillable model). Urgency is carried by the tone'd `sub`
+ * line, never by dimming/coloring the digits (DESIGN-SYSTEM rule 4).
+ */
+function RecallKpi({
+  label,
+  count,
+  href,
+  sub,
+  tone,
+}: {
+  label: string
   count: number
-  countSuffix: string
-  ctaHref: string | null
-  ctaLabel: string
-  footer: string
-  accent: 'amber' | 'rose' | 'violet' | 'emerald'
-}
-
-const ACCENT_BG: Record<AttentionCardProps['accent'], string> = {
-  amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300',
-  rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300',
-  violet: 'bg-violet-50 dark:bg-violet-500/10 text-violet-800 dark:text-violet-300',
-  emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300',
-}
-
-function AttentionCard({ title, count, countSuffix, ctaHref, ctaLabel, footer, accent }: AttentionCardProps) {
-  return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 flex flex-col">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <span className={`text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${ACCENT_BG[accent]}`}>
-          {title}
-        </span>
-      </div>
-      <p className="text-3xl font-bold text-stone-900 dark:text-stone-100 tabular-nums">{count}</p>
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">{countSuffix}</p>
-      <p className="text-[11px] text-stone-400 dark:text-stone-500 italic mt-2 grow">{footer}</p>
-      {ctaHref ? (
-        <Link
-          href={ctaHref}
-          className="mt-3 text-[12px] font-semibold text-stone-700 dark:text-stone-200 hover:text-stone-900 dark:hover:text-stone-100 inline-flex items-center gap-1"
-        >
-          {ctaLabel} →
-        </Link>
-      ) : (
-        <div className="mt-3 h-[18px]" aria-hidden="true" />
-      )}
-    </div>
-  )
+  href?: string
+  sub: string
+  tone: Tone
+}) {
+  return <KpiStat label={label} value={count} href={href} sub={sub} tone={tone} />
 }
 
 function FunnelStrip({ sent, opened, clicked, booked }: { sent: number; opened: number; clicked: number; booked: number }) {
+  // Stage colors map to the tone contract: Sent = neutral (gray, inert
+  // baseline), Opened/Clicked = info (sky, ball-in-their-court), Booked =
+  // ok (emerald, the done-good outcome). Each stage carries a visible text
+  // label + count, so color never stands alone.
   const stages = [
-    { label: 'Sent', value: sent, color: 'bg-stone-300 dark:bg-stone-600' },
+    { label: 'Sent', value: sent, color: 'bg-gray-300 dark:bg-gray-600' },
     { label: 'Opened', value: opened, color: 'bg-sky-400 dark:bg-sky-500' },
-    { label: 'Clicked', value: clicked, color: 'bg-violet-400 dark:bg-violet-500' },
+    { label: 'Clicked', value: clicked, color: 'bg-sky-500 dark:bg-sky-400' },
     { label: 'Booked', value: booked, color: 'bg-emerald-500 dark:bg-emerald-400' },
   ]
   const max = Math.max(1, sent)
   return (
-    <div className="flex items-center gap-3 text-[11px]">
+    <div className="flex items-center gap-3 text-xs">
       {stages.map((s) => {
         const pct = Math.round((s.value / max) * 100)
         return (
           <div key={s.label} className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-stone-500 dark:text-stone-400">{s.label}</span>
-              <span className="font-semibold text-stone-700 dark:text-stone-200 tabular-nums">{s.value}</span>
+              <span className="text-gray-500 dark:text-gray-400">{s.label}</span>
+              <span className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{s.value}</span>
             </div>
-            <div className="h-1 rounded-full bg-stone-100 dark:bg-stone-800 overflow-hidden">
+            <div className="h-1 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
               <div className={`h-full rounded-full ${s.color}`} style={{ width: `${pct}%` }} />
             </div>
           </div>
