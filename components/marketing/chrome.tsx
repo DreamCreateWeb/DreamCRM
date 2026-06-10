@@ -2,24 +2,79 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
-import { MARKETING_NAV } from '@/lib/marketing/site'
+import { useEffect, useState } from 'react'
+import { MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
 
 /**
- * Marketing-site header (client: mobile menu + Compare dropdown). B2B SaaS
- * register — ink on white, violet accent (the product's own accent color),
- * Inter, dense. Deliberately NOT the warm serif language of the clinic
- * sites: this sells software to practice owners, not dentistry to patients.
+ * Marketing-site header: megamenu dropdowns for Product / Compare /
+ * Resources, scroll-aware elevation, full mobile menu. B2B SaaS register —
+ * ink on white, violet accent (the product's own accent), Inter, dense.
  */
+
+function ChildLink({
+  child,
+  onNavigate,
+  wide,
+}: {
+  child: MarketingNavChild
+  onNavigate: () => void
+  wide?: boolean
+}) {
+  const inner = (
+    <>
+      <span className="block text-[0.85rem] font-semibold text-gray-900 group-hover/item:text-violet-700">
+        {child.label}
+        {child.external && <span className="ml-1 text-gray-400">↗</span>}
+      </span>
+      {child.description && (
+        <span className="mt-0.5 block text-[0.74rem] leading-snug text-gray-500">{child.description}</span>
+      )}
+    </>
+  )
+  const cls = `group/item block rounded-lg px-3 py-2 hover:bg-gray-50 ${wide ? '' : ''}`
+  if (child.external) {
+    return (
+      <a href={child.href} target="_blank" rel="noreferrer" className={cls} onClick={onNavigate}>
+        {inner}
+      </a>
+    )
+  }
+  return (
+    <Link href={child.href} className={cls} onClick={onNavigate}>
+      {inner}
+    </Link>
+  )
+}
+
 export function MarketingHeader() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [compareOpen, setCompareOpen] = useState(false)
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [elevated, setElevated] = useState(false)
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  // Subtle elevation once the page scrolls — keeps the header feeling
+  // attached to the content instead of floating arbitrarily.
+  useEffect(() => {
+    const onScroll = () => setElevated(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Close menus on navigation.
+  useEffect(() => {
+    setMobileOpen(false)
+    setOpenMenu(null)
+  }, [pathname])
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href.split('#')[0] + '/')
 
   return (
-    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/85 backdrop-blur">
+    <header
+      className={`sticky top-0 z-40 border-b bg-white/85 backdrop-blur transition-shadow ${
+        elevated ? 'border-gray-200 shadow-sm' : 'border-transparent'
+      }`}
+    >
       <div className="mx-auto flex h-[60px] max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
@@ -35,32 +90,34 @@ export function MarketingHeader() {
                 <div
                   key={item.label}
                   className="relative"
-                  onMouseEnter={() => setCompareOpen(true)}
-                  onMouseLeave={() => setCompareOpen(false)}
+                  onMouseEnter={() => setOpenMenu(item.label)}
+                  onMouseLeave={() => setOpenMenu(null)}
                 >
                   <Link
                     href={item.href}
                     className={`flex items-center gap-1 rounded-lg px-3 py-2 text-[0.875rem] font-medium ${
                       isActive(item.href) ? 'text-gray-950' : 'text-gray-600 hover:text-gray-950'
                     }`}
+                    aria-expanded={openMenu === item.label}
                   >
                     {item.label}
-                    <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 fill-current opacity-60" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 12 12"
+                      className={`h-2.5 w-2.5 fill-current opacity-60 transition-transform ${openMenu === item.label ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
+                    >
                       <path d="M6 8.5 1.5 4h9L6 8.5Z" />
                     </svg>
                   </Link>
-                  {compareOpen && (
-                    <div className="absolute left-0 top-full w-56 pt-1">
-                      <div className="rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+                  {openMenu === item.label && (
+                    <div className="absolute left-0 top-full pt-1.5">
+                      <div
+                        className={`rounded-xl border border-gray-200 bg-white p-2 shadow-xl shadow-gray-200/60 ${
+                          item.children.length > 5 ? 'grid w-[34rem] grid-cols-2 gap-x-2' : 'w-72'
+                        }`}
+                      >
                         {item.children.map((child) => (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            className="block rounded-lg px-3 py-2 text-[0.85rem] font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-950"
-                            onClick={() => setCompareOpen(false)}
-                          >
-                            {child.label}
-                          </Link>
+                          <ChildLink key={child.href} child={child} onNavigate={() => setOpenMenu(null)} />
                         ))}
                       </div>
                     </div>
@@ -90,7 +147,7 @@ export function MarketingHeader() {
           </Link>
           <Link
             href="/signup"
-            className="rounded-lg bg-violet-600 px-3.5 py-2 text-[0.875rem] font-semibold text-white hover:bg-violet-700"
+            className="rounded-lg bg-violet-600 px-3.5 py-2 text-[0.875rem] font-semibold text-white transition-colors hover:bg-violet-700"
           >
             Get started
           </Link>
@@ -114,29 +171,46 @@ export function MarketingHeader() {
       </div>
 
       {mobileOpen && (
-        <nav className="border-t border-gray-200 bg-white px-4 pb-4 pt-2 lg:hidden" aria-label="Mobile">
+        <nav className="max-h-[calc(100dvh-60px)] overflow-y-auto border-t border-gray-200 bg-white px-4 pb-6 pt-2 lg:hidden" aria-label="Mobile">
           {MARKETING_NAV.map((item) => (
-            <div key={item.label}>
+            <div key={item.label} className="border-b border-gray-50 py-1 last:border-b-0">
               <Link
                 href={item.href}
-                className="block rounded-lg px-3 py-2.5 text-[0.95rem] font-semibold text-gray-900"
+                className="block rounded-lg px-3 py-2.5 text-[0.95rem] font-bold text-gray-900"
                 onClick={() => setMobileOpen(false)}
               >
                 {item.label}
               </Link>
-              {item.children?.map((child) => (
-                <Link
-                  key={child.href}
-                  href={child.href}
-                  className="block rounded-lg py-2 pl-7 pr-3 text-[0.875rem] text-gray-600"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {child.label}
-                </Link>
-              ))}
+              {item.children && (
+                <div className="grid grid-cols-1 gap-0.5 pb-2 sm:grid-cols-2">
+                  {item.children.map((child) =>
+                    child.external ? (
+                      <a
+                        key={child.href}
+                        href={child.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg py-1.5 pl-6 pr-3 text-[0.85rem] text-gray-600"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        {child.label} ↗
+                      </a>
+                    ) : (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className="rounded-lg py-1.5 pl-6 pr-3 text-[0.85rem] text-gray-600"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        {child.label}
+                      </Link>
+                    ),
+                  )}
+                </div>
+              )}
             </div>
           ))}
-          <div className="mt-3 flex gap-2 border-t border-gray-100 pt-3">
+          <div className="mt-4 flex gap-2">
             <Link
               href="/signin"
               className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-gray-800"

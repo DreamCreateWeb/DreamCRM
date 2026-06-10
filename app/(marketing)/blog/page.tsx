@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getMarketingPosts } from '@/lib/services/marketing-blog'
-import { Eyebrow } from '@/components/marketing/ui'
+import { PageHero } from '@/components/marketing/ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,18 +20,11 @@ export default async function MarketingBlogPage() {
 
   return (
     <>
-      <section className="border-b border-gray-100 bg-gradient-to-b from-violet-50/60 to-white">
-        <div className="mx-auto max-w-3xl px-4 py-14 text-center sm:px-6">
-          <Eyebrow>Blog</Eyebrow>
-          <h1 className="text-[2.1rem] font-extrabold leading-tight tracking-tight sm:text-[2.6rem]">
-            Notes from the front office
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-[0.98rem] leading-relaxed text-gray-600">
-            Product announcements and essays on running a modern dental practice — written by the
-            team, not a content farm.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="Blog"
+        title="Notes from the front office"
+        sub="Product announcements and essays on running a modern dental practice — written by the team, not a content farm."
+      />
 
       <section className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
         {posts.length === 0 ? (

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { COMPARISONS, COMPARISON_DISCLAIMER } from '@/lib/marketing/comparisons'
-import { Eyebrow } from '@/components/marketing/ui'
+import { PageHero } from '@/components/marketing/ui'
 
 export const metadata = {
   title: 'Compare DreamCRM to the alternatives',
@@ -11,18 +11,11 @@ export const metadata = {
 export default function CompareIndexPage() {
   return (
     <>
-      <section className="border-b border-gray-100 bg-gradient-to-b from-violet-50/60 to-white">
-        <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-          <Eyebrow>Comparisons</Eyebrow>
-          <h1 className="text-[2.2rem] font-extrabold leading-tight tracking-tight sm:text-[2.8rem]">
-            Evaluating us against the field? Good.
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-[1rem] leading-relaxed text-gray-600">
-            Every vendor below is genuinely good at something, and each page says exactly what.
-            Then it shows where DreamCRM wins, feature by feature, with no asterisks.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="Comparisons"
+        title="Evaluating us against the field? Good."
+        sub="Every vendor below is genuinely good at something, and each page says exactly what. Then it shows where DreamCRM wins, feature by feature, with no asterisks."
+      />
 
       <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
         <div className="grid gap-4 md:grid-cols-2">

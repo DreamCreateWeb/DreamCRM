@@ -1,5 +1,5 @@
 import { MarketingHeader } from '@/components/marketing/chrome'
-import { MarketingFooter } from '@/components/marketing/ui'
+import { MarketingFooter, MarketingMotionStyles } from '@/components/marketing/ui'
 
 /**
  * Chrome for every public marketing page (home, product, pricing, compare,
@@ -10,6 +10,7 @@ import { MarketingFooter } from '@/components/marketing/ui'
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-white text-gray-950 antialiased">
+      <MarketingMotionStyles />
       <MarketingHeader />
       <main>{children}</main>
       <MarketingFooter />

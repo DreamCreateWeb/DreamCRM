@@ -14,6 +14,7 @@ import {
   CheckIcon,
   DashboardMock,
   PortalMock,
+  MarqueeStrip,
 } from '@/components/marketing/ui'
 
 export const dynamic = 'force-dynamic'
@@ -122,27 +123,27 @@ export default async function MarketingHome() {
         <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white to-transparent" aria-hidden="true" />
         <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-3.5 py-1.5 text-[0.78rem] font-semibold text-violet-700 shadow-sm">
+            <p className="mkt-enter mb-5 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-3.5 py-1.5 text-[0.78rem] font-semibold text-violet-700 shadow-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-violet-600" aria-hidden="true" />
               Built for dental practices · syncs with Open Dental
             </p>
-            <h1 className="text-[2.6rem] font-extrabold leading-[1.04] tracking-tight text-gray-950 sm:text-[3.5rem]">
+            <h1 className="mkt-enter mkt-d1 text-[2.6rem] font-extrabold leading-[1.04] tracking-tight text-gray-950 sm:text-[3.5rem]">
               Your whole front office.
               <br />
               <span className="bg-gradient-to-r from-violet-600 to-violet-400 bg-clip-text text-transparent">
                 One calm system.
               </span>
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-[1.08rem] leading-relaxed text-gray-600">
-              Website, online booking, patient portal, messaging, reviews, recall, and a shop — the
-              five or six subscriptions a typical practice juggles, replaced by one. Your PMS stays
-              exactly where it is.
+            <p className="mkt-enter mkt-d2 mx-auto mt-6 max-w-2xl text-[1.08rem] leading-relaxed text-gray-600">
+              The website, booking, portal, messages, reviews, recall, and shop your practice juggles
+              across five or six vendors — finally one system that just talks to itself. And your
+              PMS? It stays exactly where it is.
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <div className="mkt-enter mkt-d3 mt-8 flex flex-wrap items-center justify-center gap-3">
               <PrimaryCta href="/signup">Start free setup</PrimaryCta>
               <GhostCta href="/product">Tour the platform</GhostCta>
             </div>
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
+            <div className="mkt-enter mkt-d4 mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
               {['$99–199/mo flat', 'Month-to-month', '10-minute setup', 'Official PMS APIs only'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
                   <CheckIcon className="h-3.5 w-3.5 text-violet-600" />
@@ -152,11 +153,11 @@ export default async function MarketingHome() {
             </div>
           </div>
 
-          <div className="mt-14 flex items-end justify-center gap-6">
-            <div className="w-full max-w-3xl">
+          <div className="mkt-enter mkt-d4 mt-14 flex items-end justify-center gap-6">
+            <div className="mkt-float w-full max-w-3xl">
               <DashboardMock />
             </div>
-            <div className="hidden shrink-0 lg:block">
+            <div className="mkt-float-slow hidden shrink-0 lg:block">
               <PortalMock />
             </div>
           </div>
@@ -165,6 +166,8 @@ export default async function MarketingHome() {
           </p>
         </div>
       </section>
+
+      <MarqueeStrip />
 
       {/* ── The consolidation math ── */}
       <ScrollReveal as="section" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">

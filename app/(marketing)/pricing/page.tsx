@@ -1,7 +1,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { PLANS } from '@/lib/stripe-config'
-import { Eyebrow, SectionTitle, PrimaryCta, CheckIcon, MatrixMark } from '@/components/marketing/ui'
+import { SectionTitle, PrimaryCta, CheckIcon, MatrixMark, PageHero } from '@/components/marketing/ui'
 
 export const metadata = {
   title: 'Pricing — DreamCRM',
@@ -87,18 +87,11 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
 export default function PricingPage() {
   return (
     <>
-      <section className="border-b border-gray-100 bg-gradient-to-b from-violet-50/60 to-white">
-        <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-          <Eyebrow>Pricing</Eyebrow>
-          <h1 className="text-[2.2rem] font-extrabold leading-tight tracking-tight sm:text-[2.8rem]">
-            The whole number, on the page
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-[1rem] leading-relaxed text-gray-600">
-            No discovery calls, no custom quotes, no per-feature add-ons. Pick a tier, switch
-            whenever, cancel monthly.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="Pricing"
+        title="The whole number, on the page"
+        sub="No discovery calls, no custom quotes, no per-feature add-ons. Pick a tier, switch whenever, cancel monthly."
+      />
 
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <div className="grid gap-4 lg:grid-cols-3">

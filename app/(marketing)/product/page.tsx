@@ -13,6 +13,7 @@ import {
   ShopMock,
 } from '@/components/marketing/ui'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import { PageHero } from '@/components/marketing/ui'
 import { DEMO_URL } from '@/lib/marketing/site'
 import Link from 'next/link'
 
@@ -161,25 +162,18 @@ const SECTIONS: ModuleSection[] = [
 export default function ProductPage() {
   return (
     <>
-      <section className="border-b border-gray-100 bg-gradient-to-b from-violet-50/60 to-white">
-        <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:py-20">
-          <Eyebrow>Platform tour</Eyebrow>
-          <h1 className="text-[2.2rem] font-extrabold leading-tight tracking-tight sm:text-[2.8rem]">
-            One system, eight jobs, zero copy-paste between them
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-[1rem] leading-relaxed text-gray-600">
-            Because it&apos;s one product, the modules compound: a website lead becomes a patient
-            record, the patient gets a portal, the visit triggers a review request, and the recall
-            campaign knows who&apos;s overdue — automatically.
-          </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <PrimaryCta href="/signup">Start free setup</PrimaryCta>
-            <GhostCta href={DEMO_URL} external>
-              Browse the demo practice ↗
-            </GhostCta>
-          </div>
+      <PageHero
+        eyebrow="Platform tour"
+        title="One system, eight jobs, zero copy-paste between them"
+        sub="Because it's one product, the modules compound: a website lead becomes a patient record, the patient gets a portal, the visit triggers a review request, and the recall campaign knows who's overdue — automatically."
+      >
+        <div className="flex flex-wrap justify-center gap-3">
+          <PrimaryCta href="/signup">Start free setup</PrimaryCta>
+          <GhostCta href={DEMO_URL} external>
+            Browse the demo practice ↗
+          </GhostCta>
         </div>
-      </section>
+      </PageHero>
 
       {/* Sticky in-page nav */}
       <nav className="sticky top-[60px] z-30 border-b border-gray-100 bg-white/90 backdrop-blur" aria-label="Modules">
@@ -201,7 +195,10 @@ export default function ProductPage() {
           <section key={s.id} id={s.id} className="scroll-mt-28 border-b border-gray-100 py-16 last:border-b-0">
             <div className={`grid items-start gap-10 lg:grid-cols-2 ${i % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''}`}>
               <div>
-                <Eyebrow>{s.eyebrow}</Eyebrow>
+                <Eyebrow>
+                  <span className="mr-2 text-gray-300">{String(i + 1).padStart(2, '0')}</span>
+                  {s.eyebrow}
+                </Eyebrow>
                 <h2 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-[1.9rem]">{s.title}</h2>
                 <p className="mt-4 text-[0.95rem] leading-relaxed text-gray-600">{s.body}</p>
                 {s.docHref && (
