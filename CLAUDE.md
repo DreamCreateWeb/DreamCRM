@@ -118,6 +118,34 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Actions-first dashboard design system (2026-06-10, PRs #290–#300)** —
+  the entire authenticated dashboard (app/(default) + app/(double-sidebar))
+  was migrated to a unified actions-first UI system. **Read
+  [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) before touching any dashboard
+  UI** — it is the binding spec (doctrine, semantic tone contract, page
+  anatomy, legend requirement, migration checklist). Keystone:
+  `lib/ui/encodings.ts` — single source of truth for the six semantic tones
+  (ok=emerald · warn=amber=needs-OUR-action · urgent=rose · info=sky=ball-
+  theirs · special=violet · neutral=gray), the canonical glyph registry
+  (every ★/🎂/$/📝!/⚠️/💤/🔕/🆕/📅/⏱ with exact aria-labels + actions-first
+  legend descriptions), shared aging tiers (fresh→quiet→aging→late→overdue)
+  with per-module threshold helpers, and aging-legend presets. Ten shared
+  primitives in `components/ui/`: PageHeader (one violet primary per page,
+  top-right) · ActionButton (primary/secondary/danger/ghost; href + target
+  support) · StatusPill · FilterChip (counts inside, `title` required on
+  emoji) · GlyphCluster (THE glyph renderer — module-local copies deleted) ·
+  **EncodingLegend** (the "Key" popover that explains every encoding a page
+  uses, fed from the registry so UI and legend can't drift — mounted on
+  every page with glyphs/aging/pills) · EmptyState (leads with the next
+  action) · BulkBar · KpiStat (drillable numbers, full-contrast zeros) ·
+  FlashToast. Readability floor: nothing below text-xs (12px), no
+  gray-400 meaningful text, tabular-nums on numbers. Semantic fixes baked
+  in: leads Contacted amber→sky, order fulfillment ball-in-court tones,
+  lifecycle pill de-collision, channel chips labeled (channel-meta.tsx).
+  Known cosmetic loose ends: EncodingLegend lacks a dedicated "channels"
+  section (channel rows ride the pills slot); a sub-12px hint inside the
+  Website Studio video modal + editor-kit micro-text were out of light-touch
+  scope. Tests: `tests/design-system/` guards the registry + primitives.
 - **Global ⌘K command palette** — the unification layer. The Mosaic header's
   fake search stub (hardcoded template links) was replaced with a real,
   org-scoped palette: ⌘K/Ctrl+K anywhere in the dashboard (or the header
@@ -281,7 +309,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (583 tests) covering middleware, billing sync,
+- **Vitest test suite** (1488 tests) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions

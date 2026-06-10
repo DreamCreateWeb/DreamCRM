@@ -105,6 +105,11 @@ These shape every decision. Re-read before any module design.
 
 ## Visual + interaction principles
 
+> Principles 6–9 below are operationalized for the staff dashboard in
+> [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) — the binding component system
+> (semantic tone contract, glyph/aging registry + legends, page anatomy,
+> readability floor). Read it before touching any dashboard UI.
+
 5. **Modern healthcare DTC, not clinical medical.** Warm off-whites + earth
    tones + candid real-staff photography. Reference: **hellotend.com** —
    currently the only dental brand operating at modern healthcare DTC level.
