@@ -207,6 +207,9 @@ describe('syncSubscriptionFromStripe', () => {
     expect(updates[0].set.subscriptionStatus).toBe('active')
     expect(updates[0].set.stripeSubscriptionId).toBe('sub_1')
     expect(updates[0].whereOrg).toBe('org_1')
+    // Managed-clinic provisioning: an activated sub ends the pending state.
+    expect(updates[0].set.pendingPlanId).toBeNull()
+    expect(updates[0].set.pendingBillingInterval).toBeNull()
   })
 
   it('writes plan_tier=premium for the premium price', async () => {
@@ -223,6 +226,8 @@ describe('syncSubscriptionFromStripe', () => {
     )
     await syncSubscriptionFromStripe('sub_1')
     expect(updates[0].set.planTier).toBe('basic')
+    // Not active → the managed-clinic pending reservation stays.
+    expect('pendingPlanId' in updates[0].set).toBe(false)
   })
 
   it('keeps plan_tier=pro for trialing subscriptions', async () => {

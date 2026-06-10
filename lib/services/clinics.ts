@@ -43,6 +43,10 @@ export interface ClinicListRow {
   subscriptionStatus: string | null
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
+  /** 'self_serve' | 'managed' | 'comped' — platform-provisioned billing state. Absent = self_serve. */
+  billingMode?: string | null
+  /** Managed clinics: reserved plan awaiting owner checkout. */
+  pendingPlanId?: string | null
   createdAt: Date
   /** Monthly recurring revenue this clinic contributes (cents). */
   monthlyContributionCents: number
@@ -73,6 +77,8 @@ export async function listClinics(): Promise<ClinicListRow[]> {
         subscriptionStatus: clinicProfile.subscriptionStatus,
         stripeCustomerId: clinicProfile.stripeCustomerId,
         stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
+        billingMode: clinicProfile.billingMode,
+        pendingPlanId: clinicProfile.pendingPlanId,
       })
       .from(organization)
       .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
@@ -147,6 +153,8 @@ export async function listClinics(): Promise<ClinicListRow[]> {
         subscriptionStatus: r.subscriptionStatus,
         stripeCustomerId: r.stripeCustomerId,
         stripeSubscriptionId: r.stripeSubscriptionId,
+        billingMode: r.billingMode ?? 'self_serve',
+        pendingPlanId: r.pendingPlanId,
         createdAt: r.createdAt,
         monthlyContributionCents,
         memberCount: membersByOrg.get(r.orgId) ?? 0,

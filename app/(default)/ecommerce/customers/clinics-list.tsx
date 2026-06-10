@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
-import { enterDemoMode, seedAndEnterDemoClinic, deleteClinicAction } from './admin-actions'
+import { enterDemoMode, seedAndEnterDemoClinic, deleteClinicAction, resendClinicInviteAction } from './admin-actions'
 import { type Tone } from '@/lib/ui/encodings'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -267,10 +267,23 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         </Link>
       </td>
       <td className="px-3 py-3">
-        <StatusPill tone={PLAN_TONE[c.planTier]} label={PLAN_LABELS[c.planTier]} />
+        <span className="inline-flex items-center gap-1.5">
+          <StatusPill tone={PLAN_TONE[c.planTier]} label={PLAN_LABELS[c.planTier]} />
+          {c.billingMode === 'comped' && (
+            <StatusPill tone="neutral" label="comped" title="Platform-granted plan — no Stripe subscription" />
+          )}
+        </span>
       </td>
       <td className="px-3 py-3">
-        <StatusPill tone={statusTone(statusKey)} label={statusKey.replace('_', ' ')} />
+        {c.billingMode === 'managed' && c.pendingPlanId ? (
+          <StatusPill
+            tone="info"
+            label="setup pending"
+            title="Owner invited — waiting on them to accept and add billing"
+          />
+        ) : (
+          <StatusPill tone={statusTone(statusKey)} label={statusKey.replace('_', ' ')} />
+        )}
       </td>
       <td className="px-3 py-3 text-right font-medium text-gray-800 dark:text-gray-100 tabular-nums">
         {moneyShort(c.monthlyContributionCents)}
@@ -292,6 +305,7 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         <div className="flex items-center justify-end gap-2">
           {/* View as is the demo gateway — the row primary. */}
           <ViewAsButton orgId={c.orgId} />
+          {c.billingMode === 'managed' && c.pendingPlanId && <ResendInviteButton orgId={c.orgId} />}
           <ActionButton href={siteUrl} variant="ghost" size="sm" target="_blank">
             Site ↗
           </ActionButton>
@@ -302,6 +316,32 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         </div>
       </td>
     </tr>
+  )
+}
+
+function ResendInviteButton({ orgId }: { orgId: string }) {
+  const [pending, startTransition] = useTransition()
+  const [sent, setSent] = useState(false)
+  return (
+    <ActionButton
+      variant="ghost"
+      size="sm"
+      disabled={pending || sent}
+      title="Re-send the owner's invite email"
+      onClick={() =>
+        startTransition(async () => {
+          try {
+            await resendClinicInviteAction(orgId)
+            setSent(true)
+            setTimeout(() => setSent(false), 4000)
+          } catch {
+            /* surfaced by the disabled state resetting; keep quiet */
+          }
+        })
+      }
+    >
+      {sent ? 'Invite sent ✓' : pending ? 'Sending…' : 'Resend invite'}
+    </ActionButton>
   )
 }
 

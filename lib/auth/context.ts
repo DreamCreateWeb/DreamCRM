@@ -21,6 +21,13 @@ export interface TenantContext {
   planTier: PlanTier
   patientId: string | null
   isDemo: boolean
+  /**
+   * True for a platform-provisioned ('managed') clinic whose reserved plan
+   * hasn't been activated yet — drives the "finish billing setup" banner.
+   * Optional: absent/undefined means false (self-serve clinics, platform,
+   * patients, demo contexts).
+   */
+  billingActivationPending?: boolean
 }
 
 interface DemoContext {
@@ -74,6 +81,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
             planTier,
             patientId: demo.patientId ?? null,
             isDemo: true,
+            billingActivationPending: false,
           }
         }
       }
@@ -121,6 +129,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   if (!org) return null
 
   let planTier: PlanTier = 'basic'
+  let billingActivationPending = false
   if (org.type === 'clinic') {
     const [profile] = await db
       .select()
@@ -128,6 +137,11 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       .where(eq(clinicProfile.organizationId, activeOrgId))
       .limit(1)
     if (profile?.planTier) planTier = profile.planTier as PlanTier
+    billingActivationPending =
+      profile?.billingMode === 'managed' &&
+      Boolean(profile?.pendingPlanId) &&
+      profile?.subscriptionStatus !== 'active' &&
+      profile?.subscriptionStatus !== 'trialing'
   }
 
   const tenantType: TenantType =
@@ -160,6 +174,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     planTier,
     patientId,
     isDemo: false,
+    billingActivationPending,
   }
 }
 

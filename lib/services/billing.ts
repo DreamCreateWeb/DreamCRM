@@ -162,6 +162,11 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
       stripeSubscriptionId: sub.id,
       subscriptionStatus: sub.status,
       planTier,
+      // Managed-clinic provisioning: once the reserved subscription is live,
+      // the "finish billing setup" state is over.
+      ...(sub.status === 'active' || sub.status === 'trialing'
+        ? { pendingPlanId: null, pendingBillingInterval: null }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
