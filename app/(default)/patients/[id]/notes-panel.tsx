@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import type { PatientNoteRow } from '@/lib/services/patient-notes'
+import { ActionButton } from '@/components/ui/action-button'
 import { addPatientNoteAction, deletePatientNoteAction } from '../actions'
 
 function fmtRel(d: Date): string {
@@ -41,7 +42,7 @@ export default function NotesPanel({
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-4">
-      <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-3">
+      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-3">
         Notes
       </p>
       <div className="space-y-3 mb-3 max-h-[240px] overflow-y-auto">
@@ -56,13 +57,14 @@ export default function NotesPanel({
               <p className="text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-snug">
                 {n.body}
               </p>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
                 <span>{n.authorName ?? 'Staff'}</span>
                 <span>·</span>
                 <span suppressHydrationWarning>{fmtRel(n.createdAt)}</span>
                 <button
+                  type="button"
                   onClick={() => remove(n.id)}
-                  className="ml-auto text-gray-400 hover:text-red-500"
+                  className="ml-auto text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400"
                   aria-label="Delete note"
                 >
                   ×
@@ -78,14 +80,16 @@ export default function NotesPanel({
         placeholder="Add a relationship note…"
         className="form-textarea w-full text-xs min-h-[60px] mb-2"
       />
-      {error && <p className="text-[11px] text-red-600 dark:text-red-400 mb-2">{error}</p>}
-      <button
+      {error && <p className="text-xs text-rose-700 dark:text-rose-300 mb-2">{error}</p>}
+      <ActionButton
+        variant="primary"
+        size="sm"
         onClick={add}
         disabled={pending || !body.trim()}
-        className="w-full btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 disabled:opacity-50"
+        className="w-full justify-center"
       >
         {pending ? 'Saving…' : 'Add note'}
-      </button>
+      </ActionButton>
     </div>
   )
 }

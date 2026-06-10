@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import type { PatientHeader } from '@/lib/services/patients'
+import { ActionButton } from '@/components/ui/action-button'
 import { updatePatientAction } from '../actions'
 
 export default function EditPatientModal({
@@ -91,7 +92,7 @@ export default function EditPatientModal({
           </div>
           <div className="grid grid-cols-1 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/60">
             <label className="block">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
                 Family portal access (guardian)
               </span>
               <select
@@ -108,21 +109,21 @@ export default function EditPatientModal({
                     </option>
                   ))}
               </select>
-              <span className="block text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
                 The guardian sees and manages this patient&apos;s visits and forms from their own
                 portal login — for kids and family members who don&apos;t sign in themselves.
               </span>
             </label>
           </div>
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
         </div>
         <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
-          <button onClick={onClose} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200">
+          <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
             Cancel
-          </button>
-          <button onClick={save} disabled={pending} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 disabled:opacity-50">
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending}>
             {pending ? 'Saving…' : 'Save changes'}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -142,7 +143,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</span>
+      <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</span>
       <input
         type={type}
         value={value}

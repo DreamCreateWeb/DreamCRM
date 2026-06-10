@@ -5,7 +5,14 @@ import { useMemo, useState, useTransition } from 'react'
 import type { PatientHeader } from '@/lib/services/patients'
 import type { TimelineEvent, TimelineCounts, TimelineKind } from '@/lib/services/patient-timeline'
 import type { PatientNoteRow } from '@/lib/services/patient-notes'
-import { GlyphCluster } from '../glyph-cluster'
+import { patientFlagGlyphs, type Tone } from '@/lib/ui/encodings'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import { FlashToast } from '@/components/ui/flash-toast'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
@@ -48,22 +55,14 @@ function fmtRelative(d: Date | null): string {
   return `${Math.floor(days / 30)}mo ago`
 }
 
-const LIFECYCLE_PILL: Record<string, string> = {
-  lead: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-  new: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  active: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  at_risk: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  lapsed: 'bg-red-500/15 text-red-700 dark:text-red-300',
-  archived: 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
-}
-
-const LIFECYCLE_LABEL: Record<string, string> = {
-  lead: 'Lead',
-  new: 'New patient',
-  active: 'Active',
-  at_risk: 'At risk',
-  lapsed: 'Lapsed',
-  archived: 'Archived',
+/** Lifecycle → semantic tone (categorical state, per the contract). */
+const LIFECYCLE: Record<string, { tone: Tone; label: string }> = {
+  lead: { tone: 'special', label: 'Lead' },
+  new: { tone: 'info', label: 'New patient' },
+  active: { tone: 'ok', label: 'Active' },
+  at_risk: { tone: 'warn', label: 'At risk' },
+  lapsed: { tone: 'urgent', label: 'Lapsed' },
+  archived: { tone: 'neutral', label: 'Archived' },
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -106,6 +105,7 @@ export default function PatientDetail({
   const [filter, setFilter] = useState<TimelineKind | 'all'>('all')
   const [editOpen, setEditOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const [archivePending, startArchive] = useTransition()
 
   const filtered = useMemo(
@@ -113,9 +113,14 @@ export default function PatientDetail({
     [filter, timeline],
   )
 
+  const lifecycle = LIFECYCLE[header.lifecycle] ?? { tone: 'ok' as Tone, label: header.lifecycle }
+
   function onArchive() {
     if (!confirm(`Archive ${header.fullName}? They'll move to the Archived list.`)) return
-    startArchive(async () => { await archivePatientAction(header.id) })
+    startArchive(async () => {
+      await archivePatientAction(header.id)
+      setToast(`${header.fullName} archived`)
+    })
   }
 
   return (
@@ -139,14 +144,31 @@ export default function PatientDetail({
                 {header.fullName}
               </h1>
               {header.ageYears !== null && (
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">
                   {header.ageYears} yrs
                 </span>
               )}
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${LIFECYCLE_PILL[header.lifecycle] ?? LIFECYCLE_PILL.active}`}>
-                {LIFECYCLE_LABEL[header.lifecycle] ?? header.lifecycle}
-              </span>
-              <GlyphCluster flags={header.flags} cap={Infinity} />
+              <StatusPill tone={lifecycle.tone} label={lifecycle.label} />
+              <GlyphCluster glyphs={patientFlagGlyphs(header.flags)} cap={Infinity} />
+              <EncodingLegend
+                glyphs={[
+                  'newPatient',
+                  'birthday',
+                  'balance',
+                  'missingIntakeNext',
+                  'unconfirmed48h',
+                  'lapsed',
+                  'optedOut',
+                ]}
+                pills={[
+                  { tone: 'special', label: 'Lead', meaning: 'A prospect who has not booked yet' },
+                  { tone: 'info', label: 'New patient', meaning: 'Recently joined — getting established' },
+                  { tone: 'ok', label: 'Active', meaning: 'Seen recently, in good standing' },
+                  { tone: 'warn', label: 'At risk', meaning: 'Drifting — worth a recall nudge' },
+                  { tone: 'urgent', label: 'Lapsed', meaning: 'No visit in 9+ months' },
+                  { tone: 'neutral', label: 'Archived', meaning: 'Moved out of the active list' },
+                ]}
+              />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               First seen {fmtFullDate(header.firstSeenAt)}
@@ -155,42 +177,35 @@ export default function PatientDetail({
             </p>
           </div>
           <div className="flex flex-wrap items-start gap-2">
+            {/* The ONE primary: messaging is the most-used relationship action. */}
             <form action={openPatientThreadAction}>
               <input type="hidden" name="patientId" value={header.id} />
-              <button
-                type="submit"
-                className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50"
-              >
+              <ActionButton variant="primary" size="sm" type="submit">
                 Send message
-              </button>
+              </ActionButton>
             </form>
-            <button
-              type="button"
-              onClick={() => setBookOpen(true)}
-              className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50"
-            >
+            <ActionButton variant="secondary" size="sm" onClick={() => setBookOpen(true)}>
               Book appointment
-            </button>
+            </ActionButton>
             <SendIntakeButton patientId={header.id} forms={intakeForms} />
             <SendReviewRequestButton patientId={header.id} />
             {isPlatformAdmin && (
               <form action={viewAsPatientAction}>
                 <input type="hidden" name="patientId" value={header.id} />
-                <button
+                <ActionButton
+                  variant="secondary"
+                  size="sm"
                   type="submit"
                   title="Preview the patient portal as this patient (platform admin)"
-                  className="btn-sm bg-white dark:bg-gray-700 border border-dashed border-violet-300 dark:border-violet-500/50 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-500/10"
+                  className="border-dashed border-violet-300 dark:border-violet-500/50 text-violet-700 dark:text-violet-300"
                 >
                   View as patient
-                </button>
+                </ActionButton>
               </form>
             )}
-            <button
-              onClick={() => setEditOpen(true)}
-              className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800"
-            >
+            <ActionButton variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
               Edit
-            </button>
+            </ActionButton>
           </div>
         </div>
         {/* Header stat strip */}
@@ -223,32 +238,22 @@ export default function PatientDetail({
           <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60 flex flex-wrap gap-1.5 items-center">
               {FILTER_KEYS.map((f) => (
-                <button
+                <FilterChip
                   key={f.key}
+                  active={filter === f.key}
                   onClick={() => setFilter(f.key)}
-                  className={`text-xs px-3 py-1.5 rounded-full font-medium transition ${
-                    filter === f.key
-                      ? 'bg-gray-900 dark:bg-gray-100 text-gray-100 dark:text-gray-800'
-                      : 'bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
+                  count={counts[f.countKey] > 0 ? counts[f.countKey] : undefined}
                 >
                   {f.label}
-                  {counts[f.countKey] > 0 && (
-                    <span className="ml-1 opacity-60">{counts[f.countKey]}</span>
-                  )}
-                </button>
+                </FilterChip>
               ))}
             </div>
             {filtered.length === 0 ? (
-              <div className="px-6 py-16 text-center">
-                <p className="text-3xl mb-2">🌱</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No {filter === 'all' ? 'activity yet' : `${filter.replace('_', ' ')} entries`}.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-xs mx-auto">
-                  Bookings, messages, form submissions and invoices will appear here as they happen.
-                </p>
-              </div>
+              <EmptyState
+                icon="🌱"
+                title={filter === 'all' ? 'No activity yet' : `No ${filter.replace('_', ' ')} entries`}
+                body="Bookings, messages, form submissions and invoices will appear here as they happen."
+              />
             ) : (
               <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
                 {filtered.map((e) => (
@@ -262,14 +267,17 @@ export default function PatientDetail({
         {/* ── Notes column ───────────────────────────────────────────── */}
         <aside className="lg:col-span-3">
           <NotesPanel patientId={header.id} notes={notes} />
+          {/* Destructive action lives apart from the primary, at the bottom. */}
           <div className="mt-4">
-            <button
+            <ActionButton
+              variant="danger"
+              size="sm"
               onClick={onArchive}
-              disabled={archivePending}
-              className="w-full text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition py-2"
+              disabled={archivePending || header.lifecycle === 'archived'}
+              className="w-full justify-center"
             >
               {archivePending ? 'Archiving…' : header.lifecycle === 'archived' ? 'Archived' : 'Archive patient'}
-            </button>
+            </ActionButton>
           </div>
         </aside>
       </div>
@@ -284,6 +292,7 @@ export default function PatientDetail({
           onClose={() => setBookOpen(false)}
         />
       )}
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
   )
 }
@@ -320,17 +329,12 @@ function SendIntakeButton({ patientId, forms = [] }: { patientId: string; forms?
           ))}
         </select>
       )}
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={pending}
-        className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 disabled:opacity-50"
-      >
+      <ActionButton variant="secondary" size="sm" onClick={onClick} disabled={pending}>
         {pending ? 'Sending…' : 'Send intake'}
-      </button>
+      </ActionButton>
       {feedback && (
         <span
-          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-[11px] leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-xs leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}
         >
           {feedback.msg}
         </span>
@@ -355,17 +359,12 @@ function SendReviewRequestButton({ patientId }: { patientId: string }) {
 
   return (
     <div className="relative flex flex-col">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={pending}
-        className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 disabled:opacity-50"
-      >
+      <ActionButton variant="secondary" size="sm" onClick={onClick} disabled={pending}>
         {pending ? 'Sending…' : 'Request review'}
-      </button>
+      </ActionButton>
       {feedback && (
         <span
-          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-[11px] leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-xs leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}
         >
           {feedback.msg}
         </span>
@@ -389,15 +388,15 @@ function Stat({
 }) {
   const valueClass =
     tone === 'warn'
-      ? 'text-red-700 dark:text-red-300'
+      ? 'text-amber-700 dark:text-amber-300'
       : tone === 'ok'
         ? 'text-emerald-700 dark:text-emerald-300'
         : 'text-gray-800 dark:text-gray-100'
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
-      <p className={`text-sm font-semibold mt-0.5 ${valueClass}`}>{value}</p>
-      {hint && <p className="text-[11px] text-gray-500 dark:text-gray-400 capitalize" suppressHydrationWarning>{hint}</p>}
+      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
+      <p className={`text-sm font-semibold mt-0.5 tabular-nums ${valueClass}`}>{value}</p>
+      {hint && <p className="text-xs text-gray-500 dark:text-gray-400 capitalize" suppressHydrationWarning>{hint}</p>}
     </div>
   )
 }
@@ -426,7 +425,7 @@ function SendPortalInviteButton({ patientId }: { patientId: string }) {
         {pending ? 'Sending…' : 'Send portal invite →'}
       </button>
       {feedback && (
-        <p className={`text-[11px] mt-0.5 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+        <p className={`text-xs mt-0.5 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
           {feedback.msg}
         </p>
       )}
@@ -469,7 +468,7 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
         <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1">
           Nothing pending
         </p>
-        <p className="text-xs text-emerald-700/70 dark:text-emerald-300/70">
+        <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80">
           This patient is in good shape. Nothing for you to action right now.
         </p>
       </div>
@@ -513,13 +512,13 @@ function IdentityCard({ header }: { header: PatientHeader }) {
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-4 space-y-3">
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Contact</p>
+        <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Contact</p>
         <p className="text-sm text-gray-800 dark:text-gray-100 break-all">{header.email ?? '—'}</p>
         <p className="text-sm text-gray-700 dark:text-gray-200">{header.phone ?? '—'}</p>
       </div>
       {(header.dateOfBirth || address) && (
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Personal</p>
+          <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Personal</p>
           {header.dateOfBirth && (
             <p className="text-sm text-gray-700 dark:text-gray-200">DOB {header.dateOfBirth}</p>
           )}
@@ -529,9 +528,9 @@ function IdentityCard({ header }: { header: PatientHeader }) {
         </div>
       )}
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Insurance</p>
+        <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Insurance</p>
         <p className="text-sm text-gray-700 dark:text-gray-200">
-          {header.insuranceProvider ?? <span className="text-gray-400 italic">No insurance on file</span>}
+          {header.insuranceProvider ?? <span className="text-gray-500 dark:text-gray-400 italic">No insurance on file</span>}
         </p>
         {header.insurancePolicyNumber && (
           <p className="text-xs text-gray-500 dark:text-gray-400">Policy {header.insurancePolicyNumber}</p>
@@ -541,7 +540,7 @@ function IdentityCard({ header }: { header: PatientHeader }) {
         )}
       </div>
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Portal</p>
+        <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Portal</p>
         <p className="text-xs text-gray-600 dark:text-gray-300">
           {header.hasPortalAccount ? 'Linked to a portal account' : 'Not invited yet'}
         </p>
@@ -549,7 +548,7 @@ function IdentityCard({ header }: { header: PatientHeader }) {
           (header.email ? (
             <SendPortalInviteButton patientId={header.id} />
           ) : (
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Add an email to invite them.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Add an email to invite them.</p>
           ))}
       </div>
     </div>
@@ -558,28 +557,20 @@ function IdentityCard({ header }: { header: PatientHeader }) {
 
 // ─────────────────────────────────────────────────────────────────────
 
-const APPT_STATUS_LABEL: Record<string, string> = {
-  scheduled: 'Unconfirmed',
-  confirmed: 'Confirmed',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-  no_show: 'No-show',
+const APPT_STATUS: Record<string, { tone: Tone; label: string }> = {
+  scheduled: { tone: 'warn', label: 'Unconfirmed' },
+  confirmed: { tone: 'ok', label: 'Confirmed' },
+  completed: { tone: 'neutral', label: 'Completed' },
+  cancelled: { tone: 'urgent', label: 'Cancelled' },
+  no_show: { tone: 'urgent', label: 'No-show' },
 }
 
-const APPT_STATUS_PILL: Record<string, string> = {
-  scheduled: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  confirmed: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  completed: 'bg-gray-500/15 text-gray-600 dark:text-gray-300',
-  cancelled: 'bg-red-500/15 text-red-700 dark:text-red-300',
-  no_show: 'bg-red-500/15 text-red-700 dark:text-red-300',
-}
-
-const INV_STATUS_PILL: Record<string, string> = {
-  draft: 'bg-gray-500/15 text-gray-600 dark:text-gray-300',
-  pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  paid: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  overdue: 'bg-red-500/15 text-red-700 dark:text-red-300',
-  cancelled: 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+const INV_STATUS: Record<string, { tone: Tone; label: string }> = {
+  draft: { tone: 'neutral', label: 'Draft' },
+  pending: { tone: 'warn', label: 'Pending' },
+  paid: { tone: 'ok', label: 'Paid' },
+  overdue: { tone: 'urgent', label: 'Overdue' },
+  cancelled: { tone: 'neutral', label: 'Cancelled' },
 }
 
 const KIND_ICON: Record<TimelineKind, string> = {
@@ -595,24 +586,19 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
   const ago = fmtRelative(event.occurredAt)
   const pill = (() => {
     if (event.kind === 'appointment' && event.status) {
-      return (
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${APPT_STATUS_PILL[event.status] ?? APPT_STATUS_PILL.scheduled}`}>
-          {APPT_STATUS_LABEL[event.status] ?? event.status}
-        </span>
-      )
+      const s = APPT_STATUS[event.status] ?? APPT_STATUS.scheduled
+      return <StatusPill tone={s.tone} label={s.label} />
     }
     if (event.kind === 'invoice' && event.status) {
-      return (
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${INV_STATUS_PILL[event.status] ?? INV_STATUS_PILL.draft}`}>
-          {event.status}
-        </span>
-      )
+      const s = INV_STATUS[event.status] ?? INV_STATUS.draft
+      return <StatusPill tone={s.tone} label={s.label} />
     }
     if (event.kind === 'message' && event.direction) {
       return (
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${event.direction === 'in' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-violet-500/15 text-violet-700 dark:text-violet-300'}`}>
-          {event.direction === 'in' ? 'From patient' : 'To patient'}
-        </span>
+        <StatusPill
+          tone={event.direction === 'in' ? 'info' : 'neutral'}
+          label={event.direction === 'in' ? 'From patient' : 'To patient'}
+        />
       )
     }
     return null
@@ -620,12 +606,12 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
 
   const inner = (
     <div className="flex items-start gap-3">
-      <div className={`text-xl leading-none shrink-0 w-8 text-center ${event.agingDays !== null ? 'text-amber-500' : ''}`}>
+      <div className={`text-xl leading-none shrink-0 w-8 text-center ${event.agingDays !== null ? 'text-amber-500' : ''}`} aria-hidden="true">
         {KIND_ICON[event.kind]}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 capitalize">
+          <span className="text-sm font-medium text-gray-800 dark:text-gray-100 capitalize">
             {event.title}
           </span>
           {pill}
@@ -639,7 +625,7 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
           </p>
         )}
       </div>
-      <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0" suppressHydrationWarning>
+      <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 tabular-nums" suppressHydrationWarning>
         {ago}
       </span>
     </div>

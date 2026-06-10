@@ -9,7 +9,16 @@ import type {
   PatientListSort,
   PatientFilterMeta,
 } from '@/lib/services/patients'
-import { GlyphCluster } from './glyph-cluster'
+import { patientFlagGlyphs, type PillLegendRow } from '@/lib/ui/encodings'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { EmptyState } from '@/components/ui/empty-state'
+import { BulkBar } from '@/components/ui/bulk-bar'
+import { FlashToast } from '@/components/ui/flash-toast'
 import BulkMessageModal from './bulk-message-modal'
 import AddPatientModal from './add-patient-modal'
 
@@ -42,27 +51,39 @@ function fmtRelative(d: Date | null): string {
   return `${Math.floor(days / 30)}mo ago`
 }
 
+/** Days since a date, for the hoverable "last visit" explainer. */
+function daysSince(d: Date | null): number | null {
+  if (!d) return null
+  return Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000))
+}
+
+/** Last-visit aging text color — kept as a freshness cue (not a status pill). */
 function lastVisitTone(d: Date | null): string {
   if (!d) return 'text-gray-500 dark:text-gray-400'
   const days = Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000))
   if (days < 90) return 'text-emerald-700 dark:text-emerald-300'
   if (days < 180) return 'text-amber-700 dark:text-amber-300'
-  return 'text-red-700 dark:text-red-300'
+  return 'text-rose-700 dark:text-rose-300'
 }
 
-const RECALL_PILL: Record<string, string> = {
-  scheduled: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  due: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  overdue: 'bg-red-500/15 text-red-700 dark:text-red-300',
-  na: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
+/** Recall status → semantic tone + label, per the design-system contract. */
+const RECALL: Record<
+  PatientListRow['recallStatus'],
+  { tone: 'ok' | 'warn' | 'urgent' | 'neutral'; label: string; title: string }
+> = {
+  scheduled: { tone: 'ok', label: 'Scheduled', title: 'Next visit booked' },
+  due: { tone: 'warn', label: 'Due', title: 'Due for recall — send a nudge' },
+  overdue: { tone: 'urgent', label: 'Overdue', title: 'Past due — needs outreach' },
+  na: { tone: 'neutral', label: '—', title: 'No recall due' },
 }
 
-const RECALL_LABEL: Record<string, string> = {
-  scheduled: 'Scheduled',
-  due: 'Due',
-  overdue: 'Overdue',
-  na: '—',
-}
+/** Legend rows for the recall pills the table renders. */
+const RECALL_LEGEND: PillLegendRow[] = [
+  { tone: 'ok', label: 'Scheduled', meaning: 'Next visit booked' },
+  { tone: 'warn', label: 'Due', meaning: 'Due for recall — send a nudge' },
+  { tone: 'urgent', label: 'Overdue', meaning: 'Past due — needs outreach' },
+  { tone: 'neutral', label: '—', meaning: 'No recall due' },
+]
 
 const SOURCE_LABEL: Record<string, string> = {
   website: 'Website',
@@ -95,6 +116,7 @@ export default function PatientsList({
   // add modal on arrival.
   const [addOpen, setAddOpen] = useState(() => params.get('new') === '1')
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
+  const [toast, setToast] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
@@ -139,28 +161,45 @@ export default function PatientsList({
     () => rows.filter((r) => selected.has(r.id)),
     [rows, selected],
   )
+  const reachableCount = useMemo(
+    () => selectedRows.filter((r) => r.email).length,
+    [selectedRows],
+  )
+
+  const noFiltersActive =
+    (!filters.status || filters.status === 'all') &&
+    !filters.hasBalance &&
+    !filters.missingIntake &&
+    !filters.birthdayThisMonth &&
+    !filters.sources?.length &&
+    !filters.search
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
-            Patients · {orgName}
-          </p>
-          <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-            {rows.length} {rows.length === 1 ? 'patient' : 'patients'}
-          </h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setAddOpen(true)}
-            className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-          >
+      <PageHeader
+        eyebrow={`Daily · ${orgName}`}
+        title={`${rows.length} ${rows.length === 1 ? 'patient' : 'patients'}`}
+        subtitle="The people your clinic has a relationship with — who's due, who needs a nudge, and who to greet by name."
+        legend={
+          <EncodingLegend
+            glyphs={[
+              'newPatient',
+              'birthday',
+              'balance',
+              'missingIntakeNext',
+              'unconfirmed48h',
+              'lapsed',
+              'optedOut',
+            ]}
+            pills={RECALL_LEGEND}
+          />
+        }
+        actions={
+          <ActionButton variant="primary" onClick={() => setAddOpen(true)}>
             + Add patient
-          </button>
-        </div>
-      </div>
+          </ActionButton>
+        }
+      />
 
       {/* ── Filter chips + search ────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-center">
@@ -174,46 +213,60 @@ export default function PatientsList({
           />
         </form>
         <div className="flex flex-wrap gap-2 items-center">
-          <Chip
-            label="All"
+          <FilterChip
             active={!filters.status || filters.status === 'all'}
             onClick={() => setParam('status', null)}
-          />
-          <Chip
-            label="New (≤30d)"
+          >
+            All
+          </FilterChip>
+          <FilterChip
             active={filters.status === 'new'}
             onClick={() => setParam('status', filters.status === 'new' ? null : 'new')}
-          />
-          <Chip
-            label="Recall due"
+            title="Joined in the last 30 days"
+          >
+            New (≤30d)
+          </FilterChip>
+          <FilterChip
             active={filters.status === 'recall_due'}
             onClick={() => setParam('status', filters.status === 'recall_due' ? null : 'recall_due')}
-          />
-          <Chip
-            label="Lapsed"
+            title="Due or overdue for a recall visit"
+          >
+            Recall due
+          </FilterChip>
+          <FilterChip
             active={filters.status === 'inactive'}
             onClick={() => setParam('status', filters.status === 'inactive' ? null : 'inactive')}
-          />
-          <Chip
-            label="$ Has balance"
+            title="No visit in 9+ months and nothing booked"
+          >
+            Lapsed
+          </FilterChip>
+          <FilterChip
             active={!!filters.hasBalance}
             onClick={() => setFlag('balance', !filters.hasBalance)}
-          />
-          <Chip
-            label="📝 Missing intake"
+            title="Has an outstanding balance"
+          >
+            $ Has balance
+          </FilterChip>
+          <FilterChip
             active={!!filters.missingIntake}
             onClick={() => setFlag('intake', !filters.missingIntake)}
-          />
-          <Chip
-            label="🎂 Birthday this month"
+            title="No intake form on file before their next visit"
+          >
+            📝 Missing intake
+          </FilterChip>
+          <FilterChip
             active={!!filters.birthdayThisMonth}
             onClick={() => setFlag('birthday', !filters.birthdayThisMonth)}
-          />
+            title="Birthday falls in the current month"
+          >
+            🎂 Birthday this month
+          </FilterChip>
           {meta.sources.length > 0 && (
             <select
               value={(filters.sources?.[0]) ?? ''}
               onChange={(e) => setParam('source', e.target.value || null)}
               className="form-select text-xs py-1"
+              aria-label="Filter by source"
             >
               <option value="">Any source</option>
               {meta.sources.map((s) => (
@@ -227,7 +280,29 @@ export default function PatientsList({
       {/* ── Table ────────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
         {rows.length === 0 ? (
-          <EmptyState />
+          noFiltersActive ? (
+            <EmptyState
+              icon="🌿"
+              title="No patients yet"
+              body="Your first patient will appear here when someone books on your site. Until then, you can add one manually."
+              action={
+                <ActionButton variant="primary" size="sm" onClick={() => setAddOpen(true)}>
+                  + Add patient
+                </ActionButton>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon="🔍"
+              title="No patients match these filters"
+              body="Try clearing a filter or searching a different name."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/patients">
+                  Clear filters
+                </ActionButton>
+              }
+            />
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="table-auto w-full text-sm">
@@ -276,26 +351,22 @@ export default function PatientsList({
         )}
       </div>
 
-      {/* ── Sticky bulk action bar ───────────────────────────────────── */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-0 inset-x-0 sm:bottom-6 sm:right-6 sm:left-auto sm:rounded-xl bg-gray-900 dark:bg-gray-100 text-gray-100 dark:text-gray-900 shadow-2xl px-5 py-3 flex items-center gap-3 z-30">
-          <span className="text-sm font-medium">
-            {selected.size} selected
-          </span>
-          <button
-            onClick={() => setBulkOpen(true)}
-            className="text-xs font-semibold uppercase tracking-wider bg-white/10 dark:bg-black/10 hover:bg-white/20 dark:hover:bg-black/20 px-3 py-1.5 rounded-md"
-          >
-            Send email
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="text-xs text-gray-300 dark:text-gray-600 hover:text-white dark:hover:text-black px-2"
-          >
-            Clear
-          </button>
-        </div>
-      )}
+      {/* ── Bulk action bar ──────────────────────────────────────────── */}
+      <BulkBar
+        count={selected.size}
+        noun={selected.size === 1 ? 'patient selected' : 'patients selected'}
+        onClear={() => setSelected(new Set())}
+      >
+        <ActionButton
+          variant="primary"
+          size="sm"
+          onClick={() => setBulkOpen(true)}
+          disabled={reachableCount === 0}
+          title={reachableCount === 0 ? 'None of the selected patients have an email on file' : undefined}
+        >
+          Email {reachableCount} {reachableCount === 1 ? 'patient' : 'patients'}
+        </ActionButton>
+      </BulkBar>
 
       {/* Loading overlay */}
       {isPending && (
@@ -306,26 +377,16 @@ export default function PatientsList({
         <BulkMessageModal
           patients={selectedRows}
           onClose={() => setBulkOpen(false)}
-          onSent={() => { setBulkOpen(false); setSelected(new Set()) }}
+          onSent={(count) => {
+            setBulkOpen(false)
+            setSelected(new Set())
+            setToast(count === 1 ? 'Email sent to 1 patient' : `Email sent to ${count} patients`)
+          }}
         />
       )}
       {addOpen && <AddPatientModal onClose={() => setAddOpen(false)} />}
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
-  )
-}
-
-function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-xs px-3 py-1.5 rounded-full font-medium transition ${
-        active
-          ? 'bg-gray-900 dark:bg-gray-100 text-gray-100 dark:text-gray-800'
-          : 'bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-      }`}
-    >
-      {label}
-    </button>
   )
 }
 
@@ -338,9 +399,11 @@ function PatientRow({
   selected: boolean
   onToggle: () => void
 }) {
+  const recall = RECALL[row.recallStatus]
   const balanceClass = row.outstandingBalanceCents > 0
-    ? 'text-red-700 dark:text-red-300 font-semibold'
-    : 'text-gray-400 dark:text-gray-500'
+    ? 'text-rose-700 dark:text-rose-300 font-semibold'
+    : 'text-gray-500 dark:text-gray-400'
+  const lastVisitDays = daysSince(row.lastVisitAt)
   return (
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
       <td className="px-4 py-3">
@@ -356,22 +419,26 @@ function PatientRow({
       <td className="px-4 py-3">
         <Link href={`/patients/${row.id}`} className="block group">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-800 dark:text-gray-100 group-hover:underline">
+            <span className="text-sm font-medium text-gray-800 dark:text-gray-100 group-hover:underline">
               {row.fullName}
             </span>
             {row.ageYears !== null && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                 {row.ageYears}
               </span>
             )}
-            <GlyphCluster flags={row.flags} cap={4} />
+            <GlyphCluster glyphs={patientFlagGlyphs(row.flags)} cap={4} />
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[260px]">
             {row.email ?? row.phone ?? ''}
           </div>
         </Link>
       </td>
-      <td className={`px-4 py-3 ${lastVisitTone(row.lastVisitAt)}`} suppressHydrationWarning>
+      <td
+        className={`px-4 py-3 tabular-nums ${lastVisitTone(row.lastVisitAt)}`}
+        title={lastVisitDays !== null ? `Last visit ${lastVisitDays} ${lastVisitDays === 1 ? 'day' : 'days'} ago` : 'No visit on file yet'}
+        suppressHydrationWarning
+      >
         <div>{fmtDate(row.lastVisitAt)}</div>
         {row.lastVisitAt && (
           <div className="text-xs opacity-75">{fmtRelative(row.lastVisitAt)}</div>
@@ -380,44 +447,27 @@ function PatientRow({
       <td className="px-4 py-3">
         {row.nextVisitAt ? (
           <>
-            <div className="text-gray-800 dark:text-gray-100">{fmtDate(row.nextVisitAt)}</div>
+            <div className="text-gray-800 dark:text-gray-100 tabular-nums">{fmtDate(row.nextVisitAt)}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
               {(row.nextVisitType ?? '').replace(/_/g, ' ')}
             </div>
           </>
         ) : (
-          <span className="text-gray-400 dark:text-gray-500 italic text-xs">None scheduled</span>
+          <span className="text-gray-500 dark:text-gray-400 italic text-xs">None scheduled</span>
         )}
       </td>
       <td className="px-4 py-3">
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${RECALL_PILL[row.recallStatus]}`}>
-          {RECALL_LABEL[row.recallStatus]}
-        </span>
+        <StatusPill tone={recall.tone} label={recall.label} title={recall.title} />
       </td>
-      <td className={`px-4 py-3 text-right ${balanceClass}`}>
+      <td className={`px-4 py-3 text-right tabular-nums ${balanceClass}`}>
         {money(row.outstandingBalanceCents)}
       </td>
       <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
         {row.source ? SOURCE_LABEL[row.source] ?? row.source : '—'}
       </td>
-      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400" suppressHydrationWarning>
+      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 tabular-nums" suppressHydrationWarning>
         {row.lastContactAt ? fmtRelative(row.lastContactAt) : '—'}
       </td>
     </tr>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="px-6 py-16 text-center">
-      <p className="text-3xl mb-3">🌿</p>
-      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">
-        No patients yet
-      </h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-        Your first patient will appear here when someone books on your site.
-        Until then, you can add one manually using the button above.
-      </p>
-    </div>
   )
 }
