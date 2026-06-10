@@ -47,6 +47,9 @@ export const BlogPostInput = z.object({
     .optional()
     .nullable(),
   authorStaffId: z.string().max(120).optional().nullable(),
+  // Free-text byline for orgs with no staff directory (the platform org
+  // authoring the marketing blog). A staff author always supersedes it.
+  authorName: z.string().max(120).optional().nullable(),
   medicallyReviewedByStaffId: z.string().max(120).optional().nullable(),
   seoTitle: z.string().max(160).optional().nullable(),
   seoDescription: z.string().max(320).optional().nullable(),
@@ -181,7 +184,7 @@ export async function listPublishedPosts(
   organizationId: string,
   opts: { category?: string; limit?: number } = {},
 ): Promise<BlogPost[]> {
-  const rows = await db
+  const base = db
     .select()
     .from(blogPost)
     .where(
@@ -189,13 +192,11 @@ export async function listPublishedPosts(
         eq(blogPost.organizationId, organizationId),
         eq(blogPost.status, 'published'),
         isNull(blogPost.archivedAt),
+        ...(opts.category ? [eq(blogPost.category, opts.category)] : []),
       ),
     )
     .orderBy(desc(blogPost.publishedAt))
-  const filtered = opts.category
-    ? rows.filter((r) => r.category === opts.category)
-    : rows
-  return opts.limit ? filtered.slice(0, opts.limit) : filtered
+  return opts.limit ? base.limit(opts.limit) : base
 }
 
 /** Distinct categories across a clinic's published posts (for the index filter). */
@@ -324,6 +325,11 @@ export async function updateBlogPost(
     patch.authorStaffId = data.authorStaffId || null
     patch.authorName = await snapshotAuthorName(organizationId, data.authorStaffId)
   }
+  // Free-text byline: applies when no staff author is (being) set — the
+  // platform org has no clinic staff directory, so its byline is typed in.
+  if (data.authorName !== undefined && !data.authorStaffId && !patch.authorName) {
+    patch.authorName = data.authorName?.trim() || null
+  }
   if (data.medicallyReviewedByStaffId !== undefined) {
     patch.medicallyReviewedByStaffId = data.medicallyReviewedByStaffId || null
     // Stamp the review time when a reviewer is set; clear it when removed.
@@ -351,8 +357,8 @@ function assertPublishable(post: BlogPost): void {
   if (!post.bodyHtml || post.bodyHtml.replace(/<[^>]*>/g, '').trim().length < 1) {
     throw new BlogPublishError('Write some content first.')
   }
-  if (!post.authorStaffId) {
-    throw new BlogPublishError('Choose an author first — every post needs a real byline.')
+  if (!post.authorStaffId && !post.authorName?.trim()) {
+    throw new BlogPublishError('Add a byline first — every post needs a real author name.')
   }
 }
 

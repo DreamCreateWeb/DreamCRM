@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
+import { assertPostsEditor } from './access'
+import { blogPublicBaseUrl } from './public-base-url'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
@@ -27,14 +29,7 @@ import { publicSiteUrl } from '@/lib/services/clinic-site'
 import type { ClinicService } from '@/lib/types/clinic-content'
 
 function ensureClinicAdmin(ctx: { tenantType: string; role: string }) {
-  // Platform staff author the public marketing blog through this same
-  // manager (org-scoped to the platform org).
-  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') {
-    throw new Error('The blog is only available for clinic tenants.')
-  }
-  if (ctx.role === 'patient') {
-    throw new Error('Patients cannot edit the blog.')
-  }
+  assertPostsEditor(ctx)
 }
 
 /** "New post" — create an empty draft and jump straight into the editor. */
@@ -192,19 +187,8 @@ export async function emailThisPostAction(id: string) {
   if (!post || post.status !== 'published') {
     throw new Error('Only a published post can be emailed.')
   }
-  const [profile] = await db
-    .select({ websiteDomain: clinicProfile.websiteDomain })
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
-  const [org] = await db
-    .select({ slug: organization.slug })
-    .from(organization)
-    .where(eq(organization.id, ctx.organizationId))
-    .limit(1)
-  const base = org
-    ? publicSiteUrl({ slug: org.slug, profile: { websiteDomain: profile?.websiteDomain ?? null } as never })
-    : ''
+  // Tenant-aware: platform posts live on the marketing site.
+  const base = await blogPublicBaseUrl(ctx)
   const url = base ? `${base}/blog/${post.slug}` : ''
   const excerpt = post.excerpt?.trim() ?? ''
   const bodyHtml =

@@ -15,6 +15,7 @@ import {
   DashboardMock,
   PortalMock,
   MarqueeStrip,
+  HERO_DOT_GRID,
 } from '@/components/marketing/ui'
 
 export const dynamic = 'force-dynamic'
@@ -89,7 +90,7 @@ const TENETS: Array<{ title: string; body: string }> = [
   },
   {
     title: 'Our gaps are marked',
-    body: 'No VoIP phones. SMS still in carrier registration. It says so on the pricing page and in every comparison — before you buy, not after.',
+    body: 'No VoIP phones. No SMS texting yet — it\u2019s on the roadmap, not on the invoice. It says so on the pricing page and in every comparison — before you buy, not after.',
   },
   {
     title: 'Official APIs only',
@@ -101,10 +102,7 @@ const TENETS: Array<{ title: string; body: string }> = [
   },
 ]
 
-const DOT_GRID = {
-  backgroundImage: 'radial-gradient(circle, #ddd6fe 1px, transparent 1px)',
-  backgroundSize: '22px 22px',
-} as const
+
 
 export default async function MarketingHome() {
   const ctx = await getTenantContext()
@@ -119,7 +117,7 @@ export default async function MarketingHome() {
     <>
       {/* ── Hero ── */}
       <section className="relative overflow-hidden border-b border-gray-100">
-        <div className="absolute inset-0 opacity-40" style={DOT_GRID} aria-hidden="true" />
+        <div className="absolute inset-0 opacity-40" style={HERO_DOT_GRID} aria-hidden="true" />
         <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white to-transparent" aria-hidden="true" />
         <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
           <div className="mx-auto max-w-3xl text-center">
@@ -307,7 +305,7 @@ export default async function MarketingHome() {
 
       {/* ── Pricing teaser ── */}
       <ScrollReveal as="section" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-        <SectionTitle sub="Published on the page, no discovery call. Annual billing gets two months free.">
+        <SectionTitle sub="Published on the page, no discovery call. Month-to-month, cancel anytime.">
           Flat pricing, month-to-month
         </SectionTitle>
         <div className="grid gap-4 lg:grid-cols-3">

@@ -6,7 +6,7 @@ import { SectionTitle, PrimaryCta, CheckIcon, MatrixMark, PageHero } from '@/com
 export const metadata = {
   title: 'Pricing — DreamCRM',
   description:
-    'Flat, published pricing: Basic $99/mo (website tier), Pro $149/mo (front office), Premium $199/mo (growth + PMS sync). Month-to-month, two months free on annual.',
+    'Flat, published pricing: Basic $99/mo (website tier), Pro $149/mo (front office), Premium $199/mo (growth + PMS sync). Month-to-month, no contract.',
 }
 
 /** Tier matrix — mirrors the real module gating in lib/modules/clinic.ts. */
@@ -42,7 +42,6 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
       { label: 'Clinic-branded patient portal', tiers: [false, true, true] },
       { label: 'Self-serve reschedule & cancel', tiers: [false, true, true] },
       { label: 'Family access (one login per household)', tiers: [false, true, true] },
-      { label: 'Online balance payments (your Stripe account)', tiers: [false, true, true] },
       { label: 'Review collection + website testimonials', tiers: [false, true, true] },
     ],
   },
@@ -52,6 +51,7 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
       { label: 'Recall & outreach campaigns', tiers: [false, false, true] },
       { label: 'Practice analytics', tiers: [false, false, true] },
       { label: 'Online shop + membership plans', tiers: [false, false, true] },
+      { label: 'Online balance payments (via Stripe Connect)', tiers: [false, false, true] },
       { label: 'Open Dental two-way sync (official API)', tiers: [false, false, true] },
     ],
   },
@@ -60,7 +60,7 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Is there a contract or setup fee?',
-    a: 'No. Every plan is month-to-month with no setup fee. Annual billing is optional and gives you two months free. Cancel anytime — your website content exports with you.',
+    a: 'No. Every plan is month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Annual billing (with a discount) is coming soon; we won\u2019t list it until checkout actually supports it.',
   },
   {
     q: 'Can I switch tiers later?',
@@ -76,7 +76,7 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'What about texting (SMS)?',
-    a: 'Patient-facing email is live today (sent from your practice identity). Two-way SMS is on the roadmap — carrier registration is a regulated, weeks-long process we’re partway through. We won’t sell it before it works.',
+    a: 'Patient-facing email is live today (sent from your practice identity). Two-way SMS is on our roadmap but not available yet — it needs a regulated carrier-registration process we haven’t completed. We won’t sell it before it works.',
   },
   {
     q: 'Is my data locked in?',
@@ -112,7 +112,7 @@ export default function PricingPage() {
                 ${plan.price}
                 <span className="text-[0.9rem] font-medium text-gray-500"> /mo</span>
               </p>
-              <p className="text-[0.8rem] text-gray-500">${plan.annualPrice}/yr — two months free</p>
+              <p className="text-[0.8rem] text-gray-500">Billed monthly · annual billing coming soon</p>
               <ul className="mt-5 flex-1 space-y-2.5">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-[0.875rem] leading-snug text-gray-700">

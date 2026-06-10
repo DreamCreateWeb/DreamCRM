@@ -10,7 +10,8 @@ interface Op {
 const state: {
   selectQueue: unknown[][]
   ops: Op[]
-} = { selectQueue: [], ops: [] }
+  wheres: unknown[]
+} = { selectQueue: [], ops: [], wheres: [] }
 
 vi.mock('@/lib/db', async () => {
   const clinic = await import('@/lib/db/schema/clinic')
@@ -18,9 +19,16 @@ vi.mock('@/lib/db', async () => {
   const chain = () => {
     const obj: any = {}
     obj.from = () => obj
-    obj.where = () => obj
+    obj.where = (arg: unknown) => {
+      state.wheres.push(arg)
+      return obj
+    }
     obj.orderBy = () => obj
-    obj.limit = async () => state.selectQueue.shift() ?? []
+    // Honor .limit(n) so "the service pushed the limit into SQL" is testable.
+    obj.limit = async (n?: number) => {
+      const rows = state.selectQueue.shift() ?? []
+      return typeof n === 'number' ? rows.slice(0, n) : rows
+    }
     obj.then = (resolve: (v: unknown) => void) => resolve(state.selectQueue.shift() ?? [])
     return obj
   }
@@ -86,10 +94,20 @@ import {
 beforeEach(() => {
   state.selectQueue.length = 0
   state.ops.length = 0
+  state.wheres.length = 0
 })
 
 const insertOp = () => state.ops.find((o) => o.kind === 'insert' && o.table === 'blog_post')
 const updateOp = () => state.ops.find((o) => o.kind === 'update' && o.table === 'blog_post')
+
+/** Walks a drizzle SQL tree (cycles guarded) looking for a bound param value —
+ * lets tests assert a filter value actually landed in the WHERE clause. */
+function whereContainsValue(node: unknown, value: unknown, seen = new Set<object>()): boolean {
+  if (node === value) return true
+  if (!node || typeof node !== 'object' || seen.has(node as object)) return false
+  seen.add(node as object)
+  return Object.values(node as object).some((v) => whereContainsValue(v, value, seen))
+}
 
 describe('createBlankBlogPost', () => {
   it('inserts a manual draft with a slug derived from the default title', async () => {
@@ -185,6 +203,12 @@ describe('publishBlogPost (the clinician-review gate)', () => {
     await expect(publishBlogPost('org_1', 'post_1')).rejects.toThrow(/author/i)
   })
 
+  it('accepts a free-text byline with no staff author (platform posts)', async () => {
+    state.selectQueue.push([{ ...base, authorStaffId: null, authorName: 'The DreamCRM team' }])
+    await publishBlogPost('org_1', 'post_1')
+    expect((updateOp()!.set as { status: string }).status).toBe('published')
+  })
+
   it('publishes and stamps publishedAt when the gate passes', async () => {
     state.selectQueue.push([base])
     await publishBlogPost('org_1', 'post_1')
@@ -226,13 +250,15 @@ describe('listPublishedPosts', () => {
     expect((await listPublishedPosts('org_1')).length).toBe(3)
   })
 
-  it('filters by category in memory', async () => {
-    state.selectQueue.push(rows)
+  it('pushes the category filter into the SQL where clause', async () => {
+    state.selectQueue.push([rows[0], rows[2]]) // what the DB returns post-filter
     const out = await listPublishedPosts('org_1', { category: 'Oral Health' })
     expect(out.map((r) => r.id)).toEqual(['1', '3'])
+    expect(state.wheres.some((w) => whereContainsValue(w, 'Oral Health'))).toBe(true)
   })
 
-  it('respects the limit', async () => {
+  it('pushes the limit into the query', async () => {
+    // The mock slices on .limit(n) — forgetting to call it returns all 3.
     state.selectQueue.push(rows)
     expect((await listPublishedPosts('org_1', { limit: 2 })).length).toBe(2)
   })

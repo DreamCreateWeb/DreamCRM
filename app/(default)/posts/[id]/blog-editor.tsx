@@ -37,6 +37,7 @@ export interface BlogEditorPost {
   status: string
   source: string
   authorStaffId: string
+  authorName: string
   medicallyReviewedByStaffId: string
   seoTitle: string
   seoDescription: string
@@ -74,6 +75,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
     tagsText: post.tags.join(', '),
     faq: post.faq,
     authorStaffId: post.authorStaffId,
+    authorName: post.authorName,
     medicallyReviewedByStaffId: post.medicallyReviewedByStaffId,
     seoTitle: post.seoTitle,
     seoDescription: post.seoDescription,
@@ -136,6 +138,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
         .filter(Boolean),
       faq: draft.faq.filter((f) => f.q.trim() && f.a.trim()),
       authorStaffId: draft.authorStaffId || null,
+      authorName: draft.authorName || null,
       medicallyReviewedByStaffId: draft.medicallyReviewedByStaffId || null,
       seoTitle: draft.seoTitle || null,
       seoDescription: draft.seoDescription || null,
@@ -399,13 +402,18 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               Author
             </h3>
             {authors.length === 0 ? (
-              <p className="text-[12px] text-stone-400 dark:text-stone-500 italic">
-                Add team members in{' '}
-                <Link className="underline" href="/settings/clinic">
-                  Settings → Clinic
-                </Link>{' '}
-                to set a byline (required to publish).
-              </p>
+              <>
+                <input
+                  type="text"
+                  value={draft.authorName}
+                  onChange={(e) => field('authorName', e.target.value)}
+                  placeholder="Byline, e.g. The DreamCRM team"
+                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                />
+                <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+                  No staff directory on this org — type the byline directly (required to publish).
+                </p>
+              </>
             ) : (
               <>
                 <select

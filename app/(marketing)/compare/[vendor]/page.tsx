@@ -143,7 +143,7 @@ export default async function ComparePage({ params }: Props) {
               {c.ourStrengths.slice(0, 3).map((s) => (
                 <li key={s.title} className="flex items-start gap-2 text-[0.88rem] text-gray-800">
                   <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
-                  {s.title.toLowerCase().replace(/^./, (ch) => ch.toUpperCase())} is what you&apos;re missing
+                  {s.title} — if that&apos;s what you&apos;re missing
                 </li>
               ))}
             </ul>

@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { getTenantContext } from '@/lib/auth/context'
 import { getMarketingPosts } from '@/lib/services/marketing-blog'
 import { PageHero } from '@/components/marketing/ui'
 
@@ -12,10 +14,17 @@ export const metadata = {
 
 function fmtDate(d: Date | null): string {
   if (!d) return ''
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })
 }
 
 export default async function MarketingBlogPage() {
+  // /blog was the clinic dashboard's post manager before it moved to /posts —
+  // signed-in clinic staff following old bookmarks get a breadcrumb redirect
+  // (matching the /calendar → /appointments convention). Platform staff and
+  // signed-out visitors see the public marketing blog.
+  const ctx = await getTenantContext()
+  if (ctx?.tenantType === 'clinic') redirect('/posts')
+
   const posts = await getMarketingPosts()
 
   return (

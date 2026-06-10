@@ -8,6 +8,7 @@ import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
 import { getBlogPost, resolvePostPeople, listRelatedPosts } from '@/lib/services/blog'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 import BlogArticle from '@/components/clinic-site/blog-article'
+import { postsAccessRedirect } from '../../access'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Preview — DreamCRM' }
@@ -17,12 +18,51 @@ export const metadata = { title: 'Preview — DreamCRM' }
 // look like before publishing. Reads the latest SAVED state.
 export default async function BlogPreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireTenant()
-  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
+  const dest = postsAccessRedirect(ctx)
+  if (dest) redirect(dest)
 
   const { id } = await params
   const post = await getBlogPost(ctx.organizationId, id)
   if (!post) notFound()
+
+  // The platform org's posts publish to the marketing /blog, not a clinic
+  // site — preview them in that register (the clinic chrome below would
+  // notFound() for a non-clinic org anyway).
+  if (ctx.tenantType === 'platform') {
+    return (
+      <div className="bg-white text-gray-950 antialiased">
+        <div className="sticky top-0 z-50 bg-violet-600 text-white text-[13px] font-medium px-4 py-2 flex items-center justify-between">
+          <span>
+            Preview · {post.status === 'published' ? 'published' : 'draft'} — only you can see this
+          </span>
+          <Link href={`/posts/${post.id}`} className="underline hover:no-underline">
+            Back to editor
+          </Link>
+        </div>
+        <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+          <p className="text-[0.82rem] text-gray-500">Blog{post.category ? ` / ${post.category}` : ''}</p>
+          <h1 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight sm:text-[2.4rem]">
+            {post.title}
+          </h1>
+          <p className="mt-3 text-[0.85rem] font-medium text-gray-400">
+            {post.authorName ?? 'The DreamCRM team'}
+          </p>
+          {post.coverImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={post.coverImageUrl}
+              alt={post.coverImageAlt ?? ''}
+              className="mt-7 w-full rounded-xl border border-gray-100 object-cover"
+            />
+          )}
+          <div
+            className="prose prose-gray mt-8 max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-violet-600"
+            dangerouslySetInnerHTML={{ __html: post.bodyHtml ?? '' }}
+          />
+        </article>
+      </div>
+    )
+  }
 
   const [org] = await db
     .select({ slug: organization.slug })

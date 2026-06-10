@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
@@ -14,17 +15,19 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
  * clinics do, scoped to the platform org.
  */
 
-export async function getMarketingPosts(limit?: number): Promise<BlogPost[]> {
+// cache(): generateMetadata and the page body share one resolution per
+// request instead of issuing duplicate queries.
+export const getMarketingPosts = cache(async (limit?: number): Promise<BlogPost[]> => {
   const orgId = await getPlatformOrgId()
   if (!orgId) return []
   return listPublishedPosts(orgId, { limit })
-}
+})
 
-export async function getMarketingPostBySlug(slug: string): Promise<BlogPost | null> {
+export const getMarketingPostBySlug = cache(async (slug: string): Promise<BlogPost | null> => {
   const orgId = await getPlatformOrgId()
   if (!orgId) return null
   return getPublishedPostBySlug(orgId, slug)
-}
+})
 
 /* ── Launch posts (idempotent seed) ─────────────────────────────────── */
 
@@ -48,7 +51,7 @@ const LAUNCH_POSTS: LaunchPost[] = [
 <h2>What's in the box</h2>
 <p>A practice website you edit by clicking the page itself. Online booking from your live availability, with visit-type rules so the schedule stays sane. A patient portal in your branding where patients confirm, self-reschedule, fill forms, and pay their balance. One inbox where portal messages and patient email merge per patient. Review collection that turns into website testimonials with one click. Recall campaigns measured in booked visits, not opens. An online store and membership plans paying out to your own bank. And a two-way Open Dental sync that goes through the official API only.</p>
 <h2>What we deliberately don't do</h2>
-<p>We are not a practice management system, and we don't pretend to be. Charts, procedures, claims, prescriptions — those stay in your PMS, which keeps doing what it's good at. We also don't do VoIP phones, and our SMS channel is still in carrier registration; we'd rather tell you that on the pricing page than surprise you after the contract. There is no contract, incidentally.</p>
+<p>We are not a practice management system, and we don't pretend to be. Charts, procedures, claims, prescriptions — those stay in your PMS, which keeps doing what it's good at. We also don't do VoIP phones, and SMS texting is on our roadmap rather than in the product today; we'd rather tell you that on the pricing page than surprise you after the contract. There is no contract, incidentally.</p>
 <h2>See it before you sign anything</h2>
 <p>Acme Dental is a fully-populated demo practice: browse its public website, booking flow, and patient-facing pages. When you're convinced, setup takes about ten minutes and your own site is live on your subdomain before your next patient checks out.</p>`,
   },
@@ -122,5 +125,28 @@ export async function seedPlatformBlogPosts(): Promise<{ created: number }> {
     })
     created++
   }
+
+  // One-time content correction for rows seeded with the original copy: the
+  // launch post overstated SMS status ("still in carrier registration").
+  // Exact-sentence match means a manually edited post is never touched.
+  const STALE_SMS_SENTENCE =
+    "our SMS channel is still in carrier registration; we'd"
+  const FIXED_SMS_SENTENCE =
+    'SMS texting is on our roadmap rather than in the product today; we\u2019d'
+  const [livePost] = await db
+    .select({ id: schema.blogPost.id, bodyHtml: schema.blogPost.bodyHtml })
+    .from(schema.blogPost)
+    .where(and(eq(schema.blogPost.organizationId, orgId), eq(schema.blogPost.slug, 'dreamcrm-is-live')))
+    .limit(1)
+  if (livePost?.bodyHtml?.includes(STALE_SMS_SENTENCE)) {
+    await db
+      .update(schema.blogPost)
+      .set({
+        bodyHtml: livePost.bodyHtml.replace(STALE_SMS_SENTENCE, FIXED_SMS_SENTENCE),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.blogPost.id, livePost.id))
+  }
+
   return { created }
 }

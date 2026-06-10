@@ -9,6 +9,8 @@ import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listBlogPosts, getBlogStats } from '@/lib/services/blog'
 import { createBlogPostAction, createAiBlogPostAction } from './actions'
 import ModuleHint from '@/components/onboarding/module-hint'
+import { postsAccessRedirect } from './access'
+import { blogPublicBaseUrl } from './public-base-url'
 
 export const metadata = { title: 'Blog - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -35,31 +37,16 @@ function fmtDate(d: Date | null): string {
 
 export default async function BlogPage() {
   const ctx = await requireTenant()
-  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/dashboard')
+  const dest = postsAccessRedirect(ctx)
+  if (dest) redirect(dest)
 
-  const [posts, stats] = await Promise.all([
+  const [posts, stats, baseUrl] = await Promise.all([
     listBlogPosts(ctx.organizationId),
     getBlogStats(ctx.organizationId),
+    // Tenant-aware: platform posts live on the marketing site, not a
+    // clinic subdomain.
+    blogPublicBaseUrl(ctx),
   ])
-
-  // Canonical public URL for the "View live blog" link.
-  const [profile] = await db
-    .select({ websiteDomain: clinicProfile.websiteDomain })
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
-  const [org] = await db
-    .select({ slug: organization.slug })
-    .from(organization)
-    .where(eq(organization.id, ctx.organizationId))
-    .limit(1)
-  const baseUrl = org
-    ? publicSiteUrl({
-        slug: org.slug,
-        profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
-      })
-    : ''
   const liveBlogUrl = baseUrl ? `${baseUrl}/blog` : ''
 
   const fresh = freshness(stats.lastPublishedAt)
