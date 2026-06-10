@@ -9,7 +9,6 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicService, ClinicStaff, ClinicFaqItem } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
@@ -196,7 +195,7 @@ export default async function InsurancePage({ params }: Props) {
   const bookLabel = 'Book a Visit'
   const signIn = `${appBaseUrl()}/signin`
 
-  const services = (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
+  const services = (profile.services as ClinicService[] | null) ?? []
 
   // Card lists resolved through copy-overrides so each card's text is editable.
   const helpBullets = resolveCopyList(copyOverrides, 'insurance.help', HELP_BULLETS)

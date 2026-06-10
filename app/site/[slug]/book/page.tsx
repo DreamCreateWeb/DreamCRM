@@ -9,7 +9,7 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
-import { DEFAULT_SERVICES, type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
+import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -123,7 +123,7 @@ export default async function BookPage({ params }: Props) {
     hasTeam,
     hasCareers,
     services: navServicesFromClinicServices(
-      (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+      (data.profile.services as ClinicService[] | null) ?? [],
     ),
   })
 
@@ -268,7 +268,7 @@ export default async function BookPage({ params }: Props) {
                     slug={data.slug}
                     brand={brand}
                     clinicName={name}
-                    services={(data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES}
+                    services={(data.profile.services as ClinicService[] | null) ?? []}
                   />
                 </div>
                 <p className="text-center mt-5 text-xs" style={{ color: INK_MUTED }}>

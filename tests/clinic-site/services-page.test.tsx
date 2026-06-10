@@ -181,14 +181,18 @@ describe('ServicesPage', () => {
     ).toHaveLength(0)
   })
 
-  it('falls back to DEFAULT_SERVICES when none are configured', async () => {
+  it('renders an honest empty state — never phantom services — when none are configured', async () => {
     await renderPage(makeData({ services: null as never }, []))
-    // DEFAULT_SERVICES are free-text (no librarySlug) → all land in Core.
-    expect(screen.getAllByText('Cleanings & Exams').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Cosmetic Dentistry').length).toBeGreaterThanOrEqual(1)
-    // No special services among the defaults → Special section hidden.
-    expect(
-      screen.queryByRole('heading', { name: /^Special services\.$/i }),
-    ).not.toBeInTheDocument()
+    // No placeholder/fallback services may appear: they had no library
+    // content behind them and rendered broken detail pages on new clinics.
+    expect(screen.queryByText('Cleanings & Exams')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cosmetic Dentistry')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /^Core services\.$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /^Special services\.$/i })).not.toBeInTheDocument()
+    // Honest public copy instead…
+    expect(screen.getByText(/putting our full service menu together/i)).toBeInTheDocument()
+    // …and a Studio-only (dc-edit-only) prompt to add services from the library.
+    const prompt = screen.getByText(/\+ Add your services/i)
+    expect(prompt.className).toContain('dc-edit-only')
   })
 })

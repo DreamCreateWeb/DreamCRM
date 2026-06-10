@@ -9,7 +9,7 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
-import { DEFAULT_SERVICES, type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
+import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
@@ -117,7 +117,7 @@ export default async function ClinicCareersPage({ params }: Props) {
     hasTeam,
     hasCareers,
     services: navServicesFromClinicServices(
-      (data.profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+      (data.profile.services as ClinicService[] | null) ?? [],
     ),
   })
 

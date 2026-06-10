@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockCustomersCreate, mockCheckoutCreate } = vi.hoisted(() => {
+const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockCustomersCreate, mockCheckoutCreate ,
+  mockSeedIntake,
+} = vi.hoisted(() => {
   // stripe-config reads these at module load — set before imports evaluate.
   process.env.STRIPE_PRICE_STARTER_MONTHLY = 'price_basic_m'
   process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY = 'price_pro_m'
   process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY = 'price_premium_m'
   return {
+    mockSeedIntake: vi.fn(async () => undefined),
     mockGetSession: vi.fn(),
     mockSelect: vi.fn(),
     mockInsert: vi.fn(),
@@ -18,6 +21,7 @@ const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockCustomersCreate,
 vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
 vi.mock('@/lib/auth/server', () => ({ auth: { api: { getSession: mockGetSession } } }))
+vi.mock('@/lib/services/forms', () => ({ seedDefaultIntakeForm: mockSeedIntake }))
 vi.mock('@/lib/stripe', () => ({
   stripe: {
     customers: { create: mockCustomersCreate },
@@ -157,6 +161,9 @@ describe('submitOnboarding', () => {
     expect(checkoutArgs.allow_promotion_codes).toBe(true)
     expect(checkoutArgs.mode).toBe('subscription')
     expect(checkoutArgs.metadata.planId).toBe('pro')
+
+    // Every new clinic starts with the standard intake form.
+    expect(mockSeedIntake).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to a suffixed slug when the picked one was taken meanwhile', async () => {

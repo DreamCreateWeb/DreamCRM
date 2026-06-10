@@ -10,7 +10,6 @@ import { getOpenJobs } from '@/lib/services/careers'
 import { getShopConfig } from '@/lib/services/shop'
 import { listActivePlans } from '@/lib/services/membership'
 import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
@@ -120,7 +119,7 @@ export default async function DentalPlansPage({ params }: Props) {
     hasTeam,
     hasCareers,
     services: navServicesFromClinicServices(
-      (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+      (profile.services as ClinicService[] | null) ?? [],
     ),
   })
 

@@ -253,12 +253,10 @@ export const DEFAULT_PAYMENT_METHODS: string[] = [
   'ACH bank transfer',
 ]
 
-export const DEFAULT_SERVICES: ClinicService[] = [
-  { id: 'cleanings', name: 'Cleanings & Exams', icon: '🦷' },
-  { id: 'cosmetic', name: 'Cosmetic Dentistry', icon: '✨' },
-  { id: 'restorations', name: 'Restorations', icon: '🔧' },
-  { id: 'emergency', name: 'Emergency Care', icon: '😌' },
-]
+// NOTE: there is deliberately NO default services list. A clinic with no
+// services renders an honest empty state (and an add-prompt in the Studio) —
+// phantom placeholder services with no library content behind them broke
+// trust on brand-new sites. Services always come from the service library.
 
 /**
  * Logo URLs for common dental PPO carriers. Used by the public Insurance

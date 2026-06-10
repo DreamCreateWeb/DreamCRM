@@ -12,7 +12,6 @@ import type {
   ClinicService,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   staffInitials,
@@ -140,7 +139,7 @@ export default async function StaffDetailPage({ params }: Props) {
     hasTeam,
     hasCareers,
     services: navServicesFromClinicServices(
-      (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+      (profile.services as ClinicService[] | null) ?? [],
     ),
   })
 

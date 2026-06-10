@@ -223,12 +223,13 @@ describe('ModernTemplate', () => {
     expect(homeLinks.length).toBeGreaterThan(0)
   })
 
-  it('renders default services when none are configured', () => {
+  it('renders NO services when none are configured (no phantom defaults)', () => {
+    // Placeholder services had no library content behind them and produced
+    // broken detail pages on brand-new clinics — services only come from
+    // the library now (see the new-clinic baseline suite below).
     render(<ModernTemplate data={makeData({ services: null as never })} basePath="/site/test" />)
-    // Services now appear in two places: the pill carousel under the hero
-    // AND the full services section below. Use getAllByText.
-    expect(screen.getAllByText('Cleanings & Exams').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Cosmetic Dentistry').length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByText('Cleanings & Exams')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cosmetic Dentistry')).not.toBeInTheDocument()
   })
 
   it('renders configured service names in the hero pill carousel', () => {
@@ -1111,5 +1112,56 @@ describe('ModernTemplate', () => {
       screen.getByRole('heading', { level: 2, name: /Dental insurance coverage/i }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Check insurance/i })).toBeInTheDocument()
+  })
+})
+
+describe('new-clinic baseline (no phantom content)', () => {
+  it('renders zero services UI when the clinic has none — no placeholder service names', () => {
+    render(<ModernTemplate data={makeData({ services: null as never })} basePath="/site/test" />)
+    expect(screen.queryByText('Cleanings & Exams')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cosmetic Dentistry')).not.toBeInTheDocument()
+    expect(screen.queryByText('Restorations')).not.toBeInTheDocument()
+    expect(screen.queryByText('Emergency Care')).not.toBeInTheDocument()
+  })
+
+  it('offers a Studio-only add-services prompt so the picker stays reachable', () => {
+    render(<ModernTemplate data={makeData({ services: null as never })} basePath="/site/test" />)
+    const prompt = screen.getByText(/\+ Add your services/i)
+    expect(prompt.closest('.dc-edit-only')).not.toBeNull()
+  })
+
+  it('never mirrors the hero image into the "Why us" media slot', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({ heroImageUrl: 'https://img.test/hero.jpg', officePhotos: null as never })}
+        basePath="/site/test"
+      />,
+    )
+    // The hero portrait may use the image, but the difference-section media
+    // box (tagged differenceVideoUrl) must not duplicate it.
+    const mediaBox = container.querySelector('[data-edit-field="differenceVideoUrl"]')
+    expect(mediaBox).not.toBeNull()
+    expect(mediaBox!.querySelector('img')).toBeNull()
+    // Publicly hidden when there is no media at all (Studio-only prompt).
+    expect(mediaBox!.closest('.dc-edit-only')).not.toBeNull()
+  })
+
+  it('uses an office photo for the "Why us" media when available', () => {
+    const { container } = render(
+      <ModernTemplate
+        data={makeData({
+          heroImageUrl: 'https://img.test/hero.jpg',
+          officePhotos: [
+            { id: 'p1', url: 'https://img.test/office-1.jpg' },
+            { id: 'p2', url: 'https://img.test/office-2.jpg' },
+          ] as never,
+        })}
+        basePath="/site/test"
+      />,
+    )
+    const mediaBox = container.querySelector('[data-edit-field="differenceVideoUrl"]')
+    const img = mediaBox!.querySelector('img')
+    expect(img?.getAttribute('src')).toBe('https://img.test/office-2.jpg')
+    expect(img?.getAttribute('src')).not.toBe('https://img.test/hero.jpg')
   })
 })

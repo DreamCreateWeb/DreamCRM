@@ -11,7 +11,6 @@ import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicFaqItem, ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
 import {
   DEFAULT_FAQ_ITEMS,
-  DEFAULT_SERVICES,
   FAQ_CATEGORIES,
 } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
@@ -100,7 +99,7 @@ export default async function FaqPage({ params }: Props) {
     hasTeam,
     hasCareers,
     services: navServicesFromClinicServices(
-      (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES,
+      (profile.services as ClinicService[] | null) ?? [],
     ),
   })
 

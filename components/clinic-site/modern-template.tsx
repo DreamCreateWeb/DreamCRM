@@ -8,7 +8,6 @@ import type {
   ClinicOfficePhoto,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import {
   firstSentence,
@@ -104,7 +103,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // Full service list (drives the nav dropdowns); `services` stays capped at 6
   // for the hero body composition below.
   const allServices: ClinicService[] =
-    (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
+    (profile.services as ClinicService[] | null) ?? []
   const services: ClinicService[] = allServices.slice(0, 6)
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const differenceHeadline = copyOverride(copyOverrides, 'home.differenceHeadline', '')
@@ -197,6 +196,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // complementary panels regardless of brand color so the composition
   // reads the same on every palette. Decorative chrome, not content.
   const leftPortraitImage = heroImageUrl ?? null
+  // "Why us" feature media — office photos only (never the hero image).
+  const differenceMediaUrl = officePhotos[1]?.url ?? officePhotos[0]?.url ?? null
   // Right hero oval = its own dedicated second hero photo (single-image replace).
   // Falls back to the first office photo for sites set up before the column.
   const rightPortraitImage =
@@ -472,6 +473,25 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               />
             </div>
           )}
+          {/* Studio-only affordance: with zero services there'd be nothing on
+              the homepage to click to reach the services picker. Invisible to
+              the public — the strip simply doesn't exist until services do. */}
+          {heroServicePills.length === 0 && (
+            <div
+              className="dc-edit-only mt-12 sm:mt-14"
+              data-edit-field="services"
+              data-edit-kind="modal"
+              data-edit-label="services"
+            >
+              <div
+                className="rounded-2xl border-2 border-dashed text-center py-8 px-6 text-sm font-medium"
+                style={{ borderColor: BORDER, color: INK_MUTED }}
+              >
+                + Add your services — pick from the library and they&rsquo;ll appear here,
+                in your menu, and on their own pages.
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -575,8 +595,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           checklist. Mirrors Tend's "Tend Dental difference" block. */}
       <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-            <div>
+          <div
+            className={
+              differenceMediaUrl || profile.differenceVideoUrl
+                ? 'grid lg:grid-cols-2 gap-10 lg:gap-16 items-center'
+                : 'max-w-[680px]'
+            }
+          >
+            {/* Media slot: the intro video, else an office photo — never the
+                hero image (mirroring the hero here made every new upload look
+                like it had "also set the video field"). With no media at all
+                the column hides publicly and shows an add-prompt in the
+                Studio. */}
+            <div className={differenceMediaUrl || profile.differenceVideoUrl ? '' : 'dc-edit-only mb-8'}>
               <div
                 className="overflow-hidden"
                 style={{
@@ -600,14 +631,22 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   >
                     <source src={profile.differenceVideoUrl} />
                   </video>
-                ) : (heroImageUrl ?? officePhotos[1]?.url ?? officePhotos[0]?.url) && (
+                ) : differenceMediaUrl ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
-                    src={heroImageUrl ?? officePhotos[1]?.url ?? officePhotos[0]?.url ?? ''}
+                    src={differenceMediaUrl}
                     alt=""
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-center text-sm font-medium px-8"
+                    style={{ color: INK_MUTED }}
+                  >
+                    🎬 Add a short intro video — or add office photos and we&rsquo;ll
+                    feature one here.
+                  </div>
                 )}
               </div>
             </div>

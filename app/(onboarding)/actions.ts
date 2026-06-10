@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth/server'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
+import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { PLANS, type BillingInterval } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -223,6 +224,15 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
         updatedAt: new Date(),
       },
     })
+
+  // Every clinic starts with the standard new-patient intake form (idempotent
+  // — re-running onboarding never duplicates it). Best-effort: a hiccup here
+  // must never block checkout.
+  try {
+    await seedDefaultIntakeForm(orgId)
+  } catch (err) {
+    console.warn('[onboarding] could not seed default intake form', err)
+  }
 
   const [profile] = await db
     .select()

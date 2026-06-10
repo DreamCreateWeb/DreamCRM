@@ -9,7 +9,6 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
-import { DEFAULT_SERVICES } from '@/lib/types/clinic-content'
 import {
   resolveClinicServices,
   groupByCategory,
@@ -93,7 +92,7 @@ export default async function ServicesPage({ params }: Props) {
   // category. Show ALL configured services on the index — no 6-cap (the
   // homepage caps for layout; the index is the full catalog).
   const rawServices: ClinicService[] =
-    (profile.services as ClinicService[] | null) ?? DEFAULT_SERVICES
+    (profile.services as ClinicService[] | null) ?? []
   const resolved = await resolveClinicServices(rawServices, {
     clinicName: name,
     city: profile.city,
@@ -193,23 +192,44 @@ export default async function ServicesPage({ params }: Props) {
         data-edit-kind="modal"
         data-edit-label="services"
       >
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-24">
-          <ScrollReveal>
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+        {resolved.length === 0 && (
+          <div className="max-w-[760px] mx-auto px-5 sm:px-8 pt-20 sm:pt-24 pb-4 text-center">
+            <p className="text-lg leading-[1.6]" style={{ color: INK }}>
+              We&rsquo;re putting our full service menu together.
+              {profile.phone
+                ? ' In the meantime, give us a call — we\u2019ll help you book the right visit.'
+                : ' In the meantime, book a visit and we\u2019ll take it from there.'}
+            </p>
+            {/* Studio-only: clicking anywhere in this section opens the
+                services picker; this prompt just makes that obvious. */}
+            <div
+              className="dc-edit-only mt-10 rounded-2xl border-2 border-dashed py-8 px-6 text-sm font-medium"
+              style={{ borderColor: BORDER, color: INK_MUTED }}
             >
-              Core services.
-            </h2>
-          </ScrollReveal>
-          <ServiceGrid
-            services={core}
-            basePath={basePath}
-            brand={brand}
-            bookHref={bookHref}
-            bookLabel={bookLabel}
-          />
-        </div>
+              + Add your services — pick from the library and this page becomes
+              your full menu, each with its own detail page.
+            </div>
+          </div>
+        )}
+        {core.length > 0 && (
+          <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-24">
+            <ScrollReveal>
+              <h2
+                className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
+                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              >
+                Core services.
+              </h2>
+            </ScrollReveal>
+            <ServiceGrid
+              services={core}
+              basePath={basePath}
+              brand={brand}
+              bookHref={bookHref}
+              bookLabel={bookLabel}
+            />
+          </div>
+        )}
 
         {/* ── Special services (only when any) ─────────────────────────── */}
         {special.length > 0 && (
