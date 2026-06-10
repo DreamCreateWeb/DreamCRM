@@ -1257,6 +1257,34 @@ Blog are NO LONGER top-level — they live only inside About.
 
 ## What's NOT yet wired (priorities for next session)
 
+### Website-quality sweep 2026-06-10 (PRs #304–#307) — what shipped + loose ends
+
+A fresh-clinic QA pass (three user-reported bugs → adversarial sweep of the
+Tend template, Website Studio, and day-0 provisioning). **Shipped:** phantom
+`DEFAULT_SERVICES` fallback deleted everywhere (services come from the library
+or don't exist; honest public empty states + `dc-edit-only` Studio add-prompts
+— that CSS class is THE pattern for editor-only affordances); "Why us" media
+no longer mirrors the hero (office-photos-only, distinct from the right hero
+oval — homepage can't show the same photo twice); stale `?reveal=` scroll
+hijack consumed in EditBridge; AI-tour vs manual-save race (cancelTour in
+persist); instant image preview via fixed `setImage`; paste-as-plain-text in
+inline editing; **fresh clinics now seed Mon–Fri 9–5 default hours**
+(`lib/onboarding/defaults.ts` — booking read "closed every day" before) + the
+standard intake form in BOTH creation paths; welcome interview persists
+`differenceChips` (was dropped) + is re-enterable from the Getting-started
+card while the site is unfilled; null-guards (`todaysHoursLabel`,
+`resolveClinicServices`); `tests/studio/field-wiring.test.ts` parses the real
+registries so template↔studio↔actions wiring can't silently rot; new
+`tests/day0/` integration suite.
+
+**Flagged, not fixed (small, non-blocking):** clinic sitemap omits
+`/careers` + `/careers/[jobSlug]` URLs (SEO-completeness); `/services` stays
+in the sitemap when a clinic has zero services (renders the honest empty
+page); `copy:home.closerTitle` + `copy:home.contactEyebrow` are inline-
+editable but missing from the AI bar's `COPY_KEYS` (AI can't target them);
+the welcome interview holds answers in client state only (refresh mid-
+interview loses progress; re-entry banner mitigates).
+
 ### Maintenance session 2026-06-09 — what shipped + what's still open
 
 A bug-hunt + email-deliverability session shipped PRs **#265–#276** (all merged
