@@ -27,6 +27,13 @@ export const patient = pgTable(
     insurancePolicyNumber: text('insurance_policy_number'),
     insuranceGroupNumber: text('insurance_group_number'),
 
+    // Family access (patient portal): when set, the named patient (parent /
+    // guardian — must have portal access themselves) can see and manage this
+    // patient's visits and forms from their own portal login. Self-FK kept
+    // soft (no .references) to avoid a self-referencing circular type; the
+    // service layer enforces same-org integrity on write.
+    guardianPatientId: text('guardian_patient_id'),
+
     notes: text('notes'),
     isActive: integer('is_active').notNull().default(1),
 
@@ -1060,3 +1067,35 @@ export const pmsWriteOp = pgTable(
 )
 export type PmsWriteOp = typeof pmsWriteOp.$inferSelect
 export type NewPmsWriteOp = typeof pmsWriteOp.$inferInsert
+
+// One row per online balance payment a patient makes through the portal
+// (Settings → Patient portal → "Online payments"). Money moves through the
+// clinic's connected Stripe account (direct charge, same as the shop) — the
+// PMS still owns the clinical ledger, so the front desk posts these to the
+// PMS after they land. DreamCRM records the payment for the patient's
+// history and the clinic's reconciliation list; it never mutates
+// patient.pmsBalanceCents (the next PMS sync is the truth).
+export const patientBalancePayment = pgTable(
+  'patient_balance_payment',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    amountCents: integer('amount_cents').notNull(),
+    // 'pending' | 'paid' | 'failed'
+    status: text('status').notNull().default('pending'),
+    stripeCheckoutSessionId: text('stripe_checkout_session_id'),
+    stripePaymentIntentId: text('stripe_payment_intent_id'),
+    // What the patient saw at pay time ("Balance as of Jun 3") — audit aid
+    // for reconciliation when the PMS balance has since moved.
+    balanceCentsAtPayment: integer('balance_cents_at_payment'),
+    note: text('note'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    paidAt: timestamp('paid_at'),
+  },
+  (t) => [
+    index('balance_payment_org_status_idx').on(t.organizationId, t.status),
+    index('balance_payment_patient_idx').on(t.patientId, t.createdAt),
+  ],
+)
+export type PatientBalancePayment = typeof patientBalancePayment.$inferSelect

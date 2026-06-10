@@ -92,6 +92,7 @@ export default function PatientDetail({
   notes,
   intakeForms = [],
   isPlatformAdmin = false,
+  patientOptions = [],
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -99,6 +100,8 @@ export default function PatientDetail({
   notes: PatientNoteRow[]
   intakeForms?: IntakeFormOption[]
   isPlatformAdmin?: boolean
+  /** id+name list for the guardian (family-access) picker in the edit modal. */
+  patientOptions?: Array<{ id: string; name: string }>
 }) {
   const [filter, setFilter] = useState<TimelineKind | 'all'>('all')
   const [editOpen, setEditOpen] = useState(false)
@@ -271,7 +274,9 @@ export default function PatientDetail({
         </aside>
       </div>
 
-      {editOpen && <EditPatientModal header={header} onClose={() => setEditOpen(false)} />}
+      {editOpen && (
+        <EditPatientModal header={header} patientOptions={patientOptions} onClose={() => setEditOpen(false)} />
+      )}
       {bookOpen && (
         <BookFromPatientDrawer
           patientId={header.id}

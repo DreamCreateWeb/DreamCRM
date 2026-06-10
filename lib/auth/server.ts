@@ -1,10 +1,15 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { organization } from 'better-auth/plugins'
+import { organization, magicLink } from 'better-auth/plugins'
 import { nextCookies } from 'better-auth/next-js'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema/auth'
-import { sendInvitationEmail, sendPasswordResetEmail, sendVerificationEmail } from '@/lib/email'
+import {
+  sendInvitationEmail,
+  sendMagicLinkEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from '@/lib/email'
 
 function build() {
   return betterAuth({
@@ -76,6 +81,17 @@ function build() {
             role: data.invitation.role,
             inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/accept-invite?token=${data.invitation.id}`,
           })
+        },
+      }),
+      // Passwordless sign-in for returning users — portal visits are
+      // episodic (~6 months apart for dental), so "email me a link" beats
+      // password recall. disableSignUp: a link can only sign in an EXISTING
+      // account (patients arrive via invite / booking), never create one.
+      magicLink({
+        disableSignUp: true,
+        expiresIn: 60 * 15,
+        async sendMagicLink({ email, url }) {
+          await sendMagicLinkEmail(email, url)
         },
       }),
       nextCookies(),

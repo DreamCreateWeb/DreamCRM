@@ -871,6 +871,21 @@ const DEMO_FINANCING_PARTNERS = [
 const DEMO_CANCELLATION_POLICY =
   "We ask for 24 hours notice when you need to cancel or reschedule. Life happens, so we'll always try to work with you — just call or message us as soon as you know. If you no-show without letting us know, we may ask for a small deposit to hold your next visit. We promise to be reasonable about it."
 
+// Patient-portal settings for the demo — exercises the clinic-customizable
+// copy paths (welcome message / announcement / aftercare note) so "View as
+// patient" and the settings Preview both showcase the full surface. Feature
+// flags stay at the defaults (payments off — the demo has no live Stripe
+// Connect account).
+const DEMO_PORTAL_SETTINGS = {
+  copy: {
+    welcomeHeadline: null,
+    welcomeMessage: "We're glad you're here. However long it's been — no judgment, ever.",
+    announcement: 'New: book, reschedule, and pay right from this portal.',
+    aftercareNote:
+      'A little sensitivity after a cleaning or filling is normal for a day or two.\nStick to soft foods tonight, rinse gently with warm salt water, and skip anything too hot or icy.\nIf anything feels genuinely wrong, call us — that is what we are here for.',
+  },
+} as const
+
 /**
  * Self-heal helper for legacy demos that seeded the hardcoded "8,000+
  * five-star reviews" stat before the `dynamic: 'review_count'` pattern
@@ -1280,6 +1295,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         financingPartners: schema.clinicProfile.financingPartners,
         cancellationPolicy: schema.clinicProfile.cancellationPolicy,
         timezone: schema.clinicProfile.timezone,
+        portalSettings: schema.clinicProfile.portalSettings,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1415,6 +1431,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     }
     if (!profile?.cancellationPolicy) {
       patch.cancellationPolicy = DEMO_CANCELLATION_POLICY
+    }
+    // Patient-portal settings backfill — partial blob merges over defaults at
+    // read time, so seeding just the demo copy is enough. Skips when the demo
+    // has any saved portal settings (hand-edited = clinic-owned).
+    if (!profile?.portalSettings) {
+      patch.portalSettings = DEMO_PORTAL_SETTINGS
     }
     // Staff self-heal (Checkpoint 3 — /team page + about-dropdown). Legacy
     // demos seeded the 3-entry minimal staff array before this PR. Two-stage
@@ -1798,6 +1820,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
     await seedDemoAiUsage(existing.id)
 
+    // Patient-portal family self-heal: Lily (Emma's dependent) + her upcoming
+    // cleaning, so Family access demos on legacy seeds too. Idempotent.
+    await seedDemoFamilyForOrg(existing.id, new Date())
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -1865,6 +1891,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     paymentMethods: DEMO_PAYMENT_METHODS,
     financingPartners: DEMO_FINANCING_PARTNERS,
     cancellationPolicy: DEMO_CANCELLATION_POLICY,
+    portalSettings: DEMO_PORTAL_SETTINGS,
     planTier: 'premium',
     subscriptionStatus: 'active',
   })
@@ -2354,6 +2381,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)
+
+  // Patient portal — family access: Lily (Emma's 9-year-old) + her upcoming
+  // cleaning so the guardian view has live demo data.
+  await seedDemoFamilyForOrg(orgId, now)
 
   return {
     organizationId: orgId,
@@ -3031,6 +3062,106 @@ async function topUpLinkedDemoTestimonials(
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, orgId))
+}
+
+/**
+ * Family-access seed (patient portal): gives Emma Lopez a 9-year-old
+ * dependent, Lily, with an upcoming cleaning — so the portal's Family page,
+ * the "for Lily" visit-card treatment, and guardian booking all have real
+ * demo data. Idempotent: looks up by name, inserts only what's missing.
+ * Used by both the new-clinic-seed path AND the self-heal path.
+ */
+async function seedDemoFamilyForOrg(orgId: string, now: Date): Promise<void> {
+  const [guardian] = await db
+    .select({ id: schema.patient.id, city: schema.patient.city, state: schema.patient.state, postalCode: schema.patient.postalCode, addressLine1: schema.patient.addressLine1, phone: schema.patient.phone })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, orgId),
+        eq(schema.patient.firstName, 'Emma'),
+        eq(schema.patient.lastName, 'Lopez'),
+      ),
+    )
+    .limit(1)
+  if (!guardian) return // personas not seeded yet — fresh path calls us after patients
+
+  let [lily] = await db
+    .select({ id: schema.patient.id, guardianPatientId: schema.patient.guardianPatientId })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, orgId),
+        eq(schema.patient.firstName, 'Lily'),
+        eq(schema.patient.lastName, 'Lopez'),
+      ),
+    )
+    .limit(1)
+
+  if (!lily) {
+    const dob = new Date(now.getFullYear() - 9, 2, 14) // ~9 years old
+    const id = newId('pat')
+    await db.insert(schema.patient).values({
+      id,
+      organizationId: orgId,
+      firstName: 'Lily',
+      lastName: 'Lopez',
+      dateOfBirth: dob.toISOString().slice(0, 10),
+      email: null, // kids share the household inbox — guardian gets the email
+      phone: guardian.phone,
+      addressLine1: guardian.addressLine1,
+      city: guardian.city,
+      state: guardian.state,
+      postalCode: guardian.postalCode,
+      guardianPatientId: guardian.id,
+      source: 'manual',
+      lifecycle: 'active',
+      firstSeenAt: new Date(now.getTime() - 200 * 86_400_000),
+      lastActivityAt: new Date(now.getTime() - 10 * 86_400_000),
+    })
+    lily = { id, guardianPatientId: guardian.id }
+  } else if (!lily.guardianPatientId) {
+    await db
+      .update(schema.patient)
+      .set({ guardianPatientId: guardian.id, updatedAt: new Date() })
+      .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, lily.id)))
+  }
+
+  // One upcoming cleaning for Lily so the Family page has a live card.
+  const [upcoming] = await db
+    .select({ id: schema.appointment.id })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, orgId),
+        eq(schema.appointment.patientId, lily.id),
+        gte(schema.appointment.startTime, now),
+      ),
+    )
+    .limit(1)
+  if (!upcoming) {
+    const [hygienist] = await db
+      .select({ id: schema.clinicProvider.id })
+      .from(schema.clinicProvider)
+      .where(
+        and(eq(schema.clinicProvider.organizationId, orgId), eq(schema.clinicProvider.role, 'hygienist')),
+      )
+      .limit(1)
+    const start = new Date(now.getTime() + 5 * 86_400_000)
+    start.setUTCHours(16, 0, 0, 0) // 10/11am clinic-local
+    await db.insert(schema.appointment).values({
+      id: newId('appt'),
+      organizationId: orgId,
+      patientId: lily.id,
+      providerId: hygienist?.id ?? null,
+      title: 'Cleaning - Lily Lopez',
+      startTime: start,
+      endTime: new Date(start.getTime() + 30 * 60_000),
+      type: 'cleaning',
+      status: 'scheduled',
+      source: 'portal',
+      notes: 'Booked by mom (Emma) from the portal. Bubblegum fluoride, please!',
+    })
+  }
 }
 
 /**

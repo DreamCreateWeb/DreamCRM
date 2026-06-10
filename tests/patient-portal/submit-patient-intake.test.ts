@@ -29,16 +29,22 @@ vi.mock('@/lib/services/forms', () => ({
   submitForm,
 }))
 
+const portalSettings = { features: { forms: true } as Record<string, boolean> }
+vi.mock('@/lib/services/portal-settings', () => ({
+  getPortalSettings: vi.fn(async () => portalSettings),
+}))
+
 beforeEach(() => {
   tenantCtx.tenantType = 'patient'
   tenantCtx.patientId = 'pat_1'
   tenantCtx.organizationId = 'org_real'
+  portalSettings.features.forms = true
   getFormTemplate.mockReset()
   submitForm.mockReset()
 })
 
-async function call(input: Parameters<typeof import('@/app/(default)/patient/intake/actions').submitPatientIntakeAction>[0]) {
-  const { submitPatientIntakeAction } = await import('@/app/(default)/patient/intake/actions')
+async function call(input: Parameters<typeof import('@/app/(portal)/patient/intake/actions').submitPatientIntakeAction>[0]) {
+  const { submitPatientIntakeAction } = await import('@/app/(portal)/patient/intake/actions')
   return submitPatientIntakeAction(input)
 }
 
@@ -119,6 +125,12 @@ describe('submitPatientIntakeAction', () => {
     })
     // baseInput.data has 'name' but not the required 'consent'.
     await expect(call(baseInput)).rejects.toThrow(/Consent is required/i)
+    expect(submitForm).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the clinic toggled portal forms off', async () => {
+    portalSettings.features.forms = false
+    await expect(call(baseInput)).rejects.toThrow(/Forms aren’t available/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
 

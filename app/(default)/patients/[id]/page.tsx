@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getPatientHeader } from '@/lib/services/patients'
+import { getPatientHeader, listPatientOptions } from '@/lib/services/patients'
 import { getPatientTimeline, countTimeline } from '@/lib/services/patient-timeline'
 import { listPatientNotes } from '@/lib/services/patient-notes'
 import { listFormTemplates } from '@/lib/services/forms'
@@ -23,11 +23,12 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms] = await Promise.all([
+  const [header, timeline, notes, forms, patientOptions] = await Promise.all([
     getPatientHeader(ctx.organizationId, id),
     getPatientTimeline(ctx.organizationId, id),
     listPatientNotes(ctx.organizationId, id),
     listFormTemplates(ctx.organizationId),
+    listPatientOptions(ctx.organizationId),
   ])
   if (!header) notFound()
 
@@ -42,6 +43,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       notes={notes}
       intakeForms={intakeForms}
       isPlatformAdmin={ctx.platformAdmin}
+      patientOptions={patientOptions}
     />
   )
 }

@@ -59,6 +59,11 @@ vi.mock('@/lib/db/schema/clinic', () => ({
   shopOrderItem: { id: 'soi.id', orderId: 'soi.oid', productName: 'soi.pn', variantName: 'soi.vn', quantity: 'soi.q', unitPriceCents: 'soi.u' },
   membership: { id: 'm.id', planId: 'm.pid', patientId: 'm.pat', organizationId: 'm.org', status: 'm.status', currentPeriodEnd: 'm.cpe', benefitsUsed: 'm.bu', createdAt: 'm.ca' },
   membershipPlan: { id: 'mp.id', name: 'mp.name', billingInterval: 'mp.bi', priceCents: 'mp.pc', benefits: 'mp.b' },
+  // Portal v2 additions — referenced at module level by patient-portal.ts.
+  formSubmission: {},
+  formTemplate: {},
+  clinicProvider: {},
+  patientBalancePayment: {},
 }))
 vi.mock('@/lib/db/schema/platform', () => ({ clinicProfile: {} }))
 vi.mock('drizzle-orm', () => ({
@@ -68,6 +73,8 @@ vi.mock('drizzle-orm', () => ({
   gte: vi.fn(() => ({ _: 'gte' })),
   inArray: vi.fn(() => ({ _: 'inArray' })),
   ne: vi.fn(() => ({ _: 'ne' })),
+  isNull: vi.fn(() => ({ _: 'isNull' })),
+  lt: vi.fn(() => ({ _: 'lt' })),
 }))
 
 beforeEach(() => {

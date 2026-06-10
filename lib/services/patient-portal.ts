@@ -1,23 +1,27 @@
 import 'server-only'
-import { and, eq, desc, gte, inArray, ne } from 'drizzle-orm'
+import { and, eq, desc, gte, inArray, ne, isNull, lt } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
   patient,
   appointment,
+  clinicProvider,
   shopOrder,
   shopOrderItem,
   membership,
   membershipPlan,
   formSubmission,
   formTemplate,
+  patientBalancePayment,
 } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { organization } from '@/lib/db/schema/auth'
 import {
   findPatientThread,
   listMessagesInThread,
   recordInboundMessage,
   type ThreadMessage,
 } from '@/lib/services/patient-messaging'
+import { derivePatientRecallStatus, type RecallStatus } from '@/lib/services/recall-status'
 
 export async function getMyPatientRecord(patientId: string, organizationId: string) {
   const [row] = await db
@@ -403,4 +407,331 @@ export async function getMyClinicHeader(organizationId: string) {
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
   return row ?? null
+}
+
+// ── Portal v2 ────────────────────────────────────────────────────────
+//
+// Everything below powers the redesigned clinic-branded portal: richer
+// clinic info for the chrome, provider-joined visits for the cards,
+// family/dependent access, the recall nudge, pre-visit form tasks, and
+// online balance payments.
+
+export interface PortalClinicInfo {
+  organizationSlug: string
+  displayName: string | null
+  phone: string | null
+  email: string | null
+  logoUrl: string | null
+  brandColor: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  city: string | null
+  state: string | null
+  postalCode: string | null
+  hours: Record<string, { open?: string | null; close?: string | null; closed?: boolean } | undefined> | null
+  timezone: string | null
+  cancellationPolicy: string | null
+}
+
+/** Clinic identity + practical info for the portal chrome (header / footer / contact cards). */
+export async function getPortalClinicInfo(organizationId: string): Promise<PortalClinicInfo | null> {
+  const [row] = await db
+    .select({
+      organizationSlug: organization.slug,
+      displayName: clinicProfile.displayName,
+      phone: clinicProfile.phone,
+      email: clinicProfile.email,
+      logoUrl: clinicProfile.logoUrl,
+      brandColor: clinicProfile.brandColor,
+      addressLine1: clinicProfile.addressLine1,
+      addressLine2: clinicProfile.addressLine2,
+      city: clinicProfile.city,
+      state: clinicProfile.state,
+      postalCode: clinicProfile.postalCode,
+      hours: clinicProfile.hours,
+      timezone: clinicProfile.timezone,
+      cancellationPolicy: clinicProfile.cancellationPolicy,
+    })
+    .from(clinicProfile)
+    .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
+    .where(eq(clinicProfile.organizationId, organizationId))
+    .limit(1)
+  if (!row) return null
+  return {
+    ...row,
+    hours: (row.hours ?? null) as PortalClinicInfo['hours'],
+  }
+}
+
+export interface PortalVisit {
+  id: string
+  patientId: string
+  type: string
+  status: string
+  startTime: Date
+  endTime: Date | null
+  notes: string | null
+  confirmedAt: Date | null
+  providerName: string | null
+  providerRole: string | null
+  providerPhotoUrl: string | null
+  /** Set when this row is a dependent's visit rendered in a guardian's portal. */
+  patientFirstName: string
+}
+
+const visitSelection = {
+  id: appointment.id,
+  patientId: appointment.patientId,
+  type: appointment.type,
+  status: appointment.status,
+  startTime: appointment.startTime,
+  endTime: appointment.endTime,
+  notes: appointment.notes,
+  confirmedAt: appointment.confirmedAt,
+  providerName: clinicProvider.displayName,
+  providerRole: clinicProvider.role,
+  providerPhotoUrl: clinicProvider.photoUrl,
+  patientFirstName: patient.firstName,
+}
+
+/**
+ * Upcoming (not cancelled / no-show) visits for one or more patients —
+ * the guardian portal passes [self, ...dependents]. Provider label joined
+ * in so cards can show a real face.
+ */
+export async function getUpcomingVisits(
+  patientIds: string[],
+  organizationId: string,
+): Promise<PortalVisit[]> {
+  if (patientIds.length === 0) return []
+  return db
+    .select(visitSelection)
+    .from(appointment)
+    .leftJoin(clinicProvider, eq(appointment.providerId, clinicProvider.id))
+    .innerJoin(patient, eq(appointment.patientId, patient.id))
+    .where(
+      and(
+        inArray(appointment.patientId, patientIds),
+        eq(appointment.organizationId, organizationId),
+        gte(appointment.startTime, new Date()),
+        ne(appointment.status, 'cancelled'),
+        ne(appointment.status, 'no_show'),
+      ),
+    )
+    .orderBy(appointment.startTime)
+    .limit(25)
+}
+
+/** Past visits (everything before now, any terminal status) for the visits page history. */
+export async function getPastVisits(
+  patientIds: string[],
+  organizationId: string,
+): Promise<PortalVisit[]> {
+  if (patientIds.length === 0) return []
+  return db
+    .select(visitSelection)
+    .from(appointment)
+    .leftJoin(clinicProvider, eq(appointment.providerId, clinicProvider.id))
+    .innerJoin(patient, eq(appointment.patientId, patient.id))
+    .where(
+      and(
+        inArray(appointment.patientId, patientIds),
+        eq(appointment.organizationId, organizationId),
+        lt(appointment.startTime, new Date()),
+      ),
+    )
+    .orderBy(desc(appointment.startTime))
+    .limit(50)
+}
+
+/** Single visit, scoped to the allowed patient set (self + dependents). */
+export async function getVisitForPatients(
+  visitId: string,
+  patientIds: string[],
+  organizationId: string,
+): Promise<PortalVisit | null> {
+  if (patientIds.length === 0) return null
+  const [row] = await db
+    .select(visitSelection)
+    .from(appointment)
+    .leftJoin(clinicProvider, eq(appointment.providerId, clinicProvider.id))
+    .innerJoin(patient, eq(appointment.patientId, patient.id))
+    .where(
+      and(
+        eq(appointment.id, visitId),
+        inArray(appointment.patientId, patientIds),
+        eq(appointment.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  return row ?? null
+}
+
+export interface PortalDependent {
+  id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string | null
+}
+
+/**
+ * Active patients who list this patient as their guardian. Powers family
+ * access — the guardian sees these alongside their own record.
+ */
+export async function getMyDependents(
+  patientId: string,
+  organizationId: string,
+): Promise<PortalDependent[]> {
+  return db
+    .select({
+      id: patient.id,
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      dateOfBirth: patient.dateOfBirth,
+    })
+    .from(patient)
+    .where(
+      and(
+        eq(patient.guardianPatientId, patientId),
+        eq(patient.organizationId, organizationId),
+        eq(patient.isActive, 1),
+      ),
+    )
+    .orderBy(patient.firstName)
+}
+
+/**
+ * Recall status for the home-screen nudge ("Time for your next cleaning").
+ * Reuses the shared derivation so the patient sees exactly what the front
+ * desk sees on the patients list.
+ */
+export async function getMyRecallStatus(
+  patientId: string,
+  organizationId: string,
+): Promise<RecallStatus> {
+  const now = new Date()
+  const [patientRow] = await db
+    .select({ pmsRecallDueAt: patient.pmsRecallDueAt })
+    .from(patient)
+    .where(and(eq(patient.id, patientId), eq(patient.organizationId, organizationId)))
+    .limit(1)
+  if (!patientRow) return 'na'
+
+  const rows = await db
+    .select({ startTime: appointment.startTime, status: appointment.status })
+    .from(appointment)
+    .where(and(eq(appointment.patientId, patientId), eq(appointment.organizationId, organizationId)))
+
+  let lastVisitAt: Date | null = null
+  let hasAnyFutureAppt = false
+  for (const r of rows) {
+    const active = r.status !== 'cancelled' && r.status !== 'no_show'
+    if (r.startTime > now) {
+      if (active) hasAnyFutureAppt = true
+    } else if (r.status === 'completed') {
+      if (!lastVisitAt || r.startTime > lastVisitAt) lastVisitAt = r.startTime
+    }
+  }
+
+  return derivePatientRecallStatus({
+    pmsRecallDueAt: patientRow.pmsRecallDueAt,
+    hasUpcomingAppt: hasAnyFutureAppt,
+    hasAnyFutureAppt,
+    lastVisitAt,
+    now,
+  })
+}
+
+export interface PortalPendingForm {
+  templateId: string
+  title: string
+  slug: string
+  description: string | null
+  isDefault: boolean
+}
+
+/**
+ * Active form templates this patient hasn't submitted yet. The home screen
+ * surfaces the default one as a pre-visit task when a visit is coming up;
+ * the Forms page lists them all.
+ */
+export async function getMyPendingForms(
+  patientId: string,
+  organizationId: string,
+): Promise<PortalPendingForm[]> {
+  const templates = await db
+    .select({
+      templateId: formTemplate.id,
+      title: formTemplate.title,
+      slug: formTemplate.slug,
+      description: formTemplate.description,
+      isDefault: formTemplate.isDefault,
+    })
+    .from(formTemplate)
+    .where(and(eq(formTemplate.organizationId, organizationId), isNull(formTemplate.archivedAt)))
+    .orderBy(desc(formTemplate.isDefault), formTemplate.title)
+  if (templates.length === 0) return []
+
+  const submitted = await db
+    .select({ formTemplateId: formSubmission.formTemplateId })
+    .from(formSubmission)
+    .where(
+      and(
+        eq(formSubmission.patientId, patientId),
+        eq(formSubmission.organizationId, organizationId),
+      ),
+    )
+  const submittedIds = new Set(submitted.map((s) => s.formTemplateId))
+
+  return templates
+    .filter((t) => !submittedIds.has(t.templateId))
+    .map((t) => ({ ...t, isDefault: t.isDefault === 1 }))
+}
+
+export interface PortalBalancePaymentRow {
+  id: string
+  amountCents: number
+  status: string
+  createdAt: Date
+  paidAt: Date | null
+}
+
+/** Past online balance payments (paid + pending) for the billing history list. */
+export async function getMyBalancePayments(
+  patientId: string,
+  organizationId: string,
+): Promise<PortalBalancePaymentRow[]> {
+  return db
+    .select({
+      id: patientBalancePayment.id,
+      amountCents: patientBalancePayment.amountCents,
+      status: patientBalancePayment.status,
+      createdAt: patientBalancePayment.createdAt,
+      paidAt: patientBalancePayment.paidAt,
+    })
+    .from(patientBalancePayment)
+    .where(
+      and(
+        eq(patientBalancePayment.patientId, patientId),
+        eq(patientBalancePayment.organizationId, organizationId),
+        ne(patientBalancePayment.status, 'failed'),
+      ),
+    )
+    .orderBy(desc(patientBalancePayment.createdAt))
+    .limit(50)
+}
+
+/**
+ * The patient ids this signed-in patient may act for: themselves plus
+ * (when family access is enabled) their active dependents. Every portal
+ * read/mutation scopes to this set.
+ */
+export async function getAccessiblePatientIds(
+  patientId: string,
+  organizationId: string,
+  familyEnabled: boolean,
+): Promise<string[]> {
+  if (!familyEnabled) return [patientId]
+  const dependents = await getMyDependents(patientId, organizationId)
+  return [patientId, ...dependents.map((d) => d.id)]
 }

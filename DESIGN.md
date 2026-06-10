@@ -257,6 +257,42 @@ contrast, anti-shame voice slot in hero.
 
 ---
 
+## Patient portal design principles
+
+Research-grounded (2026-06 deep-research pass: ONC/HINTS federal portal data,
+JMIR dental-portal study, Baymard, Tend/One Medical/Oscar design teardowns,
+competitor customization docs). Durable rules for anything patient-facing
+behind a login:
+
+1. **The portal wears the clinic's brand, not ours.** Same warm-neutral
+   ground + brand accent + display serif as the clinic's public site.
+   A patient should never feel they left their dentist's world for
+   "dental software." (Tend NPS 85 vs industry ~1 is the business case.)
+2. **Every visit is a cold start.** Dental patients show up ~2×/year.
+   Passwordless re-entry (magic link / OTP), task-first landing, zero
+   reliance on the patient remembering anything.
+3. **The next-visit card is the anchor object.** State-aware CTA on the
+   card itself (confirm → fill intake → directions → reschedule), max 2-3
+   verbs on the home screen, everything else behind a tab.
+4. **Self-reschedule matters more than self-book.** It's the #1 gap in
+   the best dental apps and the #1 clinic pain (cancellations). Always
+   paired with a clinic-set notice window — inside it, route to the phone.
+5. **Honest numbers or no numbers.** Balance shown with its as-of date and
+   PMS framing; insurance shown with a "we'll verify" caveat; never an
+   eligibility promise we can't keep. Cost surprise is dentistry's #1
+   one-star theme — transparency is the moat.
+6. **Toggles hide, never disable.** A feature a clinic turns off leaves no
+   dead link, no greyed button (RevenueWell's documented dead-link toggle
+   is the anti-pattern). Clinic customization = feature switches + notice
+   windows + voice (welcome/announcement/aftercare copy) + preview-as-patient.
+7. **Humans are one tap away on every screen.** Phone number visible
+   everywhere; "Message us" framed as reaching the front desk. 70% of
+   portal non-users prefer talking to a person — the portal routes to
+   humans, it doesn't replace them.
+8. **Real faces, anti-shame voice.** Provider headshots on visit cards,
+   "no judgment" cancellation copy, plain words ("A few questions before
+   your visit", never "Intake Form Submission").
+
 ## Module roadmap
 
 Phased by what unlocks the most platform value with the least dependent work.

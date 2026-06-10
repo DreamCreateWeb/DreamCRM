@@ -58,6 +58,10 @@ vi.mock('@/lib/db/schema/clinic', () => ({
   membershipPlan: {},
   formSubmission: { id: 'fs.id', patientId: 'fs.pat', organizationId: 'fs.org', formTemplateId: 'fs.ft', submittedAt: 'fs.sa' },
   formTemplate: { id: 'ft.id', title: 'ft.title' },
+  // Portal v2 additions — referenced at module level by patient-portal.ts
+  // (visitSelection / balance payments); empty objects satisfy the import.
+  clinicProvider: {},
+  patientBalancePayment: {},
 }))
 vi.mock('@/lib/db/schema/platform', () => ({ clinicProfile: {} }))
 vi.mock('@/lib/services/patient-messaging', () => ({
@@ -72,6 +76,8 @@ vi.mock('drizzle-orm', () => ({
   gte: vi.fn(() => ({ _: 'gte' })),
   inArray: vi.fn(() => ({ _: 'inArray' })),
   ne: vi.fn(() => ({ _: 'ne' })),
+  isNull: vi.fn(() => ({ _: 'isNull' })),
+  lt: vi.fn(() => ({ _: 'lt' })),
 }))
 
 beforeEach(() => {

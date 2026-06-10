@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
+import { finalizeBalancePaymentFromSession } from '@/lib/services/balance-payments'
 import { finalizeMembershipFromSession, handleSubscriptionEvent } from '@/lib/services/membership'
 
 /**
@@ -33,8 +34,11 @@ export async function POST(request: Request) {
       const session = event.data.object
       const orgId = session.metadata?.organizationId as string | undefined
       if (orgId && session.id) {
-        // Subscriptions are membership joins; one-time payments are shop orders.
+        // Subscriptions are membership joins; one-time payments split on
+        // metadata.kind — portal balance payments vs shop orders.
         if (session.mode === 'subscription') await finalizeMembershipFromSession(orgId, session.id as string)
+        else if (session.metadata?.kind === 'balance_payment')
+          await finalizeBalancePaymentFromSession(orgId, session.id as string)
         else await finalizeOrderFromSession(orgId, session.id as string)
       }
     } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {

@@ -116,6 +116,60 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Patient Portal v2 — clinic-branded, research-grounded, clinic-customizable**
+  (migration 0051). The portal moved OUT of the Mosaic admin shell into its own
+  route group `app/(portal)/patient/*` (same `/patient/*` URLs) with warm
+  clinic-branded chrome: `#FAF7F2` ground + clinic `brandColor` accent + clinic
+  logo + Fraunces display headings (runtime `<link>`, same as the public site),
+  mobile bottom tab bar (≤4 primary + More sheet) + slim desktop header, footer
+  with hours/phone/address. Patients feel they're inside their CLINIC's brand,
+  not dental software (the Tend/One Medical research recipe). **Features**
+  (research-ranked): state-aware next-visit card (CTAs mutate: Confirm → Add to
+  calendar (.ics route w/ 24h alarm) → Directions → Reschedule/Cancel),
+  self-serve **reschedule + cancel** with a clinic-set notice window (inside
+  the window → "call us" + tel link), confirm sets `confirmedVia='portal'`,
+  booking with clinic-restricted visit types + min-notice + a Tend-style
+  comfort question (lands in appointment.notes), recall nudge via the shared
+  `derivePatientRecallStatus`, pre-visit form task strip, Forms page (pending
+  vs done, reuses IntakeFormRunner), Billing (PMS balance w/ honest framing +
+  **online balance payments via Stripe Connect direct charge** — new
+  `patient_balance_payment` table, idempotent finalize on the return page +
+  an `/api/webhooks/stripe-connect` branch on `metadata.kind='balance_payment'`;
+  the front desk posts payments to the PMS ledger; membership card w/ benefit
+  usage; merged payment/order history), Records (visit history, forms on file,
+  insurance w/ "we'll verify" caveat, HIPAA records-rights blurb), Messages
+  (warm reskin of the unified thread), Profile (single-column inputs +
+  marketing-email opt-in toggle w/ audit timestamps + sign out), **Family
+  access** — `patient.guardian_patient_id` self-FK (one-level tree enforced in
+  `updatePatient`), guardian sees dependents' visits + books for them
+  (`getAccessiblePatientIds` scopes every read/mutation), staff link guardians
+  via the patient Edit modal (`listPatientOptions` picker). **Magic-link
+  sign-in** (better-auth `magicLink` plugin, `disableSignUp: true`, 15-min
+  expiry, "Email me a sign-in link" on /signin) — portals die on passwords;
+  dental visits are ~6mo apart. **Customization**
+  (`clinic_profile.portal_settings` jsonb → `lib/types/portal.ts`
+  `resolvePortalSettings` merges partials over defaults, so new settings never
+  need a backfill): Settings → **Patient portal** (`/settings/portal`,
+  owner/admin save gate) with per-feature toggles where OFF = the surface
+  disappears entirely (no dead links — beats RevenueWell's documented
+  dead-link toggle), bookable-type pills (procedure visits excluded by default
+  — the wrong-type schedule-buster fix), booking/reschedule notice-hour
+  inputs, welcome headline (`{firstName}` token) + welcome message +
+  dismissible announcement bar + after-visit care note (shows ~7d post-visit),
+  team-photos toggle, and **"Preview as a patient"**
+  (`/settings/portal/preview` in its own `(preview)` route group — watermarked
+  static replica w/ a sample patient + the clinic's real saved settings; no
+  competitor ships this). Payments toggle defaults OFF + requires an active
+  Connect account. Nav derives from settings via `buildPortalNav`. The portal
+  layout also fixed a latent redirect loop (a patient member with no linked
+  patient row now gets a help screen instead of `/` ↔ `/patient/dashboard`
+  ping-pong). Demo: `DEMO_PORTAL_SETTINGS` (announcement + welcome + aftercare
+  copy) + **Lily Lopez** (Emma's 9-year-old dependent with an upcoming
+  cleaning + booked-by-mom note) seeded fresh + self-heal. Services:
+  `lib/services/portal-settings.ts`, `lib/services/balance-payments.ts`, the
+  portal-v2 block in `lib/services/patient-portal.ts`; components in
+  `components/patient-portal/`; patient-side actions in
+  `app/(portal)/patient/actions.ts`.
 - **Patient-facing email sender identity (Tier 1 + Tier 2)** — clinic→patient
   email comes FROM the clinic, not "Dream Create". `lib/email-identity.ts` (pure:
   `ClinicSender`, `clinicSenderFrom`, `formatFromHeader`, `deliverableReplyTo`) +
@@ -1275,18 +1329,17 @@ eventual App Runner → ECS move) are tracked in that section.
    custom landing pages, blog posts. Template switcher with preview
    (Cosmetic / Pediatric variants per DESIGN.md). Custom domain wiring
    for the `websiteDomain` column. Per-page SEO controls.
-6. **Patient portal completion — substantially complete.** Bills (PR
-   #145), Messages (PR #146), My Records (PR #147), and Intake forms
-   (PR #149) all shipped 2026-05-28; the patient sidebar has **no
-   remaining `'soon'` modules**. The Intake page shares the same
-   `IntakeFormRunner` component as the public `/site/[slug]/intake`
-   flow — refactored to take the submit action as a prop, so the
-   patient-portal version attaches `patientId` via session while the
-   public version stays unauthenticated. Future v1.1 additions (not
-   blocking): per-appointment form pre-fill, multi-form selection,
-   any patient-side request type beyond "send message" (dental doesn't
-   really have a "refill request" analog; the original CLAUDE.md
-   placeholder was a generic-CRM holdover).
+6. **Patient portal — v2 SHIPPED (2026-06-09; see the Patient Portal v2
+   bullet under What's wired).** Full clinic-branded redesign out of the
+   Mosaic shell + reschedule/cancel + family access + online balance
+   payments + magic-link sign-in + the /settings/portal customization
+   menu with per-feature hide-not-disable toggles and preview-as-patient.
+   Future v1.1 additions (not blocking): per-appointment form pre-fill,
+   Spanish portal locale, per-dependent portal logins for teens,
+   payment-plan support, "posted to PMS" tracking on balance payments
+   (clinic-side reconciliation list exists via
+   `listRecentBalancePayments`, no UI yet), portal-side review-request
+   surfacing after completed visits.
 7. **Patients module v2** — per-patient tags + audience targeting;
    comms preferences granularity; household linkage table for
    pediatric/family clinics; per-view audit log for Premium tier;
@@ -1476,7 +1529,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0042): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0051): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its

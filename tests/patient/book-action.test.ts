@@ -1,10 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+/**
+ * bookMyVisitAction — the portal's booking write. Server-side gates under
+ * test: tenant, the clinic's booking feature flag, the allowed-types
+ * restriction (wrong-type self-booking is the documented schedule-buster),
+ * min-notice window, slot race guard, and the guardian/dependent scope.
+ */
+
 let tenantCtx: {
   tenantType: 'platform' | 'clinic' | 'patient'
   organizationId: string
   patientId: string | null
   userName: string
+  userEmail: string
 } | null = null
 
 vi.mock('@/lib/auth/context', () => ({
@@ -16,27 +24,41 @@ vi.mock('@/lib/auth/context', () => ({
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-// redirect() throws a NEXT_REDIRECT exception by design — we catch & inspect it.
-vi.mock('next/navigation', () => ({
-  redirect: (url: string) => {
-    const err = new Error(`NEXT_REDIRECT:${url}`)
-    ;(err as Error & { digest: string }).digest = `NEXT_REDIRECT:${url}`
-    throw err
-  },
+const settings = {
+  features: { booking: true, reschedule: true, messages: true, family: true } as Record<string, boolean>,
+  booking: { allowedTypes: ['cleaning', 'checkup', 'consultation'], minNoticeHours: 2 },
+  reschedule: { minNoticeHours: 24 },
+}
+vi.mock('@/lib/services/portal-settings', () => ({
+  getPortalSettings: vi.fn(async () => settings),
+}))
+
+const accessibleIds = ['pat_1', 'pat_kid']
+vi.mock('@/lib/services/patient-portal', () => ({
+  getAccessiblePatientIds: vi.fn(async () => accessibleIds),
+  getVisitForPatients: vi.fn(async () => null),
+  sendMessageFromPatient: vi.fn(),
+}))
+
+vi.mock('@/lib/services/appointments', () => ({
+  confirmAppointment: vi.fn(),
+  cancelAppointment: vi.fn(),
+  rescheduleAppointment: vi.fn(),
 }))
 
 // Slot availability gates the insert (race-condition guard). Default: available.
 const slotAvailableMock = vi.fn(async () => true)
 vi.mock('@/lib/services/booking', () => ({
   isSlotAvailable: (...a: unknown[]) => slotAvailableMock(...(a as [])),
+  getSlotsForDay: vi.fn(async () => ({ slots: [], closedReason: null })),
   SLOT_MINUTES: 30,
 }))
 
-// PMS write-back is best-effort; stub it so the test never touches the real one.
 vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn(async () => {}) }))
-
-// Booking confirmation is best-effort; stub it (its real impl does its own DB reads).
-vi.mock('@/lib/services/booking-confirmation', () => ({ sendBookingConfirmation: vi.fn(async () => {}) }))
+const sendBookingConfirmation = vi.fn(async () => {})
+vi.mock('@/lib/services/booking-confirmation', () => ({
+  sendBookingConfirmation: (...a: unknown[]) => sendBookingConfirmation(...(a as [])),
+}))
 
 const inserts: unknown[] = []
 
@@ -49,21 +71,34 @@ vi.mock('@/lib/db', async () => {
           if (table === appointment) inserts.push(vals)
         },
       }),
+      // Patient-name lookup for the agenda title.
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ firstName: 'Jane', lastName: 'Doe' }],
+          }),
+        }),
+      }),
     },
   }
 })
 
-import { bookAppointment } from '@/app/(default)/patient/book/actions'
+import { bookMyVisitAction } from '@/app/(portal)/patient/actions'
 
 beforeEach(() => {
   inserts.length = 0
   slotAvailableMock.mockReset()
   slotAvailableMock.mockResolvedValue(true)
+  sendBookingConfirmation.mockClear()
+  settings.features.booking = true
+  settings.booking.allowedTypes = ['cleaning', 'checkup', 'consultation']
+  settings.booking.minNoticeHours = 2
   tenantCtx = {
     tenantType: 'patient',
     organizationId: 'org_1',
     patientId: 'pat_1',
     userName: 'Jane Doe',
+    userEmail: 'jane@example.com',
   }
 })
 
@@ -74,64 +109,66 @@ function form(fields: Record<string, string>) {
 }
 
 function future(ms = 86_400_000) {
-  return new Date(Date.now() + ms).toISOString().slice(0, 16)
+  return new Date(Date.now() + ms).toISOString()
 }
 
-describe('bookAppointment', () => {
-  it('rejects when not a patient tenant', async () => {
-    tenantCtx = {
-      tenantType: 'clinic',
-      organizationId: 'org_1',
-      patientId: null,
-      userName: 'X',
-    }
-    await expect(
-      bookAppointment(form({ startTime: future(), type: 'checkup' })),
-    ).rejects.toThrow(/patient/i)
+describe('bookMyVisitAction', () => {
+  it('throws when not a patient tenant', async () => {
+    tenantCtx = { tenantType: 'clinic', organizationId: 'org_1', patientId: null, userName: 'X', userEmail: 'x@x.com' }
+    await expect(bookMyVisitAction(form({ startTime: future(), type: 'checkup' }))).rejects.toThrow(/patient/i)
   })
 
-  it('rejects when patientId is null (unlinked account)', async () => {
-    tenantCtx!.patientId = null
-    await expect(
-      bookAppointment(form({ startTime: future(), type: 'checkup' })),
-    ).rejects.toThrow(/patient record/i)
-  })
-
-  it('redirects with error=invalid_time when startTime is missing', async () => {
-    await expect(bookAppointment(form({ type: 'checkup' }))).rejects.toThrow(
-      /NEXT_REDIRECT:\/patient\/book\?error=invalid_time/,
-    )
+  it('rejects when the clinic toggled booking off', async () => {
+    settings.features.booking = false
+    const r = await bookMyVisitAction(form({ startTime: future(), type: 'checkup' }))
+    expect(r.ok).toBe(false)
     expect(inserts).toHaveLength(0)
   })
 
-  it('redirects with error=invalid_time on a malformed startTime', async () => {
-    await expect(
-      bookAppointment(form({ startTime: 'invalid', type: 'checkup' })),
-    ).rejects.toThrow(/error=invalid_time/)
+  it('rejects a visit type the clinic does not allow online', async () => {
+    const r = await bookMyVisitAction(form({ startTime: future(), type: 'root_canal' }))
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { error: string }).error).toMatch(/can’t be booked online/i)
     expect(inserts).toHaveLength(0)
   })
 
-  it('redirects with error=past on a past startTime', async () => {
-    const past = new Date(Date.now() - 3600_000).toISOString().slice(0, 16)
-    await expect(bookAppointment(form({ startTime: past, type: 'checkup' }))).rejects.toThrow(
-      /error=past/,
-    )
+  it('rejects a missing/malformed startTime', async () => {
+    const r1 = await bookMyVisitAction(form({ type: 'checkup' }))
+    expect(r1.ok).toBe(false)
+    const r2 = await bookMyVisitAction(form({ type: 'checkup', startTime: 'garbage' }))
+    expect(r2.ok).toBe(false)
     expect(inserts).toHaveLength(0)
   })
 
-  it('redirects with error=unavailable when the slot is taken (race guard)', async () => {
+  it('rejects a slot inside the min-notice window', async () => {
+    // minNoticeHours=2 → a slot 30 minutes out is too soon.
+    const r = await bookMyVisitAction(form({ startTime: future(30 * 60_000), type: 'checkup' }))
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { error: string }).error).toMatch(/too soon/i)
+    expect(inserts).toHaveLength(0)
+  })
+
+  it('rejects when the slot was just taken (race guard)', async () => {
     slotAvailableMock.mockResolvedValue(false)
-    await expect(
-      bookAppointment(form({ startTime: future(), type: 'checkup' })),
-    ).rejects.toThrow(/error=unavailable/)
-    // No row inserted when the slot guard fails.
+    const r = await bookMyVisitAction(form({ startTime: future(), type: 'checkup' }))
+    expect(r).toMatchObject({ ok: false })
     expect(inserts).toHaveLength(0)
   })
 
-  it('inserts appointment scoped to org + patient (with an end time) on happy path, then redirects', async () => {
-    await expect(
-      bookAppointment(form({ startTime: future(), type: 'cleaning', notes: 'Sensitive teeth' })),
-    ).rejects.toThrow(/NEXT_REDIRECT:\/patient\/appointments/)
+  it('rejects booking for a patient outside the family scope', async () => {
+    const r = await bookMyVisitAction(
+      form({ startTime: future(), type: 'checkup', forPatientId: 'pat_stranger' }),
+    )
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { error: string }).error).toMatch(/family/i)
+    expect(inserts).toHaveLength(0)
+  })
+
+  it('books for self on the happy path — org-scoped row, portal source, comfort note in notes', async () => {
+    const r = await bookMyVisitAction(
+      form({ startTime: future(), type: 'cleaning', notes: 'Sensitive teeth', comfort: 'Nervous about needles' }),
+    )
+    expect(r).toEqual({ ok: true })
     expect(inserts).toHaveLength(1)
     const vals = inserts[0] as {
       organizationId: string
@@ -148,19 +185,25 @@ describe('bookAppointment', () => {
     expect(vals.patientId).toBe('pat_1')
     expect(vals.type).toBe('cleaning')
     expect(vals.status).toBe('scheduled')
-    expect(vals.notes).toBe('Sensitive teeth')
+    expect(vals.notes).toContain('Sensitive teeth')
+    expect(vals.notes).toContain('Comfort note: Nervous about needles')
     expect(vals.title).toMatch(/Cleaning/)
-    // Patient-portal bookings get a distinct source so the Appointments
-    // filter chip + analytics can tell them apart from public-widget bookings.
     expect(vals.source).toBe('portal')
-    // The row now carries a 30-minute end time (previously inserted as null).
-    expect(vals.endTime).toBeInstanceOf(Date)
     expect(vals.endTime.getTime() - vals.startTime.getTime()).toBe(30 * 60 * 1000)
+    expect(sendBookingConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({ patientId: 'pat_1', appointmentType: 'cleaning' }),
+    )
   })
 
-  it('defaults type to checkup when not provided', async () => {
-    await expect(bookAppointment(form({ startTime: future() }))).rejects.toThrow(/NEXT_REDIRECT/)
-    const vals = inserts[0] as { type: string }
-    expect(vals.type).toBe('checkup')
+  it('books for a linked dependent — the row carries the dependent patientId', async () => {
+    const r = await bookMyVisitAction(
+      form({ startTime: future(), type: 'cleaning', forPatientId: 'pat_kid' }),
+    )
+    expect(r).toEqual({ ok: true })
+    const vals = inserts[0] as { patientId: string }
+    expect(vals.patientId).toBe('pat_kid')
+    expect(sendBookingConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({ patientId: 'pat_kid' }),
+    )
   })
 })
