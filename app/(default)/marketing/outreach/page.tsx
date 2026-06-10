@@ -5,6 +5,10 @@ import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { resolvePatientAudience, type PatientAudienceFilterT } from '@/lib/services/marketing'
 import { listTemplates } from '@/lib/services/marketing-templates'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export const metadata = {
   title: 'Outreach Queue - DreamCRM',
@@ -135,32 +139,30 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
 
   const totalCount = sections.reduce((sum, s) => sum + s.recipients.length, 0)
 
-  return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 mb-2">
-            Outreach queue
-          </p>
-          <h1 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
-            Patients needing outreach
-          </h1>
-          <p className="text-[13px] text-stone-500 dark:text-stone-400 mt-1">
-            {totalCount === 0
-              ? 'Nobody needs outreach right now. Healthy roster.'
-              : `${totalCount} ${totalCount === 1 ? 'patient' : 'patients'} across ${sections.filter((s) => s.recipients.length > 0).length} ${sections.filter((s) => s.recipients.length > 0).length === 1 ? 'tier' : 'tiers'}.`}
-          </p>
-        </div>
-        <Link
-          href="/marketing"
-          className="text-[12px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
-        >
-          ← Recall dashboard
-        </Link>
-      </div>
+  const activeTierCount = sections.filter((s) => s.recipients.length > 0).length
 
-      {/* ── Tier filter chips ─────────────────────────────────────────── */}
+  return (
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      {/* ── Header — this page IS the queue; the per-tier "Send" buttons are
+          the actions, so no fabricated header primary. Back to the recall
+          dashboard sits as a ghost link. ──────────────────────────────── */}
+      <PageHeader
+        eyebrow={`Growth · ${ctx.organizationName}`}
+        title="Patients needing outreach"
+        subtitle={
+          totalCount === 0
+            ? 'Nobody needs outreach right now. Healthy roster.'
+            : `${totalCount} ${totalCount === 1 ? 'patient' : 'patients'} across ${activeTierCount} ${activeTierCount === 1 ? 'tier' : 'tiers'} — pick a tier and send.`
+        }
+        actions={
+          <ActionButton variant="ghost" href="/marketing">
+            ← Recall dashboard
+          </ActionButton>
+        }
+      />
+
+      {/* ── Tier filter chips (server-rendered Links — navigation, not local
+          toggle state — styled to the shared chip recipe) ──────────────── */}
       <div className="mb-6 flex flex-wrap gap-1.5">
         <TierChip href="/marketing/outreach" active={selectedTier === null} label="All tiers" count={totalCount} />
         {TIER_DEFS.map((tier) => {
@@ -186,62 +188,61 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           : '/marketing/campaigns'
         return (
           <section key={tier.key} className="mb-6">
-            <div className={`flex items-center justify-between px-4 py-3 rounded-t-xl border ${TIER_ACCENT_BG[tier.accent]}`}>
+            <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-t-xl border ${TIER_ACCENT_BG[tier.accent]}`}>
               <div>
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   {tier.label}
-                  <span className="text-[11px] font-medium opacity-80 tabular-nums">
+                  <span className="text-xs font-medium opacity-80 tabular-nums">
                     · {recipients.length} {recipients.length === 1 ? 'patient' : 'patients'}
                   </span>
                 </h2>
-                <p className="text-[11px] opacity-75 mt-0.5">{tier.description}</p>
+                <p className="text-xs opacity-80 mt-0.5">{tier.description}</p>
               </div>
               {recipients.length > 0 && (
-                <Link
-                  href={sendHref}
-                  className="text-[12px] font-semibold px-3 py-1.5 rounded-md bg-white/80 dark:bg-stone-900/80 hover:bg-white dark:hover:bg-stone-900 backdrop-blur shrink-0"
-                >
-                  Send {tier.label.toLowerCase()} →
-                </Link>
+                <ActionButton variant="primary" size="sm" href={sendHref} className="shrink-0">
+                  Send {tier.label.toLowerCase()}
+                </ActionButton>
               )}
             </div>
             {recipients.length === 0 ? (
-              <div className="border border-t-0 border-stone-200 dark:border-stone-700/60 rounded-b-xl bg-white dark:bg-stone-900 px-4 py-8 text-center">
-                <p className="text-[13px] text-stone-400 dark:text-stone-500 italic">
-                  No patients in this tier right now.
-                </p>
+              <div className="border border-t-0 border-gray-200 dark:border-gray-700/60 rounded-b-xl bg-white dark:bg-gray-800">
+                <EmptyState
+                  icon="✅"
+                  title="No patients in this tier right now."
+                  body="When someone falls into this group, they'll appear here ready to message."
+                />
               </div>
             ) : (
-              <div className="border border-t-0 border-stone-200 dark:border-stone-700/60 rounded-b-xl bg-white dark:bg-stone-900 overflow-hidden">
-                <ul className="divide-y divide-stone-100 dark:divide-stone-700/40">
+              <div className="border border-t-0 border-gray-200 dark:border-gray-700/60 rounded-b-xl bg-white dark:bg-gray-800 overflow-hidden">
+                <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
                   {recipients.slice(0, 50).map((r) => (
                     <li key={r.id}>
                       <Link
                         href={`/patients/${r.patientId}`}
-                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 dark:hover:bg-stone-800/30"
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 dark:hover:bg-gray-900/30"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                             {r.name}
                           </p>
-                          <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                             {r.email ?? <span className="italic">no email</span>}
-                            {r.phone && <span className="ml-2 text-stone-400 dark:text-stone-500">· {r.phone}</span>}
+                            {r.phone && <span className="ml-2 text-gray-500 dark:text-gray-400">· {r.phone}</span>}
                           </p>
                         </div>
                         {!r.emailOptIn && (
-                          <span title="Opted out of marketing email" className="text-stone-400 dark:text-stone-500">🔕</span>
+                          <StatusPill tone="neutral" label="Opted out" title="Opted out of marketing email — transactional messages still send" />
                         )}
                         {!r.email && (
-                          <span title="No email on file" className="text-amber-500 dark:text-amber-400">✉?</span>
+                          <StatusPill tone="warn" label="No email" title="No email on file — add one to include them in email sends" />
                         )}
-                        <span className="text-[10px] text-stone-400 dark:text-stone-500 shrink-0">View →</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">View →</span>
                       </Link>
                     </li>
                   ))}
                 </ul>
                 {recipients.length > 50 && (
-                  <div className="px-4 py-2 border-t border-stone-100 dark:border-stone-700/40 text-[11px] text-stone-400 dark:text-stone-500 italic">
+                  <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700/40 text-xs text-gray-500 dark:text-gray-400">
                     … and {recipients.length - 50} more — narrow with filters above or send the full campaign.
                   </div>
                 )}
@@ -267,19 +268,19 @@ function TierChip({
   count: number | null
   accent?: 'amber' | 'rose' | 'emerald' | 'violet'
 }) {
-  const activeAccent = accent ? TIER_ACCENT_BG[accent] : 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 border-stone-900 dark:border-stone-100'
+  const activeAccent = accent ? TIER_ACCENT_BG[accent] : 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800 border-gray-900 dark:border-gray-100'
   return (
     <Link
       href={href}
       className={
         active
-          ? `text-[12px] font-semibold px-3 py-1.5 rounded-full border ${activeAccent}`
-          : 'text-[12px] font-medium px-3 py-1.5 rounded-full bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-stone-300 text-stone-700 dark:text-stone-200'
+          ? `text-xs font-semibold px-3 py-1.5 rounded-full border ${activeAccent}`
+          : 'text-xs font-medium px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-200'
       }
     >
       {label}
       {count != null && (
-        <span className={active ? 'ml-1.5 opacity-75 tabular-nums' : 'ml-1.5 text-stone-400 dark:text-stone-500 tabular-nums'}>
+        <span className={active ? 'ml-1.5 opacity-80 tabular-nums' : 'ml-1.5 text-gray-500 dark:text-gray-400 tabular-nums'}>
           {count}
         </span>
       )}

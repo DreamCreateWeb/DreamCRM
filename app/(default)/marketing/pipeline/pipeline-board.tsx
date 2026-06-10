@@ -23,6 +23,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { cn, relativeTime } from '@/lib/utils'
 import { stageAccentClasses, type PipelineStage } from '@/lib/marketing/terminology'
+import { StatusPill } from '@/components/ui/status-pill'
 import { moveLeadAction } from '../actions'
 
 export interface PipelineLead {
@@ -156,25 +157,25 @@ function Column({ stage, leads }: { stage: PipelineStage; leads: PipelineLead[] 
     <div
       ref={setNodeRef}
       className={cn(
-        'rounded-xl border border-stone-200 dark:border-stone-700/60 bg-stone-50/60 dark:bg-stone-900/40 p-2 min-h-[10rem]',
-        isOver && 'ring-2 ring-stone-300 dark:ring-stone-600',
+        'rounded-xl border border-gray-200 dark:border-gray-700/60 bg-stone-50/60 dark:bg-gray-900/40 p-2 min-h-[10rem]',
+        isOver && 'ring-2 ring-violet-300 dark:ring-violet-700',
       )}
     >
       <div className="px-1.5 pb-2 pt-1 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', accent.dot)} />
-          <h2 className="text-[11px] uppercase tracking-wider font-semibold text-stone-600 dark:text-stone-300 truncate">
+          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', accent.dot)} aria-hidden="true" />
+          <h2 className="text-xs uppercase tracking-wider font-semibold text-gray-600 dark:text-gray-300 truncate">
             {stage.label}
           </h2>
         </div>
-        <span className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">
+        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
           {leads.length}
         </span>
       </div>
       <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-1.5">
           {leads.length === 0 ? (
-            <div className="text-[11px] text-stone-400 dark:text-stone-500 italic px-1.5 py-1.5">
+            <div className="text-xs text-gray-500 dark:text-gray-400 italic px-1.5 py-1.5">
               Drop here
             </div>
           ) : (
@@ -217,31 +218,29 @@ function LeadCard({ lead, isDragging }: { lead: PipelineLead; isDragging?: boole
         if (isDragging) e.preventDefault()
       }}
       className={cn(
-        'block bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700/60 p-2.5 transition-colors',
+        'block bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700/60 p-2.5 transition-colors',
         isDragging
           ? 'cursor-grabbing'
-          : 'hover:border-stone-300 dark:hover:border-stone-600 cursor-grab',
+          : 'hover:border-gray-300 dark:hover:border-gray-600 cursor-grab',
       )}
     >
       <div className="min-w-0">
-        <h3 className="font-medium text-[13px] leading-snug text-stone-900 dark:text-stone-100 truncate">
+        <h3 className="font-medium text-sm leading-snug text-gray-800 dark:text-gray-100 truncate">
           {lead.name}
         </h3>
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{lead.email}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{lead.email}</p>
       </div>
       <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
         {lead.leadSource && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300">
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700/40 dark:text-gray-300">
             {lead.leadSource}
           </span>
         )}
         {lead.optedOut && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-            opted out
-          </span>
+          <StatusPill tone="neutral" label="Opted out" title="Opted out of marketing — campaign sends skip this contact" />
         )}
         {lead.lastActivityAt && (
-          <span className="ml-auto text-[10px] text-stone-400 dark:text-stone-500 tabular-nums">
+          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 tabular-nums">
             {relativeTime(lead.lastActivityAt)}
           </span>
         )}

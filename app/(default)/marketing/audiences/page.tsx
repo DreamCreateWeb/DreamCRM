@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { marketingTerminology } from '@/lib/marketing/terminology'
@@ -35,24 +34,7 @@ export default async function AudiencesPage() {
   )
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
-      <div className="sm:flex sm:justify-between sm:items-center mb-4">
-        <div className="mb-3 sm:mb-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
-            Audiences
-          </h1>
-          <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5">
-            Saved segments of {t.leads} you can target with a campaign send.
-          </p>
-        </div>
-        <Link
-          href="/marketing"
-          className="text-[12px] font-medium text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
-        >
-          ← Marketing
-        </Link>
-      </div>
-
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <AudiencesClient
         initial={audiences.map((a, i) => ({
           id: a.id,
@@ -66,6 +48,8 @@ export default async function AudiencesPage() {
         tenantType={ctx.tenantType === 'platform' ? 'platform' : 'clinic'}
         stages={t.stages}
         sources={t.sources}
+        orgName={ctx.organizationName}
+        leadsLabel={t.leads}
       />
     </div>
   )

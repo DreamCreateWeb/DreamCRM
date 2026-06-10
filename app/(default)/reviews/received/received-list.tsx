@@ -3,6 +3,10 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { FlashToast } from '@/components/ui/flash-toast'
+import type { Tone } from '@/lib/ui/encodings'
 import {
   featureReviewAsTestimonialAction,
   unfeatureReviewTestimonialAction,
@@ -17,11 +21,13 @@ const PLATFORM_LABEL: Record<ReviewSite, string> = {
   yelp: 'Yelp',
 }
 
-const PLATFORM_PILL: Record<ReviewSite, string> = {
-  google: 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
-  healthgrades: 'bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
-  facebook: 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
-  yelp: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+// The "also shared on" tag is an FYI of where the review lives — Google is
+// the primary surface (info); the rest are inert labels (neutral).
+const PLATFORM_TONE: Record<ReviewSite, Tone> = {
+  google: 'info',
+  healthgrades: 'neutral',
+  facebook: 'neutral',
+  yelp: 'neutral',
 }
 
 export interface ReceivedRow {
@@ -80,13 +86,16 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   function feature() {
     setError(null)
     startTransition(async () => {
       const r = await featureReviewAsTestimonialAction({ patientId: row.patientId, reviewRequestId: row.id })
-      if (r.ok) router.refresh()
-      else setError(r.error)
+      if (r.ok) {
+        setToast('Featured on your website.')
+        router.refresh()
+      } else setError(r.error)
     })
   }
 
@@ -94,53 +103,49 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
     setError(null)
     startTransition(async () => {
       const r = await unfeatureReviewTestimonialAction(row.patientId)
-      if (r.ok) router.refresh()
-      else setError(r.error)
+      if (r.ok) {
+        setToast('Removed from your website.')
+        router.refresh()
+      } else setError(r.error)
     })
   }
 
   return (
-    <li className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
+    <li className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
       <div className="p-4 sm:p-5">
         {/* ── Header row: patient + platform + when + featured pill ─── */}
         <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
           <div className="min-w-0">
             <Link
               href={`/patients/${row.patientId}`}
-              className="font-semibold text-stone-800 dark:text-stone-100 hover:underline"
+              className="font-semibold text-gray-800 dark:text-gray-100 hover:underline"
             >
               {row.patientFirstName} {row.patientLastName}
             </Link>
-            <p className="text-[11px] text-stone-400 dark:text-stone-500">
-              {fmtLocation(row) && <span>{fmtLocation(row)} · </span>}
-              {fmtRelative(row.completedAtIso)}
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center flex-wrap gap-x-1">
+              {fmtLocation(row) && <span>{fmtLocation(row)} ·</span>}
+              <span>{fmtRelative(row.completedAtIso)}</span>
               {row.selectedSite && (
                 <>
-                  {' · also shared on '}
-                  <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded ml-0.5 ${PLATFORM_PILL[row.selectedSite]}`}>
-                    {PLATFORM_LABEL[row.selectedSite]}
-                  </span>
+                  <span>· also shared on</span>
+                  <StatusPill tone={PLATFORM_TONE[row.selectedSite]} label={PLATFORM_LABEL[row.selectedSite]} />
                 </>
               )}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {row.rating != null && <Stars rating={row.rating} />}
-            {row.isFeatured && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                ✓ Featured
-              </span>
-            )}
+            {row.isFeatured && <StatusPill tone="special" label="✓ Featured" title="Showing on your public website" />}
           </div>
         </div>
 
         {/* ── The review text ───────────────────────────────────────── */}
         {row.reviewText ? (
-          <blockquote className="text-[15px] leading-[1.55] text-stone-800 dark:text-stone-100 whitespace-pre-wrap pl-3 border-l-2 border-stone-200 dark:border-stone-700/60 italic">
+          <blockquote className="text-[15px] leading-[1.55] text-gray-800 dark:text-gray-100 whitespace-pre-wrap pl-3 border-l-2 border-gray-200 dark:border-gray-700/60 italic">
             &ldquo;{row.reviewText}&rdquo;
           </blockquote>
         ) : (
-          <div className="text-[13px] text-stone-500 dark:text-stone-400 italic bg-stone-50 dark:bg-stone-800/40 rounded-lg p-3">
+          <div className="text-sm text-gray-500 dark:text-gray-400 italic bg-stone-50 dark:bg-gray-900/40 rounded-lg p-3">
             This patient went straight to a third-party platform without leaving a copy here.
             Their review lives on{' '}
             {row.selectedSite ? PLATFORM_LABEL[row.selectedSite] : 'the public-review site they picked'}
@@ -150,35 +155,34 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
 
         {/* ── Toggle action ─────────────────────────────────────────── */}
         <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="text-[11px] text-stone-400 dark:text-stone-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             {row.isFeatured
-              ? "Showing as a testimonial on your public site."
+              ? 'Showing as a testimonial on your public site.'
               : row.reviewText
                 ? 'Privacy-safe display label is set from this patient — "First L." + city.'
                 : ''}
           </p>
           {row.reviewText && (
-            <button
-              type="button"
+            <ActionButton
+              variant={row.isFeatured ? 'secondary' : 'primary'}
+              size="sm"
               onClick={row.isFeatured ? unfeature : feature}
               disabled={pending}
-              className={
-                row.isFeatured
-                  ? 'text-[12px] font-semibold px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50'
-                  : 'text-[12px] font-semibold px-3 py-1.5 rounded-md bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 disabled:opacity-50'
-              }
+              className="shrink-0"
             >
               {pending
                 ? 'Saving…'
                 : row.isFeatured
                   ? 'Remove from website'
                   : 'Feature on website →'}
-            </button>
+            </ActionButton>
           )}
         </div>
 
-        {error && <p className="text-[12px] text-rose-600 dark:text-rose-400 mt-2">{error}</p>}
+        {error && <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{error}</p>}
       </div>
+
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </li>
   )
 }

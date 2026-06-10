@@ -4,6 +4,8 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Drawer from '@/components/ui/drawer'
 import { stageAccentClasses, type PipelineStage } from '@/lib/marketing/terminology'
+import { ActionButton } from '@/components/ui/action-button'
+import { FlashToast } from '@/components/ui/flash-toast'
 import {
   archiveLeadAction,
   setOptedOutAction,
@@ -38,6 +40,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
   const [pending, startTransition] = useTransition()
   const [draft, setDraft] = useState<PipelineLeadDetail | null>(lead)
   const [dirty, setDirty] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     setDraft(lead)
@@ -64,6 +67,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
         notes: draft.notes,
       })
       setDirty(false)
+      setToast('Lead saved.')
       router.refresh()
     })
   }
@@ -84,6 +88,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
     setDraft((d) => (d ? { ...d, optedOut: next } : d))
     startTransition(async () => {
       await setOptedOutAction(lead.id, next)
+      setToast(next ? 'Opted out of marketing.' : 'Re-subscribed to marketing.')
       router.refresh()
     })
   }
@@ -96,45 +101,39 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
   const accent = stageAccentClasses(stage?.accent ?? 'stone')
 
   return (
+    <>
     <Drawer
       open={true}
       onClose={close}
       size="md"
       title={
         <div className="flex items-center gap-2 min-w-0">
-          <span className={`w-1.5 h-1.5 rounded-full ${accent.dot}`} />
+          <span className={`w-1.5 h-1.5 rounded-full ${accent.dot}`} aria-hidden="true" />
           <span className="truncate">{draft.name}</span>
         </div>
       }
       actions={
-        <button
-          onClick={archive}
-          disabled={pending}
-          className="text-[12px] font-medium px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
-        >
+        <ActionButton variant="danger" size="sm" onClick={archive} disabled={pending}>
           Archive
-        </button>
+        </ActionButton>
       }
       footer={
         dirty ? (
           <div className="flex justify-end gap-2">
-            <button
+            <ActionButton
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 setDraft(lead)
                 setDirty(false)
               }}
               disabled={pending}
-              className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700"
             >
               Revert
-            </button>
-            <button
-              onClick={save}
-              disabled={pending}
-              className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 disabled:opacity-50"
-            >
+            </ActionButton>
+            <ActionButton variant="primary" size="sm" onClick={save} disabled={pending}>
               {pending ? 'Saving…' : 'Save'}
-            </button>
+            </ActionButton>
           </div>
         ) : null
       }
@@ -231,43 +230,37 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
           />
         </Section>
 
-        <div className="flex items-center justify-between bg-stone-50 dark:bg-stone-800/50 rounded-lg px-3 py-2.5">
-          <div>
-            <p className="text-[12px] font-medium text-stone-800 dark:text-stone-100">
+        <div className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-gray-900/40 rounded-lg px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
               Marketing emails
             </p>
-            <p className="text-[11px] text-stone-500 dark:text-stone-400">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {draft.optedOut
                 ? "This contact has opted out — they won't receive campaign sends."
                 : 'This contact is included in campaign sends targeted at their stage.'}
             </p>
           </div>
-          <button
-            onClick={toggleOptedOut}
-            disabled={pending}
-            className={
-              draft.optedOut
-                ? 'text-[12px] font-medium px-2.5 py-1 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20'
-                : 'text-[12px] font-medium px-2.5 py-1 rounded-md bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-600'
-            }
-          >
+          <ActionButton variant="secondary" size="sm" onClick={toggleOptedOut} disabled={pending} className="shrink-0">
             {draft.optedOut ? 'Re-subscribe' : 'Opt out'}
-          </button>
+          </ActionButton>
         </div>
 
-        <div className="text-[11px] text-stone-400 dark:text-stone-500 pt-2 border-t border-stone-100 dark:border-stone-700/40">
+        <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums pt-2 border-t border-gray-100 dark:border-gray-700/40">
           Added {new Date(draft.createdAt).toLocaleDateString()}
           {draft.lastActivityAt && ` · Last activity ${new Date(draft.lastActivityAt).toLocaleDateString()}`}
         </div>
       </div>
     </Drawer>
+    {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+    </>
   )
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+      <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
         {label}
       </span>
       {children}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { createCampaignAction } from '../actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface Props {
   campaignTypes: { key: string; label: string; description: string }[]
@@ -15,6 +16,7 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
   const [name, setName] = useState('')
   const [type, setType] = useState(campaignTypes[0]?.key ?? '')
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   // Arriving from the outreach queue → open ready to go.
   useEffect(() => {
@@ -22,61 +24,68 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
   }, [prefillAudienceId])
 
   function create() {
+    setError(null)
     startTransition(async () => {
-      await createCampaignAction({
-        name: name.trim() || campaignTypes.find((c) => c.key === type)?.label || 'Untitled campaign',
-        sendChannel: 'resend',
-        ...(prefillAudienceId ? { audienceId: prefillAudienceId } : {}),
-      })
-      // server action redirects to the editor
+      try {
+        await createCampaignAction({
+          name: name.trim() || campaignTypes.find((c) => c.key === type)?.label || 'Untitled campaign',
+          sendChannel: 'resend',
+          ...(prefillAudienceId ? { audienceId: prefillAudienceId } : {}),
+        })
+        // server action redirects to the editor on success
+      } catch (err) {
+        // createCampaignAction redirect()s on success, which throws a Next
+        // control-flow signal (digest starts with NEXT_REDIRECT) — re-throw
+        // so navigation proceeds; only show real failures.
+        const digest = (err as { digest?: string } | null)?.digest
+        if (typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT')) throw err
+        setError(err instanceof Error ? err.message : 'Could not create the campaign. Try again.')
+      }
     })
   }
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900"
-      >
+      <ActionButton variant="primary" onClick={() => setOpen(true)}>
         + New campaign
-      </button>
+      </ActionButton>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/60 flex items-center justify-center p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-md p-5"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-3">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
               New campaign
             </h2>
             {prefillAudienceId && (
-              <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3 -mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 -mt-1">
                 This campaign will target the recall audience you selected — name it and pick a starting point.
               </p>
             )}
             <label className="block mb-3">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
                 Name (internal)
               </span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. May product launch"
-                className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
               />
             </label>
             <label className="block mb-4">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
                 Type
               </span>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
               >
                 {campaignTypes.map((t) => (
                   <option key={t.key} value={t.key}>
@@ -85,21 +94,14 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
                 ))}
               </select>
             </label>
+            {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setOpen(false)}
-                disabled={pending}
-                className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700"
-              >
+              <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
                 Cancel
-              </button>
-              <button
-                onClick={create}
-                disabled={pending}
-                className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 disabled:opacity-50"
-              >
+              </ActionButton>
+              <ActionButton variant="primary" size="sm" onClick={create} disabled={pending}>
                 {pending ? 'Creating…' : 'Create'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </div>

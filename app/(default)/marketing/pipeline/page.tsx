@@ -5,6 +5,8 @@ import { getLead, listLeads } from '@/lib/services/marketing'
 import PipelineBoard, { type PipelineLead } from './pipeline-board'
 import AddLeadButton from './add-lead-button'
 import PipelineLeadDrawer from './pipeline-lead-drawer'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
 
 export const metadata = {
   title: 'Pipeline - DreamCRM',
@@ -52,18 +54,20 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
-      <div className="sm:flex sm:justify-between sm:items-center mb-4">
-        <div className="mb-3 sm:mb-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
-            {t.Leads} Pipeline
-          </h1>
-          <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-0.5">
-            Drag a card to move {t.lead === 'lead' ? 'a lead' : 'a patient'} between stages.
-          </p>
-        </div>
-        <AddLeadButton stages={t.stages} sources={t.sources} />
-      </div>
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <PageHeader
+        eyebrow={`Growth · ${ctx.organizationName}`}
+        title={`${t.Leads} pipeline`}
+        subtitle={`Drag a card to move ${t.lead === 'lead' ? 'a lead' : 'a patient'} between stages.`}
+        actions={
+          <>
+            <ActionButton variant="secondary" href="/marketing">
+              ← Marketing
+            </ActionButton>
+            <AddLeadButton stages={t.stages} sources={t.sources} />
+          </>
+        }
+      />
 
       <PipelineBoard
         initialByStage={byStage}

@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { sendReviewRequestAction } from './actions'
+import { ActionButton } from '@/components/ui/action-button'
+import { FlashToast } from '@/components/ui/flash-toast'
 
 interface EligibleRow {
   patientId: string
@@ -32,6 +34,7 @@ export default function EligibleList({ rows }: Props) {
   const [pending, startTransition] = useTransition()
   const [sentIds, setSentIds] = useState<Set<string>>(new Set())
   const [errorByPatient, setErrorByPatient] = useState<Record<string, string>>({})
+  const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
 
   function handleSend(row: EligibleRow) {
     if (sentIds.has(row.patientId)) return
@@ -52,59 +55,63 @@ export default function EligibleList({ rows }: Props) {
           delete next[row.patientId]
           return next
         })
+        setToast({ message: `Review request sent to ${row.patientName.split(' ')[0]}.`, tone: 'ok' })
         router.refresh()
       } catch (err) {
-        setErrorByPatient((e) => ({
-          ...e,
-          [row.patientId]: err instanceof Error ? err.message : 'Send failed',
-        }))
+        const message = err instanceof Error ? err.message : 'Send failed'
+        setErrorByPatient((e) => ({ ...e, [row.patientId]: message }))
+        setToast({ message, tone: 'urgent' })
       }
     })
   }
 
   return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
-      <ul className="divide-y divide-stone-100 dark:divide-stone-700/40">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+      <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
         {rows.map((r) => {
           const sent = sentIds.has(r.patientId)
           const err = errorByPatient[r.patientId]
           return (
-            <li key={r.patientId} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-stone-50 dark:hover:bg-stone-800/30">
+            <li key={r.patientId} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-stone-50 dark:hover:bg-gray-900/30">
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/patients/${r.patientId}`}
-                  className="text-[13px] font-medium text-stone-800 dark:text-stone-100 hover:underline"
+                  className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:underline"
                 >
                   {r.patientName}
                 </Link>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   {r.patientEmail ?? <span className="italic">no email</span>}
-                  <span className="mx-1.5 text-stone-300 dark:text-stone-600">·</span>
+                  <span className="mx-1.5 text-gray-400 dark:text-gray-500">·</span>
                   <span className="capitalize">{r.appointmentType.replace(/_/g, ' ')}</span>
-                  <span className="mx-1.5 text-stone-300 dark:text-stone-600">·</span>
+                  <span className="mx-1.5 text-gray-400 dark:text-gray-500">·</span>
                   completed {fmtCompletedAt(r.appointmentCompletedAt)}
                 </p>
                 {err && (
-                  <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">{err}</p>
+                  <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">{err}</p>
                 )}
               </div>
               {sent ? (
-                <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
                   ✓ Sent
                 </span>
               ) : (
-                <button
+                <ActionButton
+                  variant="primary"
+                  size="sm"
                   onClick={() => handleSend(r)}
                   disabled={pending}
-                  className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 disabled:opacity-50 shrink-0"
+                  className="shrink-0"
                 >
                   {pending ? 'Sending…' : 'Send request'}
-                </button>
+                </ActionButton>
               )}
             </li>
           )
         })}
       </ul>
+
+      {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>
   )
 }

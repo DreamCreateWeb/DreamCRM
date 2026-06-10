@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import {
@@ -6,6 +5,9 @@ import {
   listReviewsReceived,
 } from '@/lib/services/reviews'
 import ReceivedList from './received-list'
+import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export const metadata = {
   title: 'Reviews received — DreamCRM',
@@ -42,52 +44,43 @@ export default async function ReviewsReceivedPage() {
   const featuredCount = rows.filter((r) => r.isFeatured).length
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1100px] mx-auto">
-      <div className="mb-5 flex items-center justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
-          <Link
-            href="/reviews"
-            className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
-          >
-            ← Reviews
-          </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-stone-800 dark:text-stone-100 mt-1">
-            Reviews received
-          </h1>
-          <p className="text-[13px] text-stone-500 dark:text-stone-400 mt-1 max-w-[640px]">
-            Every review your patients have left. Read them, then pick which to
-            feature on your public website. You can&apos;t edit the patient&apos;s
-            words — only the patient owns those.
-          </p>
-        </div>
-        {totalCount > 0 && (
-          <div className="text-right shrink-0">
-            <p className="text-2xl font-bold text-stone-800 dark:text-stone-100 tabular-nums">
-              {featuredCount}
-              <span className="text-stone-400 dark:text-stone-500 font-medium"> / {totalCount}</span>
-            </p>
-            <p className="text-[11px] uppercase tracking-wider text-stone-500 dark:text-stone-400">
-              Featured on site
-            </p>
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[1100px] mx-auto">
+      <PageHeader
+        eyebrow={`Growth · ${ctx.organizationName}`}
+        title="Reviews received"
+        subtitle="Every review your patients have left. Read them, then pick which to feature on your public website. You can't edit the patient's words — only the patient owns those."
+        actions={
+          <div className="flex items-center gap-4">
+            {totalCount > 0 && (
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 tabular-nums leading-none">
+                  {featuredCount}
+                  <span className="text-gray-500 dark:text-gray-400 font-medium"> / {totalCount}</span>
+                </p>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mt-0.5">
+                  Featured on site
+                </p>
+              </div>
+            )}
+            <ActionButton variant="secondary" href="/reviews">
+              ← Reviews
+            </ActionButton>
           </div>
-        )}
-      </div>
+        }
+      />
 
       {rows.length === 0 ? (
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-12 text-center">
-          <p className="text-3xl mb-3">⭐</p>
-          <p className="text-sm font-medium text-stone-800 dark:text-stone-100 mb-1">
-            No reviews yet
-          </p>
-          <p className="text-[12px] text-stone-500 dark:text-stone-400 max-w-md mx-auto">
-            When a patient writes a review on their request link, it lands here so
-            you can read it and decide whether to feature it on your public site.
-            Send a few requests from the{' '}
-            <Link href="/reviews" className="font-medium text-violet-600 dark:text-violet-400 hover:underline">
-              Reviews dashboard
-            </Link>{' '}
-            to get started.
-          </p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
+          <EmptyState
+            icon="⭐"
+            title="No reviews yet"
+            body="When a patient writes a review on their request link, it lands here so you can read it and decide whether to feature it on your public site."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/reviews">
+                Send a request from the Reviews dashboard
+              </ActionButton>
+            }
+          />
         </div>
       ) : (
         <ReceivedList rows={rows} />
