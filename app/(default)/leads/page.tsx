@@ -40,7 +40,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       <div className="px-4 sm:px-6 lg:px-8 pt-6 w-full max-w-[96rem] mx-auto -mb-2">
         <ModuleHint id="leads" />
       </div>
-      <LeadsView rows={rows} counts={counts} status={status} search={search ?? ''} />
+      <LeadsView rows={rows} counts={counts} status={status} search={search ?? ''} orgName={ctx.organizationName} />
     </>
   )
 }

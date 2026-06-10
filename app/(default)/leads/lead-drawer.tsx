@@ -3,6 +3,10 @@
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus } from '@/lib/services/leads'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import { FlashToast } from '@/components/ui/flash-toast'
+import type { Tone } from '@/lib/ui/encodings'
 import {
   markLeadContactedAction,
   archiveLeadAction,
@@ -11,11 +15,14 @@ import {
   previewLeadConvertAction,
 } from './actions'
 
-const STATUS_PILL: Record<LeadStatus, string> = {
-  new: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-  contacted: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  converted: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  archived: 'bg-stone-500/15 text-stone-600 dark:text-stone-300',
+// Same tone-contract mapping the list uses (see leads-view): new=special,
+// contacted=info (ball is theirs once we reach out), converted=ok,
+// archived=neutral.
+const STATUS_TONE: Record<LeadStatus, Tone> = {
+  new: 'special',
+  contacted: 'info',
+  converted: 'ok',
+  archived: 'neutral',
 }
 const STATUS_LABEL: Record<LeadStatus, string> = {
   new: 'New',
@@ -23,6 +30,14 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
   converted: 'Converted',
   archived: 'Archived',
 }
+const STATUS_PILL_MEANING: Record<LeadStatus, string> = {
+  new: 'Just arrived — needs a first call',
+  contacted: "We reached out — ball's in their court",
+  converted: 'Became a patient',
+  archived: 'Spam, wrong number, or not a fit',
+}
+
+const LABEL_CLASS = 'text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold'
 
 function fmtFull(d: Date): string {
   return d.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -48,7 +63,6 @@ export default function LeadDrawer({
 
   function flash(msg: string) {
     setToast(msg)
-    setTimeout(() => setToast(null), 2500)
   }
 
   function refreshAndClose() {
@@ -117,7 +131,7 @@ export default function LeadDrawer({
       <div className="bg-white dark:bg-gray-800 w-full sm:w-[480px] h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Lead</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
 
         <div className="px-5 py-5 space-y-4 flex-1">
@@ -125,13 +139,17 @@ export default function LeadDrawer({
           <div>
             <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">{row.name}</h3>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_PILL[row.status]}`}>
-                {STATUS_LABEL[row.status]}
-              </span>
+              <StatusPill
+                tone={STATUS_TONE[row.status]}
+                label={STATUS_LABEL[row.status]}
+                title={STATUS_PILL_MEANING[row.status]}
+              />
               {row.status === 'new' && row.ageHours <= 1 && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                  Fresh — call now
-                </span>
+                <StatusPill
+                  tone="ok"
+                  label="Fresh — call now"
+                  title="Conversion is highest in the first hour — call now"
+                />
               )}
               {row.status === 'converted' && row.convertedPatientName && (
                 <span className="text-xs text-emerald-700 dark:text-emerald-300">
@@ -144,18 +162,18 @@ export default function LeadDrawer({
           {/* Contact */}
           <div className="space-y-1 text-sm">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold w-16">Phone</span>
+              <span className={`${LABEL_CLASS} w-16`}>Phone</span>
               <a href={`tel:${row.phone}`} className="text-gray-800 dark:text-gray-100 hover:underline">{row.phone}</a>
             </div>
             {row.email && (
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold w-16">Email</span>
+                <span className={`${LABEL_CLASS} w-16`}>Email</span>
                 <a href={`mailto:${row.email}`} className="text-gray-800 dark:text-gray-100 hover:underline">{row.email}</a>
               </div>
             )}
             {row.preferredDate && (
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold w-16">Prefers</span>
+                <span className={`${LABEL_CLASS} w-16`}>Prefers</span>
                 <span className="text-gray-800 dark:text-gray-100">{row.preferredDate}</span>
               </div>
             )}
@@ -164,43 +182,53 @@ export default function LeadDrawer({
           {/* Message */}
           {row.message && (
             <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-              <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Message</p>
+              <p className={`${LABEL_CLASS} mb-1`}>Message</p>
               <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap italic">
                 &ldquo;{row.message}&rdquo;
               </p>
             </div>
           )}
 
-          {/* Action buttons */}
+          {/* Action ladder — ONE primary, following the lifecycle:
+              new → Mark contacted · contacted → Convert · converted → Open
+              patient. Archive/Reopen are secondary (not destructive). */}
           <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/60">
             {row.status === 'new' && (
               <>
-                <button onClick={onMarkContacted} disabled={pending} className="btn-sm bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50">
+                <ActionButton variant="primary" size="sm" onClick={onMarkContacted} disabled={pending}>
                   Mark contacted
-                </button>
-                <button onClick={onConvert} disabled={pending} className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                </ActionButton>
+                <ActionButton variant="secondary" size="sm" onClick={onConvert} disabled={pending}>
                   Convert to patient
-                </button>
+                </ActionButton>
+                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
+                  Archive
+                </ActionButton>
               </>
             )}
             {row.status === 'contacted' && (
-              <button onClick={onConvert} disabled={pending} className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
-                Convert to patient
-              </button>
+              <>
+                <ActionButton variant="primary" size="sm" onClick={onConvert} disabled={pending}>
+                  Convert to patient
+                </ActionButton>
+                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
+                  Archive
+                </ActionButton>
+              </>
             )}
-            {(row.status === 'new' || row.status === 'contacted') && (
-              <button onClick={() => setArchiveOpen(true)} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-red-600 disabled:opacity-50">
-                Archive
-              </button>
+            {row.status === 'converted' && row.convertedToPatientId && (
+              <ActionButton variant="primary" size="sm" href={`/patients/${row.convertedToPatientId}`}>
+                Open patient
+              </ActionButton>
             )}
             {row.status === 'archived' && (
-              <button onClick={onReopen} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50">
+              <ActionButton variant="secondary" size="sm" onClick={onReopen} disabled={pending}>
                 Reopen
-              </button>
+              </ActionButton>
             )}
           </div>
 
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
           {/* Dedupe confirmation — convert matched an existing patient. */}
           {dedupeMatch && (
@@ -211,27 +239,15 @@ export default function LeadDrawer({
                 them, or create a separate patient (e.g. a family member on a shared number)?
               </p>
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => runConvert(false)}
-                  disabled={pending}
-                  className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
+                <ActionButton variant="primary" size="sm" onClick={() => runConvert(false)} disabled={pending}>
                   Link to {dedupeMatch.split(' ')[0]}
-                </button>
-                <button
-                  onClick={() => runConvert(true)}
-                  disabled={pending}
-                  className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50"
-                >
+                </ActionButton>
+                <ActionButton variant="secondary" size="sm" onClick={() => runConvert(true)} disabled={pending}>
                   Create separate patient
-                </button>
-                <button
-                  onClick={() => setDedupeMatch(null)}
-                  disabled={pending}
-                  className="btn-sm text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                >
+                </ActionButton>
+                <ActionButton variant="ghost" size="sm" onClick={() => setDedupeMatch(null)} disabled={pending}>
                   Cancel
-                </button>
+                </ActionButton>
               </div>
             </div>
           )}
@@ -239,7 +255,7 @@ export default function LeadDrawer({
           {/* Source attribution */}
           {(row.sourcePage || row.referrer || row.utmSource) && (
             <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-              <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Where they came from</p>
+              <p className={`${LABEL_CLASS} mb-1`}>Where they came from</p>
               <div className="space-y-0.5 text-xs text-gray-700 dark:text-gray-300">
                 {row.sourcePage && <p>Page · <span className="text-gray-500 dark:text-gray-400">{row.sourcePage}</span></p>}
                 {row.referrer && <p>Referrer · <span className="text-gray-500 dark:text-gray-400">{row.referrer}</span></p>}
@@ -252,7 +268,7 @@ export default function LeadDrawer({
 
           {/* Lifecycle audit */}
           <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Timeline</p>
+            <p className={`${LABEL_CLASS} mb-1`}>Timeline</p>
             <ul className="space-y-0.5 text-xs text-gray-700 dark:text-gray-300">
               <li>Landed · {fmtFull(row.createdAt)}</li>
               {row.contactedAt && <li>Contacted · {fmtFull(row.contactedAt)}</li>}
@@ -271,7 +287,7 @@ export default function LeadDrawer({
           <div className="absolute inset-0 bg-white dark:bg-gray-800 flex flex-col">
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Archive lead</h3>
-              <button onClick={() => setArchiveOpen(false)} className="text-gray-400 hover:text-gray-600">← Back</button>
+              <button onClick={() => setArchiveOpen(false)} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700">← Back</button>
             </div>
             <div className="px-5 py-5 space-y-3 flex-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -292,21 +308,17 @@ export default function LeadDrawer({
               </select>
             </div>
             <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
-              <button onClick={() => setArchiveOpen(false)} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200">
+              <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)} disabled={pending}>
                 Cancel
-              </button>
-              <button onClick={onArchive} disabled={pending} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 disabled:opacity-50">
+              </ActionButton>
+              <ActionButton variant="primary" size="sm" onClick={onArchive} disabled={pending}>
                 {pending ? 'Archiving…' : 'Confirm archive'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         )}
 
-        {toast && (
-          <div className="absolute bottom-4 right-4 bg-emerald-700 text-white text-xs px-3 py-2 rounded shadow">
-            {toast}
-          </div>
-        )}
+        {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
       </div>
     </div>
   )

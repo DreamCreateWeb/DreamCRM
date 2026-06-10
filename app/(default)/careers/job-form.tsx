@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, type JobPostingRow } from '@/lib/types/careers'
 import { createJobAction, updateJobAction } from './actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 const FIELD = 'w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800'
 const LABEL = 'block text-[12px] font-medium text-stone-700 dark:text-stone-200 mb-1'
@@ -114,10 +115,10 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
         </div>
 
         <div className="flex items-center gap-3 pt-2">
-          <button className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900">
+          <ActionButton type="submit" variant="primary">
             {editing ? 'Save changes' : 'Create role'}
-          </button>
-          <Link href="/careers" className="text-[13px] text-stone-500 dark:text-stone-400 hover:underline">
+          </ActionButton>
+          <Link href="/careers" className="text-sm text-stone-500 dark:text-stone-400 hover:underline">
             Cancel
           </Link>
         </div>

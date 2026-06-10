@@ -10,6 +10,7 @@ import type {
   FormTemplateSchema,
 } from '@/lib/types/forms'
 import { archiveFormAction, saveFormAction } from '../actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface Props {
   template: FormTemplate
@@ -258,7 +259,7 @@ export default function FormBuilder({ template }: Props) {
           {/* Fields */}
           <div className="space-y-3 pl-6 border-l-2 border-gray-100 dark:border-gray-700/60 ml-2">
             {section.fields.length === 0 && (
-              <p className="text-xs text-gray-400 italic">No fields yet — add one below.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 italic">No fields yet — add one below.</p>
             )}
             {section.fields.map((field, fi) => (
               <FieldRow
@@ -303,18 +304,13 @@ export default function FormBuilder({ template }: Props) {
             type="button"
             onClick={handleArchive}
             disabled={pending}
-            className="text-sm text-red-500 hover:text-red-600 disabled:opacity-50"
+            className="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-400 disabled:opacity-50"
           >
             Archive
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={pending}
-            className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-60"
-          >
+          <ActionButton type="button" variant="primary" onClick={handleSave} disabled={pending}>
             {pending ? 'Saving…' : 'Save'}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -359,7 +355,7 @@ function FieldRow({
         </div>
         <div className="flex-1 space-y-2">
           <div className="flex gap-2 flex-wrap items-center">
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-semibold uppercase tracking-wider bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full">
               {FIELD_TYPE_LABELS[field.type]}
             </span>
             <label className="text-xs flex items-center gap-1 text-gray-600 dark:text-gray-400">
