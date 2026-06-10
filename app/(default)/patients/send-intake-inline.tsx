@@ -57,7 +57,7 @@ export default function SendIntakeInline({
           onChange={(e) => setFormId(e.target.value)}
           disabled={pending}
           aria-label="Choose intake form"
-          className="text-[11px] rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-1.5 py-0.5 max-w-[10rem]"
+          className="text-xs rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-1.5 py-0.5 max-w-[10rem]"
         >
           {forms.map((f) => (
             <option key={f.id} value={f.id}>
@@ -79,7 +79,7 @@ export default function SendIntakeInline({
       </button>
       {feedback && (
         <span
-          className={`text-[11px] ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+          className={`text-xs ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}
         >
           {feedback.msg}
         </span>

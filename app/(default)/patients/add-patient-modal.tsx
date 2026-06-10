@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { ActionButton } from '@/components/ui/action-button'
 import { createPatientAction } from './actions'
 
 export default function AddPatientModal({ onClose }: { onClose: () => void }) {
@@ -24,7 +25,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Add patient</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Lightweight v1: name, contact, and DOB. You can fill in the rest from the patient page.
+            Just the basics: name, contact, and date of birth. You can fill in the rest from the patient page.
           </p>
         </div>
         <form action={submit} className="px-6 py-5 space-y-3">
@@ -50,14 +51,14 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Date of birth</span>
             <input name="dateOfBirth" type="date" className="form-input w-full mt-1 text-sm" />
           </label>
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
           <div className="pt-2 flex justify-end gap-2">
-            <button type="button" onClick={onClose} disabled={pending} className="btn-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200">
+            <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
               Cancel
-            </button>
-            <button type="submit" disabled={pending} className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 disabled:opacity-50">
+            </ActionButton>
+            <ActionButton variant="primary" size="sm" type="submit" disabled={pending}>
               {pending ? 'Saving…' : 'Save & open'}
-            </button>
+            </ActionButton>
           </div>
         </form>
       </div>
