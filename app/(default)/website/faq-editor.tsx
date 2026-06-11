@@ -57,8 +57,8 @@ export default function FaqEditor({ name, defaultValue }: Props) {
       <input type="hidden" name={name} value={JSON.stringify(items)} />
 
       {items.length === 0 && (
-        <div className="rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-5 text-center">
-          <p className="text-[13px] leading-relaxed text-stone-500 dark:text-stone-400 mb-4">
+        <div className="v2-well p-5 text-center">
+          <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400 mb-4">
             No questions yet. Patients with questions about insurance, anxiety, or their first
             visit convert better when you answer them up front.
           </p>
@@ -73,12 +73,12 @@ export default function FaqEditor({ name, defaultValue }: Props) {
             <button
               type="button"
               onClick={add}
-              className="btn-sm bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-stone-300 text-stone-700 dark:text-stone-200"
+              className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
             >
               + Add blank question
             </button>
           </div>
-          <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
             “Start from the basics” loads {DEFAULT_FAQ_ITEMS.length} universal dental questions you
             can edit or delete.
           </p>

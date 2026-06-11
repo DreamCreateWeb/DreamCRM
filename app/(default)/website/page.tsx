@@ -39,18 +39,16 @@ export default async function WebsiteEditorPage() {
   if (!profile) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-10 max-w-3xl mx-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700/60">
-          <EmptyState
-            icon="🌐"
-            title="Your clinic profile isn’t set up yet"
-            body="Finish setting up your clinic to publish your public site — then you can edit it in place, live."
-            action={
-              <ActionButton variant="primary" size="sm" href="/settings/clinic">
-                Set up your clinic
-              </ActionButton>
-            }
-          />
-        </div>
+        <EmptyState
+          icon="🌐"
+          title="Your clinic profile isn’t set up yet"
+          body="Finish setting up your clinic to publish your public site — then you can edit it in place, live."
+          action={
+            <ActionButton variant="primary" size="sm" href="/settings/clinic">
+              Set up your clinic
+            </ActionButton>
+          }
+        />
       </div>
     )
   }

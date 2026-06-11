@@ -299,7 +299,7 @@ export default function ShopClient({
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{p.name}</span>
                   <StatusPill tone={PRODUCT_STATUS_TONE[p.status]} label={PRODUCT_STATUS_LABEL[p.status]} />
-                  {p.fsaEligible && <span className="text-xs text-sky-700 dark:text-sky-300">FSA (Rx)</span>}
+                  {p.fsaEligible && <span className="text-xs text-indigo-700 dark:text-indigo-300">FSA (Rx)</span>}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">
                   {CATEGORY_LABELS[p.category]} ·{' '}
