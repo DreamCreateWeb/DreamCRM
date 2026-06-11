@@ -5,6 +5,7 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
+import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 
 const BG = '#FAF7F2'
 const INK = '#1C1A17'
@@ -22,8 +23,10 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/blog`
-  const title = `Blog — ${name}`
-  const description = `Oral-health tips, treatment guides, and news from ${name}.`
+  const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta)['blog-index'], {
+    title: `Blog — ${name}`,
+    description: `Oral-health tips, treatment guides, and news from ${name}.`,
+  })
   return {
     title,
     description,

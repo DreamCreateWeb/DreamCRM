@@ -637,6 +637,37 @@ export const analyticsEvents = pgTable(
   (t) => [uniqueIndex('analytics_events_name_time_idx').on(t.name, t.occurredAt)]
 )
 
+// ---------- Public-site pageviews (daily rollup) ----------
+// One row per (organization, day, path) — a daily counter, NOT a raw event log
+// (no per-visit row, no PII, no IP/UA stored). The public-site beacon
+// (POST /api/site-view) upserts here: INSERT … ON CONFLICT (org,day,path)
+// DO UPDATE views = views + 1. This is the clinic's FIRST real "how many people
+// visit my site" number — GSC clicks (search-only, ~2-day lag) were the only
+// proxy before. `path` is normalized (query string stripped). `?edit=1` Studio
+// canvases + obvious bots are excluded at the route, so the count reflects real
+// visitors. Surfaced on /analytics (Acquisition) + /seo (Visits vs GSC clicks).
+export const sitePageview = pgTable(
+  'site_pageview',
+  {
+    id: serial('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // Calendar day the views were counted (UTC date — a daily bucket, not a
+    // timestamp). `date` mode 'string' keeps it a 'YYYY-MM-DD' string app-side.
+    day: date('day', { mode: 'string' }).notNull(),
+    // Normalized request path (query stripped, trailing slash trimmed). '/' for
+    // the homepage. Capped in the route so a hostile path can't bloat the row.
+    path: text('path').notNull(),
+    views: integer('views').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('site_pageview_org_day_path_idx').on(t.organizationId, t.day, t.path)]
+)
+export type SitePageview = typeof sitePageview.$inferSelect
+export type NewSitePageview = typeof sitePageview.$inferInsert
+
 export type Customer = typeof customers.$inferSelect
 export type NewCustomer = typeof customers.$inferInsert
 export type Order = typeof orders.$inferSelect

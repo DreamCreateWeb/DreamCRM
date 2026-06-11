@@ -11,6 +11,7 @@ import { listActivePlans } from '@/lib/services/membership'
 import { getCompletedReviewCount } from '@/lib/services/reviews'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
+import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import ModernTemplate from '@/components/clinic-site/modern-template'
 
 interface Props {
@@ -24,11 +25,16 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const tagline = data.profile.tagline ?? null
-  const description =
+  const derivedDescription =
     tagline ??
     (data.profile.about ? data.profile.about.slice(0, 160) : `Welcome to ${name}.`)
   const url = publicSiteUrl(data)
-  const title = tagline ? `${name} — ${tagline}` : name
+  const derivedTitle = tagline ? `${name} — ${tagline}` : name
+  // Per-page Search-appearance override wins when the clinic set one.
+  const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).home, {
+    title: derivedTitle,
+    description: derivedDescription,
+  })
 
   return {
     title,

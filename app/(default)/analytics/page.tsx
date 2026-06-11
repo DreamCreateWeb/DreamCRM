@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
+import { getSiteTraffic } from '@/lib/services/site-analytics'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -12,6 +13,11 @@ export const dynamic = 'force-dynamic'
 
 function humanize(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+// 'YYYY-MM-DD' → compact 'M/D' for the daily-visits sparkline x-axis.
+function shortDay(day: string): string {
+  const [, m, d] = day.split('-')
+  return m && d ? `${Number(m)}/${Number(d)}` : day
 }
 function pct(n: number | null): string {
   return n == null ? '—' : `${(n * 100).toFixed(1)}%`
@@ -29,7 +35,11 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   const { days } = await searchParams
   const windowDays = days === '90' ? 90 : 30
-  const a = await getClinicAnalytics(ctx.organizationId, windowDays)
+  const [a, traffic] = await Promise.all([
+    getClinicAnalytics(ctx.organizationId, windowDays),
+    getSiteTraffic(ctx.organizationId, windowDays),
+  ])
+  const trafficDelta = traffic.total - traffic.totalPrev
 
   const newPatientsDelta = a.acquisition.newPatients - a.acquisition.newPatientsPrev
   // Rates on a tiny sample are meaningless (and a single no-show would read as
@@ -102,6 +112,47 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               { label: 'Converted to patient', value: a.acquisition.websiteFunnel.converted },
             ]}
           />
+        </Card>
+        {/* Website visits — the first real "how many people land on my site"
+            number (every channel, not just search). Drillable to top pages. */}
+        <Card className="mt-4">
+          <div className="flex items-baseline justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+                Website visits
+              </p>
+              <p className="text-4xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">
+                {traffic.total.toLocaleString()}
+              </p>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                all visits to your public site · last {windowDays} days
+              </p>
+            </div>
+            <DeltaBadge value={trafficDelta} />
+          </div>
+          {traffic.total === 0 ? (
+            <p className="mt-4 text-xs text-stone-500 dark:text-stone-400 italic">
+              No visits counted yet — this fills in as people land on your site.
+            </p>
+          ) : (
+            <>
+              <Bars
+                points={traffic.daily.map((d) => ({ label: shortDay(d.day), count: d.views }))}
+                className="mt-4"
+              />
+              {traffic.topPages.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+                    Top pages
+                  </p>
+                  <RankBars
+                    rows={traffic.topPages.map((p) => ({ label: p.path === '/' ? 'Home' : p.path, value: p.views }))}
+                    compact
+                  />
+                </div>
+              )}
+            </>
+          )}
         </Card>
       </Section>
 

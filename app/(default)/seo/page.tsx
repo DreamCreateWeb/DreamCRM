@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getSiteHealth, getOrganicAttribution, type CheckStatus } from '@/lib/services/seo'
-import { getReviewStats } from '@/lib/services/reviews'
+import { getReviewStats, getReviewConfig, reviewPlatformUrl } from '@/lib/services/reviews'
+import { getSiteTraffic } from '@/lib/services/site-analytics'
+import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
 import {
   getGscConnectionView,
   listGscSites,
@@ -48,11 +50,32 @@ export default async function SeoPage({ searchParams }: Props) {
   // the clinic read view, which is the point of demo mode.
   const isManage = ctx.tenantType === 'platform'
 
-  const [health, attr, reviews] = await Promise.all([
+  const [health, attr, reviews, traffic, reviewConfig, clinicSite] = await Promise.all([
     getSiteHealth(ctx.organizationId),
     getOrganicAttribution(ctx.organizationId, 30),
     getReviewStats(ctx.organizationId),
+    getSiteTraffic(ctx.organizationId, 30),
+    getReviewConfig(ctx.organizationId),
+    getClinicSiteBySlug(ctx.organizationSlug),
   ])
+  // The clinic's actual Google review write-link, if they configured a Place ID.
+  const googleReviewUrl = reviewPlatformUrl('google', reviewConfig)
+  // NAP (name/address/phone) shown inline on the GBP card so the clinic can
+  // copy it into Google Business Profile verbatim — consistency is the signal.
+  const nap = clinicSite
+    ? {
+        name: clinicSite.profile.displayName ?? clinicSite.orgName,
+        phone: clinicSite.primaryLocation?.phone ?? clinicSite.profile.phone ?? null,
+        address: [
+          clinicSite.primaryLocation?.addressLine1 ?? clinicSite.profile.addressLine1,
+          clinicSite.primaryLocation?.city ?? clinicSite.profile.city,
+          clinicSite.primaryLocation?.state ?? clinicSite.profile.state,
+          clinicSite.primaryLocation?.postalCode ?? clinicSite.profile.postalCode,
+        ]
+          .filter(Boolean)
+          .join(', '),
+      }
+    : null
 
   let gsc: GscConnectionView = { connected: false, status: 'disconnected', siteUrl: null }
   let sites: GscSite[] = []
@@ -165,6 +188,30 @@ export default async function SeoPage({ searchParams }: Props) {
           <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">
             The funnel from search to booked patients · last {attr.windowDays} days
           </p>
+          {/* Total visits vs search clicks — two honestly-different numbers
+              side by side so the clinic understands the distinction. */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="px-3 py-3 rounded-lg bg-stone-50 dark:bg-stone-800/40">
+              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+                Visits (your site)
+              </p>
+              <p className="text-2xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">
+                {traffic.total.toLocaleString()}
+              </p>
+              <p className="text-xs text-stone-500 dark:text-stone-400">all visits, every channel</p>
+            </div>
+            <div className="px-3 py-3 rounded-lg bg-stone-50 dark:bg-stone-800/40">
+              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+                Clicks from Google
+              </p>
+              <p className="text-2xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">
+                {perf ? perf.clicks.toLocaleString() : '—'}
+              </p>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                {perf ? 'from Google search only' : 'connect Search Console'}
+              </p>
+            </div>
+          </div>
           <div className={`grid ${perf ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-4`}>
             {perf && <AttrTile label="Clicks from search" value={perf.clicks} />}
             <AttrTile label="Leads from organic" value={attr.organicLeads} total={attr.totalLeads} />
@@ -311,6 +358,78 @@ export default async function SeoPage({ searchParams }: Props) {
         </div>
       </section>
 
+      {/* ── Google Business Profile checklist ─────────────────────────── */}
+      <section className="mb-8 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Google Business Profile</h2>
+          <a
+            href="https://business.google.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+          >
+            Open Google Business →
+          </a>
+        </div>
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-4 max-w-2xl">
+          Your Google Business Profile is the single biggest driver of the local map pack — where most new dental
+          patients find you. Full in-app management is on the roadmap; for now here&apos;s the checklist that moves the
+          needle most, done in Google directly.
+        </p>
+        <ol className="space-y-4">
+          <GbpStep n={1} title="Claim &amp; verify your profile">
+            Search your practice name on Google. If you see &ldquo;Own this business?&rdquo; claim it and complete
+            verification (postcard, phone, or video). An unverified profile can&apos;t rank or be edited.
+          </GbpStep>
+          <GbpStep n={2} title="Match your name, address &amp; phone exactly">
+            Google rewards consistency between your profile and your website. Use these — copied from your site — verbatim:
+            {nap ? (
+              <div className="mt-2 rounded-lg bg-stone-50 dark:bg-stone-800/40 p-3 text-stone-700 dark:text-stone-200 space-y-0.5">
+                <p className="font-medium">{nap.name}</p>
+                {nap.address ? <p className="tabular-nums">{nap.address}</p> : <p className="italic text-stone-400">Add your address in Settings → Clinic</p>}
+                {nap.phone ? <p className="tabular-nums">{nap.phone}</p> : <p className="italic text-stone-400">Add your phone in Settings → Clinic</p>}
+              </div>
+            ) : (
+              <span className="block mt-1 italic text-stone-400">
+                Fill in your clinic name, address, and phone in Settings → Clinic so they match Google.
+              </span>
+            )}
+          </GbpStep>
+          <GbpStep n={3} title="Set the right categories">
+            Primary category &ldquo;Dentist&rdquo; (or &ldquo;Pediatric dentist&rdquo; / &ldquo;Cosmetic dentist&rdquo;
+            if that&apos;s your focus), then add secondary categories for the services you offer. Categories are a top
+            local-ranking factor.
+          </GbpStep>
+          <GbpStep n={4} title="Share your review link">
+            Steady, recent reviews lift map-pack ranking. Add your Google review link to receipts, emails, and your front
+            desk.
+            {googleReviewUrl ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="text-xs px-2 py-1 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 break-all">
+                  {googleReviewUrl}
+                </code>
+                <a
+                  href={googleReviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                >
+                  Test it →
+                </a>
+              </div>
+            ) : (
+              <span className="block mt-1 italic text-stone-400">
+                Add your Google Place ID in{' '}
+                <Link href="/reviews" className="not-italic text-violet-600 dark:text-violet-400 hover:underline">
+                  Reviews
+                </Link>{' '}
+                and your one-click review link appears here.
+              </span>
+            )}
+          </GbpStep>
+        </ol>
+      </section>
+
       {/* ── Coming next ───────────────────────────────────────────────── */}
       <section>
         <div className="bg-stone-100 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-5">
@@ -318,7 +437,7 @@ export default async function SeoPage({ searchParams }: Props) {
             Coming next
           </p>
           <ul className="text-xs text-stone-600 dark:text-stone-300 space-y-1">
-            <li>· Google Business Profile: posting (from your blog) + profile insights + review replies (access request in progress)</li>
+            <li>· Google Business Profile in-app: posting (from your blog) + profile insights + review replies (access request in progress — the checklist above is the manual path until then)</li>
             <li>· Core Web Vitals (page speed) on your key pages</li>
             <li>· Rank tracking for your top local terms</li>
           </ul>
@@ -327,6 +446,20 @@ export default async function SeoPage({ searchParams }: Props) {
       </>
       )}
     </div>
+  )
+}
+
+function GbpStep({ n, title, children }: { n: number; title: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span className="flex-none mt-0.5 w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-xs font-bold tabular-nums flex items-center justify-center">
+        {n}
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-stone-800 dark:text-stone-100">{title}</p>
+        <div className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">{children}</div>
+      </div>
+    </li>
   )
 }
 
