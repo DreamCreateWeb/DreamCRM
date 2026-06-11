@@ -21,6 +21,8 @@ import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
 import BulkMessageModal from './bulk-message-modal'
 import AddPatientModal from './add-patient-modal'
+import ImportPatientsModal from './import-patients-modal'
+import { bulkInvitePatientsToPortalAction } from './actions'
 
 function money(cents: number): string {
   if (cents === 0) return '—'
@@ -101,12 +103,15 @@ export default function PatientsList({
   filters,
   sort,
   orgName,
+  canManage = false,
 }: {
   rows: PatientListRow[]
   meta: PatientFilterMeta
   filters: PatientListFilters
   sort: PatientListSort
   orgName: string
+  /** Owner/admin: shows Import/Export + the bulk portal-invite action. */
+  canManage?: boolean
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -115,9 +120,37 @@ export default function PatientsList({
   // ?new=1 (the global palette's "Add a patient" quick action) opens the
   // add modal on arrival.
   const [addOpen, setAddOpen] = useState(() => params.get('new') === '1')
+  const [importOpen, setImportOpen] = useState(false)
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
   const [toast, setToast] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [inviting, startInvite] = useTransition()
+
+  // Bulk portal invite — loops the single-invite service, skipping no-email /
+  // already-linked / archived patients, then reports a one-line summary.
+  function bulkInvite() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    startInvite(async () => {
+      const r = await bulkInvitePatientsToPortalAction(ids)
+      if ('error' in r) {
+        setToast(r.error)
+        return
+      }
+      const parts: string[] = [`Invited ${r.invited}`]
+      if (r.alreadyLinked) parts.push(`${r.alreadyLinked} already linked`)
+      if (r.noEmail) parts.push(`${r.noEmail} no email`)
+      if (r.archived) parts.push(`${r.archived} archived`)
+      if (r.errors) parts.push(`${r.errors} failed`)
+      setToast(parts.join(' · '))
+      setSelected(new Set())
+    })
+  }
+
+  const invitableCount = useMemo(
+    () => rows.filter((r) => selected.has(r.id) && r.email).length,
+    [rows, selected],
+  )
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
   function toggleAll() {
@@ -195,9 +228,21 @@ export default function PatientsList({
           />
         }
         actions={
-          <ActionButton variant="primary" onClick={() => setAddOpen(true)}>
-            + Add patient
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            {canManage && (
+              <>
+                <ActionButton variant="ghost" onClick={() => setImportOpen(true)}>
+                  Import CSV
+                </ActionButton>
+                <ActionButton variant="ghost" href="/patients/export" target="_blank">
+                  Export CSV
+                </ActionButton>
+              </>
+            )}
+            <ActionButton variant="primary" onClick={() => setAddOpen(true)}>
+              + Add patient
+            </ActionButton>
+          </div>
         }
       />
 
@@ -366,6 +411,17 @@ export default function PatientsList({
         >
           Email {reachableCount} {reachableCount === 1 ? 'patient' : 'patients'}
         </ActionButton>
+        {canManage && (
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            onClick={bulkInvite}
+            disabled={invitableCount === 0 || inviting}
+            title={invitableCount === 0 ? 'None of the selected patients have an email on file' : undefined}
+          >
+            {inviting ? 'Inviting…' : `Invite to portal (${invitableCount})`}
+          </ActionButton>
+        )}
       </BulkBar>
 
       {/* Loading overlay */}
@@ -385,6 +441,7 @@ export default function PatientsList({
         />
       )}
       {addOpen && <AddPatientModal onClose={() => setAddOpen(false)} />}
+      {importOpen && <ImportPatientsModal onClose={() => setImportOpen(false)} />}
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
   )

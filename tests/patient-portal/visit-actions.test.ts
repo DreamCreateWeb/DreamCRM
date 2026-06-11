@@ -71,7 +71,23 @@ const sendBookingConfirmation = vi.fn(async () => {})
 vi.mock('@/lib/services/booking-confirmation', () => ({
   sendBookingConfirmation: (...a: unknown[]) => sendBookingConfirmation(...(a as [])),
 }))
-vi.mock('@/lib/db', () => ({ db: {} }))
+const notifyOrgMembers = vi.fn(async () => {})
+vi.mock('@/lib/services/notifications', () => ({
+  notifyOrgMembers: (...a: unknown[]) => notifyOrgMembers(...(a as [])),
+}))
+// patientDisplayName + bookMyVisitAction read the patient row for the
+// notification copy / agenda title — return a name for either lookup.
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({ limit: async () => [{ firstName: 'Mia', lastName: 'Hayes' }] }),
+      }),
+    }),
+    insert: () => ({ values: async () => {} }),
+  },
+  schema: {},
+}))
 
 import {
   confirmMyVisitAction,
@@ -96,6 +112,7 @@ beforeEach(() => {
   cancelAppointment.mockClear()
   rescheduleAppointment.mockClear()
   sendBookingConfirmation.mockClear()
+  notifyOrgMembers.mockClear()
 })
 
 describe('confirmMyVisitAction', () => {
@@ -151,7 +168,7 @@ describe('cancelMyVisitAction', () => {
 })
 
 describe('rescheduleMyVisitAction', () => {
-  it('moves the visit when the target slot is open, preserving duration, and emails the new time', async () => {
+  it('moves the visit when the target slot is open, preserving duration, emails the new time, and notifies staff', async () => {
     const target = new Date(Date.now() + 96 * HOUR)
     target.setUTCMinutes(0, 0, 0)
     openSlotIso = target.toISOString()
@@ -166,6 +183,24 @@ describe('rescheduleMyVisitAction', () => {
     expect(sendBookingConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({ patientId: 'pat_1', appointmentType: 'cleaning' }),
     )
+    // Front desk gets pinged (owner/admin only) so a patient change isn't missed.
+    expect(notifyOrgMembers).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({ type: 'portal_reschedule' }),
+      { roles: ['owner', 'admin'] },
+    )
+  })
+
+  it('refuses a NEW slot inside the clinic min-notice window even when the old slot is far off', async () => {
+    // Old visit is 72h out (passes the old-slot gate), but the chosen new time
+    // is only 2h away — under the 24h reschedule notice. Must reject.
+    const tooSoon = new Date(Date.now() + 2 * HOUR)
+    tooSoon.setUTCMinutes(0, 0, 0)
+    openSlotIso = tooSoon.toISOString() // even if it were "open", notice wins
+    const r = await rescheduleMyVisitAction('appt_1', tooSoon.toISOString())
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { error: string }).error).toMatch(/at least 24 hours|call/i)
+    expect(rescheduleAppointment).not.toHaveBeenCalled()
   })
 
   it('refuses inside the notice window', async () => {

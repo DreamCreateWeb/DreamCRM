@@ -221,7 +221,13 @@ export default function VisitCard({
           <p className="mb-3 text-[0.9rem] font-semibold" style={{ color: INK }}>
             Pick a new time — we’ll let the front desk know.
           </p>
-          <SlotPicker loadSlots={getPortalSlotsAction} brand={brand} selectedIso={newSlotIso} onSelect={setNewSlotIso} />
+          <SlotPicker
+            loadSlots={getPortalSlotsAction}
+            brand={brand}
+            selectedIso={newSlotIso}
+            onSelect={setNewSlotIso}
+            minNoticeHours={minNoticeHours}
+          />
           {newSlotIso && (
             <div className="mt-3 flex gap-2">
               <ActionPill

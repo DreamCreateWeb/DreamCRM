@@ -20,6 +20,7 @@ import {
 import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
+import { notifyOrgMembers } from '@/lib/services/notifications'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
 
 /**
@@ -134,6 +135,16 @@ export async function rescheduleMyVisitAction(
   if (isNaN(newStart.getTime()) || newStart.getTime() <= Date.now()) {
     return { ok: false, error: 'Pick a time in the future.' }
   }
+  // The NEW slot must also respect the clinic's notice window — otherwise a
+  // patient could move a far-off visit into a slot two hours from now, which
+  // the front desk can't staff. Mirrors booking's min-notice on the new time
+  // (the SlotPicker filters these client-side too; this is the real gate).
+  if (newStart.getTime() < Date.now() + noticeMs) {
+    return {
+      ok: false,
+      error: `Pick a time at least ${settings.reschedule.minNoticeHours} hours out — for anything sooner, give us a quick call.`,
+    }
+  }
   // The new slot must be a real opening (ignore the visit being moved so its
   // current time still counts as available).
   const { slots } = await getSlotsForDay(ctx.organizationId, newStart, visitId)
@@ -160,6 +171,20 @@ export async function rescheduleMyVisitAction(
     appointmentType: visit.type,
     startTime: newStart,
   })
+
+  // Ping the front desk so a patient-initiated change doesn't slip past them.
+  const reName = await patientDisplayName(ctx.organizationId, visit.patientId)
+  await notifyOrgMembers(
+    ctx.organizationId,
+    {
+      bucket: 'comments',
+      type: 'portal_reschedule',
+      title: 'Visit rescheduled by patient',
+      body: `${reName} moved their visit to ${fmtNotifyDate(newStart)}.`,
+      linkPath: '/appointments',
+    },
+    { roles: ['owner', 'admin'] },
+  )
 
   revalidateVisits()
   return { ok: true }
@@ -234,8 +259,43 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
     startTime,
   })
 
+  // Let the front desk know a portal booking landed so it doesn't surprise
+  // them on the schedule.
+  await notifyOrgMembers(
+    ctx.organizationId,
+    {
+      bucket: 'comments',
+      type: 'portal_booking',
+      title: 'Portal booking',
+      body: `${patientName} booked ${label.toLowerCase()} for ${fmtNotifyDate(startTime)}.`,
+      linkPath: '/appointments',
+    },
+    { roles: ['owner', 'admin'] },
+  )
+
   revalidateVisits()
   return { ok: true }
+}
+
+/** Short "Mon, Jun 15 · 2:00 PM" date for staff notifications (server-local). */
+function fmtNotifyDate(d: Date): string {
+  return d.toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+/** First+last name of a patient in this org, for notification copy. */
+async function patientDisplayName(organizationId: string, patientId: string): Promise<string> {
+  const [p] = await db
+    .select({ firstName: patient.firstName, lastName: patient.lastName })
+    .from(patient)
+    .where(and(eq(patient.id, patientId), eq(patient.organizationId, organizationId)))
+    .limit(1)
+  return p ? `${p.firstName} ${p.lastName}`.trim() : 'A patient'
 }
 
 export async function sendPortalMessageAction(body: string): Promise<PortalActionResult> {

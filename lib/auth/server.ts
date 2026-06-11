@@ -1,15 +1,156 @@
+import { randomUUID } from 'crypto'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { organization, magicLink } from 'better-auth/plugins'
 import { nextCookies } from 'better-auth/next-js'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema/auth'
+import { patient } from '@/lib/db/schema/clinic'
+import { clinicProfile } from '@/lib/db/schema/platform'
 import {
   sendInvitationEmail,
   sendMagicLinkEmail,
+  sendPatientPortalInviteEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '@/lib/email'
+import { normalizeEmail } from '@/lib/contact-normalize'
+
+/**
+ * Resolve the org a brand-new session should be active in.
+ *
+ * better-auth's plain + magic-link sign-in never sets `activeOrganizationId`,
+ * so a multi-clinic patient lands in whichever org they were last in (often
+ * the wrong portal). Rules, defensively:
+ *   - sole membership → use it (covers single-clinic patients AND single-org
+ *     staff);
+ *   - multiple memberships → prefer the most recent patient-role one (someone
+ *     signing into a portal is almost always a patient);
+ *   - genuinely ambiguous staff-in-many-orgs (no patient membership) → leave
+ *     null and let the app pick, rather than guess wrong.
+ * Never throws — a failed lookup just yields null (no active org set).
+ */
+export async function resolveDefaultActiveOrg(userId: string): Promise<string | null> {
+  try {
+    const memberships = await db
+      .select({ organizationId: schema.member.organizationId, role: schema.member.role, createdAt: schema.member.createdAt })
+      .from(schema.member)
+      .where(eq(schema.member.userId, userId))
+    if (memberships.length === 0) return null
+    if (memberships.length === 1) return memberships[0].organizationId
+    const patientMemberships = memberships
+      .filter((m) => m.role === 'patient')
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+    if (patientMemberships.length > 0) return patientMemberships[0].organizationId
+    return null
+  } catch (err) {
+    console.warn('[auth] resolveDefaultActiveOrg failed', err)
+    return null
+  }
+}
+
+/**
+ * Magic-link no-user fallback.
+ *
+ * `magicLink({ disableSignUp: true })` silently no-ops when no user account
+ * exists for the email — but the sign-in form still says "check your inbox",
+ * so a patient who was added by the front desk (patient row, but never set up
+ * a login) waits for an email that never comes. Instead: if there's no user
+ * but there IS a patient row for that email, send them the standard portal
+ * INVITE (which lets them create the account + accept), so the dead-end
+ * becomes the right onboarding email. Best-effort: any failure is swallowed so
+ * we never reveal whether an account exists (no enumeration).
+ *
+ * Returns true when an invite was sent (so the caller skips the normal magic
+ * link, which would no-op anyway).
+ */
+export async function maybeSendPortalInviteForMagicLink(rawEmail: string): Promise<boolean> {
+  try {
+    const email = normalizeEmail(rawEmail)
+    if (!email) return false
+
+    // A user account already exists → let the normal magic link handle it.
+    const [existingUser] = await db
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(sql`lower(${schema.user.email}) = ${email}`)
+      .limit(1)
+    if (existingUser) return false
+
+    // No user — find the most recent patient row with this email, any org.
+    const [pat] = await db
+      .select({
+        id: patient.id,
+        organizationId: patient.organizationId,
+        firstName: patient.firstName,
+      })
+      .from(patient)
+      .where(and(sql`lower(${patient.email}) = ${email}`, eq(patient.isActive, 1)))
+      .orderBy(desc(patient.firstSeenAt))
+      .limit(1)
+    if (!pat) return false
+
+    // Reuse a still-pending invite for this org+email rather than piling up rows.
+    const [existing] = await db
+      .select({ id: schema.invitation.id })
+      .from(schema.invitation)
+      .where(
+        and(
+          eq(schema.invitation.organizationId, pat.organizationId),
+          sql`lower(${schema.invitation.email}) = ${email}`,
+          eq(schema.invitation.status, 'pending'),
+        ),
+      )
+      .limit(1)
+    const inviteId = existing?.id ?? randomUUID()
+    if (!existing) {
+      // inviterId is NOT NULL; attribute the system-generated invite to a
+      // clinic owner/admin so the FK holds. Fall back to any member if needed.
+      const [staff] = await db
+        .select({ userId: schema.member.userId })
+        .from(schema.member)
+        .where(eq(schema.member.organizationId, pat.organizationId))
+        .orderBy(desc(schema.member.createdAt))
+        .limit(1)
+      if (!staff) return false
+      await db.insert(schema.invitation).values({
+        id: inviteId,
+        organizationId: pat.organizationId,
+        email,
+        role: 'patient',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        inviterId: staff.userId,
+      })
+    }
+
+    // Use the clinic's display name for the email (Tier-1 sender identity is
+    // applied by deliver(); the body just needs a friendly clinic name).
+    const [profile] = await db
+      .select({ displayName: clinicProfile.displayName })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, pat.organizationId))
+      .limit(1)
+    const [org] = await db
+      .select({ name: schema.organization.name })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, pat.organizationId))
+      .limit(1)
+    const clinicName = profile?.displayName || org?.name || 'Your dental office'
+
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
+    await sendPatientPortalInviteEmail(email, {
+      clinicName,
+      patientFirstName: pat.firstName,
+      inviteUrl: `${base}/accept-invite?token=${inviteId}`,
+    })
+    return true
+  } catch (err) {
+    console.warn('[auth] maybeSendPortalInviteForMagicLink failed', err)
+    return false
+  }
+}
 
 function build() {
   return betterAuth({
@@ -60,6 +201,23 @@ function build() {
       cookieCache: { enabled: true, maxAge: 60 * 5 },
     },
 
+    databaseHooks: {
+      session: {
+        create: {
+          // Set activeOrganizationId at session-create time so sign-in (plain
+          // OR magic link) lands the user in the right tenant. The accept-invite
+          // flow still sets it explicitly; this only fills the gap when nothing
+          // set it. Returning { data } merges our field into the row pre-write.
+          before: async (session) => {
+            if (session.activeOrganizationId) return
+            const orgId = await resolveDefaultActiveOrg(session.userId)
+            if (!orgId) return
+            return { data: { ...session, activeOrganizationId: orgId } }
+          },
+        },
+      },
+    },
+
     user: {
       additionalFields: {
         platformAdmin: {
@@ -91,6 +249,14 @@ function build() {
         disableSignUp: true,
         expiresIn: 60 * 15,
         async sendMagicLink({ email, url }) {
+          // better-auth calls sendMagicLink for EVERY request, before it knows
+          // whether a user exists — and with disableSignUp the verify step then
+          // no-ops for a no-user email (the silent dead-end). So: if there's no
+          // user but there is a patient row for this email, send the portal
+          // invite instead (and skip the link that would no-op). Otherwise send
+          // the normal magic link. Same on-screen message either way.
+          const sentInvite = await maybeSendPortalInviteForMagicLink(email)
+          if (sentInvite) return
           await sendMagicLinkEmail(email, url)
         },
       }),

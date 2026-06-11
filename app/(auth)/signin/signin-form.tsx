@@ -99,8 +99,9 @@ export default function SignInForm() {
           Check your inbox
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-          If an account exists for <span className="font-medium">{email}</span>, a one-tap
-          sign-in link is on its way. It works once and expires in 15 minutes.
+          If we have an account for <span className="font-medium">{email}</span>, a link is on
+          its way. If you&apos;re new, it&apos;ll be a quick set-up link instead. Either one works
+          once and expires in 15 minutes.
         </p>
         <button
           type="button"
