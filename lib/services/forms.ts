@@ -190,13 +190,15 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
   // matches a patient in this org, link it so the submission shows on that
   // patient's timeline + records instead of vanishing into an unattached row.
   let patientId = input.patientId ?? null
+  let patientName: string | null = null
   if (!patientId && input.submitterEmail) {
     const [p] = await db
-      .select({ id: patient.id })
+      .select({ id: patient.id, firstName: patient.firstName, lastName: patient.lastName })
       .from(patient)
       .where(and(eq(patient.organizationId, input.organizationId), eq(patient.email, input.submitterEmail)))
       .limit(1)
     patientId = p?.id ?? null
+    if (p) patientName = `${p.firstName} ${p.lastName}`.trim()
   }
   const [row] = await db
     .insert(formSubmission)
@@ -212,6 +214,28 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
       submitterPhone: input.submitterPhone ?? null,
     })
     .returning()
+
+  // Ping the front desk so a fresh intake submission gets reviewed before the
+  // visit. Best-effort — the submission row above is the source of truth.
+  try {
+    const who = patientName || input.submitterName || input.submitterEmail || 'a patient'
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      input.organizationId,
+      {
+        bucket: 'comments',
+        type: 'intake_submitted',
+        title: `Intake form submitted — ${who}`,
+        body: 'A patient completed an intake form on your website.',
+        linkPath: patientId ? `/patients/${patientId}` : '/intake-forms',
+        meta: { submissionId: row.id, patientId },
+      },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[forms.submitForm] notification failed', err)
+  }
+
   return row
 }
 

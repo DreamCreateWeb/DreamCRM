@@ -5,7 +5,7 @@ import { eq, and, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
-import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
+import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
@@ -36,6 +36,7 @@ export async function submitContactRequest(formData: FormData) {
     .select({
       email: clinicProfile.email,
       displayName: clinicProfile.displayName,
+      phone: clinicProfile.phone,
       leadForms: clinicProfile.leadForms,
     })
     .from(clinicProfile)
@@ -93,6 +94,46 @@ export async function submitContactRequest(formData: FormData) {
     }).catch((err) => {
       console.error('[clinic-site] contact email failed', err)
     })
+  }
+
+  // Ping the front desk so the lead lands in the triage queue with a nudge,
+  // and send the patient a warm auto-acknowledgement so they know it landed.
+  // Both best-effort — the lead row above is the source of truth.
+  try {
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      orgId,
+      {
+        bucket: 'comments',
+        type: 'website_lead',
+        title: `New website lead — ${name}`,
+        body: message ? message.slice(0, 140) : 'New enquiry from your website.',
+        linkPath: '/leads',
+        meta: { sourcePage },
+      },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[clinic-site] lead notification failed', err)
+  }
+
+  // Patient auto-acknowledgement — only when they gave an email. Sent FROM the
+  // clinic identity (Tier 1/2) so it doesn't read as platform spam.
+  if (email) {
+    try {
+      const sender = await getClinicSenderIdentity(orgId)
+      await sendNotificationEmail(
+        {
+          to: email,
+          name,
+          title: `Thanks for reaching out to ${sender.name}`,
+          body: `Hi ${name.split(' ')[0]}, we got your message and we'll reach out within one business day. If it's urgent${profile?.phone ? ` you can call us at ${profile.phone}` : ''} — otherwise, sit tight and we'll be in touch soon.`,
+        },
+        sender,
+      )
+    } catch (err) {
+      console.warn('[clinic-site] contact auto-ack email failed', err)
+    }
   }
 }
 
@@ -230,6 +271,29 @@ export async function submitBookingRequest(formData: FormData) {
   // Two-way PMS: queue this public booking to be written to the clinic's PMS on
   // the next sync (best-effort; never blocks the booking confirmation).
   await queueAppointmentWriteBack(orgId, apptId)
+
+  // Ping the front desk so a new online booking doesn't sit unseen until
+  // someone opens the agenda. Best-effort — never blocks the booking.
+  try {
+    const dateLabel = startTime.toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+    })
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      orgId,
+      {
+        bucket: 'comments',
+        type: 'online_booking',
+        title: `New online booking — ${firstName} ${lastName}, ${dateLabel}`,
+        body: `${appointmentType.replace(/_/g, ' ')} requested via your website.`,
+        linkPath: '/appointments',
+        meta: { appointmentId: apptId, patientId },
+      },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[clinic-site] booking notification failed', err)
+  }
 
   const [profile] = await db
     .select({

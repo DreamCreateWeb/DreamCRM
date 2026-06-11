@@ -307,6 +307,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 variant="left"
                 editField="heroImageUrl"
                 position={imagePositions['heroImageUrl']}
+                priority
               />
             </div>
 
@@ -1483,6 +1484,7 @@ function OvalPortrait({
   editKind = 'image',
   editLabel,
   position,
+  priority = false,
 }: {
   src: string | null
   bg: string
@@ -1494,6 +1496,8 @@ function OvalPortrait({
   editLabel?: string
   /** CSS object-position focal point, e.g. "50% 30%". */
   position?: string
+  /** The hero LCP image — eager + high fetch priority; others stay lazy. */
+  priority?: boolean
 }) {
   return (
     <div
@@ -1512,8 +1516,18 @@ function OvalPortrait({
         <img
           src={src}
           alt=""
+          // Explicit intrinsic size + aspect-ratio sizing so the browser
+          // reserves layout box (no CLS) while the oval clip does the shaping.
+          width={512}
+          height={640}
           className="absolute inset-0 w-full h-full object-cover"
           style={position ? { objectPosition: position } : undefined}
+          // The left hero portrait is the LCP element — load it eagerly with
+          // high priority. Every other portrait (right hero, team band) stays
+          // lazy so it doesn't compete for the initial paint.
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding={priority ? 'sync' : 'async'}
         />
       ) : editField ? (
         /* Empty oval. Publicly it stays a clean solid-color decorative shape

@@ -838,23 +838,166 @@ export async function confirmAppointment(
   })
 }
 
+/**
+ * Load the patient + clinic context a cancel/no-show needs for the staff
+ * notification and (cancel only) the patient confirmation email. Returns null
+ * if the appointment vanished. Kept private + best-effort-callable.
+ */
+async function loadAppointmentNotifyContext(organizationId: string, appointmentId: string) {
+  const [appt] = await db
+    .select({
+      patientId: schema.appointment.patientId,
+      type: schema.appointment.type,
+      startTime: schema.appointment.startTime,
+    })
+    .from(schema.appointment)
+    .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, appointmentId)))
+    .limit(1)
+  if (!appt) return null
+  const [p] = await db
+    .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, appt.patientId)))
+    .limit(1)
+  return {
+    patientId: appt.patientId,
+    type: appt.type,
+    startTime: appt.startTime as Date,
+    patientName: p ? `${p.firstName} ${p.lastName}`.trim() : 'A patient',
+    patientEmail: p?.email ?? null,
+  }
+}
+
 export async function cancelAppointment(organizationId: string, appointmentId: string) {
   await assertAppointmentMutable(organizationId, appointmentId)
+  // Capture patient/clinic context BEFORE the state write — the row is still
+  // mutable here, and we want the cancelled visit's details for the email + ping.
+  const notifyCtx = await loadAppointmentNotifyContext(organizationId, appointmentId).catch(() => null)
   await setAppointmentState(organizationId, appointmentId, {
     status: 'cancelled',
     cancelledAt: new Date(),
   })
   // Two-way PMS: cancel it in the PMS too, so the old slot stops reminding.
   await queueAppointmentStatusWriteBack(organizationId, appointmentId, 'cancelled')
+
+  // Best-effort comms (never block the cancel). The portal self-cancel path
+  // flows through here too, so this covers patient-initiated cancellations.
+  if (notifyCtx) {
+    try {
+      const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const { notifyOrgMembers } = await import('./notifications')
+      await notifyOrgMembers(
+        organizationId,
+        {
+          bucket: 'comments',
+          type: 'appointment_cancelled',
+          title: `Visit cancelled — ${notifyCtx.patientName}`,
+          body: `Their ${notifyCtx.type.replace(/_/g, ' ')} on ${dateLabel} was cancelled.`,
+          linkPath: '/appointments',
+          meta: { appointmentId, patientId: notifyCtx.patientId },
+        },
+        { roles: ['owner', 'admin'] },
+      )
+    } catch (err) {
+      console.warn('[appointments.cancelAppointment] notification failed', err)
+    }
+    // Patient confirmation — only when we have an email. NOT on no-show.
+    if (notifyCtx.patientEmail) {
+      await sendCancellationEmailToPatient(organizationId, {
+        to: notifyCtx.patientEmail,
+        patientName: notifyCtx.patientName,
+        appointmentType: notifyCtx.type,
+        startTime: notifyCtx.startTime,
+      }).catch((err) => {
+        console.warn('[appointments.cancelAppointment] confirmation email failed', err)
+      })
+    }
+  }
+}
+
+/** Compose + send the patient-facing cancellation confirmation from the clinic
+ *  identity, with a rebook link when the clinic's plan supports online booking.
+ *  Best-effort — callers wrap in catch. */
+async function sendCancellationEmailToPatient(
+  organizationId: string,
+  opts: { to: string; patientName: string; appointmentType: string; startTime: Date },
+): Promise<void> {
+  const [profile] = await db
+    .select({
+      phone: schema.clinicProfile.phone,
+      planTier: schema.clinicProfile.planTier,
+      websiteDomain: schema.clinicProfile.websiteDomain,
+    })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const [org] = await db
+    .select({ slug: schema.organization.slug })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, organizationId))
+    .limit(1)
+
+  // Online booking is pro/premium only (basic routes Book to the contact form),
+  // so only offer a /book link when the plan supports it.
+  let rebookUrl: string | null = null
+  const tier = profile?.planTier ?? 'basic'
+  if (org && (tier === 'pro' || tier === 'premium')) {
+    const { publicSiteUrl } = await import('@/lib/services/clinic-site')
+    const base = publicSiteUrl({
+      slug: org.slug,
+      profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+    })
+    rebookUrl = `${base}/book`
+  }
+
+  const { getClinicSenderIdentity } = await import('@/lib/services/clinic-sender')
+  const { sendCancellationConfirmation } = await import('@/lib/email')
+  const sender = await getClinicSenderIdentity(organizationId)
+  await sendCancellationConfirmation(
+    opts.to,
+    {
+      patientName: opts.patientName,
+      clinicName: sender.name,
+      clinicPhone: profile?.phone ?? null,
+      startTime: opts.startTime,
+      appointmentType: opts.appointmentType,
+      rebookUrl,
+      timeZone: sender.timeZone,
+    },
+    sender,
+  )
 }
 
 export async function markNoShow(organizationId: string, appointmentId: string) {
   await assertAppointmentMutable(organizationId, appointmentId)
+  const notifyCtx = await loadAppointmentNotifyContext(organizationId, appointmentId).catch(() => null)
   await setAppointmentState(organizationId, appointmentId, {
     status: 'no_show',
     noShowedAt: new Date(),
   })
   await queueAppointmentStatusWriteBack(organizationId, appointmentId, 'no_show')
+
+  // Staff ping only — deliberately NO patient email on a no-show.
+  if (notifyCtx) {
+    try {
+      const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const { notifyOrgMembers } = await import('./notifications')
+      await notifyOrgMembers(
+        organizationId,
+        {
+          bucket: 'comments',
+          type: 'appointment_no_show',
+          title: `No-show — ${notifyCtx.patientName}`,
+          body: `Their ${notifyCtx.type.replace(/_/g, ' ')} on ${dateLabel} was marked a no-show.`,
+          linkPath: '/appointments',
+          meta: { appointmentId, patientId: notifyCtx.patientId },
+        },
+        { roles: ['owner', 'admin'] },
+      )
+    } catch (err) {
+      console.warn('[appointments.markNoShow] notification failed', err)
+    }
+  }
 }
 
 export async function markCompleted(organizationId: string, appointmentId: string) {

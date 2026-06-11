@@ -30,7 +30,10 @@ function htmlToText(html: string): string {
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
 // AWS SDK never loads on the Resend path). `from` overrides the default
 // platform identity (used to send patient-facing mail as the clinic).
-async function deliver(msg: {
+// Exported so service modules with bespoke templates (e.g. the review-request
+// email) route through the SAME provider/driver/Gmail-fallback path instead of
+// instantiating their own Resend client with a stale hardcoded From.
+export async function deliver(msg: {
   to: string
   subject: string
   html: string
@@ -318,6 +321,76 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
         <p style="margin:0;font-size:13px;color:#888">
           We'll be in touch to confirm. If you need to reschedule, please call us directly.
         </p>
+      </div>
+    `,
+  })
+}
+
+export interface CancellationConfirmationData {
+  patientName: string
+  clinicName: string
+  clinicPhone: string | null
+  startTime: Date
+  appointmentType: string
+  /** When the clinic's plan supports online booking, the absolute URL to the
+   *  public /book page so the patient can grab a new time in one tap. Null on
+   *  basic tier (no online booking) — we fall back to "call us" copy instead. */
+  rebookUrl?: string | null
+  /** Clinic IANA timezone so the cancelled time renders at the clinic's
+   *  wall-clock (the server runs in UTC). */
+  timeZone?: string
+}
+
+/**
+ * Patient-facing confirmation that their appointment was cancelled. Sent
+ * best-effort from `cancelAppointment` (covers the portal self-cancel path too).
+ * Warm, anti-shame voice — cancelling a dental visit is loaded, so we never
+ * guilt-trip; we just confirm + leave the door open to rebook. Deliberately
+ * NOT sent on no-show (a no-show isn't a patient-initiated cancel, and a
+ * "we cancelled your visit" note would read wrong).
+ */
+export async function sendCancellationConfirmation(
+  to: string,
+  data: CancellationConfirmationData,
+  sender?: ClinicSender,
+) {
+  const typeLabel = data.appointmentType.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+  const timeStr = data.startTime.toLocaleString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+    year: 'numeric', hour: 'numeric', minute: '2-digit',
+    ...(data.timeZone ? { timeZone: data.timeZone } : {}),
+  })
+  const rebookBlock = data.rebookUrl
+    ? `
+        <a href="${data.rebookUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
+          Find a new time
+        </a>
+        <p style="margin:16px 0 0;font-size:13px;color:#6b635a;line-height:1.55">
+          Whenever you're ready — no rush${data.clinicPhone ? `, or just call us at ${escapeHtml(data.clinicPhone)}` : ''}.
+        </p>`
+    : `
+        <p style="margin:0;font-size:13px;color:#6b635a;line-height:1.55">
+          Whenever you're ready to rebook, just ${data.clinicPhone ? `give us a call at ${escapeHtml(data.clinicPhone)}` : 'reach out'} — we'd love to see you.
+        </p>`
+  await deliver({
+    to,
+    from: sender?.from,
+    replyTo: sender?.replyTo,
+    gmail: sender?.gmail,
+    subject: `Your appointment at ${data.clinicName} was cancelled`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
+        <h2 style="margin:0 0 16px;font-size:20px">Appointment cancelled</h2>
+        <p style="margin:0 0 20px;line-height:1.55">
+          Hi ${escapeHtml(data.patientName)}, this confirms your <strong>${escapeHtml(typeLabel)}</strong>
+          at <strong>${escapeHtml(data.clinicName)}</strong> has been cancelled. No problem at all —
+          life happens.
+        </p>
+        <div style="padding:16px 20px;background:#f7f4ef;border-radius:8px;margin-bottom:24px">
+          <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#6b635a;text-decoration:line-through">${timeStr}</p>
+          <p style="margin:0;font-size:13px;color:#857c70">${escapeHtml(data.clinicName)}${data.clinicPhone ? ` · ${escapeHtml(data.clinicPhone)}` : ''}</p>
+        </div>
+        ${rebookBlock}
       </div>
     `,
   })

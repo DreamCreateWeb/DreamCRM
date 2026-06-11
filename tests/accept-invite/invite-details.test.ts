@@ -8,20 +8,34 @@ const stubs = {
     expiresAt: Date
     orgId: string
   },
-  org: null as null | { name: string },
+  org: null as null | { name: string; type?: string },
+  clinicProfile: null as null | { displayName: string | null; logoUrl: string | null; brandColor: string | null },
 }
 
 vi.mock('@/lib/db', async () => {
   const { invitation, organization } = await import('@/lib/db/schema/auth')
+  const { clinicProfile } = await import('@/lib/db/schema/platform')
   const chain = (fn: () => unknown) => {
     const obj: any = {}
     obj.from = (table: unknown) => {
-      obj._table = table === invitation ? 'invitation' : table === organization ? 'organization' : 'unknown'
+      obj._table =
+        table === invitation
+          ? 'invitation'
+          : table === organization
+            ? 'organization'
+            : table === clinicProfile
+              ? 'clinicProfile'
+              : 'unknown'
       return obj
     }
     obj.where = () => obj
     obj.limit = async () => {
-      const out = obj._table === 'invitation' ? stubs.invitation : stubs.org
+      const out =
+        obj._table === 'invitation'
+          ? stubs.invitation
+          : obj._table === 'clinicProfile'
+            ? stubs.clinicProfile
+            : stubs.org
       return out ? [out] : []
     }
     return obj
@@ -34,6 +48,7 @@ import { getInvitationDetails } from '@/app/(auth)/accept-invite/invite-details'
 beforeEach(() => {
   stubs.invitation = null
   stubs.org = null
+  stubs.clinicProfile = null
 })
 
 describe('getInvitationDetails', () => {
@@ -94,7 +109,7 @@ describe('getInvitationDetails', () => {
     expect(result?.expired).toBe(true)
   })
 
-  it('returns full details for valid pending invitation', async () => {
+  it('returns full details for valid pending invitation (platform/staff org → no brand)', async () => {
     stubs.invitation = {
       email: 'a@x.com',
       role: 'admin',
@@ -102,13 +117,36 @@ describe('getInvitationDetails', () => {
       expiresAt: new Date(Date.now() + 86400_000),
       orgId: 'org_1',
     }
-    stubs.org = { name: 'Acme Dental' }
+    stubs.org = { name: 'Acme Dental', type: 'platform' }
     const result = await getInvitationDetails('tok')
     expect(result).toEqual({
       email: 'a@x.com',
       orgName: 'Acme Dental',
       role: 'admin',
       expired: false,
+      orgType: 'platform',
+      brand: null,
+    })
+  })
+
+  it('attaches clinic branding for a clinic-org patient invite', async () => {
+    stubs.invitation = {
+      email: 'patient@x.com',
+      role: 'patient',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86400_000),
+      orgId: 'org_clinic',
+    }
+    stubs.org = { name: 'Acme Dental', type: 'clinic' }
+    stubs.clinicProfile = { displayName: 'Acme Family Dental', logoUrl: 'https://x/logo.png', brandColor: '#2563eb' }
+    const result = await getInvitationDetails('tok')
+    expect(result?.orgType).toBe('clinic')
+    // displayName wins over the org name for the patient-facing label.
+    expect(result?.orgName).toBe('Acme Family Dental')
+    expect(result?.brand).toEqual({
+      displayName: 'Acme Family Dental',
+      logoUrl: 'https://x/logo.png',
+      brandColor: '#2563eb',
     })
   })
 

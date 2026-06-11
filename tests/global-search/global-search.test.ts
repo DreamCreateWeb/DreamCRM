@@ -14,10 +14,11 @@ const state = {
   visits: [] as Array<Record<string, unknown>>,
   threads: [] as Array<Record<string, unknown>>,
   clinics: [] as Array<Record<string, unknown>>,
+  shopOrders: [] as Array<Record<string, unknown>>,
 }
 
 vi.mock('@/lib/db', async () => {
-  const { patient, lead, appointment, patientThread } = await import('@/lib/db/schema/clinic')
+  const { patient, lead, appointment, patientThread, shopOrder } = await import('@/lib/db/schema/clinic')
   const { organization } = await import('@/lib/db/schema/auth')
   const schema = await import('@/lib/db/schema')
 
@@ -27,6 +28,7 @@ vi.mock('@/lib/db', async () => {
     if (table === appointment) return state.visits
     if (table === patientThread) return state.threads
     if (table === organization) return state.clinics
+    if (table === shopOrder) return state.shopOrders
     return []
   }
 
@@ -35,6 +37,7 @@ vi.mock('@/lib/db', async () => {
     const p = Promise.resolve(rows) as Chain
     p.from = (t: unknown) => chain(rowsFor(t))
     p.innerJoin = () => p
+    p.leftJoin = () => p
     p.where = () => p
     p.orderBy = () => p
     p.limit = () => p
@@ -70,6 +73,7 @@ beforeEach(() => {
   state.visits = []
   state.threads = []
   state.clinics = []
+  state.shopOrders = []
 })
 
 describe('likePattern', () => {
@@ -140,6 +144,30 @@ describe('globalSearch — querying', () => {
     const groups = await globalSearch(ctx(), 'mia')
     expect(groups.map((g) => g.label)).not.toContain('Leads')
     expect(groups.map((g) => g.label)).not.toContain('Conversations')
+    expect(groups.map((g) => g.label)).not.toContain('Shop orders')
+  })
+
+  it('returns a Shop orders group for clinic tenants', async () => {
+    state.shopOrders = [
+      {
+        id: 'ord_1',
+        name: 'Daniel Park',
+        email: 'daniel@x.com',
+        status: 'paid',
+        totalCents: 9500,
+        firstName: 'Mia',
+        lastName: 'Hayes',
+      },
+    ]
+    const groups = await globalSearch(ctx(), 'mia')
+    const orders = groups.find((g) => g.label === 'Shop orders')!
+    expect(orders).toBeDefined()
+    // Prefers the linked patient name, shows the total, links to the admin list.
+    expect(orders.results[0]).toMatchObject({
+      label: 'Mia Hayes — $95.00',
+      sublabel: 'Paid order',
+      href: '/shop/orders',
+    })
   })
 
   it('matches pages by label substring', async () => {

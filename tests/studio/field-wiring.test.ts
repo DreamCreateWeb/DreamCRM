@@ -213,3 +213,85 @@ describe('Website Studio field wiring (template ↔ studio handlers)', () => {
     expect(missing, `link-out sections with no title: ${missing.join(', ')}`).toEqual([])
   })
 })
+
+// ── COPY_KEYS coverage (AI bar ↔ template) ────────────────────────────────────
+// The Website Studio's AI command bar can only target `copy:` keys that exist in
+// COPY_KEYS (lib/services/ai-website-edit.ts). A `copy:` region the templates
+// instrument but that's missing from COPY_KEYS = the AI silently drops edits to
+// it (the bug PR W1 fixed). This guard extracts every concrete `copy:` key the
+// templates render and asserts COPY_KEYS covers each, so the two can't drift.
+import { resolveCopyKey } from '@/lib/services/ai-website-edit'
+
+// Two shared components emit `copy:${editKeyPrefix}.*` keys — the concrete keys
+// come from each call site's editKeyPrefix. We expand those here.
+const NUMBERED_STEPS_FORMS = ['eyebrow', 'heading', '0.title', '0.body']
+const CLOSING_CTA_FORMS = ['heading', 'subhead']
+
+/** All concrete `copy:` keys the templates can render (a `${i}` becomes `0`). */
+function collectConcreteCopyKeys(): Set<string> {
+  const keys = new Set<string>()
+  for (const f of TEMPLATE_FILES) {
+    const src = read(f)
+    // Direct literal copy keys (skip the generic components' own `${prefix}`
+    // template literals — those are resolved via call-site prefixes below).
+    const isGeneric =
+      f.endsWith('numbered-steps.tsx') || f.endsWith('closing-cta.tsx')
+    if (!isGeneric) {
+      for (const m of Array.from(
+        src.matchAll(/data-edit-field=(?:"(copy:[^"]+)"|\{`(copy:[^`]+)`\})/g),
+      )) {
+        const raw = (m[1] ?? m[2] ?? '').slice('copy:'.length)
+        if (raw) keys.add(raw.replace(/\$\{[^}]+\}/g, '0'))
+      }
+      for (const m of Array.from(
+        src.matchAll(/'data-edit-field':\s*(?:'(copy:[^']+)'|`(copy:[^`]+)`)/g),
+      )) {
+        const raw = (m[1] ?? m[2] ?? '').slice('copy:'.length)
+        if (raw) keys.add(raw.replace(/\$\{[^}]+\}/g, '0'))
+      }
+    }
+    // Generic-component call sites: expand editKeyPrefix into the right
+    // component's forms. A file may use BOTH components, so associate each
+    // prefix with the nearest preceding component tag (the JSX element it's an
+    // attribute of), not "any component in the file".
+    for (const m of Array.from(src.matchAll(/editKeyPrefix="([^"]+)"/g))) {
+      const prefix = m[1]
+      const before = src.slice(0, m.index)
+      const numAt = before.lastIndexOf('<NumberedSteps')
+      const ctaAt = before.lastIndexOf('<ClosingCTA')
+      if (numAt > ctaAt) {
+        for (const s of NUMBERED_STEPS_FORMS) keys.add(`${prefix}.${s}`)
+      } else if (ctaAt > -1) {
+        for (const s of CLOSING_CTA_FORMS) keys.add(`${prefix}.${s}`)
+      }
+    }
+  }
+  return keys
+}
+
+describe('AI bar COPY_KEYS coverage (template ↔ ai-website-edit)', () => {
+  const concrete = collectConcreteCopyKeys()
+
+  it('found a meaningful number of copy keys (sanity)', () => {
+    expect(concrete.size).toBeGreaterThan(40)
+  })
+
+  it('the two explicitly-flagged keys are covered (regression for the W1 bug)', () => {
+    expect(resolveCopyKey('home.closerTitle')).toBeTruthy()
+    expect(resolveCopyKey('home.contactEyebrow')).toBeTruthy()
+  })
+
+  it('every concrete copy: key the templates render is in COPY_KEYS', () => {
+    const missing = Array.from(concrete)
+      .filter((k) => !resolveCopyKey(k))
+      .sort()
+    expect(
+      missing,
+      `copy: keys the AI bar can't target (add to COPY_KEYS): ${missing.join(', ')}`,
+    ).toEqual([])
+  })
+
+  it('resolveCopyKey rejects a literal wildcard key (model must use a real index)', () => {
+    expect(resolveCopyKey('home.callout.*.title')).toBeUndefined()
+  })
+})

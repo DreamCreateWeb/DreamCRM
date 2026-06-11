@@ -9,9 +9,59 @@ import { encodeToken } from './tokens'
  * tables/MSO conditionals. Modern email clients (Gmail / Outlook 2019+ /
  * Apple Mail) render this fine; if we need legacy Outlook support we can
  * layer react-email on top later.
+ *
+ * **Compliance:** the footer carries the CAN-SPAM-required physical postal
+ * address of the SENDING party. For a clinic campaign that's the clinic's own
+ * practice address (see `resolveMarketingFooterAddress`), NOT a platform
+ * placeholder — patients must see who actually emailed them. The send path
+ * (`lib/services/marketing-send.ts`) refuses to send when no address can be
+ * resolved (compliance-fail-closed); this renderer just lays out whatever it's
+ * handed.
  */
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dreamcreatestudio.com'
+
+/** Address fields off the sending clinic's clinic_profile row. */
+export interface ClinicPostalSource {
+  addressLine1?: string | null
+  addressLine2?: string | null
+  city?: string | null
+  state?: string | null
+  postalCode?: string | null
+  country?: string | null
+}
+
+/**
+ * Compose the CAN-SPAM footer postal address for a marketing send.
+ *
+ * Preference order:
+ *   1. the SENDING clinic's physical address (from clinic_profile) when it
+ *      carries at least a street line — this is the legally-correct identifier;
+ *   2. the `MARKETING_POSTAL_ADDRESS` env fallback (platform-tenant campaigns,
+ *      or a clinic that hasn't filled in its address yet);
+ *   3. `null` — caller must fail closed (we will not send marketing without an
+ *      address).
+ *
+ * A clinic row with only a city/state but no street line is treated as
+ * incomplete (no street → not a usable mailing address) so we fall through to
+ * the env rather than print a half address.
+ */
+export function resolveMarketingFooterAddress(
+  clinic: ClinicPostalSource | null | undefined,
+  envFallback?: string | null,
+): string | null {
+  const line1 = clinic?.addressLine1?.trim()
+  if (line1) {
+    const cityState = [clinic?.city?.trim(), clinic?.state?.trim()]
+      .filter(Boolean)
+      .join(', ')
+    const tail = [cityState, clinic?.postalCode?.trim()].filter(Boolean).join(' ')
+    const parts = [line1, clinic?.addressLine2?.trim(), tail].filter(Boolean)
+    return parts.join(', ')
+  }
+  const env = (envFallback ?? '').trim()
+  return env || null
+}
 
 export interface RenderOptions {
   campaignId: number
@@ -27,15 +77,45 @@ export interface RenderOptions {
   bodyHtml: string
   /** Shown in the footer right above the unsubscribe link. */
   fromName?: string
-  /** Postal address required by CAN-SPAM. */
-  postalAddress?: string
+  /** Clinic display name — drives the light branding header at the top of the
+   * shell (so a patient sees the practice name, not bare dental software). */
+  clinicName?: string | null
+  /** Clinic logo URL — when present, rendered small in the branding header in
+   * place of the plain wordmark. Kept optional + simple for deliverability. */
+  clinicLogoUrl?: string | null
+  /** Postal address required by CAN-SPAM (the sending clinic's address). */
+  postalAddress?: string | null
   /** Set false on test sends to skip recording opens/clicks. */
   tracking?: boolean
 }
 
 const ALLOWED_HTTP_URL = /^https?:\/\//i
 
-export function renderCampaignEmail(opts: RenderOptions): { html: string; text: string } {
+/**
+ * Build the per-recipient unsubscribe URL. Exported so the send orchestrator
+ * can put the SAME token URL into the RFC-8058 `List-Unsubscribe` header
+ * (Gmail/Yahoo bulk-sender requirement) without re-deriving the token.
+ */
+export function buildUnsubscribeUrl(opts: {
+  campaignId: number
+  recipientEmail: string
+  recipientCustomerId?: number
+  recipientPatientId?: string
+}): string {
+  return `${APP_URL}/api/unsub/${encodeToken({
+    c: opts.campaignId,
+    e: opts.recipientEmail.toLowerCase(),
+    i: opts.recipientCustomerId,
+    pi: opts.recipientPatientId,
+    p: 'u',
+  })}`
+}
+
+export function renderCampaignEmail(opts: RenderOptions): {
+  html: string
+  text: string
+  unsubUrl: string
+} {
   const tracking = opts.tracking ?? true
   const body = tracking ? rewriteLinks(opts.bodyHtml, opts) : opts.bodyHtml
   const trackingPixel = tracking
@@ -47,18 +127,26 @@ export function renderCampaignEmail(opts: RenderOptions): { html: string; text: 
         p: 'o',
       })}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px" />`
     : ''
-  const unsubUrl = `${APP_URL}/api/unsub/${encodeToken({
-    c: opts.campaignId,
-    e: opts.recipientEmail.toLowerCase(),
-    i: opts.recipientCustomerId,
-    pi: opts.recipientPatientId,
-    p: 'u',
-  })}`
+  const unsubUrl = buildUnsubscribeUrl(opts)
 
   const preheader = opts.previewText
     ? `<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${escapeHtml(
         opts.previewText,
       )}</div>`
+    : ''
+
+  // Light clinic branding header — logo when we have one, else the wordmark.
+  const clinicName = opts.clinicName?.trim() || opts.fromName?.trim() || ''
+  const brandingHeader = clinicName
+    ? `<div class="brand">${
+        opts.clinicLogoUrl
+          ? `<img src="${opts.clinicLogoUrl}" alt="${escapeHtml(
+              clinicName,
+            )}" style="max-height:40px;width:auto;display:inline-block" />`
+          : `<span style="font-size:16px;font-weight:700;color:#0c0a09">${escapeHtml(
+              clinicName,
+            )}</span>`
+      }</div>`
     : ''
 
   const html = `<!DOCTYPE html>
@@ -71,6 +159,7 @@ export function renderCampaignEmail(opts: RenderOptions): { html: string; text: 
     body{margin:0;padding:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c1917;line-height:1.55}
     a{color:#0c4a6e;text-decoration:underline}
     .container{max-width:600px;margin:0 auto;background:#ffffff}
+    .brand{padding:24px 40px 0;text-align:left}
     .pad{padding:32px 40px}
     .footer{padding:24px 40px;border-top:1px solid #e7e5e4;font-size:12px;color:#78716c;background:#fafaf9}
     .footer a{color:#57534e}
@@ -84,6 +173,7 @@ export function renderCampaignEmail(opts: RenderOptions): { html: string; text: 
 <body>
   ${preheader}
   <div class="container">
+    ${brandingHeader}
     <div class="pad">
       ${body}
     </div>
@@ -111,7 +201,8 @@ export function renderCampaignEmail(opts: RenderOptions): { html: string; text: 
     .replace(/\s+/g, ' ')
     .trim()
 
-  return { html, text: `${text}\n\nUnsubscribe: ${unsubUrl}` }
+  const addressLine = opts.postalAddress ? `\n\n${opts.postalAddress}` : ''
+  return { html, text: `${text}${addressLine}\n\nUnsubscribe: ${unsubUrl}`, unsubUrl }
 }
 
 function rewriteLinks(html: string, opts: RenderOptions): string {

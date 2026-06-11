@@ -67,6 +67,12 @@ function money(cents: number): string {
   return `$${dollars.toFixed(0)}`
 }
 
+// Plan gating for tier-locked attention cards (Shop = premium, Messages = pro).
+const PLAN_RANK: Record<string, number> = { basic: 0, pro: 1, premium: 2 }
+function planAtLeast(have: string, need: 'basic' | 'pro' | 'premium'): boolean {
+  return (PLAN_RANK[have] ?? 0) >= PLAN_RANK[need]
+}
+
 function fmtTime(d: Date): string {
   return d.toLocaleString('en-US', {
     hour: 'numeric',
@@ -225,16 +231,16 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             count={data.outstandingBalances.count}
             countSuffix={
               data.outstandingBalances.count > 0
-                ? `${data.outstandingBalances.count === 1 ? 'invoice' : 'invoices'} · ${money(data.outstandingBalances.totalCents)}`
-                : 'invoices to chase'
+                ? `${data.outstandingBalances.count === 1 ? 'patient owes' : 'patients owe'} · ${money(data.outstandingBalances.totalCents)}`
+                : 'patients with a balance'
             }
-            cta={data.outstandingBalances.count > 0 ? { label: 'View invoices', href: '/ecommerce/invoices' } : null}
-            emptyCopy="No outstanding shop balances. Patients are paid up."
+            cta={data.outstandingBalances.count > 0 ? { label: 'See who owes', href: '/patients?balance=1' } : null}
+            emptyCopy="No balances on file from your PMS. Patients are paid up."
           >
-            {/* Balance card has no per-row preview yet — totals tell the story. */}
+            {/* Sourced from the PMS sync — totals tell the story. */}
             {data.outstandingBalances.count > 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400 italic mt-1">
-                Click through to see who owes and send pay-link reminders.
+                From your PMS. Click through to see who owes and send a pay link.
               </p>
             )}
           </AttentionCard>
@@ -257,6 +263,28 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               </li>
             ))}
           </AttentionCard>
+
+          {/* Unanswered patient messages — the ball is in our court (pro+). */}
+          {planAtLeast(ctx.planTier, 'pro') && (
+            <AttentionCard
+              title="Unanswered messages"
+              count={data.unreadMessages}
+              countSuffix={data.unreadMessages === 1 ? 'thread waiting on a reply' : 'threads waiting on a reply'}
+              cta={data.unreadMessages > 0 ? { label: 'Open inbox', href: '/messages?unread=1' } : null}
+              emptyCopy="No unread patient messages. Inbox zero — nice."
+            />
+          )}
+
+          {/* Paid shop orders still to fulfill — your move (premium). */}
+          {planAtLeast(ctx.planTier, 'premium') && (
+            <AttentionCard
+              title="Orders to fulfill"
+              count={data.paidOrdersUnfulfilled}
+              countSuffix={data.paidOrdersUnfulfilled === 1 ? 'paid order awaiting fulfillment' : 'paid orders awaiting fulfillment'}
+              cta={data.paidOrdersUnfulfilled > 0 ? { label: 'Fulfill orders', href: '/shop/orders?status=paid' } : null}
+              emptyCopy="No paid orders waiting to ship or be picked up."
+            />
+          )}
         </div>
       </section>
 
@@ -370,16 +398,17 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         </div>
       </section>
 
-      {/* ── Bottom — Coming soon strip ───────────────────────────────── */}
+      {/* ── Bottom — reviews (live) + the one honest coming-soon ─────────── */}
       <section>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <ComingSoonCard
-            title="Reviews & reputation"
-            blurb="Auto-prompt patients for Google reviews after the visit."
+          {/* Reviews is LIVE — a real 30-day count, not a placeholder. */}
+          <ReviewsReceivedCard
+            completed={data.reviewsReceived.completed30d}
+            sent={data.reviewsReceived.sent30d}
           />
           <ComingSoonCard
             title="SMS replies"
-            blurb="Two-way patient text via Twilio. Replies land in your inbox."
+            blurb="Two-way patient text. Replies land in your inbox."
           />
         </div>
       </section>
@@ -487,6 +516,31 @@ function ComingSoonCard({ title, blurb }: { title: string; blurb: string }) {
         </span>
       </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{blurb}</p>
+    </div>
+  )
+}
+
+// Reviews is LIVE — a real 30-day count off the review funnel, with a link
+// into the received-reviews surface. Replaces the old "coming soon" Reviews
+// placeholder (Reviews & Reputation v2 shipped).
+function ReviewsReceivedCard({ completed, sent }: { completed: number; sent: number }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+        Reviews received (30d)
+      </p>
+      <div className="flex items-baseline gap-2 mb-1">
+        <span className="text-3xl font-bold tabular-nums text-gray-800 dark:text-gray-100">{completed}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+          from {sent} {sent === 1 ? 'request' : 'requests'} sent
+        </span>
+      </div>
+      <Link
+        href="/reviews/received"
+        className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+      >
+        {completed > 0 ? 'Read reviews & feature them' : 'Open Reviews'} →
+      </Link>
     </div>
   )
 }

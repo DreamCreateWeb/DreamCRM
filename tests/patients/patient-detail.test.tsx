@@ -54,7 +54,8 @@ function header(overrides: Partial<PatientHeader> = {}): PatientHeader {
       optedOut: false,
     },
     outstandingBalanceCents: 0,
-    lifetimeValueCents: 24000,
+    balanceAsOf: new Date('2026-05-01T00:00:00Z'),
+    shopSpendCents: 24000,
     lastVisitAt: new Date('2026-04-01T00:00:00Z'),
     nextVisitAt: new Date('2026-06-10T09:00:00Z'),
     nextVisitType: 'cleaning',
@@ -88,11 +89,18 @@ describe('PatientDetail header', () => {
     expect(screen.getByRole('button', { name: /Request review/i })).toBeInTheDocument()
   })
 
-  it('shows lifetime spend and next-visit stats', () => {
+  it('shows shop-purchase spend and next-visit stats', () => {
     render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} />)
+    // Shop purchases stat ($240 from shopSpendCents 24000).
     expect(screen.getByText('$240')).toBeInTheDocument()
+    expect(screen.getByText('Shop purchases')).toBeInTheDocument()
     // Next visit type capitalized via CSS, raw text is 'cleaning'
     expect(screen.getByText('cleaning')).toBeInTheDocument()
+  })
+
+  it('shows "No PMS balance on file" when the balance is null, never a fake $0', () => {
+    render(<PatientDetail header={header({ outstandingBalanceCents: null })} timeline={[]} counts={emptyCounts} notes={[]} />)
+    expect(screen.getByText(/No PMS balance on file/i)).toBeInTheDocument()
   })
 
   it('renders the Nothing-pending state when no flags are set', () => {
@@ -123,7 +131,7 @@ describe('PatientDetail header', () => {
     expect(screen.getByText(/Needs attention/i)).toBeInTheDocument()
     expect(screen.getByText(/Upcoming appointment is unconfirmed/)).toBeInTheDocument()
     expect(screen.getByText(/Missing intake form before next visit/)).toBeInTheDocument()
-    expect(screen.getByText(/balance outstanding/)).toBeInTheDocument()
+    expect(screen.getByText(/balance on file/)).toBeInTheDocument()
   })
 })
 

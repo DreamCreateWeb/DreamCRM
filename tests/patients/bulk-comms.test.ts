@@ -1,8 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { selectMock, sendMock } = vi.hoisted(() => ({
+/**
+ * Bulk patient email now routes through the SAME delivery path as a Patient
+ * Communications email — `sendPatientMessageEmail` (which goes through
+ * `deliver()` in lib/email.ts, inspects Resend's `{ error }`, and throws on a
+ * real failure) — with the clinic sender identity from `getClinicSenderIdentity`
+ * (Tier-1 From on the verified domain + deliverable Reply-To). It no longer
+ * news up a raw Resend client or hardcodes a stale platform From.
+ */
+
+const { selectMock, sendMessageMock, getSenderMock } = vi.hoisted(() => ({
   selectMock: vi.fn(),
-  sendMock: vi.fn().mockResolvedValue({ id: 'm_1' }),
+  sendMessageMock: vi.fn().mockResolvedValue(undefined),
+  getSenderMock: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -27,25 +37,26 @@ vi.mock('drizzle-orm', () => ({
   inArray: vi.fn(() => ({ _kind: 'inArray' })),
 }))
 
-vi.mock('resend', () => ({
-  Resend: class {
-    emails = { send: sendMock }
-  },
+vi.mock('@/lib/email', () => ({
+  sendPatientMessageEmail: sendMessageMock,
 }))
 
-const ORIGINAL_ENV = process.env.RESEND_API_KEY
-beforeEach(() => {
-  process.env.RESEND_API_KEY = 'test_key'
-  selectMock.mockReset()
-  sendMock.mockReset().mockResolvedValue({ id: 'm_1' })
-})
-afterEachRestore()
+vi.mock('@/lib/services/clinic-sender', () => ({
+  getClinicSenderIdentity: getSenderMock,
+}))
 
-function afterEachRestore() {
-  // Restore RESEND_API_KEY after the file. We don't import afterAll vs
-  // afterEach to keep this simple — Vitest's beforeEach already resets.
-  if (ORIGINAL_ENV) process.env.RESEND_API_KEY = ORIGINAL_ENV
+const SENDER = {
+  name: 'Acme Dental',
+  from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+  replyTo: 'front@acmedental.com',
+  timeZone: 'America/New_York',
 }
+
+beforeEach(() => {
+  selectMock.mockReset()
+  sendMessageMock.mockReset().mockResolvedValue(undefined)
+  getSenderMock.mockReset().mockResolvedValue({ ...SENDER })
+})
 
 import { sendBulkPatientEmail } from '@/lib/services/patient-bulk-comms'
 
@@ -64,7 +75,7 @@ describe('sendBulkPatientEmail', () => {
       skippedArchived: 0,
       errors: [],
     })
-    expect(sendMock).not.toHaveBeenCalled()
+    expect(sendMessageMock).not.toHaveBeenCalled()
   })
 
   it('sends one email per reachable patient', async () => {
@@ -80,7 +91,7 @@ describe('sendBulkPatientEmail', () => {
     })
     expect(r.sent).toBe(2)
     expect(r.skippedNoEmail).toBe(0)
-    expect(sendMock).toHaveBeenCalledTimes(2)
+    expect(sendMessageMock).toHaveBeenCalledTimes(2)
   })
 
   it('skips patients without an email', async () => {
@@ -117,8 +128,8 @@ describe('sendBulkPatientEmail', () => {
       { id: 'p1', firstName: 'Mia', lastName: 'Hayes', email: 'mia@x.com', isActive: 1 },
       { id: 'p2', firstName: 'Liam', lastName: 'Brooks', email: 'liam@x.com', isActive: 1 },
     ])
-    sendMock
-      .mockResolvedValueOnce({ id: 'ok' })
+    sendMessageMock
+      .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('Resend 500'))
     const r = await sendBulkPatientEmail({
       organizationId: 'org_1',
@@ -141,12 +152,54 @@ describe('sendBulkPatientEmail', () => {
       subject: 'Reminder',
       body: 'Time for your visit.',
     })
-    const call = sendMock.mock.calls[0][0]
+    const call = sendMessageMock.mock.calls[0][0]
     expect(call.to).toBe('mia@x.com')
-    expect(call.html).toContain('Hi Mia,')
+    // The patient first name is passed so sendPatientMessageEmail can greet by name.
+    expect(call.patientFirstName).toBe('Mia')
+    // Subject + body both reach the recipient (subject leads the body since the
+    // 1:1 message subject header is the clinic-message convention).
+    expect(call.body).toContain('Reminder')
+    expect(call.body).toContain('Time for your visit.')
   })
 
-  it('uses the clinic display name in the from line when provided', async () => {
+  it('routes through the clinic sender identity (From + deliverable Reply-To)', async () => {
+    selectMock.mockResolvedValueOnce([
+      { id: 'p1', firstName: 'Mia', lastName: 'Hayes', email: 'mia@x.com', isActive: 1 },
+    ])
+    await sendBulkPatientEmail({
+      organizationId: 'org_1',
+      patientIds: ['p1'],
+      subject: 'hi',
+      body: 'body',
+    })
+    expect(getSenderMock).toHaveBeenCalledWith('org_1')
+    const call = sendMessageMock.mock.calls[0][0]
+    // Sends FROM the clinic's Tier-1 identity, NOT a hardcoded platform address.
+    expect(call.from).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
+    expect(call.from).not.toMatch(/DreamCreateWeb\.com/i)
+    // Reply-To is the clinic's deliverable inbox so a reply reaches the clinic.
+    expect(call.replyTo).toBe('front@acmedental.com')
+  })
+
+  it('honors Tier-2 Gmail routing when the clinic has a connected mailbox', async () => {
+    getSenderMock.mockResolvedValueOnce({
+      ...SENDER,
+      gmail: { accountId: 'acct_1', from: 'Acme Dental <front@acmedental.com>' },
+    })
+    selectMock.mockResolvedValueOnce([
+      { id: 'p1', firstName: 'Mia', lastName: 'Hayes', email: 'mia@x.com', isActive: 1 },
+    ])
+    await sendBulkPatientEmail({
+      organizationId: 'org_1',
+      patientIds: ['p1'],
+      subject: 'hi',
+      body: 'body',
+    })
+    const call = sendMessageMock.mock.calls[0][0]
+    expect(call.gmail).toEqual({ accountId: 'acct_1', from: 'Acme Dental <front@acmedental.com>' })
+  })
+
+  it('uses the clinic display name as the From name when fromName is provided', async () => {
     selectMock.mockResolvedValueOnce([
       { id: 'p1', firstName: 'Mia', lastName: 'Hayes', email: 'mia@x.com', isActive: 1 },
     ])
@@ -157,7 +210,7 @@ describe('sendBulkPatientEmail', () => {
       body: 'body',
       fromName: 'Acme Dental',
     })
-    const call = sendMock.mock.calls[0][0]
-    expect(call.from).toContain('Acme Dental')
+    const call = sendMessageMock.mock.calls[0][0]
+    expect(call.clinicName).toBe('Acme Dental')
   })
 })

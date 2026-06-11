@@ -1747,6 +1747,19 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       existingAudiencesByName,
       existingCampaignsByName,
     )
+    // Push any legacy demo scheduled campaign far into the future so the new
+    // send-scheduled-campaigns cron never actually blasts demo email on resync.
+    // (Legacy demos were seeded with scheduledAt ~2 days out; the create path
+    // now seeds far-future, this corrects the ones already in the DB.)
+    await db
+      .update(schema.campaigns)
+      .set({ scheduledAt: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000) })
+      .where(
+        and(
+          eq(schema.campaigns.organizationId, existing.id),
+          eq(schema.campaigns.status, 'scheduled'),
+        ),
+      )
 
     // Patient Communications self-heal: top up to the seeded thread set.
     // Additive + idempotent — checks existing thread patient ids before
@@ -1853,6 +1866,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // PMS Integrations self-heal: seed the sandbox connection + entity maps +
     // sync/write-back history once (idempotent — no-op if already connected).
     await seedDemoPms(existing.id)
+
+    // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
+    // balance payment exist (drives the Overview "Orders to fulfill" card, the
+    // /shop/payments page, and the commerce timeline events on legacy demos).
+    await seedDemoMoneyCoherence(existing.id)
 
     // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
     await seedDemoAiUsage(existing.id)
@@ -2672,7 +2690,10 @@ async function seedRecallOutreachForOrg(
       templateName: SYSTEM_TEMPLATES[1].name, // Birthday
       audienceName: 'Birthday this month',
       status: 'scheduled',
-      scheduledDaysAhead: 2,
+      // Far-future so the scheduled-campaign cron never actually blasts demo
+      // email on a deploy resync — this row exists only to showcase the
+      // "Scheduled" pill + the editor's "Send later" state, not to send.
+      scheduledDaysAhead: 3650,
     },
     {
       name: 'New patient welcome — week 1 follow-up',
@@ -3969,12 +3990,49 @@ async function seedDemoShop(orgId: string, now: Date, patientIds: string[] = [])
       createdAt: new Date(now.getTime() - 6 * 60 * 60 * 1000),
     },
   ])
+  // A paid order that's STILL unfulfilled — drives the Overview "Orders to
+  // fulfill" attention card + a shop_order timeline event on Emma's record.
+  const o4 = newId('ord')
+  await db.insert(schema.shopOrder).values({
+    id: o4,
+    organizationId: orgId,
+    patientId: patientIds[0] ?? null,
+    email: 'emma.lopez@example.com',
+    name: 'Emma Lopez',
+    fulfillmentType: 'ship',
+    status: 'paid',
+    fulfillmentStatus: 'unfulfilled',
+    subtotalCents: 8900,
+    shippingCents: 600,
+    taxCents: 0,
+    totalCents: 9500,
+    shippingAddress: { line1: '210 Oak Ln', city: 'Austin', state: 'TX', postal_code: '78702', country: 'US' },
+    paidAt: new Date(now.getTime() - 1 * dayMs),
+    createdAt: new Date(now.getTime() - 1 * dayMs),
+  })
   await db.insert(schema.shopOrderItem).values([
     { id: `oi_${newId('x')}`, orderId: o1, organizationId: orgId, variantId: whiteningStdVar, productName: 'Professional Whitening Kit', variantName: 'Standard', unitPriceCents: 14900, quantity: 1 },
     { id: `oi_${newId('x')}`, orderId: o2, organizationId: orgId, variantId: brushVar, productName: 'Sonic Electric Toothbrush', variantName: null, unitPriceCents: 8900, quantity: 1 },
     { id: `oi_${newId('x')}`, orderId: o2, organizationId: orgId, variantId: flosserVar, productName: 'Cordless Water Flosser', variantName: null, unitPriceCents: 5900, quantity: 1 },
     { id: `oi_${newId('x')}`, orderId: o3, organizationId: orgId, variantId: pensVar, productName: 'Whitening Touch-Up Pens (3-pack)', variantName: null, unitPriceCents: 2900, quantity: 1 },
+    { id: `oi_${newId('x')}`, orderId: o4, organizationId: orgId, variantId: brushVar, productName: 'Sonic Electric Toothbrush', variantName: null, unitPriceCents: 8900, quantity: 1 },
   ])
+
+  // An online balance payment (patient paid toward their PMS balance) so the
+  // /shop/payments reconciliation page + the patient timeline have real data.
+  // FK requires a patient, so only when one exists.
+  if (patientIds[0]) {
+    await db.insert(schema.patientBalancePayment).values({
+      id: `bp_${newId('x')}`,
+      organizationId: orgId,
+      patientId: patientIds[0],
+      amountCents: 12000,
+      status: 'paid',
+      balanceCentsAtPayment: 35000,
+      paidAt: new Date(now.getTime() - 3 * dayMs),
+      createdAt: new Date(now.getTime() - 3 * dayMs),
+    })
+  }
 
   // Coupons: 2 open promo codes + (when a patient exists) a single-use
   // birthday code, so the coupons page shows manual + birthday sources.
@@ -4056,5 +4114,90 @@ async function seedDemoMemberships(orgId: string, now: Date, patientIds: string[
         startedAt: new Date(now.getTime() - (365 - m.offset) * dayMs),
       })),
     )
+  }
+}
+
+// ── Money-coherence self-heal (idempotent) ──────────────────────────────────
+// Ensures a legacy demo has the data the new money surfaces render against:
+//   • a PAID + UNFULFILLED shop order (Overview "Orders to fulfill" card)
+//   • an online balance payment (the /shop/payments reconciliation page +
+//     the patient timeline "Paid $X toward balance online" event)
+// Both link to a real seeded patient so the patient-detail timeline shows them.
+// No-ops when the rows already exist, so it's safe to run on every entry.
+async function seedDemoMoneyCoherence(orgId: string) {
+  const now = new Date()
+  const dayMs = 24 * 60 * 60 * 1000
+
+  // Pick a stable patient to attach to (first by createdAt). Everything below
+  // links to a real patient (so the patient-detail timeline shows it) — bail if
+  // the org somehow has none.
+  const [patient] = await db
+    .select({ id: schema.patient.id, email: schema.patient.email, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+    .orderBy(schema.patient.createdAt)
+    .limit(1)
+  if (!patient) return
+
+  // (1) Paid + unfulfilled order (Overview "Orders to fulfill" card).
+  const [paidUnfulfilled] = await db
+    .select({ id: schema.shopOrder.id })
+    .from(schema.shopOrder)
+    .where(
+      and(
+        eq(schema.shopOrder.organizationId, orgId),
+        eq(schema.shopOrder.status, 'paid'),
+        eq(schema.shopOrder.fulfillmentStatus, 'unfulfilled'),
+      ),
+    )
+    .limit(1)
+  if (!paidUnfulfilled) {
+    const orderId = newId('ord')
+    await db.insert(schema.shopOrder).values({
+      id: orderId,
+      organizationId: orgId,
+      patientId: patient.id,
+      email: patient.email ?? 'demo.buyer@example.com',
+      name: `${patient.firstName} ${patient.lastName ?? ''}`.trim(),
+      fulfillmentType: 'ship',
+      status: 'paid',
+      fulfillmentStatus: 'unfulfilled',
+      subtotalCents: 8900,
+      shippingCents: 600,
+      taxCents: 0,
+      totalCents: 9500,
+      shippingAddress: { line1: '210 Oak Ln', city: 'Austin', state: 'TX', postal_code: '78702', country: 'US' },
+      paidAt: new Date(now.getTime() - 1 * dayMs),
+      createdAt: new Date(now.getTime() - 1 * dayMs),
+    })
+    await db.insert(schema.shopOrderItem).values({
+      id: `oi_${newId('x')}`,
+      orderId,
+      organizationId: orgId,
+      variantId: null,
+      productName: 'Sonic Electric Toothbrush',
+      variantName: null,
+      unitPriceCents: 8900,
+      quantity: 1,
+    })
+  }
+
+  // (2) Online balance payment (reconciliation page + timeline event).
+  const [existingPayment] = await db
+    .select({ id: schema.patientBalancePayment.id })
+    .from(schema.patientBalancePayment)
+    .where(eq(schema.patientBalancePayment.organizationId, orgId))
+    .limit(1)
+  if (!existingPayment) {
+    await db.insert(schema.patientBalancePayment).values({
+      id: `bp_${newId('x')}`,
+      organizationId: orgId,
+      patientId: patient.id,
+      amountCents: 12000,
+      status: 'paid',
+      balanceCentsAtPayment: 35000,
+      paidAt: new Date(now.getTime() - 3 * dayMs),
+      createdAt: new Date(now.getTime() - 3 * dayMs),
+    })
   }
 }

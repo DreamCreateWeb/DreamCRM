@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { SelectedItemsProvider } from '@/app/selected-items-context'
 import SearchForm from '@/components/search-form'
 import DateSelect from '@/components/date-select'
@@ -38,6 +39,11 @@ export default async function InvoicesOrSubscriptions({
 }) {
   const ctx = await requireTenant()
   const params = await searchParams
+
+  // Clinic tenants: the legacy Mosaic invoices table is dead (no dental flow
+  // writes it). Real clinic money lives in Shop — send them to the online-
+  // payments reconciliation surface. (Platform keeps the Stripe table below.)
+  if (ctx.tenantType === 'clinic') redirect('/shop/payments')
 
   // Platform admin: render Stripe management surface.
   if (ctx.tenantType === 'platform') {

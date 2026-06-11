@@ -2,10 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import { formatShortDate } from '@/lib/utils'
-import { cancelTeamInvitation, inviteTeamMember, removeTeamMember } from './actions'
+import { cancelTeamInvitation, changeTeamMemberRole, inviteTeamMember, removeTeamMember } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
-import { EmptyState } from '@/components/ui/empty-state'
 
 export interface TeamMemberView {
   userId: string
@@ -27,9 +26,11 @@ export interface InvitationView {
 interface Props {
   members: TeamMemberView[]
   invitations: InvitationView[]
+  /** Owner/admin viewers can invite, remove, and change roles. */
+  canManage?: boolean
 }
 
-export default function TeamPanel({ members, invitations }: Props) {
+export default function TeamPanel({ members, invitations, canManage = false }: Props) {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'member'>('member')
   const [pending, startTransition] = useTransition()
@@ -73,6 +74,18 @@ export default function TeamPanel({ members, invitations }: Props) {
     })
   }
 
+  function handleRoleChange(userId: string, name: string, nextRole: 'admin' | 'member') {
+    setFeedback(null)
+    startTransition(async () => {
+      try {
+        await changeTeamMemberRole({ userId, role: nextRole })
+        setFeedback({ ok: `${name} is now ${nextRole === 'admin' ? 'an admin' : 'a member'}.` })
+      } catch (err) {
+        setFeedback({ error: (err as Error).message })
+      }
+    })
+  }
+
   return (
     <div className="grow">
       <div className="p-6 space-y-8">
@@ -83,7 +96,8 @@ export default function TeamPanel({ members, invitations }: Props) {
           </p>
         </header>
 
-        {/* Invite form */}
+        {/* Invite form — owner/admin only */}
+        {canManage && (
         <section>
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">Invite a teammate</h3>
           <form onSubmit={onInvite} className="flex flex-col sm:flex-row gap-2 max-w-2xl">
@@ -119,6 +133,7 @@ export default function TeamPanel({ members, invitations }: Props) {
             </div>
           )}
         </section>
+        )}
 
         {/* Pending invitations */}
         <section>
@@ -159,30 +174,50 @@ export default function TeamPanel({ members, invitations }: Props) {
             Team members <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({members.length})</span>
           </h3>
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 border border-gray-100 dark:border-gray-700/60 rounded-lg overflow-hidden">
-            {members.map((m) => (
-              <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <div>
-                  <div className="font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                    {m.name ?? m.email}
-                    {m.isCurrent && <StatusPill tone="special" label="You" />}
+            {members.map((m) => {
+              // The owner's role is immutable here; you can't change your own.
+              const editable = canManage && m.role !== 'owner' && !m.isCurrent
+              return (
+                <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                  <div>
+                    <div className="font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                      {m.name ?? m.email}
+                      {m.isCurrent && <StatusPill tone="special" label="You" />}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {m.email} · {m.role} · joined {formatShortDate(m.joinedAt as unknown as string)}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {m.email} · {m.role} · joined {formatShortDate(m.joinedAt as unknown as string)}
+                  <div className="flex items-center gap-2">
+                    {editable ? (
+                      <select
+                        value={m.role === 'admin' ? 'admin' : 'member'}
+                        onChange={(e) => handleRoleChange(m.userId, m.name ?? m.email, e.target.value as 'admin' | 'member')}
+                        disabled={pending}
+                        aria-label={`Role for ${m.name ?? m.email}`}
+                        className="form-select text-sm py-1"
+                      >
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    ) : (
+                      <StatusPill tone="neutral" label={m.role} className="capitalize" />
+                    )}
+                    {editable && (
+                      <ActionButton
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemove(m.userId, m.name ?? m.email)}
+                        disabled={pending}
+                        className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
+                      >
+                        Remove
+                      </ActionButton>
+                    )}
                   </div>
-                </div>
-                {m.role !== 'owner' && !m.isCurrent && (
-                  <ActionButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemove(m.userId, m.name ?? m.email)}
-                    disabled={pending}
-                    className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
-                  >
-                    Remove
-                  </ActionButton>
-                )}
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         </section>
       </div>

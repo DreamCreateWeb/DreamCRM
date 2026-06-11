@@ -1,11 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+const { changeTeamMemberRole } = vi.hoisted(() => ({
+  changeTeamMemberRole: vi.fn().mockResolvedValue({ ok: true }),
+}))
 vi.mock('../../app/(default)/settings/team/actions', () => ({
   inviteTeamMember: vi.fn().mockResolvedValue({ ok: true }),
   cancelTeamInvitation: vi.fn().mockResolvedValue({ ok: true }),
   removeTeamMember: vi.fn().mockResolvedValue({ ok: true }),
+  changeTeamMemberRole,
 }))
 
 import TeamPanel, { type InvitationView, type TeamMemberView } from '@/app/(default)/settings/team/team-panel'
@@ -28,8 +32,12 @@ const TEAMMATE: TeamMemberView = {
   isCurrent: false,
 }
 
+beforeEach(() => {
+  changeTeamMemberRole.mockClear()
+})
+
 describe('TeamPanel', () => {
-  it('renders the invite form, members list, and pending invitations', () => {
+  it('renders the invite form, members list, and pending invitations (manager view)', () => {
     const invitations: InvitationView[] = [
       {
         id: 'inv_1',
@@ -39,7 +47,7 @@ describe('TeamPanel', () => {
         inviterName: 'Dustin',
       },
     ]
-    render(<TeamPanel members={[ME, TEAMMATE]} invitations={invitations} />)
+    render(<TeamPanel canManage members={[ME, TEAMMATE]} invitations={invitations} />)
 
     // Invite form
     expect(screen.getByPlaceholderText(/teammate@/i)).toBeInTheDocument()
@@ -56,26 +64,52 @@ describe('TeamPanel', () => {
   })
 
   it('shows an empty state when there are no pending invites', () => {
-    render(<TeamPanel members={[ME]} invitations={[]} />)
+    render(<TeamPanel canManage members={[ME]} invitations={[]} />)
     expect(screen.getByText(/No pending invitations/i)).toBeInTheDocument()
   })
 
   it('does not render a Remove button for the current user', () => {
-    render(<TeamPanel members={[ME]} invitations={[]} />)
+    render(<TeamPanel canManage members={[ME]} invitations={[]} />)
     expect(screen.queryByRole('button', { name: /^Remove$/ })).not.toBeInTheDocument()
   })
 
-  it('renders a Remove button for non-current, non-owner members', () => {
-    render(<TeamPanel members={[ME, TEAMMATE]} invitations={[]} />)
+  it('renders a Remove button for non-current, non-owner members (manager view)', () => {
+    render(<TeamPanel canManage members={[ME, TEAMMATE]} invitations={[]} />)
     expect(screen.getByRole('button', { name: /^Remove$/ })).toBeInTheDocument()
   })
 
   it('disables the Send invite button until an email is typed', async () => {
     const user = userEvent.setup()
-    render(<TeamPanel members={[ME]} invitations={[]} />)
+    render(<TeamPanel canManage members={[ME]} invitations={[]} />)
     const button = screen.getByRole('button', { name: /Send invite/i }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
     await user.type(screen.getByPlaceholderText(/teammate@/i), 'newhire@dreamcreateweb.com')
     expect(button.disabled).toBe(false)
+  })
+
+  // ── Role change (new) ─────────────────────────────────────────────────
+  it('renders a role select for editable members and calls changeTeamMemberRole on change', async () => {
+    const user = userEvent.setup()
+    render(<TeamPanel canManage members={[ME, TEAMMATE]} invitations={[]} />)
+    const select = screen.getByLabelText(/Role for Jane Designer/i) as HTMLSelectElement
+    expect(select).toBeInTheDocument()
+    expect(select.value).toBe('admin')
+    await user.selectOptions(select, 'member')
+    expect(changeTeamMemberRole).toHaveBeenCalledWith({ userId: 'u_jane', role: 'member' })
+  })
+
+  it('never offers a role control for the owner', () => {
+    render(<TeamPanel canManage members={[ME]} invitations={[]} />)
+    // The owner is the current user here; no role select should exist.
+    expect(screen.queryByLabelText(/Role for/i)).not.toBeInTheDocument()
+  })
+
+  it('a non-manager (plain member) sees no invite form, no remove, no role select', () => {
+    render(<TeamPanel members={[ME, TEAMMATE]} invitations={[]} />)
+    expect(screen.queryByPlaceholderText(/teammate@/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Remove$/ })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Role for/i)).not.toBeInTheDocument()
+    // ...but they still see the roster.
+    expect(screen.getByText('Jane Designer')).toBeInTheDocument()
   })
 })

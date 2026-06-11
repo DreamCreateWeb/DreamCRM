@@ -27,7 +27,10 @@ vi.mock('@/lib/db', () => ({
       }),
     }),
   },
-  schema: { reviewRequest: { id: 'id', organizationId: 'organizationId', patientId: 'patientId', status: 'status', token: 'token', completedAt: 'completedAt' } },
+  schema: {
+    reviewRequest: { id: 'id', organizationId: 'organizationId', patientId: 'patientId', status: 'status', token: 'token', completedAt: 'completedAt' },
+    patient: { id: 'id', organizationId: 'organizationId', firstName: 'firstName', lastName: 'lastName' },
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -47,11 +50,16 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('resend', () => ({ Resend: class { emails = { send: async () => ({ id: 'm' }) } } }))
 
+const { notifyOrgMembersMock } = vi.hoisted(() => ({ notifyOrgMembersMock: vi.fn(async () => undefined) }))
+vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyOrgMembersMock }))
+
 import { submitReviewText } from '@/lib/services/reviews'
 
 beforeEach(() => {
   state.row = null
   state.updates = []
+  notifyOrgMembersMock.mockClear()
+  notifyOrgMembersMock.mockResolvedValue(undefined)
 })
 
 function reqWithStatus(status: string) {
@@ -91,5 +99,37 @@ describe('submitReviewText status gate', () => {
     expect((await submitReviewText({ token: 'tok', text: '   ' })).ok).toBe(false)
     expect((await submitReviewText({ token: 'tok', text: 'x'.repeat(2001) })).ok).toBe(false)
     expect(state.updates).toHaveLength(0)
+  })
+})
+
+describe('submitReviewText notifications', () => {
+  it('pings owners/admins with the rating → /reviews/received on a completed submit', async () => {
+    reqWithStatus('sent')
+    const res = await submitReviewText({ token: 'tok', text: 'Best cleaning ever.', rating: 5 })
+    expect(res.ok).toBe(true)
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({
+        type: 'review_submitted',
+        title: expect.stringContaining('5★'),
+        linkPath: '/reviews/received',
+      }),
+      { roles: ['owner', 'admin'] },
+    )
+  })
+
+  it('does NOT notify when the submission is rejected (e.g. skipped request)', async () => {
+    reqWithStatus('skipped')
+    const res = await submitReviewText({ token: 'tok', text: 'Trying to slip through.' })
+    expect(res.ok).toBe(false)
+    expect(notifyOrgMembersMock).not.toHaveBeenCalled()
+  })
+
+  it('still completes the review when the notify throws', async () => {
+    notifyOrgMembersMock.mockRejectedValueOnce(new Error('notify boom'))
+    reqWithStatus('clicked')
+    const res = await submitReviewText({ token: 'tok', text: 'Lovely visit.' })
+    expect(res.ok).toBe(true)
+    expect((state.updates[0] as { status: string }).status).toBe('completed')
   })
 })

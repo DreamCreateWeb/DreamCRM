@@ -14,8 +14,10 @@ import { listLibraryForPicker } from '@/lib/services/service-library'
 import { listClinicGmailAccounts } from '@/lib/services/clinic-sender'
 import SettingsSidebar from '../settings-sidebar'
 import ClinicProfilePanel from './clinic-profile-panel'
+import CustomDomainCard from './custom-domain-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -39,6 +41,10 @@ export default async function ClinicSettings() {
   const siteUrl = profile?.websiteDomain
     ? `https://${profile.websiteDomain}`
     : `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
+  // The custom-domain card always shows the subdomain as the free fallback
+  // address (not the custom domain, which may not be live yet).
+  const subdomainUrl = `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
+  const customDomainStatus = (profile?.customDomainStatus as CustomDomainStatus | null) ?? null
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -55,13 +61,21 @@ export default async function ClinicSettings() {
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
           <SettingsSidebar tenantType={ctx.tenantType} />
-          <ClinicProfilePanel
-            profile={profile ?? null}
-            orgName={ctx.organizationName}
-            orgId={ctx.organizationId}
-            library={library}
-            gmailAccounts={gmailAccounts}
-          />
+          <div className="grow">
+            <ClinicProfilePanel
+              profile={profile ?? null}
+              orgName={ctx.organizationName}
+              orgId={ctx.organizationId}
+              library={library}
+              gmailAccounts={gmailAccounts}
+            />
+            <div className="border-t border-gray-200 dark:border-gray-700/60">
+              <CustomDomainCard
+                initialStatus={customDomainStatus}
+                subdomainUrl={subdomainUrl}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

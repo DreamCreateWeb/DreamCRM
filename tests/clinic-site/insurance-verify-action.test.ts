@@ -34,11 +34,20 @@ vi.mock('@/lib/services/clinic-site', () => ({
   resolveClinicOrgIdBySlug: async (slug?: string) => (slug && slug !== 'unknown' ? 'org_1' : null),
 }))
 
+const { notifyOrgMembersMock } = vi.hoisted(() => ({
+  notifyOrgMembersMock: vi.fn(async () => undefined),
+}))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyOrgMembers: notifyOrgMembersMock,
+}))
+
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
 
 beforeEach(() => {
   insertedRows.length = 0
   leadFormsRow = { leadForms: null }
+  notifyOrgMembersMock.mockResolvedValue(undefined)
+  notifyOrgMembersMock.mockClear()
 })
 
 function form(fields: Record<string, string | null>) {
@@ -188,5 +197,37 @@ describe('submitInsuranceVerifyRequest', () => {
     expect(leadInsert!.values).toMatchObject({
       name: 'Insurance verification request',
     })
+  })
+
+  it('notifies org owners/admins of the new insurance question → /leads', async () => {
+    // Use a custom form config that has a name field so the lead carries a real
+    // name (the default 2-field insurance form has none → sentinel name).
+    leadFormsRow = {
+      leadForms: {
+        insurance_verifier: [
+          { id: 'name', type: 'text', label: 'Full name', required: true, systemKey: 'name' },
+          { id: 'email', type: 'email', label: 'Email', required: true, systemKey: 'email' },
+        ],
+      },
+    }
+    const result = await submitInsuranceVerifyRequest(
+      form({ slug: 'acme', name: 'Jane Doe', email: 'jane@example.com' }),
+    )
+    expect(result.ok).toBe(true)
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({
+        type: 'insurance_question',
+        title: expect.stringContaining('Jane Doe'),
+        linkPath: '/leads',
+      }),
+      { roles: ['owner', 'admin'] },
+    )
+  })
+
+  it('does NOT notify when the submission is rejected (no lead created)', async () => {
+    const result = await submitInsuranceVerifyRequest(form({ slug: 'acme', phone: '5551234567' }))
+    expect(result.ok).toBe(false)
+    expect(notifyOrgMembersMock).not.toHaveBeenCalled()
   })
 })

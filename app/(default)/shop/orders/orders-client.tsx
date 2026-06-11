@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   formatCents,
@@ -63,6 +64,7 @@ export default function OrdersClient({ orders, orgName = 'Your clinic' }: { orde
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all')
+  const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
   function run(fn: () => Promise<unknown>, done?: string) {
@@ -73,7 +75,16 @@ export default function OrdersClient({ orders, orgName = 'Your clinic' }: { orde
     })
   }
 
-  const filtered = filter === 'all' ? orders : orders.filter((o) => o.status === filter)
+  // Search across patient name / order name / order email / product names.
+  const filtered = useMemo(() => {
+    const byStatus = filter === 'all' ? orders : orders.filter((o) => o.status === filter)
+    const q = search.trim().toLowerCase()
+    if (!q) return byStatus
+    return byStatus.filter((o) =>
+      [o.patientName, o.name, o.email, ...o.items.map((i) => i.productName)]
+        .some((v) => v?.toLowerCase().includes(q)),
+    )
+  }, [orders, filter, search])
   const counts = {
     all: orders.length,
     paid: orders.filter((o) => o.status === 'paid').length,
@@ -94,12 +105,22 @@ export default function OrdersClient({ orders, orgName = 'Your clinic' }: { orde
         }
       />
 
-      <div className="flex flex-wrap gap-1.5 mb-4">
-        {(['all', 'paid', 'pending'] as const).map((f) => (
-          <FilterChip key={f} active={filter === f} count={counts[f]} onClick={() => setFilter(f)}>
-            {f === 'all' ? 'All' : ORDER_STATUS_LABELS[f]}
-          </FilterChip>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex flex-wrap gap-1.5">
+          {(['all', 'paid', 'pending'] as const).map((f) => (
+            <FilterChip key={f} active={filter === f} count={counts[f]} onClick={() => setFilter(f)}>
+              {f === 'all' ? 'All' : ORDER_STATUS_LABELS[f]}
+            </FilterChip>
+          ))}
+        </div>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search patient, email, or product…"
+          aria-label="Search orders"
+          className="form-input text-sm w-full sm:w-64"
+        />
       </div>
 
       {filtered.length === 0 ? (
@@ -140,9 +161,17 @@ export default function OrdersClient({ orders, orgName = 'Your clinic' }: { orde
                         }
                       />
                     )}
-                    {o.patientName && (
-                      <span className="text-xs text-violet-600 dark:text-violet-400">· {o.patientName}</span>
-                    )}
+                    {o.patientName &&
+                      (o.patientId ? (
+                        <Link
+                          href={`/patients/${o.patientId}`}
+                          className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                        >
+                          · {o.patientName}
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-violet-600 dark:text-violet-400">· {o.patientName}</span>
+                      ))}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {o.items

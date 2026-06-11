@@ -1,0 +1,220 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
+import type { Tone } from '@/lib/ui/encodings'
+import type { CustomDomainStatus, CustomDomainState } from '@/lib/services/custom-domain'
+import {
+  requestCustomDomainAction,
+  checkCustomDomainStatusAction,
+  removeCustomDomainAction,
+} from './custom-domain-actions'
+
+interface Props {
+  /** Current saved status (null = no custom domain configured). */
+  initialStatus: CustomDomainStatus | null
+  /** The clinic's subdomain fallback, shown as the current address. */
+  subdomainUrl: string
+}
+
+const STATE_META: Record<CustomDomainState, { tone: Tone; label: string; title: string }> = {
+  pending_dns: {
+    tone: 'warn',
+    label: 'Pending DNS',
+    title: 'Waiting for the DNS records below to be added + verified.',
+  },
+  active: {
+    tone: 'ok',
+    label: 'Active',
+    title: 'Your domain is live and serving your website.',
+  },
+  failed: {
+    tone: 'urgent',
+    label: 'Needs attention',
+    title: 'Provisioning failed — check the records, or remove and try again.',
+  },
+}
+
+export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props) {
+  const [status, setStatus] = useState<CustomDomainStatus | null>(initialStatus)
+  const [domain, setDomain] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  function connect(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    setNote(null)
+    startTransition(async () => {
+      const res = await requestCustomDomainAction(domain)
+      if (res.ok) {
+        setStatus(res.status)
+        setDomain('')
+      } else {
+        setError(res.error)
+      }
+    })
+  }
+
+  function check() {
+    setError(null)
+    setNote(null)
+    startTransition(async () => {
+      const res = await checkCustomDomainStatusAction()
+      if (res.ok) {
+        setStatus(res.status)
+        setNote(
+          res.status.state === 'active'
+            ? 'Your domain is live.'
+            : 'Still pending — DNS changes can take up to an hour to propagate.',
+        )
+      } else {
+        setError(res.error)
+      }
+    })
+  }
+
+  function remove() {
+    setError(null)
+    setNote(null)
+    startTransition(async () => {
+      const res = await removeCustomDomainAction()
+      if (res.ok) {
+        setStatus(null)
+        setNote('Custom domain removed. Your site is back on its free address.')
+      } else {
+        setError(res.error)
+      }
+    })
+  }
+
+  const meta = status ? STATE_META[status.state] : null
+
+  return (
+    <section className="px-5 py-6 sm:px-8 sm:py-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+          Custom domain
+        </h2>
+        {meta && <StatusPill tone={meta.tone} label={meta.label} title={meta.title} />}
+      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-5 max-w-2xl">
+        Use your own web address for your site (like{' '}
+        <span className="font-medium text-gray-700 dark:text-gray-300">www.yourpractice.com</span>).
+        Your site is always reachable at{' '}
+        <a
+          href={subdomainUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-violet-600 hover:underline dark:text-violet-400"
+        >
+          {subdomainUrl.replace(/^https?:\/\//, '')}
+        </a>{' '}
+        even without one.
+      </p>
+
+      {!status ? (
+        <form onSubmit={connect} className="flex flex-col sm:flex-row gap-3 sm:items-end max-w-2xl">
+          <div className="flex-1">
+            <label
+              htmlFor="custom-domain-input"
+              className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5"
+            >
+              Your domain
+            </label>
+            <input
+              id="custom-domain-input"
+              type="text"
+              inputMode="url"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="www.yourpractice.com"
+              className="form-input w-full"
+              disabled={pending}
+            />
+          </div>
+          <ActionButton type="submit" variant="primary" disabled={pending || !domain.trim()}>
+            {pending ? 'Connecting…' : 'Connect'}
+          </ActionButton>
+        </form>
+      ) : (
+        <div className="space-y-5 max-w-3xl">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Domain:</span>
+            <span className="font-medium text-gray-800 dark:text-gray-100">{status.domain}</span>
+          </div>
+
+          {/* DNS records the clinic must add. */}
+          <div>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+              Add these records where you manage{' '}
+              <span className="font-medium">{status.domain}</span>’s DNS. The CNAME points your
+              domain at us; the certificate record proves you own it. It’s usually live within an
+              hour.
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-900/40 text-left">
+                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Purpose</th>
+                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Type</th>
+                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Name / Host</th>
+                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {status.dnsRecords.map((r, i) => (
+                    <tr key={`${r.name}-${i}`} className="align-top">
+                      <td className="px-3 py-2">
+                        <StatusPill
+                          tone={r.purpose === 'routing' ? 'info' : 'special'}
+                          label={r.purpose === 'routing' ? 'Routing' : 'Certificate'}
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
+                        {r.type}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
+                        {r.name}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
+                        {r.value}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {status.error === 'manual' && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                We’ll finish provisioning shortly — the certificate value above is a placeholder
+                until then. Add the routing record now; we’ll email you if anything else is needed.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <ActionButton variant="secondary" onClick={check} disabled={pending}>
+              {pending ? 'Checking…' : 'Check status'}
+            </ActionButton>
+            <ActionButton variant="danger" onClick={remove} disabled={pending}>
+              Remove
+            </ActionButton>
+            {status.lastCheckedAt && (
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Last checked {new Date(status.lastCheckedAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {error && <p className="mt-4 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
+      {note && <p className="mt-4 text-sm text-emerald-600 dark:text-emerald-400">{note}</p>}
+    </section>
+  )
+}

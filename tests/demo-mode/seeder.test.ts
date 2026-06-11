@@ -44,6 +44,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.membershipPlan) return 'membership_plan'
     if (t === schema.membership) return 'membership'
     if (t === schema.shopCoupon) return 'shop_coupon'
+    if (t === schema.patientBalancePayment) return 'patient_balance_payment'
     if (t === schema.aiUsageCounter) return 'ai_usage_counter'
     return 'unknown'
   }
@@ -287,15 +288,26 @@ describe('createDemoClinic', () => {
     //   2. clinicProfile patch (stats / officePhotos / logo / hero / chairs / …)
     //   3. patient.recallIntervalMonths = 3 backfill for Charlotte Diaz (0054)
     //   4. appointment.source backfill ("set source='manual' where source is null")
+    //   5. scheduled-campaign scheduledAt push far-future (so the new
+    //      send-scheduled-campaigns cron never blasts demo email on resync)
     //
     // Note: testimonials are handled by a separate self-heal block lower
     // down (topUpLinkedDemoTestimonials) that needs patientIds to link the
     // seeded testimonials to real CRM patients — it doesn't fire here
     // because the mocked patient query returns no rows.
-    expect(state.updates).toHaveLength(4)
+    expect(state.updates).toHaveLength(5)
 
     const isDemoUpdate = state.updates.find((u) => (u.set as { isDemo?: boolean }).isDemo === true)
     expect(isDemoUpdate, 'expected an organization.isDemo backfill update').toBeTruthy()
+
+    // The scheduled-campaign self-heal pushes scheduledAt > 1yr out.
+    const scheduledPush = state.updates.find(
+      (u) => (u.set as { scheduledAt?: Date }).scheduledAt instanceof Date,
+    )
+    expect(scheduledPush, 'expected a scheduled-campaign scheduledAt push').toBeTruthy()
+    expect((scheduledPush!.set as { scheduledAt: Date }).scheduledAt.getTime()).toBeGreaterThan(
+      Date.now() + 365 * 24 * 60 * 60 * 1000,
+    )
 
     const patch = state.updates.find((u) => (u.set as { stats?: unknown }).stats !== undefined)!.set as {
       stats?: unknown
@@ -601,12 +613,16 @@ describe('createDemoClinic', () => {
     // Careers: 2 open roles + 1 draft; 7 applicants across the pipeline.
     expect(counts.job_posting).toBe(3)
     expect(counts.job_application).toBe(7)
-    // Shop: catalog of 6 products (7 variants) + 1 config row + 3 demo orders (4 items).
+    // Shop: catalog of 6 products (7 variants) + 1 config row + 4 demo orders
+    // (5 items) — incl. a PAID + UNFULFILLED order (Emma) for the Overview
+    // "Orders to fulfill" card + the shop_order timeline event.
     expect(counts.shop_config).toBe(1)
     expect(counts.shop_product).toBe(6)
     expect(counts.shop_product_variant).toBe(7)
-    expect(counts.shop_order).toBe(3)
-    expect(counts.shop_order_item).toBe(4)
+    expect(counts.shop_order).toBe(4)
+    expect(counts.shop_order_item).toBe(5)
+    // One online balance payment (reconciliation page + timeline event).
+    expect(counts.patient_balance_payment).toBe(1)
     // Memberships: 2 plans + 3 members (personas 0/1/4).
     expect(counts.membership_plan).toBe(2)
     expect(counts.membership).toBe(3)

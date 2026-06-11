@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql }
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
 
 /**
  * Patients service — the CRM-side relationship view.
@@ -45,8 +46,15 @@ export interface PatientListRow {
   nextVisitAt: Date | null
   nextVisitType: string | null
   recallStatus: 'due' | 'overdue' | 'scheduled' | 'na'
-  outstandingBalanceCents: number
-  lifetimeValueCents: number
+  // Outstanding balance from the PMS sync (the only system that knows the
+  // clinical ledger). NULL = no PMS balance on file — render "—" / "No PMS
+  // balance on file", NEVER a fabricated $0. The legacy Mosaic `invoices`
+  // table is deliberately NOT consulted here (no dental flow writes it).
+  outstandingBalanceCents: number | null
+  /** When that PMS balance was last synced — drives the honest "as of" framing. */
+  balanceAsOf: Date | null
+  /** Lifetime paid spend through the in-app Shop (real `shop_order` totals). */
+  shopSpendCents: number
   lastContactAt: Date | null
   flags: PatientRowFlags
 }
@@ -94,8 +102,11 @@ export interface PatientHeader {
   recallIntervalMonths: number | null
   flags: PatientRowFlags
   // Aggregates pulled in the same call so the header has no extra round-trip.
-  outstandingBalanceCents: number
-  lifetimeValueCents: number
+  // Balance = PMS sync truth (NULL when none on file → "No PMS balance on
+  // file", never a fabricated $0). Shop spend = real paid `shop_order` totals.
+  outstandingBalanceCents: number | null
+  balanceAsOf: Date | null
+  shopSpendCents: number
   lastVisitAt: Date | null
   nextVisitAt: Date | null
   nextVisitType: string | null
@@ -226,7 +237,7 @@ export async function listPatients(
   const clinicRecallMonths = await getClinicRecallDefaultMonths(organizationId)
 
   // Pull joined data in parallel.
-  const [lastVisits, nextVisits, unconfirmedNear, invoiceRows, ltvRows, intakeRows, lastMessages, recallScheduledNear] =
+  const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear] =
     await Promise.all([
       // Last completed/confirmed appointment per patient (most recent past startTime).
       db
@@ -276,48 +287,25 @@ export async function listPatients(
             lte(schema.appointment.startTime, in48h),
           ),
         ),
-      // Outstanding balances — prefer customers.patientId FK, fall back to email match.
-      emails.length === 0
-        ? []
-        : db
-            .select({
-              patientId: schema.customers.patientId,
-              email: schema.customers.email,
-              totalCents: schema.invoices.totalCents,
-            })
-            .from(schema.invoices)
-            .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
-            .where(
-              and(
-                eq(schema.invoices.organizationId, organizationId),
-                inArray(schema.invoices.status, ['pending', 'overdue']),
-                or(
-                  inArray(schema.customers.patientId, ids),
-                  inArray(schema.customers.email, emails),
-                )!,
-              ),
-            ),
-      // Lifetime value — sum of paid invoices.
-      emails.length === 0
-        ? []
-        : db
-            .select({
-              patientId: schema.customers.patientId,
-              email: schema.customers.email,
-              totalCents: schema.invoices.totalCents,
-            })
-            .from(schema.invoices)
-            .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
-            .where(
-              and(
-                eq(schema.invoices.organizationId, organizationId),
-                eq(schema.invoices.status, 'paid'),
-                or(
-                  inArray(schema.customers.patientId, ids),
-                  inArray(schema.customers.email, emails),
-                )!,
-              ),
-            ),
+      // Shop spend — sum of PAID shop orders per patient (real money the
+      // patient has spent in the in-app storefront). This REPLACES the legacy
+      // `invoices`-join "lifetime value" (no dental flow writes invoices, so
+      // it was always $0 for real clinics). Outstanding balance is NOT derived
+      // here — it comes straight off `patient.pms_balance_cents` per row below.
+      db
+        .select({
+          patientId: schema.shopOrder.patientId,
+          totalCents: sql<number>`coalesce(sum(${schema.shopOrder.totalCents}), 0)::int`,
+        })
+        .from(schema.shopOrder)
+        .where(
+          and(
+            eq(schema.shopOrder.organizationId, organizationId),
+            inArray(schema.shopOrder.patientId, ids),
+            eq(schema.shopOrder.status, 'paid'),
+          ),
+        )
+        .groupBy(schema.shopOrder.patientId),
       // Intake submissions on file.
       db
         .select({ patientId: schema.formSubmission.patientId })
@@ -383,29 +371,23 @@ export async function listPatients(
     if (r.userId && !lastContactMap.has(r.userId)) lastContactMap.set(r.userId, r.createdAt)
   }
 
-  const balanceByPatient = new Map<string, number>()
-  const ltvByPatient = new Map<string, number>()
-  const emailLowerToId = new Map<string, string>()
-  for (const p of patients) {
-    if (p.email) emailLowerToId.set(p.email.toLowerCase(), p.id)
-  }
-  for (const r of invoiceRows) {
-    const pid = r.patientId ?? (r.email ? emailLowerToId.get(r.email.toLowerCase()) ?? null : null)
-    if (!pid) continue
-    balanceByPatient.set(pid, (balanceByPatient.get(pid) ?? 0) + Number(r.totalCents ?? 0))
-  }
-  for (const r of ltvRows) {
-    const pid = r.patientId ?? (r.email ? emailLowerToId.get(r.email.toLowerCase()) ?? null : null)
-    if (!pid) continue
-    ltvByPatient.set(pid, (ltvByPatient.get(pid) ?? 0) + Number(r.totalCents ?? 0))
+  // Paid shop spend per patient (the grouped sum query already collapses to
+  // one row per patientId).
+  const shopSpendByPatient = new Map<string, number>()
+  for (const r of shopSpendRows) {
+    if (!r.patientId) continue
+    shopSpendByPatient.set(r.patientId, Number(r.totalCents ?? 0))
   }
 
   // Compose rows.
   const rows: PatientListRow[] = patients.map((p) => {
     const lastVisitAt = lastVisitMap.get(p.id) ?? null
     const next = nextVisitMap.get(p.id) ?? null
-    const balance = balanceByPatient.get(p.id) ?? 0
-    const ltv = ltvByPatient.get(p.id) ?? 0
+    // Outstanding balance is the PMS-synced figure (NULL when none on file —
+    // we never invent a $0). The $ glyph only fires on a positive balance.
+    const balance = p.pmsBalanceCents ?? null
+    const balanceAsOf = p.pmsBalanceUpdatedAt ?? null
+    const shopSpend = shopSpendByPatient.get(p.id) ?? 0
     const newPatient = p.lifecycle === 'new' || !lastVisitAt
     const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !next
     const missingIntakeBeforeAppt = !!next && next.startTime <= in7d && !intakeSet.has(p.id)
@@ -437,12 +419,13 @@ export async function listPatients(
       nextVisitType: next?.type ?? null,
       recallStatus,
       outstandingBalanceCents: balance,
-      lifetimeValueCents: ltv,
+      balanceAsOf,
+      shopSpendCents: shopSpend,
       lastContactAt: p.userId ? lastContactMap.get(p.userId) ?? null : null,
       flags: {
         newPatient,
         birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, now),
-        hasOutstandingBalance: balance > 0,
+        hasOutstandingBalance: (balance ?? 0) > 0,
         missingIntakeBeforeAppt,
         unconfirmedNext48h: unconfirmedSet.has(p.id),
         lapsed,
@@ -457,7 +440,7 @@ export async function listPatients(
 
   // Apply post-query filters that need derived fields.
   let filtered = rows
-  if (filters.hasBalance) filtered = filtered.filter((r) => r.outstandingBalanceCents > 0)
+  if (filters.hasBalance) filtered = filtered.filter((r) => (r.outstandingBalanceCents ?? 0) > 0)
   if (filters.missingIntake) filtered = filtered.filter((r) => r.flags.missingIntakeBeforeAppt)
   if (filters.birthdayThisMonth) {
     filtered = filtered.filter((r) => isBirthdayThisMonth(r.dateOfBirth, now))
@@ -482,7 +465,7 @@ export async function listPatients(
           (b.nextVisitAt?.getTime() ?? Number.MAX_SAFE_INTEGER)
         )
       case 'balance':
-        return dir * (a.outstandingBalanceCents - b.outstandingBalanceCents)
+        return dir * ((a.outstandingBalanceCents ?? 0) - (b.outstandingBalanceCents ?? 0))
       case 'lastActivity':
         return dir * (
           (a.lastContactAt?.getTime() ?? 0) - (b.lastContactAt?.getTime() ?? 0)
@@ -528,7 +511,7 @@ export async function getPatientHeader(
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
   const lapsedCutoff = new Date(now.getTime() - LAPSED_THRESHOLD_MS)
 
-  const [lastVisit, nextVisit, bookingCount, unpaidRows, paidRows, intakeRows, unconfirmedRow] =
+  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow] =
     await Promise.all([
       db
         .select({ startTime: schema.appointment.startTime })
@@ -567,40 +550,19 @@ export async function getPatientHeader(
             eq(schema.appointment.patientId, patientId),
           ),
         ),
+      // Shop spend — paid `shop_order` totals for this patient. Outstanding
+      // balance is NOT joined from `invoices` anymore (no dental flow writes
+      // them); it's read straight off `patient.pms_balance_cents` below.
       db
         .select({
-          totalCents: schema.invoices.totalCents,
+          totalCents: sql<number>`coalesce(sum(${schema.shopOrder.totalCents}), 0)::int`,
         })
-        .from(schema.invoices)
-        .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
+        .from(schema.shopOrder)
         .where(
           and(
-            eq(schema.invoices.organizationId, organizationId),
-            inArray(schema.invoices.status, ['pending', 'overdue']),
-            p.email
-              ? or(
-                  eq(schema.customers.patientId, patientId),
-                  eq(schema.customers.email, p.email),
-                )!
-              : eq(schema.customers.patientId, patientId),
-          ),
-        ),
-      db
-        .select({
-          totalCents: schema.invoices.totalCents,
-        })
-        .from(schema.invoices)
-        .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
-        .where(
-          and(
-            eq(schema.invoices.organizationId, organizationId),
-            eq(schema.invoices.status, 'paid'),
-            p.email
-              ? or(
-                  eq(schema.customers.patientId, patientId),
-                  eq(schema.customers.email, p.email),
-                )!
-              : eq(schema.customers.patientId, patientId),
+            eq(schema.shopOrder.organizationId, organizationId),
+            eq(schema.shopOrder.patientId, patientId),
+            eq(schema.shopOrder.status, 'paid'),
           ),
         ),
       db
@@ -628,8 +590,11 @@ export async function getPatientHeader(
         .limit(1),
     ])
 
-  const outstanding = unpaidRows.reduce<number>((acc, r) => acc + Number(r.totalCents ?? 0), 0)
-  const ltv = paidRows.reduce<number>((acc, r) => acc + Number(r.totalCents ?? 0), 0)
+  // Outstanding balance = PMS sync truth (NULL when none on file → the UI
+  // shows "No PMS balance on file", not a fabricated $0).
+  const outstanding = p.pmsBalanceCents ?? null
+  const balanceAsOf = p.pmsBalanceUpdatedAt ?? null
+  const shopSpend = Number(shopSpendRow[0]?.totalCents ?? 0)
   const lastVisitAt = lastVisit[0]?.startTime ?? null
   const next = nextVisit[0]
     ? { startTime: nextVisit[0].startTime, type: nextVisit[0].type }
@@ -666,14 +631,15 @@ export async function getPatientHeader(
     flags: {
       newPatient,
       birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, now),
-      hasOutstandingBalance: outstanding > 0,
+      hasOutstandingBalance: (outstanding ?? 0) > 0,
       missingIntakeBeforeAppt,
       unconfirmedNext48h: unconfirmedRow.length > 0,
       lapsed,
       optedOut: p.marketingEmailOptIn === 0,
     },
     outstandingBalanceCents: outstanding,
-    lifetimeValueCents: ltv,
+    balanceAsOf,
+    shopSpendCents: shopSpend,
     lastVisitAt,
     nextVisitAt: next?.startTime ?? null,
     nextVisitType: next?.type ?? null,
@@ -705,9 +671,48 @@ export interface CreatePatientInput {
   guardianPatientId?: string | null
   // Per-patient recall cadence override in months (null = use clinic default).
   recallIntervalMonths?: number | null
+  /**
+   * Skip the email/phone dedupe pre-check and insert regardless. The "Add
+   * anyway" escape hatch for legitimate same-contact cases (a child sharing a
+   * parent's phone/email — common in pediatric dental).
+   */
+  forceNew?: boolean
 }
 
-export async function createPatient(input: CreatePatientInput) {
+export type CreatePatientResult =
+  | { id: string }
+  | { duplicateOf: { id: string; name: string } }
+
+/**
+ * Insert a patient — unless an active patient with the same normalized email
+ * or phone already exists in the org (then return `{ duplicateOf }` so the UI
+ * can offer "open their record" vs "Add anyway"). Normalization matches the
+ * rest of the app (`lib/contact-normalize.ts`), so a created patient won't
+ * later look like a duplicate of an imported/converted one.
+ */
+export async function createPatient(input: CreatePatientInput): Promise<CreatePatientResult> {
+  const ne = normalizeEmail(input.email)
+  const np = normalizePhone(input.phone)
+  if (!input.forceNew && (ne || np)) {
+    const candidates = await db
+      .select({
+        id: schema.patient.id,
+        firstName: schema.patient.firstName,
+        lastName: schema.patient.lastName,
+        email: schema.patient.email,
+        phone: schema.patient.phone,
+      })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, input.organizationId), eq(schema.patient.isActive, 1)))
+      .limit(2000)
+    const match = candidates.find(
+      (c) => (ne && normalizeEmail(c.email) === ne) || (np && normalizePhone(c.phone) === np),
+    )
+    if (match) {
+      return { duplicateOf: { id: match.id, name: `${match.firstName} ${match.lastName}`.trim() } }
+    }
+  }
+
   const id = newPatientId()
   const now = new Date()
   await db.insert(schema.patient).values({
@@ -728,9 +733,10 @@ export async function createPatient(input: CreatePatientInput) {
     source: input.source ?? null,
     lifecycle: input.lifecycle ?? 'new',
     firstSeenAt: now,
+    recallIntervalMonths: input.recallIntervalMonths ?? null,
     notes: input.notes ?? null,
   })
-  return id
+  return { id }
 }
 
 export interface UpdatePatientInput {
