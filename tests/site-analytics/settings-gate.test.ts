@@ -35,7 +35,7 @@ describe('saveSeoMetaAction gate', () => {
     expect(requirePlan).toHaveBeenCalledWith(ctx, 'pro', 'seo')
     expect(updateSeoMeta).toHaveBeenCalledTimes(1)
     // The resolver sanitizes before the service is called.
-    const [, meta] = updateSeoMeta.mock.calls[0] as [string, Record<string, unknown>]
+    const [, meta] = updateSeoMeta.mock.calls[0] as unknown as [string, Record<string, unknown>]
     expect(meta.home).toEqual({ title: 'Hello' })
   })
 
