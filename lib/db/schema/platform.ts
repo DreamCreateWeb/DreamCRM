@@ -89,6 +89,14 @@ export const clinicProfile = pgTable('clinic_profile', {
   // never need a backfill.
   portalSettings: jsonb('portal_settings'),
 
+  // Automated appointment reminders (Settings → Reminders): enabled toggle +
+  // how many hours before a visit the email goes out. Shape: ReminderSettings
+  // in lib/types/reminders.ts. Null = REMINDER_DEFAULTS (enabled, 24h); partial
+  // values merge over defaults via resolveReminderSettings(), so new knobs
+  // never need a backfill. The booking confirmation email promises this; the
+  // send engine lives in lib/services/reminder-automation.ts.
+  reminderSettings: jsonb('reminder_settings'),
+
   // Contact
   phone: text('phone'),
   email: text('email'),

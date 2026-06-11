@@ -5,6 +5,7 @@ import { marketingTerminology } from '@/lib/marketing/terminology'
 import { listMarketingCampaigns } from '@/lib/services/marketing-campaigns'
 import { formatRelativeDate } from '@/lib/utils/format'
 import NewCampaignButton from './new-campaign-button'
+import CancelScheduledButton from './cancel-scheduled-button'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -141,11 +142,14 @@ export default async function CampaignsPage({
                     {c.subject || <span className="italic text-gray-400 dark:text-gray-500">no subject</span>}
                   </td>
                   <td className="px-3 py-2.5">
-                    <StatusPill
-                      tone={STATUS_TONE[c.status] ?? 'neutral'}
-                      label={STATUS_LABEL[c.status] ?? c.status}
-                      title={STATUS_MEANING[c.status]}
-                    />
+                    <div className="flex items-center gap-2">
+                      <StatusPill
+                        tone={STATUS_TONE[c.status] ?? 'neutral'}
+                        label={STATUS_LABEL[c.status] ?? c.status}
+                        title={STATUS_MEANING[c.status]}
+                      />
+                      {c.status === 'scheduled' && <CancelScheduledButton campaignId={c.id} />}
+                    </div>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
                     {channelLabel(c.sendChannel)}
@@ -154,7 +158,11 @@ export default async function CampaignsPage({
                     className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
                     suppressHydrationWarning
                   >
-                    {c.sentAt ? formatRelativeDate(c.sentAt) : '—'}
+                    {c.sentAt
+                      ? formatRelativeDate(c.sentAt)
+                      : c.status === 'scheduled' && c.scheduledAt
+                        ? `→ ${formatRelativeDate(c.scheduledAt)}`
+                        : '—'}
                   </td>
                   <td
                     className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums"

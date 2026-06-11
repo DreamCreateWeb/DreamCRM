@@ -379,6 +379,13 @@
       "when": 1781121797042,
       "tag": "0053_exotic_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1781142855912,
+      "tag": "0055_jittery_clint_barton",
+      "breakpoints": true
     }
   ]
 }
