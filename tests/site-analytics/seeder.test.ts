@@ -77,6 +77,7 @@ beforeEach(() => {
 
 describe('seedDemoSiteAnalytics', () => {
   it('seeds ~3 weeks of home-heavy pageviews + seo_meta when empty/null', async () => {
+    state.selectQueue.push([{ id: 'pat_1' }]) // org has patients (self-heal guard)
     state.selectQueue.push([]) // no existing site_pageview rows
     state.selectQueue.push([{ seoMeta: null }]) // profile with null seo_meta
 
@@ -111,6 +112,7 @@ describe('seedDemoSiteAnalytics', () => {
   })
 
   it('does not double-seed pageviews when rows already exist', async () => {
+    state.selectQueue.push([{ id: 'pat_1' }]) // org has patients (self-heal guard)
     state.selectQueue.push([{ id: 1 }]) // existing site_pageview rows
     state.selectQueue.push([{ seoMeta: { home: { title: 'Hand edited' } } }]) // already-set seo_meta
 
@@ -122,6 +124,7 @@ describe('seedDemoSiteAnalytics', () => {
   })
 
   it('backfills seo_meta on a legacy demo that already has pageviews but null seo_meta', async () => {
+    state.selectQueue.push([{ id: 'pat_1' }]) // org has patients (self-heal guard)
     state.selectQueue.push([{ id: 1 }]) // existing pageviews → skip pageview seed
     state.selectQueue.push([{ seoMeta: null }]) // but seo_meta still null
 

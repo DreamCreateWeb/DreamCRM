@@ -4226,6 +4226,16 @@ export async function seedDemoSiteAnalytics(orgId: string): Promise<void> {
   const now = new Date()
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 
+  // Bail on a demo with no patients yet (mid-creation / partial seed) — same
+  // guard the other self-heal blocks use, and it keeps the seeder's
+  // no-insert-when-org-exists idempotency guarantee intact.
+  const anyPatient = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+    .limit(1)
+  if (anyPatient.length === 0) return
+
   // ── Daily pageview rollups (21 days) ──
   const existing = await db
     .select({ id: schema.sitePageview.id })
