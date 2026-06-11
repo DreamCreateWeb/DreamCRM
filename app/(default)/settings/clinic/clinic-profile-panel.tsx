@@ -75,6 +75,15 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
   const initialFinancingPartners = (profile?.financingPartners ?? null) as
     | ClinicFinancingPartner[]
     | null
+  // FAQ has NO editor in this panel — it's authored in the Website Studio
+  // (and drafted by the AI welcome interview). But `updateClinicProfile` always
+  // reads `faq` off the submitted form and writes it. Without carrying the
+  // current value through, every save from this panel posted no `faq` field →
+  // `parseFaq(undefined)` → null → the existing FAQ was silently wiped (and the
+  // public /faq page fell back to universal defaults). Round-trip the saved
+  // value verbatim in a hidden field so a profile save preserves it, exactly
+  // like the `template` hidden field below.
+  const initialFaqJson = profile?.faq ? JSON.stringify(profile.faq) : ''
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -330,6 +339,9 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
               </p>
             </div>
             <input type="hidden" name="template" value="modern" />
+            {/* FAQ is edited in the Website Studio, not here. Carry the saved
+                value through so a profile save doesn't wipe it (see initialFaqJson). */}
+            <input type="hidden" name="faq" value={initialFaqJson} />
           </div>
         </section>
 

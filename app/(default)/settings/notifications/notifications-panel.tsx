@@ -145,7 +145,11 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
               How these alerts reach you, on top of the bell.
             </p>
             <ul>
-              <ToggleRow id="np-push-all" prefKey="pushEverything" title="Everything" description="Mobile + desktop pushes for all activity." />
+              {/* NOTE: there is no "Everything / mobile + desktop push" toggle.
+                  We don't ship push notifications (no service worker / FCM / APNs),
+                  so a toggle promising them was write-only — `notify()` never read
+                  `pushEverything`. Email digest + Pause all are the two delivery
+                  controls that actually do something. */}
               <ToggleRow id="np-push-email" prefKey="pushEmail" title="Email digest" description="Email a copy of these alerts to your inbox." />
               <ToggleRow id="np-push-nothing" prefKey="pushNothing" title="Pause all" description="Temporarily silence every alert (overrides others)." />
             </ul>
