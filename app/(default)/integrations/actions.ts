@@ -34,6 +34,16 @@ export async function connectOpenDentalAction(formData: FormData): Promise<Conne
   const customerKey = formData.get('customerKey')?.toString() ?? ''
   try {
     const test = await connectOpenDental(ctx.organizationId, ctx.userId, customerKey)
+    // Kick off the FIRST import immediately, best-effort + detached — so a freshly
+    // connected office sees its patients/schedule land without having to find and
+    // click "Sync now". We do NOT await it: a large first import (budgeted +
+    // resumable inside runImport) can take a while, and the connect action should
+    // return right away so the UI lands on the status card showing progress. The
+    // hourly cron continues any budget-capped first pass. Errors here never fail
+    // the connect (the connection is already saved; a manual sync can retry).
+    void runImport(ctx.organizationId, { trigger: 'initial', triggeredByUserId: ctx.userId }).catch((err) => {
+      console.warn('[integrations] initial import kickoff failed', err)
+    })
     revalidatePath('/integrations')
     return { ok: true, practiceTitle: test.practiceTitle }
   } catch (e) {
@@ -45,6 +55,11 @@ export interface SyncResultView {
   ok: boolean
   status?: string
   error?: string
+  /** True when the run hit its time budget and parked a resume cursor — the
+   *  next run (manual or the hourly cron) continues automatically. */
+  partial?: boolean
+  /** Patient-import progress for the in-flight first import. */
+  progress?: { imported: number; total: number }
 }
 
 export async function syncNowAction(): Promise<SyncResultView> {
@@ -53,7 +68,13 @@ export async function syncNowAction(): Promise<SyncResultView> {
   try {
     const result = await runImport(ctx.organizationId, { trigger: 'manual', triggeredByUserId: ctx.userId })
     revalidatePath('/integrations')
-    return { ok: result.status !== 'error', status: result.status, error: result.error ?? undefined }
+    return {
+      ok: result.status !== 'error',
+      status: result.status,
+      error: result.error ?? undefined,
+      partial: result.resumeAvailable,
+      progress: result.progress ?? undefined,
+    }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }

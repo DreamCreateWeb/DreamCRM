@@ -32,7 +32,13 @@ export function getProviderClient(connection: PmsConnection): PmsProviderClient 
   throw new Error(`The ${connection.provider} integration isn’t available yet.`)
 }
 
-type Tally = { created: number; updated: number; skipped: number }
+// Per-entity reconcile tally. `skippedContactOverwrites` is patient-only — it
+// counts rows where the PMS reported a different email/phone but we deliberately
+// KEPT ours because the patient has a linked login (overwriting would break
+// portal sign-in / magic-link / invites that key on the old address). It rides
+// the same `counts` jsonb so the run log can surface it; the page summarizer
+// only reads created/updated/skipped, so the extra optional field is harmless.
+type Tally = { created: number; updated: number; skipped: number; skippedContactOverwrites?: number }
 const tally = (): Tally => ({ created: 0, updated: 0, skipped: 0 })
 
 function hash(parts: unknown[]): string {
@@ -106,30 +112,69 @@ export interface SyncResult {
   status: 'success' | 'partial' | 'error'
   counts: Record<string, Tally>
   error: string | null
+  /** True when the run hit its soft time budget mid-patient-import and stopped
+   *  early, leaving a resume cursor on pms_connection.meta. The next run
+   *  (manual or the hourly cron) picks up where this one left off. */
+  partial: boolean
+  /** True when a resume cursor is parked — i.e. another run will continue. */
+  resumeAvailable: boolean
+  /** Patient-import progress, surfaced in the UI ("Imported 1,200 so far"). */
+  progress: { imported: number; total: number } | null
 }
+
+// A 'running' sync_run row older than this is treated as a crashed/abandoned
+// run — it no longer blocks a fresh run AND gets reaped to 'error' so the audit
+// is honest and sync-health doesn't keep counting a zombie as "in progress".
+// The budgeted patient import (below) can legitimately run up to ~110s, so the
+// stale window must comfortably exceed that.
+const RUN_STALE_MS = 15 * 60 * 1000
+
+// Default soft time budget for one runImport pass. App Runner's request timeout
+// is the hard ceiling; we stop well short so a huge first import (e.g. a
+// 5,000-patient office, sequential at the API's ~1 req/5s throttle) parks a
+// cursor and returns a clean 'partial' instead of being killed mid-flight (a
+// killed request leaves a 'running' row the stale-guard would then have to reap).
+const DEFAULT_SOFT_BUDGET_MS = 110_000
 
 export async function runImport(
   organizationId: string,
-  opts: { trigger?: 'manual' | 'scheduled' | 'initial'; triggeredByUserId?: string | null } = {},
+  opts: {
+    trigger?: 'manual' | 'scheduled' | 'initial'
+    triggeredByUserId?: string | null
+    /** Soft wall-clock budget for this pass; overshoot parks a resume cursor. */
+    softBudgetMs?: number
+    /** Injectable clock for deterministic budget tests. */
+    now?: () => number
+  } = {},
 ): Promise<SyncResult> {
+  const clock = opts.now ?? Date.now
+  const deadline = clock() + (opts.softBudgetMs ?? DEFAULT_SOFT_BUDGET_MS)
+
   const connection = await getPmsConnection(organizationId)
   if (!connection || connection.status !== 'connected') throw new Error('No PMS is connected.')
   const client = getProviderClient(connection)
 
   // Concurrency guard: stand down if a sync is already in flight for this org,
-  // so two overlapping runs (a double-clicked "Sync now", or a future scheduled
-  // run overlapping a manual one) can't both flush the write-op queue and create
-  // DUPLICATE records in the PMS. A 'running' row older than 15 min is treated
-  // as a crashed run and ignored.
-  const RUN_STALE_MS = 15 * 60 * 1000
+  // so two overlapping runs (a double-clicked "Sync now", or a scheduled run
+  // overlapping a manual one) can't both flush the write-op queue and create
+  // DUPLICATE records in the PMS. A 'running' row older than RUN_STALE_MS is a
+  // crashed run — we REAP it (flip to 'error') so it stops blocking retries
+  // AND stops masquerading as in-progress, then proceed.
   const [inflight] = await db
     .select({ id: schema.pmsSyncRun.id, startedAt: schema.pmsSyncRun.startedAt })
     .from(schema.pmsSyncRun)
     .where(and(eq(schema.pmsSyncRun.organizationId, organizationId), eq(schema.pmsSyncRun.status, 'running')))
     .orderBy(desc(schema.pmsSyncRun.startedAt))
     .limit(1)
-  if (inflight && Date.now() - inflight.startedAt.getTime() < RUN_STALE_MS) {
-    throw new Error('A sync is already running for this clinic — please wait for it to finish.')
+  if (inflight) {
+    if (clock() - inflight.startedAt.getTime() < RUN_STALE_MS) {
+      throw new Error('A sync is already running for this clinic — please wait for it to finish.')
+    }
+    // Stale — reap it so it neither blocks this run nor lingers as a zombie.
+    await db
+      .update(schema.pmsSyncRun)
+      .set({ status: 'error', finishedAt: new Date(), error: 'Run abandoned (timed out or crashed) — reaped by a later sync.' })
+      .where(eq(schema.pmsSyncRun.id, inflight.id))
   }
 
   // Appointment delta high-water (DateTStamp). Captured at run start so the
@@ -137,6 +182,10 @@ export async function runImport(
   // appointment phase actually succeeded this run (see appointmentsPulledOk).
   const meta = (connection.meta ?? {}) as Record<string, unknown>
   const since = typeof meta.highWaterAppointments === 'string' ? new Date(meta.highWaterAppointments) : undefined
+  // Resume cursor for the patient import: how many patients (in a stable sort)
+  // a prior budget-capped run already processed. Absent → start from 0.
+  const startCursor =
+    typeof meta.patientImportCursor === 'number' && meta.patientImportCursor > 0 ? meta.patientImportCursor : 0
   const runStart = new Date()
 
   const runId = randomUUID()
@@ -155,6 +204,15 @@ export async function runImport(
   // transient failure during/before the appointment read would advance the
   // mark past changes we never pulled, silently skipping them forever.
   let appointmentsPulledOk = false
+  // Patient-import resume bookkeeping.
+  let patientCursor = startCursor
+  let patientTotal = 0
+  let patientImportComplete = true
+  // Per-row patient errors that did NOT abort the run (transient blips). They
+  // make the run an honest 'partial' (and the row retries next sync), distinct
+  // from a budget pause.
+  let patientRowErrors = 0
+  let patientRowErrorMsg: string | null = null
 
   try {
     // Flush queued write-backs first so the PMS reflects bookings we originated
@@ -162,34 +220,85 @@ export async function runImport(
     if (connection.syncDirection === 'two_way') await retryPendingWrites(organizationId, client)
 
     await reconcileProviders(organizationId, await client.listProviders(), counts.providers)
-    await reconcilePatients(organizationId, await client.listPatients(), counts.patients)
-    await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments)
-    appointmentsPulledOk = true
-    await reconcileRecalls(organizationId, await client.listRecalls(), counts.recalls)
+
+    const patientRes = await reconcilePatients(
+      organizationId,
+      await client.listPatients(),
+      counts.patients,
+      { startIndex: startCursor, deadline, now: clock },
+    )
+    patientCursor = patientRes.nextIndex
+    patientTotal = patientRes.total
+    patientImportComplete = patientRes.complete
+    patientRowErrors = patientRes.errors
+    patientRowErrorMsg = patientRes.firstError
+
+    // Only advance into appointments/recalls once the patient import has fully
+    // caught up — appointments key on patient maps, so importing them against a
+    // half-loaded patient set would needlessly skip rows. A budget-capped
+    // patient pass resumes patients-first next run.
+    if (patientImportComplete) {
+      await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments)
+      appointmentsPulledOk = true
+      await reconcileRecalls(organizationId, await client.listRecalls(), counts.recalls)
+    }
   } catch (e) {
     error = (e as Error).message
   }
 
+  // Fold non-aborting per-row patient errors into the run's error note so the
+  // status reflects them (and the clinic can see why some rows didn't land).
+  if (!error && patientRowErrors > 0) {
+    error = `${patientRowErrors} patient${patientRowErrors === 1 ? '' : 's'} couldn't be imported this run${patientRowErrorMsg ? ` (e.g. ${patientRowErrorMsg})` : ''} — they'll retry on the next sync.`
+  }
+
   const touched = Object.values(counts).some((t) => t.created + t.updated + t.skipped > 0)
-  const status: SyncResult['status'] = error ? (touched ? 'partial' : 'error') : 'success'
+  // Status precedence:
+  //  - budgetPause = a CLEAN budget cap (no errors at all) → 'partial', and we
+  //    report it as RESUMABLE so the cron treats it as healthy progress.
+  //  - any error (a thrown phase failure OR non-aborting per-row errors) →
+  //    'partial' if work landed, else 'error', and NOT resumable (it's a real
+  //    data/connection issue the cron should alert on). The patient cursor may
+  //    still be parked below if the import also hadn't reached the end, so it
+  //    naturally resumes next run regardless of this flag.
+  const budgetPause = patientImportComplete === false && error === null
+  const hadError = error !== null
+  const partial = budgetPause || (hadError && touched)
+  const status: SyncResult['status'] = budgetPause ? 'partial' : hadError ? (touched ? 'partial' : 'error') : 'success'
   const now = new Date()
   await db.update(schema.pmsSyncRun).set({ status, finishedAt: now, counts, error }).where(eq(schema.pmsSyncRun.id, runId))
+
+  // Persist the patient cursor when capped (so the next run resumes), clear it
+  // when the import completed. Keep the high-water advance gated on a clean
+  // appointment pull.
+  const nextMeta: Record<string, unknown> = { ...meta }
+  if (patientImportComplete) delete nextMeta.patientImportCursor
+  else nextMeta.patientImportCursor = patientCursor
+  if (appointmentsPulledOk) nextMeta.highWaterAppointments = runStart.toISOString()
+
   await db
     .update(schema.pmsConnection)
     .set({
       lastSyncAt: now,
       lastSyncStatus: status,
       lastError: error,
-      // Advance the appointment high-water ONLY when appointments were actually
-      // pulled this run — not merely when the overall run wasn't a total error.
-      // A 'partial' run that failed before/at the appointment read must re-read
-      // the same window next time.
-      ...(appointmentsPulledOk ? { meta: { ...meta, highWaterAppointments: runStart.toISOString() } } : {}),
+      meta: nextMeta,
       updatedAt: now,
     })
     .where(eq(schema.pmsConnection.organizationId, organizationId))
 
-  return { runId, status, counts, error }
+  return {
+    runId,
+    status,
+    counts,
+    error,
+    partial,
+    // Resumable ONLY for a budget pause — a row/connection error is not a
+    // "more is coming automatically" state (those rows just retry on the next
+    // normal sync); the cron uses this to decide whether to alert.
+    resumeAvailable: budgetPause,
+    progress: patientTotal > 0 ? { imported: Math.min(patientCursor, patientTotal), total: patientTotal } : null,
+  }
 }
 
 async function reconcileProviders(organizationId: string, rows: NormalizedProvider[], t: Tally) {
@@ -250,81 +359,194 @@ export async function findUnmappedPatientByContact(
   return null
 }
 
-async function reconcilePatients(organizationId: string, rows: NormalizedPatient[], t: Tally) {
+// How many already-mapped patients to reconcile concurrently per batch. Each
+// such row is fully independent (its own select + update + touchMap), so a
+// small Promise.allSettled batch turns the old await-per-patient serial loop
+// into chunked parallelism without flooding the connection pool. Kept modest
+// because RDS is db.t4g.micro. The budget is re-checked between batches.
+const PATIENT_BATCH = 25
+
+export interface PatientReconcileResult {
+  /** Index into the stable-sorted row list at which to resume next run. */
+  nextIndex: number
+  /** Total patients the PMS returned this pull (denominator for progress). */
+  total: number
+  /** False when we stopped early on the time budget — more remain. */
+  complete: boolean
+  /** Count of individual rows that errored (we keep going; they retry next run). */
+  errors: number
+  /** A sample error message for the run log, when any row errored. */
+  firstError: string | null
+}
+
+/**
+ * Reconcile PMS patients into DreamCRM, batched + time-budgeted + resumable.
+ *
+ * - Rows are sorted by externalId so the cursor is stable across the full
+ *   re-pull (OD has no patient delta endpoint, so every run re-fetches the whole
+ *   list; the same sort reproduces and we resume at `startIndex`).
+ * - Already-mapped rows reconcile in PATIENT_BATCH-sized Promise.allSettled
+ *   batches; brand-new/unmapped rows reconcile sequentially so the contact
+ *   dedupe set stays consistent (a wrong link corrupts two identities).
+ * - The time budget is checked between batches; on overshoot we return
+ *   `complete:false` + the resume index so runImport parks a cursor.
+ */
+async function reconcilePatients(
+  organizationId: string,
+  rows: NormalizedPatient[],
+  t: Tally,
+  opts: { startIndex?: number; deadline?: number; now?: () => number } = {},
+): Promise<PatientReconcileResult> {
+  const clock = opts.now ?? Date.now
+  const deadline = opts.deadline ?? Number.POSITIVE_INFINITY
+  // Stable order so a resume cursor maps to the same row across re-pulls.
+  const ordered = [...rows].sort((a, b) => a.externalId.localeCompare(b.externalId))
+  const total = ordered.length
+  const start = Math.min(Math.max(opts.startIndex ?? 0, 0), total)
+
   const map = await loadMap(organizationId, 'patient')
   const mappedInternalIds = new Set(Array.from(map.values()).map((m) => m.internalId))
 
-  for (const np of rows) {
-    const profileHash = hash([np.firstName, np.lastName, np.dateOfBirth, np.email, np.phone, np.addressLine1, np.city, np.state, np.postalCode])
-    const existing = map.get(np.externalId)
+  let errors = 0
+  let firstError: string | null = null
+  const noteError = (e: unknown) => {
+    errors++
+    if (!firstError) firstError = e instanceof Error ? e.message : String(e)
+  }
 
-    if (existing) {
-      const [row] = await db
-        .select()
-        .from(schema.patient)
-        .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, existing.internalId)))
-        .limit(1)
-      if (!row) {
-        // Map points at a deleted row → recreate.
-        const id = await createImportedPatient(organizationId, np)
-        await touchMapInternal(existing.id, id, profileHash)
-        mappedInternalIds.add(id)
-        t.created++
-        continue
-      }
-      const balanceChanged = (row.pmsBalanceCents ?? null) !== (np.balanceCents ?? null)
-      if (existing.contentHash === profileHash && !balanceChanged) {
-        await touchMap(existing.id, profileHash)
-        t.skipped++
-      } else {
-        await db
-          .update(schema.patient)
-          .set({
-            firstName: np.firstName || row.firstName,
-            lastName: np.lastName || row.lastName,
-            dateOfBirth: np.dateOfBirth ?? row.dateOfBirth,
-            email: np.email ?? row.email,
-            phone: np.phone ?? row.phone,
-            addressLine1: np.addressLine1 ?? row.addressLine1,
-            city: np.city ?? row.city,
-            state: np.state ?? row.state,
-            postalCode: np.postalCode ?? row.postalCode,
-            pmsBalanceCents: np.balanceCents ?? null,
-            pmsBalanceUpdatedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, existing.internalId)))
-        await touchMap(existing.id, profileHash)
-        t.updated++
-      }
-      continue
+  let i = start
+  while (i < total) {
+    // Budget check BEFORE starting another batch (never mid-batch, so a row is
+    // never left half-written). If we've already done work and we're out of
+    // time, park here.
+    if (i > start && clock() >= deadline) {
+      return { nextIndex: i, total, complete: false, errors, firstError }
     }
 
-    // No map yet — try to link an existing DreamCRM patient by contact.
-    const linkId = await findUnmappedPatientByContact(organizationId, mappedInternalIds, np.email, np.phone, np.lastName)
-    if (linkId) {
-      await db
-        .update(schema.patient)
-        .set({
-          dateOfBirth: np.dateOfBirth ?? undefined,
-          addressLine1: np.addressLine1 ?? undefined,
-          city: np.city ?? undefined,
-          state: np.state ?? undefined,
-          postalCode: np.postalCode ?? undefined,
-          pmsBalanceCents: np.balanceCents ?? null,
-          pmsBalanceUpdatedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, linkId)))
-      await insertMap(organizationId, 'patient', np.externalId, linkId, 'pms', profileHash)
-      mappedInternalIds.add(linkId)
-      t.updated++
-    } else {
-      const id = await createImportedPatient(organizationId, np)
-      await insertMap(organizationId, 'patient', np.externalId, id, 'pms', profileHash)
-      mappedInternalIds.add(id)
-      t.created++
+    const batch = ordered.slice(i, i + PATIENT_BATCH)
+    // Split: mapped rows are independent → run them concurrently; unmapped rows
+    // (need contact dedupe) run sequentially to keep the reservation set sane.
+    const mapped = batch.filter((np) => map.has(np.externalId))
+    const unmapped = batch.filter((np) => !map.has(np.externalId))
+
+    // One row failing (a transient DB blip) must NOT abort the whole import —
+    // it stays unmapped / stale-hashed and is retried next run. We tally the
+    // failures so the run reports an honest 'partial' instead of a false clean.
+    const settled = await Promise.allSettled(
+      mapped.map((np) => reconcileMappedPatient(organizationId, np, map.get(np.externalId)!, t)),
+    )
+    for (const s of settled) if (s.status === 'rejected') noteError(s.reason)
+
+    for (const np of unmapped) {
+      try {
+        await reconcileUnmappedPatient(organizationId, np, mappedInternalIds, t)
+      } catch (e) {
+        noteError(e)
+      }
     }
+
+    i += batch.length
+  }
+
+  return { nextIndex: total, total, complete: true, errors, firstError }
+}
+
+// One already-mapped patient: skip-on-unchanged, else PMS-wins-but-keep-our-
+// contact-when-the-patient-has-a-login. Safe to run concurrently with peers.
+async function reconcileMappedPatient(
+  organizationId: string,
+  np: NormalizedPatient,
+  existing: MapRow,
+  t: Tally,
+) {
+  const profileHash = hash([np.firstName, np.lastName, np.dateOfBirth, np.email, np.phone, np.addressLine1, np.city, np.state, np.postalCode])
+  const [row] = await db
+    .select()
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, existing.internalId)))
+    .limit(1)
+  if (!row) {
+    // Map points at a deleted row → recreate.
+    const id = await createImportedPatient(organizationId, np)
+    await touchMapInternal(existing.id, id, profileHash)
+    t.created++
+    return
+  }
+  const balanceChanged = (row.pmsBalanceCents ?? null) !== (np.balanceCents ?? null)
+  if (existing.contentHash === profileHash && !balanceChanged) {
+    await touchMap(existing.id, profileHash)
+    t.skipped++
+    return
+  }
+  // Contact-overwrite guard: a patient with a linked login (portal sign-in,
+  // magic-link, accept-invite) keys on their stored email/phone. If the PMS
+  // reports a different address we KEEP ours rather than silently breaking
+  // sign-in; everything else (name/DOB/address) still PMS-wins.
+  const isLinked = Boolean(row.userId)
+  const wantEmail = np.email ?? row.email
+  const wantPhone = np.phone ?? row.phone
+  const contactWouldChange =
+    isLinked && ((np.email != null && np.email !== row.email) || (np.phone != null && np.phone !== row.phone))
+  await db
+    .update(schema.patient)
+    .set({
+      firstName: np.firstName || row.firstName,
+      lastName: np.lastName || row.lastName,
+      dateOfBirth: np.dateOfBirth ?? row.dateOfBirth,
+      email: isLinked ? row.email : wantEmail,
+      phone: isLinked ? row.phone : wantPhone,
+      addressLine1: np.addressLine1 ?? row.addressLine1,
+      city: np.city ?? row.city,
+      state: np.state ?? row.state,
+      postalCode: np.postalCode ?? row.postalCode,
+      pmsBalanceCents: np.balanceCents ?? null,
+      pmsBalanceUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, existing.internalId)))
+  // Hash the values we ACTUALLY persisted, so a guarded row doesn't re-trigger
+  // an update every single sync (its stored contact never matches the PMS hash).
+  const persistedHash = contactWouldChange
+    ? hash([np.firstName, np.lastName, np.dateOfBirth, row.email, row.phone, np.addressLine1, np.city, np.state, np.postalCode])
+    : profileHash
+  await touchMap(existing.id, persistedHash)
+  if (contactWouldChange) t.skippedContactOverwrites = (t.skippedContactOverwrites ?? 0) + 1
+  t.updated++
+}
+
+// One brand-new PMS patient: try to link an existing DreamCRM row by contact,
+// else create. Runs sequentially within a batch so the dedupe reservation set
+// can't double-link the same DreamCRM patient.
+async function reconcileUnmappedPatient(
+  organizationId: string,
+  np: NormalizedPatient,
+  mappedInternalIds: Set<string>,
+  t: Tally,
+) {
+  const profileHash = hash([np.firstName, np.lastName, np.dateOfBirth, np.email, np.phone, np.addressLine1, np.city, np.state, np.postalCode])
+  const linkId = await findUnmappedPatientByContact(organizationId, mappedInternalIds, np.email, np.phone, np.lastName)
+  if (linkId) {
+    await db
+      .update(schema.patient)
+      .set({
+        dateOfBirth: np.dateOfBirth ?? undefined,
+        addressLine1: np.addressLine1 ?? undefined,
+        city: np.city ?? undefined,
+        state: np.state ?? undefined,
+        postalCode: np.postalCode ?? undefined,
+        pmsBalanceCents: np.balanceCents ?? null,
+        pmsBalanceUpdatedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, linkId)))
+    await insertMap(organizationId, 'patient', np.externalId, linkId, 'pms', profileHash)
+    mappedInternalIds.add(linkId)
+    t.updated++
+  } else {
+    const id = await createImportedPatient(organizationId, np)
+    await insertMap(organizationId, 'patient', np.externalId, id, 'pms', profileHash)
+    mappedInternalIds.add(id)
+    t.created++
   }
 }
 
