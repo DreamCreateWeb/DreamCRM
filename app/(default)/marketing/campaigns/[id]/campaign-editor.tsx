@@ -157,22 +157,22 @@ export default function CampaignEditor({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-4">
       {/* ── Editor column ── */}
-      <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
-        <div className="px-5 py-3 border-b border-stone-200 dark:border-stone-700/60">
+      <div className="v2-card overflow-hidden">
+        <div className="px-5 py-3 border-b border-[color:var(--color-hairline)]">
           <input
             value={draft.name}
             onChange={(e) => field('name', e.target.value)}
             placeholder="Campaign name (internal only)"
-            className="w-full text-base font-semibold text-stone-800 dark:text-stone-100 bg-transparent border-none focus:outline-none focus:ring-0 px-0"
+            className="w-full text-base font-semibold text-gray-800 dark:text-gray-100 bg-transparent border-none focus:outline-none focus:ring-0 px-0"
           />
         </div>
-        <div className="px-5 py-3 border-b border-stone-100 dark:border-stone-700/40 space-y-2">
+        <div className="px-5 py-3 border-b border-[color:var(--color-hairline)] space-y-2">
           <Labelled label="Subject">
             <input
               value={draft.subject}
               onChange={(e) => field('subject', e.target.value)}
               placeholder="What recipients see in their inbox"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="form-input w-full"
             />
           </Labelled>
           <Labelled label="Preview text">
@@ -180,17 +180,17 @@ export default function CampaignEditor({
               value={draft.previewText}
               onChange={(e) => field('previewText', e.target.value)}
               placeholder="One-line tease shown next to the subject"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="form-input w-full"
             />
           </Labelled>
         </div>
 
-        <div className="px-5 py-2 border-b border-stone-100 dark:border-stone-700/40 flex items-center gap-2 flex-wrap bg-stone-50/40 dark:bg-stone-800/30">
+        <div className="px-5 py-2 border-b border-[color:var(--color-hairline)] flex items-center gap-2 flex-wrap v2-well">
           <button
             type="button"
             onClick={() => setShowAiDraft(true)}
             disabled={sent}
-            className="text-xs font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+            className="text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50 transition-colors"
             title="Write a draft from a brief"
           >
             ✨ AI draft
@@ -207,7 +207,7 @@ export default function CampaignEditor({
               setAiImproveInstruction('')
             }}
             disabled={sent}
-            className="text-xs font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20 disabled:opacity-50"
+            className="text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50 transition-colors"
             title="Rewrite the selected text"
           >
             ✨ Rewrite selection
@@ -223,7 +223,7 @@ export default function CampaignEditor({
           <EditorContent editor={editor} />
         </div>
 
-        <div className="px-5 py-2 border-t border-gray-100 dark:border-gray-700/40 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div className="px-5 py-2 border-t border-[color:var(--color-hairline)] flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <span>
             {dirty
               ? 'Editing…'
@@ -243,7 +243,7 @@ export default function CampaignEditor({
 
       {/* ── Sidebar ── */}
       <aside className="space-y-3">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+        <div className="v2-card p-4">
           <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Send channel
           </h3>
@@ -252,10 +252,10 @@ export default function CampaignEditor({
               onClick={() => field('sendChannel', 'resend')}
               disabled={sent}
               className={cn(
-                'text-xs font-medium px-2 py-1.5 rounded-md',
+                'text-xs font-medium px-2 py-1.5 rounded-[var(--r-sm)] transition-colors',
                 draft.sendChannel === 'resend'
-                  ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700',
+                  ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700/40 dark:text-gray-300 dark:hover:bg-gray-700',
                 sent && 'opacity-60 cursor-not-allowed',
               )}
             >
@@ -265,10 +265,10 @@ export default function CampaignEditor({
               onClick={() => field('sendChannel', 'gmail')}
               disabled={sent || gmailAccounts.length === 0}
               className={cn(
-                'text-xs font-medium px-2 py-1.5 rounded-md',
+                'text-xs font-medium px-2 py-1.5 rounded-[var(--r-sm)] transition-colors',
                 draft.sendChannel === 'gmail'
-                  ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700',
+                  ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700/40 dark:text-gray-300 dark:hover:bg-gray-700',
                 (sent || gmailAccounts.length === 0) && 'opacity-60 cursor-not-allowed',
               )}
               title={
@@ -287,7 +287,7 @@ export default function CampaignEditor({
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+        <div className="v2-card p-4">
           <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Audience
           </h3>
@@ -295,7 +295,7 @@ export default function CampaignEditor({
             value={draft.audienceId ?? ''}
             onChange={(e) => field('audienceId', e.target.value ? Number(e.target.value) : null)}
             disabled={sent}
-            className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 disabled:opacity-60"
+            className="form-select w-full disabled:opacity-60"
           >
             <option value="">Choose…</option>
             {audiences.map((a) => (
@@ -309,7 +309,7 @@ export default function CampaignEditor({
               No audiences yet. <a className="underline" href="/marketing/audiences">Create one</a>.
             </p>
           ) : audience ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 tabular-nums">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 tabular-nums font-mono-num">
               {audience.recipientCount} recipient{audience.recipientCount === 1 ? '' : 's'}
             </p>
           ) : null}
@@ -485,14 +485,14 @@ function AiDraftModal({
   const [brief, setBrief] = useState('')
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
       onClick={busy ? undefined : onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-lg p-5"
+        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-lg p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">
           ✨ Draft with AI
         </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -504,7 +504,7 @@ function AiDraftModal({
           onChange={(e) => setBrief(e.target.value)}
           rows={6}
           placeholder="e.g. Announce that DreamCRM now supports automated patient recall by SMS and email. Target: existing clinic owners on Basic plan. Encourage them to upgrade to Pro to unlock it. Keep it warm and short."
-          className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
+          className="form-textarea w-full resize-none"
         />
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           This replaces the current subject, preheader, and body.
@@ -538,14 +538,14 @@ function AiImproveModal({
   const presets = ['Make it punchier', 'Shorten by half', 'Add urgency', 'More casual', 'More formal']
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
       onClick={busy ? undefined : onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-md p-5"
+        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">
           ✨ Rewrite selection
         </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -555,7 +555,7 @@ function AiImproveModal({
           value={instruction}
           onChange={(e) => onChange(e.target.value)}
           placeholder="e.g. add urgency"
-          className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+          className="form-input w-full"
         />
         <div className="flex flex-wrap gap-1.5 mt-2">
           {presets.map((p) => (
@@ -600,10 +600,12 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
       <button
         type="button"
         onClick={onClick}
+        aria-pressed={active}
         className={cn(
-          'text-xs font-medium px-2 py-1 rounded-md',
+          'text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] transition-colors',
           active
-            ? 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800'
+            // Toggle-on = teal selection (DESIGN-SYSTEM accent rules), not a status fill.
+            ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
             : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
         )}
       >
@@ -629,11 +631,11 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   }
 
   return (
-    <div className="px-5 py-2 border-b border-stone-100 dark:border-stone-700/40 flex items-center gap-1 flex-wrap">
+    <div className="px-5 py-2 border-b border-[color:var(--color-hairline)] flex items-center gap-1 flex-wrap">
       {btn(editor.isActive('bold'), 'B', () => editor.chain().focus().toggleBold().run())}
       {btn(editor.isActive('italic'), 'I', () => editor.chain().focus().toggleItalic().run())}
       {btn(editor.isActive('strike'), 'S', () => editor.chain().focus().toggleStrike().run())}
-      <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
+      <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
       {btn(editor.isActive('heading', { level: 2 }), 'H2', () =>
         editor.chain().focus().toggleHeading({ level: 2 }).run(),
       )}
@@ -641,10 +643,10 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         editor.chain().focus().toggleHeading({ level: 3 }).run(),
       )}
       {btn(editor.isActive('blockquote'), '“ ”', () => editor.chain().focus().toggleBlockquote().run())}
-      <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
+      <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
       {btn(editor.isActive('bulletList'), '• List', () => editor.chain().focus().toggleBulletList().run())}
       {btn(editor.isActive('orderedList'), '1. List', () => editor.chain().focus().toggleOrderedList().run())}
-      <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
+      <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
       {btn(editor.isActive('link'), 'Link', setLink)}
       {btn(false, 'Image', addImage)}
     </div>
@@ -655,7 +657,7 @@ function StatsPanel({ stats }: { stats: CampaignStats }) {
   const openRate = stats.sent ? Math.round((stats.uniqueOpens / stats.sent) * 100) : 0
   const clickRate = stats.sent ? Math.round((stats.uniqueClicks / stats.sent) * 100) : 0
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+    <div className="v2-card p-4">
       <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">
         Performance
       </h3>
@@ -677,7 +679,7 @@ function StatRow({ label, value, tone }: { label: string; value: string | number
       <span className={tone === 'urgent' ? 'text-rose-700 dark:text-rose-300' : 'text-gray-600 dark:text-gray-300'}>
         {label}
       </span>
-      <span className="font-semibold tabular-nums text-gray-800 dark:text-gray-100">{value}</span>
+      <span className="font-semibold tabular-nums font-mono-num text-gray-800 dark:text-gray-100">{value}</span>
     </div>
   )
 }
@@ -715,11 +717,11 @@ function SendConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
       onClick={result ? onClose : onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5"
+        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
         onClick={(e) => e.stopPropagation()}
       >
         {result ? (
@@ -756,7 +758,7 @@ function SendConfirmModal({
                 <select
                   value={gmailAccountId}
                   onChange={(e) => setGmailAccountId(e.target.value)}
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  className="form-select w-full"
                 >
                   {gmailAccounts.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -802,11 +804,13 @@ function ScheduledPanel({
       })
     : null
   return (
-    <div className="bg-sky-50 dark:bg-sky-500/10 rounded-xl border border-sky-200 dark:border-sky-500/30 p-4">
-      <h3 className="text-xs uppercase tracking-wider font-semibold text-sky-700 dark:text-sky-300 mb-1">
+    // Scheduled = info tone (ball-in-their-court / queued). v2 moved info
+    // sky→indigo so it reads distinct from the teal brand.
+    <div className="bg-indigo-50 dark:bg-indigo-500/10 rounded-[var(--r-lg)] border border-indigo-200 dark:border-indigo-500/30 p-4">
+      <h3 className="text-xs uppercase tracking-wider font-semibold text-indigo-700 dark:text-indigo-300 mb-1">
         Scheduled
       </h3>
-      <p className="text-sm text-sky-800 dark:text-sky-200 mb-3">
+      <p className="text-sm text-indigo-800 dark:text-indigo-200 mb-3">
         {when ? <>Queued to send <strong>{when}</strong>.</> : 'Queued to send.'}
       </p>
       <ActionButton variant="secondary" size="sm" onClick={onCancel} disabled={pending} className="w-full justify-center">
@@ -859,10 +863,10 @@ function ScheduleModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
       onClick={pending ? undefined : onClose}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">Schedule send</h2>
         <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
           Send to {audience?.recipientCount ?? 0} recipient{audience?.recipientCount === 1 ? '' : 's'} at a time you pick.
@@ -877,7 +881,7 @@ function ScheduleModal({
             value={when}
             min={minValue}
             onChange={(e) => setWhen(e.target.value)}
-            className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+            className="form-input w-full"
           />
         </label>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">

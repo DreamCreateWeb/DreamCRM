@@ -135,7 +135,7 @@ export default function LeadsView({
       />
 
       {/* ── Filter chips with counts ────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 mb-4 space-y-3">
+      <div className="v2-card p-4 mb-4 space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
           {STATUS_CHIPS.map((c) => {
             const n = c.key === 'all' ? counts.total : counts[c.key]
@@ -164,9 +164,7 @@ export default function LeadsView({
 
       {/* ── List ─────────────────────────────────────────────────────── */}
       {rows.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-          <LeadsEmpty status={status} />
-        </div>
+        <LeadsEmpty status={status} />
       ) : (
         <ul className="space-y-2">
           {rows.map((r) => (
@@ -190,7 +188,7 @@ function LeadRowCard({ row, onOpen }: { row: LeadRow; onOpen: () => void }) {
   return (
     <li
       onClick={onOpen}
-      className={`bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-3 cursor-pointer hover:bg-stone-50 dark:hover:bg-gray-900/30 transition border-l-4 ${agingBorderClass(tier)}`}
+      className={`v2-card-interactive px-4 py-3 cursor-pointer border-l-4 ${agingBorderClass(tier)}`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">

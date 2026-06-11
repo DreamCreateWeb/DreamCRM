@@ -115,12 +115,12 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
         />
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5 mb-6">
+      <div className="v2-card p-5 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Funnel</h2>
           <Link
             href="/marketing/pipeline"
-            className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+            className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
           >
             Manage pipeline →
           </Link>
@@ -129,7 +129,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+        <div className="v2-card p-5">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
             Recent activity
           </h2>
@@ -145,7 +145,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
               }
             />
           ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
+            <ul className="divide-y divide-[color:var(--color-hairline)]">
               {recent.map((r) => {
                 const stage = t.stages.find((s) => s.key === r.pipelineStage)
                 const accent = stageAccentClasses(stage?.accent ?? 'stone')
@@ -176,12 +176,12 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+        <div className="v2-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Audiences</h2>
             <Link
               href="/marketing/audiences"
-              className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+              className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
             >
               Manage →
             </Link>
@@ -242,7 +242,7 @@ function FunnelBars({
                 style={{ width: `${pct}%`, opacity: 0.85 }}
               />
             </div>
-            <div className="w-12 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 tabular-nums">
+            <div className="w-12 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 tabular-nums font-mono-num">
               {f.count}
             </div>
           </div>

@@ -95,7 +95,7 @@ export default async function CampaignEditorPage({
       <div className="mb-4 flex items-center gap-3">
         <Link
           href="/marketing/campaigns"
-          className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+          className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
         >
           ← Campaigns
         </Link>

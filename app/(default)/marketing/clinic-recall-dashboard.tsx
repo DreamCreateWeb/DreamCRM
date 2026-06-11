@@ -144,12 +144,12 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
 
       {/* ── Row 2 — Upcoming sends + Recent performance ────────────────── */}
       <section className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+        <div className="v2-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Upcoming sends · next 14 days</h2>
             <Link
               href="/marketing/campaigns"
-              className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+              className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
             >
               All campaigns →
             </Link>
@@ -166,10 +166,10 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               }
             />
           ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
+            <ul className="divide-y divide-[color:var(--color-hairline)]">
               {stats.upcomingSends.map((s) => (
                 <li key={s.id} className="py-2.5">
-                  <Link href={`/marketing/campaigns/${s.id}`} className="block hover:bg-stone-50 dark:hover:bg-gray-900/30 -mx-2 px-2 py-1 rounded">
+                  <Link href={`/marketing/campaigns/${s.id}`} className="block hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1 rounded">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{s.name}</p>
@@ -177,7 +177,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
                           {s.audienceName ?? 'No audience set'}
                         </p>
                       </div>
-                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300 tabular-nums shrink-0">
+                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300 tabular-nums font-mono-num shrink-0">
                         {fmtTime(s.scheduledAt)}
                       </span>
                     </div>
@@ -188,11 +188,11 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+        <div className="v2-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Recent performance · last 30 days</h2>
             {stats.openRate30d != null && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
                 {stats.openRate30d}% open · {stats.clickRate30d}% click
               </span>
             )}
@@ -209,7 +209,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
                 <li key={r.id}>
                   <Link
                     href={`/marketing/campaigns/${r.id}`}
-                    className="block hover:bg-stone-50 dark:hover:bg-gray-900/30 -mx-2 px-2 py-1.5 rounded"
+                    className="block hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1.5 rounded"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{r.name}</p>
@@ -229,12 +229,12 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
 
       {/* ── Row 3 — Audiences + Activity ───────────────────────────────── */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+        <div className="v2-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Saved segments</h2>
             <Link
               href="/marketing/audiences"
-              className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+              className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
             >
               Manage →
             </Link>
@@ -256,7 +256,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
                 <li key={a.id}>
                   <Link
                     href={`/marketing/campaigns?prefill_audience=${a.id}`}
-                    className="flex items-center justify-between text-sm hover:bg-stone-50 dark:hover:bg-gray-900/30 -mx-2 px-2 py-1.5 rounded"
+                    className="flex items-center justify-between text-sm hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1.5 rounded"
                   >
                     <span className="font-medium text-gray-700 dark:text-gray-200">{a.name}</span>
                     {a.description && (
@@ -269,15 +269,15 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               ))}
             </ul>
           )}
-          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
-            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+          <div className="mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
               <span>{stats.marketableCount} marketable · {stats.optedOutCount} opted out</span>
               <span>{stats.sentThisMonthCount} sent this month</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+        <div className="v2-card p-5">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Recent activity</h2>
           {stats.recentActivity.length === 0 ? (
             <EmptyState
@@ -286,7 +286,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               body="Opens, clicks, and booked appointments from sent campaigns show up here."
             />
           ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
+            <ul className="divide-y divide-[color:var(--color-hairline)]">
               {stats.recentActivity.map((a) => (
                 <li key={a.id} className="py-2 flex items-center gap-3">
                   <span className="text-base shrink-0" aria-hidden="true">{ACTIVITY_ICON[a.kind]}</span>
@@ -335,13 +335,14 @@ function RecallKpi({
 
 function FunnelStrip({ sent, opened, clicked, booked }: { sent: number; opened: number; clicked: number; booked: number }) {
   // Stage colors map to the tone contract: Sent = neutral (gray, inert
-  // baseline), Opened/Clicked = info (sky, ball-in-their-court), Booked =
-  // ok (emerald, the done-good outcome). Each stage carries a visible text
+  // baseline), Opened/Clicked = info (indigo, ball-in-their-court — v2 moved
+  // info sky→indigo so it can't collide with the teal brand), Booked = ok
+  // (emerald, the done-good outcome). Each stage carries a visible text
   // label + count, so color never stands alone.
   const stages = [
     { label: 'Sent', value: sent, color: 'bg-gray-300 dark:bg-gray-600' },
-    { label: 'Opened', value: opened, color: 'bg-sky-400 dark:bg-sky-500' },
-    { label: 'Clicked', value: clicked, color: 'bg-sky-500 dark:bg-sky-400' },
+    { label: 'Opened', value: opened, color: 'bg-indigo-400 dark:bg-indigo-500' },
+    { label: 'Clicked', value: clicked, color: 'bg-indigo-500 dark:bg-indigo-400' },
     { label: 'Booked', value: booked, color: 'bg-emerald-500 dark:bg-emerald-400' },
   ]
   const max = Math.max(1, sent)
@@ -353,7 +354,7 @@ function FunnelStrip({ sent, opened, clicked, booked }: { sent: number; opened: 
           <div key={s.label} className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-gray-500 dark:text-gray-400">{s.label}</span>
-              <span className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{s.value}</span>
+              <span className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums font-mono-num">{s.value}</span>
             </div>
             <div className="h-1 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
               <div className={`h-full rounded-full ${s.color}`} style={{ width: `${pct}%` }} />

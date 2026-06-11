@@ -52,11 +52,11 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
 
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5"
+            className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
@@ -75,7 +75,7 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. May product launch"
-                className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                className="form-input w-full"
               />
             </label>
             <label className="block mb-4">
@@ -85,7 +85,7 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                className="form-select w-full"
               >
                 {campaignTypes.map((t) => (
                   <option key={t.key} value={t.key}>
