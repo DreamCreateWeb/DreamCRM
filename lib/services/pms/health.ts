@@ -130,7 +130,7 @@ export function deriveIntegrationsHealth(
       ...base,
       status: 'stale',
       severity: 'warn',
-      message: `No successful sync in the last ${Math.round(ageHours)} hours. Auto-sync should run periodically — try a manual sync if this persists.`,
+      message: `No successful sync in the last ${Math.round(ageHours)} hours. Auto-sync runs hourly, so this usually means a connection problem — try a manual sync.`,
     }
   }
 

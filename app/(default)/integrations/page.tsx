@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireTenant } from '@/lib/auth/context'
+import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getIntegrationsDashboard, openDentalConfigured } from '@/lib/services/pms'
 import { getIntegrationsHealth } from '@/lib/services/pms/health'
 import {
@@ -105,6 +105,7 @@ export default async function IntegrationsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+  await requirePlan(ctx, 'premium', 'integrations')
 
   const [dashboard, configured, health] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),
@@ -374,8 +375,7 @@ export default async function IntegrationsPage() {
         <div className="bg-gray-100 dark:bg-gray-800/40 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-5">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
           <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Scheduled auto-sync on a cron (manual “Sync now” + best-effort write-back on booking ship today)</li>
-            <li>· Write-back of reschedules + cancellations into the PMS (v1 pushes new bookings; edits flow PMS → DreamCRM)</li>
+            <li>· Near-real-time sync via Open Dental webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
             <li>· Dentrix Ascend (cloud REST API — pending Henry Schein One partner approval)</li>
             <li>· Eaglesoft / Dentrix desktop / Curve via a signed local connector per office</li>
             <li>· Configurable field mapping (today the Open Dental mapping is fixed + shown in full above)</li>

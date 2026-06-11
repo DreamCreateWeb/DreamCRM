@@ -1,7 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { auth } from '@/lib/auth/server'
 import { db } from '@/lib/db'
 import { patient } from '@/lib/db/schema/clinic'
@@ -50,10 +50,19 @@ export async function linkPatientRecord(invitationToken?: string): Promise<void>
 
   if (!memberRow || memberRow.role !== 'patient') return
 
+  // Case-insensitive email match: a patient row whose stored email has
+  // different casing than the account email would otherwise never link, and
+  // the patient lands on the portal's "we can't find your record / call us"
+  // screen despite having accepted the invite.
   const [patientRow] = await db
     .select()
     .from(patient)
-    .where(and(eq(patient.organizationId, orgId), eq(patient.email, session.user.email)))
+    .where(
+      and(
+        eq(patient.organizationId, orgId),
+        sql`lower(${patient.email}) = lower(${session.user.email})`,
+      ),
+    )
     .limit(1)
 
   if (!patientRow || patientRow.userId) return

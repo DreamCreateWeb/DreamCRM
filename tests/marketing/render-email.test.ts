@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { renderCampaignEmail } from '@/lib/marketing/render-email'
+import {
+  renderCampaignEmail,
+  resolveMarketingFooterAddress,
+  buildUnsubscribeUrl,
+} from '@/lib/marketing/render-email'
 import { decodeToken } from '@/lib/marketing/tokens'
 
 describe('renderCampaignEmail', () => {
@@ -67,6 +71,88 @@ describe('renderCampaignEmail', () => {
     const { text } = renderCampaignEmail(base)
     expect(text).toContain('Hello click here')
     expect(text).toContain('Unsubscribe:')
+  })
+
+  it('returns the per-recipient unsubscribe URL so the send path can reuse it as a header', () => {
+    const { unsubUrl, html } = renderCampaignEmail(base)
+    expect(unsubUrl).toMatch(/\/api\/unsub\/[\w.-]+/)
+    // Same URL the footer link points at — they must not drift.
+    expect(html).toContain(`href="${unsubUrl}"`)
+  })
+
+  it('renders the clinic postal address in the footer when supplied', () => {
+    const { html, text } = renderCampaignEmail({
+      ...base,
+      postalAddress: '123 Main St, Austin, TX 78701',
+    })
+    expect(html).toContain('123 Main St, Austin, TX 78701')
+    expect(text).toContain('123 Main St, Austin, TX 78701')
+  })
+
+  it('renders a light clinic branding header (wordmark) when clinicName is set', () => {
+    const { html } = renderCampaignEmail({ ...base, clinicName: 'Acme Dental' })
+    expect(html).toContain('Acme Dental')
+  })
+
+  it('renders the clinic logo in the branding header when a logo URL is set', () => {
+    const { html } = renderCampaignEmail({
+      ...base,
+      clinicName: 'Acme Dental',
+      clinicLogoUrl: 'https://cdn.example.com/logo.png',
+    })
+    expect(html).toContain('https://cdn.example.com/logo.png')
+  })
+})
+
+describe('resolveMarketingFooterAddress', () => {
+  it('composes the clinic address from clinic_profile fields when a street line exists', () => {
+    const addr = resolveMarketingFooterAddress(
+      { addressLine1: '123 Main St', city: 'Austin', state: 'TX', postalCode: '78701' },
+      'env fallback',
+    )
+    expect(addr).toBe('123 Main St, Austin, TX 78701')
+  })
+
+  it('includes addressLine2 when present', () => {
+    const addr = resolveMarketingFooterAddress({
+      addressLine1: '123 Main St',
+      addressLine2: 'Suite 200',
+      city: 'Austin',
+      state: 'TX',
+      postalCode: '78701',
+    })
+    expect(addr).toBe('123 Main St, Suite 200, Austin, TX 78701')
+  })
+
+  it('falls back to the env address when the clinic has no street line (incomplete address)', () => {
+    const addr = resolveMarketingFooterAddress(
+      { addressLine1: null, city: 'Austin', state: 'TX' },
+      'Dream Create, 1 Platform Way, NY',
+    )
+    expect(addr).toBe('Dream Create, 1 Platform Way, NY')
+  })
+
+  it('returns null when neither clinic address nor env fallback is usable (caller fails closed)', () => {
+    expect(resolveMarketingFooterAddress(null, '')).toBeNull()
+    expect(resolveMarketingFooterAddress(null, undefined)).toBeNull()
+    expect(resolveMarketingFooterAddress({ city: 'Austin' }, '')).toBeNull()
+  })
+})
+
+describe('buildUnsubscribeUrl', () => {
+  it('encodes a one-click unsubscribe token URL matching the footer link', () => {
+    const url = buildUnsubscribeUrl({
+      campaignId: 5,
+      recipientEmail: 'Jane@Example.com',
+      recipientPatientId: 'p9',
+    })
+    const m = url.match(/\/api\/unsub\/([\w.-]+)/)
+    expect(m).toBeTruthy()
+    const payload = decodeToken(m![1])
+    expect(payload?.e).toBe('jane@example.com')
+    expect(payload?.c).toBe(5)
+    expect(payload?.pi).toBe('p9')
+    expect(payload?.p).toBe('u')
   })
 })
 

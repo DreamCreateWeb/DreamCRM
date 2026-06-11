@@ -23,9 +23,12 @@ import {
 import {
   CampaignInput,
   CampaignUpdate,
+  cancelScheduledCampaign,
   createMarketingCampaign,
   deleteMarketingCampaign,
+  scheduleCampaign,
   updateMarketingCampaign,
+  type ScheduleResult,
 } from '@/lib/services/marketing-campaigns'
 import { sendCampaign } from '@/lib/services/marketing-send'
 import { draftCampaign, improveCopy } from '@/lib/services/ai-marketing'
@@ -159,6 +162,29 @@ export async function deleteCampaignAction(id: number) {
   const ctx = await requireClinicStaff()
   await deleteMarketingCampaign(ctx.organizationId, id)
   revalidatePath('/marketing/campaigns')
+}
+
+/** "Send later" — queue a campaign for a future send (status → scheduled).
+ *  The send-scheduled-campaigns cron dispatches it. */
+export async function scheduleCampaignAction(id: number, scheduledAtIso: string): Promise<ScheduleResult> {
+  const ctx = await requireClinicStaff()
+  const result = await scheduleCampaign(ctx.organizationId, id, scheduledAtIso)
+  if (result.ok) {
+    revalidatePath('/marketing/campaigns')
+    revalidatePath(`/marketing/campaigns/${id}`)
+  }
+  return result
+}
+
+/** Pull a scheduled campaign back to draft (cancel the queued send). */
+export async function cancelScheduledCampaignAction(id: number): Promise<ScheduleResult> {
+  const ctx = await requireClinicStaff()
+  const result = await cancelScheduledCampaign(ctx.organizationId, id)
+  if (result.ok) {
+    revalidatePath('/marketing/campaigns')
+    revalidatePath(`/marketing/campaigns/${id}`)
+  }
+  return result
 }
 
 // ---------- AI ----------

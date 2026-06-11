@@ -3,6 +3,7 @@ import Header from './header'
 import TenantSidebar from './tenant-sidebar'
 import DemoBanner from './demo-banner'
 import BillingActivationBanner from './billing-activation-banner'
+import BillingDunningBanner from './billing-dunning-banner'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
 import { getVisibleModules } from '@/lib/modules'
@@ -46,11 +47,13 @@ export default async function DashboardShell({
         orgName={ctx.organizationName}
         badge={badge}
         variant={sidebarVariant}
+        tenantType={ctx.tenantType}
       />
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Header variant={headerVariant} />
         <DemoBanner ctx={ctx} />
         <BillingActivationBanner ctx={ctx} />
+        <BillingDunningBanner ctx={ctx} />
         <main className="grow [&>*:first-child]:scroll-mt-16">{children}</main>
       </div>
     </div>

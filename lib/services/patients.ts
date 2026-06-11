@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql }
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
 
 /**
  * Patients service — the CRM-side relationship view.
@@ -684,9 +685,48 @@ export interface CreatePatientInput {
   // Family access (patient portal): the patient whose portal login may see
   // and manage this patient. Null = no guardian.
   guardianPatientId?: string | null
+  /**
+   * Skip the email/phone dedupe pre-check and insert regardless. The "Add
+   * anyway" escape hatch for legitimate same-contact cases (a child sharing a
+   * parent's phone/email — common in pediatric dental).
+   */
+  forceNew?: boolean
 }
 
-export async function createPatient(input: CreatePatientInput) {
+export type CreatePatientResult =
+  | { id: string }
+  | { duplicateOf: { id: string; name: string } }
+
+/**
+ * Insert a patient — unless an active patient with the same normalized email
+ * or phone already exists in the org (then return `{ duplicateOf }` so the UI
+ * can offer "open their record" vs "Add anyway"). Normalization matches the
+ * rest of the app (`lib/contact-normalize.ts`), so a created patient won't
+ * later look like a duplicate of an imported/converted one.
+ */
+export async function createPatient(input: CreatePatientInput): Promise<CreatePatientResult> {
+  const ne = normalizeEmail(input.email)
+  const np = normalizePhone(input.phone)
+  if (!input.forceNew && (ne || np)) {
+    const candidates = await db
+      .select({
+        id: schema.patient.id,
+        firstName: schema.patient.firstName,
+        lastName: schema.patient.lastName,
+        email: schema.patient.email,
+        phone: schema.patient.phone,
+      })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, input.organizationId), eq(schema.patient.isActive, 1)))
+      .limit(2000)
+    const match = candidates.find(
+      (c) => (ne && normalizeEmail(c.email) === ne) || (np && normalizePhone(c.phone) === np),
+    )
+    if (match) {
+      return { duplicateOf: { id: match.id, name: `${match.firstName} ${match.lastName}`.trim() } }
+    }
+  }
+
   const id = newPatientId()
   const now = new Date()
   await db.insert(schema.patient).values({
@@ -709,7 +749,7 @@ export async function createPatient(input: CreatePatientInput) {
     firstSeenAt: now,
     notes: input.notes ?? null,
   })
-  return id
+  return { id }
 }
 
 export interface UpdatePatientInput {

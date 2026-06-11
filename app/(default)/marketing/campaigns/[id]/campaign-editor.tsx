@@ -11,9 +11,11 @@ import { DOMSerializer } from 'prosemirror-model'
 import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
 import {
+  cancelScheduledCampaignAction,
   deleteCampaignAction,
   draftCampaignAction,
   improveCopyAction,
+  scheduleCampaignAction,
   sendCampaignAction,
   updateCampaignAction,
 } from '../../actions'
@@ -30,6 +32,7 @@ export interface CampaignEditorData {
   sendChannel: 'resend' | 'gmail' | 'twilio_sms'
   status: string
   sentAt: string | null
+  scheduledAt: string | null
 }
 
 interface AudienceOption {
@@ -50,6 +53,9 @@ interface Props {
   gmailAccounts: GmailAccount[]
   defaultFromEmail: string
   stats: CampaignStats
+  /** Clinic IANA timezone — surfaced as a hint next to the scheduler so the
+   *  staff member knows the picked wall-clock is interpreted in their zone. */
+  clinicTimeZone: string
 }
 
 export default function CampaignEditor({
@@ -58,6 +64,7 @@ export default function CampaignEditor({
   gmailAccounts,
   defaultFromEmail,
   stats,
+  clinicTimeZone,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -65,6 +72,7 @@ export default function CampaignEditor({
   const [dirty, setDirty] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [showSend, setShowSend] = useState(false)
+  const [showSchedule, setShowSchedule] = useState(false)
   const [showAiDraft, setShowAiDraft] = useState(false)
   const [aiImproveInstruction, setAiImproveInstruction] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState(false)
@@ -137,6 +145,13 @@ export default function CampaignEditor({
   }
 
   const sent = campaign.status === 'completed' || campaign.status === 'active'
+  const isScheduled = draft.status === 'scheduled'
+  const sendDisabled =
+    pending ||
+    !draft.subject ||
+    !draft.bodyHtml ||
+    !draft.audienceId ||
+    (draft.sendChannel === 'gmail' && gmailAccounts.length === 0)
   const audience = audiences.find((a) => a.id === draft.audienceId)
 
   return (
@@ -302,21 +317,42 @@ export default function CampaignEditor({
 
         {sent ? (
           <StatsPanel stats={stats} />
+        ) : isScheduled ? (
+          <ScheduledPanel
+            scheduledAt={draft.scheduledAt}
+            timeZone={clinicTimeZone}
+            pending={pending}
+            onCancel={() => {
+              startTransition(async () => {
+                const r = await cancelScheduledCampaignAction(draft.id)
+                if (r.ok) {
+                  setDraft((d) => ({ ...d, status: 'draft', scheduledAt: null }))
+                  router.refresh()
+                } else {
+                  alert(r.error)
+                }
+              })
+            }}
+          />
         ) : (
-          <ActionButton
-            variant="primary"
-            onClick={() => setShowSend(true)}
-            disabled={
-              pending ||
-              !draft.subject ||
-              !draft.bodyHtml ||
-              !draft.audienceId ||
-              (draft.sendChannel === 'gmail' && gmailAccounts.length === 0)
-            }
-            className="w-full justify-center"
-          >
-            Send campaign
-          </ActionButton>
+          <div className="space-y-1.5">
+            <ActionButton
+              variant="primary"
+              onClick={() => setShowSend(true)}
+              disabled={sendDisabled}
+              className="w-full justify-center"
+            >
+              Send now
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
+              onClick={() => setShowSchedule(true)}
+              disabled={sendDisabled}
+              className="w-full justify-center"
+            >
+              Send later
+            </ActionButton>
+          </div>
         )}
       </aside>
 
@@ -383,6 +419,41 @@ export default function CampaignEditor({
           onSent={() => {
             setShowSend(false)
             router.refresh()
+          }}
+        />
+      )}
+
+      {showSchedule && (
+        <ScheduleModal
+          audience={audience ?? null}
+          timeZone={clinicTimeZone}
+          dirty={dirty}
+          onClose={() => setShowSchedule(false)}
+          onConfirm={async (whenLocal) => {
+            // Persist any pending edits first, so the scheduled send uses the
+            // latest body/subject (autosave may not have fired yet).
+            if (dirty) {
+              await updateCampaignAction(draft.id, {
+                name: draft.name,
+                subject: draft.subject || null,
+                previewText: draft.previewText || null,
+                bodyHtml: draft.bodyHtml || null,
+                bodyJson: draft.bodyJson,
+                audienceId: draft.audienceId ?? null,
+                sendChannel: draft.sendChannel,
+              })
+              setDirty(false)
+            }
+            // datetime-local has no zone; treat the wall-clock as the user's
+            // local time (matches the picker UI) by sending an ISO string.
+            const iso = new Date(whenLocal).toISOString()
+            const r = await scheduleCampaignAction(draft.id, iso)
+            if (r.ok) {
+              setDraft((d) => ({ ...d, status: 'scheduled', scheduledAt: iso }))
+              setShowSchedule(false)
+              router.refresh()
+            }
+            return r
           }}
         />
       )}
@@ -708,6 +779,119 @@ function SendConfirmModal({
             </div>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** Sidebar panel shown while a campaign is queued for a future send. */
+function ScheduledPanel({
+  scheduledAt,
+  timeZone,
+  pending,
+  onCancel,
+}: {
+  scheduledAt: string | null
+  timeZone: string
+  pending: boolean
+  onCancel: () => void
+}) {
+  const when = scheduledAt
+    ? new Date(scheduledAt).toLocaleString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone,
+      })
+    : null
+  return (
+    <div className="bg-sky-50 dark:bg-sky-500/10 rounded-xl border border-sky-200 dark:border-sky-500/30 p-4">
+      <h3 className="text-xs uppercase tracking-wider font-semibold text-sky-700 dark:text-sky-300 mb-1">
+        Scheduled
+      </h3>
+      <p className="text-sm text-sky-800 dark:text-sky-200 mb-3">
+        {when ? <>Queued to send <strong>{when}</strong>.</> : 'Queued to send.'}
+      </p>
+      <ActionButton variant="secondary" size="sm" onClick={onCancel} disabled={pending} className="w-full justify-center">
+        {pending ? 'Working…' : 'Cancel scheduled send'}
+      </ActionButton>
+    </div>
+  )
+}
+
+/** Returns a `YYYY-MM-DDTHH:mm` string in LOCAL time for a Date — the format
+ *  <input type="datetime-local"> expects. */
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function ScheduleModal({
+  audience,
+  timeZone,
+  dirty,
+  onClose,
+  onConfirm,
+}: {
+  audience: AudienceOption | null
+  timeZone: string
+  dirty: boolean
+  onClose: () => void
+  onConfirm: (whenLocal: string) => Promise<{ ok: true } | { ok: false; error: string }>
+}) {
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  // Default to tomorrow at 9am local; min is 5 min out (matches the server guard).
+  const now = new Date()
+  const minValue = toLocalInputValue(new Date(now.getTime() + 5 * 60 * 1000))
+  const defaultValue = (() => {
+    const d = new Date(now)
+    d.setDate(d.getDate() + 1)
+    d.setHours(9, 0, 0, 0)
+    return toLocalInputValue(d)
+  })()
+  const [when, setWhen] = useState(defaultValue)
+
+  function confirm() {
+    setError(null)
+    startTransition(async () => {
+      const r = await onConfirm(when)
+      if (!r.ok) setError(r.error)
+    })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      onClick={pending ? undefined : onClose}
+    >
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">Schedule send</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          Send to {audience?.recipientCount ?? 0} recipient{audience?.recipientCount === 1 ? '' : 's'} at a time you pick.
+          {dirty ? ' Your latest edits are saved when you schedule.' : ''}
+        </p>
+        <label className="block mb-2">
+          <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+            Date &amp; time
+          </span>
+          <input
+            type="datetime-local"
+            value={when}
+            min={minValue}
+            onChange={(e) => setWhen(e.target.value)}
+            className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+          />
+        </label>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Times are in your clinic timezone ({timeZone}). It sends automatically — no need to keep this open.
+        </p>
+        {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+            Cancel
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={confirm} disabled={pending || !when}>
+            {pending ? 'Scheduling…' : 'Schedule'}
+          </ActionButton>
+        </div>
       </div>
     </div>
   )

@@ -103,5 +103,25 @@ export async function submitInsuranceVerifyRequest(
     }
   }
 
+  // Ping the front desk so the insurance question lands as an actionable lead.
+  // Best-effort — the lead row above is the source of truth.
+  try {
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      orgId,
+      {
+        bucket: 'comments',
+        type: 'insurance_question',
+        title: `New insurance question — ${leadName}`,
+        body: detailLines.length > 0 ? detailLines.join('. ') : 'A patient asked about insurance via your website.',
+        linkPath: '/leads',
+        meta: { sourcePage: 'insurance_verifier' },
+      },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[insurance-verify] notification failed', err)
+  }
+
   return { ok: true }
 }

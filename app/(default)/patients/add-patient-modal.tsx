@@ -1,22 +1,46 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { createPatientAction } from './actions'
 
 export default function AddPatientModal({ onClose }: { onClose: () => void }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null)
   const [pending, startTransition] = useTransition()
+  const formRef = useRef<HTMLFormElement>(null)
 
-  function submit(formData: FormData) {
+  function runSubmit(formData: FormData) {
     setError(null)
     startTransition(async () => {
       const r = await createPatientAction(formData)
-      if (!r.ok) { setError(r.error); return }
+      if ('duplicateOf' in r && r.duplicateOf) {
+        setDuplicate(r.duplicateOf)
+        return
+      }
+      if (!r.ok) {
+        setError('error' in r ? r.error : 'Could not save patient')
+        return
+      }
       router.push(`/patients/${r.id}`)
     })
+  }
+
+  function submit(formData: FormData) {
+    setDuplicate(null)
+    runSubmit(formData)
+  }
+
+  // "Add anyway" — re-submit the same form fields with forceNew set so the
+  // dedupe pre-check is skipped.
+  function addAnyway() {
+    if (!formRef.current) return
+    const fd = new FormData(formRef.current)
+    fd.set('forceNew', '1')
+    setDuplicate(null)
+    runSubmit(fd)
   }
 
   return (
@@ -28,7 +52,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
             Just the basics: name, contact, and date of birth. You can fill in the rest from the patient page.
           </p>
         </div>
-        <form action={submit} className="px-6 py-5 space-y-3">
+        <form ref={formRef} action={submit} className="px-6 py-5 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">First name</span>
@@ -52,6 +76,26 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
             <input name="dateOfBirth" type="date" className="form-input w-full mt-1 text-sm" />
           </label>
           {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
+          {duplicate && (
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3 py-2.5">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                Looks like <span className="font-semibold">{duplicate.name}</span> already exists with
+                this email or phone — open their record instead?
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <ActionButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => router.push(`/patients/${duplicate.id}`)}
+                >
+                  Open their record
+                </ActionButton>
+                <ActionButton variant="secondary" size="sm" onClick={addAnyway} disabled={pending}>
+                  {pending ? 'Adding…' : 'Add anyway'}
+                </ActionButton>
+              </div>
+            </div>
+          )}
           <div className="pt-2 flex justify-end gap-2">
             <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
               Cancel

@@ -27,6 +27,7 @@ export default async function TeamSettings() {
       <div className="flex flex-col md:flex-row md:-mr-px">
         <SettingsSidebar tenantType={ctx.tenantType} />
         <TeamPanel
+          canManage={ctx.role === 'owner' || ctx.role === 'admin'}
           members={members.map((m) => ({
             userId: m.userId,
             name: m.name,

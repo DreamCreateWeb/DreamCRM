@@ -14,6 +14,7 @@ import {
   getRecipientBreakdown,
 } from '@/lib/services/marketing-campaigns'
 import { listOrgEmailAccounts } from '@/lib/services/mailbox'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import CampaignEditor from './campaign-editor'
 import RecipientsTable from './recipients-table'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -68,11 +69,13 @@ export default async function CampaignEditorPage({
   if (!campaign) notFound()
 
   const t = marketingTerminology(ctx.tenantType)
-  const [audiences, gmailAccounts, stats, recipients] = await Promise.all([
+  const [audiences, gmailAccounts, stats, recipients, sender] = await Promise.all([
     listAudiences(ctx.organizationId),
     listOrgEmailAccounts(ctx.organizationId).catch(() => []),
     getCampaignStats(id),
     getRecipientBreakdown(id),
+    // Only the clinic timezone is needed here (a hint next to the scheduler).
+    getClinicSenderIdentity(ctx.organizationId).catch(() => null),
   ])
 
   const sent = campaign.status === 'completed' || campaign.status === 'active'
@@ -116,7 +119,9 @@ export default async function CampaignEditorPage({
           sendChannel: campaign.sendChannel,
           status: campaign.status,
           sentAt: campaign.sentAt ? campaign.sentAt.toISOString() : null,
+          scheduledAt: campaign.scheduledAt ? campaign.scheduledAt.toISOString() : null,
         }}
+        clinicTimeZone={sender?.timeZone ?? 'America/New_York'}
         audiences={audiences.map((a) => ({
           id: a.id,
           name: a.name,

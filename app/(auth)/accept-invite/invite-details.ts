@@ -3,12 +3,21 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { invitation, organization } from '@/lib/db/schema/auth'
+import { clinicProfile } from '@/lib/db/schema/platform'
 
 export interface InvitationDetails {
   email: string
   orgName: string
   role: string
   expired: boolean
+  /** 'platform' | 'clinic' — drives whether the page wears the clinic's brand. */
+  orgType: string
+  /** Clinic branding (only set for clinic orgs) so the invite can match the portal. */
+  brand: {
+    displayName: string | null
+    logoUrl: string | null
+    brandColor: string | null
+  } | null
 }
 
 export async function getInvitationDetails(token: string): Promise<InvitationDetails | null> {
@@ -27,15 +36,39 @@ export async function getInvitationDetails(token: string): Promise<InvitationDet
   if (!row) return null
 
   const [org] = await db
-    .select({ name: organization.name })
+    .select({ name: organization.name, type: organization.type })
     .from(organization)
     .where(eq(organization.id, row.orgId))
     .limit(1)
 
+  // For clinic invites, pull the clinic's branding so the accept-invite screen
+  // wears the clinic's identity (logo + brand color) — a patient should feel
+  // they're joining THEIR dentist, not generic "DreamCRM". Platform/staff
+  // invites keep the default platform style (brand stays null).
+  let brand: InvitationDetails['brand'] = null
+  if (org?.type === 'clinic') {
+    const [profile] = await db
+      .select({
+        displayName: clinicProfile.displayName,
+        logoUrl: clinicProfile.logoUrl,
+        brandColor: clinicProfile.brandColor,
+      })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, row.orgId))
+      .limit(1)
+    brand = {
+      displayName: profile?.displayName ?? null,
+      logoUrl: profile?.logoUrl ?? null,
+      brandColor: profile?.brandColor ?? null,
+    }
+  }
+
   return {
     email: row.email,
-    orgName: org?.name ?? '',
+    orgName: (brand?.displayName || org?.name) ?? '',
     role: row.role ?? 'member',
+    orgType: org?.type ?? 'clinic',
+    brand,
     // Anything other than a still-pending invitation can't be accepted
     // (accepted / canceled / rejected all count as no-longer-usable), as does
     // a past expiry. better-auth blocks non-pending accepts server-side; this

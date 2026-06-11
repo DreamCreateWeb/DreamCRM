@@ -5,29 +5,35 @@ import { openBillingPortal, startStripeCheckout } from '../actions'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { subscriptionStatusMeta } from '@/lib/billing-status'
 
-type PlanKey = 'free' | 'pro' | 'team' | 'enterprise'
-
-// Mapping between local billing_plan enum and the customer-facing PlanId.
-const PLAN_KEY_TO_ID: Partial<Record<PlanKey, PlanId>> = {
-  pro: 'pro',
-  team: 'premium',
+interface Props {
+  /** The clinic's real plan tier (from clinic_profile via tenant context). */
+  currentPlanId: PlanId
+  /** Raw Stripe subscription status — drives the status pill / dunning copy. */
+  subscriptionStatus: string | null
+  /** The interval the live subscription bills on, if known. */
+  currentInterval: BillingInterval | null
+  /** When arriving via requirePlan's redirect, the gated module's label. */
+  upgradeModuleLabel: string | null
 }
-const PLAN_ID_TO_KEY: Record<PlanId, PlanKey> = {
-  basic: 'free',
-  pro: 'pro',
-  premium: 'team',
-}
 
-export default function PlansPanel({ currentPlan }: { currentPlan: PlanKey }) {
-  const [interval, setInterval] = useState<BillingInterval>('monthly')
+export default function PlansPanel({
+  currentPlanId,
+  subscriptionStatus,
+  currentInterval,
+  upgradeModuleLabel,
+}: Props) {
+  const [interval, setInterval] = useState<BillingInterval>(currentInterval ?? 'monthly')
   const [pending, startTransition] = useTransition()
   const [pendingPlan, setPendingPlan] = useState<PlanId | null>(null)
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
 
-  const currentPlanId = (Object.entries(PLAN_ID_TO_KEY).find(([, k]) => k === currentPlan)?.[0] ?? null) as
-    | PlanId
-    | null
+  const currentPlan = PLANS.find((p) => p.id === currentPlanId)
+  const status = subscriptionStatusMeta(subscriptionStatus)
+  // A subscription that isn't active/trialing means switching plans should go
+  // through the portal (fix the card first), not start a fresh checkout.
+  const billingBroken = status.severity === 'urgent' || status.severity === 'warn'
 
   function handleSelect(planId: PlanId) {
     if (planId === currentPlanId || pending) return
@@ -62,22 +68,35 @@ export default function PlansPanel({ currentPlan }: { currentPlan: PlanKey }) {
   return (
     <div className="grow">
       <div className="p-6 space-y-6">
+        {upgradeModuleLabel && (
+          <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200">
+            <span className="font-semibold">{upgradeModuleLabel} is on a higher plan.</span>{' '}
+            Pick a plan below to unlock it — your current data stays exactly as it is.
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Plans</h2>
-            <div className="text-sm text-gray-600 dark:text-gray-300">
-              You&apos;re currently on the{' '}
-              <strong className="font-medium capitalize text-gray-800 dark:text-gray-100">
-                {currentPlanId ?? 'free'}
-              </strong>{' '}
-              plan.
+            <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-3">Plans</h2>
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+              <span>
+                You&apos;re currently on the{' '}
+                <strong className="font-medium capitalize text-gray-800 dark:text-gray-100">
+                  {currentPlan?.name ?? currentPlanId}
+                </strong>{' '}
+                plan.
+              </span>
+              {status.label && <StatusPill tone={status.tone} label={status.label} title={status.description} />}
             </div>
+            {billingBroken && (
+              <div className="mt-1 text-sm text-rose-700 dark:text-rose-300">
+                {status.description} Update your card in the billing portal to keep your features.
+              </div>
+            )}
           </div>
-          {currentPlanId && (
-            <ActionButton variant="secondary" size="sm" onClick={handlePortal} disabled={pending}>
-              Manage billing →
-            </ActionButton>
-          )}
+          <ActionButton variant="secondary" size="sm" onClick={handlePortal} disabled={pending}>
+            Manage billing →
+          </ActionButton>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -137,6 +156,15 @@ export default function PlansPanel({ currentPlan }: { currentPlan: PlanKey }) {
                     <div className="btn w-full mt-3 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-default">
                       Current plan
                     </div>
+                  ) : billingBroken ? (
+                    <ActionButton
+                      variant="primary"
+                      onClick={handlePortal}
+                      disabled={pending}
+                      className="w-full mt-3 justify-center"
+                    >
+                      Fix billing to switch
+                    </ActionButton>
                   ) : (
                     <ActionButton
                       variant="primary"
