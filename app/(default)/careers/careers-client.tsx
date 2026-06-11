@@ -125,7 +125,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
         subtitle="Post openings on your own site — they get picked up by Google for Jobs + Indeed for free. Applications land here in a triage pipeline."
         legend={<EncodingLegend aging="applicants" pills={APP_PILL_LEGEND} />}
         actions={
-          <ActionButton variant="primary" size="sm" href="/careers/new">
+          <ActionButton variant="primary" breath size="sm" href="/careers/new">
             + New role
           </ActionButton>
         }

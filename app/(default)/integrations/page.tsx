@@ -141,7 +141,7 @@ export default async function IntegrationsPage() {
           connected ? (
             <SyncNowButton />
           ) : (
-            <ActionButton variant="primary" size="sm" href="#connect-open-dental">
+            <ActionButton variant="primary" breath size="sm" href="#connect-open-dental">
               Connect Open Dental
             </ActionButton>
           )
