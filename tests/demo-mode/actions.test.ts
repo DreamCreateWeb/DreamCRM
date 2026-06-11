@@ -49,6 +49,7 @@ const { mockCreateDemo, dbState } = vi.hoisted(() => ({
 
 vi.mock('@/lib/services/demo-clinic', () => ({
   createDemoClinic: mockCreateDemo,
+  seedDemoNotificationsForUser: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/db', () => {
