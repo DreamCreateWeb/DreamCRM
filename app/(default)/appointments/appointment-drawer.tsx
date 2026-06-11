@@ -123,6 +123,16 @@ export default function AppointmentDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId])
 
+  // Esc closes the drawer (parity with the shared Drawer primitive). Skip when
+  // a sub-drawer is open so Esc dismisses that first.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !reschedOpen && !rebookOpen) onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose, reschedOpen, rebookOpen])
+
   function refresh() {
     router.refresh()
     onClose()
@@ -186,11 +196,29 @@ export default function AppointmentDrawer({
   const isRecoverable = detail?.status === 'cancelled' || detail?.status === 'no_show'
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
-      <div className="bg-white dark:bg-gray-800 w-full sm:w-[480px] h-full overflow-y-auto shadow-2xl flex flex-col">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Appointment</h2>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">✕</button>
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Appointment"
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col"
+      >
+        <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur px-5 py-3 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
+          <h2 className="text-[14px] font-medium text-gray-900 dark:text-gray-100">Appointment</h2>
+          <button
+            onClick={onClose}
+            title="Close (Esc)"
+            aria-label="Close"
+            className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
         {loading ? (
@@ -204,7 +232,7 @@ export default function AppointmentDrawer({
               <div>
                 <Link
                   href={`/patients/${detail.patient.id}`}
-                  className="text-xl font-bold text-gray-800 dark:text-gray-100 hover:underline"
+                  className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 hover:underline"
                 >
                   {detail.patient.fullName}
                 </Link>
@@ -228,7 +256,7 @@ export default function AppointmentDrawer({
               </div>
 
               {/* ── Context stats ────────────────────────────────────── */}
-              <div className="grid grid-cols-2 gap-3 rounded-lg bg-stone-50 dark:bg-gray-900/40 p-3">
+              <div className="grid grid-cols-2 gap-3 v2-well p-3">
                 <Stat label="Last visit" value={fmtRelative(detail.patient.lastVisitAt)} />
                 <Stat label="Balance" value={money(detail.patient.outstandingBalanceCents)} tone={detail.patient.outstandingBalanceCents > 0 ? 'warn' : 'ok'} />
                 <Stat label="Lifetime spend" value={money(detail.patient.lifetimeValueCents)} />
@@ -271,7 +299,7 @@ export default function AppointmentDrawer({
 
               {/* ── Destructive actions — separated, never beside primary ── */}
               {isOpenState && (
-                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+                <div className="flex flex-wrap gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
                   {isPastOpen && (
                     <ActionButton variant="danger" size="sm" onClick={onNoShow} disabled={pending}>
                       Mark no-show
@@ -284,14 +312,14 @@ export default function AppointmentDrawer({
               )}
 
               {detail.notes && (
-                <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
+                <div className="pt-3 border-t border-[color:var(--color-hairline)]">
                   <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Notes</p>
                   <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{detail.notes}</p>
                 </div>
               )}
 
               {/* Reminder activity */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
+              <div className="pt-3 border-t border-[color:var(--color-hairline)]">
                 <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Reminder activity</p>
                 {detail.reminders.length === 0 ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400 italic">
@@ -317,13 +345,13 @@ export default function AppointmentDrawer({
               </div>
 
               {/* Intake attached */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
+              <div className="pt-3 border-t border-[color:var(--color-hairline)]">
                 <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Intake</p>
                 {detail.intakeAttached ? (
                   <p className="text-sm text-gray-700 dark:text-gray-200">
                     {detail.intakeAttached.formTitle} · submitted {fmtRelative(detail.intakeAttached.submittedAt)}
                     {' · '}
-                    <Link href={`/intake-forms/submissions/${detail.intakeAttached.id}`} className="text-violet-600 dark:text-violet-400 hover:underline">View</Link>
+                    <Link href={`/intake-forms/submissions/${detail.intakeAttached.id}`} className="text-teal-700 dark:text-teal-400 hover:underline">View</Link>
                   </p>
                 ) : (
                   <p className="text-xs text-amber-700 dark:text-amber-300">
@@ -339,7 +367,7 @@ export default function AppointmentDrawer({
               </div>
 
               {/* Source / created */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
+              <div className="pt-3 border-t border-[color:var(--color-hairline)]">
                 <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Booking source</p>
                 <p className="text-xs text-gray-700 dark:text-gray-200">
                   {detail.source
@@ -393,7 +421,7 @@ function Stat({
   return (
     <div>
       <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
-      <p className={`text-sm font-semibold tabular-nums ${valueClass}`}>{value}</p>
+      <p className={`text-sm font-semibold font-mono-num tabular-nums ${valueClass}`}>{value}</p>
     </div>
   )
 }
@@ -437,9 +465,9 @@ function RescheduleSubDrawer({
   }
 
   return (
-    <div className="absolute inset-0 bg-white dark:bg-gray-800 flex flex-col">
-      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Reschedule</h3>
+    <div className="absolute inset-0 bg-[color:var(--color-surface-2)] rounded-l-[var(--r-lg)] flex flex-col">
+      <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Reschedule</h3>
         <button onClick={onClose} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">← Back</button>
       </div>
       <div className="px-5 py-5 space-y-3 flex-1">
@@ -461,7 +489,7 @@ function RescheduleSubDrawer({
         </label>
         {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       </div>
-      <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
+      <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
         <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
           Cancel
         </ActionButton>

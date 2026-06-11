@@ -160,10 +160,10 @@ export default function BookFromPatientDrawer({
   const availableSlots = slots.filter((s) => s.available)
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Book appointment" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh]">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Book appointment</h2>
+    <div role="dialog" aria-modal="true" aria-label="Book appointment" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
+      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md flex flex-col max-h-[92vh]">
+        <div className="px-6 py-5 border-b border-[color:var(--color-hairline)]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Book appointment</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">For <strong>{patientName}</strong></p>
         </div>
         <div className="px-6 py-5 space-y-3 overflow-y-auto">
@@ -205,7 +205,7 @@ export default function BookFromPatientDrawer({
                 <button
                   type="button"
                   onClick={() => { setDuration(selectedTypeDuration); setDurationTouched(false) }}
-                  className="text-xs text-violet-600 dark:text-violet-400 hover:underline mt-0.5"
+                  className="text-xs text-teal-700 dark:text-teal-400 hover:underline mt-0.5"
                 >
                   Reset to {selectedTypeDuration}m
                 </button>
@@ -251,7 +251,7 @@ export default function BookFromPatientDrawer({
                         key={s.startIso}
                         type="button"
                         onClick={() => setSelectedTime(s.startIso)}
-                        className={`h-9 rounded-lg text-xs font-semibold border transition ${active ? 'bg-violet-600 text-white border-violet-600' : 'bg-white dark:bg-gray-900/40 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-violet-400'}`}
+                        className={`h-9 rounded-[var(--r-sm)] text-xs font-semibold font-mono-num border transition-colors ${active ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400' : 'bg-[color:var(--color-surface-2)] text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-teal-400'}`}
                         aria-pressed={active}
                       >
                         {s.label}
@@ -261,7 +261,7 @@ export default function BookFromPatientDrawer({
                   <button
                     type="button"
                     onClick={() => setSelectedTime(MANUAL_TIME)}
-                    className={`h-9 rounded-lg text-xs font-semibold border transition ${selectedTime === MANUAL_TIME ? 'bg-violet-600 text-white border-violet-600' : 'bg-white dark:bg-gray-900/40 text-gray-600 dark:text-gray-300 border-dashed border-gray-300 dark:border-gray-600 hover:border-violet-400'}`}
+                    className={`h-9 rounded-[var(--r-sm)] text-xs font-semibold border transition-colors ${selectedTime === MANUAL_TIME ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400' : 'bg-[color:var(--color-surface-2)] text-gray-600 dark:text-gray-300 border-dashed border-gray-300 dark:border-gray-600 hover:border-teal-400'}`}
                     aria-pressed={selectedTime === MANUAL_TIME}
                   >
                     Custom time
@@ -280,7 +280,7 @@ export default function BookFromPatientDrawer({
           </label>
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
         </div>
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
+        <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
           <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>

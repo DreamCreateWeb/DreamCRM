@@ -72,7 +72,7 @@ export default function SendIntakeInline({
         disabled={pending}
         className={
           className ??
-          'font-medium text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50'
+          'font-medium text-teal-700 dark:text-teal-400 hover:underline disabled:opacity-50'
         }
       >
         {pending ? 'Sending…' : label}
