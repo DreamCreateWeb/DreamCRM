@@ -93,6 +93,19 @@ export const clinicProfile = pgTable('clinic_profile', {
   phone: text('phone'),
   email: text('email'),
   websiteDomain: text('website_domain'),
+  // Custom-domain provisioning state for `websiteDomain`. Null until the clinic
+  // requests a custom domain. Shape: CustomDomainStatus in
+  // lib/services/custom-domain.ts —
+  //   { state: 'pending_dns' | 'active' | 'failed', requestedAt,
+  //     dnsRecords: Array<{ name, type, value, purpose:'routing'|'certificate' }>,
+  //     lastCheckedAt?, error? }
+  // The dnsRecords are the exact CNAMEs the clinic adds at their registrar:
+  // one routing record (points the host at App Runner) + the ACM
+  // certificate-validation records returned by AssociateCustomDomain. When the
+  // AWS call can't run (missing IAM / env), we still persist the domain +
+  // `{ state:'pending_dns', error:'manual' }` so the clinic sees placeholder
+  // instructions instead of an error.
+  customDomainStatus: jsonb('custom_domain_status'),
   // Display name patients see in the "From" of clinic→patient email
   // ("Acme Dental"). Null = fall back to the clinic's display name. The email
   // address itself stays on the platform's verified sending domain (Tier 1 —

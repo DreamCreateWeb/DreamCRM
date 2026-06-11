@@ -71,9 +71,17 @@ export default async function ClinicSitePage({ params }: Props) {
     getOpenJobs(data.orgId),
   ])
   const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
+  const heroImageUrl = data.profile.heroImageUrl ?? null
 
   return (
     <>
+      {/* Preload the hero photo — it's the LCP element (the left oval portrait
+          in the shared template). Next.js hoists this <link> into <head> so the
+          browser starts fetching it before the template's <img> is parsed.
+          Skipped cleanly when the clinic has no hero photo. */}
+      {heroImageUrl && (
+        <link rel="preload" as="image" href={heroImageUrl} fetchPriority="high" />
+      )}
       {/* JSON-LD for Google rich results / Knowledge Panel. Embedded as a
           plain script tag rather than next/script so it's part of the
           initial HTML and indexed without a JS roundtrip. */}
