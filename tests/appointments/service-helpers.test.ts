@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupByDay, type AppointmentRow } from '@/lib/services/appointments'
+import { groupByDay, isRebookingCandidate, type AppointmentRow } from '@/lib/services/appointments'
 
 function makeRow(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
   return {
@@ -27,6 +27,7 @@ function makeRow(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
       optedOut: false, reminderSentRecently: false, bookedJustNow: false, rescheduled: false,
     },
     agingLevel: 'none',
+    needsRebooking: false,
     ...overrides,
   }
 }
@@ -72,5 +73,36 @@ describe('groupByDay', () => {
 
   it('returns an empty array when there are no rows', () => {
     expect(groupByDay([], today)).toEqual([])
+  })
+})
+
+describe('isRebookingCandidate', () => {
+  const now = new Date('2026-06-01T12:00:00Z')
+  const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000)
+
+  it('flags a recent cancelled visit with no future appointment', () => {
+    expect(isRebookingCandidate({ status: 'cancelled', startTime: daysAgo(10), hasFutureAppt: false, now })).toBe(true)
+  })
+
+  it('flags a recent no-show with no future appointment', () => {
+    expect(isRebookingCandidate({ status: 'no_show', startTime: daysAgo(5), hasFutureAppt: false, now })).toBe(true)
+  })
+
+  it('does NOT flag when the patient already has a future appointment', () => {
+    expect(isRebookingCandidate({ status: 'cancelled', startTime: daysAgo(10), hasFutureAppt: true, now })).toBe(false)
+  })
+
+  it('does NOT flag scheduled / confirmed / completed visits', () => {
+    for (const status of ['scheduled', 'confirmed', 'completed'] as const) {
+      expect(isRebookingCandidate({ status, startTime: daysAgo(10), hasFutureAppt: false, now })).toBe(false)
+    }
+  })
+
+  it('does NOT flag a cancellation older than 60 days', () => {
+    expect(isRebookingCandidate({ status: 'cancelled', startTime: daysAgo(75), hasFutureAppt: false, now })).toBe(false)
+  })
+
+  it('includes a cancellation exactly within the 60-day window', () => {
+    expect(isRebookingCandidate({ status: 'cancelled', startTime: daysAgo(59), hasFutureAppt: false, now })).toBe(true)
   })
 })

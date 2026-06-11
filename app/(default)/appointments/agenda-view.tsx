@@ -74,6 +74,7 @@ const LEGEND_PILLS = [
   { tone: 'neutral' as Tone, label: 'Completed', meaning: 'This visit is done' },
   { tone: 'urgent' as Tone, label: 'Cancelled', meaning: 'This visit was cancelled' },
   { tone: 'urgent' as Tone, label: 'No-show', meaning: "The patient didn't show" },
+  { tone: 'warn' as Tone, label: 'Needs rebooking', meaning: 'Cancelled/no-show with nothing booked ahead — chase + rebook' },
 ]
 
 const WINDOW_LABELS: Array<{ key: NonNullable<AppointmentListFilters['window']>; label: string }> = [
@@ -96,6 +97,7 @@ const ATTENTION_LABELS: Array<{
   { key: 'new_patients', label: '★ New patients', title: 'First-time or recently-joined patients' },
   { key: 'has_balance', label: '$ Has balance', title: 'Patients who owe an outstanding balance' },
   { key: 'lapsed_rebooking', label: '💤 Lapsed rebooking', title: 'Lapsed patients who booked again — welcome them back' },
+  { key: 'needs_rebooking', label: '↩ Needs rebooking', title: 'Cancelled / no-show in the last 60 days with nothing booked ahead — chase + rebook' },
   { key: 'cancelled', label: 'Cancelled', title: 'Cancelled visits to recover' },
   { key: 'no_show', label: 'No-show', title: 'Visits the patient missed' },
 ]
@@ -128,6 +130,9 @@ function emptyCopy(filters: AppointmentListFilters): { icon: string; title: stri
   }
   if (filters.attention?.includes('lapsed_rebooking')) {
     return { icon: '🌱', title: 'No lapsed-patient rebookings in this window.', body: 'Run a recall campaign to bring them back.' }
+  }
+  if (filters.attention?.includes('needs_rebooking')) {
+    return { icon: '🌿', title: 'Nobody waiting to be rebooked.', body: 'Every recent cancellation or no-show already has a next visit on the books.' }
   }
   if (filters.window === 'today') {
     return { icon: '☕', title: 'Nothing booked today.', body: 'Go enjoy a quiet morning, or send your booking link out to fill the gaps.' }
@@ -467,6 +472,11 @@ function AppointmentRowCard({
           <StatusPill tone={STATUS_TONE[row.status]} title={STATUS_TITLE[row.status]}>
             {STATUS_LABEL[row.status]}
           </StatusPill>
+          {row.needsRebooking && (
+            <StatusPill tone="warn" title="Cancelled / no-show with nothing booked ahead — open this row to rebook">
+              ↩ Rebook
+            </StatusPill>
+          )}
         </div>
       </div>
     </li>

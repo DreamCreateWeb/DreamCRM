@@ -282,16 +282,17 @@ describe('createDemoClinic', () => {
     // Capture the update call by hooking the mock — we already track via state.updates
     state.updates.length = 0
     await createDemoClinic()
-    // Self-heal triggers 3 updates (identified by content, not order):
+    // Self-heal triggers 4 updates (identified by content, not order):
     //   1. organization.isDemo = true (flag legacy demos out of platform metrics)
-    //   2. clinicProfile patch (stats / officePhotos / logo / hero)
-    //   3. appointment.source backfill ("set source='manual' where source is null")
+    //   2. clinicProfile patch (stats / officePhotos / logo / hero / chairs / …)
+    //   3. patient.recallIntervalMonths = 3 backfill for Charlotte Diaz (0054)
+    //   4. appointment.source backfill ("set source='manual' where source is null")
     //
     // Note: testimonials are handled by a separate self-heal block lower
     // down (topUpLinkedDemoTestimonials) that needs patientIds to link the
     // seeded testimonials to real CRM patients — it doesn't fire here
     // because the mocked patient query returns no rows.
-    expect(state.updates).toHaveLength(3)
+    expect(state.updates).toHaveLength(4)
 
     const isDemoUpdate = state.updates.find((u) => (u.set as { isDemo?: boolean }).isDemo === true)
     expect(isDemoUpdate, 'expected an organization.isDemo backfill update').toBeTruthy()
@@ -340,6 +341,22 @@ describe('createDemoClinic', () => {
     const staff = (patch as { staff: Array<{ name: string; specialties?: unknown }> }).staff
     expect(staff.length).toBeGreaterThan(0)
     expect(staff.some((s) => s.name === 'Dr. Jordan Reyes')).toBe(true)
+    // Clinic-ops backfill (migration 0054 — Practice setup). chair_count,
+    // visit_type_settings, and recall_default_months ride the same clinic_profile
+    // patch and must all seed when null on a legacy demo.
+    const ops = patch as {
+      chairCount?: number
+      visitTypeSettings?: Array<{ id: string }>
+      recallDefaultMonths?: number
+    }
+    expect(ops.chairCount).toBeGreaterThan(1)
+    expect(Array.isArray(ops.visitTypeSettings)).toBe(true)
+    expect((ops.visitTypeSettings as Array<{ id: string }>).some((t) => t.id === 'implant_consult')).toBe(true)
+    expect(ops.recallDefaultMonths).toBeGreaterThan(0)
+    // Charlotte's per-patient recall override (0054) — a dedicated patient update.
+    expect(
+      state.updates.some((u) => (u.set as { recallIntervalMonths?: number }).recallIntervalMonths === 3),
+    ).toBe(true)
     // appointment.source backfill present
     expect(state.updates.some((u) => (u.set as { source?: string }).source === 'manual')).toBe(true)
   })

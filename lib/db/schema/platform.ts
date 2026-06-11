@@ -112,6 +112,24 @@ export const clinicProfile = pgTable('clinic_profile', {
   postalCode: text('postal_code'),
   country: text('country').default('US'),
 
+  // How many patients the clinic can see at the same time (operatories /
+  // chairs). Drives online-booking availability: a slot is only "taken" once
+  // the number of overlapping appointments reaches this count. Null = 1, which
+  // preserves the original single-chair behavior for clinics set up before this
+  // column existed. The PMS still owns operatory-level scheduling truth — this
+  // is just our orbital-booking concurrency limit.
+  chairCount: integer('chair_count'),
+  // Per-clinic visit-type catalog (front-desk drawer + public widget + portal).
+  // Shape: VisitTypeSettings in lib/types/visit-types.ts (an array of
+  // { id, label, durationMinutes, bookablePublic, bookablePortal }). Null =
+  // resolveVisitTypes() returns the universal defaults, so a clinic never needs
+  // a backfill to start booking.
+  visitTypeSettings: jsonb('visit_type_settings'),
+  // Default recall cadence in months for patients with no per-patient override
+  // and no PMS recall date. Null = RECALL_DEFAULT_MONTHS (6). The PMS recall
+  // engine still wins when an Open Dental due date is synced.
+  recallDefaultMonths: integer('recall_default_months'),
+
   // Operating hours stored as JSON: { mon: { open: '09:00', close: '17:00' }, ... }
   hours: jsonb('hours'),
   // IANA timezone the clinic's hours + appointment times are expressed in

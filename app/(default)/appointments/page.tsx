@@ -30,7 +30,7 @@ function parseAttention(raw: string | string[] | undefined): NonNullable<Appoint
   const v = typeof raw === 'string' ? raw : ''
   if (!v) return []
   const parts = v.split(',').filter(Boolean)
-  const valid = ['unconfirmed', 'needs_intake', 'new_patients', 'has_balance', 'cancelled', 'no_show', 'lapsed_rebooking']
+  const valid = ['unconfirmed', 'needs_intake', 'new_patients', 'has_balance', 'cancelled', 'no_show', 'lapsed_rebooking', 'needs_rebooking']
   return parts.filter((p) => valid.includes(p)) as NonNullable<AppointmentListFilters['attention']>
 }
 

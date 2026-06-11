@@ -10,6 +10,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
 import { FlashToast } from '@/components/ui/flash-toast'
 import SendIntakeInline from '../patients/send-intake-inline'
+import BookFromPatientDrawer from './book-from-patient-drawer'
 import {
   confirmAppointmentAction,
   cancelAppointmentAction,
@@ -78,6 +79,7 @@ export default function AppointmentDrawer({
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const [reschedOpen, setReschedOpen] = useState(false)
+  const [rebookOpen, setRebookOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
   async function loadDetail() {
@@ -180,6 +182,8 @@ export default function AppointmentDrawer({
   const isScheduled = detail?.status === 'scheduled'
   const isOpenState = detail?.status === 'scheduled' || detail?.status === 'confirmed'
   const isPastOpen = !!detail && isOpenState && detail.startTime < new Date()
+  // Cancelled / no-show rows are recovery candidates — lead with "Rebook".
+  const isRecoverable = detail?.status === 'cancelled' || detail?.status === 'no_show'
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
@@ -233,7 +237,11 @@ export default function AppointmentDrawer({
 
               {/* ── Action group — exactly one primary ───────────────── */}
               <div className="flex flex-wrap gap-2">
-                {isScheduled ? (
+                {isRecoverable ? (
+                  <ActionButton variant="primary" size="sm" onClick={() => setRebookOpen(true)} disabled={pending}>
+                    Rebook patient
+                  </ActionButton>
+                ) : isScheduled ? (
                   <ActionButton variant="primary" size="sm" onClick={onConfirm} disabled={pending}>
                     Mark confirmed
                   </ActionButton>
@@ -349,6 +357,15 @@ export default function AppointmentDrawer({
             detail={detail}
             onClose={() => setReschedOpen(false)}
             onDone={refresh}
+          />
+        )}
+
+        {rebookOpen && detail && (
+          <BookFromPatientDrawer
+            patientId={detail.patient.id}
+            patientName={detail.patient.fullName}
+            defaultType={detail.type}
+            onClose={() => { setRebookOpen(false); refresh() }}
           />
         )}
 

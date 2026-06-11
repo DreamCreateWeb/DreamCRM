@@ -25,6 +25,7 @@ interface PersonOpt {
 export default function PortalBookForm({
   brand,
   allowedTypes,
+  typeLabels,
   minNoticeHours,
   self,
   dependents,
@@ -32,6 +33,10 @@ export default function PortalBookForm({
 }: {
   brand: string
   allowedTypes: string[]
+  /** Optional id→label map from the clinic's visit-type catalog. Preferred over
+   *  the built-in PORTAL_VISIT_LABELS so custom clinic types render with a real
+   *  name; falls back to PORTAL_VISIT_LABELS, then the raw id. */
+  typeLabels?: Record<string, string>
   minNoticeHours: number
   self: PersonOpt
   dependents: PersonOpt[]
@@ -145,7 +150,7 @@ export default function PortalBookForm({
                     : { backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }
                 }
               >
-                {PORTAL_VISIT_LABELS[t] ?? t}
+                {typeLabels?.[t] ?? PORTAL_VISIT_LABELS[t] ?? t}
               </button>
             )
           })}

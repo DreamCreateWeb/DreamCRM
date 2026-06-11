@@ -129,4 +129,33 @@ describe('createInternalAppointment — security boundary + defaults', () => {
     expect(v.source).toBe('recall_campaign')
     expect(v.notes).toBe('Pre-op consent on file')
   })
+
+  it('derives endTime from durationMinutes when no explicit endTime is given', async () => {
+    state.patientSelect = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes' }]
+    const start = new Date('2026-06-01T10:00:00Z')
+    await createInternalAppointment({
+      organizationId: 'org_1',
+      patientId: 'pat_1',
+      startTime: start,
+      type: 'root_canal',
+      durationMinutes: 60,
+    })
+    const v = state.inserts.find((i) => i.table === 'appointment')!.values
+    expect((v.endTime as Date).getTime() - (v.startTime as Date).getTime()).toBe(60 * 60 * 1000)
+  })
+
+  it('explicit endTime wins over durationMinutes', async () => {
+    state.patientSelect = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes' }]
+    const start = new Date('2026-06-01T10:00:00Z')
+    const end = new Date('2026-06-01T10:45:00Z')
+    await createInternalAppointment({
+      organizationId: 'org_1',
+      patientId: 'pat_1',
+      startTime: start,
+      endTime: end,
+      durationMinutes: 60, // ignored — endTime is explicit
+    })
+    const v = state.inserts.find((i) => i.table === 'appointment')!.values
+    expect(v.endTime).toEqual(end)
+  })
 })

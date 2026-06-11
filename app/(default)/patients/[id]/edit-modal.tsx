@@ -33,6 +33,10 @@ export default function EditPatientModal({
   const [insPolicy, setInsPolicy] = useState(header.insurancePolicyNumber ?? '')
   const [insGroup, setInsGroup] = useState(header.insuranceGroupNumber ?? '')
   const [guardianId, setGuardianId] = useState(header.guardianPatientId ?? '')
+  // '' = use the clinic default recall cadence; otherwise a per-patient override.
+  const [recallInterval, setRecallInterval] = useState(
+    header.recallIntervalMonths != null ? String(header.recallIntervalMonths) : '',
+  )
 
   function save() {
     setError(null)
@@ -54,6 +58,7 @@ export default function EditPatientModal({
         insurancePolicyNumber: insPolicy.trim() || null,
         insuranceGroupNumber: insGroup.trim() || null,
         guardianPatientId: guardianId || null,
+        recallIntervalMonths: recallInterval ? parseInt(recallInterval, 10) : null,
       })
       if ('ok' in r && r.ok === false) { setError(r.error); return }
       router.refresh()
@@ -89,6 +94,29 @@ export default function EditPatientModal({
               <Field label="Policy #" value={insPolicy} onChange={setInsPolicy} />
               <Field label="Group #" value={insGroup} onChange={setInsGroup} />
             </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/60">
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+                Recall interval
+              </span>
+              <select
+                value={recallInterval}
+                onChange={(e) => setRecallInterval(e.target.value)}
+                className="form-select w-full text-sm mt-1"
+              >
+                <option value="">Clinic default</option>
+                <option value="3">Every 3 months</option>
+                <option value="4">Every 4 months</option>
+                <option value="6">Every 6 months</option>
+                <option value="12">Every 12 months</option>
+              </select>
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                How often this patient is due for a recall visit. Leave on
+                &ldquo;Clinic default&rdquo; unless they need a different cadence (e.g. a
+                3-month perio recall). A synced PMS recall date still takes priority.
+              </span>
+            </label>
           </div>
           <div className="grid grid-cols-1 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/60">
             <label className="block">

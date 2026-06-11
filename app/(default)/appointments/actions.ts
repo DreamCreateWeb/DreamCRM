@@ -13,11 +13,26 @@ import {
   getAppointmentDetail,
   type CreateInternalAppointmentInput,
 } from '@/lib/services/appointments'
-import { getSlotsForDay } from '@/lib/services/booking'
+import { getSlotsForDay, type BookingSlot } from '@/lib/services/booking'
 import { sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { clinicProfile } from '@/lib/db/schema/platform'
+import { listProviders, type ProviderRow } from '@/lib/services/providers'
+import { resolveVisitTypes, visitTypeDuration, type VisitType } from '@/lib/types/visit-types'
+
+/** Read the clinic's raw visit-type settings jsonb (null = defaults). */
+async function getClinicVisitTypeSettings(organizationId: string): Promise<unknown> {
+  const [row] = await db
+    .select({ visitTypeSettings: clinicProfile.visitTypeSettings })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, organizationId))
+    .limit(1)
+  return row?.visitTypeSettings ?? null
+}
 
 async function requireClinicTenant() {
   const ctx = await requireTenant()
@@ -236,26 +251,46 @@ export async function createInternalAppointmentAction(input: {
   startTime: string
   type?: string
   providerId?: string | null
+  durationMinutes?: number | null
   notes?: string | null
+  /** "Walk-in (already here)" — skips the future-time + slot-availability
+   *  guards so the front desk can log a now/earlier-today visit. */
+  allowPast?: boolean
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const ctx = await requireClinicTenant()
   const start = new Date(input.startTime)
-  if (Number.isNaN(start.getTime()) || start < new Date()) {
+  if (Number.isNaN(start.getTime())) {
+    return { ok: false, error: 'Pick a valid date + time' }
+  }
+  const walkIn = input.allowPast === true
+  if (!walkIn && start < new Date()) {
     return { ok: false, error: 'Appointment time must be in the future' }
   }
-  // Honest error per closedReason — "conflicts with existing" is wrong
-  // when the actual cause is a closed day or past closing.
-  const { slots, closedReason } = await getSlotsForDay(ctx.organizationId, start)
-  const targetIso = start.toISOString()
-  const slot = slots.find((s) => s.startIso === targetIso)
-  if (!slot || !slot.available) {
-    const error =
-      closedReason === 'day_closed' ? "We're closed that day. Pick another date." :
-      closedReason === 'past_closing' ? "That time is past closing. Try a different time or day." :
-      closedReason === 'invalid_hours' ? "Online booking isn't set up for this day — give us a call." :
-      slot && !slot.available ? 'That slot conflicts with an existing appointment.' :
-      "That time isn't an available slot. Pick another."
-    return { ok: false, error }
+  // Resolve the visit-type duration from the clinic catalog when the caller
+  // didn't pass an explicit one, so endTime + the slot-window check are right.
+  const settings = await getClinicVisitTypeSettings(ctx.organizationId)
+  const duration =
+    input.durationMinutes && input.durationMinutes > 0
+      ? input.durationMinutes
+      : visitTypeDuration(settings, input.type)
+  // Walk-ins bypass the slot grid entirely (the patient is physically present —
+  // we're recording reality, not reserving a future opening).
+  if (!walkIn) {
+    // Honest error per closedReason — "conflicts with existing" is wrong
+    // when the actual cause is a closed day or past closing. The full visit
+    // duration is checked against the clinic's chair count.
+    const { slots, closedReason } = await getSlotsForDay(ctx.organizationId, start, undefined, duration)
+    const targetIso = start.toISOString()
+    const slot = slots.find((s) => s.startIso === targetIso)
+    if (!slot || !slot.available) {
+      const error =
+        closedReason === 'day_closed' ? "We're closed that day. Pick another date." :
+        closedReason === 'past_closing' ? "That time is past closing. Try a different time or day." :
+        closedReason === 'invalid_hours' ? "Online booking isn't set up for this day — give us a call." :
+        slot && !slot.available ? 'Every chair is booked at that time. Pick another slot.' :
+        "That time isn't an available slot. Pick another."
+      return { ok: false, error }
+    }
   }
   const create: CreateInternalAppointmentInput = {
     organizationId: ctx.organizationId,
@@ -263,6 +298,7 @@ export async function createInternalAppointmentAction(input: {
     startTime: start,
     type: input.type,
     providerId: input.providerId ?? null,
+    durationMinutes: duration,
     notes: input.notes ?? null,
     source: 'manual',
   }
@@ -270,12 +306,15 @@ export async function createInternalAppointmentAction(input: {
     const id = await createInternalAppointment(create)
     // Confirm the patient the same way the public widget does — they were
     // just booked without self-initiating, so they should hear about it.
-    await sendBookingConfirmation({
-      organizationId: ctx.organizationId,
-      patientId: input.patientId,
-      appointmentType: input.type ?? 'cleaning',
-      startTime: start,
-    })
+    // Walk-ins skip the "you're booked" email (they're already in the chair).
+    if (!walkIn) {
+      await sendBookingConfirmation({
+        organizationId: ctx.organizationId,
+        patientId: input.patientId,
+        appointmentType: input.type ?? 'cleaning',
+        startTime: start,
+      })
+    }
     revalidatePath('/appointments')
     revalidatePath(`/patients/${input.patientId}`)
     revalidatePath('/')
@@ -283,4 +322,46 @@ export async function createInternalAppointmentAction(input: {
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }
+}
+
+export interface BookingConfig {
+  providers: Array<{ id: string; displayName: string; role: string }>
+  visitTypes: Array<{ id: string; label: string; durationMinutes: number }>
+}
+
+/**
+ * Front-desk booking drawer config: active providers + the clinic's visit-type
+ * catalog. Lets the drawer offer a provider select + a visit-type select that
+ * carries each type's duration. Org-scoped via requireClinicTenant.
+ */
+export async function getBookingConfigAction(): Promise<BookingConfig> {
+  const ctx = await requireClinicTenant()
+  const [providers, settings] = await Promise.all([
+    listProviders(ctx.organizationId, { activeOnly: true }),
+    getClinicVisitTypeSettings(ctx.organizationId),
+  ])
+  return {
+    providers: providers.map((p: ProviderRow) => ({ id: p.id, displayName: p.displayName, role: p.role })),
+    visitTypes: resolveVisitTypes(settings).map((t: VisitType) => ({
+      id: t.id,
+      label: t.label,
+      durationMinutes: t.durationMinutes,
+    })),
+  }
+}
+
+/**
+ * Slot grid for the front-desk drawer's date+duration. Mirrors the public
+ * `listBookingSlots` but is gated to the clinic tenant. Accepts a date-only
+ * 'YYYY-MM-DD' key (clinic-zone) and an optional visit duration so the
+ * availability check spans the whole appointment against the chair count.
+ */
+export async function getBookingSlotsAction(
+  dateKey: string,
+  durationMinutes?: number,
+): Promise<BookingSlot[]> {
+  const ctx = await requireClinicTenant()
+  if (!dateKey) return []
+  const { slots } = await getSlotsForDay(ctx.organizationId, dateKey, undefined, durationMinutes)
+  return slots
 }

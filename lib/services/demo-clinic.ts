@@ -14,6 +14,7 @@ import {
   type ClinicService,
   type ClinicStaff,
 } from '@/lib/types/clinic-content'
+import { DEFAULT_VISIT_TYPES, OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 
 /**
@@ -886,6 +887,18 @@ const DEMO_PORTAL_SETTINGS = {
   },
 } as const
 
+// Clinic-ops demo settings — exercises the new Practice setup controls.
+// Three chairs so the demo can take simultaneous bookings; a custom 60-min
+// "Implant consult" type on top of the standard catalog so the visit-type
+// editor + duration→slot math both showcase a clinic-added entry.
+const DEMO_CHAIR_COUNT = 3
+const DEMO_RECALL_DEFAULT_MONTHS = 6
+const DEMO_VISIT_TYPES: VisitType[] = [
+  ...DEFAULT_VISIT_TYPES.filter((t) => t.id !== OTHER_VISIT_TYPE_ID),
+  { id: 'implant_consult', label: 'Implant consult', durationMinutes: 60, bookablePublic: true, bookablePortal: false },
+  ...DEFAULT_VISIT_TYPES.filter((t) => t.id === OTHER_VISIT_TYPE_ID),
+]
+
 /**
  * Self-heal helper for legacy demos that seeded the hardcoded "8,000+
  * five-star reviews" stat before the `dynamic: 'review_count'` pattern
@@ -1296,6 +1309,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         cancellationPolicy: schema.clinicProfile.cancellationPolicy,
         timezone: schema.clinicProfile.timezone,
         portalSettings: schema.clinicProfile.portalSettings,
+        chairCount: schema.clinicProfile.chairCount,
+        visitTypeSettings: schema.clinicProfile.visitTypeSettings,
+        recallDefaultMonths: schema.clinicProfile.recallDefaultMonths,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1438,6 +1454,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (!profile?.portalSettings) {
       patch.portalSettings = DEMO_PORTAL_SETTINGS
     }
+    // Clinic-ops backfill (migration 0054 — Practice setup). Legacy demos
+    // predate chair_count / visit_type_settings / recall_default_months. Each
+    // only backfills when null so a hand-edited demo stays untouched.
+    if (profile?.chairCount == null) patch.chairCount = DEMO_CHAIR_COUNT
+    if (!profile?.visitTypeSettings) patch.visitTypeSettings = DEMO_VISIT_TYPES
+    if (profile?.recallDefaultMonths == null) patch.recallDefaultMonths = DEMO_RECALL_DEFAULT_MONTHS
     // Staff self-heal (Checkpoint 3 — /team page + about-dropdown). Legacy
     // demos seeded the 3-entry minimal staff array before this PR. Two-stage
     // backfill:
@@ -1505,6 +1527,21 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         .set(patch)
         .where(eq(schema.clinicProfile.organizationId, existing.id))
     }
+    // Per-patient recall override backfill (migration 0054). Give Charlotte
+    // Diaz the 3-month perio recall on legacy demos so the patient Edit modal's
+    // recall select + the recall pill have a populated non-default example.
+    // Only touches her row when she has no override yet (clinic-edited = kept).
+    await db
+      .update(schema.patient)
+      .set({ recallIntervalMonths: 3, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.patient.organizationId, existing.id),
+          eq(schema.patient.firstName, 'Charlotte'),
+          eq(schema.patient.lastName, 'Diaz'),
+          isNull(schema.patient.recallIntervalMonths),
+        ),
+      )
     // Seed the default intake form if the demo predates the forms feature.
     await seedDefaultIntakeForm(existing.id)
     await seedSecondDemoIntakeForm(existing.id)
@@ -1892,6 +1929,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     financingPartners: DEMO_FINANCING_PARTNERS,
     cancellationPolicy: DEMO_CANCELLATION_POLICY,
     portalSettings: DEMO_PORTAL_SETTINGS,
+    chairCount: DEMO_CHAIR_COUNT,
+    visitTypeSettings: DEMO_VISIT_TYPES,
+    recallDefaultMonths: DEMO_RECALL_DEFAULT_MONTHS,
     planTier: 'premium',
     subscriptionStatus: 'active',
   })
@@ -1968,6 +2008,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       marketingSmsOptIn,
       marketingSmsOptInAt,
       marketingOptInSource: marketingEmailOptIn === 1 ? 'backfill' : 'manual',
+      // Charlotte (idx 2) is on a tighter 3-month perio recall so the
+      // per-patient recall override + the recall pill both have a populated
+      // example. Everyone else inherits the clinic default (6 months).
+      recallIntervalMonths: i === 2 ? 3 : null,
     })
   }
 

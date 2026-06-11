@@ -26,6 +26,14 @@ import { CLINIC_DEFAULT_TZ, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 export const SLOT_MINUTES = 30
 const SLOT_MS = SLOT_MINUTES * 60_000
 
+/** Clamp a stored `clinic_profile.chair_count` into 1..20. Null/invalid → 1
+ *  so clinics set up before the column existed keep single-chair behavior. */
+export function normalizeChairCount(raw: number | null | undefined): number {
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n)) return 1
+  return Math.min(20, Math.max(1, Math.floor(n)))
+}
+
 export interface BookingSlot {
   /** ISO datetime — the start of this slot (absolute instant). */
   startIso: string
@@ -88,15 +96,27 @@ export async function getSlotsForDay(
   organizationId: string,
   date: Date | string,
   excludeAppointmentId?: string,
+  /** When booking a longer visit, the availability check spans the whole
+   *  duration (not just the leading 30-min slot). Defaults to one slot so the
+   *  public picker keeps showing 30-min start times. */
+  durationMinutes?: number,
 ): Promise<SlotsForDay> {
   const [profile] = await db
-    .select({ hours: clinicProfile.hours, timezone: clinicProfile.timezone })
+    .select({
+      hours: clinicProfile.hours,
+      timezone: clinicProfile.timezone,
+      chairCount: clinicProfile.chairCount,
+    })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
 
   const timeZone = profile?.timezone?.trim() || CLINIC_DEFAULT_TZ
   const hours = (profile?.hours ?? {}) as HoursMap
+  // How many patients the clinic can see at once (operatories / chairs). Null
+  // or invalid → 1, which preserves the original single-chair behavior where
+  // ANY overlapping appointment blocks the slot.
+  const chairCount = normalizeChairCount(profile?.chairCount)
 
   // Resolve the clinic-local calendar date (YYYY-MM-DD). A date-only string is
   // used as-is; a Date is converted to the clinic's local date so the weekday
@@ -155,18 +175,32 @@ export async function getSlotsForDay(
     (b) => b.status !== 'cancelled' && b.status !== 'no_show',
   )
 
-  function isBlocked(slotStart: Date): boolean {
-    const slotEnd = new Date(slotStart.getTime() + SLOT_MS)
-    return blocking.some((b) => {
+  // Count appointments overlapping a [start, end) window. A multi-chair clinic
+  // only "fills" a slot once the overlap count reaches its chair count, so a
+  // 3-chair practice can take 3 simultaneous bookings; the 4th is blocked.
+  // `windowMs` lets a longer visit (a 60-min root canal) check its whole span,
+  // not just the leading 30-min slot.
+  function overlapCount(slotStart: Date, windowMs = SLOT_MS): number {
+    const slotStartMs = slotStart.getTime()
+    const slotEndMs = slotStartMs + windowMs
+    let n = 0
+    for (const b of blocking) {
       const bStart = new Date(b.startTime).getTime()
-      const bEnd = b.endTime
-        ? new Date(b.endTime).getTime()
-        : bStart + SLOT_MS
-      // Standard overlap check: slot overlaps if start < booked-end AND end > booked-start.
-      return slotStart.getTime() < bEnd && slotEnd.getTime() > bStart
-    })
+      const bEnd = b.endTime ? new Date(b.endTime).getTime() : bStart + SLOT_MS
+      // Standard overlap check: windows overlap if start < other-end AND end > other-start.
+      if (slotStartMs < bEnd && slotEndMs > bStart) n += 1
+    }
+    return n
   }
 
+  function isBlocked(slotStart: Date, windowMs = SLOT_MS): boolean {
+    return overlapCount(slotStart, windowMs) >= chairCount
+  }
+
+  const windowMs =
+    durationMinutes && Number.isFinite(durationMinutes) && durationMinutes > 0
+      ? Math.max(SLOT_MS, Math.round(durationMinutes) * 60_000)
+      : SLOT_MS
   const now = Date.now()
   const slots: BookingSlot[] = []
   for (let t = dayStart.getTime(); t + SLOT_MS <= dayEnd.getTime(); t += SLOT_MS) {
@@ -175,7 +209,7 @@ export async function getSlotsForDay(
     slots.push({
       startIso: slotStart.toISOString(),
       label: fmtLabel(slotStart, timeZone),
-      available: !isBlocked(slotStart),
+      available: !isBlocked(slotStart, windowMs),
     })
   }
   // Empty list with no genuine close reason → the clinic was open, we just
@@ -193,8 +227,9 @@ export async function getAvailableSlots(
   organizationId: string,
   date: Date | string,
   excludeAppointmentId?: string,
+  durationMinutes?: number,
 ): Promise<BookingSlot[]> {
-  const { slots } = await getSlotsForDay(organizationId, date, excludeAppointmentId)
+  const { slots } = await getSlotsForDay(organizationId, date, excludeAppointmentId, durationMinutes)
   return slots
 }
 
@@ -203,12 +238,18 @@ export async function getAvailableSlots(
  * is still actually free (someone else could have grabbed it in the
  * seconds between page load and form submit). Returns true when the
  * proposed `startTime` is still open in the same slot grid.
+ *
+ * `durationMinutes` checks the whole visit span against the chair count, so a
+ * 60-min visit isn't approved when only the first 30 minutes happen to be free.
+ * `excludeAppointmentId` ignores the appointment being moved (reschedule guard).
  */
 export async function isSlotAvailable(
   organizationId: string,
   startTime: Date,
+  durationMinutes?: number,
+  excludeAppointmentId?: string,
 ): Promise<boolean> {
-  const slots = await getAvailableSlots(organizationId, startTime)
+  const slots = await getAvailableSlots(organizationId, startTime, excludeAppointmentId, durationMinutes)
   const target = startTime.toISOString()
   return slots.some((s) => s.startIso === target && s.available)
 }

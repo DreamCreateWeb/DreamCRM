@@ -57,6 +57,7 @@ function makeRow(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
       rescheduled: false,
     },
     agingLevel: 'none',
+    needsRebooking: false,
     ...overrides,
   }
 }
