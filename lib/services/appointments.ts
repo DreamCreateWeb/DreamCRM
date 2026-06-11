@@ -59,13 +59,16 @@ export interface AppointmentRow {
   createdAt: Date
   flags: AppointmentRowFlags
   agingLevel: AgingLevel
+  /** Recovery queue: a cancelled / no-show visit (in the last 60 days) whose
+   *  patient has NO future appointment booked — a candidate to chase + rebook. */
+  needsRebooking: boolean
 }
 
 export interface AppointmentListFilters {
   /** Date-window chip — exactly one. */
   window?: 'today' | 'tomorrow' | 'this_week' | 'next_14d' | 'all_upcoming' | 'past_30d'
   /** Needs-attention multi-select chips. */
-  attention?: Array<'unconfirmed' | 'needs_intake' | 'new_patients' | 'has_balance' | 'cancelled' | 'no_show' | 'lapsed_rebooking'>
+  attention?: Array<'unconfirmed' | 'needs_intake' | 'new_patients' | 'has_balance' | 'cancelled' | 'no_show' | 'lapsed_rebooking' | 'needs_rebooking'>
   /** Filter to one staff member. */
   providerId?: string
   /** Filter to one booking channel ('booking_widget' / 'portal' / 'phone' / etc.). */
@@ -142,6 +145,9 @@ const LAPSED_THRESHOLD_MS = 9 * 30 * 24 * 60 * 60 * 1000
 const REMINDER_RECENT_MS = 24 * 60 * 60 * 1000
 // Booked-just-now glyph window: 1 hour.
 const JUST_BOOKED_MS = 60 * 60 * 1000
+// Rebooking recovery window: cancelled/no-show in the last 60 days with no
+// future booking → "needs rebooking".
+const REBOOK_WINDOW_MS = 60 * 24 * 60 * 60 * 1000
 
 // Exported for testability. Computes the aging-color tier for the left
 // border on a row. Only ever non-`none` when the row is unconfirmed —
@@ -156,6 +162,22 @@ export function computeAging(startTime: Date, status: AppointmentStatus, now: Da
   if (hoursUntil <= 48) return 'amber'
   if (hoursUntil <= 72) return 'neutral'
   return 'none'
+}
+
+/**
+ * Pure rebooking-candidate test (exported for unit testing). A row belongs in
+ * the recovery queue when it's a cancelled / no-show visit within the last 60
+ * days AND the patient has no future (non-cancelled) appointment booked.
+ */
+export function isRebookingCandidate(opts: {
+  status: AppointmentStatus
+  startTime: Date
+  hasFutureAppt: boolean
+  now: Date
+}): boolean {
+  if (opts.status !== 'cancelled' && opts.status !== 'no_show') return false
+  if (opts.startTime < new Date(opts.now.getTime() - REBOOK_WINDOW_MS)) return false
+  return !opts.hasFutureAppt
 }
 
 // ----- Date-window resolver -----
@@ -277,7 +299,7 @@ export async function listAppointments(
   )
 
   // Fan-out queries for derived signal columns. All parallel.
-  const [intakeRows, lastReminderRows, balanceRows, priorAppts] = await Promise.all([
+  const [intakeRows, lastReminderRows, balanceRows, priorAppts, futureAppts] = await Promise.all([
     // Intake submission tied to this appointment specifically.
     db
       .select({ appointmentId: schema.formSubmission.appointmentId, patientId: schema.formSubmission.patientId })
@@ -344,6 +366,21 @@ export async function listAppointments(
         ),
       )
       .orderBy(desc(schema.appointment.startTime)),
+    // Patients in view who have ANY future (non-cancelled/no-show) appointment.
+    // Drives the "needs rebooking" recovery flag: a cancelled/no-show row only
+    // counts when the patient hasn't already rebooked something later.
+    db
+      .select({ patientId: schema.appointment.patientId })
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.organizationId, organizationId),
+          inArray(schema.appointment.patientId, patientIds),
+          gte(schema.appointment.startTime, now),
+          ne(schema.appointment.status, 'cancelled'),
+          ne(schema.appointment.status, 'no_show'),
+        ),
+      ),
   ])
 
   // Per-appointment intake flag (this appointment OR this patient has any submission)
@@ -378,6 +415,10 @@ export async function listAppointments(
     if (!latestPriorByPatient.has(r.patientId)) latestPriorByPatient.set(r.patientId, r.startTime)
   }
 
+  // Patients with any future booking — used to suppress the rebooking flag.
+  const hasFutureByPatient = new Set<string>()
+  for (const r of futureAppts) hasFutureByPatient.add(r.patientId)
+
   const result: AppointmentRow[] = rows.map((r) => {
     const status = r.status as AppointmentStatus
     const lastVisit = latestPriorByPatient.get(r.patientId) ?? null
@@ -389,6 +430,14 @@ export async function listAppointments(
     const balance = balanceByPatient.get(r.patientId) ?? 0
     const duration =
       r.endTime ? Math.max(15, Math.round((r.endTime.getTime() - r.startTime.getTime()) / 60000)) : null
+    // Recovery queue: this row is a recent cancellation / no-show and the
+    // patient has nothing booked ahead → chase + rebook.
+    const needsRebooking = isRebookingCandidate({
+      status,
+      startTime: r.startTime,
+      hasFutureAppt: hasFutureByPatient.has(r.patientId),
+      now,
+    })
     return {
       id: r.id,
       patientId: r.patientId,
@@ -423,6 +472,7 @@ export async function listAppointments(
         rescheduled: !!r.rescheduledFromAppointmentId,
       },
       agingLevel: computeAging(r.startTime, status, now),
+      needsRebooking,
     }
   })
 
@@ -438,6 +488,7 @@ export async function listAppointments(
       if (att.includes('cancelled') && row.status === 'cancelled') return true
       if (att.includes('no_show') && row.status === 'no_show') return true
       if (att.includes('lapsed_rebooking') && row.flags.lapsedReturning) return true
+      if (att.includes('needs_rebooking') && row.needsRebooking) return true
       return false
     })
   }
@@ -536,7 +587,7 @@ export async function getAppointmentDetail(
   if (!base) return null
 
   const now = new Date()
-  const [reminderRows, intakeRow, balanceRows, ltvRows, lastVisitRow, bookingCountRow] = await Promise.all([
+  const [reminderRows, intakeRow, balanceRows, ltvRows, lastVisitRow, bookingCountRow, futureApptRow] = await Promise.all([
     db
       .select({
         id: schema.appointmentReminderLog.id,
@@ -631,6 +682,21 @@ export async function getAppointmentDetail(
           eq(schema.appointment.patientId, base.patientId),
         ),
       ),
+    // Any future (non-cancelled/no-show) appointment for this patient — drives
+    // the rebooking flag on a cancelled/no-show drawer row.
+    db
+      .select({ id: schema.appointment.id })
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.organizationId, organizationId),
+          eq(schema.appointment.patientId, base.patientId),
+          gte(schema.appointment.startTime, now),
+          ne(schema.appointment.status, 'cancelled'),
+          ne(schema.appointment.status, 'no_show'),
+        ),
+      )
+      .limit(1),
   ])
 
   const outstanding = balanceRows.reduce<number>((acc, r) => acc + Number(r.totalCents ?? 0), 0)
@@ -645,6 +711,12 @@ export async function getAppointmentDetail(
   const newPatient = !lastVisit && isFuture
   const hasIntake = !!intakeRow[0]
   const reminderLastSentAt = reminderRows[0]?.sentAt ?? null
+  const needsRebooking = isRebookingCandidate({
+    status,
+    startTime: base.startTime,
+    hasFutureAppt: futureApptRow.length > 0,
+    now,
+  })
 
   return {
     id: base.id,
@@ -678,6 +750,7 @@ export async function getAppointmentDetail(
       rescheduled: !!base.rescheduledFromAppointmentId,
     },
     agingLevel: computeAging(base.startTime, status, now),
+    needsRebooking,
     patient: {
       id: base.patientId,
       fullName: `${base.firstName} ${base.lastName}`,
@@ -1069,6 +1142,9 @@ export interface CreateInternalAppointmentInput {
   patientId: string
   startTime: Date
   endTime?: Date | null
+  /** Visit length in minutes. Used to derive endTime when an explicit endTime
+   *  isn't supplied (front-desk drawer picks a visit type → its duration). */
+  durationMinutes?: number | null
   type?: string
   providerId?: string | null
   notes?: string | null
@@ -1085,7 +1161,12 @@ export async function createInternalAppointment(input: CreateInternalAppointment
   if (!p) throw new Error('Patient not found in this clinic')
 
   const id = newAppointmentId()
-  const endTime = input.endTime ?? new Date(input.startTime.getTime() + 30 * 60 * 1000)
+  // endTime precedence: explicit endTime → start + duration → start + 30 min.
+  const durationMs =
+    input.durationMinutes && Number.isFinite(input.durationMinutes) && input.durationMinutes > 0
+      ? Math.round(input.durationMinutes) * 60 * 1000
+      : 30 * 60 * 1000
+  const endTime = input.endTime ?? new Date(input.startTime.getTime() + durationMs)
   const type = input.type ?? 'cleaning'
   await db.insert(schema.appointment).values({
     id,

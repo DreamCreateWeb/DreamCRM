@@ -98,6 +98,8 @@ export interface PatientHeader {
   hasPortalAccount: boolean
   /** Family access: the patient whose portal login manages this one. */
   guardianPatientId: string | null
+  /** Per-patient recall cadence override in months (null = use clinic default). */
+  recallIntervalMonths: number | null
   flags: PatientRowFlags
   // Aggregates pulled in the same call so the header has no extra round-trip.
   // Balance = PMS sync truth (NULL when none on file → "No PMS balance on
@@ -167,6 +169,17 @@ export function newPatientNoteId(): string {
 // both for the 💤 glyph and the `lifecycle = 'lapsed'` denormalization.
 const LAPSED_THRESHOLD_MS = 9 * 30 * 24 * 60 * 60 * 1000 // ~9 months
 
+/** Read the clinic's default recall cadence in months (null when unset). The
+ *  recall helper falls through to RECALL_DEFAULT_MONTHS when this is null. */
+async function getClinicRecallDefaultMonths(organizationId: string): Promise<number | null> {
+  const [row] = await db
+    .select({ recallDefaultMonths: schema.clinicProfile.recallDefaultMonths })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  return row?.recallDefaultMonths ?? null
+}
+
 // ----- List page --------------------------------------------------------
 
 export async function listPatients(
@@ -218,6 +231,10 @@ export async function listPatients(
   if (patients.length === 0) return []
   const ids = patients.map((p) => p.id)
   const emails = patients.map((p) => p.email).filter((e): e is string => !!e)
+
+  // Clinic-wide default recall cadence (months). Per-patient overrides win;
+  // both fall through to RECALL_DEFAULT_MONTHS inside derivePatientRecallStatus.
+  const clinicRecallMonths = await getClinicRecallDefaultMonths(organizationId)
 
   // Pull joined data in parallel.
   const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear] =
@@ -383,6 +400,7 @@ export async function listPatients(
       hasAnyFutureAppt: !!next,
       lastVisitAt,
       now,
+      intervalMonths: p.recallIntervalMonths ?? clinicRecallMonths,
     })
     return {
       id: p.id,
@@ -609,6 +627,7 @@ export async function getPatientHeader(
     lastActivityAt: p.lastActivityAt,
     hasPortalAccount: !!p.userId,
     guardianPatientId: p.guardianPatientId ?? null,
+    recallIntervalMonths: p.recallIntervalMonths ?? null,
     flags: {
       newPatient,
       birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, now),
@@ -650,6 +669,8 @@ export interface CreatePatientInput {
   // Family access (patient portal): the patient whose portal login may see
   // and manage this patient. Null = no guardian.
   guardianPatientId?: string | null
+  // Per-patient recall cadence override in months (null = use clinic default).
+  recallIntervalMonths?: number | null
   /**
    * Skip the email/phone dedupe pre-check and insert regardless. The "Add
    * anyway" escape hatch for legitimate same-contact cases (a child sharing a
@@ -712,6 +733,7 @@ export async function createPatient(input: CreatePatientInput): Promise<CreatePa
     source: input.source ?? null,
     lifecycle: input.lifecycle ?? 'new',
     firstSeenAt: now,
+    recallIntervalMonths: input.recallIntervalMonths ?? null,
     notes: input.notes ?? null,
   })
   return { id }

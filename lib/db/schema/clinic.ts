@@ -83,6 +83,13 @@ export const patient = pgTable(
     pmsRecallDueAt: timestamp('pms_recall_due_at'),
     pmsRecallInterval: text('pms_recall_interval'),
 
+    // Per-patient recall cadence override in months (CRM-side, set in the
+    // patient Edit modal). Null = fall back to clinic_profile.recall_default_months
+    // (then to RECALL_DEFAULT_MONTHS=6). A synced PMS recall date still wins over
+    // this when present; this drives the appointment-derived heuristic for
+    // clinics not yet on a PMS, or patients with no PMS recall row.
+    recallIntervalMonths: integer('recall_interval_months'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

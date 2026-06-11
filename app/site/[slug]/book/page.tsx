@@ -15,6 +15,7 @@ import {
   navServicesFromClinicServices,
   copyOverride,
 } from '@/lib/clinic-site-helpers'
+import { publicVisitTypes } from '@/lib/types/visit-types'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -268,7 +269,11 @@ export default async function BookPage({ params }: Props) {
                     slug={data.slug}
                     brand={brand}
                     clinicName={name}
-                    services={(data.profile.services as ClinicService[] | null) ?? []}
+                    visitTypes={publicVisitTypes(data.profile.visitTypeSettings).map((t) => ({
+                      id: t.id,
+                      label: t.label,
+                      durationMinutes: t.durationMinutes,
+                    }))}
                   />
                 </div>
                 <p className="text-center mt-5 text-xs" style={{ color: INK_MUTED }}>

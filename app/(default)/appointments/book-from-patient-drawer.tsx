@@ -1,62 +1,152 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
-import { createInternalAppointmentAction } from './actions'
+import type { BookingSlot } from '@/lib/services/booking'
+import {
+  createInternalAppointmentAction,
+  getBookingConfigAction,
+  getBookingSlotsAction,
+  type BookingConfig,
+} from './actions'
 
-const APPT_TYPES = [
-  { value: 'cleaning', label: 'Cleaning' },
-  { value: 'checkup', label: 'Checkup' },
-  { value: 'filling', label: 'Filling' },
-  { value: 'extraction', label: 'Extraction' },
-  { value: 'root_canal', label: 'Root canal' },
-  { value: 'consultation', label: 'Consultation' },
-  { value: 'other', label: 'Other' },
-] as const
+const MANUAL_TIME = '__custom__'
 
 /**
- * In-place drawer rendered on the patient detail page when "Book
- * appointment" is clicked. Reuses the same date+time form pattern as the
- * reschedule drawer in the appointments module. Submits via
- * createInternalAppointmentAction with the patient pre-filled.
+ * In-place drawer rendered on the patient detail page (and the appointments
+ * "Rebook" flow) when booking is initiated. Reuses the same date+time form
+ * pattern as the reschedule drawer, upgraded to a real clinic-ops booking:
  *
- * Per the research doc: staying on the patient page keeps the staff
- * member in their relationship conversation context instead of bouncing
- * them to /appointments.
+ *  - provider select (from the clinic's roster; optional "No provider")
+ *  - visit-type select (from the clinic's catalog; shows the type duration)
+ *  - duration auto-fills from the type, with a manual override
+ *  - the raw time input is replaced with available-slot options for the chosen
+ *    date (chair-aware), with a "Custom time" escape hatch
+ *  - a "Walk-in (already here)" checkbox that allows now/past-today times and
+ *    skips the slot guard
+ *
+ * Per the research doc: staying on the patient page keeps the staff member in
+ * their relationship-conversation context instead of bouncing them to
+ * /appointments.
  */
 export default function BookFromPatientDrawer({
   patientId,
   patientName,
+  defaultType,
   onClose,
 }: {
   patientId: string
   patientName: string
+  /** Pre-select a visit type (e.g. the "Rebook" flow carries the prior type). */
+  defaultType?: string | null
   onClose: () => void
 }) {
   const router = useRouter()
   const [dateStr, setDateStr] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 1)
-    return d.toISOString().slice(0, 10)
+    return localDateKey(d)
   })
-  const [timeStr, setTimeStr] = useState('09:00')
-  const [type, setType] = useState<string>('cleaning')
+  const [config, setConfig] = useState<BookingConfig | null>(null)
+  const [type, setType] = useState<string>(defaultType || 'cleaning')
+  const [providerId, setProviderId] = useState<string>('')
+  const [duration, setDuration] = useState<number>(30)
+  // Track whether the user has hand-edited duration so a type change doesn't
+  // clobber a manual override.
+  const [durationTouched, setDurationTouched] = useState(false)
+  const [slots, setSlots] = useState<BookingSlot[]>([])
+  const [slotsPending, startSlots] = useTransition()
+  const [selectedTime, setSelectedTime] = useState<string>('') // ISO of chosen slot, or MANUAL_TIME
+  const [manualTime, setManualTime] = useState('09:00')
+  const [walkIn, setWalkIn] = useState(false)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
+  // Load the clinic's providers + visit types once.
+  useEffect(() => {
+    let alive = true
+    getBookingConfigAction()
+      .then((c) => {
+        if (!alive) return
+        setConfig(c)
+        // Reconcile the initial type against the catalog; pick the duration.
+        const initial = c.visitTypes.find((t) => t.id === (defaultType || 'cleaning')) ?? c.visitTypes[0]
+        if (initial) {
+          setType(initial.id)
+          if (!durationTouched) setDuration(initial.durationMinutes)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const selectedTypeDuration = useMemo(() => {
+    const t = config?.visitTypes.find((vt) => vt.id === type)
+    return t?.durationMinutes ?? 30
+  }, [config, type])
+
+  // Load slots when date / duration changes — and not for walk-ins (the slot
+  // grid is irrelevant when the patient is physically present).
+  const loadSlots = useCallback(() => {
+    if (walkIn) {
+      setSlots([])
+      return
+    }
+    startSlots(() => {
+      getBookingSlotsAction(dateStr, duration)
+        .then((next) => {
+          setSlots(next)
+          // Drop the chosen slot if it's no longer in the grid.
+          setSelectedTime((cur) =>
+            cur === MANUAL_TIME || next.some((s) => s.startIso === cur && s.available) ? cur : '',
+          )
+        })
+        .catch(() => setSlots([]))
+    })
+  }, [dateStr, duration, walkIn])
+
+  useEffect(() => {
+    loadSlots()
+  }, [loadSlots])
+
+  function onTypeChange(id: string) {
+    setType(id)
+    const t = config?.visitTypes.find((vt) => vt.id === id)
+    if (t && !durationTouched) setDuration(t.durationMinutes)
+  }
+
   function submit() {
     setError(null)
-    const iso = `${dateStr}T${timeStr}:00`
-    const local = new Date(iso)
-    if (Number.isNaN(local.getTime())) { setError('Pick a valid date + time'); return }
+    let startIso: string
+    if (walkIn || selectedTime === MANUAL_TIME) {
+      // Manual / walk-in: build the instant from date + manual time, local zone.
+      const iso = `${dateStr}T${manualTime}:00`
+      const local = new Date(iso)
+      if (Number.isNaN(local.getTime())) {
+        setError('Pick a valid date + time')
+        return
+      }
+      startIso = local.toISOString()
+    } else if (selectedTime) {
+      startIso = selectedTime
+    } else {
+      setError('Pick a time, or check "Walk-in" / "Custom time".')
+      return
+    }
     startTransition(async () => {
       const r = await createInternalAppointmentAction({
         patientId,
-        startTime: local.toISOString(),
+        startTime: startIso,
         type,
+        providerId: providerId || null,
+        durationMinutes: duration,
         notes: notes.trim() || null,
+        allowPast: walkIn,
       })
       if ('ok' in r && r.ok === true) {
         router.refresh()
@@ -67,33 +157,126 @@ export default function BookFromPatientDrawer({
     })
   }
 
+  const availableSlots = slots.filter((s) => s.available)
+
   return (
     <div role="dialog" aria-modal="true" aria-label="Book appointment" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh]">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Book appointment</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">For <strong>{patientName}</strong></p>
         </div>
-        <div className="px-6 py-5 space-y-3">
+        <div className="px-6 py-5 space-y-3 overflow-y-auto">
+          {/* Visit type */}
           <label className="block">
             <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Type</span>
-            <select value={type} onChange={(e) => setType(e.target.value)} className="form-select w-full mt-1 text-sm">
-              {APPT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            <select value={type} onChange={(e) => onTypeChange(e.target.value)} className="form-select w-full mt-1 text-sm">
+              {(config?.visitTypes ?? [{ id: type, label: type, durationMinutes: 30 }]).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label} · {t.durationMinutes}m
+                </option>
+              ))}
             </select>
           </label>
+
+          {/* Provider + duration */}
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Date</span>
-              <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Provider</span>
+              <select value={providerId} onChange={(e) => setProviderId(e.target.value)} className="form-select w-full mt-1 text-sm">
+                <option value="">No provider</option>
+                {(config?.providers ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>{p.displayName}</option>
+                ))}
+              </select>
             </label>
             <label className="block">
-              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Time</span>
-              <input type="time" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Duration (min)</span>
+              <input
+                type="number"
+                min={15}
+                max={480}
+                step={15}
+                value={duration}
+                onChange={(e) => { setDuration(Math.max(15, Number(e.target.value) || 30)); setDurationTouched(true) }}
+                className="form-input w-full mt-1 text-sm"
+              />
+              {durationTouched && duration !== selectedTypeDuration && (
+                <button
+                  type="button"
+                  onClick={() => { setDuration(selectedTypeDuration); setDurationTouched(false) }}
+                  className="text-xs text-violet-600 dark:text-violet-400 hover:underline mt-0.5"
+                >
+                  Reset to {selectedTypeDuration}m
+                </button>
+              )}
             </label>
           </div>
+
+          {/* Date */}
+          <label className="block">
+            <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Date</span>
+            <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
+          </label>
+
+          {/* Walk-in */}
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+            <input type="checkbox" checked={walkIn} onChange={(e) => setWalkIn(e.target.checked)} className="form-checkbox" />
+            Walk-in (already here)
+          </label>
+
+          {/* Time — slot grid OR manual */}
+          {walkIn ? (
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Time</span>
+              <input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} className="form-input w-full mt-1 text-sm" />
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">Walk-ins can use a now/earlier time — the slot check is skipped.</span>
+            </label>
+          ) : (
+            <div>
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Time</span>
+              {slotsPending ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Loading openings…</p>
+              ) : availableSlots.length === 0 && selectedTime !== MANUAL_TIME ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                  No open slots for this date + duration.{' '}
+                  <button type="button" onClick={() => setSelectedTime(MANUAL_TIME)} className="underline">Use a custom time</button>
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {availableSlots.map((s) => {
+                    const active = s.startIso === selectedTime
+                    return (
+                      <button
+                        key={s.startIso}
+                        type="button"
+                        onClick={() => setSelectedTime(s.startIso)}
+                        className={`h-9 rounded-lg text-xs font-semibold border transition ${active ? 'bg-violet-600 text-white border-violet-600' : 'bg-white dark:bg-gray-900/40 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-violet-400'}`}
+                        aria-pressed={active}
+                      >
+                        {s.label}
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTime(MANUAL_TIME)}
+                    className={`h-9 rounded-lg text-xs font-semibold border transition ${selectedTime === MANUAL_TIME ? 'bg-violet-600 text-white border-violet-600' : 'bg-white dark:bg-gray-900/40 text-gray-600 dark:text-gray-300 border-dashed border-gray-300 dark:border-gray-600 hover:border-violet-400'}`}
+                    aria-pressed={selectedTime === MANUAL_TIME}
+                  >
+                    Custom time
+                  </button>
+                </div>
+              )}
+              {selectedTime === MANUAL_TIME && (
+                <input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} className="form-input w-full mt-2 text-sm" aria-label="Custom time" />
+              )}
+            </div>
+          )}
+
           <label className="block">
             <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Notes</span>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the front desk should know…" className="form-textarea w-full mt-1 text-sm min-h-[80px]" />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the front desk should know…" className="form-textarea w-full mt-1 text-sm min-h-[70px]" />
           </label>
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
         </div>
@@ -108,4 +291,13 @@ export default function BookFromPatientDrawer({
       </div>
     </div>
   )
+}
+
+/** Local calendar day as YYYY-MM-DD (sent to the server, interpreted in the
+ *  clinic's timezone — same convention as the public booking form). */
+function localDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }

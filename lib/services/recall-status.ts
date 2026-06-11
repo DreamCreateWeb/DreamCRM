@@ -11,6 +11,14 @@ import 'server-only'
 
 export type RecallStatus = 'due' | 'overdue' | 'scheduled' | 'na'
 
+/** Platform-wide fallback recall cadence (months) when neither the patient nor
+ *  the clinic has set one and there's no PMS recall date. Matches the old
+ *  6-month "due" heuristic. */
+export const RECALL_DEFAULT_MONTHS = 6
+/** A patient is "overdue" once they pass their recall interval + this grace. */
+export const RECALL_OVERDUE_GRACE_MONTHS = 3
+const MONTH_MS = 30 * 86_400_000
+
 interface DeriveOpts {
   /** PMS-synced next-due date (if any). When present, drives 'due'/'overdue'. */
   pmsRecallDueAt: Date | null
@@ -24,9 +32,16 @@ interface DeriveOpts {
   /** Most recent past visit. */
   lastVisitAt: Date | null
   now: Date
-  /** Heuristic windows; defaults match the original derivation. */
-  lapsedMs?: number // > this without a visit (+ no upcoming) → 'overdue' (default 9mo)
-  dueMs?: number // > this without a visit (+ no upcoming) → 'due' (default 6mo)
+  /** Resolved recall cadence in months (per-patient override → clinic default).
+   *  When set, 'due' fires at `intervalMonths` and 'overdue' at
+   *  `intervalMonths + RECALL_OVERDUE_GRACE_MONTHS`. Falls back to the legacy
+   *  6/9-month heuristic when omitted. The explicit `dueMs`/`lapsedMs` raw
+   *  overrides below still win when provided (audience resolver). */
+  intervalMonths?: number | null
+  /** Heuristic windows in ms; when set, win over `intervalMonths`. Defaults
+   *  match the original derivation. */
+  lapsedMs?: number // > this without a visit (+ no upcoming) → 'overdue'
+  dueMs?: number // > this without a visit (+ no upcoming) → 'due'
 }
 
 const DAY_MS = 86_400_000
@@ -45,12 +60,19 @@ export function derivePatientRecallStatus(opts: DeriveOpts): RecallStatus {
     return 'na'
   }
 
-  // Fallback: pre-Integrations heuristic from the last visit. A future booking
-  // suppresses due/overdue here (matches the original `!next` gate).
+  // Fallback: heuristic from the last visit. A future booking suppresses
+  // due/overdue here (matches the original `!next` gate).
   if (opts.hasAnyFutureAppt) return 'na'
-  const lapsedMs = opts.lapsedMs ?? 9 * 30 * DAY_MS
-  const dueMs = opts.dueMs ?? 6 * 30 * DAY_MS
   if (!opts.lastVisitAt) return 'na'
+
+  // Resolve the due/overdue thresholds. Precedence:
+  //   explicit raw ms (dueMs/lapsedMs) → interval-months → legacy 6/9 default.
+  const interval =
+    opts.intervalMonths && Number.isFinite(opts.intervalMonths) && opts.intervalMonths > 0
+      ? opts.intervalMonths
+      : RECALL_DEFAULT_MONTHS
+  const dueMs = opts.dueMs ?? interval * MONTH_MS
+  const lapsedMs = opts.lapsedMs ?? (interval + RECALL_OVERDUE_GRACE_MONTHS) * MONTH_MS
   const ageMs = opts.now.getTime() - opts.lastVisitAt.getTime()
   if (ageMs >= lapsedMs) return 'overdue'
   if (ageMs >= dueMs) return 'due'

@@ -3,26 +3,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { listBookingSlots, submitBookingRequest } from '../actions'
 import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
-import type { ClinicService } from '@/lib/types/clinic-content'
+import { OTHER_VISIT_TYPE_ID } from '@/lib/types/visit-types'
+
+/** Public-bookable visit type, shaped for the form (server passes the
+ *  resolved, bookablePublic-filtered catalog with each type's duration). */
+export interface PublicVisitTypeOption {
+  id: string
+  label: string
+  durationMinutes: number
+}
 
 /** Final option in every visit-type dropdown so patients who don't see
- *  their reason in the clinic's service list can still book. Service
- *  id `other` is the discriminated value the server action expects. */
-const OTHER_OPTION = { value: 'other', label: 'Other / not sure' }
+ *  their reason in the clinic's catalog can still book. Visit-type id
+ *  `other` is the discriminated value the server action expects. */
+const OTHER_OPTION = { value: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', durationMinutes: 30 }
 
-/** Build the visit-type dropdown options from a clinic's configured
- *  services. Always appends an "Other" fallback so patients can book
- *  even when their reason isn't in the configured list. When the clinic
- *  has no services configured, returns just the Other fallback so the
- *  form still works.
+/** Build the visit-type dropdown options from a clinic's public-bookable visit
+ *  types. Always guarantees an "Other / not sure" fallback so a patient can
+ *  book even when their reason isn't in the list (or the clinic configured
+ *  nothing public).
  *
  *  Exported for unit testing. */
 export function buildVisitTypeOptions(
-  services: Array<{ id: string; name: string }>,
-): Array<{ value: string; label: string }> {
-  const opts = services.map((s) => ({ value: s.id, label: s.name }))
-  // De-dupe if a clinic happens to have an `id: 'other'` service of its
-  // own — avoid two "Other" rows.
+  visitTypes: Array<{ id: string; label: string; durationMinutes?: number }>,
+): Array<{ value: string; label: string; durationMinutes: number }> {
+  const opts = visitTypes.map((t) => ({
+    value: t.id,
+    label: t.label,
+    durationMinutes: t.durationMinutes ?? 30,
+  }))
+  // De-dupe if the catalog already carries an `id: 'other'` row.
   if (opts.some((o) => o.value === OTHER_OPTION.value)) return opts
   return [...opts, OTHER_OPTION]
 }
@@ -44,10 +54,12 @@ interface Props {
   slug: string
   brand: string
   clinicName: string
-  /** Visit-type options reflect the clinic's configured services on the
-   *  dashboard. The form always appends an "Other / not sure" fallback so
-   *  patients can book even when their reason isn't in the list. */
-  services: ClinicService[]
+  /** Public-bookable visit types (resolved from the clinic's visit-type
+   *  catalog, filtered to bookablePublic). The form always appends an
+   *  "Other / not sure" fallback so patients can book even when their reason
+   *  isn't in the list. Each carries its duration so the slot grid checks the
+   *  whole visit window against the clinic's chairs. */
+  visitTypes: PublicVisitTypeOption[]
 }
 
 function startOfDay(d: Date): Date {
@@ -100,9 +112,14 @@ export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedRe
   return 'Every slot is taken for this day. Try another day.'
 }
 
-export default function BookForm({ orgId, slug, brand, clinicName, services }: Props) {
-  const apptTypes = useMemo(() => buildVisitTypeOptions(services), [services])
-  const defaultApptType = apptTypes[0]?.value ?? 'other'
+export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }: Props) {
+  const apptTypes = useMemo(() => buildVisitTypeOptions(visitTypes), [visitTypes])
+  const defaultApptType = apptTypes[0]?.value ?? OTHER_VISIT_TYPE_ID
+  const [selectedType, setSelectedType] = useState<string>(defaultApptType)
+  const selectedDuration = useMemo(
+    () => apptTypes.find((t) => t.value === selectedType)?.durationMinutes ?? 30,
+    [apptTypes, selectedType],
+  )
   const days = useMemo(() => {
     const today = startOfDay(new Date())
     return Array.from({ length: DAY_WINDOW }, (_, i) => {
@@ -135,7 +152,9 @@ export default function BookForm({ orgId, slug, brand, clinicName, services }: P
 
   useEffect(() => {
     startSlotsTransition(() => {
-      listBookingSlots(orgId, isoDate(selectedDate))
+      // Pass the selected visit's duration so a longer appointment only shows
+      // start times where the whole window is free across the clinic's chairs.
+      listBookingSlots(orgId, isoDate(selectedDate), selectedDuration)
         .then(({ slots: next, closedReason: reason }) => {
           setSlots(next)
           setClosedReason(reason)
@@ -149,7 +168,7 @@ export default function BookForm({ orgId, slug, brand, clinicName, services }: P
           setClosedReason(null)
         })
     })
-  }, [orgId, selectedDate])
+  }, [orgId, selectedDate, selectedDuration])
 
   if (submitState === 'success') {
     return (
@@ -396,7 +415,8 @@ export default function BookForm({ orgId, slug, brand, clinicName, services }: P
           />
           <select
             name="type"
-            defaultValue={defaultApptType}
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
             className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2 appearance-none"
             style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
           >

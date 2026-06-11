@@ -9,6 +9,7 @@ import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotification
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
+import { visitTypeDuration } from '@/lib/types/visit-types'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
@@ -139,17 +140,19 @@ export async function submitContactRequest(formData: FormData) {
 export async function listBookingSlots(
   orgId: string,
   dateIso: string,
+  durationMinutes?: number,
 ): Promise<SlotsForDay> {
   if (!orgId || !dateIso) return { slots: [], closedReason: 'invalid_hours' }
   // The booking UI sends the patient's selected calendar day as 'YYYY-MM-DD',
   // interpreted in the CLINIC's timezone server-side. Tolerate a full ISO from
-  // a stale client (pre-deploy) by converting to a Date.
+  // a stale client (pre-deploy) by converting to a Date. The visit duration
+  // makes the slot check span the whole appointment against the clinic's chairs.
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
-    return getSlotsForDay(orgId, dateIso)
+    return getSlotsForDay(orgId, dateIso, undefined, durationMinutes)
   }
   const date = new Date(dateIso)
   if (isNaN(date.getTime())) return { slots: [], closedReason: 'invalid_hours' }
-  return getSlotsForDay(orgId, date)
+  return getSlotsForDay(orgId, date, undefined, durationMinutes)
 }
 
 export async function submitBookingRequest(formData: FormData) {
@@ -180,9 +183,19 @@ export async function submitBookingRequest(formData: FormData) {
   if (isNaN(startTime.getTime())) throw new Error('Invalid date/time')
   if (startTime.getTime() < Date.now()) throw new Error('Appointment must be in the future')
 
+  // Resolve the visit-type duration from the clinic's catalog so the race-guard
+  // checks the whole appointment window and endTime reflects the real length.
+  const [vtRow] = await db
+    .select({ visitTypeSettings: clinicProfile.visitTypeSettings })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, orgId))
+    .limit(1)
+  const durationMinutes = visitTypeDuration(vtRow?.visitTypeSettings ?? null, appointmentType)
+
   // Race-condition guard — between page load and submit, someone else
-  // could have grabbed the same slot. Re-check against the live calendar.
-  const stillFree = await isSlotAvailable(orgId, startTime)
+  // could have grabbed the same slot. Re-check against the live calendar
+  // across the whole visit window (respecting the clinic's chair count).
+  const stillFree = await isSlotAvailable(orgId, startTime, durationMinutes)
   if (!stillFree) {
     throw new Error('That slot is no longer available — please pick another time.')
   }
@@ -231,9 +244,10 @@ export async function submitBookingRequest(formData: FormData) {
       .where(eq(patient.id, patientId))
   }
 
-  // Default end time = start + one slot (30 min). Lets the schedule view
-  // and conflict detection both work without a separate end-time field.
-  const endTime = new Date(startTime.getTime() + SLOT_MINUTES * 60_000)
+  // End time = start + the visit-type duration (falls back to one 30-min slot
+  // for unknown types). Lets the schedule view + chair-aware conflict detection
+  // both work off a correct visit length.
+  const endTime = new Date(startTime.getTime() + Math.max(SLOT_MINUTES, durationMinutes) * 60_000)
 
   const apptId = randomUUID()
   await db.insert(appointment).values({
