@@ -75,7 +75,7 @@ export default function ReviewConfigPanel({ config }: Props) {
             type="checkbox"
             checked={showYelp}
             onChange={(e) => setShowYelp(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-400"
+            className="form-checkbox h-4 w-4"
           />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
             Also surface Yelp on the landing page
@@ -91,7 +91,7 @@ export default function ReviewConfigPanel({ config }: Props) {
               value={draft.yelpBusinessSlug}
               onChange={(e) => update('yelpBusinessSlug', e.target.value)}
               placeholder="acme-dental-austin"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="form-input w-full"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Yelp business slug from yelp.com/biz/{'{this-part}'}
@@ -107,7 +107,7 @@ export default function ReviewConfigPanel({ config }: Props) {
         <select
           value={draft.minDaysBetweenRequests}
           onChange={(e) => update('minDaysBetweenRequests', Number(e.target.value))}
-          className="text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+          className="form-select text-sm"
         >
           <option value={90}>90 days</option>
           <option value={180}>180 days</option>
@@ -119,7 +119,7 @@ export default function ReviewConfigPanel({ config }: Props) {
         </p>
       </div>
 
-      <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
+      <div className="flex items-center justify-between gap-3 pt-3 border-t border-[color:var(--color-hairline)]">
         <p className="text-xs text-gray-500 dark:text-gray-400 italic">
           {saved ? '✓ Saved' : 'Changes apply to new sends. Existing queued requests are unaffected.'}
         </p>
@@ -155,7 +155,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+        className="form-input w-full"
       />
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{help}</p>
     </div>

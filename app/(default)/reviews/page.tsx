@@ -126,7 +126,7 @@ export default async function ReviewsPage() {
         }
         actions={
           stats.completed30d > 0 ? (
-            <ActionButton variant="primary" href="/reviews/received">
+            <ActionButton variant="primary" breath href="/reviews/received">
               Browse received reviews
             </ActionButton>
           ) : undefined
@@ -135,7 +135,7 @@ export default async function ReviewsPage() {
 
       {/* ── Config gate ───────────────────────────────────────────── */}
       {!configured && (
-        <div className="mb-6 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-5">
+        <div className="mb-6 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-[var(--r-lg)] p-5">
           <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">
             Connect at least one review platform to start sending requests
           </p>
@@ -176,17 +176,17 @@ export default async function ReviewsPage() {
 
       {/* ── Platform mix ──────────────────────────────────────────── */}
       {stats.completed30d > 0 && (
-        <section className="mb-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+        <section className="v2-card mb-8 p-5">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
             Where they reviewed · last 30 days
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(['google', 'healthgrades', 'facebook', 'yelp'] as ReviewSite[]).map((site) => (
-              <div key={site} className="px-3 py-2 rounded-lg bg-stone-50 dark:bg-gray-900/40">
+              <div key={site} className="v2-well px-3 py-2">
                 <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   {PLATFORM_LABEL[site]}
                 </p>
-                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 tabular-nums mt-0.5">
+                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 tabular-nums font-mono-num mt-0.5">
                   {stats.byPlatform[site]}
                 </p>
               </div>
@@ -208,26 +208,22 @@ export default async function ReviewsPage() {
           )}
         </div>
         {!configured ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-            <EmptyState
-              icon="🔌"
-              title="Connect a review platform to start."
-              body="Add your Google Place ID, Healthgrades URL, or Facebook Page above, then patients ready for a request show up here."
-            />
-          </div>
+          <EmptyState
+            icon="🔌"
+            title="Connect a review platform to start."
+            body="Add your Google Place ID, Healthgrades URL, or Facebook Page above, then patients ready for a request show up here."
+          />
         ) : eligible.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-            <EmptyState
-              icon="🌟"
-              title="Nobody's ready to ask right now."
-              body="Mark an appointment completed in the agenda and the patient will appear here for a request."
-              action={
-                <ActionButton variant="secondary" size="sm" href="/appointments">
-                  Go to the agenda
-                </ActionButton>
-              }
-            />
-          </div>
+          <EmptyState
+            icon="🌟"
+            title="Nobody's ready to ask right now."
+            body="Mark an appointment completed in the agenda and the patient will appear here for a request."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/appointments">
+                Go to the agenda
+              </ActionButton>
+            }
+          />
         ) : (
           <EligibleList rows={eligible.map((r) => ({
             ...r,
@@ -242,17 +238,15 @@ export default async function ReviewsPage() {
           Recent activity
         </h2>
         {recent.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-            <EmptyState
-              icon="📮"
-              title="No review requests sent yet."
-              body="Send your first one from the Ready-to-ask list above, and it'll track here."
-            />
-          </div>
+          <EmptyState
+            icon="📮"
+            title="No review requests sent yet."
+            body="Send your first one from the Ready-to-ask list above, and it'll track here."
+          />
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+          <div className="v2-card overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-stone-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60">
+              <thead className="v2-well border-b border-[color:var(--color-hairline)]">
                 <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   <th className="px-3 py-2">Patient</th>
                   <th className="px-3 py-2">Status</th>
@@ -263,7 +257,7 @@ export default async function ReviewsPage() {
               </thead>
               <tbody>
                 {recent.map((r) => (
-                  <tr key={r.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-gray-900/30">
+                  <tr key={r.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
                     <td className="px-3 py-2.5">
                       <Link href={`/patients/${r.patientId}`} className="font-medium text-gray-800 dark:text-gray-100 hover:underline">
                         {r.patientName}
@@ -311,7 +305,7 @@ export default async function ReviewsPage() {
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
             Settings
           </h2>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+          <div className="v2-card p-5">
             <ReviewConfigPanel config={config} />
           </div>
         </section>
@@ -319,7 +313,7 @@ export default async function ReviewsPage() {
 
       {/* ── Coming next ───────────────────────────────────────────── */}
       <section>
-        <div className="bg-stone-100 dark:bg-gray-800/40 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-5">
+        <div className="v2-well border border-dashed border-[color:var(--color-hairline-strong)] p-5">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Coming next
           </p>

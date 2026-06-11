@@ -50,7 +50,7 @@ export default async function IntakeFormsListPage() {
         subtitle="Digital forms patients fill out before their visit. Sent automatically with booking confirmations, or share the link directly."
         actions={
           <form action={createBlankFormAction}>
-            <ActionButton type="submit" variant="primary" size="sm">
+            <ActionButton type="submit" variant="primary" size="sm" breath>
               + New Form
             </ActionButton>
           </form>
@@ -58,28 +58,26 @@ export default async function IntakeFormsListPage() {
       />
 
       {templates.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-          <EmptyState
-            icon="📝"
-            title="No intake forms yet"
-            body={
-              <>
-                Click <strong>New Form</strong> — we&apos;ll seed it with the standard dental
-                new-patient template you can edit.
-              </>
-            }
-            action={
-              <form action={createBlankFormAction}>
-                <ActionButton type="submit" variant="primary" size="sm">
-                  + New Form
-                </ActionButton>
-              </form>
-            }
-          />
-        </div>
+        <EmptyState
+          icon="📝"
+          title="No intake forms yet"
+          body={
+            <>
+              Click <strong>New Form</strong> — we&apos;ll seed it with the standard dental
+              new-patient template you can edit.
+            </>
+          }
+          action={
+            <form action={createBlankFormAction}>
+              <ActionButton type="submit" variant="primary" size="sm">
+                + New Form
+              </ActionButton>
+            </form>
+          }
+        />
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+        <div className="v2-card overflow-hidden">
+          <ul className="divide-y divide-[color:var(--color-hairline)]">
             {templates.map((t) => {
               const fillUrl = `${baseUrl}/intake/${t.slug}`
               const sections = (t.schema as { sections?: unknown[] }).sections ?? []
@@ -97,7 +95,7 @@ export default async function IntakeFormsListPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/intake-forms/${t.id}`}
-                        className="text-base font-semibold text-gray-800 dark:text-gray-100 hover:text-violet-600 dark:hover:text-violet-400 truncate"
+                        className="text-base font-semibold text-gray-800 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-300 truncate"
                       >
                         {t.title}
                       </Link>
@@ -126,7 +124,7 @@ export default async function IntakeFormsListPage() {
                       href={fillUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                      className="btn-sm bg-[color:var(--color-surface-2)] border-[color:var(--color-hairline)] hover:border-[color:var(--color-hairline-strong)] text-gray-800 dark:text-gray-300 transition-colors"
                     >
                       Preview ↗
                     </a>
