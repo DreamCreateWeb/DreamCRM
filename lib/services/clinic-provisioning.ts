@@ -39,6 +39,10 @@ export interface CreateManagedClinicInput {
   note?: string
   inviterUserId: string
   inviterName: string
+  /** Optional referral attribution: the partner who referred this clinic +
+   *  an optional per-clinic % override (basis points). The term defaults to
+   *  the partner's default when omitted. */
+  referral?: { partnerId: string; percentBps?: number | null }
 }
 
 export interface CreateManagedClinicResult {
@@ -140,6 +144,18 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     stripeCouponId: couponId,
     managedNote: input.note?.trim() || null,
   })
+
+  // Referral attribution (optional): copy the partner's default rate/term and
+  // stamp the term clock. Best-effort — a bad partner id must not block clinic
+  // creation. The owner-invite + the clinic already exist regardless.
+  if (input.referral?.partnerId) {
+    try {
+      const { assignClinicReferral } = await import('@/lib/services/referrals')
+      await assignClinicReferral(organizationId, input.referral.partnerId, input.referral.percentBps ?? undefined)
+    } catch (err) {
+      console.warn('[provisioning] could not attribute referral partner', err)
+    }
+  }
 
   // Every clinic starts with the standard new-patient intake form. Best-effort
   // — provisioning must not fail because form seeding hiccuped.

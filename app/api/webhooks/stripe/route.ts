@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe'
 import { db, schema } from '@/lib/db'
 import { clearSubscription, syncSubscriptionFromStripe } from '@/lib/services/billing'
 import { notifyOrgMembers } from '@/lib/services/notifications'
+import { accrueCommissionForInvoice } from '@/lib/services/referrals'
 
 /**
  * Find the platform organization id (Dream Create) so we can ping its
@@ -16,6 +17,30 @@ async function platformOrgId(): Promise<string | null> {
     .where(eq(schema.organization.type, 'platform'))
     .limit(1)
   return row?.id ?? null
+}
+
+/**
+ * Resolve the clinic org for a paid invoice (via its Stripe customer id) and
+ * accrue referral commission for the partner who referred that clinic, if any.
+ * No-op when the invoice has no customer or no matching clinic_profile.
+ */
+async function accrueReferralForInvoice(invoice: {
+  id?: string
+  customer?: string | null
+  amount_paid?: number
+}): Promise<void> {
+  if (!invoice.id || !invoice.customer || !invoice.amount_paid) return
+  const [profile] = await db
+    .select({ organizationId: schema.clinicProfile.organizationId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.stripeCustomerId, invoice.customer))
+    .limit(1)
+  if (!profile) return
+  await accrueCommissionForInvoice({
+    organizationId: profile.organizationId,
+    stripeInvoiceId: invoice.id,
+    amountPaidCents: invoice.amount_paid,
+  })
 }
 
 export const dynamic = 'force-dynamic'
@@ -96,13 +121,26 @@ export async function POST(request: Request) {
       case 'invoice.payment_succeeded':
       case 'invoice.payment_failed': {
         const invoice = event.data.object as {
+          id?: string
           subscription?: string | null
+          customer?: string | null
           customer_email?: string
           amount_due?: number
+          amount_paid?: number
           currency?: string
         }
         if (typeof invoice.subscription === 'string') {
           await syncSubscriptionFromStripe(invoice.subscription)
+        }
+        // Referral commission accrual — best-effort, AFTER the subscription
+        // sync so the clinic_profile (incl. its referral_partner_id) is fresh.
+        // Wrapped so it can NEVER break billing sync.
+        if (event.type === 'invoice.payment_succeeded') {
+          try {
+            await accrueReferralForInvoice(invoice)
+          } catch (err) {
+            console.warn('[stripe webhook] referral accrual failed (non-fatal)', err)
+          }
         }
         if (event.type === 'invoice.payment_failed') {
           const orgId = await platformOrgId()

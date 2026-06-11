@@ -414,6 +414,13 @@
       "when": 1781147770800,
       "tag": "0058_furry_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1781212106888,
+      "tag": "0059_exotic_nocturne",
+      "breakpoints": true
     }
   ]
 }

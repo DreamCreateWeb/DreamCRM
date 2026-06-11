@@ -3,7 +3,10 @@
  * wired into the sidebar nav for a given tenant type.
  */
 
-export type TenantType = 'platform' | 'clinic' | 'patient'
+// 'partner' = an external referral partner (lib/services/referrals.ts). They
+// have no org membership; getTenantContext derives this from a
+// referral_partner.user_id linkage when no platform/clinic membership wins.
+export type TenantType = 'platform' | 'clinic' | 'patient' | 'partner'
 
 export type PlanTier = 'basic' | 'pro' | 'premium'
 

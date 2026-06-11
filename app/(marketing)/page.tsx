@@ -112,6 +112,7 @@ export default async function MarketingHome() {
   const ctx = await getTenantContext()
   if (ctx) {
     if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+    if (ctx.tenantType === 'partner') redirect('/partner')
     redirect('/dashboard')
   }
   const session = await getServerSession()

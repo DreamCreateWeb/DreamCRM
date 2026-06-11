@@ -17,7 +17,7 @@ interface NavSection {
 interface Props {
   /** Tenant type drives which sections appear. Patient tenants don't
    * see the settings sidebar at all (different route group). */
-  tenantType?: 'platform' | 'clinic' | 'patient'
+  tenantType?: 'platform' | 'clinic' | 'patient' | 'partner'
 }
 
 // ── Icon glyphs (inline so we don't import the whole nav-icons set) ──

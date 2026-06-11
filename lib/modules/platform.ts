@@ -16,6 +16,7 @@ export const platformModules: ModuleRegistry = {
     { id: 'analytics',        path: '/dashboard/analytics', label: 'Platform Metrics', section: 'Pages', icon: 'chart',    status: 'live' },
     { id: 'mrr',              path: '/dashboard/fintech',   label: 'Revenue',          section: 'Pages', icon: 'wallet',   status: 'live' },
     { id: 'subscriptions',    path: '/ecommerce/invoices',            label: 'Subscriptions',    section: 'Pages', icon: 'receipt',  status: 'live' },
+    { id: 'partners',         path: '/partners',            label: 'Partners',         section: 'Pages', icon: 'users',    status: 'live' },
     { id: 'sales_pipeline',   path: '/ecommerce/orders',              label: 'Sales Pipeline',   section: 'Pages', icon: 'flag',     status: 'live' },
     { id: 'calendar',         path: '/calendar',            label: 'Calendar',         section: 'Pages', icon: 'cal',      status: 'live' },
     { id: 'tasks',            path: '/tasks/kanban',        label: 'Tasks',            section: 'Pages', icon: 'check',    status: 'live' },

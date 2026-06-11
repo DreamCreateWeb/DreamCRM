@@ -10,6 +10,7 @@ const {
   mockCheckoutCreate,
   mockSendInvitationEmail,
   mockSeedIntake,
+  mockAssignReferral,
 } = vi.hoisted(() => {
   process.env.STRIPE_PRICE_STARTER_MONTHLY = 'price_basic_m'
   process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY = 'price_pro_m'
@@ -25,12 +26,15 @@ const {
     mockCustomersCreate: vi.fn(),
     mockCheckoutCreate: vi.fn(),
     mockSendInvitationEmail: vi.fn(),
+    mockAssignReferral: vi.fn(async () => undefined),
   }
 })
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/email', () => ({ sendInvitationEmail: mockSendInvitationEmail }))
 vi.mock('@/lib/services/forms', () => ({ seedDefaultIntakeForm: mockSeedIntake }))
+// createManagedClinic dynamically imports this only when a referral is supplied.
+vi.mock('@/lib/services/referrals', () => ({ assignClinicReferral: mockAssignReferral }))
 vi.mock('@/lib/stripe', () => ({
   stripe: {
     coupons: { create: mockCouponsCreate, retrieve: mockCouponsRetrieve },
@@ -169,6 +173,22 @@ describe('createManagedClinic', () => {
       pricing: { kind: 'percent_off', percentOff: 50, durationMonths: 1 },
     })
     expect(mockCouponsCreate).toHaveBeenCalledWith(expect.objectContaining({ duration: 'once' }))
+  })
+
+  it('attributes a referral partner when supplied', async () => {
+    selectReturning([[]]) // slug free
+    await createManagedClinic({
+      ...baseInput,
+      pricing: { kind: 'standard' },
+      referral: { partnerId: 'p1', percentBps: 1500 },
+    })
+    expect(mockAssignReferral).toHaveBeenCalledWith(expect.any(String), 'p1', 1500)
+  })
+
+  it('does NOT attribute a referral when none supplied', async () => {
+    selectReturning([[]])
+    await createManagedClinic({ ...baseInput, pricing: { kind: 'standard' } })
+    expect(mockAssignReferral).not.toHaveBeenCalled()
   })
 
   it('suffixes the slug when taken and refuses junk input', async () => {

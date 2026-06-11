@@ -7,9 +7,18 @@ import { checkClinicSlug } from '@/app/(onboarding)/actions'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { slugify } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
+import { formatBps } from '@/lib/types/referrals'
 
 type PricingKind = 'standard' | 'percent_off' | 'amount_off' | 'comped'
 type Duration = 'forever' | '1' | '3' | '6' | '12' | '24'
+
+export interface PartnerOption {
+  id: string
+  name: string
+  company: string | null
+  defaultPercentBps: number
+  defaultTermMonths: number | null
+}
 
 interface Created {
   slug: string
@@ -21,9 +30,9 @@ interface Created {
 /**
  * Platform-admin "+ Add clinic": creates the org, reserves a plan at an
  * optionally negotiated price (Stripe coupon) or comped, and emails the
- * owner their invite.
+ * owner their invite. Optionally attributes the clinic to a referral partner.
  */
-export default function AddClinicModal() {
+export default function AddClinicModal({ partners = [] }: { partners?: PartnerOption[] }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
@@ -38,6 +47,9 @@ export default function AddClinicModal() {
   const [amountOff, setAmountOff] = useState('50')
   const [duration, setDuration] = useState<Duration>('forever')
   const [note, setNote] = useState('')
+  // Referral attribution (optional)
+  const [partnerId, setPartnerId] = useState('')
+  const [referralPercent, setReferralPercent] = useState('') // blank = partner default
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<Created | null>(null)
@@ -65,8 +77,10 @@ export default function AddClinicModal() {
     setOwnerName(''); setOwnerEmail('')
     setPlanId('pro'); setInterval('monthly')
     setPricingKind('standard'); setPercentOff('20'); setAmountOff('50'); setDuration('forever')
-    setNote(''); setError(null); setCreated(null)
+    setNote(''); setPartnerId(''); setReferralPercent(''); setError(null); setCreated(null)
   }
+
+  const selectedPartner = partners.find((p) => p.id === partnerId) ?? null
 
   async function onSlugBlur() {
     const value = (slugTouched ? slug : effectiveSlug).trim()
@@ -100,6 +114,13 @@ export default function AddClinicModal() {
 
     startTransition(async () => {
       try {
+        const referral = partnerId
+          ? {
+              partnerId,
+              percentBps:
+                referralPercent.trim() === '' ? null : Math.round(Number(referralPercent) * 100),
+            }
+          : undefined
         const result = await createManagedClinicAction({
           name,
           slug: effectiveSlug || undefined,
@@ -109,6 +130,7 @@ export default function AddClinicModal() {
           interval,
           pricing,
           note: note || undefined,
+          referral,
         })
         setCreated({
           slug: result.slug,
@@ -287,6 +309,34 @@ export default function AddClinicModal() {
                           onChange={(e) => setNote(e.target.value)}
                           placeholder="Why this pricing / who closed the deal — only your team sees this." />
                       </div>
+
+                      {partners.length > 0 && (
+                        <div className="flex gap-3">
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium mb-1" htmlFor="ac-partner">Referred by</label>
+                            <select id="ac-partner" className="form-select w-full" value={partnerId}
+                              onChange={(e) => { setPartnerId(e.target.value); setReferralPercent('') }}>
+                              <option value="">No referral</option>
+                              {partners.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}{p.company ? ` (${p.company})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          {selectedPartner && (
+                            <div className="w-36">
+                              <label className="block text-sm font-medium mb-1" htmlFor="ac-ref-pct">Commission %</label>
+                              <input id="ac-ref-pct" className="form-input w-full" type="number" min={0} max={100} step="0.5"
+                                value={referralPercent} onChange={(e) => setReferralPercent(e.target.value)}
+                                placeholder={String(selectedPartner.defaultPercentBps / 100)} />
+                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Blank = default {formatBps(selectedPartner.defaultPercentBps)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {error && (
                         <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>

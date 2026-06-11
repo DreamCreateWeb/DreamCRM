@@ -1883,6 +1883,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // overrides so /analytics + /seo show real traffic on legacy demos.
     await seedDemoSiteAnalytics(existing.id)
 
+    // Referral partner self-heal: seed the demo MSP partner + attribution +
+    // commission ledger so /partners populates on legacy demos. Idempotent;
+    // never overwrites a real referral assignment. Runs LAST so its reads sit
+    // at the tail of the self-heal sequence.
+    await seedDemoReferralPartner(existing.id)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -2455,6 +2461,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Website Presence: site_pageview rollups + Search-appearance overrides so
   // /analytics + /seo show real website traffic on the fresh demo.
   await seedDemoSiteAnalytics(orgId)
+
+  // Referral partner program: demo MSP partner + attribution + commission
+  // ledger so /partners + the clinic Referral card populate.
+  await seedDemoReferralPartner(orgId)
 
   return {
     organizationId: orgId,
@@ -4132,6 +4142,133 @@ async function seedDemoMemberships(orgId: string, now: Date, patientIds: string[
 //     the patient timeline "Paid $X toward balance online" event)
 // Both link to a real seeded patient so the patient-detail timeline shows them.
 // No-ops when the rows already exist, so it's safe to run on every entry.
+/**
+ * Referral partner program demo seed. Creates a single is_demo partner
+ * ("Brightline IT (Demo MSP)", 10%, ongoing), attributes the Acme demo clinic
+ * to it (only when the clinic has no referral set — never clobbers a real
+ * assignment), and seeds 3 commission rows (2 accrued + 1 paid w/ a payout row)
+ * so /partners + the partner-detail math + the clinic Referral card all
+ * populate. Fully idempotent: partner upserts by email, commission rows by
+ * their deterministic demo invoice ids, the payout is seed-if-absent. The demo
+ * partner has NO user/Stripe account — the partner portal isn't part of the
+ * showcase (it requires a real partner login + Stripe Express).
+ */
+async function seedDemoReferralPartner(orgId: string) {
+  const DEMO_PARTNER_EMAIL = 'partner@brightline-it.example'
+  const DEMO_PERCENT_BPS = 1000 // 10%
+
+  // Bail on a demo with no patients yet (mid-creation / partial seed) — same
+  // guard the other self-heal blocks use; keeps the seeder's no-insert-when-
+  // org-already-fully-seeded idempotency guarantee intact.
+  const anyPatient = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+    .limit(1)
+  if (anyPatient.length === 0) return
+
+  // Upsert the partner by its unique email.
+  let [partner] = await db
+    .select({ id: schema.referralPartner.id })
+    .from(schema.referralPartner)
+    .where(eq(schema.referralPartner.email, DEMO_PARTNER_EMAIL))
+    .limit(1)
+  if (!partner) {
+    const id = newId('rp')
+    await db
+      .insert(schema.referralPartner)
+      .values({
+        id,
+        name: 'Brightline IT (Demo MSP)',
+        company: 'Brightline IT',
+        email: DEMO_PARTNER_EMAIL,
+        status: 'active',
+        defaultPercentBps: DEMO_PERCENT_BPS,
+        defaultTermMonths: null, // ongoing
+        termsNote: 'Demo partner — 10% of every paid subscription, for the life of each referred clinic.',
+        isDemo: 1,
+      })
+      .onConflictDoNothing({ target: schema.referralPartner.email })
+    ;[partner] = await db
+      .select({ id: schema.referralPartner.id })
+      .from(schema.referralPartner)
+      .where(eq(schema.referralPartner.email, DEMO_PARTNER_EMAIL))
+      .limit(1)
+  }
+  if (!partner) return
+
+  // Attribute the Acme clinic — ONLY when it has no referral yet (never
+  // overwrite a real assignment a platform admin made).
+  const [profile] = await db
+    .select({ referralPartnerId: schema.clinicProfile.referralPartnerId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, orgId))
+    .limit(1)
+  if (profile && !profile.referralPartnerId) {
+    await db
+      .update(schema.clinicProfile)
+      .set({
+        referralPartnerId: partner.id,
+        referralPercentBps: DEMO_PERCENT_BPS,
+        referralTermMonths: null,
+        referralStartedAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000), // ~4 months ago
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.clinicProfile.organizationId, orgId))
+  }
+
+  // 3 commission rows — deterministic invoice ids so re-seeding is idempotent.
+  // Premium plan = $199/mo = 19900 cents → 10% = 1990 cents each.
+  const invoiceCents = 19900
+  const amountCents = Math.floor((invoiceCents * DEMO_PERCENT_BPS) / 10000) // 1990
+  const dayMs = 24 * 60 * 60 * 1000
+  const rows: Array<{ inv: string; status: 'accrued' | 'paid'; ageDays: number }> = [
+    { inv: `demo_inv_${orgId}_1`, status: 'paid', ageDays: 75 },
+    { inv: `demo_inv_${orgId}_2`, status: 'accrued', ageDays: 45 },
+    { inv: `demo_inv_${orgId}_3`, status: 'accrued', ageDays: 15 },
+  ]
+
+  // A payout row covering the one paid commission.
+  let payoutId: number | null = null
+  const [existingPayout] = await db
+    .select({ id: schema.referralPayout.id })
+    .from(schema.referralPayout)
+    .where(eq(schema.referralPayout.partnerId, partner.id))
+    .limit(1)
+  if (existingPayout) {
+    payoutId = existingPayout.id
+  } else {
+    const [created] = await db
+      .insert(schema.referralPayout)
+      .values({
+        partnerId: partner.id,
+        amountCents,
+        stripeTransferId: 'tr_demo_payout',
+        status: 'paid',
+        createdAt: new Date(Date.now() - 70 * dayMs),
+      })
+      .returning({ id: schema.referralPayout.id })
+    payoutId = created?.id ?? null
+  }
+
+  for (const r of rows) {
+    await db
+      .insert(schema.referralCommission)
+      .values({
+        partnerId: partner.id,
+        organizationId: orgId,
+        stripeInvoiceId: r.inv,
+        invoiceTotalCents: invoiceCents,
+        percentBps: DEMO_PERCENT_BPS,
+        amountCents,
+        status: r.status,
+        payoutId: r.status === 'paid' ? payoutId : null,
+        accruedAt: new Date(Date.now() - r.ageDays * dayMs),
+      })
+      .onConflictDoNothing({ target: schema.referralCommission.stripeInvoiceId })
+  }
+}
+
 async function seedDemoMoneyCoherence(orgId: string) {
   const now = new Date()
   const dayMs = 24 * 60 * 60 * 1000

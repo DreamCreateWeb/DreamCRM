@@ -207,6 +207,14 @@ const CreateManagedClinicInput = z.object({
   interval: z.enum(['monthly', 'annual']),
   pricing: ManagedPricingInput,
   note: z.string().trim().max(2000).optional(),
+  // Optional referral attribution: which partner referred this clinic + an
+  // optional per-clinic % override (basis points).
+  referral: z
+    .object({
+      partnerId: z.string().min(1),
+      percentBps: z.number().int().min(0).max(10000).nullable().optional(),
+    })
+    .optional(),
 })
 
 /**

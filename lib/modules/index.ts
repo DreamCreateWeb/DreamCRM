@@ -1,12 +1,14 @@
 import { platformModules } from './platform'
 import { clinicModules } from './clinic'
 import { patientModules } from './patient'
+import { partnerModules } from './partner'
 import type { ModuleRegistry, TenantType, PlanTier, Role } from './types'
 
 const REGISTRIES: Record<TenantType, ModuleRegistry> = {
   platform: platformModules,
   clinic: clinicModules,
   patient: patientModules,
+  partner: partnerModules,
 }
 
 export function getRegistry(tenantType: TenantType): ModuleRegistry {
