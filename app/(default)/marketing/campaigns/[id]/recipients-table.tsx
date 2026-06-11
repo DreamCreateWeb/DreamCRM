@@ -61,12 +61,12 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
   }, [rows, filter, q])
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60 flex items-center gap-3 flex-wrap">
+    <div className="v2-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-[color:var(--color-hairline)] flex items-center gap-3 flex-wrap">
         <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
           Recipients
         </h3>
-        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
           {filtered.length} of {rows.length}
         </span>
         <div className="flex items-center gap-1.5 ml-auto flex-wrap">
@@ -79,13 +79,13 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search email…"
-            className="text-sm px-2 py-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 w-40"
+            className="form-input w-40"
           />
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-stone-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60 text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          <thead className="v2-well border-b border-[color:var(--color-hairline)] text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-3 py-2">Recipient</th>
               <th className="px-3 py-2">Status</th>
@@ -107,7 +107,7 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
                 return (
                   <tr
                     key={r.email}
-                    className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-gray-900/30"
+                    className="border-b border-[color:var(--color-hairline)] last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors"
                   >
                     <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-medium truncate max-w-[18rem]">
                       {r.email}

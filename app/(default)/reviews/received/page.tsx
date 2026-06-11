@@ -57,7 +57,7 @@ export default async function ReviewsReceivedPage() {
           <div className="flex items-center gap-4">
             {totalCount > 0 && (
               <div className="text-right">
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 tabular-nums leading-none">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 tabular-nums font-mono-num leading-none">
                   {featuredCount}
                   <span className="text-gray-500 dark:text-gray-400 font-medium"> / {totalCount}</span>
                 </p>
@@ -74,18 +74,16 @@ export default async function ReviewsReceivedPage() {
       />
 
       {rows.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-          <EmptyState
-            icon="⭐"
-            title="No reviews yet"
-            body="When a patient writes a review on their request link, it lands here so you can read it and decide whether to feature it on your public site."
-            action={
-              <ActionButton variant="secondary" size="sm" href="/reviews">
-                Send a request from the Reviews dashboard
-              </ActionButton>
-            }
-          />
-        </div>
+        <EmptyState
+          icon="⭐"
+          title="No reviews yet"
+          body="When a patient writes a review on their request link, it lands here so you can read it and decide whether to feature it on your public site."
+          action={
+            <ActionButton variant="secondary" size="sm" href="/reviews">
+              Send a request from the Reviews dashboard
+            </ActionButton>
+          }
+        />
       ) : (
         <ReceivedList rows={rows} />
       )}

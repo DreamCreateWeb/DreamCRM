@@ -152,11 +152,11 @@ export default function LeadDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
-      <div className="bg-white dark:bg-gray-800 w-full sm:w-[480px] h-full overflow-y-auto shadow-2xl flex flex-col">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px]">
+      <div className="section-enter bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col">
+        <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Lead</h2>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">✕</button>
+          <button onClick={onClose} aria-label="Close" title="Close (Esc)" className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors">✕</button>
         </div>
 
         <div className="px-5 py-5 space-y-4 flex-1">
@@ -182,10 +182,11 @@ export default function LeadDrawer({
                 </span>
               )}
             </div>
-            {/* Existing-patient heads-up surfaced on open (info/sky — the
-                ball isn't ours, it's just useful context before converting). */}
+            {/* Existing-patient heads-up surfaced on open (info/indigo — the
+                ball isn't ours, it's just useful context before converting.
+                v2 moved info sky→indigo so it can't read as the teal brand). */}
             {existingHint && (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-sky-500/10 px-2 py-1 text-xs text-sky-700 dark:text-sky-300">
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-[var(--r-xs)] bg-indigo-500/10 px-2 py-1 text-xs text-indigo-700 dark:text-indigo-300">
                 <span aria-hidden="true">↪</span>
                 <span>
                   Looks like an existing patient:{' '}
@@ -217,7 +218,7 @@ export default function LeadDrawer({
 
           {/* Message */}
           {row.message && (
-            <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
+            <div className="pt-3 border-t border-[color:var(--color-hairline)]">
               <p className={`${LABEL_CLASS} mb-1`}>Message</p>
               <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap italic">
                 &ldquo;{row.message}&rdquo;
@@ -228,7 +229,7 @@ export default function LeadDrawer({
           {/* Action ladder — ONE primary, following the lifecycle:
               new → Mark contacted · contacted → Convert · converted → Open
               patient. Archive/Reopen are secondary (not destructive). */}
-          <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+          <div className="flex flex-wrap gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
             {row.status === 'new' && (
               <>
                 <ActionButton variant="primary" size="sm" onClick={onMarkContacted} disabled={pending}>
@@ -266,9 +267,10 @@ export default function LeadDrawer({
 
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
-          {/* Dedupe confirmation — convert matched an existing patient. */}
+          {/* Dedupe confirmation — convert matched an existing patient.
+              Amber (warn): the ball is genuinely ours — we must decide. */}
           {dedupeMatch && (
-            <div className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 space-y-2">
+            <div className="rounded-[var(--r-lg)] border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 space-y-2">
               <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
                 This lead&rsquo;s email or phone matches an existing patient:{' '}
                 <span className="font-semibold">{dedupeMatch}</span>. Link this lead to
@@ -290,7 +292,7 @@ export default function LeadDrawer({
 
           {/* Source attribution */}
           {(row.sourcePage || row.referrer || row.utmSource) && (
-            <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
+            <div className="pt-3 border-t border-[color:var(--color-hairline)]">
               <p className={`${LABEL_CLASS} mb-1`}>Where they came from</p>
               <div className="space-y-0.5 text-xs text-gray-700 dark:text-gray-300">
                 {row.sourcePage && <p>Page · <span className="text-gray-500 dark:text-gray-400">{row.sourcePage}</span></p>}
@@ -303,7 +305,7 @@ export default function LeadDrawer({
           )}
 
           {/* Lifecycle audit */}
-          <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60">
+          <div className="pt-3 border-t border-[color:var(--color-hairline)]">
             <p className={`${LABEL_CLASS} mb-1`}>Timeline</p>
             <ul className="space-y-0.5 text-xs text-gray-700 dark:text-gray-300">
               <li>Landed · {fmtFull(row.createdAt)}</li>
@@ -320,8 +322,8 @@ export default function LeadDrawer({
         </div>
 
         {archiveOpen && (
-          <div className="absolute inset-0 bg-white dark:bg-gray-800 flex flex-col">
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+          <div className="section-enter absolute inset-0 bg-[color:var(--color-surface-2)] rounded-l-[var(--r-lg)] flex flex-col">
+            <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Archive lead</h3>
               <button onClick={() => setArchiveOpen(false)} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700">← Back</button>
             </div>
@@ -343,7 +345,7 @@ export default function LeadDrawer({
                 <option value="other">Other</option>
               </select>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
+            <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
               <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)} disabled={pending}>
                 Cancel
               </ActionButton>

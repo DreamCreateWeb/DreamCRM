@@ -126,7 +126,7 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
   }
 
   return (
-    <li className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+    <li className="v2-card overflow-hidden">
       <div className="p-4 sm:p-5">
         {/* ── Header row: patient + platform + when + featured pill ─── */}
         <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
@@ -150,7 +150,7 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
             {fmtVisitDate(row.appointmentDateIso) && (
               <Link
                 href={`/patients/${row.patientId}#timeline`}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400 hover:underline"
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-teal-700 dark:hover:text-teal-300 hover:underline"
                 title="See this visit on the patient timeline"
               >
                 After their {fmtVisitDate(row.appointmentDateIso)} visit
@@ -165,11 +165,11 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
 
         {/* ── The review text ───────────────────────────────────────── */}
         {row.reviewText ? (
-          <blockquote className="text-[15px] leading-[1.55] text-gray-800 dark:text-gray-100 whitespace-pre-wrap pl-3 border-l-2 border-gray-200 dark:border-gray-700/60 italic">
+          <blockquote className="text-[15px] leading-[1.55] text-gray-800 dark:text-gray-100 whitespace-pre-wrap pl-3 border-l-2 border-[color:var(--color-hairline-strong)] italic">
             &ldquo;{row.reviewText}&rdquo;
           </blockquote>
         ) : (
-          <div className="text-sm text-gray-500 dark:text-gray-400 italic bg-stone-50 dark:bg-gray-900/40 rounded-lg p-3">
+          <div className="text-sm text-gray-500 dark:text-gray-400 italic v2-well p-3">
             This patient went straight to a third-party platform without leaving a copy here.
             Their review lives on{' '}
             {row.selectedSite ? PLATFORM_LABEL[row.selectedSite] : 'the public-review site they picked'}

@@ -104,17 +104,15 @@ export default async function CampaignsPage({
       />
 
       {campaigns.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-          <EmptyState
-            icon="✉️"
-            title="No campaigns yet."
-            body='Use "+ New campaign" above to write your first email — name it, pick an audience, and write.'
-          />
-        </div>
+        <EmptyState
+          icon="✉️"
+          title="No campaigns yet."
+          body='Use "+ New campaign" above to write your first email — name it, pick an audience, and write.'
+        />
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+        <div className="v2-card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-stone-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60">
+            <thead className="v2-well border-b border-[color:var(--color-hairline)]">
               <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Subject</th>
@@ -128,7 +126,7 @@ export default async function CampaignsPage({
               {campaigns.map((c) => (
                 <tr
                   key={c.id}
-                  className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0 hover:bg-stone-50/60 dark:hover:bg-gray-900/30"
+                  className="border-b border-[color:var(--color-hairline)] last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors"
                 >
                   <td className="px-3 py-2.5">
                     <Link

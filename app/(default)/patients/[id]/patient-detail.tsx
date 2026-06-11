@@ -156,11 +156,11 @@ export default function PatientDetail({
       </div>
 
       {/* ── Header ───────────────────────────────────────────────────── */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 mb-6 flex flex-col gap-4">
+      <header className="v2-card p-5 mb-6 flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                 {header.fullName}
               </h1>
               {header.ageYears !== null && (
@@ -229,7 +229,7 @@ export default function PatientDetail({
           </div>
         </div>
         {/* Header stat strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-[color:var(--color-hairline)]">
           <Stat label="Last visit" value={fmtFullDate(header.lastVisitAt)} hint={fmtRelative(header.lastVisitAt)} />
           <Stat
             label="Next visit"
@@ -240,6 +240,7 @@ export default function PatientDetail({
               "—" + an honest hint, never a fabricated $0. */}
           <Stat
             label="Balance"
+            mono
             value={header.outstandingBalanceCents == null ? '—' : money(header.outstandingBalanceCents)}
             hint={
               header.outstandingBalanceCents == null
@@ -256,7 +257,7 @@ export default function PatientDetail({
                   : 'ok'
             }
           />
-          <Stat label="Shop purchases" value={money(header.shopSpendCents)} hint="paid in your store" />
+          <Stat label="Shop purchases" mono value={money(header.shopSpendCents)} hint="paid in your store" />
         </div>
       </header>
 
@@ -269,8 +270,8 @@ export default function PatientDetail({
 
         {/* ── Timeline ───────────────────────────────────────────────── */}
         <section className="lg:col-span-6">
-          <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60 flex flex-wrap gap-1.5 items-center">
+          <div className="v2-card">
+            <div className="px-4 py-3 border-b border-[color:var(--color-hairline)] flex flex-wrap gap-1.5 items-center">
               {FILTER_KEYS.map((f) => (
                 <FilterChip
                   key={f.key}
@@ -289,7 +290,7 @@ export default function PatientDetail({
                 body="Bookings, messages, form submissions and invoices will appear here as they happen."
               />
             ) : (
-              <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              <ul className="divide-y divide-[color:var(--color-hairline)]">
                 {filtered.map((e) => (
                   <TimelineRow key={e.id} event={e} />
                 ))}
@@ -414,11 +415,14 @@ function Stat({
   value,
   hint,
   tone = 'neutral',
+  mono = false,
 }: {
   label: string
   value: string
   hint?: string
   tone?: 'neutral' | 'ok' | 'warn'
+  /** Money/count values render in Geist Mono (the financial-instrument signature). */
+  mono?: boolean
 }) {
   const valueClass =
     tone === 'warn'
@@ -429,7 +433,7 @@ function Stat({
   return (
     <div>
       <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
-      <p className={`text-sm font-semibold mt-0.5 tabular-nums ${valueClass}`}>{value}</p>
+      <p className={`text-sm font-semibold mt-0.5 tabular-nums ${mono ? 'font-mono-num' : ''} ${valueClass}`}>{value}</p>
       {hint && <p className="text-xs text-gray-500 dark:text-gray-400 capitalize" suppressHydrationWarning>{hint}</p>}
     </div>
   )
@@ -454,7 +458,7 @@ function SendPortalInviteButton({ patientId }: { patientId: string }) {
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50"
+        className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline disabled:opacity-50"
       >
         {pending ? 'Sending…' : 'Send portal invite →'}
       </button>
@@ -498,7 +502,7 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
   }
   if (items.length === 0) {
     return (
-      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
+      <div className="bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/20 rounded-lg px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1">
           Nothing pending
         </p>
@@ -509,7 +513,7 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
     )
   }
   return (
-    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+    <div className="bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 rounded-lg px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">
         Needs attention
       </p>
@@ -522,13 +526,13 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
                 patientId={header.id}
                 forms={forms}
                 label="Send intake →"
-                className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50"
+                className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline disabled:opacity-50"
               />
             )}
             {it.cta && (
               <Link
                 href={it.cta.href}
-                className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
               >
                 {it.cta.label} →
               </Link>
@@ -544,7 +548,7 @@ function IdentityCard({ header }: { header: PatientHeader }) {
   const address = [header.addressLine1, [header.city, header.state].filter(Boolean).join(', '), header.postalCode]
     .filter(Boolean).join(' · ')
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-4 space-y-3">
+    <div className="v2-card px-4 py-4 space-y-3">
       <div>
         <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Contact</p>
         <p className="text-sm text-gray-800 dark:text-gray-100 break-all">{header.email ?? '—'}</p>
@@ -690,7 +694,7 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
     </div>
   )
   return (
-    <li className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
+    <li className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30">
       {event.href ? <Link href={event.href} className="block">{inner}</Link> : inner}
     </li>
   )

@@ -66,7 +66,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
             <ActionButton variant="secondary" href="/marketing">
               ← Recall dashboard
             </ActionButton>
-            <ActionButton variant="primary" onClick={() => setEditing('new')}>
+            <ActionButton variant="primary" breath onClick={() => setEditing('new')}>
               + New audience
             </ActionButton>
           </>
@@ -74,25 +74,23 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
       />
 
       {initial.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-          <EmptyState
-            icon="🎯"
-            title="No saved segments yet."
-            body='Use "+ New audience" above to slice your roster into a reusable list for campaign sends.'
-          />
-        </div>
+        <EmptyState
+          icon="🎯"
+          title="No saved segments yet."
+          body='Use "+ New audience" above to slice your roster into a reusable list for campaign sends.'
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {initial.map((a) => (
             <div
               key={a.id}
-              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4"
+              className="v2-card p-4"
             >
               <div className="flex items-start justify-between gap-2 mb-1">
                 <h3 className="font-semibold text-sm text-gray-800 dark:text-gray-100">
                   {a.name}
                 </h3>
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0 tabular-nums">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0 tabular-nums font-mono-num">
                   {a.recipientCount} {a.recipientCount === 1 ? 'recipient' : 'recipients'}
                 </span>
               </div>
@@ -102,7 +100,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
                 </p>
               )}
               <AudienceFilterSummary audience={a} stages={stages} />
-              <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
+              <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
                 <ActionButton variant="ghost" size="sm" onClick={() => setEditing(a)}>
                   Edit
                 </ActionButton>
@@ -277,14 +275,14 @@ function CustomerAudienceEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/60 sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur">
+        <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] sticky top-0 bg-[color:var(--color-surface-2)]/95 backdrop-blur">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             {audience ? 'Edit audience' : 'New audience'}
           </h2>
@@ -298,7 +296,7 @@ function CustomerAudienceEditor({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Trial users week 1"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="form-input w-full"
             />
           </div>
           <div>
@@ -309,7 +307,7 @@ function CustomerAudienceEditor({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What this segment is used for"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="form-input w-full"
             />
           </div>
 
@@ -355,7 +353,7 @@ function CustomerAudienceEditor({
                   lastActivityWithinDays: v === '' ? undefined : Number(v),
                 }))
               }}
-              className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="form-select w-full"
             >
               <option value="">Any</option>
               <option value="7">Active in last 7 days</option>
@@ -366,7 +364,7 @@ function CustomerAudienceEditor({
             </select>
           </div>
 
-          <div className="bg-stone-50 dark:bg-gray-900/40 rounded-lg p-3">
+          <div className="v2-well p-3">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                 Preview
@@ -400,7 +398,7 @@ function CustomerAudienceEditor({
             )}
           </div>
         </div>
-        <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-gray-800">
+        <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex justify-end gap-2 sticky bottom-0 bg-[color:var(--color-surface-2)]">
           <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>
@@ -518,14 +516,14 @@ function PatientAudienceEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/60 sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur z-10">
+        <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] sticky top-0 bg-[color:var(--color-surface-2)]/95 backdrop-blur z-10">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             {audience ? 'Edit patient segment' : 'New patient segment'}
           </h2>
@@ -543,7 +541,7 @@ function PatientAudienceEditor({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Lapsed family patients"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="form-input w-full"
             />
           </div>
 
@@ -555,7 +553,7 @@ function PatientAudienceEditor({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What this segment is used for"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="form-input w-full"
             />
           </div>
 
@@ -596,7 +594,7 @@ function PatientAudienceEditor({
                   lastVisitAtLeastDaysAgo: v === '' ? undefined : Number(v),
                 }))
               }}
-              className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="form-select w-full"
             >
               {LAST_VISIT_OPTIONS.map((o) => (
                 <option key={o.key} value={o.key}>{o.label}</option>
@@ -619,7 +617,7 @@ function PatientAudienceEditor({
             />
           </div>
 
-          <div className="bg-stone-50 dark:bg-gray-900/40 rounded-lg p-3 space-y-2">
+          <div className="v2-well p-3 space-y-2">
             <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
               Channel eligibility
             </p>
@@ -677,7 +675,7 @@ function PatientAudienceEditor({
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-gray-800">
+        <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex justify-end gap-2 sticky bottom-0 bg-[color:var(--color-surface-2)]">
           <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>
@@ -740,7 +738,7 @@ function ToggleField({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-400"
+        className="form-checkbox mt-0.5 h-4 w-4"
       />
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-700 dark:text-gray-200 leading-tight">{label}</p>

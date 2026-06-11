@@ -3,8 +3,8 @@ import { ROLE_LABELS, EMPLOYMENT_LABELS, type JobPostingRow } from '@/lib/types/
 import { createJobAction, updateJobAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
 
-const FIELD = 'w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800'
-const LABEL = 'block text-[12px] font-medium text-stone-700 dark:text-stone-200 mb-1'
+const FIELD = 'w-full text-sm px-3 py-2 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+const LABEL = 'block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1'
 
 export default function JobForm({ job }: { job?: JobPostingRow }) {
   const editing = !!job
@@ -12,10 +12,10 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
       <div className="mb-5">
-        <Link href="/careers" className="text-[12px] text-stone-500 dark:text-stone-400 hover:underline">
+        <Link href="/careers" className="text-xs text-gray-500 dark:text-gray-400 hover:underline">
           ← Back to Careers
         </Link>
-        <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight mt-1">
           {editing ? 'Edit role' : 'New role'}
         </h1>
       </div>
@@ -65,7 +65,7 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
         </div>
 
         {/* Compensation */}
-        <div className="rounded-lg border border-stone-200 dark:border-stone-700/60 p-4">
+        <div className="v2-card p-4">
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={LABEL}>Pay min ($)</label>
@@ -83,7 +83,7 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
               </select>
             </div>
           </div>
-          <label className="flex items-center gap-2 mt-3 text-[12px] text-stone-600 dark:text-stone-300">
+          <label className="flex items-center gap-2 mt-3 text-xs text-gray-600 dark:text-gray-300">
             <input type="checkbox" name="showComp" defaultChecked={job ? job.showComp : true} className="rounded" />
             Show pay range on the public listing (recommended — listings with pay get more applicants)
           </label>
@@ -118,7 +118,7 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
           <ActionButton type="submit" variant="primary">
             {editing ? 'Save changes' : 'Create role'}
           </ActionButton>
-          <Link href="/careers" className="text-sm text-stone-500 dark:text-stone-400 hover:underline">
+          <Link href="/careers" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
             Cancel
           </Link>
         </div>

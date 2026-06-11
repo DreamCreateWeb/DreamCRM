@@ -188,11 +188,11 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           : '/marketing/campaigns'
         return (
           <section key={tier.key} className="mb-6">
-            <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-t-xl border ${TIER_ACCENT_BG[tier.accent]}`}>
+            <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-t-[var(--r-lg)] border ${TIER_ACCENT_BG[tier.accent]}`}>
               <div>
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   {tier.label}
-                  <span className="text-xs font-medium opacity-80 tabular-nums">
+                  <span className="text-xs font-medium opacity-80 tabular-nums font-mono-num">
                     · {recipients.length} {recipients.length === 1 ? 'patient' : 'patients'}
                   </span>
                 </h2>
@@ -205,7 +205,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
               )}
             </div>
             {recipients.length === 0 ? (
-              <div className="border border-t-0 border-gray-200 dark:border-gray-700/60 rounded-b-xl bg-white dark:bg-gray-800">
+              <div className="border border-t-0 border-[color:var(--color-hairline)] rounded-b-[var(--r-lg)] bg-[color:var(--color-surface-2)]">
                 <EmptyState
                   icon="✅"
                   title="No patients in this tier right now."
@@ -213,13 +213,13 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
                 />
               </div>
             ) : (
-              <div className="border border-t-0 border-gray-200 dark:border-gray-700/60 rounded-b-xl bg-white dark:bg-gray-800 overflow-hidden">
-                <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
+              <div className="border border-t-0 border-[color:var(--color-hairline)] rounded-b-[var(--r-lg)] bg-[color:var(--color-surface-2)] overflow-hidden">
+                <ul className="divide-y divide-[color:var(--color-hairline)]">
                   {recipients.slice(0, 50).map((r) => (
                     <li key={r.id}>
                       <Link
                         href={`/patients/${r.patientId}`}
-                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 dark:hover:bg-gray-900/30"
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors"
                       >
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
@@ -242,7 +242,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
                   ))}
                 </ul>
                 {recipients.length > 50 && (
-                  <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700/40 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="px-4 py-2 border-t border-[color:var(--color-hairline)] text-xs text-gray-500 dark:text-gray-400">
                     … and {recipients.length - 50} more — narrow with filters above or send the full campaign.
                   </div>
                 )}
@@ -268,19 +268,21 @@ function TierChip({
   count: number | null
   accent?: 'amber' | 'rose' | 'emerald' | 'violet'
 }) {
-  const activeAccent = accent ? TIER_ACCENT_BG[accent] : 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800 border-gray-900 dark:border-gray-100'
+  // Active "All tiers" = teal selection (selection ≠ status, per Part 2);
+  // the accent-tier chips carry their own tone band when active.
+  const activeAccent = accent ? TIER_ACCENT_BG[accent] : 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-[color:var(--color-hairline-strong)]'
   return (
     <Link
       href={href}
       className={
         active
           ? `text-xs font-semibold px-3 py-1.5 rounded-full border ${activeAccent}`
-          : 'text-xs font-medium px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-200'
+          : 'text-xs font-medium px-3 py-1.5 rounded-full bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] hover:border-[color:var(--color-hairline-strong)] text-gray-700 dark:text-gray-200 transition-colors'
       }
     >
       {label}
       {count != null && (
-        <span className={active ? 'ml-1.5 opacity-80 tabular-nums' : 'ml-1.5 text-gray-500 dark:text-gray-400 tabular-nums'}>
+        <span className={active ? 'ml-1.5 opacity-80 tabular-nums font-mono-num' : 'ml-1.5 text-gray-500 dark:text-gray-400 tabular-nums font-mono-num'}>
           {count}
         </span>
       )}

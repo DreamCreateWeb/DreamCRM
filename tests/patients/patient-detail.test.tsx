@@ -211,3 +211,63 @@ describe('PatientDetail timeline', () => {
     expect(all).toHaveTextContent('7')
   })
 })
+
+// ── Design System v2 vocabulary ───────────────────────────────────────
+// Pin the instrument-panel skin: etched v2-cards (no flat white), Geist
+// Mono on the money stats, and indigo (info) tone on the ball-in-their-court
+// message pill (DESIGN-SYSTEM.md Parts 1/2/5).
+describe('PatientDetail v2 skin', () => {
+  const event = (overrides: Partial<TimelineEvent>): TimelineEvent => ({
+    id: 'e_1',
+    kind: 'appointment',
+    occurredAt: new Date('2026-05-10T09:00:00Z'),
+    title: 'cleaning',
+    subtitle: null,
+    status: null,
+    direction: null,
+    href: null,
+    body: null,
+    agingDays: null,
+    ...overrides,
+  })
+
+  it('renders the header + identity rail as etched v2-cards, no flat white card', () => {
+    const { container } = render(
+      <PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} />,
+    )
+    // Header + identity rail + notes + timeline all moved to .v2-card.
+    expect(container.querySelectorAll('.v2-card').length).toBeGreaterThanOrEqual(2)
+    // The legacy flat-white surface must be gone from the data containers
+    // (secondary buttons like the EncodingLegend "Key" keep a white skin).
+    expect(container.querySelector('header.bg-white')).toBeNull()
+  })
+
+  it('renders the Balance and Shop-purchases figures in Geist Mono', () => {
+    const { container } = render(
+      <PatientDetail
+        header={header({ outstandingBalanceCents: 45000, shopSpendCents: 24000 })}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+      />,
+    )
+    const mono = Array.from(container.querySelectorAll('.font-mono-num'))
+    expect(mono.some((n) => n.textContent?.includes('$450'))).toBe(true)
+    expect(mono.some((n) => n.textContent?.includes('$240'))).toBe(true)
+  })
+
+  it('uses the indigo info tone on the inbound-message pill (ball in their court)', () => {
+    const h = header({ nextVisitAt: null, nextVisitType: null })
+    render(
+      <PatientDetail
+        header={h}
+        timeline={[event({ kind: 'message', title: 'Sarah messaged', direction: 'in' })]}
+        counts={{ all: 1, appointments: 0, messages: 1, forms: 0, billing: 0, notes: 0 }}
+        notes={[]}
+      />,
+    )
+    const pill = screen.getByText('From patient')
+    // info → indigo per the v2 encodings registry (was sky in v1).
+    expect(pill.className).toMatch(/indigo/)
+  })
+})

@@ -13,6 +13,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { patientFlagGlyphs, type Tone, type GlyphId, type PillLegendRow } from '@/lib/ui/encodings'
+import { MorningReveal } from './morning-reveal'
 
 // Appointment status → semantic tone + plain-language label. The tone carries
 // the meaning per the design-system contract (warn = needs our action,
@@ -117,7 +118,8 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             <ActionButton href="/appointments" variant="secondary">
               Open agenda
             </ActionButton>
-            <ActionButton href="/appointments?window=today" variant="primary">
+            {/* The page's single primary — carries the ambient breath. */}
+            <ActionButton href="/appointments?window=today" variant="primary" breath>
               + New booking
             </ActionButton>
           </>
@@ -129,7 +131,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         <section className="mb-6">
           <div
             className={[
-              'rounded-xl border p-4 flex items-start gap-3',
+              'rounded-[var(--r-lg)] border p-4 flex items-start gap-3',
               data.integrationsHealth.severity === 'error'
                 ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30'
                 : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
@@ -184,8 +186,10 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       )}
 
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
+      {/* Signature moment: this row cascades in once on first session entry
+          (MorningReveal), in the same beat the KPIs below count up. */}
       <section className="mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MorningReveal className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <AttentionCard
             title="Unconfirmed"
             count={data.unconfirmed.count}
@@ -285,17 +289,17 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               emptyCopy="No paid orders waiting to ship or be picked up."
             />
           )}
-        </div>
+        </MorningReveal>
       </section>
 
       {/* ── Row 2 — Today's chair ────────────────────────────────────── */}
       <section className="mb-8">
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+        <div className="v2-card overflow-hidden">
+          <div className="v2-well rounded-none px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
               Today&rsquo;s chair
             </h2>
-            <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+            <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
               {data.todaysAppointments.length}{' '}
               {data.todaysAppointments.length === 1 ? 'appointment' : 'appointments'}
             </span>
@@ -307,7 +311,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               body="Go enjoy a quiet morning."
             />
           ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+            <ul className="divide-y divide-[color:var(--color-hairline)]">
               {data.todaysAppointments.map((a) => (
                 <TodayChairRow key={a.id} appt={a} />
               ))}
@@ -317,12 +321,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       </section>
 
       {/* ── Row 3 — Trend tiles ──────────────────────────────────────── */}
+      {/* The Overview's hero KPIs count up once on first session entry, in the
+          same beat as the attention-card cascade (Part 3). */}
       <section className="mb-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiStat
             label="Bookings today"
             value={data.trends.bookingsToday}
             sub="across all channels"
+            countUp
           />
           <KpiStat
             label="New patients MTD"
@@ -333,27 +340,30 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                 : `${mtdDelta >= 0 ? '+' : ''}${mtdDelta} vs last month`
             }
             tone={data.trends.newPatientsLastMTD === 0 ? undefined : mtdDelta >= 0 ? 'ok' : 'urgent'}
+            countUp
           />
           <KpiStat
             label="Upcoming"
             value={data.trends.upcomingNext7d}
             sub="next 7 days"
             href="/appointments?window=this_week"
+            countUp
           />
           <KpiStat
             label="Intake forms"
             value={data.trends.activeIntakeForms}
             sub={data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'}
             href="/intake-forms"
+            countUp
           />
         </div>
       </section>
 
       {/* ── Row 4 — Recent activity ──────────────────────────────────── */}
       <section className="mb-8">
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+        <div className="v2-card overflow-hidden">
+          <div className="v2-well rounded-none px-5 py-4 border-b border-[color:var(--color-hairline)]">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
               Recent activity
             </h2>
           </div>
@@ -363,7 +373,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               body="Bookings, intake submissions, and paid invoices will appear here."
             />
           ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+            <ul className="divide-y divide-[color:var(--color-hairline)]">
               {data.recentActivity.map((a) => {
                 const inner = (
                   <div className="flex items-start gap-3">
@@ -384,7 +394,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                   </div>
                 )
                 return (
-                  <li key={a.id} className="px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
+                  <li key={a.id} className="px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30">
                     {a.href ? (
                       <Link href={a.href} className="block">{inner}</Link>
                     ) : (
@@ -436,13 +446,13 @@ function AttentionCard({
   children?: React.ReactNode
 }) {
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 flex flex-col">
+    <div className="v2-card h-full p-5 flex flex-col">
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
         {title}
       </p>
       <div className="flex items-baseline gap-2 mb-2">
         {/* Zero keeps full contrast — an empty queue is information, not decoration. */}
-        <span className="text-3xl font-bold tabular-nums text-gray-800 dark:text-gray-100">
+        <span className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">
           {count}
         </span>
         <span className="text-xs text-gray-500 dark:text-gray-400">{countSuffix}</span>
@@ -455,9 +465,11 @@ function AttentionCard({
         <ul className="text-sm text-gray-700 dark:text-gray-200 mt-1 flex-1">{children}</ul>
       )}
       {cta && (
+        // Attention-card CTAs are ghost links (teal = identity, not status);
+        // the page's one primary lives in the header.
         <Link
           href={cta.href}
-          className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline mt-3 self-start"
+          className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 hover:underline mt-3 self-start"
         >
           {cta.label} →
         </Link>
@@ -483,15 +495,15 @@ function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
   })
 
   return (
-    <li className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
-      <div className="shrink-0 w-16 text-sm font-mono font-medium text-gray-600 dark:text-gray-300 tabular-nums">
+    <li className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+      <div className="shrink-0 w-16 text-sm font-mono-num font-medium text-gray-600 dark:text-gray-300 tabular-nums">
         {fmtTime(appt.startTime)}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <Link
             href={`/patients/${appt.patientId}`}
-            className="font-semibold text-gray-800 dark:text-gray-100 truncate hover:underline"
+            className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:underline"
           >
             {appt.patientName}
           </Link>
@@ -506,7 +518,7 @@ function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
 
 function ComingSoonCard({ title, blurb }: { title: string; blurb: string }) {
   return (
-    <div className="bg-gray-50 dark:bg-gray-900/30 border border-dashed border-gray-200 dark:border-gray-700/60 rounded-xl p-4">
+    <div className="v2-well border border-dashed border-[color:var(--color-hairline-strong)] p-4">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           {title}
@@ -525,19 +537,19 @@ function ComingSoonCard({ title, blurb }: { title: string; blurb: string }) {
 // placeholder (Reviews & Reputation v2 shipped).
 function ReviewsReceivedCard({ completed, sent }: { completed: number; sent: number }) {
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4">
+    <div className="v2-card p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
         Reviews received (30d)
       </p>
       <div className="flex items-baseline gap-2 mb-1">
-        <span className="text-3xl font-bold tabular-nums text-gray-800 dark:text-gray-100">{completed}</span>
+        <span className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">{completed}</span>
         <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
           from {sent} {sent === 1 ? 'request' : 'requests'} sent
         </span>
       </div>
       <Link
         href="/reviews/received"
-        className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+        className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 hover:underline"
       >
         {completed > 0 ? 'Read reviews & feature them' : 'Open Reviews'} →
       </Link>
