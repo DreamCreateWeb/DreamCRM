@@ -73,6 +73,17 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
 
 beforeEach(() => {
   mockGetOverview.mockReset()
+  // Signature moments (KPI count-up + the morning-reveal cascade) run ONCE
+  // per session entry, gated on these sessionStorage flags. Mark them done so
+  // the bulk of these tests assert the steady (returning-visit) state — final
+  // KPI values, statically-rendered cards — not a mid-animation frame. The
+  // dedicated "morning reveal" suite below clears them to exercise the cascade.
+  try {
+    sessionStorage.setItem('v2-countup-done', '1')
+    sessionStorage.setItem('v2-reveal-done', '1')
+  } catch {
+    /* ignore (privacy-mode sessionStorage) */
+  }
 })
 
 describe('ClinicOverview hero', () => {
@@ -83,6 +94,57 @@ describe('ClinicOverview hero', () => {
     expect(screen.getByText(/Morning huddle/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Acme Dental' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /\+ New booking/i })).toBeInTheDocument()
+  })
+})
+
+describe('Design System v2 migration', () => {
+  it('has exactly ONE primary action, and it carries the ambient breath', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const { container } = render(ui)
+    // The primary ActionButton fills teal (bg-teal-500) or, with breath, rides
+    // the teal gradient (.breath). Exactly one solid teal primary per page.
+    const breathing = container.querySelectorAll('.breath')
+    expect(breathing).toHaveLength(1)
+    // It's the "+ New booking" CTA (the page's single primary).
+    expect(breathing[0]).toHaveTextContent('+ New booking')
+    // "Open agenda" is a secondary — it must NOT be a teal primary.
+    const openAgenda = screen.getByRole('link', { name: /Open agenda/i })
+    expect(openAgenda.className).not.toContain('bg-teal-500')
+    expect(openAgenda.className).not.toContain('breath')
+  })
+
+  it('renders KPI numerals in the financial-instrument mono face', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        trends: {
+          bookingsToday: 7,
+          newPatientsMTD: 9,
+          newPatientsLastMTD: 4,
+          upcomingNext7d: 11,
+          activeIntakeForms: 2,
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const { container } = render(ui)
+    // KpiStat (adopted for every trend tile) renders its hero number in
+    // Geist Mono via the `font-mono-num` utility.
+    const mono = container.querySelectorAll('.font-mono-num')
+    expect(mono.length).toBeGreaterThan(0)
+    // The trend KPIs themselves are mono.
+    const bookings = screen.getByText('7')
+    expect(bookings.className).toContain('font-mono-num')
+    expect(bookings.className).toContain('tabular-nums')
+  })
+
+  it('uses etched v2 surfaces (no resting drop-shadow) for the cards', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const { container } = render(ui)
+    // The Mosaic flat-white card recipe is gone; v2 etched surfaces are in.
+    expect(container.querySelector('.shadow-sm')).toBeNull()
+    expect(container.querySelectorAll('.v2-card').length).toBeGreaterThan(0)
   })
 })
 
