@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import type {
   AppointmentRow,
   AppointmentDayGroup,
@@ -155,13 +155,27 @@ export default function AgendaView({
   const router = useRouter()
   const params = useSearchParams()
   const [openDetail, setOpenDetail] = useState<string | null>(null)
-  const [newBookingOpen, setNewBookingOpen] = useState(false)
+  // ?new=1 (the header "+ New ▾" quick-create + ⌘K "Add a booking") opens the
+  // new-booking drawer on arrival, then we strip the param so closing it and
+  // refreshing doesn't pop the drawer back open.
+  const [newBookingOpen, setNewBookingOpen] = useState(() => params.get('new') === '1')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [_pending, startTransition] = useTransition()
   const [bulkPending, startBulk] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
+
+  // Consume the ?new=1 deep-link once: drop it from the URL (replace, no
+  // history entry) so the drawer's open state is owned by React from here on.
+  useEffect(() => {
+    if (params.get('new') !== '1') return
+    const next = new URLSearchParams(params.toString())
+    next.delete('new')
+    const qs = next.toString()
+    router.replace(qs ? `/appointments?${qs}` : '/appointments')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString())

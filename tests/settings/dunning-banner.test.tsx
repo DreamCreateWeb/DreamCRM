@@ -31,7 +31,9 @@ describe('BillingDunningBanner — render matrix (status × role × tenant)', ()
   it('renders for a clinic owner with past_due', () => {
     render(<BillingDunningBanner ctx={ctx({ subscriptionStatus: 'past_due' })} />)
     expect(screen.getByRole('alert')).toBeInTheDocument()
-    expect(screen.getByText(/last payment didn't go through/i)).toBeInTheDocument()
+    // v2 slimmed the band to a single-line chip; the message wording changed
+    // but the intent (a payment-failure nudge + recovery CTA) is unchanged.
+    expect(screen.getByText(/payment didn't go through/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Update payment/i })).toBeInTheDocument()
   })
 

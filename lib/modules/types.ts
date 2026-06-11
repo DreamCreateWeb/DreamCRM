@@ -33,6 +33,21 @@ export interface ModuleDef {
 
   /** Whether this module is currently implemented or coming soon. */
   status?: 'live' | 'soon'
+
+  /**
+   * Pin this module into the sidebar's label-less "cockpit" zone (the
+   * every-second-glance surfaces that sit above the grouped nav). Pinned
+   * entries ALSO remain listed inside their `section` group — the cockpit is
+   * a fast-access duplicate, not a relocation. See DESIGN-SYSTEM.md Part 4.
+   */
+  pinned?: boolean
+
+  /**
+   * Keyboard shortcut hint shown beside a pinned cockpit entry (e.g. '⌘1').
+   * Display-only here; the actual key handling lives in the shell's keyboard
+   * map, which navigates to the pinned entries in registry order (⌘1/⌘2/⌘3).
+   */
+  shortcut?: string
 }
 
 export interface ModuleRegistry {
