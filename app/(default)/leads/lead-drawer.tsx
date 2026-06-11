@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus } from '@/lib/services/leads'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -60,6 +60,31 @@ export default function LeadDrawer({
   // — we confirm before merging so a shared family phone doesn't silently
   // fold a child lead into a parent's record.
   const [dedupeMatch, setDedupeMatch] = useState<string | null>(null)
+  // Surfaced on drawer OPEN (not just inside Convert): if this lead's
+  // email/phone already matches a patient, show a heads-up chip so staff
+  // know before they call/convert. Same dry-run the convert step uses.
+  const [existingHint, setExistingHint] = useState<string | null>(null)
+
+  // Run the dedupe dry-run when the drawer opens for an actionable lead
+  // (new / contacted). Converted leads already link to their patient; the
+  // chip would be redundant. Best-effort — a failed preview just hides it.
+  useEffect(() => {
+    if (row.status !== 'new' && row.status !== 'contacted') return
+    let cancelled = false
+    async function checkExisting() {
+      try {
+        const res = await previewLeadConvertAction(row.id)
+        if (cancelled) return
+        if ('ok' in res && res.ok && res.matchedPatientName) {
+          setExistingHint(res.matchedPatientName)
+        }
+      } catch {
+        // non-blocking — leave the chip hidden
+      }
+    }
+    void checkExisting()
+    return () => { cancelled = true }
+  }, [row.id, row.status])
 
   function flash(msg: string) {
     setToast(msg)
@@ -157,6 +182,17 @@ export default function LeadDrawer({
                 </span>
               )}
             </div>
+            {/* Existing-patient heads-up surfaced on open (info/sky — the
+                ball isn't ours, it's just useful context before converting). */}
+            {existingHint && (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-sky-500/10 px-2 py-1 text-xs text-sky-700 dark:text-sky-300">
+                <span aria-hidden="true">↪</span>
+                <span>
+                  Looks like an existing patient:{' '}
+                  <span className="font-semibold">{existingHint}</span>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Contact */}

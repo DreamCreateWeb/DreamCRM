@@ -6,12 +6,16 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listOrders } from '@/lib/services/orders'
 import { formatMoney, formatShortDate } from '@/lib/utils'
 
 export default async function Cart3() {
   const ctx = await requireTenant()
+  // The clinic's commerce surface is /shop — this generic Mosaic order
+  // confirmation isn't in their nav. (Mirrors the /calendar clinic redirect.)
+  if (ctx.tenantType === 'clinic') redirect('/shop')
   const orders = await listOrders(ctx.organizationId)
   const lastOrder = orders[0]
 

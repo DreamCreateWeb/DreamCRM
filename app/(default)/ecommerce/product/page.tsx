@@ -6,6 +6,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getProductBySlug, listProducts } from '@/lib/services/products'
 import { formatMoney } from '@/lib/utils'
@@ -17,6 +18,11 @@ export default async function Product({
   searchParams: Promise<{ slug?: string }>
 }) {
   const ctx = await requireTenant()
+  // This generic Mosaic product page isn't part of the clinic nav — the
+  // dental Shop lives at /shop. Send clinic tenants there; patients to their
+  // portal. (Mirrors the /calendar → /appointments clinic redirect.)
+  if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'clinic') redirect('/shop')
   const params = await searchParams
   let product = params.slug ? await getProductBySlug(ctx.organizationId, params.slug) : undefined
   if (!product) {

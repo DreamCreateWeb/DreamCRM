@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { inArray } from 'drizzle-orm'
@@ -35,6 +36,11 @@ interface SP {
 
 export default async function Kanban({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireTenant()
+  // The generic Mosaic kanban isn't part of the clinic nav — dental followups
+  // live contextually (Overview attention cards, Patients needs-attention,
+  // Appointments aging, Leads rot). Send clinic tenants to the Overview;
+  // platform keeps the board for product planning. (Mirrors /calendar.)
+  if (ctx.tenantType === 'clinic') redirect('/')
   const params = await searchParams
 
   const filters: TaskFilters = {

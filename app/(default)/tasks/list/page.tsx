@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { inArray } from 'drizzle-orm'
@@ -32,6 +33,10 @@ interface SP {
 
 export default async function TasksList({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireTenant()
+  // The generic Mosaic task list isn't part of the clinic nav — dental
+  // followups live contextually across Overview/Patients/Appointments/Leads.
+  // Send clinic tenants to the Overview; platform keeps the list. (/calendar.)
+  if (ctx.tenantType === 'clinic') redirect('/')
   const params = await searchParams
 
   const filters: TaskFilters = {
