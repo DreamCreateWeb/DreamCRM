@@ -151,6 +151,16 @@ describe('createAndSendReviewRequest — guards', () => {
     expect(sentUpdate).toBeTruthy()
   })
 
+  it('sends FROM the clinic sender identity — not the old hardcoded platform From', async () => {
+    await createAndSendReviewRequest(baseInput)
+    expect(state.sentEmails).toHaveLength(1)
+    // The clinic identity (mocked getClinicSenderIdentity) owns the From + Reply-To.
+    expect(state.sentEmails[0].from).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
+    expect(state.sentEmails[0].replyTo).toBe('front@acmedental.com')
+    // The stale fallback must never appear.
+    expect(state.sentEmails[0].from).not.toContain('DreamCreateWeb.com')
+  })
+
   it('marks the request failed (and rethrows) when the email send throws', async () => {
     delete process.env.RESEND_API_KEY // sendReviewRequestEmail throws on missing key
     await expect(createAndSendReviewRequest(baseInput)).rejects.toThrow(/RESEND_API_KEY/i)
