@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, gte, ilike, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getVisibleModules } from '@/lib/modules'
 import type { TenantContext } from '@/lib/auth/context'
@@ -64,7 +64,7 @@ function quickActions(ctx: TenantContext): SearchResult[] {
 async function searchClinicEntities(orgId: string, q: string): Promise<SearchGroup[]> {
   const pattern = likePattern(q)
 
-  const [patients, leads, visits, threads] = await Promise.all([
+  const [patients, leads, visits, threads, shopOrders] = await Promise.all([
     db
       .select({
         id: schema.patient.id,
@@ -142,6 +142,33 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         ),
       )
       .limit(3),
+    // Shop orders — match the linked patient's name, the order email, or any
+    // product name on the order (EXISTS over shop_order_item).
+    db
+      .select({
+        id: schema.shopOrder.id,
+        name: schema.shopOrder.name,
+        email: schema.shopOrder.email,
+        status: schema.shopOrder.status,
+        totalCents: schema.shopOrder.totalCents,
+        firstName: schema.patient.firstName,
+        lastName: schema.patient.lastName,
+      })
+      .from(schema.shopOrder)
+      .leftJoin(schema.patient, eq(schema.shopOrder.patientId, schema.patient.id))
+      .where(
+        and(
+          eq(schema.shopOrder.organizationId, orgId),
+          or(
+            ilike(schema.shopOrder.email, pattern),
+            ilike(schema.shopOrder.name, pattern),
+            ilike(sql`${schema.patient.firstName} || ' ' || ${schema.patient.lastName}`, pattern),
+            sql`exists (select 1 from ${schema.shopOrderItem} oi where oi.order_id = ${schema.shopOrder.id} and oi.product_name ilike ${pattern})`,
+          ),
+        ),
+      )
+      .orderBy(desc(schema.shopOrder.createdAt))
+      .limit(4),
   ])
 
   const fmtWhen = (d: Date) =>
@@ -194,6 +221,23 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         href: `/messages?thread=${t.id}`,
         kind: 'thread',
       })),
+    })
+  }
+  if (shopOrders.length > 0) {
+    groups.push({
+      label: 'Shop orders',
+      results: shopOrders.map((o) => {
+        const who = o.firstName ? `${o.firstName} ${o.lastName ?? ''}`.trim() : o.name || o.email
+        return {
+          id: `order-${o.id}`,
+          label: `${who} — $${(o.totalCents / 100).toFixed(2)}`,
+          sublabel: o.status === 'paid' ? 'Paid order' : o.status,
+          href: '/shop/orders',
+          // Reuse the 'page' kind so the ⌘K modal's exhaustive glyph map stays
+          // valid without a shared-type change (it navigates to a page anyway).
+          kind: 'page',
+        }
+      }),
     })
   }
   return groups

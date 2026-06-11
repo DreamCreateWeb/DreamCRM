@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { slugify } from '@/lib/utils'
@@ -425,10 +425,23 @@ async function itemsByOrder(orderIds: string[]): Promise<Map<string, OrderItemRo
 
 export async function listOrders(
   organizationId: string,
-  filters: { status?: OrderStatus | 'all' } = {},
+  filters: { status?: OrderStatus | 'all'; search?: string } = {},
 ): Promise<OrderRow[]> {
   const where = [eq(schema.shopOrder.organizationId, organizationId)]
   if (filters.status && filters.status !== 'all') where.push(eq(schema.shopOrder.status, filters.status))
+  // Fuzzy search across order email/name + the linked patient's name. Wildcards
+  // are escaped so a literal "%" can't scan-bomb.
+  const q = filters.search?.trim()
+  if (q) {
+    const pattern = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`
+    where.push(
+      or(
+        ilike(schema.shopOrder.email, pattern),
+        ilike(schema.shopOrder.name, pattern),
+        ilike(sql`${schema.patient.firstName} || ' ' || ${schema.patient.lastName}`, pattern),
+      )!,
+    )
+  }
   const orders = await db
     .select({ o: schema.shopOrder, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
     .from(schema.shopOrder)

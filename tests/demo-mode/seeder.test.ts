@@ -44,6 +44,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.membershipPlan) return 'membership_plan'
     if (t === schema.membership) return 'membership'
     if (t === schema.shopCoupon) return 'shop_coupon'
+    if (t === schema.patientBalancePayment) return 'patient_balance_payment'
     if (t === schema.aiUsageCounter) return 'ai_usage_counter'
     return 'unknown'
   }
@@ -595,12 +596,16 @@ describe('createDemoClinic', () => {
     // Careers: 2 open roles + 1 draft; 7 applicants across the pipeline.
     expect(counts.job_posting).toBe(3)
     expect(counts.job_application).toBe(7)
-    // Shop: catalog of 6 products (7 variants) + 1 config row + 3 demo orders (4 items).
+    // Shop: catalog of 6 products (7 variants) + 1 config row + 4 demo orders
+    // (5 items) — incl. a PAID + UNFULFILLED order (Emma) for the Overview
+    // "Orders to fulfill" card + the shop_order timeline event.
     expect(counts.shop_config).toBe(1)
     expect(counts.shop_product).toBe(6)
     expect(counts.shop_product_variant).toBe(7)
-    expect(counts.shop_order).toBe(3)
-    expect(counts.shop_order_item).toBe(4)
+    expect(counts.shop_order).toBe(4)
+    expect(counts.shop_order_item).toBe(5)
+    // One online balance payment (reconciliation page + timeline event).
+    expect(counts.patient_balance_payment).toBe(1)
     // Memberships: 2 plans + 3 members (personas 0/1/4).
     expect(counts.membership_plan).toBe(2)
     expect(counts.membership).toBe(3)

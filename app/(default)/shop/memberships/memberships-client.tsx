@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCents } from '@/lib/types/shop'
@@ -215,9 +216,18 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
-                        {m.patientName || m.email}
-                      </span>
+                      {m.patientId ? (
+                        <Link
+                          href={`/patients/${m.patientId}`}
+                          className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:underline"
+                        >
+                          {m.patientName || m.email}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
+                          {m.patientName || m.email}
+                        </span>
+                      )}
                       <StatusPill tone={MEMBER_STATUS_TONE[m.status]} label={MEMBERSHIP_STATUS_LABELS[m.status]} />
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">

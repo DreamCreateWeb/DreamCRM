@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 
 export type TimelineKind =
@@ -9,6 +9,13 @@ export type TimelineKind =
   | 'invoice'
   | 'note'
   | 'created'
+  // Commerce + reputation events — real money + feedback the patient generated.
+  // These read the SAME sources the patient portal's getMyBills uses
+  // (shop_order / membership / patient_balance_payment) + reviews.
+  | 'shop_order'
+  | 'membership'
+  | 'balance_payment'
+  | 'review'
 
 export type MessageChannel = 'in_app' | 'email' | 'sms'
 
@@ -86,6 +93,40 @@ interface RawEmailMsg {
   bodyText: string | null
   receivedAt: Date
 }
+interface RawShopOrder {
+  id: string
+  status: string
+  totalCents: number
+  createdAt: Date
+  paidAt: Date | null
+}
+interface RawMembership {
+  id: string
+  status: string
+  planName: string
+  createdAt: Date
+  startedAt: Date | null
+  cancelledAt: Date | null
+}
+interface RawBalancePayment {
+  id: string
+  status: string
+  amountCents: number
+  createdAt: Date
+  paidAt: Date | null
+}
+interface RawReview {
+  id: string
+  rating: number | null
+  reviewText: string | null
+  completedAt: Date | null
+  selectedSite: string | null
+}
+
+/** Compact dollar string from cents for commerce timeline titles. */
+function dollars(cents: number): string {
+  return `$${(Number(cents) / 100).toFixed(2)}`
+}
 
 export async function getPatientTimeline(
   organizationId: string,
@@ -127,7 +168,7 @@ export async function getPatientTimeline(
   const threadId = threadRow?.id ?? null
   const messagesHref = threadId ? `/messages?thread=${threadId}` : '/messages'
 
-  const [appts, msgs, subs, invs, notes, pMessages, emailMessages] = await Promise.all([
+  const [appts, msgs, subs, invs, notes, pMessages, emailMessages, shopOrders, memberships, balancePayments, reviews] = await Promise.all([
     db
       .select({
         id: schema.appointment.id,
@@ -258,7 +299,97 @@ export async function getPatientTimeline(
         ),
       )
       .orderBy(asc(schema.emailMessage.receivedAt)) as Promise<RawEmailMsg[]>,
+    // Shop orders this patient placed (any status — paid is the headline; a
+    // pending/cancelled order is still part of the relationship record).
+    db
+      .select({
+        id: schema.shopOrder.id,
+        status: schema.shopOrder.status,
+        totalCents: schema.shopOrder.totalCents,
+        createdAt: schema.shopOrder.createdAt,
+        paidAt: schema.shopOrder.paidAt,
+      })
+      .from(schema.shopOrder)
+      .where(
+        and(
+          eq(schema.shopOrder.organizationId, organizationId),
+          eq(schema.shopOrder.patientId, patientId),
+        ),
+      )
+      .orderBy(desc(schema.shopOrder.createdAt)) as Promise<RawShopOrder[]>,
+    // Membership enrollments — lifecycle (joined / past-due / cancelled).
+    db
+      .select({
+        id: schema.membership.id,
+        status: schema.membership.status,
+        planName: schema.membershipPlan.name,
+        createdAt: schema.membership.createdAt,
+        startedAt: schema.membership.startedAt,
+        cancelledAt: schema.membership.cancelledAt,
+      })
+      .from(schema.membership)
+      .innerJoin(schema.membershipPlan, eq(schema.membership.planId, schema.membershipPlan.id))
+      .where(
+        and(
+          eq(schema.membership.organizationId, organizationId),
+          eq(schema.membership.patientId, patientId),
+        ),
+      )
+      .orderBy(desc(schema.membership.createdAt)) as Promise<RawMembership[]>,
+    // Online balance payments toward the PMS balance.
+    db
+      .select({
+        id: schema.patientBalancePayment.id,
+        status: schema.patientBalancePayment.status,
+        amountCents: schema.patientBalancePayment.amountCents,
+        createdAt: schema.patientBalancePayment.createdAt,
+        paidAt: schema.patientBalancePayment.paidAt,
+      })
+      .from(schema.patientBalancePayment)
+      .where(
+        and(
+          eq(schema.patientBalancePayment.organizationId, organizationId),
+          eq(schema.patientBalancePayment.patientId, patientId),
+        ),
+      )
+      .orderBy(desc(schema.patientBalancePayment.createdAt)) as Promise<RawBalancePayment[]>,
+    // Completed reviews — the patient left feedback ("Left a 5★ review").
+    db
+      .select({
+        id: schema.reviewRequest.id,
+        rating: schema.reviewRequest.rating,
+        reviewText: schema.reviewRequest.reviewText,
+        completedAt: schema.reviewRequest.completedAt,
+        selectedSite: schema.reviewRequest.selectedSite,
+      })
+      .from(schema.reviewRequest)
+      .where(
+        and(
+          eq(schema.reviewRequest.organizationId, organizationId),
+          eq(schema.reviewRequest.patientId, patientId),
+          eq(schema.reviewRequest.status, 'completed'),
+        ),
+      )
+      .orderBy(desc(schema.reviewRequest.completedAt)) as Promise<RawReview[]>,
   ])
+
+  // Items summary for shop orders ("2× Whitening Kit"), fetched once.
+  const orderItemsByOrder = new Map<string, string[]>()
+  if (shopOrders.length > 0) {
+    const itemRows = await db
+      .select({
+        orderId: schema.shopOrderItem.orderId,
+        productName: schema.shopOrderItem.productName,
+        quantity: schema.shopOrderItem.quantity,
+      })
+      .from(schema.shopOrderItem)
+      .where(inArray(schema.shopOrderItem.orderId, shopOrders.map((o) => o.id)))
+    for (const it of itemRows) {
+      const arr = orderItemsByOrder.get(it.orderId) ?? []
+      arr.push(`${it.quantity}× ${it.productName}`)
+      orderItemsByOrder.set(it.orderId, arr)
+    }
+  }
 
   const events: TimelineEvent[] = []
 
@@ -407,6 +538,88 @@ export async function getPatientTimeline(
     })
   }
 
+  // Shop orders — "2× Whitening Kit — $89 · paid". Links to the orders admin.
+  for (const o of shopOrders) {
+    const items = orderItemsByOrder.get(o.id) ?? []
+    const summary = items.length > 0 ? items.join(', ') : 'Shop order'
+    const paid = o.status === 'paid'
+    events.push({
+      id: `order_${o.id}`,
+      kind: 'shop_order',
+      occurredAt: paid && o.paidAt ? o.paidAt : o.createdAt,
+      title: `${summary} — ${dollars(o.totalCents)}`,
+      subtitle: paid ? 'Paid' : o.status === 'pending' ? 'Pending payment' : o.status,
+      status: o.status,
+      direction: null,
+      href: '/shop/orders',
+      body: null,
+      agingDays: null,
+    })
+  }
+
+  // Membership lifecycle — joined / past-due / cancelled.
+  for (const m of memberships) {
+    const cancelled = m.status === 'cancelled'
+    const occurredAt = cancelled && m.cancelledAt ? m.cancelledAt : (m.startedAt ?? m.createdAt)
+    const verb =
+      m.status === 'cancelled'
+        ? 'Cancelled'
+        : m.status === 'past_due'
+          ? 'Past due on'
+          : m.status === 'pending'
+            ? 'Started joining'
+            : 'Joined'
+    events.push({
+      id: `mem_${m.id}`,
+      kind: 'membership',
+      occurredAt,
+      title: `${verb} ${m.planName}`,
+      subtitle: 'Membership',
+      status: m.status,
+      direction: null,
+      href: '/shop/memberships',
+      body: null,
+      agingDays: null,
+    })
+  }
+
+  // Online balance payments — "Paid $120 toward balance online".
+  for (const p of balancePayments) {
+    const paid = p.status === 'paid'
+    events.push({
+      id: `bp_${p.id}`,
+      kind: 'balance_payment',
+      occurredAt: paid && p.paidAt ? p.paidAt : p.createdAt,
+      title: paid
+        ? `Paid ${dollars(p.amountCents)} toward balance online`
+        : `${dollars(p.amountCents)} balance payment — ${p.status}`,
+      subtitle: 'Online payment',
+      status: p.status,
+      direction: null,
+      href: '/shop/payments',
+      body: null,
+      agingDays: null,
+    })
+  }
+
+  // Completed reviews — "Left a 5★ review".
+  for (const r of reviews) {
+    if (!r.completedAt) continue
+    const stars = r.rating ? `${r.rating}★ ` : ''
+    events.push({
+      id: `review_${r.id}`,
+      kind: 'review',
+      occurredAt: r.completedAt,
+      title: `Left a ${stars}review`,
+      subtitle: r.selectedSite ? `via ${r.selectedSite}` : 'Review',
+      status: null,
+      direction: null,
+      href: '/reviews/received',
+      body: r.reviewText,
+      agingDays: null,
+    })
+  }
+
   // Synthetic "patient added" entry as the floor of the timeline.
   const createdAt = patientRow.firstSeenAt ?? patientRow.createdAt
   events.push({
@@ -435,15 +648,27 @@ export interface TimelineCounts {
   notes: number
 }
 
+/** The timeline kinds that roll up under the "Billing" filter tab — every
+ *  money-shaped event (legacy invoices + the real commerce sources). Keep this
+ *  in sync with BILLING_KINDS in the patient-detail filter. */
+export const BILLING_TIMELINE_KINDS: TimelineKind[] = [
+  'invoice',
+  'shop_order',
+  'balance_payment',
+  'membership',
+]
+
 export function countTimeline(events: TimelineEvent[]): TimelineCounts {
   const counts: TimelineCounts = { all: 0, appointments: 0, messages: 0, forms: 0, billing: 0, notes: 0 }
+  const billing = new Set<TimelineKind>(BILLING_TIMELINE_KINDS)
   for (const e of events) {
     counts.all += 1
     if (e.kind === 'appointment') counts.appointments += 1
     else if (e.kind === 'message') counts.messages += 1
     else if (e.kind === 'form_submission') counts.forms += 1
-    else if (e.kind === 'invoice') counts.billing += 1
     else if (e.kind === 'note') counts.notes += 1
+    else if (billing.has(e.kind)) counts.billing += 1
+    // 'review' + 'created' have no dedicated tab — they show under "All" only.
   }
   return counts
 }
