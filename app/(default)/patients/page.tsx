@@ -68,6 +68,7 @@ export default async function PatientsPage({ searchParams }: PageProps) {
       filters={filters}
       sort={sort}
       orgName={ctx.organizationName}
+      canManage={ctx.role === 'owner' || ctx.role === 'admin'}
     />
     </>
   )

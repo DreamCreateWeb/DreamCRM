@@ -24,6 +24,9 @@ const stubs = {
 }
 
 const updates: Array<{ table: string; values: Record<string, unknown> }> = []
+// Capture the WHERE clause used for the patient lookup so we can assert the
+// email match is case-insensitive (built with a lower() SQL expression).
+const patientWhere: { value: unknown } = { value: null }
 
 vi.mock('@/lib/db', async () => {
   const { patient } = await import('@/lib/db/schema/clinic')
@@ -37,7 +40,10 @@ vi.mock('@/lib/db', async () => {
       else if (t === invitation) table = 'invitation'
       return obj
     }
-    obj.where = () => obj
+    obj.where = (w: unknown) => {
+      if (table === 'patient') patientWhere.value = w
+      return obj
+    }
     obj.limit = async () => {
       const stub =
         table === 'patient'
@@ -73,7 +79,23 @@ beforeEach(() => {
   stubs.patient = null
   stubs.invitation = null
   updates.length = 0
+  patientWhere.value = null
 })
+
+/** Flatten a drizzle SQL/condition tree to a lowercase string for assertions. */
+function sqlText(node: unknown): string {
+  if (node == null) return ''
+  if (typeof node === 'string') return node
+  if (Array.isArray(node)) return node.map(sqlText).join(' ')
+  if (typeof node === 'object') {
+    const o = node as Record<string, unknown>
+    // drizzle SQL carries queryChunks; AND/eq carry nested conditions/value.
+    return [o.queryChunks, o.conditions, o.value, o.left, o.right, o.column, o.name]
+      .map(sqlText)
+      .join(' ')
+  }
+  return ''
+}
 
 describe('linkPatientRecord', () => {
   it('no-ops when not signed in', async () => {
@@ -133,6 +155,22 @@ describe('linkPatientRecord', () => {
     expect(updates).toHaveLength(1)
     expect(updates[0].table).toBe('patient')
     expect(updates[0].values.userId).toBe('u_1')
+  })
+
+  it('matches the patient email case-insensitively (lower() comparison)', async () => {
+    // A patient row whose stored email casing differs from the account email
+    // must still link — the lookup uses a lower() comparison, not exact eq.
+    session.current = {
+      user: { id: 'u_1', email: 'Jane@Example.com' },
+      session: { activeOrganizationId: 'org_1' },
+    }
+    stubs.member = { userId: 'u_1', organizationId: 'org_1', role: 'patient' }
+    stubs.patient = { id: 'pat_1', userId: null }
+    await linkPatientRecord()
+    expect(updates).toHaveLength(1)
+    expect(updates[0].values.userId).toBe('u_1')
+    // Prove the WHERE clause is case-insensitive (built with lower()).
+    expect(sqlText(patientWhere.value).toLowerCase()).toContain('lower')
   })
 
   it('resolves the org from the invitation token even when the session has no active org', async () => {

@@ -20,9 +20,24 @@ import { addPatientNote, deletePatientNote } from '@/lib/services/patient-notes'
 import { getOrCreatePatientThread } from '@/lib/services/patient-messaging'
 import { sendIntakeRequestToPatient } from '@/lib/services/patient-intake-send'
 import { createAndSendReviewRequest } from '@/lib/services/reviews'
+import {
+  importPatients,
+  autoMapColumns,
+  MAX_IMPORT_ROWS,
+  type ColumnMapping,
+  type ImportField,
+  type ImportSummary,
+} from '@/lib/services/patient-import'
+import { parseCsvTable } from '@/lib/csv-parse'
 import { enterDemoMode } from '../ecommerce/customers/admin-actions'
 
-export async function createPatientAction(formData: FormData): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+export async function createPatientAction(
+  formData: FormData,
+): Promise<
+  | { ok: true; id: string }
+  | { ok: false; error: string }
+  | { ok: false; duplicateOf: { id: string; name: string } }
+> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can create patients' }
   const firstName = String(formData.get('firstName') ?? '').trim()
@@ -37,10 +52,16 @@ export async function createPatientAction(formData: FormData): Promise<{ ok: tru
     dateOfBirth: String(formData.get('dateOfBirth') ?? '').trim() || null,
     source: 'manual' as PatientSource,
     lifecycle: 'new',
+    // The add-patient modal sends forceNew=1 only after the user clicks
+    // "Add anyway" on the duplicate prompt.
+    forceNew: String(formData.get('forceNew') ?? '') === '1',
   }
-  const id = await createPatient(input)
+  const result = await createPatient(input)
+  if ('duplicateOf' in result) {
+    return { ok: false, duplicateOf: result.duplicateOf }
+  }
   revalidatePath('/patients')
-  return { ok: true, id }
+  return { ok: true, id: result.id }
 }
 
 export async function updatePatientAction(
@@ -221,14 +242,54 @@ export async function sendPatientPortalInviteAction(
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic staff can invite patients' }
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot send invites' }
 
+  const result = await invitePatientToPortalCore({
+    organizationId: ctx.organizationId,
+    inviterId: ctx.userId,
+    patientId,
+  })
+  if (result.status === 'invited') {
+    revalidatePath(`/patients/${patientId}`)
+    return { ok: true, sentTo: result.email }
+  }
+  return { ok: false, error: result.error }
+}
+
+type InviteCoreResult =
+  | { status: 'invited'; email: string }
+  | { status: 'skipped'; reason: 'no_email' | 'already_linked' | 'archived' | 'not_found'; error: string }
+  | { status: 'error'; error: string }
+
+/**
+ * Create-or-reuse a pending portal invite for one patient and email it. The
+ * single-invite action AND the bulk-invite action both call this, so the skip
+ * rules (no email / already linked / archived) and the email send live in one
+ * place. Caller is responsible for tenant + role gating.
+ */
+async function invitePatientToPortalCore({
+  organizationId,
+  inviterId,
+  patientId,
+}: {
+  organizationId: string
+  inviterId: string
+  patientId: string
+}): Promise<InviteCoreResult> {
   const [p] = await db
-    .select({ email: schema.patient.email, userId: schema.patient.userId, firstName: schema.patient.firstName })
+    .select({
+      email: schema.patient.email,
+      userId: schema.patient.userId,
+      firstName: schema.patient.firstName,
+      isActive: schema.patient.isActive,
+    })
     .from(schema.patient)
-    .where(and(eq(schema.patient.organizationId, ctx.organizationId), eq(schema.patient.id, patientId)))
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
     .limit(1)
-  if (!p) return { ok: false, error: 'Patient not found' }
-  if (!p.email) return { ok: false, error: 'Add an email to this patient before inviting them to the portal.' }
-  if (p.userId) return { ok: false, error: 'This patient already has portal access.' }
+  if (!p) return { status: 'skipped', reason: 'not_found', error: 'Patient not found' }
+  if (p.isActive === 0) return { status: 'skipped', reason: 'archived', error: 'Patient is archived' }
+  if (!p.email) {
+    return { status: 'skipped', reason: 'no_email', error: 'Add an email to this patient before inviting them to the portal.' }
+  }
+  if (p.userId) return { status: 'skipped', reason: 'already_linked', error: 'This patient already has portal access.' }
 
   const email = p.email.toLowerCase().trim()
   // Reuse a still-pending invite for this email rather than piling up rows.
@@ -237,7 +298,7 @@ export async function sendPatientPortalInviteAction(
     .from(schema.invitation)
     .where(
       and(
-        eq(schema.invitation.organizationId, ctx.organizationId),
+        eq(schema.invitation.organizationId, organizationId),
         eq(schema.invitation.email, email),
         eq(schema.invitation.status, 'pending'),
       ),
@@ -247,18 +308,18 @@ export async function sendPatientPortalInviteAction(
   if (!existing) {
     await db.insert(schema.invitation).values({
       id,
-      organizationId: ctx.organizationId,
+      organizationId,
       email,
       role: 'patient',
       status: 'pending',
       expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      inviterId: ctx.userId,
+      inviterId,
     })
   }
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
   try {
-    const sender = await getClinicSenderIdentity(ctx.organizationId)
+    const sender = await getClinicSenderIdentity(organizationId)
     await sendPatientPortalInviteEmail(
       email,
       {
@@ -269,8 +330,137 @@ export async function sendPatientPortalInviteAction(
       sender,
     )
   } catch {
-    return { ok: false, error: 'The invite couldn’t be emailed — please try again.' }
+    return { status: 'error', error: 'The invite couldn’t be emailed — please try again.' }
   }
-  revalidatePath(`/patients/${patientId}`)
-  return { ok: true, sentTo: email }
+  return { status: 'invited', email }
+}
+
+export interface BulkInviteResult {
+  invited: number
+  alreadyLinked: number
+  noEmail: number
+  archived: number
+  errors: number
+}
+
+/**
+ * Bulk portal invite — loops the single-invite core over a selection from the
+ * patients list. Skips patients with no email / already-linked / archived (per
+ * the same rules as the single invite), per-patient try/catch so one failure
+ * doesn't abort the batch. Same role gate as the single invite.
+ */
+export async function bulkInvitePatientsToPortalAction(
+  patientIds: string[],
+): Promise<BulkInviteResult | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic staff can invite patients' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot send invites' }
+  if (patientIds.length === 0) return { ok: false, error: 'No patients selected' }
+
+  const result: BulkInviteResult = { invited: 0, alreadyLinked: 0, noEmail: 0, archived: 0, errors: 0 }
+  for (const patientId of patientIds) {
+    try {
+      const r = await invitePatientToPortalCore({
+        organizationId: ctx.organizationId,
+        inviterId: ctx.userId,
+        patientId,
+      })
+      if (r.status === 'invited') result.invited++
+      else if (r.status === 'skipped' && r.reason === 'already_linked') result.alreadyLinked++
+      else if (r.status === 'skipped' && r.reason === 'no_email') result.noEmail++
+      else if (r.status === 'skipped' && r.reason === 'archived') result.archived++
+      else result.errors++
+    } catch {
+      result.errors++
+    }
+  }
+  revalidatePath('/patients')
+  return result
+}
+
+// ----- CSV import -------------------------------------------------------
+
+export interface ImportPreview {
+  ok: true
+  header: string[]
+  mapping: ColumnMapping
+  /** First 5 data rows, for the preview table. */
+  sample: string[][]
+  totalRows: number
+  /** True when the file exceeds the per-file cap (only the first MAX get imported). */
+  truncated: boolean
+}
+
+async function readCsvFromFormData(formData: FormData): Promise<{ header: string[]; rows: string[][] } | { error: string }> {
+  const file = formData.get('file')
+  if (!(file instanceof File)) return { error: 'No file uploaded.' }
+  if (file.size === 0) return { error: 'That file is empty.' }
+  if (file.size > 10 * 1024 * 1024) return { error: 'That file is too large (max 10 MB).' }
+  const text = await file.text()
+  const { header, rows } = parseCsvTable(text)
+  if (header.length === 0) return { error: 'We couldn’t read any columns from that file.' }
+  return { header, rows }
+}
+
+/**
+ * Parse an uploaded CSV and return its headers, an auto-detected column
+ * mapping, a 5-row preview, and the total count — so the modal can show the
+ * mapping + preview before the user commits. No DB writes.
+ */
+export async function previewImportAction(
+  formData: FormData,
+): Promise<ImportPreview | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can import patients' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can import patients.' }
+  }
+  const parsed = await readCsvFromFormData(formData)
+  if ('error' in parsed) return { ok: false, error: parsed.error }
+  return {
+    ok: true,
+    header: parsed.header,
+    mapping: autoMapColumns(parsed.header),
+    sample: parsed.rows.slice(0, 5),
+    totalRows: parsed.rows.length,
+    truncated: parsed.rows.length > MAX_IMPORT_ROWS,
+  }
+}
+
+/**
+ * Commit the import: re-parse the uploaded file (the client re-sends it
+ * alongside the confirmed mapping) and insert the survivors. Returns the
+ * per-row summary so the UI can report created / duplicates / errors.
+ */
+export async function importPatientsAction(
+  formData: FormData,
+): Promise<(ImportSummary & { ok: true }) | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can import patients' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can import patients.' }
+  }
+  const parsed = await readCsvFromFormData(formData)
+  if ('error' in parsed) return { ok: false, error: parsed.error }
+
+  let mapping: ColumnMapping
+  try {
+    mapping = JSON.parse(String(formData.get('mapping') ?? '{}')) as ColumnMapping
+  } catch {
+    return { ok: false, error: 'The column mapping was invalid — try again.' }
+  }
+  // Need at least a way to derive a first name.
+  const FIELDS: ImportField[] = ['firstName', 'fullName']
+  if (!FIELDS.some((f) => mapping[f] !== undefined)) {
+    return { ok: false, error: 'Map a column to the patient name (first name, or a single name column) before importing.' }
+  }
+
+  const summary = await importPatients({
+    organizationId: ctx.organizationId,
+    rows: parsed.rows,
+    mapping,
+  })
+  revalidatePath('/patients')
+  revalidatePath('/')
+  return { ok: true, ...summary }
 }

@@ -9,11 +9,13 @@ import { acceptPatientPortalInvite } from './patient-invite'
 import AuthHeader from '../auth-header'
 import AuthImage from '../auth-image'
 
+type ClinicBrand = NonNullable<InvitationDetails['brand']>
+
 type Step =
   | { type: 'loading' }
   | { type: 'needsAccount'; details: InvitationDetails }
   | { type: 'accepting' }
-  | { type: 'success'; orgName: string }
+  | { type: 'success'; orgName: string; isClinic: boolean }
   | { type: 'error'; message: string }
 
 function AcceptInviteInner() {
@@ -27,6 +29,11 @@ function AcceptInviteInner() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+  // Clinic branding for the invite's org (null for platform/staff invites,
+  // which keep the default platform style).
+  const [brand, setBrand] = useState<ClinicBrand | null>(null)
+  const [isClinic, setIsClinic] = useState(false)
+  const accent = brand?.brandColor || null
 
   useEffect(() => {
     if (!token) {
@@ -49,9 +56,12 @@ function AcceptInviteInner() {
         return
       }
 
+      setBrand(details.brand ?? null)
+      setIsClinic(details.orgType === 'clinic')
+
       if (sessionResult.data?.session) {
         setStep({ type: 'accepting' })
-        acceptNow(details.orgName, details.role)
+        acceptNow(details.orgName, details.role, details.orgType === 'clinic')
       } else {
         setStep({ type: 'needsAccount', details })
       }
@@ -61,7 +71,7 @@ function AcceptInviteInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  async function acceptNow(orgName: string, role: string) {
+  async function acceptNow(orgName: string, role: string, clinic: boolean) {
     // Patient invites use a dedicated accept path — better-auth's role set is
     // owner/admin/member only, so claiming a patient invite through it would
     // create a clinic 'member' and drop the patient into the admin dashboard.
@@ -71,7 +81,7 @@ function AcceptInviteInner() {
         setStep({ type: 'error', message: r.error })
         return
       }
-      setStep({ type: 'success', orgName })
+      setStep({ type: 'success', orgName, isClinic: clinic })
       return
     }
     const result = await authClient.organization.acceptInvitation({ invitationId: token })
@@ -90,7 +100,7 @@ function AcceptInviteInner() {
     } catch {
       /* non-fatal */
     }
-    setStep({ type: 'success', orgName })
+    setStep({ type: 'success', orgName, isClinic: clinic })
   }
 
   async function handleCreateAccount(e: React.FormEvent<HTMLFormElement>) {
@@ -112,7 +122,7 @@ function AcceptInviteInner() {
     }
 
     setStep({ type: 'accepting' })
-    await acceptNow(details.orgName, details.role)
+    await acceptNow(details.orgName, details.role, details.orgType === 'clinic')
     setSubmitting(false)
   }
 
@@ -134,7 +144,7 @@ function AcceptInviteInner() {
     }
 
     setStep({ type: 'accepting' })
-    await acceptNow(details.orgName, details.role)
+    await acceptNow(details.orgName, details.role, details.orgType === 'clinic')
     setSubmitting(false)
   }
 
@@ -152,16 +162,39 @@ function AcceptInviteInner() {
   if (step.type === 'needsAccount') {
     const { details } = step
     const isSignIn = authMode === 'signin'
+    const isPatient = details.role === 'patient'
 
     return (
       <div className="max-w-sm mx-auto w-full px-4 py-8">
         <div className="mb-6">
-          <p className="text-sm font-medium text-violet-600 dark:text-violet-400 mb-1">
-            You&apos;re invited to join
+          {/* Clinic logo when this is a clinic invite — the patient should feel
+              they're joining THEIR dentist, not generic software. */}
+          {isClinic && brand?.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={brand.logoUrl}
+              alt={details.orgName}
+              className="h-12 w-auto object-contain mb-4"
+            />
+          )}
+          {/* Brand accent when a clinic, else fall back to platform violet. */}
+          <p
+            className={`text-sm font-medium mb-1 ${accent ? '' : 'text-violet-600 dark:text-violet-400'}`}
+            style={accent ? { color: accent } : undefined}
+          >
+            {isPatient ? 'Your patient portal' : "You're invited to join"}
           </p>
-          <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold">{details.orgName}</h1>
+          <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold">
+            {isClinic && isPatient ? `Join ${details.orgName}` : details.orgName}
+          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            as <span className="font-medium capitalize">{details.role}</span>
+            {isClinic && isPatient ? (
+              'See your visits, book appointments, message the office, and fill out forms ahead of time.'
+            ) : (
+              <>
+                as <span className="font-medium capitalize">{details.role}</span>
+              </>
+            )}
           </p>
         </div>
 
@@ -223,7 +256,8 @@ function AcceptInviteInner() {
           <button
             type="submit"
             disabled={submitting}
-            className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-60"
+            className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-gray-900 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+            style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
           >
             {submitting
               ? isSignIn
@@ -245,7 +279,8 @@ function AcceptInviteInner() {
                   setFormError('')
                   setPassword('')
                 }}
-                className="font-medium text-violet-500 hover:text-violet-600"
+                className={`font-medium hover:underline ${accent ? '' : 'text-violet-500 hover:text-violet-600'}`}
+                style={accent ? { color: accent } : undefined}
               >
                 Create one
               </button>
@@ -259,7 +294,8 @@ function AcceptInviteInner() {
                   setFormError('')
                   setPassword('')
                 }}
-                className="font-medium text-violet-500 hover:text-violet-600"
+                className={`font-medium hover:underline ${accent ? '' : 'text-violet-500 hover:text-violet-600'}`}
+                style={accent ? { color: accent } : undefined}
               >
                 Sign in instead
               </button>
@@ -280,13 +316,18 @@ function AcceptInviteInner() {
         </div>
         <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">You&apos;re in!</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-          {step.orgName ? `Welcome to ${step.orgName} on DreamCRM.` : "You've joined successfully."}
+          {step.orgName
+            ? step.isClinic
+              ? `Welcome to ${step.orgName}.`
+              : `Welcome to ${step.orgName} on DreamCRM.`
+            : "You've joined successfully."}
         </p>
         <button
           onClick={() => window.location.assign('/')}
-          className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+          className="btn w-full text-white hover:opacity-90 bg-gray-900 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+          style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
         >
-          Go to dashboard
+          {step.isClinic ? 'Go to my portal' : 'Go to dashboard'}
         </button>
       </div>
     )
