@@ -35,20 +35,20 @@ export default async function RevenuePage() {
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           We&apos;re wiring this up as part of the clinic module pass. In the meantime,
-          view your treatment plans and invoices below.
+          view your storefront payments and orders below.
         </p>
         <div className="flex justify-center gap-2">
           <Link
-            href="/invoices"
+            href="/shop/payments"
             className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
           >
-            Invoices
+            Payments
           </Link>
           <Link
-            href="/ecommerce/orders"
+            href="/shop/orders"
             className="btn-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-700 dark:text-gray-200"
           >
-            Product Orders
+            Orders
           </Link>
         </div>
       </div>

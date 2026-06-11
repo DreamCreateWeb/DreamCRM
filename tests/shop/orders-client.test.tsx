@@ -50,6 +50,38 @@ describe('OrdersClient', () => {
     expect(screen.getByText(/Guest Person/)).toBeInTheDocument()
   })
 
+  // Regression: the Overview "Fulfill orders" card deep-links to
+  // /shop/orders?status=paid. The page parses that into `initialFilter` and
+  // passes it here so the list arrives pre-filtered (the param used to be a
+  // silent no-op — the page ignored searchParams entirely).
+  it('honors initialFilter="paid" so the deep-linked view starts pre-filtered', () => {
+    render(
+      <OrdersClient
+        initialFilter="paid"
+        orders={[
+          order({ id: 'o1', status: 'paid', patientId: 'p1', patientName: 'Mia Hayes' }),
+          order({ id: 'o2', status: 'pending', patientId: 'p2', patientName: 'Liam Brooks' }),
+        ]}
+      />,
+    )
+    // Only the paid order is shown on arrival; the pending one is filtered out.
+    expect(screen.getByRole('link', { name: /Mia Hayes/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Liam Brooks/ })).not.toBeInTheDocument()
+  })
+
+  it('defaults to showing every order when no initialFilter is passed', () => {
+    render(
+      <OrdersClient
+        orders={[
+          order({ id: 'o1', status: 'paid', patientId: 'p1', patientName: 'Mia Hayes' }),
+          order({ id: 'o2', status: 'pending', patientId: 'p2', patientName: 'Liam Brooks' }),
+        ]}
+      />,
+    )
+    expect(screen.getByRole('link', { name: /Mia Hayes/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Liam Brooks/ })).toBeInTheDocument()
+  })
+
   it('filters orders by patient name / product via the search box', () => {
     render(
       <OrdersClient

@@ -255,7 +255,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               {patientAudiences.slice(0, 6).map((a) => (
                 <li key={a.id}>
                   <Link
-                    href={`/marketing/campaigns?audience=${a.id}`}
+                    href={`/marketing/campaigns?prefill_audience=${a.id}`}
                     className="flex items-center justify-between text-sm hover:bg-stone-50 dark:hover:bg-gray-900/30 -mx-2 px-2 py-1.5 rounded"
                   >
                     <span className="font-medium text-gray-700 dark:text-gray-200">{a.name}</span>

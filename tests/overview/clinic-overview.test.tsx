@@ -372,6 +372,28 @@ describe('Trend tiles', () => {
     render(ui)
     expect(screen.getByText(/first month tracking/i)).toBeInTheDocument()
   })
+
+  // Regression: the "Upcoming" KPI deep-links into the appointments agenda.
+  // It used to pass ?window=week, which the appointments page does NOT accept
+  // (its allowlist has `this_week`) so the link silently fell back to the
+  // default window — a dead deep-link. Assert it uses a real window value.
+  it('links the Upcoming KPI to a window the appointments page accepts', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        trends: {
+          bookingsToday: 0,
+          newPatientsMTD: 0,
+          newPatientsLastMTD: 0,
+          upcomingNext7d: 5,
+          activeIntakeForms: 0,
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    const upcoming = screen.getByRole('link', { name: /Upcoming/i })
+    expect(upcoming).toHaveAttribute('href', '/appointments?window=this_week')
+  })
 })
 
 describe('Recent activity feed', () => {

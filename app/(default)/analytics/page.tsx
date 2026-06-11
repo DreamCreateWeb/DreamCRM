@@ -237,7 +237,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                 <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">Recall due now</p>
                 <p className="text-3xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">{a.recall.due}</p>
               </div>
-              <Link href="/patients?filter=recall_due" className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline self-end">
+              <Link href="/patients?status=recall_due" className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline self-end">
                 View list →
               </Link>
             </div>

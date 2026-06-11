@@ -136,6 +136,17 @@ describe('Schedule-health KPIs are drillable', () => {
   })
 })
 
+describe('Recall band drill target uses a param the patients page reads', () => {
+  // Regression: the "Recall due now → View list" link used ?filter=recall_due,
+  // but the patients page reads ?status= (not ?filter=), so the deep-link landed
+  // on the unfiltered patient list. Assert it uses the status param + a value
+  // the patients page's parseStatus accepts.
+  it('links Recall-due "View list" to /patients?status=recall_due', async () => {
+    await renderPage('30', baseAnalytics())
+    expect(hrefOf(/View list/i)).toContain('/patients?status=recall_due')
+  })
+})
+
 describe('Reputation band honesty + window', () => {
   it('shows the measured "Opened the link" count, no reconstructed Opened', async () => {
     await renderPage('30', baseAnalytics())
