@@ -299,4 +299,52 @@ describe('AgendaView', () => {
     // BulkBar uses an explicit-verb label that pluralizes by count.
     expect(screen.getByRole('button', { name: /Send 1 reminder/ })).toBeInTheDocument()
   })
+
+  // ── Design System v2 vocabulary ─────────────────────────────────────
+  // These pin the v2 instrument-panel skin so a regression to the legacy
+  // flat-white-card look fails loudly (DESIGN-SYSTEM.md Parts 2/5).
+  describe('v2 skin', () => {
+    const group = (): AppointmentDayGroup => ({
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [makeRow({ patientName: 'Mia Hayes', startTime: new Date('2026-05-21T09:00:00Z') })],
+      totals: { booked: 1, confirmed: 0, unconfirmed: 1 },
+    })
+
+    it('renders agenda rows as etched v2-cards (no flat white card)', () => {
+      const { container } = render(
+        <AgendaView groups={[group()]} meta={baseMeta} filters={baseFilters} orgName="Acme" />,
+      )
+      const card = container.querySelector('li.v2-card')
+      expect(card).not.toBeNull()
+      // The legacy flat-white data surface must be gone (secondary buttons,
+      // e.g. the EncodingLegend "Key", legitimately keep a white skin — so we
+      // scope the negative check to the agenda row containers).
+      expect(container.querySelector('li.bg-white')).toBeNull()
+    })
+
+    it('renders the time column in Geist Mono (font-mono-num)', () => {
+      render(<AgendaView groups={[group()]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+      // 09:00 UTC formats to a wall-clock time in the test env; assert the
+      // numeral cell carries the mono utility.
+      const timeCell = document.querySelector('.font-mono-num')
+      expect(timeCell).not.toBeNull()
+    })
+
+    it('puts a teal selection ring on a checked row (selection ≠ status)', () => {
+      const { container } = render(
+        <AgendaView groups={[group()]} meta={baseMeta} filters={baseFilters} orgName="Acme" />,
+      )
+      expect(container.querySelector('li.ring-teal-500\\/40')).toBeNull()
+      fireEvent.click(screen.getByLabelText('Select Mia Hayes'))
+      expect(container.querySelector('li.ring-teal-500\\/40')).not.toBeNull()
+    })
+
+    it('renders the filter bar as a v2-panel', () => {
+      const { container } = render(
+        <AgendaView groups={[group()]} meta={baseMeta} filters={baseFilters} orgName="Acme" />,
+      )
+      expect(container.querySelector('.v2-panel')).not.toBeNull()
+    })
+  })
 })

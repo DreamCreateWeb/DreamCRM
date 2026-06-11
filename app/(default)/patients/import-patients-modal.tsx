@@ -104,9 +104,9 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Import patients" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60 flex items-start justify-between">
+    <div role="dialog" aria-modal="true" aria-label="Import patients" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
+      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl flex flex-col max-h-[90vh]">
+        <div className="px-6 py-5 border-b border-[color:var(--color-hairline)] flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Import patients</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -196,9 +196,9 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
                     This file has more than 5,000 rows — only the first 5,000 will be imported.
                   </p>
                 )}
-                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700/60">
+                <div className="overflow-x-auto rounded-lg ring-1 ring-inset ring-[color:var(--color-hairline)]">
                   <table className="table-auto w-full text-xs">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400">
+                    <thead className="bg-[color:var(--color-surface-sunk)] text-gray-500 dark:text-gray-400">
                       <tr>
                         {stage.preview.header.map((h, i) => (
                           <th key={i} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">
@@ -207,7 +207,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                    <tbody className="divide-y divide-[color:var(--color-hairline)]">
                       {stage.preview.sample.map((row, r) => (
                         <tr key={r}>
                           {stage.preview.header.map((_, c) => (
@@ -233,9 +233,9 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
                 <ResultStat n={stage.summary.errors} label="Errors" tone="rose" />
               </div>
               {(stage.summary.duplicates > 0 || stage.summary.errors > 0) && (
-                <div className="rounded-lg border border-gray-100 dark:border-gray-700/60 max-h-48 overflow-y-auto">
+                <div className="rounded-lg ring-1 ring-inset ring-[color:var(--color-hairline)] max-h-48 overflow-y-auto">
                   <table className="table-auto w-full text-xs">
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                    <tbody className="divide-y divide-[color:var(--color-hairline)]">
                       {stage.summary.results
                         .filter((row) => row.status !== 'created')
                         .map((row) => (
@@ -259,7 +259,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
           {error && <p className="text-xs text-rose-700 dark:text-rose-300 mt-3">{error}</p>}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
+        <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
           {stage.type === 'upload' && (
             <>
               <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
@@ -306,8 +306,8 @@ function ResultStat({ n, label, tone }: { n: number; label: string; tone: 'emera
         ? 'text-amber-700 dark:text-amber-300'
         : 'text-rose-700 dark:text-rose-300'
   return (
-    <div className="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-3 text-center">
-      <div className={`text-2xl font-bold tabular-nums ${toneClass}`}>{n}</div>
+    <div className="v2-well px-3 py-3 text-center">
+      <div className={`text-2xl font-bold font-mono-num tabular-nums ${toneClass}`}>{n}</div>
       <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{label}</div>
     </div>
   )

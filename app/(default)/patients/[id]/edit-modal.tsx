@@ -67,10 +67,10 @@ export default function EditPatientModal({
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Edit patient" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Edit {header.fullName}</h2>
+    <div role="dialog" aria-modal="true" aria-label="Edit patient" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
+      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="px-6 py-5 border-b border-[color:var(--color-hairline)]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit {header.fullName}</h2>
         </div>
         <div className="px-6 py-5 space-y-3 overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
@@ -88,14 +88,14 @@ export default function EditPatientModal({
               <Field label="Postal" value={postal} onChange={setPostal} />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/60">
+          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[color:var(--color-hairline)]">
             <Field label="Insurance provider" value={insProvider} onChange={setInsProvider} />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Policy #" value={insPolicy} onChange={setInsPolicy} />
               <Field label="Group #" value={insGroup} onChange={setInsGroup} />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/60">
+          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[color:var(--color-hairline)]">
             <label className="block">
               <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
                 Recall interval
@@ -118,7 +118,7 @@ export default function EditPatientModal({
               </span>
             </label>
           </div>
-          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/60">
+          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[color:var(--color-hairline)]">
             <label className="block">
               <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
                 Family portal access (guardian)
@@ -145,7 +145,7 @@ export default function EditPatientModal({
           </div>
           {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
         </div>
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
+        <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
           <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>

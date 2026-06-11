@@ -44,9 +44,9 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Add patient" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
+    <div role="dialog" aria-modal="true" aria-label="Add patient" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
+      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md flex flex-col">
+        <div className="px-6 py-5 border-b border-[color:var(--color-hairline)]">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Add patient</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Just the basics: name, contact, and date of birth. You can fill in the rest from the patient page.
@@ -77,7 +77,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
           </label>
           {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
           {duplicate && (
-            <div className="rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3 py-2.5">
+            <div className="rounded-lg bg-amber-500/10 ring-1 ring-inset ring-amber-500/30 px-3 py-2.5">
               <p className="text-xs text-amber-800 dark:text-amber-200">
                 Looks like <span className="font-semibold">{duplicate.name}</span> already exists with
                 this email or phone — open their record instead?
