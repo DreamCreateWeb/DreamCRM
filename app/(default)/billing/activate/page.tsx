@@ -36,10 +36,10 @@ export default async function BillingActivatePage() {
         subtitle="We reserved your plan when your account was set up — review it and add billing to unlock everything."
       />
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-6">
+      <div className="v2-card p-6">
         <div className="flex items-baseline justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+            <div className="text-xs font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-400">
               {details.planName} plan
             </div>
             <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -49,26 +49,26 @@ export default async function BillingActivatePage() {
           <div className="text-right">
             {details.discountedPrice != null ? (
               <>
-                <div className="text-sm text-gray-400 dark:text-gray-500 line-through tabular-nums">
+                <div className="text-sm text-gray-500 dark:text-gray-400 line-through font-mono-num tabular-nums">
                   {fmt(details.basePrice)}
                   {per}
                 </div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 font-mono-num tabular-nums">
                   {fmt(details.discountedPrice)}
-                  <span className="text-sm font-normal text-gray-500">{per}</span>
+                  <span className="text-sm font-normal text-gray-500 font-sans">{per}</span>
                 </div>
               </>
             ) : (
-              <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+              <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 font-mono-num tabular-nums">
                 {fmt(details.basePrice)}
-                <span className="text-sm font-normal text-gray-500">{per}</span>
+                <span className="text-sm font-normal text-gray-500 font-sans">{per}</span>
               </div>
             )}
           </div>
         </div>
 
         {details.discountLabel && (
-          <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+          <div className="mt-4 rounded-[var(--r-sm)] bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
             Your pricing: {details.discountLabel} — already applied, no code needed.
           </div>
         )}
@@ -76,7 +76,7 @@ export default async function BillingActivatePage() {
         <div className="mt-6">
           {canActivate ? (
             <form action={startActivationCheckout}>
-              <ActionButton type="submit" variant="primary" className="w-full">
+              <ActionButton type="submit" variant="primary" breath className="w-full justify-center">
                 Add billing &amp; activate →
               </ActionButton>
             </form>

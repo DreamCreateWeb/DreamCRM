@@ -195,7 +195,7 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
               ) : (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Want patient email to come from your own address? {' '}
-                  <a href="/api/oauth/gmail/start" className="text-violet-600 dark:text-violet-400 hover:underline font-medium">
+                  <a href="/api/oauth/gmail/start" className="text-teal-600 dark:text-teal-400 hover:underline font-medium">
                     Connect your Google account
                   </a>{' '}
                   — then pick it here. Until then, email sends from your clinic name on our mail server.

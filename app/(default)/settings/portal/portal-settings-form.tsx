@@ -34,7 +34,7 @@ function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'
+        checked ? 'bg-teal-500' : 'bg-gray-300 dark:bg-gray-600'
       }`}
     >
       <span
@@ -158,7 +158,7 @@ export default function PortalSettingsForm({
                   onClick={() => toggleType(t.value)}
                   className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition-colors ${
                     active
-                      ? 'bg-violet-500 border-violet-500 text-white'
+                      ? 'bg-teal-500 border-teal-500 text-white dark:text-gray-900'
                       : 'bg-white dark:bg-gray-700/40 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
                   }`}
                 >

@@ -54,7 +54,7 @@ export default function FeedbackPanel() {
                         aria-label={`${n} out of 5`}
                         className={`w-3 h-3 rounded-full border-2 ${
                           rating === n
-                            ? 'bg-violet-500 border-violet-500'
+                            ? 'bg-teal-500 border-teal-500'
                             : 'bg-white dark:bg-gray-800 border-gray-400 dark:border-gray-500'
                         }`}
                       />

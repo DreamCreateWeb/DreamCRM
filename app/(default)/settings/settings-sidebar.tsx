@@ -152,15 +152,21 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
               const active = pathname.includes(item.href)
               return (
                 <li key={item.href} className="mr-0.5 md:mr-0 md:mb-0.5">
+                  {/* Active = the main sidebar's v2 language: a 2px teal left bar
+                      + teal-500/10 tint + teal icon + ink-bold label. Teal here
+                      is identity (selection), never a status. */}
                   <Link
                     href={item.href}
-                    className={`flex items-center px-2.5 py-2 rounded-lg whitespace-nowrap ${
-                      active ? 'bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]' : ''
+                    aria-current={active ? 'page' : undefined}
+                    className={`relative flex items-center px-2.5 py-2 rounded-[var(--r-sm)] whitespace-nowrap transition-colors ${
+                      active
+                        ? 'bg-teal-500/10 before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-r before:bg-teal-500'
+                        : 'hover:bg-gray-500/[0.06]'
                     }`}
                   >
                     <svg
                       className={`shrink-0 fill-current mr-2 ${
-                        active ? 'text-violet-500 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'
+                        active ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-500'
                       }`}
                       width="16"
                       height="16"
@@ -171,7 +177,7 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
                     <span
                       className={`text-sm font-medium ${
                         active
-                          ? 'text-violet-500 dark:text-violet-400'
+                          ? 'text-teal-700 dark:text-teal-300'
                           : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'
                       }`}
                     >

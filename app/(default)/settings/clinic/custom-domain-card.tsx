@@ -108,7 +108,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
           href={subdomainUrl}
           target="_blank"
           rel="noreferrer"
-          className="font-medium text-violet-600 hover:underline dark:text-violet-400"
+          className="font-medium text-teal-600 hover:underline dark:text-teal-400"
         >
           {subdomainUrl.replace(/^https?:\/\//, '')}
         </a>{' '}
@@ -156,17 +156,17 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
               domain at us; the certificate record proves you own it. It’s usually live within an
               hour.
             </p>
-            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="overflow-x-auto rounded-[var(--r-md)] shadow-[inset_0_0_0_1px_var(--color-hairline)]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-900/40 text-left">
-                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Purpose</th>
-                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Type</th>
-                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Name / Host</th>
-                    <th className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Value</th>
+                  <tr className="bg-[color:var(--color-surface-sunk)] text-left">
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Purpose</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Type</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Name / Host</th>
+                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Value</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-[color:var(--color-hairline)]">
                   {status.dnsRecords.map((r, i) => (
                     <tr key={`${r.name}-${i}`} className="align-top">
                       <td className="px-3 py-2">
@@ -175,13 +175,13 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
                           label={r.purpose === 'routing' ? 'Routing' : 'Certificate'}
                         />
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
+                      <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300">
                         {r.type}
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
+                      <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
                         {r.name}
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
+                      <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
                         {r.value}
                       </td>
                     </tr>
@@ -205,7 +205,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
               Remove
             </ActionButton>
             {status.lastCheckedAt && (
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                 Last checked {new Date(status.lastCheckedAt).toLocaleString()}
               </span>
             )}

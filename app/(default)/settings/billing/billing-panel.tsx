@@ -84,7 +84,7 @@ export default function BillingPanel({
             <ActionButton variant="primary" size="sm" onClick={handlePortal} disabled={pending}>
               {pending ? 'Opening…' : 'Manage billing in Stripe →'}
             </ActionButton>
-            <Link href="/settings/plans" className="text-xs text-violet-600 dark:text-violet-400 hover:underline text-center sm:text-right">
+            <Link href="/settings/plans" className="text-xs text-teal-600 dark:text-teal-400 hover:underline text-center sm:text-right">
               Change plan
             </Link>
           </div>
@@ -139,7 +139,7 @@ export default function BillingPanel({
                             href={inv.hostedInvoiceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-violet-600 dark:text-violet-400 hover:underline"
+                            className="text-teal-600 dark:text-teal-400 hover:underline"
                           >
                             View →
                           </a>
