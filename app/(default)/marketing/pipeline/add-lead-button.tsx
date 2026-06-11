@@ -58,17 +58,17 @@ export default function AddLeadButton({ stages, sources }: Props) {
 
   return (
     <>
-      <ActionButton variant="primary" onClick={() => setOpen(true)}>
+      <ActionButton variant="primary" breath onClick={() => setOpen(true)}>
         + Add {stages[0]?.label === 'New' ? 'lead' : 'contact'}
       </ActionButton>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5"
+            className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
@@ -80,7 +80,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+                  className="form-input w-full"
                   placeholder="Jane Smith"
                 />
               </Field>
@@ -89,7 +89,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+                  className="form-input w-full"
                   placeholder="jane@example.com"
                 />
               </Field>
@@ -98,7 +98,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+                  className="form-input w-full"
                   placeholder="+1 555 123 4567"
                 />
               </Field>
@@ -107,7 +107,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
                   <select
                     value={form.pipelineStage}
                     onChange={(e) => setForm((f) => ({ ...f, pipelineStage: e.target.value }))}
-                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                    className="form-select w-full"
                   >
                     {stages.map((s) => (
                       <option key={s.key} value={s.key}>
@@ -120,7 +120,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
                   <select
                     value={form.leadSource}
                     onChange={(e) => setForm((f) => ({ ...f, leadSource: e.target.value }))}
-                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                    className="form-select w-full"
                   >
                     {sources.map((s) => (
                       <option key={s} value={s}>
@@ -135,7 +135,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
                   value={form.notes}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   rows={3}
-                  className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
+                  className="form-textarea w-full resize-none"
                   placeholder="Anything to remember about this lead…"
                 />
               </Field>

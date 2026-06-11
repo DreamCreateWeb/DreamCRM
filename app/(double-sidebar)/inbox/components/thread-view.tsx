@@ -65,7 +65,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
           title="Nothing selected"
           body="Pick a conversation from the list to read and reply."
         />
-        <div className="mt-2 flex items-center gap-2.5 text-xs text-stone-500 dark:text-stone-400 tabular-nums tracking-wider">
+        <div className="mt-2 flex items-center gap-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums tracking-wider">
           <Kbd>j</Kbd><Kbd>k</Kbd>
           <span>navigate</span>
           <span className="opacity-40">·</span>
@@ -131,9 +131,9 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
   }
 
   return (
-    <div className="grow overflow-y-auto bg-stone-50/40 dark:bg-stone-900/20">
+    <div className="grow overflow-y-auto bg-gray-50/40 dark:bg-gray-900/20">
       {/* Sticky toolbar — operates on the whole thread */}
-      <div className="sticky top-0 z-10 bg-white/85 dark:bg-stone-900/85 backdrop-blur border-b border-stone-200 dark:border-stone-700/60">
+      <div className="sticky top-0 z-10 bg-white/85 dark:bg-gray-900/85 backdrop-blur border-b border-gray-200 dark:border-gray-700/60">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-1.5">
           {/* The thread's single primary action. */}
           <ActionButton variant="primary" size="sm" onClick={handleReplyClick} disabled={pendingAction} title="Reply (R)" className="gap-1.5">
@@ -142,7 +142,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
             </svg>
             Reply
           </ActionButton>
-          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
+          <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" aria-hidden="true" />
           <ToolbarButton onClick={handleStar} active={anyStarred} shortcut="S" pending={pendingAction}>
             <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill={anyStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
               <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" strokeLinejoin="round" />
@@ -175,9 +175,9 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
             </svg>
             {anyUnread ? 'Read' : 'Unread'}
           </ToolbarButton>
-          <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" />
+          <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
           <MoveToMenu messageId={latest.id} currentCategory={t.category} />
-          <div className="ml-auto text-xs text-stone-500 dark:text-stone-400 tabular-nums tracking-wider hidden sm:block">
+          <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 tabular-nums tracking-wider hidden sm:block">
             {formatShortDate(latest.receivedAt)} · {formatTime(latest.receivedAt)}
           </div>
         </div>
@@ -188,12 +188,12 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
           <div className="min-w-0">
             {/* Subject + intent */}
             <div className="flex items-start gap-2.5 mb-4">
-              <h1 className="text-[20px] leading-snug font-semibold text-stone-900 dark:text-stone-100 tracking-tight">
+              <h1 className="text-[20px] leading-snug font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
                 {t.subject ?? '(no subject)'}
               </h1>
               <div className="pt-1"><IntentBadge intent={t.intent} /></div>
               {t.messages.length > 1 && (
-                <span className="pt-1.5 text-xs text-stone-500 dark:text-stone-400 tabular-nums">
+                <span className="pt-1.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                   {t.messages.length} messages
                 </span>
               )}
@@ -267,10 +267,10 @@ function MessageCard({
   return (
     <div
       className={cn(
-        'rounded-lg border bg-white dark:bg-stone-900/40 transition-colors',
+        'rounded-lg border bg-white dark:bg-gray-900/40 transition-colors',
         open
-          ? 'border-stone-200 dark:border-stone-700/60'
-          : 'border-stone-100 dark:border-stone-800 hover:border-stone-200 dark:hover:border-stone-700/60',
+          ? 'border-gray-200 dark:border-gray-700/60'
+          : 'border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700/60',
       )}
     >
       <button
@@ -284,36 +284,36 @@ function MessageCard({
         <Avatar name={senderName} />
         <div className="min-w-0 grow">
           <div className="flex items-baseline gap-1.5 min-w-0">
-            <span className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate">
+            <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 truncate">
               {senderName}
             </span>
             {message.fromName && (
-              <span className="text-xs text-stone-500 dark:text-stone-400 truncate">
+              <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 &lt;{message.fromEmail}&gt;
               </span>
             )}
-            <span className="ml-auto text-xs text-stone-500 dark:text-stone-400 tabular-nums whitespace-nowrap shrink-0">
+            <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap shrink-0">
               {formatShortDate(message.receivedAt)}, {formatTime(message.receivedAt)}
             </span>
           </div>
           {open ? (
-            <div className="text-xs text-stone-500 dark:text-stone-400 truncate">
+            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
               to {message.toEmails.join(', ')}
               {message.ccEmails.length > 0 && <> · cc {message.ccEmails.join(', ')}</>}
             </div>
           ) : (
-            <div className="text-[12px] text-stone-500 dark:text-stone-400 truncate">
+            <div className="text-[12px] text-gray-500 dark:text-gray-400 truncate">
               {message.snippet ?? message.bodyText?.slice(0, 140) ?? ''}
             </div>
           )}
         </div>
       </button>
       {open && (
-        <div className="px-4 pb-4 pt-2 border-t border-stone-100 dark:border-stone-800">
+        <div className="px-4 pb-4 pt-2 border-t border-gray-100 dark:border-gray-800">
           {bodyHtml ? (
             <EmailIframe html={bodyHtml} />
           ) : (
-            <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-stone-800 dark:text-stone-100">
+            <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-gray-800 dark:text-gray-100">
               {message.bodyText ?? '(empty body)'}
             </pre>
           )}
@@ -346,10 +346,10 @@ function ToolbarButton({
       className={cn(
         'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors',
         variant === 'primary'
-          ? 'bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white'
+          ? 'bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300'
           : active
             ? 'text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10'
-            : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-300 dark:hover:text-stone-100 dark:hover:bg-stone-800',
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800',
         pending && 'opacity-50 cursor-wait',
       )}
     >
@@ -367,7 +367,7 @@ function Avatar({ name }: { name: string }) {
     'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
     'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
     'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
-    'bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200',
+    'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
   ]
   return (
     <div className={cn('w-9 h-9 rounded-full flex items-center justify-center font-semibold text-[13px] shrink-0', colors[hue])}>
@@ -378,7 +378,7 @@ function Avatar({ name }: { name: string }) {
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="px-1.5 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-mono text-xs shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
+    <kbd className="px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-mono text-xs shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
       {children}
     </kbd>
   )

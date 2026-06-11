@@ -247,7 +247,7 @@ export default function PatientsList({
       />
 
       {/* ── Filter chips + search ────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-center">
+      <div className="v2-panel p-4 mb-4 flex flex-wrap gap-3 items-center">
         <form onSubmit={submitSearch} className="flex-1 min-w-[260px]">
           <input
             type="text"
@@ -323,7 +323,7 @@ export default function PatientsList({
       </div>
 
       {/* ── Table ────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
+      <div className="v2-card overflow-hidden">
         {rows.length === 0 ? (
           noFiltersActive ? (
             <EmptyState
@@ -351,7 +351,7 @@ export default function PatientsList({
         ) : (
           <div className="overflow-x-auto">
             <table className="table-auto w-full text-sm">
-              <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700/60">
+              <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
                 <tr>
                   <th className="px-4 py-3 w-8">
                     <input
@@ -381,7 +381,7 @@ export default function PatientsList({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              <tbody className="divide-y divide-[color:var(--color-hairline)]">
                 {rows.map((r) => (
                   <PatientRow
                     key={r.id}
@@ -424,9 +424,10 @@ export default function PatientsList({
         )}
       </BulkBar>
 
-      {/* Loading overlay */}
+      {/* Loading overlay — a faint ink veil while a filter/sort navigation
+          resolves (not a modal scrim). */}
       {isPending && (
-        <div className="fixed inset-0 bg-black/5 dark:bg-white/5 pointer-events-none z-20" />
+        <div className="fixed inset-0 bg-[color:var(--color-ink-900)]/5 dark:bg-white/5 pointer-events-none z-20" />
       )}
 
       {bulkOpen && (
@@ -464,7 +465,13 @@ function PatientRow({
     : 'text-gray-500 dark:text-gray-400'
   const lastVisitDays = daysSince(row.lastVisitAt)
   return (
-    <tr className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
+    <tr
+      className={`hover:bg-gray-50 dark:hover:bg-gray-900/30 ${
+        // Selected row = teal inner ring + faint teal wash (selection ≠ status,
+        // per DESIGN-SYSTEM Part 5).
+        selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
+      }`}
+    >
       <td className="px-4 py-3">
         <input
           type="checkbox"
@@ -519,7 +526,7 @@ function PatientRow({
         <StatusPill tone={recall.tone} label={recall.label} title={recall.title} />
       </td>
       <td
-        className={`px-4 py-3 text-right tabular-nums ${balanceClass}`}
+        className={`px-4 py-3 text-right font-mono-num tabular-nums ${balanceClass}`}
         title={row.outstandingBalanceCents == null ? 'No PMS balance on file' : undefined}
       >
         {row.outstandingBalanceCents == null ? '—' : money(row.outstandingBalanceCents)}

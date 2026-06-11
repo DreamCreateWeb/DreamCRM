@@ -261,7 +261,7 @@ export default function AgendaView({
       {newBookingOpen && <NewBookingDrawer onClose={() => setNewBookingOpen(false)} />}
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 mb-4 space-y-3">
+      <div className="v2-panel p-4 mb-4 space-y-3">
         {/* Date window row */}
         <div className="flex flex-wrap gap-2 items-center">
           {WINDOW_LABELS.map((w) => (
@@ -384,7 +384,7 @@ function DaySection({
   const stillUnconfirmed = group.rows.filter((r) => r.status === 'scheduled').length
   return (
     <section>
-      <div className="sticky top-0 z-10 bg-stone-50 dark:bg-gray-900/60 backdrop-blur px-4 py-2 mb-2 rounded-md border border-stone-200 dark:border-gray-700/60 flex items-center gap-3">
+      <div className="sticky top-0 z-10 bg-[color:var(--color-surface-sunk)]/95 backdrop-blur px-4 py-2 mb-2 rounded-[var(--r-md)] ring-1 ring-inset ring-[color:var(--color-hairline)] flex items-center gap-3">
         <input
           type="checkbox"
           checked={allSelected}
@@ -392,8 +392,8 @@ function DaySection({
           className="form-checkbox shrink-0"
           aria-label={`Select all ${group.label}`}
         />
-        <p className="text-sm font-semibold text-stone-700 dark:text-gray-200">{group.label}</p>
-        <p className="text-xs text-stone-600 dark:text-gray-300 tabular-nums">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{group.label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
           {group.totals.booked} booked
           {group.totals.confirmed > 0 && ` · ${group.totals.confirmed} confirmed`}
           {stillUnconfirmed > 0 && ` · ${stillUnconfirmed} still need a text`}
@@ -435,7 +435,10 @@ function AppointmentRowCard({
   return (
     <li
       onClick={onOpen}
-      className={`bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-3 cursor-pointer hover:bg-stone-50 dark:hover:bg-gray-900/30 transition border-l-4 ${agingBorderClass(APPOINTMENT_AGING_TIER[row.agingLevel])}`}
+      className={`v2-card px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/30 border-l-4 ${agingBorderClass(APPOINTMENT_AGING_TIER[row.agingLevel])} ${
+        // Selected row = teal inner ring + faint teal wash (selection ≠ status).
+        selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
+      }`}
     >
       <div className="flex items-center gap-3">
         <input
@@ -446,7 +449,7 @@ function AppointmentRowCard({
           className="form-checkbox shrink-0"
           aria-label={`Select ${row.patientName}`}
         />
-        <div className="shrink-0 w-20 text-sm font-mono font-medium text-gray-700 dark:text-gray-300 tabular-nums">
+        <div className="shrink-0 w-20 text-sm font-mono-num font-medium text-gray-700 dark:text-gray-300 tabular-nums">
           {fmtTime(row.startTime)}
         </div>
         <div className="flex-1 min-w-0">
@@ -510,17 +513,15 @@ function AgendaEmptyState({
 }) {
   const copy = emptyCopy(filters)
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-      <EmptyState
-        icon={copy.icon}
-        title={copy.title}
-        body={copy.body}
-        action={
-          <ActionButton variant="primary" onClick={onNewBooking}>
-            + New booking
-          </ActionButton>
-        }
-      />
-    </div>
+    <EmptyState
+      icon={copy.icon}
+      title={copy.title}
+      body={copy.body}
+      action={
+        <ActionButton variant="primary" onClick={onNewBooking}>
+          + New booking
+        </ActionButton>
+      }
+    />
   )
 }

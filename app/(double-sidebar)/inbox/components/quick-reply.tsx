@@ -104,14 +104,13 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
   return (
     <div
       className={cn(
-        'rounded-xl border bg-white dark:bg-stone-900/40 shadow-sm transition-colors',
-        'border-stone-200 dark:border-stone-700/60',
-        'focus-within:border-stone-300 dark:focus-within:border-stone-600 focus-within:ring-2 focus-within:ring-stone-900/5 dark:focus-within:ring-stone-100/5',
+        'v2-card transition-shadow',
+        'focus-within:shadow-[inset_0_0_0_1px_var(--color-teal-500),var(--focus-ring)]',
       )}
     >
       <div className="px-4 pt-3 flex items-center justify-between gap-3">
-        <div className="text-xs text-stone-500 dark:text-stone-400 min-w-0 truncate">
-          Reply to <span className="font-medium text-stone-700 dark:text-stone-200">{toName ?? toEmail}</span>
+        <div className="text-xs text-gray-500 dark:text-gray-400 min-w-0 truncate">
+          Reply to <span className="font-medium text-gray-700 dark:text-gray-200">{toName ?? toEmail}</span>
         </div>
         <button
           type="button"
@@ -158,11 +157,11 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
         }}
         rows={2}
         placeholder={drafting ? `AI is drafting a reply with ${contact} context…` : 'Write a reply, or click Draft with AI…'}
-        className="w-full px-4 pt-2 pb-3 text-sm leading-relaxed text-stone-800 dark:text-stone-100 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none placeholder:text-stone-500 dark:placeholder:text-stone-400"
+        className="w-full px-4 pt-2 pb-3 text-sm leading-relaxed text-gray-800 dark:text-gray-100 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none placeholder:text-gray-500 dark:placeholder:text-gray-400"
         style={{ minHeight: 64 }}
       />
-      <div className="px-4 py-2 border-t border-stone-100 dark:border-stone-700/40 flex items-center justify-between bg-stone-50/40 dark:bg-stone-800/30 rounded-b-xl">
-        <div className="text-xs text-stone-500 dark:text-stone-400 truncate" role="status" aria-live="polite">
+      <div className="px-4 py-2 border-t border-[color:var(--color-hairline)] flex items-center justify-between bg-[color:var(--color-surface-sunk)] rounded-b-[var(--r-md)]">
+        <div className="text-xs text-gray-500 dark:text-gray-400 truncate" role="status" aria-live="polite">
           {error ? (
             <span className="text-rose-600 dark:text-rose-400">{error}</span>
           ) : sent ? (

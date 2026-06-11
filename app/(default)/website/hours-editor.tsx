@@ -42,7 +42,7 @@ export default function HoursEditor({
         const isClosed = closedDays[id]
         return (
           <div key={id} className="flex items-center gap-2.5">
-            <span className="w-20 shrink-0 text-[13px] font-medium text-stone-700 dark:text-stone-200">
+            <span className="w-20 shrink-0 text-[13px] font-medium text-gray-700 dark:text-gray-200">
               {label}
             </span>
             <input
@@ -53,7 +53,7 @@ export default function HoursEditor({
               aria-label={`${label} open`}
               className="form-input text-sm py-1 disabled:opacity-40"
             />
-            <span className="text-stone-400 text-xs">to</span>
+            <span className="text-gray-400 text-xs">to</span>
             <input
               type="time"
               name={`hours[${id}].close`}
@@ -62,7 +62,7 @@ export default function HoursEditor({
               aria-label={`${label} close`}
               className="form-input text-sm py-1 disabled:opacity-40"
             />
-            <label className="flex items-center gap-1.5 text-[12px] text-stone-500 dark:text-stone-400 ml-auto">
+            <label className="flex items-center gap-1.5 text-[12px] text-gray-500 dark:text-gray-400 ml-auto">
               <input
                 type="checkbox"
                 name={`hours[${id}].closed`}

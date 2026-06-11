@@ -133,29 +133,27 @@ export default async function BlogPage() {
 
       {/* ── Posts ─────────────────────────────────────────────────────── */}
       {posts.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-          <EmptyState
-            icon="✍️"
-            title="No posts yet"
-            body={
-              <>
-                Start one from scratch, or let <strong>Draft with AI</strong> write a first pass from a topic — then
-                review it, add an author, and publish.
-              </>
-            }
-            action={
-              <form action={createBlogPostAction}>
-                <ActionButton variant="primary" size="sm" type="submit">
-                  + New post
-                </ActionButton>
-              </form>
-            }
-          />
-        </div>
+        <EmptyState
+          icon="✍️"
+          title="No posts yet"
+          body={
+            <>
+              Start one from scratch, or let <strong>Draft with AI</strong> write a first pass from a topic — then
+              review it, add an author, and publish.
+            </>
+          }
+          action={
+            <form action={createBlogPostAction}>
+              <ActionButton variant="primary" size="sm" type="submit">
+                + New post
+              </ActionButton>
+            </form>
+          }
+        />
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+        <div className="v2-card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60">
+            <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
               <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                 <th className="px-4 py-2">Title</th>
                 <th className="px-3 py-2">Status</th>
@@ -172,13 +170,13 @@ export default async function BlogPage() {
                 return (
                   <tr
                     key={p.id}
-                    className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0 hover:bg-gray-50/60 dark:hover:bg-gray-800/30"
+                    className="border-b border-[color:var(--color-hairline)] last:border-b-0 hover:bg-gray-50/60 dark:hover:bg-gray-800/30"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/posts/${p.id}`}
-                          className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:text-violet-600 dark:hover:text-violet-400"
+                          className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-400"
                         >
                           {p.title}
                         </Link>
@@ -196,13 +194,13 @@ export default async function BlogPage() {
                     <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
                       {p.authorName ?? <span className="italic text-gray-400 dark:text-gray-500">No author</span>}
                     </td>
-                    <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
+                    <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
                       {fmtDate(p.updatedAt)}
                     </td>
                     <td className="px-3 py-3 text-right whitespace-nowrap">
                       {p.status === 'published' && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums mr-3">
-                          {p.viewCount} {p.viewCount === 1 ? 'read' : 'reads'}
+                          <span className="font-mono-num">{p.viewCount}</span> {p.viewCount === 1 ? 'read' : 'reads'}
                         </span>
                       )}
                       {p.status === 'published' && liveBlogUrl && (
@@ -210,7 +208,7 @@ export default async function BlogPage() {
                           href={`${liveBlogUrl}/${p.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400"
+                          className="text-xs text-gray-500 dark:text-gray-400 hover:text-teal-700 dark:hover:text-teal-400"
                         >
                           View ↗
                         </a>
@@ -226,7 +224,7 @@ export default async function BlogPage() {
 
       {/* ── Coming next ───────────────────────────────────────────────── */}
       <section className="mt-8">
-        <div className="bg-gray-100 dark:bg-gray-800/40 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-5">
+        <div className="v2-well p-5">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Coming next
           </p>

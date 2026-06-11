@@ -44,14 +44,16 @@ function makeRow(overrides: Partial<LeadRow> = {}): LeadRow {
 beforeEach(() => previewLeadConvertAction.mockReset())
 
 describe('LeadDrawer — existing-patient hint on open', () => {
-  it('shows the sky info chip when the dedupe dry-run matches a patient', async () => {
+  it('shows the indigo info chip when the dedupe dry-run matches a patient', async () => {
     previewLeadConvertAction.mockResolvedValue({ ok: true, matchedPatientName: 'Olivia Chen' })
     render(<LeadDrawer row={makeRow()} onClose={() => {}} />)
     // Runs the preview on open (not just inside Convert).
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalledWith('lead_1'))
     const hint = await screen.findByText(/Looks like an existing patient/)
     expect(hint).toBeInTheDocument()
-    expect(hint.closest('div')?.className).toContain('text-sky-700')
+    // v2: info tone moved sky → indigo (teal is the brand; sky/teal collide).
+    expect(hint.closest('div')?.className).toContain('text-indigo-700')
+    expect(hint.closest('div')?.className).not.toContain('sky')
   })
 
   it('shows no chip when there is no match', async () => {

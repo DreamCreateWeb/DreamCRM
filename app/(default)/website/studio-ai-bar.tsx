@@ -121,16 +121,16 @@ export default function StudioAiBar({
         {/* Glow behind the bar */}
         <div
           aria-hidden="true"
-          className={`absolute -inset-3 rounded-full bg-gradient-to-r from-violet-500/50 via-fuchsia-500/40 to-sky-500/50 blur-2xl transition-opacity duration-500 ${
+          className={`absolute -inset-3 rounded-full bg-gradient-to-r from-teal-500/50 via-teal-400/40 to-teal-600/50 blur-2xl transition-opacity duration-500 ${
             working ? 'opacity-90 animate-pulse' : 'opacity-0'
           }`}
         />
 
         {/* Done panel — what changed + Undo */}
         {phase === 'done' && (
-          <div className="relative mb-2.5 rounded-2xl bg-stone-900/90 backdrop-blur-xl border border-white/10 shadow-2xl p-3 text-stone-100">
+          <div className="relative mb-2.5 rounded-[var(--r-lg)] bg-gray-900/90 backdrop-blur-xl border border-white/10 shadow-[var(--shadow-modal)] p-3 text-gray-100">
             <div className="flex items-center justify-between gap-3 mb-2">
-              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-emerald-300 min-w-0">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-300 min-w-0">
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 10l3.5 3.5L15 6" /></svg>
                 <span className="truncate">{summary}</span>
               </span>
@@ -139,7 +139,7 @@ export default function StudioAiBar({
                   type="button"
                   onClick={undo}
                   disabled={undoing}
-                  className="inline-flex items-center gap-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 px-2.5 py-1 text-[12px] font-semibold text-white transition disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 px-2.5 py-1 text-xs font-semibold text-white transition disabled:opacity-50"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 5L4 9l4 4M4 9h8a4 4 0 010 8h-1" /></svg>
                   {undoing ? 'Undoing…' : 'Undo'}
@@ -147,7 +147,7 @@ export default function StudioAiBar({
                 <button
                   type="button"
                   onClick={() => setPhase('idle')}
-                  className="w-6 h-6 inline-flex items-center justify-center rounded-full text-stone-400 hover:text-white hover:bg-white/10 transition"
+                  className="w-6 h-6 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition"
                   aria-label="Dismiss"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -156,10 +156,10 @@ export default function StudioAiBar({
             </div>
             <ul className="space-y-1 max-h-48 overflow-y-auto">
               {details.map((e, i) => (
-                <li key={`${e.label}-${i}`} className="flex items-baseline gap-1.5 text-[12px] min-w-0">
-                  <span className="shrink-0 text-stone-400">{e.label}</span>
-                  <span className="shrink-0 text-stone-500">→</span>
-                  <span className="truncate text-stone-100">{e.preview}</span>
+                <li key={`${e.label}-${i}`} className="flex items-baseline gap-1.5 text-xs min-w-0">
+                  <span className="shrink-0 text-gray-400">{e.label}</span>
+                  <span className="shrink-0 text-gray-500">→</span>
+                  <span className="truncate text-gray-100">{e.preview}</span>
                 </li>
               ))}
             </ul>
@@ -170,14 +170,14 @@ export default function StudioAiBar({
         <div className="relative mb-2.5 flex items-center justify-between gap-2 min-h-[28px]">
           <div className="flex flex-wrap items-center gap-1.5 min-w-0">
             {working && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-stone-900/85 backdrop-blur-xl border border-white/10 px-3.5 py-1.5 text-[13px] font-medium text-stone-100 shadow-lg">
-                <Sparkle className="w-4 h-4 text-fuchsia-300 [animation:spin_2.4s_linear_infinite]" />
+              <span className="inline-flex items-center gap-2 rounded-full bg-gray-900/85 backdrop-blur-xl border border-white/10 px-3.5 py-1.5 text-sm font-medium text-gray-100 shadow-lg">
+                <Sparkle className="w-4 h-4 text-teal-300 [animation:spin_2.4s_linear_infinite]" />
                 Updating your site…
               </span>
             )}
             {phase === 'error' && (
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium text-white shadow-lg ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-white shadow-lg ${
                   isClarify || isLimit ? 'bg-amber-500/90' : 'bg-rose-500/90'
                 }`}
               >
@@ -190,8 +190,8 @@ export default function StudioAiBar({
             {/* Monthly AI-edit allowance — AI edits spend tokens, so they're metered. */}
             <span
               title="AI edits use AI and are metered monthly — they reset on the 1st. Editing by hand is always free."
-              className={`inline-flex items-center gap-1 rounded-full bg-stone-900/85 backdrop-blur-xl border px-2.5 py-1 text-[11px] font-medium ${
-                outOfEdits ? 'border-amber-400/40 text-amber-300' : 'border-white/10 text-stone-300'
+              className={`inline-flex items-center gap-1 rounded-full bg-gray-900/85 backdrop-blur-xl border px-2.5 py-1 text-xs font-medium ${
+                outOfEdits ? 'border-amber-400/40 text-amber-300' : 'border-white/10 text-gray-300'
               }`}
             >
               <Sparkle className="w-3 h-3" />
@@ -205,11 +205,11 @@ export default function StudioAiBar({
                   ? 'Following — the viewport jumps to each change'
                   : 'Background — edits apply without moving the viewport'
               }
-              className="inline-flex items-center gap-1.5 rounded-full bg-stone-900/85 backdrop-blur-xl border border-white/10 pl-2.5 pr-1.5 py-1 text-[11px] font-medium text-stone-300 hover:text-white transition"
+              className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/85 backdrop-blur-xl border border-white/10 pl-2.5 pr-1.5 py-1 text-xs font-medium text-gray-300 hover:text-white transition"
             >
               {follow ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
               <span>Follow along</span>
-              <span className={`relative w-7 h-4 rounded-full transition-colors ${follow ? 'bg-violet-500' : 'bg-stone-600'}`}>
+              <span className={`relative w-7 h-4 rounded-full transition-colors ${follow ? "bg-teal-500" : "bg-gray-600"}`}>
                 <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${follow ? 'translate-x-3' : ''}`} />
               </span>
             </button>
@@ -222,9 +222,9 @@ export default function StudioAiBar({
             e.preventDefault()
             void submit()
           }}
-          className="relative flex items-center gap-2 rounded-full bg-stone-900/85 backdrop-blur-xl border border-white/10 shadow-2xl pl-4 pr-2 py-2"
+          className="relative flex items-center gap-2 rounded-full bg-gray-900/85 backdrop-blur-xl border border-white/10 shadow-[var(--shadow-modal)] pl-4 pr-2 py-2"
         >
-          <Sparkle className={`w-5 h-5 shrink-0 ${working ? 'text-fuchsia-300 animate-pulse' : 'text-violet-300'}`} />
+          <Sparkle className={`w-5 h-5 shrink-0 ${working ? "text-teal-300 animate-pulse" : "text-teal-200"}`} />
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -234,13 +234,13 @@ export default function StudioAiBar({
                 ? 'Out of AI edits this month — edit by hand, or they reset on the 1st'
                 : 'Ask AI to change anything — “close at 3pm on Fridays”'
             }
-            className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-stone-400 focus:outline-none disabled:opacity-60"
+            className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-gray-400 focus:outline-none disabled:opacity-60"
             aria-label="Ask the AI to edit your website"
           />
           <button
             type="submit"
             disabled={!value.trim() || working || outOfEdits}
-            className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-md transition hover:brightness-110 disabled:opacity-40 disabled:cursor-default"
+            className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-teal-400 text-white dark:text-gray-900 shadow-md transition hover:brightness-110 disabled:opacity-40 disabled:cursor-default"
             aria-label="Send"
           >
             {working ? (

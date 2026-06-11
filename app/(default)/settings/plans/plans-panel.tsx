@@ -69,7 +69,7 @@ export default function PlansPanel({
     <div className="grow">
       <div className="p-6 space-y-6">
         {upgradeModuleLabel && (
-          <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200">
+          <div className="rounded-[var(--r-sm)] bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/30 px-4 py-3 text-sm text-indigo-900 dark:text-indigo-200">
             <span className="font-semibold">{upgradeModuleLabel} is on a higher plan.</span>{' '}
             Pick a plan below to unlock it — your current data stays exactly as it is.
           </div>
@@ -120,10 +120,10 @@ export default function PlansPanel({
         </div>
 
         {feedback?.error && (
-          <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
+          <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded-[var(--r-sm)]">{feedback.error}</div>
         )}
         {feedback?.ok && (
-          <div className="text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
+          <div className="text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded-[var(--r-sm)]">{feedback.ok}</div>
         )}
 
         <div className="grid grid-cols-12 gap-6">
@@ -133,24 +133,38 @@ export default function PlansPanel({
             const displayed = priceFor(p)
             const monthlyEquivalent = interval === 'annual' ? Math.round(p.annualPrice / 12) : p.price
             return (
+              // The plan grid is a SELECTION surface: the current plan reads as
+              // the selected card via a teal inner ring (selection ≠ status —
+              // teal is identity here, not a "Current" status pill).
               <div
                 key={p.id}
-                className="relative col-span-full sm:col-span-6 xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-sm rounded-b-lg"
+                className={`relative col-span-full sm:col-span-6 xl:col-span-4 v2-card rounded-[var(--r-md)] ${
+                  isCurrent
+                    ? 'shadow-[inset_0_0_0_2px_var(--color-teal-500)] dark:shadow-[inset_0_0_0_2px_var(--color-teal-400)]'
+                    : ''
+                }`}
               >
-                <div className={`absolute top-0 left-0 right-0 h-0.5 bg-${p.color}-500`} aria-hidden="true"></div>
+                <div className={`absolute top-0 left-0 right-0 h-0.5 rounded-t-[var(--r-md)] bg-${p.color}-500`} aria-hidden="true"></div>
                 <div className="px-5 pt-5 pb-6 border-b border-gray-200 dark:border-gray-700/60">
                   <header className="flex items-center gap-3 mb-2">
                     <div className={`w-6 h-6 rounded-full shrink-0 bg-${p.color}-500`} aria-hidden="true" />
                     <h3 className="text-lg text-gray-800 dark:text-gray-100 font-semibold">{p.name}</h3>
-                    {isCurrent && <StatusPill tone="special" label="Current plan" className="ml-auto" />}
+                    {isCurrent && (
+                      <span
+                        className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-teal-700 dark:text-teal-300 bg-teal-500/10 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]"
+                        title="The plan your subscription is on right now"
+                      >
+                        Current plan
+                      </span>
+                    )}
                   </header>
-                  <div className="text-gray-800 dark:text-gray-100 font-bold mb-1 tabular-nums">
+                  <div className="font-mono-num text-gray-900 dark:text-gray-100 font-bold mb-1 tabular-nums">
                     <span className="text-2xl">$</span>
                     <span className="text-3xl">{displayed}</span>
-                    <span className="text-gray-500 dark:text-gray-400 font-medium text-sm">/{interval === 'annual' ? 'yr' : 'mo'}</span>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium text-sm font-sans">/{interval === 'annual' ? 'yr' : 'mo'}</span>
                   </div>
                   {interval === 'annual' && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-3 tabular-nums">${monthlyEquivalent}/mo billed annually</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-mono-num tabular-nums">${monthlyEquivalent}/mo billed annually</div>
                   )}
                   {isCurrent ? (
                     <div className="btn w-full mt-3 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-default">

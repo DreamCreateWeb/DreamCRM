@@ -41,7 +41,7 @@ export default function NotesPanel({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-4">
+    <div className="v2-card px-4 py-4">
       <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-3">
         Notes
       </p>

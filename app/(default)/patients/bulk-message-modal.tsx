@@ -43,10 +43,10 @@ export default function BulkMessageModal({
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Send email" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Send email</h2>
+    <div role="dialog" aria-modal="true" aria-label="Send email" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
+      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="px-6 py-5 border-b border-[color:var(--color-hairline)]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Send email</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             <span className="tabular-nums">{reachable}</span> {reachable === 1 ? 'patient' : 'patients'} will receive this
             {skipped > 0 && <> · <span className="tabular-nums">{skipped}</span> skipped (no email on file)</>}
@@ -100,7 +100,7 @@ export default function BulkMessageModal({
                 <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
+            <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
               <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
                 Cancel
               </ActionButton>

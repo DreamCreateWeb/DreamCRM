@@ -37,8 +37,8 @@ export default async function ShopPaymentsPage() {
       />
 
       {/* Honest framing: these are collected, but reconciliation is still manual. */}
-      <div className="mb-5 rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-4 py-3">
-        <p className="text-sm text-sky-900 dark:text-sky-200">
+      <div className="mb-5 rounded-[var(--r-md)] bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/30 px-4 py-3">
+        <p className="text-sm text-indigo-900 dark:text-indigo-200">
           The money has settled to your connected Stripe account. These are a
           record for reconciliation — mark each amount against the patient&rsquo;s
           balance in your PMS so the clinical ledger stays accurate.
@@ -46,18 +46,16 @@ export default async function ShopPaymentsPage() {
       </div>
 
       {payments.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
-          <EmptyState
-            icon="💳"
-            title="No online payments yet"
-            body="When a patient pays a balance from their portal, it lands here so you can post it to your PMS ledger."
-          />
-        </div>
+        <EmptyState
+          icon="💳"
+          title="No online payments yet"
+          body="When a patient pays a balance from their portal, it lands here so you can post it to your PMS ledger."
+        />
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
+        <div className="v2-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-700/60 text-left">
+              <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   Patient
                 </th>
@@ -75,9 +73,9 @@ export default async function ShopPaymentsPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+            <tbody className="divide-y divide-[color:var(--color-hairline)]">
               {payments.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
                   <td className="px-4 py-3">
                     <Link
                       href={`/patients/${p.patientId}`}
@@ -86,13 +84,13 @@ export default async function ShopPaymentsPage() {
                       {p.patientName}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800 dark:text-gray-100">
+                  <td className="px-4 py-3 text-right tabular-nums font-mono-num font-semibold text-gray-800 dark:text-gray-100">
                     {formatCents(p.amountCents)}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300 tabular-nums">
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">
                     {fmtDate(p.paidAt ?? p.createdAt)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">
+                  <td className="px-4 py-3 text-right tabular-nums font-mono-num text-gray-600 dark:text-gray-300">
                     {p.balanceCentsAtPayment == null ? '—' : formatCents(p.balanceCentsAtPayment)}
                   </td>
                   <td className="px-4 py-3">

@@ -99,14 +99,14 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
         <KpiStat label="Recurring / mo" value={formatCents(stats.mrrCents)} tone={stats.mrrCents > 0 ? 'ok' : undefined} />
       </div>
 
-      <div className="flex gap-1 mb-5 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex gap-1 mb-5 border-b border-[color:var(--color-hairline)]">
         {(['plans', 'members'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 ${
               tab === t
-                ? 'border-violet-500 text-gray-900 dark:text-gray-100'
+                ? 'border-teal-500 text-gray-900 dark:text-gray-100'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700'
             }`}
           >
@@ -118,23 +118,21 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
       {tab === 'plans' ? (
         <div className="space-y-2.5">
           {plans.length === 0 ? (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
-              <EmptyState
-                icon="💳"
-                title="No plans yet"
-                body="Create your first plan to start enrolling members — set a price, the benefits, and an in-house discount."
-                action={
-                  <ActionButton variant="primary" size="sm" href="/shop/memberships/new">
-                    + New plan
-                  </ActionButton>
-                }
-              />
-            </div>
+            <EmptyState
+              icon="💳"
+              title="No plans yet"
+              body="Create your first plan to start enrolling members — set a price, the benefits, and an in-house discount."
+              action={
+                <ActionButton variant="primary" size="sm" href="/shop/memberships/new">
+                  + New plan
+                </ActionButton>
+              }
+            />
           ) : (
             plans.map((p) => (
               <div
                 key={p.id}
-                className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4 flex flex-wrap items-center gap-3"
+                className="v2-card p-4 flex flex-wrap items-center gap-3"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -147,8 +145,11 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                     )}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">
-                    {formatCents(p.priceCents)}
-                    {intervalSuffix(p.billingInterval)} · {BILLING_LABELS[p.billingInterval]}
+                    <span className="font-mono-num">
+                      {formatCents(p.priceCents)}
+                      {intervalSuffix(p.billingInterval)}
+                    </span>{' '}
+                    · {BILLING_LABELS[p.billingInterval]}
                     {p.discountPercent > 0 ? ` · ${p.discountPercent}% off other care` : ''} · {p.benefits.length}{' '}
                     benefit{p.benefits.length === 1 ? '' : 's'}
                   </p>
@@ -200,18 +201,16 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
       ) : (
         <div className="space-y-2.5">
           {members.length === 0 ? (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
-              <EmptyState
-                icon="🦷"
-                title="No members yet"
-                body="Members appear here once they enroll from your site. Publish a plan and share the link to get started."
-              />
-            </div>
+            <EmptyState
+              icon="🦷"
+              title="No members yet"
+              body="Members appear here once they enroll from your site. Publish a plan and share the link to get started."
+            />
           ) : (
             members.map((m) => (
               <div
                 key={m.id}
-                className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4"
+                className="v2-card p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -232,14 +231,22 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">
                       {m.planName}
-                      {m.currentPeriodEnd
-                        ? ` · renews ${m.currentPeriodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                        : ''}
+                      {m.currentPeriodEnd ? (
+                        <>
+                          {' '}
+                          · renews{' '}
+                          <span className="font-mono-num">
+                            {m.currentPeriodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </>
+                      ) : (
+                        ''
+                      )}
                     </p>
                   </div>
                 </div>
                 {m.status === 'active' && m.planBenefits.some((b) => b.qty != null) && (
-                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
+                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
                     {m.planBenefits
                       .filter((b) => b.qty != null)
                       .map((b) => {
@@ -250,10 +257,10 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                             key={b.label}
                             disabled={isPending || exhausted}
                             onClick={() => run(() => markBenefitUsedAction(m.id, b.label), `Logged: ${b.label}.`)}
-                            className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/40 disabled:opacity-50 tabular-nums"
+                            className="text-xs px-2.5 py-1 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/40 disabled:opacity-50 tabular-nums"
                             title="Log a redemption"
                           >
-                            {b.label}: {used}/{b.qty}
+                            {b.label}: <span className="font-mono-num">{used}/{b.qty}</span>
                             {exhausted ? '' : ' · +1'}
                           </button>
                         )

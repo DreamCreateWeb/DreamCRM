@@ -96,10 +96,10 @@ export default async function PlatformOverview() {
       )}
 
       {/* ── Needs Your Attention ──────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+      <div className="v2-card p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
               Needs Your Attention
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -107,7 +107,7 @@ export default async function PlatformOverview() {
             </p>
           </div>
           {attention.pastDueInvoiceCents > 0 && (
-            <span className="text-sm font-semibold text-rose-700 dark:text-rose-300 tabular-nums">
+            <span className="text-sm font-semibold text-rose-700 dark:text-rose-300 tabular-nums font-mono-num">
               {moneyFull(attention.pastDueInvoiceCents)} past-due
             </span>
           )}
@@ -119,7 +119,7 @@ export default async function PlatformOverview() {
             body="No past-due invoices, no stalled projects, no new signups waiting."
           />
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+          <ul className="divide-y divide-[color:var(--color-hairline)]">
             {attention.items.map((item, i) => (
               <li key={`${item.kind}-${i}`} className="flex items-center gap-4 py-3">
                 <span
@@ -139,7 +139,7 @@ export default async function PlatformOverview() {
                   )}
                 </div>
                 {item.amountCents != null && (
-                  <span className="shrink-0 font-semibold text-rose-700 dark:text-rose-300 tabular-nums">
+                  <span className="shrink-0 font-semibold text-rose-700 dark:text-rose-300 tabular-nums font-mono-num">
                     {moneyFull(item.amountCents)}
                   </span>
                 )}
@@ -153,9 +153,9 @@ export default async function PlatformOverview() {
       </div>
 
       {/* ── Recent Platform Activity — mixed feed ──────────────────────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+      <div className="v2-card p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
             Recent Platform Activity
           </h2>
           <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -168,7 +168,7 @@ export default async function PlatformOverview() {
             body="Once clinics sign up and projects start moving, you'll see them here."
           />
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
+          <ul className="divide-y divide-[color:var(--color-hairline)]">
             {activity.rows.map((row) => (
               <li key={row.id} className="flex items-center gap-4 py-3">
                 <span
@@ -188,7 +188,7 @@ export default async function PlatformOverview() {
                   )}
                 </div>
                 {row.amountCents != null && (
-                  <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
+                  <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums font-mono-num">
                     +{moneyFull(row.amountCents)}
                   </span>
                 )}
@@ -225,11 +225,8 @@ export default async function PlatformOverview() {
 
 function QuickLink({ href, title, subtitle }: { href: string; title: string; subtitle: string }) {
   return (
-    <Link
-      href={href}
-      className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-4 hover:shadow-md transition group"
-    >
-      <div className="font-semibold text-gray-800 dark:text-gray-100 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition">
+    <Link href={href} className="v2-card-interactive block px-5 py-4 group">
+      <div className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-teal-700 dark:group-hover:text-teal-400 transition-colors">
         {title}
         <span className="ml-1">→</span>
       </div>

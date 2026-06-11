@@ -26,7 +26,7 @@ export default async function PracticeSettings() {
         title="Practice setup"
         subtitle="Your providers, visit types, chairs, and recall cadence — the settings that drive booking + recall."
       />
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
+      <div className="v2-panel mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
           <SettingsSidebar tenantType={ctx.tenantType} />
           <PracticePanel initial={data} />

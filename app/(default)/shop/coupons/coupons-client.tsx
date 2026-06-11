@@ -21,7 +21,7 @@ const SOURCE_STYLE: Record<CouponSource, string> = {
 }
 const SOURCE_LABEL: Record<CouponSource, string> = { manual: 'Manual', birthday: 'Birthday', loyalty: 'Loyalty' }
 
-const FIELD = 'text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+const FIELD = 'text-sm px-3 py-2 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
 
 const PILL_LEGEND: PillLegendRow[] = [
   { tone: 'ok', label: 'Active', meaning: 'Live — patients can redeem it at checkout' },
@@ -83,7 +83,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
 
       {/* Create + birthday */}
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] mb-6">
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-4">
+        <div className="v2-card p-4">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">
             New code
           </p>
@@ -103,7 +103,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
               type="number"
               value={value}
               onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
-              className={`${FIELD} w-20 tabular-nums`}
+              className={`${FIELD} w-20 tabular-nums font-mono-num`}
             />
             <input
               type="date"
@@ -139,7 +139,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
             </ActionButton>
           </div>
         </div>
-        <div className="rounded-xl border border-pink-200 dark:border-pink-500/30 bg-pink-50/50 dark:bg-pink-500/5 p-4">
+        <div className="rounded-[var(--r-lg)] ring-1 ring-inset ring-pink-300/60 dark:ring-pink-500/30 bg-pink-50/50 dark:bg-pink-500/5 p-4">
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">🎂 Birthday coupons</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-3">
             Generate single-use 15%-off codes for patients with a birthday this month.
@@ -153,7 +153,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
                 setToast(`Generated ${created} birthday coupon${created === 1 ? '' : 's'}.`)
               })
             }
-            className="text-sm font-semibold px-3 py-2 rounded-lg bg-pink-600 text-white hover:bg-pink-700 disabled:opacity-60"
+            className="btn-sm text-sm font-semibold bg-pink-600 text-white hover:bg-pink-700 disabled:opacity-60"
           >
             Generate this month&apos;s
           </button>
@@ -164,13 +164,11 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
 
       {/* List */}
       {coupons.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
-          <EmptyState
-            icon="🏷️"
-            title="No coupons yet"
-            body="Add a promo code above, or generate this month's birthday codes — they apply automatically at checkout."
-          />
-        </div>
+        <EmptyState
+          icon="🏷️"
+          title="No coupons yet"
+          body="Add a promo code above, or generate this month's birthday codes — they apply automatically at checkout."
+        />
       ) : (
         <div className="space-y-2">
           {coupons.map((c) => {
@@ -179,18 +177,18 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
             return (
               <div
                 key={c.id}
-                className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700/60 p-3 flex items-center gap-3 ${
+                className={`v2-card p-3 flex items-center gap-3 ${
                   dead ? 'opacity-60' : ''
                 }`}
               >
-                <span className="font-mono text-sm font-semibold text-gray-800 dark:text-gray-100">{c.code}</span>
-                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${SOURCE_STYLE[c.source]}`}>
+                <span className="font-mono-num text-sm font-semibold text-gray-800 dark:text-gray-100">{c.code}</span>
+                <span className={`text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${SOURCE_STYLE[c.source]}`}>
                   {SOURCE_LABEL[c.source]}
                 </span>
-                <span className="text-sm text-gray-600 dark:text-gray-300 tabular-nums">{formatDiscount(c)}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">{formatDiscount(c)}</span>
                 {c.minSubtotalCents != null && (
                   <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                    min {formatCents(c.minSubtotalCents)}
+                    min <span className="font-mono-num">{formatCents(c.minSubtotalCents)}</span>
                   </span>
                 )}
                 {c.patientName && <span className="text-xs text-gray-500 dark:text-gray-400">· {c.patientName}</span>}

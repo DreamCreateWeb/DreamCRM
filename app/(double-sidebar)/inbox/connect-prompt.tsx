@@ -18,7 +18,7 @@ export default function ConnectPrompt({ configured }: Props) {
               // in-app navigation, so it must not be a next/link.
               <a
                 href="/api/oauth/gmail/start"
-                className="btn-sm bg-violet-600 hover:bg-violet-700 text-white inline-flex items-center gap-2"
+                className="btn-sm bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 inline-flex items-center gap-2"
               >
                 <GoogleIcon />
                 Connect Gmail

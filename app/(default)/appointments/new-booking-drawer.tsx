@@ -35,6 +35,15 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
     }
   }, [])
 
+  // Esc closes the picker (parity with the shared Drawer primitive).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const filtered = useMemo(() => {
     if (!options) return []
     const q = query.trim().toLowerCase()
@@ -51,21 +60,28 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-label="New booking — pick a patient"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4"
+      onClick={onClose}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-t-xl sm:rounded-xl shadow-lg w-full max-w-md max-h-[85vh] flex flex-col">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md max-h-[85vh] flex flex-col"
+      >
         <div className="px-5 pt-5 pb-3 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">New booking</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">New booking</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">Who is the visit for?</p>
           </div>
           <button
             type="button"
             onClick={onClose}
+            title="Close (Esc)"
             aria-label="Close"
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none"
+            className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
           >
-            ×
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />
+            </svg>
           </button>
         </div>
         <div className="px-5 pb-3">
@@ -96,17 +112,17 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
                 role="option"
                 aria-selected={false}
                 onClick={() => setPicked(o)}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-violet-50 dark:hover:bg-violet-500/10"
+                className="w-full text-left px-3 py-2 rounded-[var(--r-sm)] text-sm text-gray-700 dark:text-gray-200 hover:bg-teal-500/10"
               >
                 {o.name}
               </button>
             ))
           )}
         </div>
-        <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+        <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex items-center justify-between">
           <Link
             href="/patients?new=1"
-            className="text-sm font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400"
+            className="text-sm font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
           >
             + Add a new patient first
           </Link>

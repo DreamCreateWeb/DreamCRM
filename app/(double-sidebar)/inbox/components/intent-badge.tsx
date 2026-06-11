@@ -23,7 +23,7 @@ const INTENT_COLORS: Record<string, { dot: string; label: string }> = {
   booking:   { dot: 'bg-emerald-500', label: 'Booking' },
   insurance: { dot: 'bg-amber-500',   label: 'Insurance' },
   billing:   { dot: 'bg-rose-500',    label: 'Billing' },
-  records:   { dot: 'bg-sky-500',     label: 'Records' },
+  records:   { dot: 'bg-indigo-500',  label: 'Records' },
   follow_up: { dot: 'bg-violet-500',  label: 'Follow up' },
   marketing: { dot: 'bg-gray-400',    label: 'Marketing' },
   other:     { dot: 'bg-gray-400',    label: 'Other' },

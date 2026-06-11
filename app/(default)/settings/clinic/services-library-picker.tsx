@@ -139,7 +139,7 @@ export default function ServicesLibraryPicker({
       <div className="space-y-3">
         {services.length === 0 && (
           <EmptyHint>
-            No services yet — click <span className="font-medium text-stone-700 dark:text-stone-200">Add a service</span>{' '}
+            No services yet — click <span className="font-medium text-gray-700 dark:text-gray-200">Add a service</span>{' '}
             below to start building your menu from the library.
           </EmptyHint>
         )}
@@ -197,7 +197,7 @@ export default function ServicesLibraryPicker({
       <button
         type="button"
         onClick={() => setDrawer({ kind: 'picker' })}
-        className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 dark:border-stone-600 py-2.5 text-[13px] font-semibold text-stone-500 dark:text-stone-400 hover:border-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800/40 transition"
+        className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 py-2.5 text-[13px] font-semibold text-gray-500 dark:text-gray-400 hover:border-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
           <path d="M10 5v10M5 10h10" />
@@ -215,7 +215,7 @@ export default function ServicesLibraryPicker({
             if (e.target === e.currentTarget) setDrawer({ kind: 'closed' })
           }}
         >
-          <div className="w-full max-w-2xl bg-white dark:bg-stone-900 shadow-2xl overflow-y-auto rounded-l-2xl">
+          <div className="w-full max-w-2xl bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto rounded-l-2xl">
             {drawer.kind === 'picker' && (
               <PickerDrawer
                 library={libraryAvailable}
@@ -355,43 +355,43 @@ function SelectedServiceRow({
 }) {
   const generatedAt = formatGeneratedAt(service.customized?.generatedAt)
   return (
-    <div className="rounded-xl border border-stone-200 dark:border-stone-700/70 bg-stone-50/70 dark:bg-stone-800/40 p-3.5">
+    <div className="rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50/70 dark:bg-gray-800/40 p-3.5">
       <div className="flex items-start gap-3">
         <div className="text-2xl w-8 text-center shrink-0">{service.icon ?? '🦷'}</div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="font-semibold text-sm text-stone-800 dark:text-stone-100">{service.name}</p>
+            <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">{service.name}</p>
             {service.category && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide bg-stone-200/70 text-stone-600 dark:bg-stone-700 dark:text-stone-300 rounded px-1.5 py-0.5">
+              <span className="text-xs font-semibold uppercase tracking-wide bg-gray-200/70 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded px-1.5 py-0.5">
                 {categoryLabel(service.category)}
               </span>
             )}
             {service.customized ? (
-              <span className="text-[10px] font-semibold uppercase tracking-wide bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 rounded px-1.5 py-0.5">
+              <span className="text-xs font-semibold uppercase tracking-wide bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 rounded px-1.5 py-0.5">
                 Customized ✨
               </span>
             ) : service.librarySlug ? (
-              <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200 rounded px-1.5 py-0.5">
+              <span className="text-xs font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200 rounded px-1.5 py-0.5">
                 Library default
               </span>
             ) : null}
             {service.offer && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 rounded px-1.5 py-0.5">
+              <span className="text-xs font-semibold uppercase tracking-wide bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 rounded px-1.5 py-0.5">
                 Offer
               </span>
             )}
           </div>
           {generatedAt && (
-            <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400">Rewritten {generatedAt}</p>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Rewritten {generatedAt}</p>
           )}
         </div>
       </div>
-      <div className="flex items-center flex-wrap gap-1.5 mt-3 pt-3 border-t border-stone-200/70 dark:border-stone-700/50">
+      <div className="flex items-center flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-200/70 dark:border-gray-700/50">
         <button
           type="button"
           onClick={() => onMove('up')}
           disabled={busy || isFirst}
-          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 disabled:opacity-30 transition"
+          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-30 transition"
           aria-label="Move up"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5L10 7.5l5 5" /></svg>
@@ -400,7 +400,7 @@ function SelectedServiceRow({
           type="button"
           onClick={() => onMove('down')}
           disabled={busy || isLast}
-          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 disabled:opacity-30 transition"
+          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-30 transition"
           aria-label="Move down"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M5 7.5L10 12.5l5-5" /></svg>
@@ -420,7 +420,7 @@ function SelectedServiceRow({
             type="button"
             onClick={onOpenManual}
             disabled={busy}
-            className="inline-flex items-center rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-300 hover:border-stone-300 disabled:opacity-40 transition"
+            className="inline-flex items-center rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-gray-300 disabled:opacity-40 transition"
           >
             Edit copy
           </button>
@@ -429,7 +429,7 @@ function SelectedServiceRow({
           type="button"
           onClick={onOpenOverrides}
           disabled={busy}
-          className="inline-flex items-center rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-300 hover:border-stone-300 disabled:opacity-40 transition"
+          className="inline-flex items-center rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-gray-300 disabled:opacity-40 transition"
         >
           Photo / offer
         </button>
@@ -438,7 +438,7 @@ function SelectedServiceRow({
           type="button"
           onClick={onRemove}
           disabled={busy}
-          className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-40 transition"
+          className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-40 transition"
         >
           Remove
         </button>
@@ -528,13 +528,13 @@ function PickerDrawer({
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-stone-800 dark:text-stone-100">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
           Add a service
         </h2>
         <button
           type="button"
           onClick={onClose}
-          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition"
+          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           aria-label="Close"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -583,10 +583,10 @@ function PickerDrawer({
       />
       {grouped.ownPending.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-stone-700 dark:text-stone-200 mb-2">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
             Your pending submissions
           </h3>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mb-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
             These are live on your site but hidden from other clinics until a
             platform admin approves.
           </p>
@@ -610,11 +610,11 @@ function PickerDrawer({
         </div>
       )}
 
-      <div className="border-t border-stone-200 dark:border-stone-700/60 pt-4 space-y-3">
-        <h3 className="text-sm font-semibold text-stone-700 dark:text-stone-200">
+      <div className="border-t border-gray-200 dark:border-gray-700/60 pt-4 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
           Can&apos;t find your service?
         </h3>
-        <p className="text-xs text-stone-500 dark:text-stone-400">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           Type the service you offer and we&apos;ll add it to your site
           immediately. A platform admin will review it for other clinics —
           you can keep using it on your own site in the meantime.
@@ -642,7 +642,7 @@ function PickerDrawer({
           type="button"
           onClick={handleSubmitNew}
           disabled={submitting || !newName.trim()}
-          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-violet-600 text-white hover:bg-violet-700 transition disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60"
         >
           {submitting ? 'Checking…' : 'Submit for review'}
         </button>
@@ -670,7 +670,7 @@ function ServiceGroup({
   return (
     <div>
       {label && (
-        <h3 className="text-sm font-semibold text-stone-700 dark:text-stone-200 mb-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
           {label}
         </h3>
       )}
@@ -684,20 +684,20 @@ function ServiceGroup({
               className={`flex items-start gap-3 p-2.5 rounded-lg border ${
                 isHighlighted
                   ? 'border-amber-300 bg-amber-50 dark:border-amber-400/50 dark:bg-amber-500/10'
-                  : 'border-stone-200 dark:border-stone-700/60'
+                  : 'border-gray-200 dark:border-gray-700/60'
               }`}
             >
               <div className="text-xl w-7 text-center">{e.icon ?? '🦷'}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-stone-800 dark:text-stone-100">
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
                   {e.name}
                   {ownPending && (
-                    <span className="ml-2 text-[10px] uppercase tracking-wide bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded px-1.5 py-0.5 align-middle">
+                    <span className="ml-2 text-xs uppercase tracking-wide bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded px-1.5 py-0.5 align-middle">
                       Pending review
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-stone-500 dark:text-stone-400 line-clamp-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
                   {e.shortDescription}
                 </p>
               </div>
@@ -705,7 +705,7 @@ function ServiceGroup({
                 type="button"
                 onClick={() => onAdd(e.slug)}
                 disabled={isBusy}
-                className="text-xs px-2.5 py-1 border border-violet-200 text-violet-700 dark:border-violet-400/40 dark:text-violet-300 rounded hover:bg-violet-50 dark:hover:bg-violet-500/15 disabled:opacity-50"
+                className="text-xs px-2.5 py-1 border border-teal-300 text-teal-700 dark:border-teal-400/40 dark:text-teal-300 rounded-[var(--r-xs)] hover:bg-teal-50 dark:hover:bg-teal-500/15 disabled:opacity-50"
               >
                 {isBusy ? 'Adding…' : '+ Add'}
               </button>
@@ -731,20 +731,20 @@ function OverridesDrawer({
   if (!service) {
     return (
       <div className="p-6">
-        <p className="text-sm text-stone-500 dark:text-stone-400">Service not found.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Service not found.</p>
       </div>
     )
   }
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-stone-800 dark:text-stone-100">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
           Photo &amp; offer · {service.name}
         </h2>
         <button
           type="button"
           onClick={onClose}
-          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition"
+          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           aria-label="Close"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -759,7 +759,7 @@ function OverridesDrawer({
           placeholder="https://…"
           className={inputCls}
         />
-        <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Shown as the hero photo on the service detail page. Leave blank to use
           the default hero image.
         </p>
@@ -774,14 +774,14 @@ function OverridesDrawer({
           className={inputCls}
           maxLength={120}
         />
-        <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Renders as a thin brand-color bar atop the detail page when set.
         </p>
       </div>
       <div className="flex gap-2">
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 transition disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 transition disabled:opacity-60"
           onClick={() => onSave(photoUrl.trim() || null, offer.trim() || null)}
         >
           Save
@@ -789,7 +789,7 @@ function OverridesDrawer({
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/60 transition"
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition"
         >
           Cancel
         </button>
@@ -811,24 +811,24 @@ function ManualEditDrawer({
   if (!service) {
     return (
       <div className="p-6">
-        <p className="text-sm text-stone-500 dark:text-stone-400">Service not found.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Service not found.</p>
       </div>
     )
   }
   if (!service.customized) {
     return (
       <div className="p-6 space-y-4">
-        <h2 className="text-xl font-semibold text-stone-800 dark:text-stone-100">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
           Edit copy · {service.name}
         </h2>
-        <p className="text-sm text-stone-500 dark:text-stone-400">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           No AI rewrite yet. Click <span className="font-medium">Regenerate with AI</span>{' '}
           on this row first, then come back to fine-tune the body.
         </p>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/60 transition"
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition"
         >
           Close
         </button>
@@ -838,19 +838,19 @@ function ManualEditDrawer({
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-stone-800 dark:text-stone-100">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
           Edit copy · {service.name}
         </h2>
         <button
           type="button"
           onClick={onClose}
-          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition"
+          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           aria-label="Close"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
         </button>
       </div>
-      <p className="text-xs text-stone-500 dark:text-stone-400">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
         Edit the description paragraph by hand. Hero bullets, process steps,
         and FAQs stay AI-managed — click <span className="font-medium">Regenerate with AI</span>{' '}
         to refresh those.
@@ -862,13 +862,13 @@ function ManualEditDrawer({
         maxLength={2000}
         className={textareaCls}
       />
-      <div className="text-xs text-stone-500 dark:text-stone-400 -mt-3">
+      <div className="text-xs text-gray-500 dark:text-gray-400 -mt-3">
         {body.length} / 2000
       </div>
       <div className="flex gap-2">
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 transition disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 transition disabled:opacity-60"
           onClick={() => onSave(body)}
         >
           Save
@@ -876,7 +876,7 @@ function ManualEditDrawer({
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/60 transition"
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition"
         >
           Cancel
         </button>

@@ -54,10 +54,10 @@ export default function MessagesSidebar({
                       href={`/messages?c=${c.id}`}
                       onClick={() => setFlyoutOpen(false)}
                       aria-current={isActive ? 'true' : undefined}
-                      className={`flex flex-col p-2 rounded-lg ${
+                      className={`flex flex-col p-2 rounded-[var(--r-sm)] transition-colors ${
                         isActive
-                          ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                          ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300'
+                          : 'hover:bg-gray-500/[0.06]'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">

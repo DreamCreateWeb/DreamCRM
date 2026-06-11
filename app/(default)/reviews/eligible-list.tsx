@@ -66,13 +66,13 @@ export default function EligibleList({ rows }: Props) {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
-      <ul className="divide-y divide-gray-100 dark:divide-gray-700/40">
+    <div className="v2-card overflow-hidden">
+      <ul className="divide-y divide-[color:var(--color-hairline)]">
         {rows.map((r) => {
           const sent = sentIds.has(r.patientId)
           const err = errorByPatient[r.patientId]
           return (
-            <li key={r.patientId} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-stone-50 dark:hover:bg-gray-900/30">
+            <li key={r.patientId} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/patients/${r.patientId}`}

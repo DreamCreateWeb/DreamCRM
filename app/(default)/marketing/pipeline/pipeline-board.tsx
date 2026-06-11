@@ -139,7 +139,7 @@ export default function PipelineBoard({ initialByStage, stages }: Props) {
       </div>
       <DragOverlay dropAnimation={null}>
         {activeLead ? (
-          <div className="opacity-95 rotate-1 shadow-xl">
+          <div className="opacity-95 rotate-1 shadow-[var(--shadow-pop)] rounded-[var(--r-md)]">
             <LeadCard lead={activeLead} isDragging />
           </div>
         ) : null}
@@ -157,8 +157,8 @@ function Column({ stage, leads }: { stage: PipelineStage; leads: PipelineLead[] 
     <div
       ref={setNodeRef}
       className={cn(
-        'rounded-xl border border-gray-200 dark:border-gray-700/60 bg-stone-50/60 dark:bg-gray-900/40 p-2 min-h-[10rem]',
-        isOver && 'ring-2 ring-violet-300 dark:ring-violet-700',
+        'rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] p-2 min-h-[10rem]',
+        isOver && 'ring-2 ring-teal-500/45',
       )}
     >
       <div className="px-1.5 pb-2 pt-1 flex items-center justify-between gap-2">
@@ -168,7 +168,7 @@ function Column({ stage, leads }: { stage: PipelineStage; leads: PipelineLead[] 
             {stage.label}
           </h2>
         </div>
-        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
           {leads.length}
         </span>
       </div>
@@ -218,10 +218,10 @@ function LeadCard({ lead, isDragging }: { lead: PipelineLead; isDragging?: boole
         if (isDragging) e.preventDefault()
       }}
       className={cn(
-        'block bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700/60 p-2.5 transition-colors',
+        'block bg-[color:var(--color-surface-2)] rounded-[var(--r-md)] border border-[color:var(--color-hairline)] p-2.5 transition-colors',
         isDragging
           ? 'cursor-grabbing'
-          : 'hover:border-gray-300 dark:hover:border-gray-600 cursor-grab',
+          : 'hover:border-[color:var(--color-hairline-strong)] cursor-grab',
       )}
     >
       <div className="min-w-0">
@@ -240,7 +240,7 @@ function LeadCard({ lead, isDragging }: { lead: PipelineLead; isDragging?: boole
           <StatusPill tone="neutral" label="Opted out" title="Opted out of marketing — campaign sends skip this contact" />
         )}
         {lead.lastActivityAt && (
-          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
             {relativeTime(lead.lastActivityAt)}
           </span>
         )}
