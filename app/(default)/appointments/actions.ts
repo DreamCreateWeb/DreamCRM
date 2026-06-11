@@ -8,7 +8,6 @@ import {
   markNoShow,
   markCompleted,
   rescheduleAppointment,
-  logReminderSent,
   createInternalAppointment,
   getAppointmentDetail,
   type CreateInternalAppointmentInput,
@@ -18,6 +17,7 @@ import { sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
+import { sendReminderEmail } from '@/lib/services/reminder-automation'
 
 async function requireClinicTenant() {
   const ctx = await requireTenant()
@@ -155,35 +155,10 @@ async function sendReminderForOrg(
   }
   if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
 
-  try {
-    const sender = await getClinicSenderIdentity(ctx.organizationId)
-    const startStr = detail.startTime.toLocaleString('en-US', {
-      weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
-    })
-    const dateStr = detail.startTime.toLocaleDateString('en-US', {
-      weekday: 'long', month: 'short', day: 'numeric', timeZone: sender.timeZone,
-    })
-    await sendNotificationEmail({
-      to: detail.patient.email,
-      name: detail.patient.fullName,
-      title: `Reminder: your ${detail.type.replace(/_/g, ' ')} on ${dateStr}`,
-      body: `Hi ${detail.patient.fullName.split(' ')[0]} — just a quick reminder of your ${detail.type.replace(/_/g, ' ')} appointment at ${sender.name} on ${startStr}. Reply CONFIRM or call us back to confirm. Thanks!`,
-    }, sender)
-    await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
-      note: `Appointment reminder sent for ${startStr}.`,
-      mode: 'Email',
-    })
-    await logReminderSent({
-      organizationId: ctx.organizationId,
-      appointmentId,
-      channel: 'email',
-      template: 'default_reminder',
-      sentByUserId: ctx.userId,
-    })
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, error: (err as Error).message }
-  }
+  // Shared compose + send + commlog + audit-log path, reused by the automated
+  // reminder engine (lib/services/reminder-automation.ts) so the two can't drift.
+  const sender = await getClinicSenderIdentity(ctx.organizationId)
+  return sendReminderEmail(ctx.organizationId, detail, sender, ctx.userId)
 }
 
 export async function sendReminderAction(

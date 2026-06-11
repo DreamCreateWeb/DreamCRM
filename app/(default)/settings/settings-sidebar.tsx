@@ -77,6 +77,7 @@ function clinicSections(): NavSection[] {
       items: [
         { href: '/settings/clinic',        label: 'Clinic profile',      icon: buildingIcon },
         { href: '/settings/portal',        label: 'Patient portal',      icon: heartIcon },
+        { href: '/settings/reminders',     label: 'Reminders',           icon: bellIcon },
         { href: '/settings/locations',     label: 'Locations',           icon: pinIcon },
         { href: '/settings/team',          label: 'Team',                icon: teamIcon },
         { href: '/settings/apps',          label: 'Connected accounts',  icon: plugIcon },

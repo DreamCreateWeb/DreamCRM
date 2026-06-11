@@ -282,19 +282,30 @@ describe('createDemoClinic', () => {
     // Capture the update call by hooking the mock — we already track via state.updates
     state.updates.length = 0
     await createDemoClinic()
-    // Self-heal triggers 3 updates (identified by content, not order):
+    // Self-heal triggers 4 updates (identified by content, not order):
     //   1. organization.isDemo = true (flag legacy demos out of platform metrics)
     //   2. clinicProfile patch (stats / officePhotos / logo / hero)
     //   3. appointment.source backfill ("set source='manual' where source is null")
+    //   4. scheduled-campaign scheduledAt push far-future (so the new
+    //      send-scheduled-campaigns cron never blasts demo email on resync)
     //
     // Note: testimonials are handled by a separate self-heal block lower
     // down (topUpLinkedDemoTestimonials) that needs patientIds to link the
     // seeded testimonials to real CRM patients — it doesn't fire here
     // because the mocked patient query returns no rows.
-    expect(state.updates).toHaveLength(3)
+    expect(state.updates).toHaveLength(4)
 
     const isDemoUpdate = state.updates.find((u) => (u.set as { isDemo?: boolean }).isDemo === true)
     expect(isDemoUpdate, 'expected an organization.isDemo backfill update').toBeTruthy()
+
+    // The scheduled-campaign self-heal pushes scheduledAt > 1yr out.
+    const scheduledPush = state.updates.find(
+      (u) => (u.set as { scheduledAt?: Date }).scheduledAt instanceof Date,
+    )
+    expect(scheduledPush, 'expected a scheduled-campaign scheduledAt push').toBeTruthy()
+    expect((scheduledPush!.set as { scheduledAt: Date }).scheduledAt.getTime()).toBeGreaterThan(
+      Date.now() + 365 * 24 * 60 * 60 * 1000,
+    )
 
     const patch = state.updates.find((u) => (u.set as { stats?: unknown }).stats !== undefined)!.set as {
       stats?: unknown

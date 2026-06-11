@@ -123,6 +123,67 @@ export async function deleteMarketingCampaign(organizationId: string, id: number
   return { deleted: rows.length }
 }
 
+/** Minimum lead time for a scheduled send — guards against "schedule in the
+ *  past / 30 seconds out" mistakes and gives the cron room to pick it up. */
+export const SCHEDULE_MIN_LEAD_MS = 5 * 60 * 1000
+
+export type ScheduleResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * Queue a campaign to send at `scheduledAt` (status → 'scheduled'). The
+ * send-scheduled-campaigns cron dispatches it once the time arrives. Validates
+ * the campaign is sendable (subject + body + audience) and the time is at least
+ * SCHEDULE_MIN_LEAD_MS out — mirrors the "Send now" preconditions so a scheduled
+ * send can't fail at dispatch for a reason we could catch now. Only draft or
+ * already-scheduled campaigns can be (re)scheduled — never a completed/active one.
+ */
+export async function scheduleCampaign(
+  organizationId: string,
+  id: number,
+  scheduledAtIso: string,
+  now: Date = new Date(),
+): Promise<ScheduleResult> {
+  const campaign = await getMarketingCampaign(organizationId, id)
+  if (!campaign) return { ok: false, error: 'Campaign not found' }
+  if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
+    return { ok: false, error: 'Only a draft campaign can be scheduled.' }
+  }
+  if (!campaign.subject) return { ok: false, error: 'Add a subject before scheduling.' }
+  if (!campaign.bodyHtml) return { ok: false, error: 'Write the email body before scheduling.' }
+  if (!campaign.audienceId) return { ok: false, error: 'Choose an audience before scheduling.' }
+
+  const at = new Date(scheduledAtIso)
+  if (Number.isNaN(at.getTime())) return { ok: false, error: 'Invalid date/time.' }
+  if (at.getTime() < now.getTime() + SCHEDULE_MIN_LEAD_MS) {
+    return { ok: false, error: 'Pick a time at least 5 minutes from now.' }
+  }
+
+  await db
+    .update(schema.campaigns)
+    .set({ status: 'scheduled', scheduledAt: at, sentAt: null, updatedAt: new Date() })
+    .where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.organizationId, organizationId)))
+  return { ok: true }
+}
+
+/** Pull a scheduled campaign back to draft (clears scheduledAt). No-op-safe:
+ *  only flips rows currently 'scheduled', so it can't disturb one the cron just
+ *  claimed (status would already be 'active'). */
+export async function cancelScheduledCampaign(organizationId: string, id: number): Promise<ScheduleResult> {
+  const rows = await db
+    .update(schema.campaigns)
+    .set({ status: 'draft', scheduledAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.campaigns.id, id),
+        eq(schema.campaigns.organizationId, organizationId),
+        eq(schema.campaigns.status, 'scheduled'),
+      ),
+    )
+    .returning({ id: schema.campaigns.id })
+  if (rows.length === 0) return { ok: false, error: 'Campaign is not scheduled (it may have already started sending).' }
+  return { ok: true }
+}
+
 /** Aggregate counts across all event rows for one campaign. */
 export async function getCampaignStats(campaignId: number): Promise<CampaignStats> {
   const rows = await db

@@ -1710,6 +1710,19 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       existingAudiencesByName,
       existingCampaignsByName,
     )
+    // Push any legacy demo scheduled campaign far into the future so the new
+    // send-scheduled-campaigns cron never actually blasts demo email on resync.
+    // (Legacy demos were seeded with scheduledAt ~2 days out; the create path
+    // now seeds far-future, this corrects the ones already in the DB.)
+    await db
+      .update(schema.campaigns)
+      .set({ scheduledAt: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000) })
+      .where(
+        and(
+          eq(schema.campaigns.organizationId, existing.id),
+          eq(schema.campaigns.status, 'scheduled'),
+        ),
+      )
 
     // Patient Communications self-heal: top up to the seeded thread set.
     // Additive + idempotent — checks existing thread patient ids before
@@ -2628,7 +2641,10 @@ async function seedRecallOutreachForOrg(
       templateName: SYSTEM_TEMPLATES[1].name, // Birthday
       audienceName: 'Birthday this month',
       status: 'scheduled',
-      scheduledDaysAhead: 2,
+      // Far-future so the scheduled-campaign cron never actually blasts demo
+      // email on a deploy resync — this row exists only to showcase the
+      // "Scheduled" pill + the editor's "Send later" state, not to send.
+      scheduledDaysAhead: 3650,
     },
     {
       name: 'New patient welcome — week 1 follow-up',
