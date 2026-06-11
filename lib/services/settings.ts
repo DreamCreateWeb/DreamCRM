@@ -4,6 +4,14 @@ import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 
 // ---------- Account profile ----------
+// NOTE: `email` is deliberately NOT a field here. Email is the sign-in identity,
+// so changing it must go through better-auth's verified `changeEmail` flow
+// (auth client → confirmation link to the existing mailbox), never a direct
+// `user.email` write from this profile action. A prior version accepted `email`
+// and wrote it straight to the row — that let a borrowed session silently
+// repoint the login to any address (account-takeover-adjacent). The account
+// panel now calls `authClient.changeEmail` for the email field and this action
+// only for the other profile fields.
 export const AccountInput = z.object({
   name: z.string().min(1).max(200).optional(),
   companyName: z.string().max(200).optional().nullable(),
@@ -12,10 +20,12 @@ export const AccountInput = z.object({
   streetAddress: z.string().max(200).optional().nullable(),
   country: z.string().max(100).optional().nullable(),
   image: z.string().url().optional().nullable(),
-  email: z.string().email().optional(),
 })
 
 export async function updateAccount(userId: string, input: z.infer<typeof AccountInput>) {
+  // .parse() strips unknown keys, so even if a caller smuggles `email` in the
+  // payload it never reaches the DB write — the verified changeEmail flow is the
+  // only path to a new sign-in email.
   const data = AccountInput.parse(input)
   const [row] = await db
     .update(schema.user)

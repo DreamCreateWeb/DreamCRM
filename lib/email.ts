@@ -146,7 +146,41 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   })
 }
 
-export async function sendMagicLinkEmail(to: string, url: string) {
+/**
+ * Magic-link sign-in email. When a `sender` (clinic identity) is supplied, the
+ * email wears the CLINIC's brand — it comes FROM the clinic (Tier 1/Tier 2 via
+ * `deliver()`), the subject names the clinic, and the body greets in the warm
+ * clinic-portal voice. Patients live in their clinic's brand, not "Dream Create"
+ * dental software. Falls back to the platform-branded copy when no clinic match
+ * exists (e.g. a staff member signing into the dashboard).
+ */
+export async function sendMagicLinkEmail(to: string, url: string, sender?: ClinicSender) {
+  if (sender) {
+    await deliver({
+      to,
+      from: sender.from,
+      replyTo: sender.replyTo,
+      gmail: sender.gmail,
+      subject: `Sign in to ${sender.name}`,
+      html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
+        <h2 style="margin:0 0 16px;font-size:20px">Your sign-in link</h2>
+        <p style="margin:0 0 24px;line-height:1.55">
+          Tap below to sign in to your ${escapeHtml(sender.name)} patient portal —
+          no password needed. It works once and expires in 15 minutes.
+        </p>
+        <a href="${url}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
+          Sign me in
+        </a>
+        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">
+          If you didn't ask for this, you can safely ignore it — nobody can
+          sign in without this exact link.
+        </p>
+      </div>
+    `,
+    })
+    return
+  }
   await deliver({
     to,
     subject: 'Your sign-in link',
@@ -163,6 +197,37 @@ export async function sendMagicLinkEmail(to: string, url: string) {
         <p style="margin:24px 0 0;font-size:12px;color:#888">
           If you didn't ask for this, you can safely ignore it — nobody can
           sign in without this exact link.
+        </p>
+      </div>
+    `,
+  })
+}
+
+/**
+ * Confirm an email-change request. Sent to the user's CURRENT (old) address so
+ * the person who controls the existing mailbox has to approve repointing the
+ * sign-in identity — the security gate against account takeover via a borrowed
+ * session. Names the requested new address so an unexpected request is obvious
+ * (and ignorable — nothing changes until the link is clicked).
+ */
+export async function sendChangeEmailVerification(toOldEmail: string, newEmail: string, confirmUrl: string) {
+  await deliver({
+    to: toOldEmail,
+    subject: 'Confirm your new DreamCRM email address',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Confirm your email change</h2>
+        <p style="margin:0 0 16px;color:#444;line-height:1.5">
+          We received a request to change the email on your DreamCRM account to
+          <strong>${escapeHtml(newEmail)}</strong>. To keep your account secure,
+          confirm this change from your current email address.
+        </p>
+        <a href="${confirmUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
+          Confirm email change
+        </a>
+        <p style="margin:24px 0 0;font-size:12px;color:#888">
+          If you didn't request this, you can safely ignore this email — your
+          sign-in email won't change unless you click the button above.
         </p>
       </div>
     `,

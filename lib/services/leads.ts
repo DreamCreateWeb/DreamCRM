@@ -239,15 +239,13 @@ export interface ConvertLeadResult {
  * lead-converted rows. Idempotent: if the lead is already converted,
  * returns the existing patient id.
  *
- * Implementation note — we previously wrapped these writes in
- * `db.transaction()`, but the Neon HTTP driver does not support
- * transactions (calls fail with "No transactions support in neon-http
- * driver"). Instead we order the writes so a mid-flight failure leaves
- * the lead row in a recoverable state:
- *   1. Look up / insert the patient (no lead mutation yet).
- *   2. Only after the patient row exists, update the lead.
- * If step 1 succeeds and step 2 fails, a retry resolves to the same
- * patient via the dedupe lookup — idempotent.
+ * The patient insert + lead flip run in a single `db.transaction()` so a
+ * mid-flight failure can't leave a patient row with the lead never marked
+ * converted (or vice-versa). Transactions are available again now that the DB
+ * is node-postgres — the prior "Neon HTTP driver has no transaction support"
+ * note was stale. The idempotency guard (early return when already converted)
+ * still protects retries, and the dedupe lookup runs inside the tx so a
+ * concurrent convert can't slip a duplicate in between the read and the insert.
  */
 export async function convertLeadToPatient(
   organizationId: string,
@@ -270,59 +268,61 @@ export async function convertLeadToPatient(
   const firstName = firstSpace >= 0 ? trimmed.slice(0, firstSpace) : trimmed
   const lastName = firstSpace >= 0 ? trimmed.slice(firstSpace + 1).trim() : ''
 
-  // If a patient already exists with this email or phone, reuse them
-  // rather than creating a duplicate — UNLESS the caller explicitly
-  // forces a new patient (the "not the same person" escape hatch, e.g.
-  // a child lead sharing a parent's phone number — common in dental).
-  const dupes = options.forceNewPatient
-    ? []
-    : await db
-        .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
-        .from(schema.patient)
-        .where(
-          and(
-            eq(schema.patient.organizationId, organizationId),
-            or(
-              existing.email ? eq(schema.patient.email, existing.email) : sql`false`,
-              eq(schema.patient.phone, existing.phone),
-            )!,
-          ),
-        )
-        .limit(1)
+  return db.transaction(async (tx) => {
+    // If a patient already exists with this email or phone, reuse them
+    // rather than creating a duplicate — UNLESS the caller explicitly
+    // forces a new patient (the "not the same person" escape hatch, e.g.
+    // a child lead sharing a parent's phone number — common in dental).
+    const dupes = options.forceNewPatient
+      ? []
+      : await tx
+          .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+          .from(schema.patient)
+          .where(
+            and(
+              eq(schema.patient.organizationId, organizationId),
+              or(
+                existing.email ? eq(schema.patient.email, existing.email) : sql`false`,
+                eq(schema.patient.phone, existing.phone),
+              )!,
+            ),
+          )
+          .limit(1)
 
-  const deduped = !!dupes[0]
-  const patientId = dupes[0]?.id ?? `pat_${randomBytes(10).toString('hex')}`
-  const patientName = deduped
-    ? `${dupes[0].firstName} ${dupes[0].lastName}`.trim()
-    : `${firstName || 'Unknown'} ${lastName}`.trim()
-  if (!deduped) {
-    const now = new Date()
-    await db.insert(schema.patient).values({
-      id: patientId,
-      organizationId,
-      firstName: firstName || 'Unknown',
-      lastName: lastName || '',
-      email: existing.email,
-      phone: existing.phone,
-      isActive: 1,
-      source: 'lead_form',
-      lifecycle: 'new',
-      firstSeenAt: existing.createdAt,
-      lastActivityAt: now,
-    })
-  }
+    const deduped = !!dupes[0]
+    const patientId = dupes[0]?.id ?? `pat_${randomBytes(10).toString('hex')}`
+    const patientName = deduped
+      ? `${dupes[0].firstName} ${dupes[0].lastName}`.trim()
+      : `${firstName || 'Unknown'} ${lastName}`.trim()
+    if (!deduped) {
+      const now = new Date()
+      await tx.insert(schema.patient).values({
+        id: patientId,
+        organizationId,
+        firstName: firstName || 'Unknown',
+        lastName: lastName || '',
+        email: existing.email,
+        phone: existing.phone,
+        isActive: 1,
+        source: 'lead_form',
+        lifecycle: 'new',
+        firstSeenAt: existing.createdAt,
+        lastActivityAt: now,
+      })
+    }
 
-  await db
-    .update(schema.lead)
-    .set({
-      status: 'converted',
-      convertedToPatientId: patientId,
-      convertedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
+    await tx
+      .update(schema.lead)
+      .set({
+        status: 'converted',
+        convertedToPatientId: patientId,
+        convertedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
 
-  return { leadId: existing.id, patientId, deduped, patientName }
+    return { leadId: existing.id, patientId, deduped, patientName }
+  })
 }
 
 /**

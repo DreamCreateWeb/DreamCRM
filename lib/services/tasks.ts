@@ -215,53 +215,57 @@ export async function reorderTask(
   const oldStatus = moved.status
   const crossColumn = oldStatus !== newStatus
 
-  // Helper: fetch the ordered ids of a status column for this org.
-  async function orderedIds(status: TaskStatus): Promise<number[]> {
-    const rows = await db
-      .select({ id: schema.tasks.id })
-      .from(schema.tasks)
-      .where(
-        and(
-          eq(schema.tasks.organizationId, organizationId),
-          eq(schema.tasks.status, status),
-        ),
-      )
-      .orderBy(asc(schema.tasks.position), asc(schema.tasks.createdAt))
-    return rows.map((r) => r.id)
-  }
+  // The renumber is a sequence of position UPDATEs (+ a status flip on a
+  // cross-column move) that only converge to a correct ordering when they ALL
+  // land. A partial apply leaves a column with duplicate / gapped positions, so
+  // we run the whole batch in a single `db.transaction()` — it rolls back as a
+  // unit on any failure. Transactions are available again now that the DB is
+  // node-postgres (the prior "Neon HTTP driver has no transaction support" note
+  // was stale). Reads (`orderedIds`) run on `tx` too so the ordering they
+  // compute matches what the same transaction writes.
+  await db.transaction(async (tx) => {
+    // Helper: fetch the ordered ids of a status column for this org.
+    async function orderedIds(status: TaskStatus): Promise<number[]> {
+      const rows = await tx
+        .select({ id: schema.tasks.id })
+        .from(schema.tasks)
+        .where(
+          and(
+            eq(schema.tasks.organizationId, organizationId),
+            eq(schema.tasks.status, status),
+          ),
+        )
+        .orderBy(asc(schema.tasks.position), asc(schema.tasks.createdAt))
+      return rows.map((r) => r.id)
+    }
 
-  // Build the destination column's new ordering.
-  let destIds = await orderedIds(newStatus)
-  destIds = destIds.filter((tid) => tid !== id) // remove if already present
-  const clampedIndex = Math.max(0, Math.min(newIndex, destIds.length))
-  destIds.splice(clampedIndex, 0, id)
+    // Build the destination column's new ordering.
+    let destIds = await orderedIds(newStatus)
+    destIds = destIds.filter((tid) => tid !== id) // remove if already present
+    const clampedIndex = Math.max(0, Math.min(newIndex, destIds.length))
+    destIds.splice(clampedIndex, 0, id)
 
-  // Write the destination column. Previously `db.transaction(...)`, but
-  // the Neon HTTP driver doesn't support transactions; the kanban renumber
-  // is a sequence of independent column-position UPDATEs that converge to
-  // the correct state on success and self-heal on the next move if any
-  // single update lost the race (positions get rewritten end-to-end every
-  // move). Acceptable trade.
-  if (crossColumn) {
-    await db
-      .update(schema.tasks)
-      .set({ status: newStatus, updatedAt: new Date() })
-      .where(and(eq(schema.tasks.id, id), eq(schema.tasks.organizationId, organizationId)))
+    if (crossColumn) {
+      await tx
+        .update(schema.tasks)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(and(eq(schema.tasks.id, id), eq(schema.tasks.organizationId, organizationId)))
 
-    const sourceIds = (await orderedIds(oldStatus)).filter((tid) => tid !== id)
-    for (let i = 0; i < sourceIds.length; i++) {
-      await db
+      const sourceIds = (await orderedIds(oldStatus)).filter((tid) => tid !== id)
+      for (let i = 0; i < sourceIds.length; i++) {
+        await tx
+          .update(schema.tasks)
+          .set({ position: i })
+          .where(eq(schema.tasks.id, sourceIds[i]))
+      }
+    }
+    for (let i = 0; i < destIds.length; i++) {
+      await tx
         .update(schema.tasks)
         .set({ position: i })
-        .where(eq(schema.tasks.id, sourceIds[i]))
+        .where(eq(schema.tasks.id, destIds[i]))
     }
-  }
-  for (let i = 0; i < destIds.length; i++) {
-    await db
-      .update(schema.tasks)
-      .set({ position: i })
-      .where(eq(schema.tasks.id, destIds[i]))
-  }
+  })
 }
 
 export async function updateTask(id: number, input: z.infer<typeof TaskUpdate>, organizationId: string) {
