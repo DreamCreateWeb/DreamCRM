@@ -97,11 +97,11 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
       <Dialog as="div" onClose={() => setIsOpen(false)}>
         <TransitionChild
           as="div"
-          className="fixed inset-0 bg-gray-900/30 z-50 transition-opacity"
-          enter="transition ease-out duration-200"
+          className="fixed inset-0 bg-[color:var(--color-ink-900)]/30 z-50 transition-opacity"
+          enter="transition-opacity ease-[var(--ease-out)] duration-[var(--dur-base)]"
           enterFrom="opacity-0"
           enterTo="opacity-100"
-          leave="transition ease-out duration-100"
+          leave="transition-opacity ease-[var(--ease-out)] duration-[var(--dur-fast)]"
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
           aria-hidden="true"
@@ -109,14 +109,14 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
         <TransitionChild
           as="div"
           className="fixed inset-0 z-50 overflow-hidden flex items-start top-20 mb-4 justify-center px-4 sm:px-6"
-          enter="transition ease-in-out duration-200"
+          enter="transition ease-[var(--ease-out)] duration-[var(--dur-base)]"
           enterFrom="opacity-0 translate-y-4"
           enterTo="opacity-100 translate-y-0"
-          leave="transition ease-in-out duration-200"
+          leave="transition ease-[var(--ease-out)] duration-[var(--dur-fast)]"
           leaveFrom="opacity-100 translate-y-0"
           leaveTo="opacity-0 translate-y-4"
         >
-          <DialogPanel className="bg-white dark:bg-gray-800 border border-transparent dark:border-gray-700/60 overflow-auto max-w-2xl w-full max-h-full rounded-lg shadow-lg">
+          <DialogPanel className="bg-[color:var(--color-surface-2)] overflow-auto max-w-2xl w-full max-h-full rounded-[var(--r-lg)] shadow-[var(--shadow-modal)]">
             <div className="border-b border-gray-200 dark:border-gray-700/60">
               <div className="relative">
                 <label htmlFor="search-modal" className="sr-only">

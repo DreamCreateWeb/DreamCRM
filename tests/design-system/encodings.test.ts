@@ -29,7 +29,9 @@ describe('tone recipes', () => {
     expect(TONE_PILL.ok).toContain('emerald')
     expect(TONE_PILL.warn).toContain('amber')
     expect(TONE_PILL.urgent).toContain('rose')
-    expect(TONE_PILL.info).toContain('sky')
+    // v2: info moved sky → indigo (teal/sky too close once the brand is teal).
+    expect(TONE_PILL.info).toContain('indigo')
+    expect(TONE_PILL.info).not.toContain('sky')
     expect(TONE_PILL.special).toContain('violet')
   })
 })

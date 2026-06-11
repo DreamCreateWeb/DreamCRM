@@ -78,7 +78,7 @@ export function EncodingLegend({
         <div
           role="dialog"
           aria-label="What the colors and icons mean"
-          className={`absolute top-full mt-2 z-30 w-80 max-h-[70vh] overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 shadow-lg p-4 text-left ${
+          className={`absolute top-full mt-2 z-30 w-80 max-h-[70vh] overflow-y-auto rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)] p-4 text-left ${
             align === 'right' ? 'right-0' : 'left-0'
           }`}
         >

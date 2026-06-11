@@ -28,7 +28,7 @@ export default function SignIn() {
               </Suspense>
               <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
                 <div className="text-sm">
-                  Don&apos;t have an account? <Link className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="/signup">Sign Up</Link>
+                  Don&apos;t have an account? <Link className="font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300" href="/signup">Sign Up</Link>
                 </div>
               </div>
             </div>

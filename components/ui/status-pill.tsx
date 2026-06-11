@@ -4,7 +4,8 @@ import { TONE_PILL, type Tone } from '@/lib/ui/encodings'
 /**
  * Standard status pill. The tone carries the meaning (see lib/ui/encodings):
  * ok=done/healthy · warn=needs our action · urgent=problem now ·
- * info=in flight/ball-theirs · special=new/featured · neutral=inert.
+ * info=in flight/ball-theirs (indigo) · special=new/featured · neutral=inert.
+ * Teal is NEVER a status — a teal pill is a contract violation.
  *
  * Pills encode categorical STATE. Time-urgency belongs to aging borders,
  * per-row flags belong to glyphs — don't overload the pill.

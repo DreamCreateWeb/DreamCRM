@@ -22,14 +22,14 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <div className={`px-6 py-12 text-center ${className}`}>
+    <div className={`v2-well px-6 py-12 text-center ${className}`}>
       {icon && (
         <div className="text-3xl mb-2" aria-hidden="true">
           {icon}
         </div>
       )}
-      <div className="text-base font-semibold text-gray-800 dark:text-gray-100">{title}</div>
-      {body && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">{body}</p>}
+      <div className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</div>
+      {body && <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto">{body}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   )

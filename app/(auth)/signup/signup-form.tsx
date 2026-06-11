@@ -78,7 +78,7 @@ export default function SignUpForm() {
   return (
     <form onSubmit={onSubmit}>
       {pickedPlan && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg bg-violet-50 dark:bg-violet-500/10 px-3 py-2 text-sm text-violet-700 dark:text-violet-300">
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-teal-50 dark:bg-teal-500/10 px-3 py-2 text-sm text-teal-700 dark:text-teal-300">
           <span className="font-semibold">{pickedPlan.name} plan</span>
           <span>
             — ${pickedInterval === 'annual' ? `${pickedPlan.annualPrice.toLocaleString('en-US')}/yr` : `${pickedPlan.price}/mo`}.

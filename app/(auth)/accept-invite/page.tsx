@@ -177,9 +177,9 @@ function AcceptInviteInner() {
               className="h-12 w-auto object-contain mb-4"
             />
           )}
-          {/* Brand accent when a clinic, else fall back to platform violet. */}
+          {/* Brand accent when a clinic, else fall back to platform teal. */}
           <p
-            className={`text-sm font-medium mb-1 ${accent ? '' : 'text-violet-600 dark:text-violet-400'}`}
+            className={`text-sm font-medium mb-1 ${accent ? '' : 'text-teal-700 dark:text-teal-400'}`}
             style={accent ? { color: accent } : undefined}
           >
             {isPatient ? 'Your patient portal' : "You're invited to join"}
@@ -279,7 +279,7 @@ function AcceptInviteInner() {
                   setFormError('')
                   setPassword('')
                 }}
-                className={`font-medium hover:underline ${accent ? '' : 'text-violet-500 hover:text-violet-600'}`}
+                className={`font-medium hover:underline ${accent ? '' : 'text-teal-600 hover:text-teal-700 dark:text-teal-400'}`}
                 style={accent ? { color: accent } : undefined}
               >
                 Create one
@@ -294,7 +294,7 @@ function AcceptInviteInner() {
                   setFormError('')
                   setPassword('')
                 }}
-                className={`font-medium hover:underline ${accent ? '' : 'text-violet-500 hover:text-violet-600'}`}
+                className={`font-medium hover:underline ${accent ? '' : 'text-teal-600 hover:text-teal-700 dark:text-teal-400'}`}
                 style={accent ? { color: accent } : undefined}
               >
                 Sign in instead
