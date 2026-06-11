@@ -82,6 +82,14 @@ export const clinicProfile = pgTable('clinic_profile', {
   // soft-card on /payment-financing. Null = section hides (we don't fake a
   // cancellation policy, since specific dollar fees vary per clinic).
   cancellationPolicy: text('cancellation_policy'),
+  // Per-page SEO title/description overrides (Settings → Search appearance).
+  // Shape: PageSeoMeta keyed by page key (home/about/book/services/team/
+  // insurance/payment-financing/faq/careers/blog-index) →
+  // { title?, description? }. Null/missing key → each public page's
+  // generateMetadata falls back to its derived title/description. Resolved by
+  // resolveSeoMeta() in lib/types/seo-meta.ts so junk can't poison the column
+  // and a new page key never needs a backfill.
+  seoMeta: jsonb('seo_meta'),
   // Patient-portal customization (Settings → Patient portal): feature
   // toggles + booking/reschedule notice windows + clinic-editable copy.
   // Shape: PortalSettings in lib/types/portal.ts. Null = defaults; partial

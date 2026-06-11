@@ -24,6 +24,7 @@ import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
+import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import BookForm from './book-form'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
@@ -38,8 +39,10 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/book`
-  const title = `Book a Visit — ${name}`
-  const description = `Book your appointment online with ${name}. Same-week availability.`
+  const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).book, {
+    title: `Book a Visit — ${name}`,
+    description: `Book your appointment online with ${name}. Same-week availability.`,
+  })
   return {
     title,
     description,

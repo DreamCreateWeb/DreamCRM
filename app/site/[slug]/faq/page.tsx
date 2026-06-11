@@ -24,6 +24,7 @@ import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
+import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -37,8 +38,10 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/faq`
-  const title = `FAQ — ${name}`
-  const description = `Common questions answered for patients of ${name}.`
+  const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).faq, {
+    title: `FAQ — ${name}`,
+    description: `Common questions answered for patients of ${name}.`,
+  })
   return {
     title,
     description,

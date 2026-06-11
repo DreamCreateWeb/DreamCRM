@@ -52,6 +52,9 @@ const cardIcon = (
 const heartIcon = (
   <path d="M14.3.3c.4-.4 1-.4 1.4 0 .4.4.4 1 0 1.4l-8 8c-.2.2-.4.3-.7.3-.3 0-.5-.1-.7-.3-.4-.4-.4-1 0-1.4l8-8zM15 7c.6 0 1 .4 1 1 0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8c.6 0 1 .4 1 1s-.4 1-1 1C4.7 2 2 4.7 2 8s2.7 6 6 6 6-2.7 6-6c0-.6.4-1 1-1z" />
 )
+const searchIcon = (
+  <path d="M7 14a7 7 0 1 1 4.94-2.06l3.56 3.56a1 1 0 0 1-1.42 1.42l-3.56-3.56A6.97 6.97 0 0 1 7 14Zm0-2a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" />
+)
 
 /**
  * Sections shown to clinic-tenant users in Settings. Reorganized to match
@@ -78,6 +81,7 @@ function clinicSections(): NavSection[] {
         { href: '/settings/clinic',        label: 'Clinic profile',      icon: buildingIcon },
         { href: '/settings/practice',      label: 'Practice setup',      icon: teamIcon },
         { href: '/settings/portal',        label: 'Patient portal',      icon: heartIcon },
+        { href: '/settings/seo',           label: 'Search appearance',   icon: searchIcon },
         { href: '/settings/reminders',     label: 'Reminders',           icon: bellIcon },
         { href: '/settings/locations',     label: 'Locations',           icon: pinIcon },
         { href: '/settings/team',          label: 'Team',                icon: teamIcon },

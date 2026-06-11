@@ -24,6 +24,7 @@ import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
+import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -37,8 +38,10 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/insurance`
-  const title = `Insurance — ${name}`
-  const description = `Dental insurance accepted at ${name}. Verify your plan and learn how we handle in-network vs out-of-network benefits.`
+  const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).insurance, {
+    title: `Insurance — ${name}`,
+    description: `Dental insurance accepted at ${name}. Verify your plan and learn how we handle in-network vs out-of-network benefits.`,
+  })
   return {
     title,
     description,

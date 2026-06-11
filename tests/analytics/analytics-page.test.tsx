@@ -32,6 +32,18 @@ vi.mock('@/lib/services/analytics', () => ({
   getClinicAnalytics: (org: string, windowDays?: number) => getClinicAnalyticsMock(org, windowDays),
 }))
 
+// The page also renders the website-visits tile; keep it inert here so this
+// test stays focused on the analytics bands (and never touches lib/db).
+vi.mock('@/lib/services/site-analytics', () => ({
+  getSiteTraffic: vi.fn(async (_org: string, days = 30) => ({
+    windowDays: days,
+    total: 0,
+    priorTotal: 0,
+    days: [],
+    topPages: [],
+  })),
+}))
+
 vi.mock('@/components/onboarding/module-hint', () => ({
   default: () => null,
 }))

@@ -29,6 +29,7 @@ import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
+import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 
 const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
@@ -42,11 +43,11 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const tagline = data.profile.tagline ?? null
-  const description =
-    tagline ??
-    (data.profile.about ? firstSentence(data.profile.about) : `About ${name}.`)
   const url = `${publicSiteUrl(data)}/about`
-  const title = `About — ${name}`
+  const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).about, {
+    title: `About — ${name}`,
+    description: tagline ?? (data.profile.about ? firstSentence(data.profile.about) : `About ${name}.`),
+  })
   return {
     title,
     description,

@@ -74,6 +74,10 @@ const PUBLIC_PATHS = [
   // marketing blog). The route is a best-effort counter that no-ops on
   // drafts; without this the POST 307s to /signin and views never count.
   '/api/blog',
+  // Site-wide public pageview beacon (every clinic public page). Same
+  // best-effort daily-rollup counter; must be public or the sendBeacon POST
+  // from an unauthenticated visitor 307s to /signin and visits never count.
+  '/api/site-view',
   '/signin',
   '/signup',
   '/reset-password',
