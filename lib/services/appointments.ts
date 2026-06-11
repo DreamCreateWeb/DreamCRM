@@ -1030,15 +1030,13 @@ export interface RescheduleInput {
 }
 
 export async function rescheduleAppointment(input: RescheduleInput) {
-  // Previously wrapped in `db.transaction()` to make cancel-original +
-  // insert-new atomic, but the Neon HTTP driver throws "No transactions
-  // support in neon-http driver" at runtime. Order matters here: insert
-  // the new appointment FIRST, then cancel the original. Failure modes:
-  //   - insert fails → original unchanged, user retries
-  //   - insert succeeds + cancel fails → temporary duplicate (front desk
-  //     spots it on the agenda + can cancel the stale row by hand), much
-  //     less bad than the old failure mode (original cancelled with no
-  //     replacement)
+  // Cancel-original + insert-new must be atomic: a partial apply either
+  // resurrects nothing (original cancelled, no replacement) or leaves a phantom
+  // duplicate. We run both writes in a single `db.transaction()` — restored now
+  // that the DB is node-postgres (which supports transactions; the prior "Neon
+  // HTTP driver has no transaction support" note was stale). The select +
+  // terminal-state guard run outside the tx (read-only); the two writes run
+  // inside and roll back together on any failure.
   const [original] = await db
     .select()
     .from(schema.appointment)
@@ -1072,41 +1070,44 @@ export async function rescheduleAppointment(input: RescheduleInput) {
   }
 
   const newId = newAppointmentId()
-  await db.insert(schema.appointment).values({
-    id: newId,
-    organizationId: input.organizationId,
-    patientId: original.patientId,
-    locationId: original.locationId,
-    providerId: original.providerId,
-    title: original.title,
-    startTime: input.newStartTime,
-    endTime: resolvedEnd,
-    type: original.type,
-    status: 'scheduled',
-    notes: original.notes,
-    // Carry the original booking source forward — a rescheduled widget/portal
-    // appointment must keep its attribution, not silently become 'manual'
-    // (which dropped it from the source filter + analytics + PMS context).
-    source: original.source ?? 'manual',
-    rescheduledFromAppointmentId: input.appointmentId,
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.appointment).values({
+      id: newId,
+      organizationId: input.organizationId,
+      patientId: original.patientId,
+      locationId: original.locationId,
+      providerId: original.providerId,
+      title: original.title,
+      startTime: input.newStartTime,
+      endTime: resolvedEnd,
+      type: original.type,
+      status: 'scheduled',
+      notes: original.notes,
+      // Carry the original booking source forward — a rescheduled widget/portal
+      // appointment must keep its attribution, not silently become 'manual'
+      // (which dropped it from the source filter + analytics + PMS context).
+      source: original.source ?? 'manual',
+      rescheduledFromAppointmentId: input.appointmentId,
+    })
+
+    await tx
+      .update(schema.appointment)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointment.organizationId, input.organizationId),
+          eq(schema.appointment.id, input.appointmentId),
+        ),
+      )
   })
 
-  await db
-    .update(schema.appointment)
-    .set({
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.appointment.organizationId, input.organizationId),
-        eq(schema.appointment.id, input.appointmentId),
-      ),
-    )
-
   // Two-way PMS: cancel the original in the PMS (so the old time stops
-  // reminding), then push the new slot as a fresh booking.
+  // reminding), then push the new slot as a fresh booking. Outside the tx —
+  // these enqueue best-effort write-ops and must not roll back the reschedule.
   await queueAppointmentStatusWriteBack(input.organizationId, input.appointmentId, 'cancelled')
   await queueAppointmentWriteBack(input.organizationId, newId)
   return newId

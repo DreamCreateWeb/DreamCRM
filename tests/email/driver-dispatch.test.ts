@@ -22,6 +22,8 @@ import {
   sendInvitationEmail,
   sendIntakeRequestEmail,
   sendCancellationConfirmation,
+  sendMagicLinkEmail,
+  sendChangeEmailVerification,
 } from '@/lib/email'
 
 const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
@@ -164,6 +166,63 @@ describe('sendCancellationConfirmation', () => {
     const msg = mocks.resendSend.mock.calls[0]![0] as { html: string }
     expect(msg.html).not.toContain('/book')
     expect(msg.html).toContain('555-1212') // "give us a call at …"
+  })
+})
+
+describe('sendMagicLinkEmail — clinic branding vs platform fallback', () => {
+  const CLINIC_SENDER = {
+    name: 'Acme Dental',
+    from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+    replyTo: 'front@acmedental.com',
+    timeZone: 'America/New_York',
+  }
+
+  it('wears the clinic brand when a sender is supplied (FROM clinic, subject names clinic)', async () => {
+    mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
+    await sendMagicLinkEmail('mia@example.com', 'https://www.dreamcreatestudio.com/magic?t=abc', CLINIC_SENDER)
+    expect(mocks.resendSend).toHaveBeenCalledOnce()
+    const msg = mocks.resendSend.mock.calls[0]![0] as { from: string; replyTo?: string; subject: string; html: string }
+    expect(msg.from).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
+    expect(msg.replyTo).toBe('front@acmedental.com')
+    expect(msg.subject).toBe('Sign in to Acme Dental')
+    expect(msg.html).toContain('Acme Dental')
+    expect(msg.html).toContain('https://www.dreamcreatestudio.com/magic?t=abc')
+  })
+
+  it('routes through the clinic Gmail account (Tier 2) when present', async () => {
+    mocks.gmailSend.mockResolvedValue({ id: 'g1', threadId: 't1' })
+    await sendMagicLinkEmail('mia@example.com', 'https://x/magic', {
+      ...CLINIC_SENDER,
+      gmail: { accountId: 'acct_1', from: 'Acme Dental <frontdesk@acmedental.com>' },
+    })
+    expect(mocks.gmailSend).toHaveBeenCalledOnce()
+    expect(mocks.resendSend).not.toHaveBeenCalled()
+  })
+
+  it('falls back to platform-branded copy when NO sender is supplied', async () => {
+    mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
+    await sendMagicLinkEmail('staff@dreamcreateweb.com', 'https://x/magic')
+    const msg = mocks.resendSend.mock.calls[0]![0] as { from: string; subject: string; html: string }
+    expect(msg.from).toBe(FROM)
+    expect(msg.subject).toBe('Your sign-in link')
+    // Platform copy, not the clinic-branded headline.
+    expect(msg.subject).not.toMatch(/Sign in to /)
+  })
+})
+
+describe('sendChangeEmailVerification — confirm to the OLD mailbox', () => {
+  it('sends the confirmation to the current address and names the new one', async () => {
+    mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
+    await sendChangeEmailVerification('old@x.com', 'new@y.com', 'https://app/verify?token=t')
+    expect(mocks.resendSend).toHaveBeenCalledOnce()
+    const msg = mocks.resendSend.mock.calls[0]![0] as { from: string; to: string; subject: string; html: string }
+    // Goes to the OLD email (the security gate), from the platform identity.
+    expect(msg.to).toBe('old@x.com')
+    expect(msg.from).toBe(FROM)
+    expect(msg.subject).toMatch(/confirm/i)
+    // Names the requested new address + carries the confirm link.
+    expect(msg.html).toContain('new@y.com')
+    expect(msg.html).toContain('https://app/verify?token=t')
   })
 })
 

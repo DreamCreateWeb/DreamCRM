@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { saveAccount } from '../actions'
+import { changeEmail } from '@/lib/auth/client'
 import { ActionButton } from '@/components/ui/action-button'
 
 interface InitialUser {
@@ -23,11 +24,21 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
   const [name, setName] = useState(initialUser.name)
   const [companyName, setCompanyName] = useState(initialUser.companyName ?? '')
   const [location, setLocation] = useState(initialUser.city ?? '')
+  // Email is its own flow — it doesn't ride the profile Save. Changing it
+  // routes through better-auth's verified changeEmail (a confirmation link to
+  // the current mailbox); the new address only takes effect after that click,
+  // so `currentEmail` keeps showing what's actually on the account.
+  const currentEmail = initialUser.email
   const [email, setEmail] = useState(initialUser.email)
   const [image, setImage] = useState(initialUser.image)
   const [uploading, setUploading] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [emailPending, startEmailTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
+  // Set after a successful changeEmail request — surfaces the pending-confirm
+  // state inline ("verify the link we sent") until the user confirms.
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
+  const [emailFeedback, setEmailFeedback] = useState<{ ok?: string; error?: string } | null>(null)
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -57,18 +68,40 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
     setFeedback(null)
     startTransition(async () => {
       try {
+        // Email is intentionally NOT sent here — it has its own verified flow.
         await saveAccount({
           name,
           companyName: companyName || null,
           city: location || null,
           image: image || null,
-          email,
         })
         setFeedback({ ok: 'Saved' })
         router.refresh()
       } catch (err) {
         setFeedback({ error: (err as Error).message })
       }
+    })
+  }
+
+  function handleEmailChange(e: React.FormEvent) {
+    e.preventDefault()
+    setEmailFeedback(null)
+    const next = email.trim()
+    if (!next || next.toLowerCase() === currentEmail.toLowerCase()) {
+      setEmailFeedback({ error: 'Enter a different email address.' })
+      return
+    }
+    startEmailTransition(async () => {
+      // better-auth sends a confirmation link (to the current mailbox when the
+      // account is verified, otherwise a verification link to the new address).
+      // Nothing changes on the account until that link is clicked.
+      const { error } = await changeEmail({ newEmail: next, callbackURL: '/settings/account' })
+      if (error) {
+        setEmailFeedback({ error: error.message ?? 'Could not start the email change. Please try again.' })
+        return
+      }
+      setPendingEmail(next)
+      setEmailFeedback(null)
     })
   }
 
@@ -115,18 +148,60 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
               <input id="acct-location" className="form-input w-full sm:w-1/2" type="text" value={location} onChange={(e) => setLocation(e.target.value)} />
             </div>
           </section>
-
-          <section>
-            <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Email</h2>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Used for sign-in and account notifications.</div>
-            <div className="flex flex-wrap mt-5">
-              <div className="mr-2 w-full sm:w-auto">
-                <label className="sr-only" htmlFor="acct-email">Business email</label>
-                <input id="acct-email" className="form-input w-full sm:w-80" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-            </div>
-          </section>
         </form>
+
+        {/* Email is its own verified flow — separate form, separate button, so it
+            never piggybacks on the profile Save. */}
+        <section>
+          <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Email</h2>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Used for sign-in and account notifications. Changing it sends a confirmation link — your sign-in email
+            stays <span className="font-medium text-gray-700 dark:text-gray-300">{currentEmail}</span> until you confirm.
+          </div>
+          {pendingEmail ? (
+            <div className="mt-5 text-sm text-sky-700 dark:text-sky-300 bg-sky-500/10 px-3 py-3 rounded">
+              <p className="font-medium">Confirm your new email</p>
+              <p className="mt-1">
+                We sent a confirmation link to verify the change to{' '}
+                <span className="font-medium">{pendingEmail}</span>. Your sign-in email won't change until you click it.
+              </p>
+              <button
+                type="button"
+                className="mt-2 text-sky-700 dark:text-sky-300 underline hover:no-underline"
+                onClick={() => {
+                  setPendingEmail(null)
+                  setEmail(currentEmail)
+                }}
+              >
+                Cancel / use a different address
+              </button>
+            </div>
+          ) : (
+            <form id="email-form" onSubmit={handleEmailChange} className="flex flex-wrap items-end gap-2 mt-5">
+              <div className="w-full sm:w-auto">
+                <label className="sr-only" htmlFor="acct-email">Business email</label>
+                <input
+                  id="acct-email"
+                  className="form-input w-full sm:w-80"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <ActionButton
+                variant="secondary"
+                type="submit"
+                form="email-form"
+                disabled={emailPending || email.trim().toLowerCase() === currentEmail.toLowerCase()}
+              >
+                {emailPending ? 'Sending…' : 'Change email'}
+              </ActionButton>
+            </form>
+          )}
+          {emailFeedback?.error && (
+            <div className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{emailFeedback.error}</div>
+          )}
+        </section>
 
         <section>
           <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Password & sessions</h2>

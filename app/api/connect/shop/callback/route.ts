@@ -10,7 +10,13 @@ function backTo(req: NextRequest, params: Record<string, string>): NextResponse 
   const url = new URL('/shop', appBase(req))
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   const res = NextResponse.redirect(url)
-  res.cookies.delete('shop_connect_state')
+  // EVERY exit path runs through here (error params, state mismatch, org change,
+  // exchange failure, AND success), so the single-use OAuth nonce is always
+  // cleared — a leftover cookie could be replayed against a later callback.
+  // The cookie was set with `path: '/api/connect/shop'` in the start route, so
+  // the delete MUST carry the same path or the browser keeps the path-scoped
+  // cookie (a bare name-only delete doesn't match a path-scoped cookie).
+  res.cookies.set('shop_connect_state', '', { path: '/api/connect/shop', maxAge: 0 })
   return res
 }
 

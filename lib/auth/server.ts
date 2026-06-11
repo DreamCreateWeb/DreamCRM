@@ -9,6 +9,7 @@ import * as schema from '@/lib/db/schema/auth'
 import { patient } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import {
+  sendChangeEmailVerification,
   sendInvitationEmail,
   sendMagicLinkEmail,
   sendPatientPortalInviteEmail,
@@ -152,6 +153,34 @@ export async function maybeSendPortalInviteForMagicLink(rawEmail: string): Promi
   }
 }
 
+/**
+ * Best-effort clinic sender identity for a magic-link recipient.
+ *
+ * A magic-link email should wear the patient's CLINIC brand, not "Dream Create".
+ * Same lookup shape as `maybeSendPortalInviteForMagicLink`: find the most-recent
+ * active patient row for this email (any org) and resolve that clinic's Tier 1/
+ * Tier 2 sender identity. Returns null for staff (no patient row) so the
+ * platform-branded fallback copy is used. Never throws — any failure yields null.
+ */
+export async function maybeClinicSenderForEmail(rawEmail: string): Promise<import('@/lib/email-identity').ClinicSender | null> {
+  try {
+    const email = normalizeEmail(rawEmail)
+    if (!email) return null
+    const [pat] = await db
+      .select({ organizationId: patient.organizationId })
+      .from(patient)
+      .where(and(sql`lower(${patient.email}) = ${email}`, eq(patient.isActive, 1)))
+      .orderBy(desc(patient.firstSeenAt))
+      .limit(1)
+    if (!pat) return null
+    const { getClinicSenderIdentity } = await import('@/lib/services/clinic-sender')
+    return await getClinicSenderIdentity(pat.organizationId)
+  } catch (err) {
+    console.warn('[auth] maybeClinicSenderForEmail failed', err)
+    return null
+  }
+}
+
 function build() {
   return betterAuth({
     database: drizzleAdapter(db, {
@@ -226,6 +255,30 @@ function build() {
           input: false,
         },
       },
+      // Email is the sign-in identity, so a change must be VERIFIED — never a
+      // silent write. With this enabled:
+      //   - verified user → a confirmation link is sent to the CURRENT email
+      //     (`sendChangeEmailConfirmation`); the change applies only after they
+      //     click it (so an attacker on a borrowed session can't repoint the
+      //     login without access to the existing mailbox);
+      //   - unverified user → `updateEmailWithoutVerification` stays false, so
+      //     the change falls through to a verification link sent to the NEW
+      //     email (via `emailVerification.sendVerificationEmail`) and applies
+      //     only after that's clicked.
+      // Either way the email never changes without a click on a mailbox the
+      // user controls. (Previously `saveAccount` wrote `user.email` directly —
+      // account-takeover-adjacent.)
+      changeEmail: {
+        enabled: true,
+        sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
+          try {
+            await sendChangeEmailVerification(user.email, newEmail, url)
+          } catch (err) {
+            console.error('[auth] failed to send change-email confirmation:', err)
+            throw err
+          }
+        },
+      },
     },
 
     plugins: [
@@ -257,7 +310,10 @@ function build() {
           // the normal magic link. Same on-screen message either way.
           const sentInvite = await maybeSendPortalInviteForMagicLink(email)
           if (sentInvite) return
-          await sendMagicLinkEmail(email, url)
+          // Wear the patient's clinic brand when we can resolve one; fall back
+          // to the platform-branded email for staff (no patient row).
+          const sender = await maybeClinicSenderForEmail(email)
+          await sendMagicLinkEmail(email, url, sender ?? undefined)
         },
       }),
       nextCookies(),

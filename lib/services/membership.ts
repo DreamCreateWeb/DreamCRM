@@ -427,9 +427,53 @@ export async function handleSubscriptionEvent(
     .where(and(eq(schema.membership.organizationId, organizationId), eq(schema.membership.stripeSubscriptionId, subscriptionId)))
 }
 
+// ── Stale pending sweep ─────────────────────────────────────────────────────
+
+/**
+ * Delete abandoned `pending` memberships older than `olderThanHours`.
+ *
+ * `createMembershipCheckout` writes a `membership(status='pending')` row BEFORE
+ * redirecting to Stripe Checkout. If the patient abandons the checkout, that row
+ * never advances (the finalizer only runs on a completed session) and lingers
+ * forever — inflating member lists and the "pending" view. This sweep clears
+ * them. Scope is deliberately narrow so it can never touch a real membership:
+ *   - status = 'pending' (active / past_due / cancelled are terminal/live),
+ *   - stripeSubscriptionId IS NULL (a pending row WITH a subscription is
+ *     mid-activation — the finalizer is about to flip it; never delete it),
+ *   - createdAt older than the cutoff (default 24h — generous vs Stripe's
+ *     ~24h checkout-session expiry, so an in-progress checkout is safe).
+ * The membership status enum has no terminal "abandoned" value, so we delete
+ * rather than mark; the auto-created patient row (if any) is intentionally left
+ * in place. Idempotent + cheap — safe to call on every members-page load AND
+ * export for a future cron. Returns the number of rows removed.
+ */
+export async function cleanupStalePendingMemberships(
+  organizationId: string,
+  olderThanHours = 24,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - olderThanHours * 60 * 60 * 1000)
+  const deleted = await db
+    .delete(schema.membership)
+    .where(
+      and(
+        eq(schema.membership.organizationId, organizationId),
+        eq(schema.membership.status, 'pending'),
+        sql`${schema.membership.stripeSubscriptionId} is null`,
+        sql`${schema.membership.createdAt} < ${cutoff}`,
+      ),
+    )
+    .returning({ id: schema.membership.id })
+  return deleted.length
+}
+
 // ── Members (admin) ─────────────────────────────────────────────────────────
 
 export async function listMembers(organizationId: string): Promise<MemberRow[]> {
+  // Sweep abandoned-checkout pending rows before listing so they never show up
+  // as phantom members. Best-effort — a sweep failure must not break the list.
+  await cleanupStalePendingMemberships(organizationId).catch((err) => {
+    console.warn('[membership] cleanupStalePendingMemberships failed', err)
+  })
   const rows = await db
     .select({
       m: schema.membership,

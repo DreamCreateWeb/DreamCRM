@@ -2,19 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Capture the calls reschedule makes so we can assert the insert +
 // cancel pattern + that the new row points back at the original.
-// rescheduleAppointment no longer uses db.transaction() — the Neon HTTP
-// driver doesn't support transactions. Writes run directly off the
-// top-level `db`. The mock intentionally has NO `transaction` method, so
-// a regression that reintroduces one fails loudly.
+// rescheduleAppointment runs its two writes inside db.transaction() (restored
+// now the DB is node-postgres). The mock's `transaction(cb)` invokes the
+// callback with the SAME methods object (the `tx`), so writes routed through
+// `tx` land in the same capture arrays — proving the writes actually run inside
+// the transaction. `txRollbacks` counts callback throws (the tx aborting).
 const txState = {
   selects: [] as unknown[],
   updates: [] as Array<{ set: Record<string, unknown> }>,
   inserts: [] as Array<{ values: Record<string, unknown> }>,
   selectResult: null as unknown,
+  txCalls: 0,
+  txRollbacks: 0,
+  // When set, the next insert inside the tx throws — to assert rollback.
+  failNextInsert: false,
 }
 
-function dbMethods() {
-  return {
+function dbMethods(): any {
+  const methods = {
     select: () => ({
       from: () => ({
         where: () => ({
@@ -31,10 +36,27 @@ function dbMethods() {
     }),
     insert: () => ({
       values: async (values: Record<string, unknown>) => {
+        if (txState.failNextInsert) {
+          txState.failNextInsert = false
+          throw new Error('insert blew up')
+        }
         txState.inserts.push({ values })
       },
     }),
+    // transaction(cb) → run cb with the same mock as `tx`. Real drizzle/pg
+    // rolls back when the callback throws; we model that by counting the throw
+    // and re-throwing so the caller sees the failure.
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) => {
+      txState.txCalls += 1
+      try {
+        return await cb(methods)
+      } catch (err) {
+        txState.txRollbacks += 1
+        throw err
+      }
+    },
   }
+  return methods
 }
 
 vi.mock('@/lib/db', () => ({
@@ -77,6 +99,9 @@ beforeEach(() => {
   txState.selects = []
   txState.updates = []
   txState.inserts = []
+  txState.txCalls = 0
+  txState.txRollbacks = 0
+  txState.failNextInsert = false
 })
 
 describe('rescheduleAppointment — atomic cancel + insert', () => {
@@ -122,6 +147,10 @@ describe('rescheduleAppointment — atomic cancel + insert', () => {
     expect(insertedRow.locationId).toBe('loc_1')
     expect(insertedRow.type).toBe('cleaning')
     expect(insertedRow.startTime).toEqual(newStart)
+
+    // Both writes ran inside a single transaction (atomic cancel + insert).
+    expect(txState.txCalls).toBe(1)
+    expect(txState.txRollbacks).toBe(0)
   })
 
   it('throws if the original appointment is not found', async () => {
@@ -265,5 +294,38 @@ describe('rescheduleAppointment — atomic cancel + insert', () => {
     })
     // A widget/portal appointment keeps its attribution through a reschedule.
     expect(txState.inserts[0].values.source).toBe('booking_widget')
+  })
+
+  it('runs both writes inside db.transaction() and rolls back when the insert fails', async () => {
+    txState.selectResult = [
+      {
+        id: 'appt_old',
+        organizationId: 'org_1',
+        patientId: 'pat_7',
+        locationId: 'loc_1',
+        providerId: 'prov_1',
+        title: 'cleaning — Liam Reed',
+        type: 'cleaning',
+        notes: null,
+        status: 'scheduled',
+        startTime: new Date('2026-06-01T14:00:00Z'),
+        endTime: new Date('2026-06-01T14:30:00Z'),
+      },
+    ]
+    txState.failNextInsert = true
+    await expect(
+      rescheduleAppointment({
+        organizationId: 'org_1',
+        appointmentId: 'appt_old',
+        newStartTime: new Date('2026-06-10T18:00:00Z'),
+        newEndTime: null,
+      }),
+    ).rejects.toThrow(/insert blew up/)
+    // The transaction was entered and rolled back; the cancel UPDATE never
+    // committed (it would have left the original cancelled with no replacement).
+    expect(txState.txCalls).toBe(1)
+    expect(txState.txRollbacks).toBe(1)
+    expect(txState.inserts).toHaveLength(0)
+    expect(txState.updates).toHaveLength(0)
   })
 })

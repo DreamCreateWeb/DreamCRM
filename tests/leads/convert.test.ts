@@ -8,17 +8,18 @@ const state = {
   dupesResult: null as Array<Record<string, unknown>> | null,
   updates: [] as Array<{ table: string; set: Record<string, unknown> }>,
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
+  txCalls: 0,
+  txRollbacks: 0,
+  failNextInsert: false,
 }
 
-// convertLeadToPatient no longer uses db.transaction() — the Neon HTTP
-// driver doesn't support transactions (calls fail at runtime with "No
-// transactions support in neon-http driver"). The writes run directly off
-// the top-level `db`, so the mock routes select/insert/update through the
-// shared `state` capture. NB: there is intentionally NO `transaction`
-// method here — if the implementation ever reintroduces one, these tests
-// will throw "transaction is not a function", catching the regression.
-function dbMethods() {
-  return {
+// convertLeadToPatient runs the dupe lookup + patient insert + lead flip inside
+// db.transaction() (restored now the DB is node-postgres). The mock's
+// `transaction(cb)` invokes the callback with the SAME methods object (the
+// `tx`), so writes routed through `tx` land in the shared `state` capture —
+// proving they run inside the transaction. `txRollbacks` counts callback throws.
+function dbMethods(): any {
+  const methods = {
     select: () => ({
       from: (t: unknown) => ({
         where: () => ({
@@ -39,10 +40,24 @@ function dbMethods() {
     }),
     insert: (t: unknown) => ({
       values: async (values: Record<string, unknown>) => {
+        if (state.failNextInsert) {
+          state.failNextInsert = false
+          throw new Error('patient insert blew up')
+        }
         state.inserts.push({ table: String(t), values })
       },
     }),
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) => {
+      state.txCalls += 1
+      try {
+        return await cb(methods)
+      } catch (err) {
+        state.txRollbacks += 1
+        throw err
+      }
+    },
   }
+  return methods
 }
 
 vi.mock('@/lib/db', () => ({
@@ -71,6 +86,9 @@ beforeEach(() => {
   state.dupesResult = null
   state.updates = []
   state.inserts = []
+  state.txCalls = 0
+  state.txRollbacks = 0
+  state.failNextInsert = false
 })
 
 describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
@@ -120,6 +138,48 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
     // New patient → not deduped, name reflects the lead's split name
     expect(out.deduped).toBe(false)
     expect(out.patientName).toBe('Olivia Chen')
+
+    // Insert + lead flip ran inside one transaction (atomic convert).
+    expect(state.txCalls).toBe(1)
+    expect(state.txRollbacks).toBe(0)
+  })
+
+  it('runs the patient insert + lead flip inside db.transaction() and rolls back on insert failure', async () => {
+    state.leadResult = [{
+      id: 'lead_fail',
+      organizationId: 'org_1',
+      name: 'Noah Park',
+      phone: '(415) 555-0150',
+      email: 'noah@example.com',
+      convertedToPatientId: null,
+      createdAt: new Date('2026-05-01T10:00:00Z'),
+    }]
+    state.dupesResult = []
+    state.failNextInsert = true
+
+    await expect(convertLeadToPatient('org_1', 'lead_fail')).rejects.toThrow(/insert blew up/)
+    // The transaction was entered + rolled back; neither the patient insert nor
+    // the lead-flip update committed (the lead stays 'new', re-convertible).
+    expect(state.txCalls).toBe(1)
+    expect(state.txRollbacks).toBe(1)
+    expect(state.inserts).toHaveLength(0)
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('does not open a transaction for an already-converted lead (idempotent early return)', async () => {
+    state.leadResult = [{
+      id: 'lead_done',
+      organizationId: 'org_1',
+      name: 'Emma Lopez',
+      phone: '(415) 555-0234',
+      email: 'emma@example.com',
+      convertedToPatientId: 'pat_emma',
+      createdAt: new Date(),
+    }]
+    // patientDisplayName select also returns from the 'patient' table.
+    state.dupesResult = [{ id: 'pat_emma', firstName: 'Emma', lastName: 'Lopez' }]
+    await convertLeadToPatient('org_1', 'lead_done')
+    expect(state.txCalls).toBe(0)
   })
 
   it('reuses an existing patient when email or phone matches (no duplicate)', async () => {
