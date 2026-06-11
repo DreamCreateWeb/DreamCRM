@@ -89,15 +89,20 @@ function summarizeRun(counts: PmsSyncRun['counts']): string {
   let created = 0
   let updated = 0
   let skipped = 0
+  let contactsPreserved = 0
   for (const t of Object.values(counts ?? {})) {
     created += t?.created ?? 0
     updated += t?.updated ?? 0
     skipped += t?.skipped ?? 0
+    // patient-only: rows where we kept our contact info over the PMS's because
+    // the patient has a portal login (overwriting would break sign-in).
+    contactsPreserved += (t as { skippedContactOverwrites?: number } | undefined)?.skippedContactOverwrites ?? 0
   }
   const parts: string[] = []
   if (created) parts.push(`${created} new`)
   if (updated) parts.push(`${updated} updated`)
   if (skipped) parts.push(`${skipped} unchanged`)
+  if (contactsPreserved) parts.push(`${contactsPreserved} contact${contactsPreserved === 1 ? '' : 's'} preserved`)
   return parts.length ? parts.join(' · ') : 'no changes'
 }
 
@@ -115,7 +120,13 @@ export default async function IntegrationsPage() {
   const { connection, counts, totals, pendingWrites, recentRuns, recentWrites } = dashboard
   const connected = connection?.status === 'connected'
   const isDemo = connection?.provider === 'demo'
-  const practiceTitle = (connection?.meta as Record<string, unknown> | undefined)?.practiceTitle as string | undefined
+  const meta = (connection?.meta as Record<string, unknown> | undefined) ?? {}
+  const practiceTitle = meta.practiceTitle as string | undefined
+  // A parked patient-import cursor means a big first import is still catching up
+  // (it hit its per-run time budget and will resume on the next sync / hourly
+  // cron). Surface durable progress so the clinic knows it's working, not stuck.
+  const importCursor = typeof meta.patientImportCursor === 'number' ? meta.patientImportCursor : 0
+  const importInProgress = connected && importCursor > 0
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -154,6 +165,22 @@ export default async function IntegrationsPage() {
 
       {connected ? (
         <>
+          {/* ── First-import progress (renders only mid-import) ────── */}
+          {importInProgress && (
+            <div className="mb-6 rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-500/10 p-4 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center bg-sky-500/15 text-sky-700 dark:text-sky-300">
+                <RefreshIcon />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-sky-800 dark:text-sky-200">Importing your patients…</p>
+                <p className="text-sm mt-0.5 text-sky-800/80 dark:text-sky-300/80">
+                  Imported {importCursor.toLocaleString()} so far — large practices import in batches, and this continues
+                  automatically every hour. You can keep working; hit “Sync now” any time to push it along.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ── Sync-health alert (renders only when unhealthy) ───── */}
           {health && health.severity !== 'info' && (
             <div
@@ -404,6 +431,10 @@ function ScopeSection() {
             </li>
           ))}
         </ul>
+        <p className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40 text-xs text-gray-500 dark:text-gray-400">
+          Records deleted in Open Dental are kept here — we never auto-delete a patient or appointment from DreamCRM, so
+          your history and notes stay intact.
+        </p>
       </div>
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">What stays in your PMS</h2>
@@ -504,6 +535,14 @@ function PlugIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 7V3m6 4V3M7 11h10M9 11v4a3 3 0 003 3v3m0-3a3 3 0 003-3v-4" />
+    </svg>
+  )
+}
+
+function RefreshIcon() {
+  return (
+    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M3.027 14.652H8.02v4.992m-3.71-9.673a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99m-.001 0h-4.99m-9.504 1.654a8.25 8.25 0 0013.803 3.7l3.181-3.182m0 0h-4.991m4.991 0v4.99" />
     </svg>
   )
 }

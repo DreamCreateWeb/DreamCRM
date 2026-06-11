@@ -21,9 +21,21 @@ export function SyncNowButton() {
     setToast(null)
     start(async () => {
       const r = await syncNowAction()
-      if (r.ok)
-        setToast({ tone: 'ok', text: r.status === 'partial' ? 'Synced with some skips.' : 'Sync complete.' })
-      else setToast({ tone: 'urgent', text: r.error ?? 'Sync failed.' })
+      if (r.ok) {
+        // A budget-capped first import parked a resume cursor — tell the clinic
+        // it's still going (the hourly cron + the next "Sync now" continue it).
+        if (r.partial && r.progress) {
+          const { imported, total } = r.progress
+          setToast({
+            tone: 'ok',
+            text: `Imported ${imported.toLocaleString()} of ${total.toLocaleString()} so far — continuing automatically.`,
+          })
+        } else if (r.status === 'partial') {
+          setToast({ tone: 'ok', text: 'Synced with some skips.' })
+        } else {
+          setToast({ tone: 'ok', text: 'Sync complete.' })
+        }
+      } else setToast({ tone: 'urgent', text: r.error ?? 'Sync failed.' })
       router.refresh()
     })
   }
