@@ -1,7 +1,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, isNotNull } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, clinicLocation } from '@/lib/db/schema/platform'
@@ -135,10 +135,12 @@ export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData 
 }
 
 export async function getClinicSiteByDomain(domain: string): Promise<ClinicSiteData | null> {
+  const host = domain?.trim().toLowerCase()
+  if (!host) return null
   const [profile] = await db
     .select()
     .from(clinicProfile)
-    .where(eq(clinicProfile.websiteDomain, domain))
+    .where(eq(clinicProfile.websiteDomain, host))
     .limit(1)
 
   if (!profile) return null
@@ -149,9 +151,43 @@ export async function getClinicSiteByDomain(domain: string): Promise<ClinicSiteD
     .where(eq(organization.id, profile.organizationId))
     .limit(1)
 
-  if (!org) return null
+  if (!org || org.type !== 'clinic') return null
 
   return loadSite(org.id, org.slug, org.name)
+}
+
+/**
+ * Map of `customDomain → slug` for every clinic that has wired a custom domain.
+ * Powers the middleware host-routing fetch (`/api/internal/custom-domains`): a
+ * request arriving on `www.smilebright.com` is rewritten to that clinic's
+ * `/site/<slug>` exactly like the subdomain branch.
+ *
+ * We include domains in `active` AND `pending_dns` state — once the clinic's
+ * DNS resolves to App Runner the request will arrive here even before ACM
+ * finishes binding, and serving the (TLS-terminated) site immediately is the
+ * right behavior. `failed`/manual-without-records states still serve once DNS
+ * points at us. We never block on AWS-reported state for routing; AWS owns the
+ * cert, we own the rewrite.
+ */
+export async function listActiveCustomDomains(): Promise<Record<string, string>> {
+  const rows = await db
+    .select({
+      slug: organization.slug,
+      type: organization.type,
+      domain: clinicProfile.websiteDomain,
+    })
+    .from(clinicProfile)
+    .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
+    .where(isNotNull(clinicProfile.websiteDomain))
+
+  const map: Record<string, string> = {}
+  for (const r of rows) {
+    if (r.type !== 'clinic') continue
+    const host = r.domain?.trim().toLowerCase()
+    if (!host || !r.slug) continue
+    map[host] = r.slug
+  }
+  return map
 }
 
 async function loadSite(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {

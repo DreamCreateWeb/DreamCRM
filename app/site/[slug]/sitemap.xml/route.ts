@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
-import type { ClinicStaff } from '@/lib/types/clinic-content'
+import { getOpenJobs } from '@/lib/services/careers'
+import { resolveClinicServices } from '@/lib/services/service-library'
+import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
 import { staffSlug as resolveStaffSlug } from '@/lib/clinic-site-helpers'
 
 interface Params {
@@ -56,7 +58,6 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   const urls: UrlEntry[] = [
     { loc: `${base}/`, lastmod, changefreq: 'weekly', priority: '1.0' },
     { loc: `${base}/about`, lastmod, changefreq: 'monthly', priority: '0.8' },
-    { loc: `${base}/services`, lastmod, changefreq: 'monthly', priority: '0.8' },
     { loc: `${base}/faq`, lastmod, changefreq: 'monthly', priority: '0.6' },
     // Patients dropdown — Insurance + Payment & Financing always render (with
     // universal fallbacks when the clinic hasn't customized), so both go in
@@ -72,6 +73,37 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   ]
   if (isPro) {
     urls.push({ loc: `${base}/book`, lastmod, changefreq: 'monthly', priority: '0.8' })
+  }
+
+  // /services only when the clinic actually has ≥1 resolved (library-linked)
+  // service. A clinic with none renders an honest empty page, so it shouldn't
+  // be advertised in the sitemap. Resolve the same way the page does so the
+  // gate matches what renders.
+  const resolvedServices = await resolveClinicServices(
+    (data.profile.services as ClinicService[] | null) ?? null,
+    {
+      clinicName: data.profile.displayName ?? data.orgName,
+      city: data.primaryLocation?.city ?? data.profile.city ?? null,
+    },
+  )
+  if (resolvedServices.length > 0) {
+    urls.push({ loc: `${base}/services`, lastmod, changefreq: 'monthly', priority: '0.8' })
+  }
+
+  // /careers + per-role detail pages — only when there are open postings (the
+  // careers index renders, but the SEO value is the indexable JobPosting pages).
+  const openJobs = await getOpenJobs(data.orgId)
+  if (openJobs.length > 0) {
+    urls.push({ loc: `${base}/careers`, lastmod, changefreq: 'weekly', priority: '0.6' })
+    for (const j of openJobs) {
+      if (!j.slug) continue
+      urls.push({
+        loc: `${base}/careers/${j.slug}`,
+        lastmod,
+        changefreq: 'weekly',
+        priority: '0.5',
+      })
+    }
   }
 
   // /dental-plans only when there are active membership plans (the page
