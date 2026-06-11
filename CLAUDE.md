@@ -118,6 +118,45 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Design System v2 — "Instrument Panel, Liquid Soul" (2026-06-11, PRs
+  #330–#337)** — the entire authenticated dashboard re-skinned + re-navigated
+  to the research-backed v2 language, and the platform re-branded to **Dream
+  Create** (liquid teal-gradient D mark, `components/brand/dream-create-logo.tsx`
+  + dynamic favicon `app/icon.tsx`). **DESIGN-SYSTEM.md was REWRITTEN as the
+  v2 binding spec** — read it before touching any dashboard UI. The shape:
+  violet brand is dead → **teal brand ramp** (logo aqua #4DCDC4 → deep
+  #2A7F8C) used ONLY for identity (primary actions, selection, focus, active
+  nav, chart series 1 — never a status); legacy `gray-*` ramp re-tinted to
+  cool-navy ink so the whole app re-temperatured in one move; resting cards
+  carry **no drop-shadows** (etched `.v2-card` inset-hairline surfaces;
+  shadows only on overlays); **Geist Sans** UI + **Geist Mono** numerals
+  (`font-mono-num` on every KPI/money/time/count; npm `geist`, no Google
+  fetch, scoped via `.v2-app` so site/portal/marketing keep their fonts);
+  semantic encodings survive intact except `info` sky→**indigo** (clears the
+  brand-teal collision). CSS-first motion system (tokens `--dur-*`/`--ease-*`
+  + `linear()` springs; `.section-enter`, `.pop-in`, `.skeleton` shimmer,
+  `.slide-up-fast`; hard never-animate list; reduced-motion global block) —
+  no animation library. Two signature moments: the once-per-session
+  **morning reveal** (Overview attention-card cascade + KPI count-up,
+  `morning-reveal.tsx`, sessionStorage-flagged) and the ~6s **ambient
+  breath** on active nav + each page's single primary (`breath` prop on
+  ActionButton). **Navigation v2**: 3-state sidebar (expanded ≥xl / 64px
+  icon rail lg→xl with hover-flyout labels / overlay <lg; `[` toggles,
+  persisted), org-switcher block w/ plan pill + amber Demo pill, label-less
+  **cockpit** (Today ⌘1 · Messages ⌘2 · Appointments ⌘3 via
+  `ModuleDef.pinned`/`shortcut`), collapsible groups, Settings pinned
+  bottom; **Inbox folded into Messages at nav level** (route alive; "Mailbox
+  (Gmail)" tab inside /messages is its home); header `+ New ▾` quick-create
+  (context-aware default, `C` opens, plan-gated; /appointments reads
+  `?new=1`); the orange demo strip is dead (amber 3px hairline +
+  org-switcher pill + header Exit chip); billing banners slimmed to chips;
+  keyboard map `[` ⌘1/2/3 `C` `G then P/A/L`. Suite 2160 → **2262 tests**.
+  Aesthetic debt deliberately left: Mosaic demo subroutes
+  (`/dashboard/fintech`, `/dashboard/analytics`, `(alternative)` library,
+  community pages) keep legacy styling (unreachable from clinic sidebars);
+  hand-rolled overlays match v2 appearance but not the spec's scale/slide
+  enter curves (needs a shared keyframe or Headless UI adoption); quick-
+  create omits "Lead" (no in-app create route — no dead links by design).
 - **Launch-readiness audit + fix sweep (2026-06-11, PRs #309–#324)** — a
   9-agent full-platform audit (every module traced end-to-end in code vs
   Weave/NexHealth/RevenueWell/Solutionreach/Adit/Lighthouse) found ~70 gaps;

@@ -88,11 +88,11 @@ export default function ShopClient({
   // setup action (connect Stripe) IS the work, so it leads the header.
   const primaryAction =
     connectConfigured && !connectReady ? (
-      <ActionButton variant="primary" size="sm" href="/api/connect/shop/start">
+      <ActionButton variant="primary" breath size="sm" href="/api/connect/shop/start">
         {config.stripeAccountStatus === 'pending' ? 'Finish Stripe setup' : 'Connect Stripe'}
       </ActionButton>
     ) : (
-      <ActionButton variant="primary" size="sm" href="/shop/products/new">
+      <ActionButton variant="primary" breath size="sm" href="/shop/products/new">
         + Add product
       </ActionButton>
     )

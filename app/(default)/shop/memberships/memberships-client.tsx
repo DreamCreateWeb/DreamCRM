@@ -88,7 +88,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
         subtitle="Recurring cash-pay plans for uninsured patients — predictable revenue, and members visit far more often."
         legend={<EncodingLegend pills={tab === 'plans' ? PLAN_PILL_LEGEND : MEMBER_PILL_LEGEND} />}
         actions={
-          <ActionButton variant="primary" size="sm" href="/shop/memberships/new">
+          <ActionButton variant="primary" breath size="sm" href="/shop/memberships/new">
             + New plan
           </ActionButton>
         }
