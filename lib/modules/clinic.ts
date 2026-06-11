@@ -48,12 +48,15 @@ export const clinicModules: ModuleRegistry = {
   tenantType: 'clinic',
   modules: [
     // ── Daily ──────────────────────────────────────────────────────────
-    { id: 'overview',          path: '/',                  label: 'Overview',         section: 'Daily',    icon: 'home',     status: 'live' },
+    // Overview / Messages / Appointments are ALSO pinned into the cockpit
+    // zone (⌘1/⌘2/⌘3) — see ModuleDef.pinned/shortcut + DESIGN-SYSTEM Part 4.
+    // Inbox is intentionally absent: it folds into Messages at nav level (the
+    // /inbox route stays alive; Messages exposes a Mailbox tab to it).
+    { id: 'overview',          path: '/',                  label: 'Overview',         section: 'Daily',    icon: 'home',     status: 'live', pinned: true, shortcut: '⌘1' },
+    { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', minPlan: 'pro', pinned: true, shortcut: '⌘2' },
+    { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', minPlan: 'pro', pinned: true, shortcut: '⌘3' },
     { id: 'patients',          path: '/patients',          label: 'Patients',         section: 'Daily',    icon: 'users',    status: 'live', minPlan: 'pro' },
-    { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', minPlan: 'pro' },
     { id: 'leads',             path: '/leads',             label: 'Leads',            section: 'Daily',    icon: 'megaphone',status: 'live', minPlan: 'pro' },
-    { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', minPlan: 'pro' },
-    { id: 'inbox',             path: '/inbox',             label: 'Inbox',            section: 'Daily',    icon: 'inbox',    status: 'live', minPlan: 'pro' },
     { id: 'intake_forms',      path: '/intake-forms',      label: 'Intake Forms',     section: 'Daily',    icon: 'pen',      status: 'live', minPlan: 'pro' },
 
     // ── Growth ─────────────────────────────────────────────────────────

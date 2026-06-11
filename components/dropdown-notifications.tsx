@@ -109,8 +109,10 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
               <path d="M7 0a7 7 0 0 0-7 7c0 1.202.308 2.33.84 3.316l-.789 2.368a1 1 0 0 0 1.265 1.265l2.595-.865a1 1 0 0 0-.632-1.898l-.698.233.3-.9a1 1 0 0 0-.104-.85A4.97 4.97 0 0 1 2 7a5 5 0 0 1 5-5 4.99 4.99 0 0 1 4.093 2.135 1 1 0 1 0 1.638-1.148A6.99 6.99 0 0 0 7 0Z" />
               <path d="M11 6a5 5 0 0 0 0 10c.807 0 1.567-.194 2.24-.533l1.444.482a1 1 0 0 0 1.265-1.265l-.482-1.444A4.962 4.962 0 0 0 16 11a5 5 0 0 0-5-5Zm-3 5a3 3 0 0 1 6 0c0 .588-.171 1.134-.466 1.6a1 1 0 0 0-.115.82 1 1 0 0 0-.82.114A2.973 2.973 0 0 1 11 14a3 3 0 0 1-3-3Z" />
             </svg>
+            {/* Unread is warn-semantics (something for US to act on) → AMBER,
+                not the old rose. Per DESIGN-SYSTEM Part 1/Part 4. */}
             {unread > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-rose-500 text-[10px] font-semibold text-white rounded-full flex items-center justify-center border border-gray-100 dark:border-gray-900">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-amber-500 text-xs leading-none font-semibold text-white rounded-full flex items-center justify-center ring-2 ring-surface-1">
                 {unread > 9 ? '9+' : unread}
               </span>
             )}

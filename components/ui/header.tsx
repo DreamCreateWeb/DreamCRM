@@ -7,14 +7,31 @@ import SearchModal from '@/components/search-modal'
 import Notifications from '@/components/dropdown-notifications'
 import DropdownHelp from '@/components/dropdown-help'
 import ThemeToggle from '@/components/theme-toggle'
-import DropdownProfile from '@/components/dropdown-profile'
+import QuickCreateMenu from './quick-create-menu'
+import DemoExitChip from './demo-exit-chip'
 
+/**
+ * v2 header (DESIGN-SYSTEM.md Part 4) — 56px, surface-1 + bottom hairline.
+ * Left: hamburger (<lg) + page title slot. Right: `+ New ▾` quick-create
+ * (context-aware default, plan-gated via `moduleIds`, `C` opens it) · ⌘K
+ * search · bell (amber unread) · "Exit demo" chip (when `isDemo`) · help ·
+ * theme. The avatar/profile lives in the sidebar's bottom slot in v2, so it
+ * isn't repeated here.
+ */
 export default function Header({
   variant = 'default',
+  moduleIds = [],
+  isDemo = false,
+  title,
 }: {
   variant?: 'default' | 'v2' | 'v3'
+  /** Module ids visible to this tenant — gates the quick-create entries. */
+  moduleIds?: string[]
+  /** Platform-admin demo mode — shows the "Exit demo" chip. */
+  isDemo?: boolean
+  /** Optional page title shown on the left (Settings subpages use it). */
+  title?: string
 }) {
-
   const { sidebarOpen, setSidebarOpen } = useAppProvider()
   const [searchModalOpen, setSearchModalOpen] = useState<boolean>(false)
 
@@ -31,41 +48,44 @@ export default function Header({
   }, [])
 
   return (
-    <header className={`sticky top-0 before:absolute before:inset-0 before:backdrop-blur-md max-lg:before:bg-white/90 dark:max-lg:before:bg-gray-800/90 before:-z-10 z-30 ${variant === 'v2' || variant === 'v3' ? 'before:bg-white after:absolute after:h-px after:inset-x-0 after:top-full after:bg-gray-200 dark:after:bg-gray-700/60 after:-z-10' : 'max-lg:shadow-sm lg:before:bg-gray-100/90 dark:lg:before:bg-gray-900/90'} ${variant === 'v2' ? 'dark:before:bg-gray-800' : ''} ${variant === 'v3' ? 'dark:before:bg-gray-900' : ''}`}>
+    <header className="aura-chrome sticky top-0 z-30 border-b border-hairline bg-surface-1/90 backdrop-blur-md">
       <div className="px-4 sm:px-6 lg:px-8">
-        <div className={`flex items-center justify-between h-16 ${variant === 'v2' || variant === 'v3' ? '' : 'lg:border-b border-gray-200 dark:border-gray-700/60'}`}>
-
-          {/* Header: Left side */}
-          <div className="flex">
-
-            {/* Hamburger button */}
+        <div className="flex h-14 items-center justify-between">
+          {/* Left: hamburger (mobile) + page title */}
+          <div className="flex min-w-0 items-center gap-3">
             <button
-              className="text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 lg:hidden"
+              className="text-ink-500 hover:text-ink-600 lg:hidden"
               aria-controls="sidebar"
               aria-expanded={sidebarOpen}
-              onClick={() => { setSidebarOpen(!sidebarOpen) }}
+              onClick={() => setSidebarOpen(!sidebarOpen)}
             >
               <span className="sr-only">Open sidebar</span>
-              <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="h-6 w-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <rect x="4" y="5" width="16" height="2" />
                 <rect x="4" y="11" width="16" height="2" />
                 <rect x="4" y="17" width="16" height="2" />
               </svg>
             </button>
-
+            {title && (
+              <h1 className="truncate text-sm font-semibold text-ink-900">{title}</h1>
+            )}
           </div>
 
-          {/* Header: Right side */}
-          <div className="flex items-center space-x-3">
+          {/* Right: quick-create · search · bell · demo · help · theme */}
+          <div className="flex items-center gap-3">
+            <QuickCreateMenu moduleIds={moduleIds} />
+
             <div>
               <button
-                className={`flex h-8 items-center justify-center gap-1.5 rounded-full px-2.5 hover:bg-gray-100 lg:hover:bg-gray-200 dark:hover:bg-gray-700/50 dark:lg:hover:bg-gray-800 ${searchModalOpen && 'bg-gray-200 dark:bg-gray-800'}`}
-                onClick={() => { setSearchModalOpen(true) }}
+                className={`flex h-8 items-center justify-center gap-1.5 rounded-full px-2.5 hover:bg-ink-900/[0.05] dark:hover:bg-white/[0.06] ${
+                  searchModalOpen ? 'bg-ink-900/[0.06] dark:bg-white/[0.08]' : ''
+                }`}
+                onClick={() => setSearchModalOpen(true)}
                 title="Search everything (⌘K)"
               >
                 <span className="sr-only">Search</span>
                 <svg
-                  className="fill-current text-gray-500/80 dark:text-gray-400/80"
+                  className="fill-current text-ink-500"
                   width={16}
                   height={16}
                   viewBox="0 0 16 16"
@@ -74,21 +94,18 @@ export default function Header({
                   <path d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7ZM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5Z" />
                   <path d="m13.314 11.9 2.393 2.393a.999.999 0 1 1-1.414 1.414L11.9 13.314a8.019 8.019 0 0 0 1.414-1.414Z" />
                 </svg>
-                <kbd className="hidden rounded border border-gray-200 px-1 py-px text-[10px] font-semibold text-gray-400 dark:border-gray-700 dark:text-gray-500 lg:inline-block">
+                <kbd className="hidden rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-400 lg:inline-block">
                   ⌘K
                 </kbd>
               </button>
               <SearchModal isOpen={searchModalOpen} setIsOpen={setSearchModalOpen} />
             </div>
+
             <Notifications align="right" />
+            {isDemo && <DemoExitChip />}
             <DropdownHelp align="right" />
             <ThemeToggle />
-            {/*  Divider */}
-            <hr className="w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none" />
-            <DropdownProfile align="right" />
-
           </div>
-
         </div>
       </div>
     </header>

@@ -27,14 +27,16 @@ export default function BillingDunningBanner({ ctx }: { ctx: TenantContext }) {
 
   const meta = subscriptionStatusMeta(ctx.subscriptionStatus)
   const planName = PLANS.find((p) => p.id === ctx.planTier)?.name ?? 'your'
-  // amber = needs our action / still recoverable; rose = problem now.
+  // v2 slim chip-row: amber = needs our action / still recoverable; rose =
+  // problem now. A single-line tinted strip, not a full-bleed band.
   const isUrgent = meta.severity === 'urgent'
   const barClass = isUrgent
-    ? 'bg-rose-600 text-rose-50'
-    : 'bg-amber-500 text-amber-950'
+    ? 'border-rose-500/30 bg-rose-500/12 text-rose-700 dark:text-rose-200'
+    : 'border-amber-500/30 bg-amber-500/12 text-amber-800 dark:text-amber-200'
+  const dotClass = isUrgent ? 'bg-rose-500' : 'bg-amber-500'
   const btnClass = isUrgent
-    ? 'bg-rose-50 text-rose-700 hover:bg-white'
-    : 'bg-amber-950 text-amber-100 hover:bg-amber-900'
+    ? 'bg-rose-600 text-white hover:bg-rose-700'
+    : 'bg-amber-500 text-white hover:bg-amber-600'
 
   function handleClick() {
     startTransition(async () => {
@@ -50,16 +52,19 @@ export default function BillingDunningBanner({ ctx }: { ctx: TenantContext }) {
   return (
     <div
       role="alert"
-      className={`sticky top-0 z-40 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-center text-sm font-medium ${barClass}`}
+      className={`flex items-center justify-between gap-3 border-b px-4 py-1.5 text-sm sm:px-6 lg:px-8 ${barClass}`}
     >
-      <span>
-        Your last payment didn&apos;t go through — update your card to keep {planName} features.
+      <span className="flex min-w-0 items-center gap-2">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} aria-hidden="true" />
+        <span className="truncate font-medium">
+          Payment didn&apos;t go through — update your card to keep {planName} features.
+        </span>
       </span>
       <button
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className={`rounded-full px-3 py-0.5 text-xs font-semibold disabled:opacity-60 ${btnClass}`}
+        className={`shrink-0 rounded-full px-3 py-0.5 text-xs font-semibold disabled:opacity-60 ${btnClass}`}
       >
         {pending ? 'Opening…' : 'Update payment →'}
       </button>
