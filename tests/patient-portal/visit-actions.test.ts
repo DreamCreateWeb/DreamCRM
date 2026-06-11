@@ -57,12 +57,15 @@ vi.mock('@/lib/services/appointments', () => ({
 
 // Reschedule target-slot guard. Default: the chosen slot is open.
 let openSlotIso: string | null = null
+// Capture the duration the booking flow passes to the slot race-guard so we can
+// assert the visit-type duration is threaded through (wave 2).
+const isSlotAvailableMock = vi.fn(async () => true)
 vi.mock('@/lib/services/booking', () => ({
   getSlotsForDay: vi.fn(async () => ({
     slots: openSlotIso ? [{ startIso: openSlotIso, label: '9:00 AM', available: true }] : [],
     closedReason: null,
   })),
-  isSlotAvailable: vi.fn(async () => true),
+  isSlotAvailable: (...a: unknown[]) => isSlotAvailableMock(...(a as [])),
   SLOT_MINUTES: 30,
 }))
 
@@ -75,16 +78,30 @@ const notifyOrgMembers = vi.fn(async () => {})
 vi.mock('@/lib/services/notifications', () => ({
   notifyOrgMembers: (...a: unknown[]) => notifyOrgMembers(...(a as [])),
 }))
+// Configurable clinic visit-type catalog for the duration-threading test +
+// captured appointment inserts so we can assert the computed endTime.
+let visitTypeSettings: unknown = null
+const insertedAppointments: Array<Record<string, unknown>> = []
 // patientDisplayName + bookMyVisitAction read the patient row for the
-// notification copy / agenda title — return a name for either lookup.
+// notification copy / agenda title; bookMyVisitAction also reads the clinic's
+// visit-type settings (dispatch by selected columns).
 vi.mock('@/lib/db', () => ({
   db: {
-    select: () => ({
+    select: (cols?: Record<string, unknown>) => ({
       from: () => ({
-        where: () => ({ limit: async () => [{ firstName: 'Mia', lastName: 'Hayes' }] }),
+        where: () => ({
+          limit: async () =>
+            cols && 'visitTypeSettings' in cols
+              ? [{ visitTypeSettings }]
+              : [{ firstName: 'Mia', lastName: 'Hayes' }],
+        }),
       }),
     }),
-    insert: () => ({ values: async () => {} }),
+    insert: () => ({
+      values: async (vals: Record<string, unknown>) => {
+        insertedAppointments.push(vals)
+      },
+    }),
   },
   schema: {},
 }))
@@ -93,6 +110,7 @@ import {
   confirmMyVisitAction,
   cancelMyVisitAction,
   rescheduleMyVisitAction,
+  bookMyVisitAction,
 } from '@/app/(portal)/patient/actions'
 
 beforeEach(() => {
@@ -108,6 +126,13 @@ beforeEach(() => {
     startTime: new Date(Date.now() + 72 * HOUR),
   }
   openSlotIso = null
+  settings.features.booking = true
+  settings.booking.allowedTypes = ['cleaning', 'root_canal']
+  settings.booking.minNoticeHours = 2
+  visitTypeSettings = null
+  insertedAppointments.length = 0
+  isSlotAvailableMock.mockClear()
+  isSlotAvailableMock.mockResolvedValue(true)
   confirmAppointment.mockClear()
   cancelAppointment.mockClear()
   rescheduleAppointment.mockClear()
@@ -229,5 +254,58 @@ describe('rescheduleMyVisitAction', () => {
     const r = await rescheduleMyVisitAction('appt_1', new Date(Date.now() + 96 * HOUR).toISOString())
     expect(r).toMatchObject({ ok: false })
     expect(rescheduleAppointment).not.toHaveBeenCalled()
+  })
+})
+
+describe('bookMyVisitAction — visit-type duration threading (wave 2)', () => {
+  function bookForm(fields: Record<string, string>) {
+    const fd = new FormData()
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v)
+    return fd
+  }
+
+  it('computes endTime from the visit-type duration (not a hardcoded 30 min)', async () => {
+    visitTypeSettings = [
+      { id: 'root_canal', label: 'Root canal', durationMinutes: 60, bookablePortal: true },
+    ]
+    const start = new Date(Date.now() + 48 * HOUR)
+    start.setUTCMinutes(0, 0, 0)
+    const r = await bookMyVisitAction(bookForm({ type: 'root_canal', startTime: start.toISOString() }))
+    expect(r).toEqual({ ok: true })
+    const appt = insertedAppointments[0]
+    expect(appt).toBeDefined()
+    const durationMs = new Date(appt.endTime as Date).getTime() - new Date(appt.startTime as Date).getTime()
+    expect(durationMs).toBe(60 * 60_000)
+  })
+
+  it('passes the resolved duration to the slot race-guard', async () => {
+    visitTypeSettings = [
+      { id: 'root_canal', label: 'Root canal', durationMinutes: 60, bookablePortal: true },
+    ]
+    const start = new Date(Date.now() + 48 * HOUR)
+    start.setUTCMinutes(0, 0, 0)
+    await bookMyVisitAction(bookForm({ type: 'root_canal', startTime: start.toISOString() }))
+    // isSlotAvailable(orgId, startTime, durationMinutes)
+    expect(isSlotAvailableMock).toHaveBeenCalledWith('org_1', expect.any(Date), 60)
+  })
+
+  it('falls back to a single 30-min slot when the visit type is unknown', async () => {
+    visitTypeSettings = null // no catalog → visitTypeDuration returns 30
+    settings.booking.allowedTypes = ['cleaning']
+    const start = new Date(Date.now() + 48 * HOUR)
+    start.setUTCMinutes(0, 0, 0)
+    const r = await bookMyVisitAction(bookForm({ type: 'cleaning', startTime: start.toISOString() }))
+    expect(r).toEqual({ ok: true })
+    const appt = insertedAppointments[0]
+    const durationMs = new Date(appt.endTime as Date).getTime() - new Date(appt.startTime as Date).getTime()
+    expect(durationMs).toBe(30 * 60_000)
+  })
+
+  it('rejects a visit type the clinic has not made portal-bookable', async () => {
+    settings.booking.allowedTypes = ['cleaning']
+    const start = new Date(Date.now() + 48 * HOUR).toISOString()
+    const r = await bookMyVisitAction(bookForm({ type: 'root_canal', startTime: start }))
+    expect(r).toMatchObject({ ok: false })
+    expect(insertedAppointments).toHaveLength(0)
   })
 })

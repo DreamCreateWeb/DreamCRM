@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { listBookingSlots, submitBookingRequest } from '../actions'
+import { listBookingSlots, submitBookingRequest, type BookingConfirmation } from '../actions'
 import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
 import { OTHER_VISIT_TYPE_ID } from '@/lib/types/visit-types'
+import { buildIcs, icsDataUrl } from '@/lib/ics'
 
 /** Public-bookable visit type, shaped for the form (server passes the
  *  resolved, bookablePublic-filtered catalog with each type's duration). */
@@ -54,6 +55,13 @@ interface Props {
   slug: string
   brand: string
   clinicName: string
+  /** Clinic phone for the closed-window "call us" fallback + success-screen
+   *  tel: links. Null when the clinic hasn't set one. */
+  clinicPhone?: string | null
+  /** Whether ANY day in the bookable window has an opening (computed
+   *  server-side). When false, the form leads with a prominent "call us" card
+   *  instead of an empty slot grid. */
+  windowHasAvailability?: boolean
   /** Public-bookable visit types (resolved from the clinic's visit-type
    *  catalog, filtered to bookablePublic). The form always appends an
    *  "Other / not sure" fallback so patients can book even when their reason
@@ -112,7 +120,195 @@ export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedRe
   return 'Every slot is taken for this day. Try another day.'
 }
 
-export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }: Props) {
+/**
+ * Format a confirmation's start instant into a "Monday, January 15 · 2:00 PM"
+ * label in the CLINIC's timezone (so the screen matches the confirmation
+ * email). Exported for unit testing.
+ */
+export function formatConfirmationWhen(startIso: string, timeZone: string): string {
+  const d = new Date(startIso)
+  if (isNaN(d.getTime())) return ''
+  const date = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  }).format(d)
+  const time = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(d)
+  return `${date} · ${time}`
+}
+
+/**
+ * Rich post-booking success screen. Confirms the date/time/type + clinic
+ * address with a maps link, offers "Add to calendar" (an inline .ics data URL
+ * — no server round-trip, no unauthenticated appointment lookup), a "what to
+ * expect" line, and — when the clinic has a default intake form — a prominent
+ * "Fill out your intake form now" button. Phone-only bookers (no email) get
+ * the SAME screen plus a "We'll call to confirm" note, since this on-screen
+ * artifact is their only record.
+ *
+ * Exported so it can be unit-tested in isolation from the form's slot/transition
+ * machinery.
+ */
+export function BookingSuccess({ confirmation, brand }: { confirmation: BookingConfirmation; brand: string }) {
+  const c = confirmation
+  const whenLabel = formatConfirmationWhen(c.startTimeIso, c.timeZone)
+
+  const calendarHref = useMemo(() => {
+    const start = new Date(c.startTimeIso)
+    const end = new Date(c.endTimeIso)
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null
+    const description = [
+      `${c.visitTypeLabel} at ${c.clinicName}.`,
+      c.clinicPhone ? `Questions? Call ${c.clinicPhone}.` : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+    return icsDataUrl(
+      buildIcs({
+        uid: `booking-${start.getTime()}@dreamcreatestudio.com`,
+        start,
+        end,
+        summary: `${c.visitTypeLabel} at ${c.clinicName}`,
+        location: c.addressText,
+        description,
+      }),
+    )
+  }, [c])
+
+  return (
+    <div className="text-center py-12 sm:py-14">
+      <div
+        className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
+        style={{ backgroundColor: brand + '22' }}
+      >
+        <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h2 className="text-3xl font-bold tracking-[-0.02em] mb-2" style={{ color: INK }}>
+        You&rsquo;re booked.
+      </h2>
+      <p className="leading-relaxed mb-7" style={{ color: INK_MUTED }}>
+        {c.emailSent
+          ? 'We sent a confirmation to your email. See you soon!'
+          : 'We don’t have your email, so we’ll call to confirm. Here are your visit details — feel free to save them.'}
+      </p>
+
+      {/* Visit details card. */}
+      <div
+        className="text-left rounded-2xl p-5 sm:p-6 mb-5 max-w-md mx-auto"
+        style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
+      >
+        <dl className="space-y-3 text-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="font-medium shrink-0" style={{ color: INK_MUTED }}>
+              When
+            </dt>
+            <dd className="text-right font-semibold" style={{ color: INK }}>
+              {whenLabel}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="font-medium shrink-0" style={{ color: INK_MUTED }}>
+              Visit
+            </dt>
+            <dd className="text-right font-semibold" style={{ color: INK }}>
+              {c.visitTypeLabel}
+            </dd>
+          </div>
+          {c.addressText && (
+            <div className="flex justify-between gap-4">
+              <dt className="font-medium shrink-0" style={{ color: INK_MUTED }}>
+                Where
+              </dt>
+              <dd className="text-right" style={{ color: INK }}>
+                {c.mapsUrl ? (
+                  <a
+                    href={c.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold hover:underline"
+                    style={{ color: brand }}
+                  >
+                    {c.addressText}
+                  </a>
+                ) : (
+                  <span className="font-semibold">{c.addressText}</span>
+                )}
+              </dd>
+            </div>
+          )}
+        </dl>
+      </div>
+
+      {/* What to expect. */}
+      <p className="text-sm leading-relaxed mb-7 max-w-md mx-auto" style={{ color: INK_MUTED }}>
+        Please arrive about 10 minutes early, and bring your insurance card and a
+        photo ID if you have them.
+      </p>
+
+      {/* Actions. Min 44px tap targets. Intake CTA is the prominent (filled)
+          action when present — it's the highest-value next step for the clinic. */}
+      <div className="flex flex-col gap-3 max-w-md mx-auto">
+        {c.intakeFormUrl && (
+          <a
+            href={c.intakeFormUrl}
+            className="w-full min-h-[48px] inline-flex items-center justify-center px-5 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95"
+            style={{ backgroundColor: brand }}
+          >
+            Fill out your intake form now
+          </a>
+        )}
+        {calendarHref && (
+          <a
+            href={calendarHref}
+            download="visit.ics"
+            className="w-full min-h-[48px] inline-flex items-center justify-center px-5 rounded-full text-base font-semibold transition hover:opacity-90"
+            style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+          >
+            Add to calendar
+          </a>
+        )}
+        {c.mapsUrl && (
+          <a
+            href={c.mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full min-h-[48px] inline-flex items-center justify-center px-5 rounded-full text-base font-semibold transition hover:opacity-90"
+            style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+          >
+            Get directions
+          </a>
+        )}
+      </div>
+
+      {c.clinicPhone && (
+        <p className="text-sm mt-7" style={{ color: INK_MUTED }}>
+          Need to change something? Call us at{' '}
+          <a href={`tel:${c.clinicPhone}`} className="font-semibold hover:underline" style={{ color: INK }}>
+            {c.clinicPhone}
+          </a>
+          .
+        </p>
+      )}
+    </div>
+  )
+}
+
+export default function BookForm({
+  orgId,
+  slug,
+  brand,
+  clinicName,
+  clinicPhone = null,
+  windowHasAvailability = true,
+  visitTypes,
+}: Props) {
   const apptTypes = useMemo(() => buildVisitTypeOptions(visitTypes), [visitTypes])
   const defaultApptType = apptTypes[0]?.value ?? OTHER_VISIT_TYPE_ID
   const [selectedType, setSelectedType] = useState<string>(defaultApptType)
@@ -136,6 +332,7 @@ export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }:
   const [slotsPending, startSlotsTransition] = useTransition()
   const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null)
 
   // Ref + scroll handler for the day strip prev/next arrows. The strip
   // overflows past the visible width on every viewport (14-day window /
@@ -170,25 +367,8 @@ export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }:
     })
   }, [orgId, selectedDate, selectedDuration])
 
-  if (submitState === 'success') {
-    return (
-      <div className="text-center py-16">
-        <div
-          className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-          style={{ backgroundColor: brand + '22' }}
-        >
-          <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h2 className="text-3xl font-bold tracking-[-0.02em] mb-3" style={{ color: INK }}>
-          You&rsquo;re booked.
-        </h2>
-        <p className="max-w-sm mx-auto leading-relaxed" style={{ color: INK_MUTED }}>
-          We&rsquo;ll send a confirmation to your email and call to verify within 24 hours.
-        </p>
-      </div>
-    )
+  if (submitState === 'success' && confirmation) {
+    return <BookingSuccess confirmation={confirmation} brand={brand} />
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -214,7 +394,8 @@ export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }:
       fd.set('utm_campaign', params.get('utm_campaign') || '')
     }
     try {
-      await submitBookingRequest(fd)
+      const conf = await submitBookingRequest(fd)
+      setConfirmation(conf)
       setSubmitState('success')
     } catch (err) {
       setErrorMsg(
@@ -228,6 +409,34 @@ export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }:
 
   return (
     <form onSubmit={handleSubmit} className="space-y-10">
+      {/* ── Closed-window fallback ───────────────────────────────────────
+          When the entire bookable window is closed/full, lead with a clear
+          "call us" card so phone isn't buried in a side panel below the fold.
+          The slot grid stays below (still honest per-day), but this is the
+          prominent next step. Only shows when the clinic has a phone. */}
+      {!windowHasAvailability && clinicPhone && (
+        <section
+          className="rounded-2xl p-5 sm:p-6 text-center"
+          style={{ backgroundColor: brand + '12', border: `1px solid ${brand}40` }}
+        >
+          <p className="text-base font-semibold mb-1" style={{ color: INK }}>
+            No online openings right now.
+          </p>
+          <p className="text-sm leading-relaxed mb-4" style={{ color: INK_MUTED }}>
+            Our online schedule is full for the next two weeks — but we often have
+            more availability than shows here. Give us a call and we&rsquo;ll find
+            you a time.
+          </p>
+          <a
+            href={`tel:${clinicPhone}`}
+            className="inline-flex items-center justify-center min-h-[48px] px-6 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95"
+            style={{ backgroundColor: brand }}
+          >
+            Call us at {clinicPhone}
+          </a>
+        </section>
+      )}
+
       {/* ── 1. Pick a date ─────────────────────────────────────────────── */}
       <section>
         <p
@@ -417,7 +626,7 @@ export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }:
             name="type"
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2 appearance-none"
+            className="w-full min-h-[44px] px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2 appearance-none"
             style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
           >
             {apptTypes.map((t) => (
@@ -426,6 +635,42 @@ export default function BookForm({ orgId, slug, brand, clinicName, visitTypes }:
               </option>
             ))}
           </select>
+          {/* Two optional front-desk-context questions (NexHealth-style). Both
+              default to "" (no answer) and ride the appointment notes — no
+              schema. Mobile-friendly: full-width, ≥44px tap height. */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="sr-only" htmlFor="book-visited-before">
+              Have you visited us before?
+            </label>
+            <select
+              id="book-visited-before"
+              name="visitedBefore"
+              defaultValue=""
+              aria-label="Have you visited us before?"
+              className="w-full min-h-[44px] px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2 appearance-none"
+              style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+            >
+              <option value="">Visited us before? (optional)</option>
+              <option value="new">No — first visit</option>
+              <option value="returning">Yes — I&rsquo;m a returning patient</option>
+            </select>
+            <label className="sr-only" htmlFor="book-has-insurance">
+              Do you have dental insurance?
+            </label>
+            <select
+              id="book-has-insurance"
+              name="hasInsurance"
+              defaultValue=""
+              aria-label="Do you have dental insurance?"
+              className="w-full min-h-[44px] px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2 appearance-none"
+              style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+            >
+              <option value="">Dental insurance? (optional)</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+              <option value="unsure">Not sure</option>
+            </select>
+          </div>
           <textarea
             name="notes"
             rows={3}
