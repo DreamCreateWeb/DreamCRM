@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
-import { createDemoClinic } from '@/lib/services/demo-clinic'
+import { createDemoClinic, seedDemoNotificationsForUser } from '@/lib/services/demo-clinic'
 import {
   createManagedClinic,
   resendClinicOwnerInvite,
@@ -41,7 +41,7 @@ const EnterDemoInput = z.object({
  * Real session is untouched — switching back is a cookie clear.
  */
 export async function enterDemoMode(input: unknown) {
-  await requirePlatformAdmin()
+  const ctx = await requirePlatformAdmin()
   const data = EnterDemoInput.parse(input)
 
   // If entering the Acme Dental Demo clinic, run the seeder's self-heal
@@ -55,6 +55,11 @@ export async function enterDemoMode(input: unknown) {
     .limit(1)
   if (org?.slug === DEMO_CLINIC_SLUG) {
     await createDemoClinic()
+    // The demo org has no member rows, so live notifyOrgMembers events route
+    // to platform admins (see notifications.ts). Seed a starter set for THIS
+    // admin too — idempotent — so the header bell demos populated the moment
+    // they enter, not only after the next live event.
+    await seedDemoNotificationsForUser(ctx.userId, data.orgId)
   }
 
   const cookieStore = await cookies()

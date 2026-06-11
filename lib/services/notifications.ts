@@ -134,7 +134,7 @@ export async function notifyOrgMembers(
     const rolesFilter = opts.roles?.length
       ? inArray(schema.member.role, opts.roles)
       : undefined
-    const rows = await db
+    let rows = await db
       .select({ userId: schema.member.userId })
       .from(schema.member)
       .where(
@@ -142,6 +142,27 @@ export async function notifyOrgMembers(
           ? and(eq(schema.member.organizationId, organizationId), rolesFilter)
           : eq(schema.member.organizationId, organizationId),
       )
+
+    // Demo orgs have no real members (the "View as clinic" context is
+    // synthesized from a cookie, not a membership row), so org events would
+    // notify nobody and the bell would look broken in the exact surface the
+    // platform admin demos from. Route demo-org events to platform admins —
+    // the only people who can see a demo org.
+    if (rows.length === 0) {
+      const [org] = await db
+        .select({ isDemo: schema.organization.isDemo })
+        .from(schema.organization)
+        .where(eq(schema.organization.id, organizationId))
+        .limit(1)
+      if (org?.isDemo) {
+        rows = await db
+          .select({ userId: schema.user.id })
+          .from(schema.user)
+          .where(eq(schema.user.platformAdmin, true))
+          .limit(10)
+      }
+    }
+
     await Promise.all(
       rows.map((r) =>
         notify({ ...input, userId: r.userId, organizationId }),

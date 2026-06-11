@@ -12,6 +12,13 @@ vi.mock('@/app/(default)/appointments/actions', () => ({
 vi.mock('@/app/(default)/appointments/appointment-drawer', () => ({
   default: () => null,
 }))
+vi.mock('@/app/(default)/appointments/new-booking-drawer', () => ({
+  default: ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="new-booking-drawer">
+      <button onClick={onClose}>close-drawer</button>
+    </div>
+  ),
+}))
 
 import AgendaView from '@/app/(default)/appointments/agenda-view'
 import type {
@@ -245,6 +252,30 @@ describe('AgendaView', () => {
       />,
     )
     expect(screen.getByText(/· with Dr\. Jordan Reyes/)).toBeInTheDocument()
+  })
+
+  it('"+ New booking" opens the booking drawer (header + empty state)', () => {
+    // Header button with rows present
+    const group: AppointmentDayGroup = {
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [makeRow({ id: 'nb1', patientName: 'Mia Hayes' })],
+      totals: { booked: 1, confirmed: 0, unconfirmed: 1 },
+    }
+    const { unmount } = render(
+      <AgendaView groups={[group]} meta={baseMeta} filters={baseFilters} orgName="Acme" />,
+    )
+    expect(screen.queryByTestId('new-booking-drawer')).toBeNull()
+    fireEvent.click(screen.getAllByText('+ New booking')[0])
+    expect(screen.getByTestId('new-booking-drawer')).toBeTruthy()
+    fireEvent.click(screen.getByText('close-drawer'))
+    expect(screen.queryByTestId('new-booking-drawer')).toBeNull()
+    unmount()
+
+    // Empty-state CTA opens it too
+    render(<AgendaView groups={[]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    fireEvent.click(screen.getAllByText('+ New booking')[0])
+    expect(screen.getByTestId('new-booking-drawer')).toBeTruthy()
   })
 
   it('selecting a row reveals the sticky bulk-send bar', () => {

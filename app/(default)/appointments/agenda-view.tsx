@@ -25,6 +25,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
+import NewBookingDrawer from './new-booking-drawer'
 import AppointmentDrawer from './appointment-drawer'
 import { confirmAppointmentAction, bulkSendRemindersAction } from './actions'
 
@@ -154,6 +155,7 @@ export default function AgendaView({
   const router = useRouter()
   const params = useSearchParams()
   const [openDetail, setOpenDetail] = useState<string | null>(null)
+  const [newBookingOpen, setNewBookingOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -236,11 +238,13 @@ export default function AgendaView({
           />
         }
         actions={
-          <ActionButton variant="primary" href="/appointments?window=today">
+          <ActionButton variant="primary" onClick={() => setNewBookingOpen(true)}>
             + New booking
           </ActionButton>
         }
       />
+
+      {newBookingOpen && <NewBookingDrawer onClose={() => setNewBookingOpen(false)} />}
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 mb-4 space-y-3">
@@ -308,7 +312,7 @@ export default function AgendaView({
 
       {/* ── Agenda ───────────────────────────────────────────────────── */}
       {groups.length === 0 ? (
-        <AgendaEmptyState filters={filters} />
+        <AgendaEmptyState filters={filters} onNewBooking={() => setNewBookingOpen(true)} />
       ) : (
         <div className="space-y-6">
           {groups.map((g) => (
@@ -483,7 +487,13 @@ function AppointmentRowCard({
   )
 }
 
-function AgendaEmptyState({ filters }: { filters: AppointmentListFilters }) {
+function AgendaEmptyState({
+  filters,
+  onNewBooking,
+}: {
+  filters: AppointmentListFilters
+  onNewBooking: () => void
+}) {
   const copy = emptyCopy(filters)
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
@@ -492,7 +502,7 @@ function AgendaEmptyState({ filters }: { filters: AppointmentListFilters }) {
         title={copy.title}
         body={copy.body}
         action={
-          <ActionButton variant="primary" href="/appointments?window=today">
+          <ActionButton variant="primary" onClick={onNewBooking}>
             + New booking
           </ActionButton>
         }
