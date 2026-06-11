@@ -27,27 +27,27 @@ export default function PatientCard({ ctx, terminology }: Props) {
   const isClinical = terminology.isClinical
 
   return (
-    <aside className="rounded-xl border border-stone-200 dark:border-stone-700/60 bg-gradient-to-b from-stone-50/80 to-white dark:from-stone-800/40 dark:to-stone-900/40 p-4 shadow-sm">
+    <aside className="v2-card p-4">
       <div className="flex items-center gap-3 mb-3">
         <div className="w-11 h-11 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-semibold text-sm shrink-0">
           {initials.toUpperCase()}
         </div>
         <div className="min-w-0 grow">
-          <div className="font-semibold text-stone-900 dark:text-stone-100 truncate">
+          <div className="font-semibold text-gray-900 dark:text-gray-100 truncate">
             {patient.firstName} {patient.lastName}
           </div>
-          <div className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-1.5 flex-wrap">
+          <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 flex-wrap">
             {isClinical && age !== null && <span className="tabular-nums">{age}y</span>}
             {patient.phone && (
               <>
-                {isClinical && age !== null && <span className="text-stone-300 dark:text-stone-600" aria-hidden="true">·</span>}
-                <a href={`tel:${patient.phone}`} className="hover:text-stone-700 dark:hover:text-stone-200">
+                {isClinical && age !== null && <span className="text-gray-300 dark:text-gray-600" aria-hidden="true">·</span>}
+                <a href={`tel:${patient.phone}`} className="hover:text-gray-700 dark:hover:text-gray-200">
                   {patient.phone}
                 </a>
               </>
             )}
             {isClinical && (
-              <span className="ml-auto rounded-full bg-stone-100 dark:bg-stone-700/50 px-1.5 py-0.5 text-xs tabular-nums">
+              <span className="ml-auto rounded-full bg-gray-100 dark:bg-gray-700/50 px-1.5 py-0.5 text-xs tabular-nums">
                 {appointmentCount} visit{appointmentCount === 1 ? '' : 's'}
               </span>
             )}
@@ -60,42 +60,42 @@ export default function PatientCard({ ctx, terminology }: Props) {
           <>
             <Row label="Next visit">
               {nextAppointment ? (
-                <span className="text-stone-800 dark:text-stone-200">
+                <span className="text-gray-800 dark:text-gray-200">
                   {formatShortDate(nextAppointment.startTime)} · {formatTime(nextAppointment.startTime)}
-                  <span className="text-stone-500 dark:text-stone-400 ml-1">({nextAppointment.type})</span>
+                  <span className="text-gray-500 dark:text-gray-400 ml-1">({nextAppointment.type})</span>
                 </span>
               ) : (
-                <span className="text-stone-500 dark:text-stone-400">none scheduled</span>
+                <span className="text-gray-500 dark:text-gray-400">none scheduled</span>
               )}
             </Row>
             <Row label="Last visit">
               {lastAppointment && new Date(lastAppointment.startTime) < new Date() ? (
-                <span className="text-stone-700 dark:text-stone-300">
+                <span className="text-gray-700 dark:text-gray-300">
                   {formatShortDate(lastAppointment.startTime)}
-                  <span className="text-stone-500 dark:text-stone-400 ml-1">({lastAppointment.type})</span>
+                  <span className="text-gray-500 dark:text-gray-400 ml-1">({lastAppointment.type})</span>
                 </span>
               ) : (
-                <span className="text-stone-500 dark:text-stone-400">no past visits</span>
+                <span className="text-gray-500 dark:text-gray-400">no past visits</span>
               )}
             </Row>
             {patient.insuranceProvider && (
               <Row label="Insurance">
-                <span className="text-stone-700 dark:text-stone-300 truncate">{patient.insuranceProvider}</span>
+                <span className="text-gray-700 dark:text-gray-300 truncate">{patient.insuranceProvider}</span>
               </Row>
             )}
           </>
         )}
         {!isClinical && patient.email && (
           <Row label="Email">
-            <a href={`mailto:${patient.email}`} className="text-stone-700 dark:text-stone-300 truncate hover:text-stone-900 dark:hover:text-stone-100">
+            <a href={`mailto:${patient.email}`} className="text-gray-700 dark:text-gray-300 truncate hover:text-gray-900 dark:hover:text-gray-100">
               {patient.email}
             </a>
           </Row>
         )}
         {patient.notes && (
-          <div className="mt-3 pt-3 border-t border-stone-200/60 dark:border-stone-700/40">
-            <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1">Notes</div>
-            <p className="text-xs text-stone-700 dark:text-stone-300 line-clamp-3">{patient.notes}</p>
+          <div className="mt-3 pt-3 border-t border-gray-200/60 dark:border-gray-700/40">
+            <div className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Notes</div>
+            <p className="text-xs text-gray-700 dark:text-gray-300 line-clamp-3">{patient.notes}</p>
           </div>
         )}
       </div>
@@ -134,7 +134,7 @@ export default function PatientCard({ ctx, terminology }: Props) {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">
-      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 w-16 shrink-0">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 w-16 shrink-0">{label}</div>
       <div className={cn('grow min-w-0 truncate')}>{children}</div>
     </div>
   )

@@ -52,7 +52,7 @@ export default function CategoryTabs({ counts, activeCategory }: Props) {
     // user knows there's more. Hidden scrollbar (no-scrollbar) keeps the
     // chrome clean. Built for future tenants who might add many custom
     // categories — current 4 tabs always fit, but the design scales.
-    <div className="relative border-b border-stone-200 dark:border-stone-700/60">
+    <div className="relative border-b border-gray-200 dark:border-gray-700/60">
       <div className="flex items-center gap-0.5 px-2 pt-1 overflow-x-auto no-scrollbar">
         {visibleTabs.map((tab) => {
           const active = activeCategory === tab.key
@@ -65,8 +65,8 @@ export default function CategoryTabs({ counts, activeCategory }: Props) {
               className={cn(
                 'relative inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-colors whitespace-nowrap shrink-0',
                 active
-                  ? 'text-stone-900 dark:text-stone-100'
-                  : 'text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200',
+                  ? 'text-teal-700 dark:text-teal-300'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200',
               )}
             >
               {tab.label}
@@ -75,15 +75,15 @@ export default function CategoryTabs({ counts, activeCategory }: Props) {
                   className={cn(
                     'tabular-nums text-xs rounded-full px-1.5 py-0.5 leading-none',
                     active
-                      ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                      : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+                      ? 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
                   )}
                 >
                   {count}
                 </span>
               )}
               {active && (
-                <span className="absolute -bottom-px left-2 right-2 h-[2px] bg-stone-900 dark:bg-stone-100 rounded-t" />
+                <span className="absolute -bottom-px left-2 right-2 h-[2px] bg-teal-500 rounded-t" />
               )}
             </Link>
           )
@@ -91,7 +91,7 @@ export default function CategoryTabs({ counts, activeCategory }: Props) {
       </div>
       {/* Right-edge fade indicating horizontal scroll. Pointer-events-none
           so it doesn't block clicks on tabs underneath. */}
-      <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-6 bg-gradient-to-l from-white dark:from-stone-900 to-transparent" />
+      <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-6 bg-gradient-to-l from-[color:var(--color-surface-1)] to-transparent" />
     </div>
   )
 }

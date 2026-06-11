@@ -103,3 +103,24 @@ describe('messages two-pane responsive collapse', () => {
     expect(container.querySelector('aside')!.className).toContain('lg:w-[22rem]')
   })
 })
+
+describe('messages surface header — Mailbox (Gmail) tab', () => {
+  it('renders a quiet "Mailbox" tab linking to /inbox (Inbox folds into Messages at nav level)', async () => {
+    const ui = await ClinicMessagesView({ ctx, searchParams: {} })
+    const { getByRole } = render(ui)
+    const mailbox = getByRole('link', { name: /Mailbox/ })
+    expect(mailbox).toHaveAttribute('href', '/inbox')
+    // It is a tab in the surface header, not a primary action — no teal fill.
+    expect(mailbox.className).not.toContain('bg-teal-500')
+  })
+
+  it('labels the active "Patients" tab with aria-current and a teal underline', async () => {
+    const ui = await ClinicMessagesView({ ctx, searchParams: {} })
+    const { container } = render(ui)
+    const nav = container.querySelector('nav[aria-label="Messages surfaces"]')!
+    expect(nav).toBeTruthy()
+    const current = nav.querySelector('[aria-current="page"]')!
+    expect(current.textContent).toContain('Patients')
+    expect(current.className).toContain('border-teal-500')
+  })
+})

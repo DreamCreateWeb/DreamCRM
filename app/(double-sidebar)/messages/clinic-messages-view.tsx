@@ -137,14 +137,35 @@ export default async function ClinicMessagesView({
   const threadSelected = activeThread != null
 
   return (
-    <div className="flex flex-col h-full bg-stone-50 dark:bg-stone-950">
-      {/* ── Top filter bar (the two-pane PageHeader analogue) ────────── */}
-      <div className="border-b border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 px-4 py-2 flex items-center gap-2 flex-wrap shrink-0">
-        <div className="mr-1 shrink-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400 leading-none">
+    <div className="flex flex-col h-full bg-[color:var(--color-canvas)]">
+      {/* ── Surface header: eyebrow + the Patients/Mailbox surface tabs.
+          Inbox folds into Messages at nav level (the sidebar drops it); the
+          Mailbox tab is its home — a quiet tab, never a primary. ─────────── */}
+      <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-4 pt-2 flex items-end gap-4 shrink-0">
+        <div className="mr-1 shrink-0 pb-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-400 leading-none">
             Daily · Messages
           </p>
         </div>
+        <nav className="flex items-end gap-1 -mb-px" aria-label="Messages surfaces">
+          <span
+            aria-current="page"
+            className="inline-flex items-center px-3 py-2 text-sm font-semibold text-teal-700 dark:text-teal-300 border-b-2 border-teal-500"
+          >
+            Patients
+          </span>
+          <Link
+            href="/inbox"
+            title="Your connected Gmail mailbox — staff email, triage, threading"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:border-[color:var(--color-hairline-strong)] transition-colors"
+          >
+            Mailbox <span className="text-xs text-gray-400 dark:text-gray-500">(Gmail)</span>
+          </Link>
+        </nav>
+      </div>
+
+      {/* ── Top filter bar (the two-pane PageHeader analogue) ────────── */}
+      <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-4 py-2 flex items-center gap-2 flex-wrap shrink-0">
         {STATUS_FILTERS.map((f) => {
           const active = (filters.status ?? 'open') === f.key
           const count = f.key === 'open' ? stats.open : f.key === 'archived' ? stats.archived : null
@@ -159,7 +180,7 @@ export default async function ClinicMessagesView({
             />
           )
         })}
-        <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
+        <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" aria-hidden="true" />
         {ASSIGN_FILTERS.map((f) => {
           const active = (filters.assignedTo ?? 'all') === f.key
           return (
@@ -172,7 +193,7 @@ export default async function ClinicMessagesView({
             />
           )
         })}
-        <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
+        <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" aria-hidden="true" />
         <NavFilterChip
           href={buildHref(searchParams, { unread: searchParams.unread === '1' ? undefined : '1', thread: undefined })}
           label="Unread only"
@@ -198,7 +219,7 @@ export default async function ClinicMessagesView({
         {/* Thread list — full width on mobile when no thread is selected;
             hidden on mobile once a thread is open; fixed-width column at lg+. */}
         <aside
-          className={`${threadSelected ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[22rem] shrink-0 border-r border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 overflow-y-auto`}
+          className={`${threadSelected ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[22rem] shrink-0 border-r border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] overflow-y-auto`}
         >
           {threads.length === 0 ? (
             <EmptyState
@@ -218,42 +239,47 @@ export default async function ClinicMessagesView({
                 const preview =
                   t.lastMessagePreview ?? (t.lastMessageDirection ? '' : 'No messages yet')
                 return (
-                  <li key={t.id} className={`border-b border-stone-100 dark:border-stone-700/40 border-l-4 ${rotBorderClass(t)}`}>
+                  <li key={t.id} className={`border-b border-[color:var(--color-hairline)] border-l-4 ${rotBorderClass(t)}`}>
                     <Link
                       href={buildHref(searchParams, { thread: t.id })}
-                      className={`block px-4 py-3 hover:bg-stone-50 dark:hover:bg-stone-800/40 ${active ? 'bg-violet-50/50 dark:bg-violet-500/[0.08]' : ''}`}
+                      aria-current={active ? 'true' : undefined}
+                      className={`block px-4 py-3 transition-colors ${
+                        active
+                          ? 'bg-teal-500/5 shadow-[inset_0_0_0_1px_rgb(40_179_173/0.4)]'
+                          : 'hover:bg-gray-500/[0.06]'
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <p className={`text-sm truncate ${t.unreadCount > 0 ? 'font-bold text-stone-900 dark:text-stone-100' : 'font-medium text-stone-700 dark:text-stone-200'}`}>
+                        <p className={`text-sm truncate ${t.unreadCount > 0 ? 'font-bold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-200'}`}>
                           {t.patientFirstName} {t.patientLastName}
                         </p>
-                        <span className="text-xs text-stone-500 dark:text-stone-400 tabular-nums shrink-0">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
                           {fmtRelative(t.lastMessageAt)}
                         </span>
                       </div>
-                      <p className="text-xs text-stone-500 dark:text-stone-400 truncate" title={preview || undefined}>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={preview || undefined}>
                         {t.lastMessageDirection === 'outbound' ? (
-                          <span className="text-stone-500 dark:text-stone-400">You: </span>
+                          <span className="text-gray-500 dark:text-gray-400">You: </span>
                         ) : null}
                         {t.lastMessagePreview ?? <span className="italic">No messages yet</span>}
                       </p>
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <span
-                          className={`text-xs font-medium px-1.5 py-0.5 rounded ${ch.pill}`}
+                          className={`text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
                           title={ch.title}
                         >
                           {ch.label}
                         </span>
                         {t.unreadCount > 0 && (
                           <span
-                            className="text-xs font-bold px-1.5 py-0.5 rounded bg-violet-600 text-white tabular-nums"
+                            className="text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500 text-white dark:text-gray-900 tabular-nums"
                             title={`${t.unreadCount} unread message${t.unreadCount === 1 ? '' : 's'}`}
                           >
                             {t.unreadCount}
                           </span>
                         )}
                         {t.assignedUserName && (
-                          <span className="text-xs text-stone-500 dark:text-stone-400 truncate" title={`Assigned to ${t.assignedUserName}`}>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 truncate" title={`Assigned to ${t.assignedUserName}`}>
                             · {t.assignedUserName.split(' ')[0]}
                           </span>
                         )}
@@ -346,14 +372,17 @@ function NavFilterChip({
   count?: number | null
   title?: string
 }) {
+  // Mirrors the shared <FilterChip> recipe (components/ui/filter-chip.tsx) but
+  // renders an <a> because filtering here is a server navigation, not onClick.
+  // Selection ≠ status: teal tint + teal text + a hairline-strong ring.
   return (
     <Link
       href={href}
       aria-current={active ? 'true' : undefined}
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+      className={`inline-flex items-center gap-1 rounded-[var(--r-xs)] px-2.5 py-1 text-xs font-medium transition-colors ${
         active
-          ? 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800'
+          ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
           : 'bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
       }`}
     >

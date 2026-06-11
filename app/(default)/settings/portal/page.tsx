@@ -32,7 +32,7 @@ export default async function PortalSettingsPage() {
         subtitle="Your patients' portal, your rules — features, booking windows, and voice."
       />
 
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
+      <div className="v2-panel mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
           <SettingsSidebar tenantType={ctx.tenantType} />
           <div className="grow p-6 bg-gray-50 dark:bg-gray-900/20 rounded-r-xl">

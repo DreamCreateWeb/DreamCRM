@@ -97,7 +97,7 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 mb-6">
+      <div className="v2-card p-5 mb-6">
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">Add a Gmail account</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
           You&apos;ll be sent to Google to sign in and approve access. We request read + send scopes so you can reply
@@ -107,7 +107,7 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
           // Plain anchor — full-page OAuth redirect, not an in-app navigation.
           <a
             href="/api/oauth/gmail/start"
-            className="btn-sm bg-violet-600 hover:bg-violet-700 text-white inline-flex items-center gap-2"
+            className="btn-sm bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 inline-flex items-center gap-2"
           >
             Connect Gmail →
           </a>
@@ -120,7 +120,7 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
       </div>
 
       {accounts.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 mb-6">
+        <div className="v2-card p-5 mb-6">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">Reclassify backlog</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             We&apos;ve been improving how new mail is categorized — Gmail&apos;s own SPAM and category labels are
@@ -168,7 +168,7 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
             None yet. Click <em>Connect Gmail</em> above to add your first.
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+          <ul className="divide-y divide-[color:var(--color-hairline)] v2-card overflow-hidden">
             {accounts.map((a) => (
               <li key={a.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">

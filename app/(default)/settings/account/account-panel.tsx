@@ -117,7 +117,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                 // eslint-disable-next-line @next/next/no-img-element
                 <img className="w-20 h-20 rounded-full object-cover" src={image} alt={name} />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-violet-200 dark:bg-violet-500/30 flex items-center justify-center text-2xl font-semibold text-violet-700 dark:text-violet-200">
+                <div className="w-20 h-20 rounded-full bg-teal-100 dark:bg-teal-500/30 flex items-center justify-center text-2xl font-semibold text-teal-700 dark:text-teal-200">
                   {(name?.[0] ?? 'U').toUpperCase()}
                 </div>
               )}
@@ -159,7 +159,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
             stays <span className="font-medium text-gray-700 dark:text-gray-300">{currentEmail}</span> until you confirm.
           </div>
           {pendingEmail ? (
-            <div className="mt-5 text-sm text-sky-700 dark:text-sky-300 bg-sky-500/10 px-3 py-3 rounded">
+            <div className="mt-5 text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 px-3 py-3 rounded-[var(--r-sm)]">
               <p className="font-medium">Confirm your new email</p>
               <p className="mt-1">
                 We sent a confirmation link to verify the change to{' '}
@@ -167,7 +167,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
               </p>
               <button
                 type="button"
-                className="mt-2 text-sky-700 dark:text-sky-300 underline hover:no-underline"
+                className="mt-2 text-indigo-700 dark:text-indigo-300 underline hover:no-underline"
                 onClick={() => {
                   setPendingEmail(null)
                   setEmail(currentEmail)
@@ -207,7 +207,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
           <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Password & sessions</h2>
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
             Manage your password and signed-in devices on the{' '}
-            <Link href="/settings/security" className="text-violet-600 dark:text-violet-400 hover:underline">
+            <Link href="/settings/security" className="text-teal-600 dark:text-teal-400 hover:underline">
               Security
             </Link>{' '}
             tab.

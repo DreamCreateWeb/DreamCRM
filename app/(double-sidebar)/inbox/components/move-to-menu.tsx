@@ -79,7 +79,7 @@ export default function MoveToMenu({ messageId, currentCategory }: Props) {
         onClick={() => setOpen((v) => !v)}
         disabled={pending}
         className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors text-stone-600 hover:text-stone-900 hover:bg-stone-100 dark:text-stone-300 dark:hover:text-stone-100 dark:hover:bg-stone-800',
+          'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800',
           pending && 'opacity-50 cursor-wait',
         )}
         title="Move to a different category"
@@ -94,8 +94,8 @@ export default function MoveToMenu({ messageId, currentCategory }: Props) {
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 mt-1.5 w-64 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-lg z-30 overflow-hidden">
-          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 border-b border-stone-100 dark:border-stone-700/60">
+        <div className="pop-in origin-top-right absolute right-0 mt-1.5 w-64 rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)] z-30 overflow-hidden">
+          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 border-b border-[color:var(--color-hairline)]">
             Move thread to
           </div>
           {CATEGORIES.map((c) => {
@@ -110,18 +110,18 @@ export default function MoveToMenu({ messageId, currentCategory }: Props) {
                   'w-full text-left px-3 py-2 flex items-start gap-2.5 transition-colors',
                   isCurrent
                     ? 'opacity-50 cursor-default'
-                    : 'hover:bg-stone-50 dark:hover:bg-stone-800/60',
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/60',
                 )}
               >
                 <span className={cn('mt-1.5 w-2 h-2 rounded-full shrink-0', c.color.replace('text-', 'bg-'))} aria-hidden="true" />
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {c.label}
                     {isCurrent && (
-                      <span className="ml-1.5 text-xs font-normal text-stone-500 dark:text-stone-400">(current)</span>
+                      <span className="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">(current)</span>
                     )}
                   </div>
-                  <div className="text-xs text-stone-500 dark:text-stone-400 leading-tight">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 leading-tight">
                     {c.hint}
                   </div>
                 </div>

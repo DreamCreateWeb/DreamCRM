@@ -87,8 +87,8 @@ export default function ComposeButton({ accounts }: Props) {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full">
-                <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/60">
+              <DialogPanel className="bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] max-w-2xl w-full">
+                <div className="px-5 py-4 border-b border-[color:var(--color-hairline)]">
                   <h2 className="font-semibold text-gray-800 dark:text-gray-100">New message</h2>
                 </div>
                 <form onSubmit={onSubmit}>
