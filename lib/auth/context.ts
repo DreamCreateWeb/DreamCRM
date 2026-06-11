@@ -7,6 +7,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { patient } from '@/lib/db/schema/clinic'
 import { eq, and } from 'drizzle-orm'
 import type { TenantType, PlanTier, Role } from '@/lib/modules/types'
+import { planAllows } from '@/lib/modules'
 
 export interface TenantContext {
   userId: string
@@ -28,6 +29,15 @@ export interface TenantContext {
    * patients, demo contexts).
    */
   billingActivationPending?: boolean
+  /**
+   * Raw Stripe subscription status from the clinic_profile row this request
+   * already loads (e.g. 'active' | 'trialing' | 'past_due' | 'unpaid' |
+   * 'canceled' | 'incomplete' | 'incomplete_expired'). Drives the dunning
+   * banner + Settings → Billing status pill. Optional: undefined/null for
+   * platform, patients, demo, and clinics that never started a subscription
+   * (so existing test fixtures don't need to set it).
+   */
+  subscriptionStatus?: string | null
 }
 
 interface DemoContext {
@@ -57,6 +67,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
         const [org] = await db.select().from(organization).where(eq(organization.id, demo.orgId)).limit(1)
         if (org) {
           let planTier: PlanTier = 'basic'
+          let subscriptionStatus: string | null = null
           if (org.type === 'clinic') {
             const [profile] = await db
               .select()
@@ -64,6 +75,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
               .where(eq(clinicProfile.organizationId, org.id))
               .limit(1)
             if (profile?.planTier) planTier = profile.planTier as PlanTier
+            subscriptionStatus = profile?.subscriptionStatus ?? null
           }
           const role = demo.role ?? 'member'
           const tenantType: TenantType =
@@ -82,6 +94,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
             patientId: demo.patientId ?? null,
             isDemo: true,
             billingActivationPending: false,
+            subscriptionStatus,
           }
         }
       }
@@ -130,6 +143,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
 
   let planTier: PlanTier = 'basic'
   let billingActivationPending = false
+  let subscriptionStatus: string | null = null
   if (org.type === 'clinic') {
     const [profile] = await db
       .select()
@@ -137,6 +151,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       .where(eq(clinicProfile.organizationId, activeOrgId))
       .limit(1)
     if (profile?.planTier) planTier = profile.planTier as PlanTier
+    subscriptionStatus = profile?.subscriptionStatus ?? null
     billingActivationPending =
       profile?.billingMode === 'managed' &&
       Boolean(profile?.pendingPlanId) &&
@@ -175,6 +190,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     patientId,
     isDemo: false,
     billingActivationPending,
+    subscriptionStatus,
   }
 }
 
@@ -204,4 +220,22 @@ export async function requireRole(roles: Role | Role[]): Promise<TenantContext> 
     redirect('/')
   }
   return ctx
+}
+
+/**
+ * Plan-gate a page or server action. Mirrors the sidebar's plan gating
+ * (`lib/modules` is the single source of truth for the tier ordering) so a
+ * clinic can't deep-link a paid page or fire its server action below tier.
+ *
+ * Plan gating only applies to clinic tenants — platform admins (incl. demo
+ * mode, which inherits the demo org's tier) and others pass through. On a
+ * below-tier clinic this REDIRECTS to the Plan page with the requested module
+ * as `?upgrade=<module>` so the plans page can show a friendly upgrade panel;
+ * actions that want a thrown error instead should use `planAllows` directly.
+ */
+export async function requirePlan(ctx: TenantContext, minPlan: PlanTier, module?: string): Promise<void> {
+  if (ctx.tenantType !== 'clinic') return
+  if (planAllows(ctx.planTier, minPlan)) return
+  const { redirect } = await import('next/navigation')
+  redirect(module ? `/settings/plans?upgrade=${encodeURIComponent(module)}` : '/settings/plans')
 }

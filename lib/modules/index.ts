@@ -14,6 +14,36 @@ export function getRegistry(tenantType: TenantType): ModuleRegistry {
 }
 
 /**
+ * Plan tiers in ascending order. THE single source of truth for plan
+ * comparison — both sidebar visibility (getVisibleModules) and server-side
+ * `planAllows`/`requirePlan` (lib/auth/context) read this so gating can't drift.
+ */
+export const PLAN_ORDER: readonly PlanTier[] = ['basic', 'pro', 'premium'] as const
+
+/**
+ * True when `planTier` meets or exceeds `minPlan`. The single comparison used
+ * for plan gating both in the sidebar and in server-side page/action guards.
+ */
+export function planAllows(planTier: PlanTier, minPlan: PlanTier): boolean {
+  return PLAN_ORDER.indexOf(planTier) >= PLAN_ORDER.indexOf(minPlan)
+}
+
+/**
+ * Resolve a friendly module label from a tenant + a module id OR path (with or
+ * without leading slash). Used by the Plans page to title its "upgrade to
+ * unlock X" panel from the `?upgrade=<module>` param that `requirePlan` sets.
+ * Returns null when nothing matches (so callers can fall back to generic copy).
+ */
+export function getModuleLabel(tenantType: TenantType, idOrPath: string): string | null {
+  const needle = idOrPath.trim()
+  const withSlash = needle.startsWith('/') ? needle : `/${needle}`
+  const hit = getRegistry(tenantType).modules.find(
+    (m) => m.id === needle || m.path === needle || m.path === withSlash,
+  )
+  return hit?.label ?? null
+}
+
+/**
  * Filter modules based on the user's plan tier and role.
  * - Plan gating only applies to clinic tenants.
  * - Patient role only sees modules with patient in roles array.
@@ -23,14 +53,8 @@ export function getVisibleModules(
   planTier: PlanTier = 'basic',
   role: Role = 'member'
 ) {
-  const planOrder: PlanTier[] = ['basic', 'pro', 'premium']
-  const userPlanLevel = planOrder.indexOf(planTier)
-
   return getRegistry(tenantType).modules.filter((m) => {
-    if (m.minPlan) {
-      const requiredLevel = planOrder.indexOf(m.minPlan)
-      if (userPlanLevel < requiredLevel) return false
-    }
+    if (m.minPlan && !planAllows(planTier, m.minPlan)) return false
     if (m.roles && !m.roles.includes(role)) return false
     return true
   })

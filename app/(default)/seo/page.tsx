@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { requireTenant } from '@/lib/auth/context'
+import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getSiteHealth, getOrganicAttribution, type CheckStatus } from '@/lib/services/seo'
 import { getReviewStats } from '@/lib/services/reviews'
 import {
@@ -36,6 +36,9 @@ interface Props {
 export default async function SeoPage({ searchParams }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  // SEO is a Pro+ clinic module. requirePlan no-ops for the platform-manage
+  // view (tenantType 'platform'), so the platform admin keeps the connect view.
+  await requirePlan(ctx, 'pro', 'seo')
 
   const { gscConnected, gscError } = await searchParams
 

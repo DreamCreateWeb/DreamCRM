@@ -16,10 +16,17 @@ interface Prefs {
 type TenantType = 'platform' | 'clinic' | 'patient'
 
 /**
- * Tenant-aware labels for the three email-event toggles. The schema columns
+ * Tenant-aware labels for the three notification buckets. The schema columns
  * stay generic (comments / candidates / offers) — they're the only three
- * "buckets" of email events we currently fire — but the wording shown to each
- * tenant reflects what events actually occur for them.
+ * "buckets" of in-app notifications we currently fire — and the wording shown
+ * to each tenant reflects what activity actually lands in their bell.
+ *
+ * IMPORTANT: these toggles control the in-app notification bell + (when "Email
+ * digest" is on) a digest email. They do NOT gate transactional email — patient
+ * appointment reminders, booking confirmations, and clinic replies send through
+ * their own pipelines regardless of these settings. Copy stays honest about
+ * that: it describes what shows up in the dashboard, never "we'll stop emailing
+ * you reminders," which this can't actually do.
  */
 const EMAIL_LABELS: Record<
   TenantType,
@@ -28,11 +35,11 @@ const EMAIL_LABELS: Record<
   platform: {
     comments: {
       title: 'Customer activity',
-      description: 'When a clinic signs up, upgrades, downgrades, or cancels.',
+      description: 'Bell alerts when a clinic signs up, upgrades, downgrades, or cancels.',
     },
     candidates: {
       title: 'Support & inbox',
-      description: 'New email lands in the platform inbox or a customer replies.',
+      description: 'Bell alerts when email lands in the platform inbox or a customer replies.',
     },
     offers: {
       title: 'Product news',
@@ -42,25 +49,25 @@ const EMAIL_LABELS: Record<
   clinic: {
     comments: {
       title: 'Patient activity',
-      description: 'New patient inquiries, appointment bookings, and replies.',
+      description: 'Bell alerts for new patient inquiries, bookings, and replies.',
     },
     candidates: {
       title: 'Recall & marketing',
-      description: 'When a recall campaign is sent, or a patient becomes due for follow-up.',
+      description: 'Bell alerts when a recall campaign is sent or a patient becomes due.',
     },
     offers: {
-      title: 'Billing & platform updates',
-      description: 'Subscription receipts and important DreamCRM product news.',
+      title: 'Platform updates',
+      description: 'Occasional DreamCRM product news. (Billing receipts always email separately.)',
     },
   },
   patient: {
     comments: {
-      title: 'Messages from your clinic',
-      description: 'When the clinic replies to you or sends you a new message.',
+      title: 'Clinic message alerts',
+      description: 'Bell alerts when your clinic replies. (Reminders always reach you regardless.)',
     },
     candidates: {
-      title: 'Appointment reminders',
-      description: 'Upcoming appointments, confirmations, and recall reminders.',
+      title: 'Visit activity',
+      description: 'Bell alerts about your upcoming visits and recall nudges.',
     },
     offers: {
       title: 'Clinic news',
@@ -121,7 +128,10 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
           <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-5">My Notifications</h2>
 
           <section>
-            <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Email</h3>
+            <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">In-app alerts</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              Pick which activity shows up in your notification bell.
+            </p>
             <ul>
               <ToggleRow id="np-comments" prefKey="comments" title={labels.comments.title} description={labels.comments.description} />
               <ToggleRow id="np-candidates" prefKey="candidates" title={labels.candidates.title} description={labels.candidates.description} />
@@ -130,11 +140,14 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
           </section>
 
           <section>
-            <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Push notifications</h3>
+            <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Delivery</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              How these alerts reach you, on top of the bell.
+            </p>
             <ul>
               <ToggleRow id="np-push-all" prefKey="pushEverything" title="Everything" description="Mobile + desktop pushes for all activity." />
-              <ToggleRow id="np-push-email" prefKey="pushEmail" title="Email digest" description="Daily digest of activity to your inbox." />
-              <ToggleRow id="np-push-nothing" prefKey="pushNothing" title="Pause all" description="Temporarily silence every notification (overrides others)." />
+              <ToggleRow id="np-push-email" prefKey="pushEmail" title="Email digest" description="Email a copy of these alerts to your inbox." />
+              <ToggleRow id="np-push-nothing" prefKey="pushNothing" title="Pause all" description="Temporarily silence every alert (overrides others)." />
             </ul>
           </section>
         </div>
