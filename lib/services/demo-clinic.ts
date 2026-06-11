@@ -4307,3 +4307,55 @@ export async function seedDemoSiteAnalytics(orgId: string): Promise<void> {
       .where(eq(schema.clinicProfile.organizationId, orgId))
   }
 }
+
+// ── Demo notifications (per viewing admin) ──────────────────────────────────
+// The demo org has no member rows, so live notifyOrgMembers events route to
+// platform admins (notifications.ts demo fallback). This seeds a starter set
+// for the admin ENTERING demo mode so the header bell shows populated state
+// immediately. Idempotent per user+org: skips when they already have any
+// notification scoped to the demo org.
+export async function seedDemoNotificationsForUser(userId: string, orgId: string): Promise<void> {
+  const existing = await db
+    .select({ id: schema.notifications.id })
+    .from(schema.notifications)
+    .where(
+      and(eq(schema.notifications.userId, userId), eq(schema.notifications.organizationId, orgId)),
+    )
+    .limit(1)
+  if (existing.length > 0) return
+
+  const now = Date.now()
+  const minutesAgo = (m: number) => new Date(now - m * 60 * 1000)
+  await db.insert(schema.notifications).values([
+    {
+      userId,
+      organizationId: orgId,
+      bucket: 'comments',
+      type: 'booking_created',
+      title: 'New online booking — Emma Lopez, tomorrow 10:00 AM',
+      body: 'Booked through the website widget (cleaning, 30 min).',
+      linkPath: '/appointments',
+      createdAt: minutesAgo(35),
+    },
+    {
+      userId,
+      organizationId: orgId,
+      bucket: 'comments',
+      type: 'message_received',
+      title: 'New message from Marcus Chen',
+      body: '“Quick question about my appointment next week…”',
+      linkPath: '/messages',
+      createdAt: minutesAgo(120),
+    },
+    {
+      userId,
+      organizationId: orgId,
+      bucket: 'comments',
+      type: 'order_paid',
+      title: 'Paid order — 2× Whitening Kit, $89',
+      body: 'Pickup order, ready to prepare.',
+      linkPath: '/shop/orders',
+      createdAt: minutesAgo(300),
+    },
+  ])
+}

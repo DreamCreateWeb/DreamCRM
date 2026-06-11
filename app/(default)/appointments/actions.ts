@@ -22,6 +22,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { listProviders, type ProviderRow } from '@/lib/services/providers'
+import { listPatientOptions } from '@/lib/services/patients'
 import { resolveVisitTypes, visitTypeDuration, type VisitType } from '@/lib/types/visit-types'
 
 /** Read the clinic's raw visit-type settings jsonb (null = defaults). */
@@ -40,6 +41,12 @@ async function requireClinicTenant() {
     throw new Error('Only clinic tenants can manage appointments')
   }
   return ctx
+}
+
+/** Active patients as {id, name} for the "+ New booking" patient picker. */
+export async function listPatientOptionsAction(): Promise<Array<{ id: string; name: string }>> {
+  const ctx = await requireClinicTenant()
+  return listPatientOptions(ctx.organizationId)
 }
 
 export async function confirmAppointmentAction(appointmentId: string): Promise<{ ok: true }> {
