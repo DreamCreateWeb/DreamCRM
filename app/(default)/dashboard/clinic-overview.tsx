@@ -338,7 +338,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             label="Upcoming"
             value={data.trends.upcomingNext7d}
             sub="next 7 days"
-            href="/appointments?window=week"
+            href="/appointments?window=this_week"
           />
           <KpiStat
             label="Intake forms"

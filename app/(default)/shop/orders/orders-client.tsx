@@ -60,10 +60,22 @@ const PILL_LEGEND: PillLegendRow[] = [
   { tone: FULFILLMENT_TONE.delivered, label: 'Picked up / Delivered', meaning: 'Order complete' },
 ]
 
-export default function OrdersClient({ orders, orgName = 'Your clinic' }: { orders: OrderRow[]; orgName?: string }) {
+/** The status chips the orders page offers (a subset of OrderStatus + "all"). */
+export type OrdersFilter = OrderStatus | 'all'
+
+export default function OrdersClient({
+  orders,
+  orgName = 'Your clinic',
+  initialFilter = 'all',
+}: {
+  orders: OrderRow[]
+  orgName?: string
+  /** Pre-selected status chip (the Overview "Fulfill orders" card passes 'paid'). */
+  initialFilter?: OrdersFilter
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [filter, setFilter] = useState<OrderStatus | 'all'>('all')
+  const [filter, setFilter] = useState<OrdersFilter>(initialFilter)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
