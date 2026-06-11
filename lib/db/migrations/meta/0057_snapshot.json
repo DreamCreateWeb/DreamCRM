@@ -1,6 +1,6 @@
 {
-  "id": "c01f441b-5985-46cc-953e-12411d091b71",
-  "prevId": "9d626327-606e-43b0-bd06-402a84119c6d",
+  "id": "71411a6e-cbc9-4643-a2f9-853f67dc42bd",
+  "prevId": "c01f441b-5985-46cc-953e-12411d091b71",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3042,6 +3042,12 @@
         "pms_recall_interval": {
           "name": "pms_recall_interval",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recall_interval_months": {
+          "name": "recall_interval_months",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -10442,6 +10448,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reminder_settings": {
+          "name": "reminder_settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "phone": {
           "name": "phone",
           "type": "text",
@@ -10514,6 +10526,24 @@
           "primaryKey": false,
           "notNull": false,
           "default": "'US'"
+        },
+        "chair_count": {
+          "name": "chair_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visit_type_settings": {
+          "name": "visit_type_settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recall_default_months": {
+          "name": "recall_default_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "hours": {
           "name": "hours",
