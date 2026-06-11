@@ -66,10 +66,10 @@ export default function MessagesBody({
                   return (
                     <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                       <div
-                        className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${
+                        className={`max-w-[70%] rounded-[var(--r-lg)] px-3 py-2 text-sm ${
                           mine
-                            ? 'bg-violet-600 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100'
+                            ? 'bg-ink-900 text-[color:var(--color-surface-2)]'
+                            : 'bg-[color:var(--color-surface-2)] text-gray-800 dark:text-gray-100 shadow-[inset_0_0_0_1px_var(--color-hairline)]'
                         }`}
                       >
                         {!mine && (
@@ -78,7 +78,7 @@ export default function MessagesBody({
                           </div>
                         )}
                         <div className="whitespace-pre-wrap">{m.body}</div>
-                        <div className={`text-xs mt-0.5 tabular-nums ${mine ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>
+                        <div className={`text-xs mt-0.5 tabular-nums ${mine ? 'text-[color:var(--color-surface-2)]/70' : 'text-gray-500 dark:text-gray-400'}`}>
                           {relativeTime(m.createdAt)}
                         </div>
                       </div>

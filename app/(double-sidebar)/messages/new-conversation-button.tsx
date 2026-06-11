@@ -39,7 +39,7 @@ export default function NewConversationButton({ users }: { users: { id: string; 
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-violet-500 hover:text-violet-600"
+        className="text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
         aria-label="New conversation"
         title="New conversation"
       >

@@ -161,10 +161,12 @@ describe('ClientMessagingSidebar', () => {
         activeId={2}
       />,
     )
+    // Selection ≠ status: the active row reads as selected via the teal
+    // identity tint (v2), inactive rows don't.
     const activeLink = screen.getByText('Active').closest('a')!
-    expect(activeLink.className).toMatch(/bg-violet-500\/10/)
+    expect(activeLink.className).toMatch(/bg-teal-500\/10/)
     const inactiveLink = screen.getByText('Inactive').closest('a')!
-    expect(inactiveLink.className).not.toMatch(/bg-violet-500\/10/)
+    expect(inactiveLink.className).not.toMatch(/bg-teal-500\/10/)
   })
 
   it('shows the Clients tab by default and hides team conversations', () => {

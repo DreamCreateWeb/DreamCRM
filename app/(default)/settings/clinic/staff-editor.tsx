@@ -154,7 +154,7 @@ function StaffRow({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="w-20 h-20 rounded-full overflow-hidden bg-stone-100 dark:bg-stone-700 border border-stone-200 dark:border-stone-600 flex items-center justify-center text-[11px] text-stone-400 hover:border-stone-400 transition relative"
+            className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-xs text-gray-400 hover:border-gray-400 transition relative"
             aria-label="Upload photo"
           >
             {value.photoUrl ? (
@@ -169,7 +169,7 @@ function StaffRow({
               'Add photo'
             )}
             {uploading && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px]">
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs">
                 …
               </div>
             )}
@@ -178,7 +178,7 @@ function StaffRow({
             <button
               type="button"
               onClick={() => setReposition((v) => !v)}
-              className="text-[10px] text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 leading-tight"
+              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 leading-tight"
             >
               {reposition ? 'Done' : '◎ Reposition'}
             </button>

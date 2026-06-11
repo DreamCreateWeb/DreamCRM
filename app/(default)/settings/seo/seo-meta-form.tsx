@@ -169,7 +169,7 @@ export default function SeoMetaForm({ initial, clinicName, tagline, about, domai
         return (
           <div
             key={key}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700/60 p-5"
+            className="v2-card p-5"
           >
             <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">{SEO_PAGE_LABELS[key]}</h3>
 

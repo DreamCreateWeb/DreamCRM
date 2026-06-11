@@ -173,13 +173,13 @@ export default function ThreadDetailPanel({
   return (
     <>
       {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="border-b border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 px-5 py-3 shrink-0">
+      <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-5 py-3 shrink-0">
         {/* Mobile-only back link to the thread list (the two panes collapse
             to one below lg). Hidden at lg+ where both panes are visible. */}
         {backHref && (
           <Link
             href={backHref}
-            className="lg:hidden inline-flex items-center gap-1 text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 mb-2"
+            className="lg:hidden inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-2"
           >
             ← All conversations
           </Link>
@@ -188,15 +188,15 @@ export default function ThreadDetailPanel({
         <div className="min-w-0 flex-1">
           <Link
             href={`/patients/${thread.patientId}`}
-            className="text-base font-bold text-stone-900 dark:text-stone-100 hover:underline truncate inline-block"
+            className="text-base font-bold text-gray-900 dark:text-gray-100 hover:underline truncate inline-block"
           >
             {thread.patientFirstName} {thread.patientLastName}
           </Link>
-          <p className="text-xs text-stone-500 dark:text-stone-400 truncate">
+          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
             {thread.patientEmail ?? <span className="italic">no email on file</span>}
             {thread.patientPhone && <span> · {thread.patientPhone}</span>}
             {thread.assignedUserName && (
-              <span className="ml-2 text-violet-700 dark:text-violet-300">Assigned to {thread.assignedUserName}</span>
+              <span className="ml-2 text-gray-600 dark:text-gray-300">Assigned to {thread.assignedUserName}</span>
             )}
           </p>
         </div>
@@ -225,13 +225,13 @@ export default function ThreadDetailPanel({
                   💤 Snooze
                 </ActionButton>
                 {showSnooze && (
-                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg shadow-lg z-10 py-1 min-w-[10rem]">
+                  <div className="pop-in origin-top-right absolute right-0 top-full mt-1 z-10 py-1 min-w-[10rem] rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)]">
                     {SNOOZE_OPTIONS.map((opt) => (
                       <button
                         key={opt.hours}
                         type="button"
                         onClick={() => handleSnooze(opt.hours)}
-                        className="block w-full text-left text-xs px-3 py-1.5 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200"
+                        className="block w-full text-left text-xs px-3 py-1.5 text-gray-700 dark:text-gray-200 hover:bg-gray-500/[0.08]"
                       >
                         {opt.label}
                       </button>
@@ -259,50 +259,50 @@ export default function ThreadDetailPanel({
           <Link
             href={`/patients/${patientContext.patientId}`}
             title="Open this patient's record"
-            className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100"
+            className="v2-well group mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-[color:var(--color-hairline)]"
           >
             <span>
-              <span className="text-stone-400 dark:text-stone-500">Next visit </span>
+              <span className="text-gray-500 dark:text-gray-400">Next visit </span>
               {patientContext.nextVisitAt ? (
-                <span className="font-medium text-stone-700 dark:text-stone-200 tabular-nums">
+                <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.nextVisitAt)}
                   {patientContext.nextVisitType ? ` · ${patientContext.nextVisitType}` : ''}
                 </span>
               ) : (
-                <span className="text-stone-500 dark:text-stone-400">none scheduled</span>
+                <span className="text-gray-500 dark:text-gray-400">none scheduled</span>
               )}
             </span>
-            <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
+            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
             <span>
-              <span className="text-stone-400 dark:text-stone-500">Last visit </span>
+              <span className="text-gray-500 dark:text-gray-400">Last visit </span>
               {patientContext.lastVisitAt ? (
-                <span className="font-medium text-stone-700 dark:text-stone-200 tabular-nums">
+                <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.lastVisitAt)}
                 </span>
               ) : (
-                <span className="text-stone-500 dark:text-stone-400">none yet</span>
+                <span className="text-gray-500 dark:text-gray-400">none yet</span>
               )}
             </span>
-            <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
+            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
             <span>
-              <span className="text-stone-400 dark:text-stone-500">Balance </span>
+              <span className="text-gray-500 dark:text-gray-400">Balance </span>
               {patientContext.outstandingBalanceCents == null ? (
-                <span className="text-stone-500 dark:text-stone-400" title="No balance synced from the PMS">
+                <span className="text-gray-500 dark:text-gray-400" title="No balance synced from the PMS">
                   no PMS balance
                 </span>
               ) : patientContext.outstandingBalanceCents > 0 ? (
-                <span className="font-semibold text-rose-700 dark:text-rose-300 tabular-nums">
+                <span className="font-semibold text-rose-700 dark:text-rose-300 font-mono-num tabular-nums">
                   {fmtMoney(patientContext.outstandingBalanceCents)}
                 </span>
               ) : (
-                <span className="font-medium text-emerald-700 dark:text-emerald-300 tabular-nums">paid up</span>
+                <span className="font-medium text-emerald-700 dark:text-emerald-300">paid up</span>
               )}
             </span>
             {patientContext.missingIntake && (
               <>
-                <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
+                <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
                 <span
-                  className="font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                  className="font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300"
                   title="A visit is booked soon and no intake form is on file"
                 >
                   📝 Intake missing
@@ -314,7 +314,7 @@ export default function ThreadDetailPanel({
       </div>
 
       {/* ── Message stream ────────────────────────────────────────── */}
-      <div ref={streamRef} className="flex-1 overflow-y-auto px-5 py-4 bg-stone-50 dark:bg-stone-950">
+      <div ref={streamRef} className="flex-1 overflow-y-auto px-5 py-4 bg-[color:var(--color-canvas)]">
         {messages.length === 0 ? (
           <EmptyState
             icon="✍️"
@@ -328,22 +328,24 @@ export default function ThreadDetailPanel({
               return (
                 <li key={m.id} className={m.direction === 'outbound' ? 'flex justify-end' : 'flex justify-start'}>
                   <div className="max-w-[80%]">
-                    <div className={`text-xs uppercase tracking-wider font-semibold mb-1 text-stone-500 dark:text-stone-400 ${m.direction === 'outbound' ? 'text-right' : ''}`}>
+                    <div className={`text-xs uppercase tracking-wider font-semibold mb-1 text-gray-500 dark:text-gray-400 ${m.direction === 'outbound' ? 'text-right' : ''}`}>
                       {m.direction === 'outbound' ? (m.sentByUserName ?? currentUserName ?? 'You') : `${thread.patientFirstName} ${thread.patientLastName}`}
-                      <span className="ml-1.5 normal-case font-normal text-stone-500 dark:text-stone-400 tabular-nums">
+                      <span className="ml-1.5 normal-case font-normal text-gray-500 dark:text-gray-400 tabular-nums">
                         · {new Date(m.sentAt).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </span>
                       <span
-                        className={`ml-1.5 normal-case font-medium px-1.5 py-0.5 rounded text-xs ${ch.pill}`}
+                        className={`ml-1.5 normal-case font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] text-xs ${ch.pill}`}
                         title={ch.title}
                       >
                         {ch.label}
                       </span>
                     </div>
-                    <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                    {/* Bubbles keep their direction contrast; containers move to the
+                        radius scale (12px) + a hairline ring on the inbound surface. */}
+                    <div className={`px-3.5 py-2.5 rounded-[var(--r-lg)] text-sm leading-relaxed whitespace-pre-wrap break-words ${
                       m.direction === 'outbound'
-                        ? 'bg-stone-900 text-stone-50 dark:bg-stone-100 dark:text-stone-900 rounded-tr-sm'
-                        : 'bg-white border border-stone-200 dark:bg-stone-800 dark:border-stone-700 text-stone-800 dark:text-stone-100 rounded-tl-sm'
+                        ? 'bg-ink-900 text-[color:var(--color-surface-2)] rounded-tr-sm'
+                        : 'bg-[color:var(--color-surface-2)] text-gray-800 dark:text-gray-100 shadow-[inset_0_0_0_1px_var(--color-hairline)] rounded-tl-sm'
                     }`}>
                       {m.subject && m.channel === 'email' && (
                         <p className="font-semibold text-xs mb-1 opacity-75">{m.subject}</p>
@@ -360,7 +362,7 @@ export default function ThreadDetailPanel({
 
       {/* ── Composer (only when not archived) ─────────────────────── */}
       {thread.status !== 'archived' && (
-        <div className="border-t border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 px-5 py-3 shrink-0">
+        <div className="v2-panel rounded-none border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] px-5 py-3 shrink-0">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-2 mb-2">
               <label className="sr-only" htmlFor="reply-channel">Reply channel</label>
@@ -369,7 +371,7 @@ export default function ThreadDetailPanel({
                 value={channel}
                 onChange={(e) => setChannel(e.target.value as Channel)}
                 title="Choose how this reply is delivered"
-                className="text-xs font-medium px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200"
+                className="form-select text-xs font-medium py-1 pl-2 pr-7 text-gray-700 dark:text-gray-200"
               >
                 <option value="in_app">In-app message</option>
                 <option value="email" disabled={!hasEmail}>
@@ -388,7 +390,7 @@ export default function ThreadDetailPanel({
                       e.target.value = ''
                     }}
                     title="Drop a saved reply into the box"
-                    className="text-xs font-medium px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200"
+                    className="form-select text-xs font-medium py-1 pl-2 pr-7 text-gray-700 dark:text-gray-200"
                   >
                     <option value="">Insert template…</option>
                     {templates.map((t) => (
@@ -398,14 +400,16 @@ export default function ThreadDetailPanel({
                 </>
               )}
               {preferred && (
+                // A derived metadata hint, not a status — quiet ink chip in a
+                // sunk well so it never reads as an encoded tone.
                 <span
-                  className="text-xs font-medium px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300"
+                  className="v2-well text-xs font-medium px-1.5 py-0.5 text-gray-600 dark:text-gray-300"
                   title={`${preferred.count} of ${preferred.totalInbound} inbound messages on ${CHANNEL_LABEL[preferred.channel]} (${Math.round(preferred.share * 100)}%)`}
                 >
                   {thread.patientFirstName} prefers {CHANNEL_LABEL[preferred.channel]}
                 </span>
               )}
-              <span className="text-xs text-stone-500 dark:text-stone-400 ml-auto tabular-nums">
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto tabular-nums">
                 ⌘ + Enter to send
               </span>
             </div>
@@ -419,7 +423,7 @@ export default function ThreadDetailPanel({
               }}
               placeholder={`Reply to ${thread.patientFirstName}…`}
               rows={3}
-              className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
+              className="form-textarea w-full text-sm resize-none"
             />
             <div className="flex justify-end mt-2">
               {/* The pane's single primary action. */}

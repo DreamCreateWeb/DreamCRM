@@ -47,7 +47,7 @@ function Toggle({
 
 function Section({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
-    <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+    <section className="v2-card p-5">
       <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
       {sub && <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{sub}</p>}
       <div className="mt-4 space-y-4">{children}</div>

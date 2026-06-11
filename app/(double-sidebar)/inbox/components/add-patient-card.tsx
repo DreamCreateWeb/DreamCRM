@@ -52,17 +52,17 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
   }
 
   return (
-    <aside className="rounded-xl border border-dashed border-stone-300 dark:border-stone-700/60 bg-white/40 dark:bg-stone-900/20 p-4">
+    <aside className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700/60 bg-white/40 dark:bg-gray-900/20 p-4">
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-7 h-7 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-400 dark:text-stone-500">
+        <div className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 dark:text-gray-500">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
         </div>
-        <div className="text-xs font-medium text-stone-700 dark:text-stone-200">Not in CRM yet</div>
+        <div className="text-xs font-medium text-gray-700 dark:text-gray-200">Not in CRM yet</div>
       </div>
-      <p className="text-xs text-stone-500 dark:text-stone-400 mb-3 leading-relaxed">
-        Add <span className="text-stone-700 dark:text-stone-300">{fromEmail}</span> as a {terminology.contact} so future emails from them link to a record.
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
+        Add <span className="text-gray-700 dark:text-gray-300">{fromEmail}</span> as a {terminology.contact} so future emails from them link to a record.
       </p>
 
       <div className="space-y-1.5">
@@ -94,12 +94,12 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="block">
-      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-0.5">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-0.5">{label}</div>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1 text-sm rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/40 text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-900/10 dark:focus:ring-stone-100/10"
+        className="w-full px-2 py-1 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10"
       />
     </label>
   )

@@ -56,7 +56,7 @@ export default function FilterChips({
   }
 
   return (
-    <div className="px-4 pt-3 pb-2 border-b border-stone-100 dark:border-stone-700/40 space-y-2">
+    <div className="px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-700/40 space-y-2">
       {/* View toggles row */}
       <div className="flex items-center gap-1.5 text-xs">
         <Chip
@@ -100,7 +100,7 @@ export default function FilterChips({
                   'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors',
                   active
                     ? cn(TONE_PILL[INTENT_TONE[key] ?? 'neutral'], 'ring-1 ring-current/30')
-                    : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800',
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
                 )}
               >
                 <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} aria-hidden="true" />
@@ -123,8 +123,8 @@ function Chip({ label, count, active, href }: { label: string; count?: number; a
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium transition-colors',
         active
-          ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-          : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800',
+          ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
       )}
     >
       {label}

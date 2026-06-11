@@ -32,7 +32,7 @@ function RowAvatar({
     'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
     'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
     'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
-    'bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200',
+    'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
   ]
   const ringColor = intent ? (INTENT_COLORS[intent] ?? INTENT_COLORS.other).dot : 'bg-transparent'
   return (
@@ -46,7 +46,7 @@ function RowAvatar({
         {initial}
       </div>
       {intent && (
-        <span className={cn('absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-stone-900', ringColor)} />
+        <span className={cn('absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-gray-900', ringColor)} />
       )}
     </div>
   )
@@ -160,7 +160,7 @@ export default function MailboxSidebar({
         flyoutOpen ? 'translate-x-0' : '-translate-x-full',
       )}
     >
-      <div className="sticky top-16 bg-white dark:bg-stone-900 overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-stone-200 dark:border-stone-700/60 md:w-[22rem] xl:w-[24rem] h-[calc(100dvh-64px)]">
+      <div className="sticky top-16 bg-white dark:bg-gray-900 overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-gray-200 dark:border-gray-700/60 md:w-[22rem] xl:w-[24rem] h-[calc(100dvh-64px)]">
         {selection.count > 0 ? (
           <BulkActionBar visibleIds={visibleThreadIds} activeThreadId={activeThreadId} />
         ) : (
@@ -190,7 +190,7 @@ export default function MailboxSidebar({
         />
 
         {showArchiveAll && (
-          <div className="px-4 py-2 border-b border-stone-100 dark:border-stone-700/40 bg-stone-50/60 dark:bg-stone-800/30">
+          <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700/40 bg-gray-50/60 dark:bg-gray-800/30">
             {/* Bulk archive of a junk tab — routine triage, so secondary not danger. */}
             <ActionButton
               size="sm"
@@ -222,7 +222,7 @@ export default function MailboxSidebar({
           <ul>
             {groups.map((group) => (
               <li key={group.label}>
-                <div className="sticky top-0 z-10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 bg-white/95 dark:bg-stone-900/95 backdrop-blur border-b border-stone-100/80 dark:border-stone-700/30">
+                <div className="sticky top-0 z-10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-100/80 dark:border-gray-700/30">
                   {group.label}
                 </div>
                 <ul>
@@ -235,21 +235,19 @@ export default function MailboxSidebar({
                     return (
                       <li key={t.threadId} className="relative group">
                         {isActive && (
-                          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-stone-900 dark:bg-stone-100 z-10" />
+                          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-teal-500 z-10" />
                         )}
                         {!t.isRead && !isActive && (
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-500 z-10" />
                         )}
                         <div
                           className={cn(
-                            'flex items-start gap-2 pl-4 pr-3.5 py-2.5 transition-colors border-b border-stone-100 dark:border-stone-700/30',
+                            'flex items-start gap-2 pl-4 pr-3.5 py-2.5 transition-colors border-b border-[color:var(--color-hairline)]',
                             isActive
-                              ? 'bg-stone-100/80 dark:bg-stone-800/60'
+                              ? 'bg-teal-500/5'
                               : isChecked
-                                ? 'bg-sky-50/60 dark:bg-sky-500/5'
-                                : !t.isRead
-                                  ? 'bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800/30'
-                                  : 'hover:bg-stone-50 dark:hover:bg-stone-800/30',
+                                ? 'bg-gray-500/[0.08]'
+                                : 'hover:bg-gray-500/[0.06]',
                           )}
                         >
                           <div
@@ -278,8 +276,8 @@ export default function MailboxSidebar({
                                   className={cn(
                                     'text-[13px] truncate leading-tight',
                                     t.isRead
-                                      ? 'text-stone-600 dark:text-stone-400'
-                                      : 'font-semibold text-stone-900 dark:text-stone-100',
+                                      ? 'text-gray-600 dark:text-gray-400'
+                                      : 'font-semibold text-gray-900 dark:text-gray-100',
                                   )}
                                 >
                                   {t.fromName ?? t.fromEmail}
@@ -290,7 +288,7 @@ export default function MailboxSidebar({
                                       'text-xs tabular-nums rounded-full px-1.5 py-0.5 leading-none shrink-0',
                                       t.unreadCount > 0
                                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-medium'
-                                        : 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
+                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
                                     )}
                                     title={`${t.totalCount} messages${t.unreadCount > 0 ? `, ${t.unreadCount} unread` : ''}`}
                                   >
@@ -302,7 +300,7 @@ export default function MailboxSidebar({
                                     <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" />
                                   </svg>
                                 )}
-                                <span className="ml-auto text-xs text-stone-500 dark:text-stone-400 shrink-0 tabular-nums whitespace-nowrap">
+                                <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 shrink-0 tabular-nums whitespace-nowrap">
                                   {relativeTime(t.receivedAt)}
                                 </span>
                               </div>
@@ -310,15 +308,15 @@ export default function MailboxSidebar({
                                 className={cn(
                                   'text-xs truncate leading-snug',
                                   t.isRead
-                                    ? 'text-stone-500 dark:text-stone-400'
-                                    : 'text-stone-800 dark:text-stone-200',
+                                    ? 'text-gray-500 dark:text-gray-400'
+                                    : 'text-gray-800 dark:text-gray-200',
                                 )}
                               >
                                 <span className={cn(t.isRead ? '' : 'font-medium')}>
                                   {t.subject ?? '(no subject)'}
                                 </span>
                                 {t.snippet && (
-                                  <span className="text-stone-500 dark:text-stone-400 font-normal">
+                                  <span className="text-gray-500 dark:text-gray-400 font-normal">
                                     {' — '}
                                     {t.snippet}
                                   </span>
@@ -333,7 +331,7 @@ export default function MailboxSidebar({
                                     </span>
                                   )}
                                   {accounts.length > 1 && t.accountEmail && (
-                                    <span className="text-xs text-stone-500 dark:text-stone-400 truncate" title={t.accountEmail}>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate" title={t.accountEmail}>
                                       {t.accountEmail}
                                     </span>
                                   )}
@@ -373,15 +371,15 @@ function SidebarHeader({
   accountHref: (accountId: string | null) => string
 }) {
   return (
-    <div className="px-4 pt-3 pb-2 border-b border-stone-100 dark:border-stone-700/40">
+    <div className="px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-700/40">
       <div className="flex items-center gap-2 mb-2">
-        <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100 tracking-tight">Inbox</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Inbox</h2>
         <button
           type="button"
           onClick={onSync}
           disabled={syncing !== null}
           aria-label="Refresh inbox"
-          className="text-xs text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 disabled:opacity-60"
+          className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-60"
           title="Check for new mail"
         >
           {syncing ? 'syncing…' : 'refresh'}
@@ -410,7 +408,7 @@ function SidebarHeader({
         ))}
         <Link
           href="/inbox/settings"
-          className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 ml-auto"
+          className="text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 ml-auto"
           title="Connect another mailbox"
         >
           + Add
@@ -441,13 +439,13 @@ function AccountChip({
       className={cn(
         'text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 max-w-[12rem] transition-colors',
         active
-          ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-          : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800',
+          ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
       )}
     >
       <span className="truncate">{label}</span>
       {count > 0 && (
-        <span className={cn('text-xs rounded-full px-1 tabular-nums', active ? 'opacity-80' : 'text-stone-500 dark:text-stone-400')}>
+        <span className={cn('text-xs rounded-full px-1 tabular-nums', active ? 'opacity-80' : 'text-gray-500 dark:text-gray-400')}>
           {count}
         </span>
       )}
@@ -472,12 +470,12 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: (e: React.M
       className={cn(
         'w-4 h-4 rounded border flex items-center justify-center transition-colors',
         checked
-          ? 'bg-stone-900 border-stone-900 dark:bg-stone-100 dark:border-stone-100'
-          : 'border-stone-300 dark:border-stone-600 hover:border-stone-500 dark:hover:border-stone-400 bg-white dark:bg-stone-900',
+          ? 'bg-gray-900 border-gray-900 dark:bg-gray-100 dark:border-gray-100'
+          : 'border-gray-300 dark:border-gray-600 hover:border-gray-500 dark:hover:border-gray-400 bg-white dark:bg-gray-900',
       )}
     >
       {checked && (
-        <svg className="w-3 h-3 text-white dark:text-stone-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+        <svg className="w-3 h-3 text-white dark:text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
           <path d="M5 12l5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )}

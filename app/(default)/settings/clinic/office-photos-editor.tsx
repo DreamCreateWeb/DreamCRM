@@ -103,7 +103,7 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={uploading}
-        className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 dark:border-stone-600 py-2.5 text-[13px] font-semibold text-stone-500 dark:text-stone-400 hover:border-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800/40 transition disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 py-2.5 text-[13px] font-semibold text-gray-500 dark:text-gray-400 hover:border-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition disabled:opacity-50"
       >
         {uploading ? (
           'Uploading…'

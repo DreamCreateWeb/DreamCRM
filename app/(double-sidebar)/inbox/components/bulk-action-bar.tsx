@@ -50,29 +50,29 @@ export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
 
   return (
     <div className="sticky top-16 z-30 px-3 pt-2">
-      <div className="mx-auto max-w-7xl rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white/95 dark:bg-stone-900/95 backdrop-blur shadow-sm flex items-center gap-1 px-2 py-1.5">
+      <div className="mx-auto max-w-7xl rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)]/95 backdrop-blur shadow-[var(--shadow-pop)] flex items-center gap-1 px-2 py-1.5">
         <button
           type="button"
           onClick={clear}
           aria-label="Clear selection"
-          className="p-1.5 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-100 dark:hover:bg-stone-800 dark:hover:text-stone-100"
+          className="p-1.5 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-100"
           title="Clear selection (Esc)"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
           </svg>
         </button>
-        <div className="text-sm font-medium text-stone-900 dark:text-stone-100 px-2 tabular-nums">
+        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 px-2 tabular-nums">
           {count} selected
         </div>
         <button
           type="button"
           onClick={() => selectAll(visibleIds)}
-          className="text-xs font-medium text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 px-2 py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-800"
+          className="text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           {allVisibleSelected ? 'Deselect all' : `Select all ${visibleIds.length}`}
         </button>
-        <div className="w-px h-5 bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
+        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" aria-hidden="true" />
         <BarButton onClick={() => run('archive')} pending={pending} label="Archive">
           <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <rect x="3" y="4" width="18" height="4" rx="1" />
@@ -124,7 +124,7 @@ function BarButton({
       title={label}
       aria-label={label}
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors',
+        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors',
         pending && 'opacity-50 cursor-wait',
       )}
     >

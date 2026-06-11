@@ -112,7 +112,7 @@ function TestimonialRow({
       onRemove={onRemove}
       headerExtra={
         value.patientId ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
             🔗 Linked to a patient
           </span>
         ) : undefined
@@ -130,11 +130,11 @@ function TestimonialRow({
       </Field>
       <div className="flex items-end gap-3">
         <div className="shrink-0">
-          <label className="block text-[12px] font-medium text-stone-600 dark:text-stone-300 mb-1">Photo</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Photo</label>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="w-14 h-14 rounded-full overflow-hidden bg-stone-100 dark:bg-stone-700 border border-stone-200 dark:border-stone-600 flex items-center justify-center text-[10px] text-stone-400 hover:border-stone-400 transition relative"
+            className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-xs text-gray-400 hover:border-gray-400 transition relative"
             aria-label="Upload patient photo"
           >
             {value.authorPhotoUrl ? (
@@ -144,7 +144,7 @@ function TestimonialRow({
               'Add'
             )}
             {uploading && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px]">
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs">
                 …
               </div>
             )}

@@ -57,7 +57,7 @@ export default function RemindersForm({ initial }: { initial: ReminderSettings }
   }
 
   return (
-    <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+    <section className="v2-card p-5">
       <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Appointment reminders</h2>
       <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
         Automatically email patients before their visit. This is what makes the &ldquo;we&rsquo;ll send you a
