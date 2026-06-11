@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { organization, member } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { patient } from '@/lib/db/schema/clinic'
+import { referralPartner } from '@/lib/db/schema/referrals'
 import { eq, and } from 'drizzle-orm'
 import type { TenantType, PlanTier, Role } from '@/lib/modules/types'
 import { planAllows } from '@/lib/modules'
@@ -44,6 +45,42 @@ interface DemoContext {
   orgId: string
   role: Role
   patientId?: string
+}
+
+/**
+ * Build a 'partner' tenant context from a referral_partner row linked to this
+ * user. Returns null when the user isn't a partner, or the partner row is
+ * suspended/unaccepted. A partner has NO organization in the membership sense —
+ * we surface their partner id as the organizationId so downstream code that
+ * keys on it still works, and the partner-only surfaces resolve the row by
+ * user_id directly.
+ */
+async function resolvePartnerContext(
+  user: { id: string; email: string; name: string },
+  isPlatformAdmin: boolean,
+): Promise<TenantContext | null> {
+  const [p] = await db
+    .select({ id: referralPartner.id, status: referralPartner.status, name: referralPartner.name })
+    .from(referralPartner)
+    .where(eq(referralPartner.userId, user.id))
+    .limit(1)
+  if (!p || p.status !== 'active') return null
+  return {
+    userId: user.id,
+    userEmail: user.email,
+    userName: user.name,
+    platformAdmin: isPlatformAdmin,
+    organizationId: p.id,
+    organizationName: p.name,
+    organizationSlug: '',
+    tenantType: 'partner',
+    role: 'member',
+    planTier: 'basic',
+    patientId: null,
+    isDemo: false,
+    billingActivationPending: false,
+    subscriptionStatus: null,
+  }
 }
 
 /**
@@ -126,7 +163,15 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       .from(member)
       .where(eq(member.userId, session.user.id))
       .limit(1)
-    if (!firstMembership) return null
+    if (!firstMembership) {
+      // No org membership at all. This may be an external referral partner —
+      // resolved purely from the referral_partner.user_id linkage (no org
+      // machinery), mirroring the patient-portal pattern. platformAdmins +
+      // clinic members never reach here, so their tenancy always wins.
+      const partnerCtx = await resolvePartnerContext(session.user, isPlatformAdmin)
+      if (partnerCtx) return partnerCtx
+      return null
+    }
     activeOrgId = firstMembership.organizationId
     memberRow = firstMembership
   }

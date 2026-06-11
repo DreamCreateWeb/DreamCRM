@@ -16,7 +16,10 @@ export const dynamic = 'force-dynamic'
 export default async function AppsSettings() {
   await requireUser()
   const ctx = await getTenantContext()
-  const tenantType = ctx?.tenantType ?? 'clinic'
+  // Referral partners live in their own portal and never reach these settings;
+  // narrow 'partner' away so the legacy panels' tenant unions still type.
+  const tenantType: 'platform' | 'clinic' | 'patient' =
+    ctx?.tenantType === 'platform' || ctx?.tenantType === 'patient' ? ctx.tenantType : 'clinic'
 
   // ─── Gmail ───
   const gmailAccounts = ctx

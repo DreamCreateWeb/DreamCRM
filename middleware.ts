@@ -82,6 +82,10 @@ const PUBLIC_PATHS = [
   '/signup',
   '/reset-password',
   '/accept-invite',
+  // Referral-partner invite acceptance — the token in the URL is the auth, and
+  // the visitor has no session yet (they create their account here). Only the
+  // exact /partner/accept path is public; /partner (the portal) stays gated.
+  '/partner/accept',
   '/api/auth',
   '/api/hello',
   '/api/webhooks',

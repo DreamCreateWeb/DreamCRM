@@ -188,6 +188,23 @@ export const clinicProfile = pgTable('clinic_profile', {
   // Internal operator note (why comped / pricing context). Never patient-facing.
   managedNote: text('managed_note'),
 
+  // ── Referral partner attribution ─────────────────────────────────────────
+  // Which partner (if any) referred this clinic. Set at provisioning or
+  // retroactively from the clinic detail page. Null = no referral. The FK to
+  // referral_partner (onDelete: set null) is added in the migration —
+  // referral_partner lives in its own schema file, so we keep this column
+  // FK-less here to avoid an import cycle.
+  referralPartnerId: text('referral_partner_id'),
+  // Per-clinic commission rate in basis points. Null = use the partner's
+  // current default at accrual time. Set explicitly to lock a negotiated rate.
+  referralPercentBps: integer('referral_percent_bps'),
+  // Per-clinic term length in months. Null with a partner assigned = fall back
+  // to the partner default (which may itself be null = forever).
+  referralTermMonths: integer('referral_term_months'),
+  // When this clinic was assigned to its partner — the clock the referral TERM
+  // is measured from. Set on assignment, cleared on clear.
+  referralStartedAt: timestamp('referral_started_at', { withTimezone: true }),
+
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

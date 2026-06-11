@@ -1,4 +1,5 @@
 import { listClinics } from '@/lib/services/clinics'
+import { listActivePartners } from '@/lib/services/referrals'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -23,7 +24,7 @@ const STATUS_PILLS: PillLegendRow[] = [
 ]
 
 export default async function PlatformClinics() {
-  const rows = await listClinics()
+  const [rows, partners] = await Promise.all([listClinics(), listActivePartners()])
 
   // Aggregate top-line numbers from the rows we already have
   let activeCount = 0
@@ -61,7 +62,7 @@ export default async function PlatformClinics() {
             <ActionButton href="/ecommerce/invoices" variant="secondary">
               Subscriptions
             </ActionButton>
-            <AddClinicModal />
+            <AddClinicModal partners={partners} />
           </>
         }
       />

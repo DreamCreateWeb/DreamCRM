@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getClinicDetail } from '@/lib/services/clinics'
+import { getClinicReferral, listActivePartners } from '@/lib/services/referrals'
+import ReferralCard from './referral-card'
 import {
   AGENCY_PROJECT_TYPE_LABELS,
   AGENCY_PROJECT_STATUS_LABELS,
@@ -72,6 +74,12 @@ export default async function ClinicDetailPage({
   const { id } = await params
   const clinic = await getClinicDetail(id)
   if (!clinic) notFound()
+
+  // Referral attribution (platform owner/admin can change it from here).
+  const isPlatformManager = ctx.role === 'owner' || ctx.role === 'admin'
+  const [referral, activePartners] = isPlatformManager
+    ? await Promise.all([getClinicReferral(id), listActivePartners()])
+    : [null, []]
 
   const siteUrl = `https://${clinic.slug}.${SITE_DOMAIN}`
   const planTier = (clinic.profile?.planTier ?? 'basic') as keyof typeof PLAN_LABEL
@@ -241,6 +249,27 @@ export default async function ClinicDetailPage({
           )}
         </div>
       </div>
+
+      {/* Referral attribution (platform owner/admin only) */}
+      {isPlatformManager && (
+        <div className="mb-8 max-w-xl">
+          <ReferralCard
+            organizationId={clinic.orgId}
+            current={
+              referral
+                ? {
+                    partnerId: referral.partnerId,
+                    partnerName: referral.partnerName,
+                    percentBps: referral.percentBps,
+                    termMonths: referral.termMonths,
+                    hasPercentOverride: referral.hasPercentOverride,
+                  }
+                : null
+            }
+            partners={activePartners}
+          />
+        </div>
+      )}
 
       {/* Active projects */}
       <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">

@@ -46,6 +46,9 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.shopCoupon) return 'shop_coupon'
     if (t === schema.patientBalancePayment) return 'patient_balance_payment'
     if (t === schema.aiUsageCounter) return 'ai_usage_counter'
+    if (t === schema.referralPartner) return 'referral_partner'
+    if (t === schema.referralCommission) return 'referral_commission'
+    if (t === schema.referralPayout) return 'referral_payout'
     return 'unknown'
   }
   const chain = () => {
@@ -218,7 +221,9 @@ describe('createDemoClinic', () => {
     expect(out.appointmentCount).toBe(1)
     // Self-heal re-seeds no demo *entities*. The only inserts it issues are
     // non-destructive onConflictDoNothing backfills: the AI-usage meter and the
-    // second intake form (idempotent on the org+slug unique index).
+    // second intake form (idempotent on the org+slug unique index). The referral
+    // self-heal bails here (its patient guard read hits the exhausted queue), so
+    // it issues no inserts on this exhausted-queue path.
     expect(
       state.inserts.filter((i) => i.table !== 'ai_usage_counter' && i.table !== 'form_template'),
     ).toHaveLength(0)
