@@ -15,17 +15,89 @@
 @theme {
   --shadow-sm: 0 1px 1px 0 rgb(0 0 0 / 0.05), 0 1px 2px 0 rgb(0 0 0 / 0.02);
 
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #bfc4cd;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
-  --color-gray-950: #030712;
+  /* ===================================================================
+     Design System v2 — "Instrument Panel, Liquid Soul"
+     Canvas / surface / ink / teal tokens. Components reference these (or the
+     re-tinted gray ramp below) — never raw hex. See DESIGN-SYSTEM.md Part 2.
+     `.dark` overrides the same properties further down (no parallel palette).
+     =================================================================== */
+
+  /* Canvas & surfaces — LIGHT */
+  --color-canvas: #f6f8f9; /* app background (cool, faintly teal) */
+  --color-surface-1: #fbfcfd; /* raised panel */
+  --color-surface-2: #ffffff; /* cards, inputs — top of stack */
+  --color-surface-sunk: #eef2f4; /* wells, table headers */
+  --color-hairline: #e3e9ec; /* 1px separation everywhere */
+  --color-hairline-strong: #d2dbdf;
+
+  /* Ink — navy-tinted neutrals (the brand's temperature) */
+  --color-ink-900: #141a2e;
+  --color-ink-800: #1a2140; /* brand navy */
+  --color-ink-700: #2e3650;
+  --color-ink-600: #4a5268;
+  --color-ink-500: #6b7488;
+  --color-ink-400: #97a0b2; /* disabled only */
+
+  /* Radius scale — kill the rounded-xl grab-bag */
+  --r-xs: 4px; /* chips, badges, inputs */
+  --r-sm: 6px; /* buttons */
+  --r-md: 8px; /* cards */
+  --r-lg: 12px; /* panels, modals, drawers */
+  --r-pill: 9999px; /* pills & avatars */
+
+  /* Elevation — navy-tinted shadows, never pure black */
+  --shadow-xs: 0 1px 2px rgb(20 26 46 / 0.06);
+  --shadow-pop: 0 4px 12px rgb(20 26 46 / 0.1), 0 8px 24px rgb(20 26 46 / 0.08),
+    inset 0 0 0 1px var(--color-hairline);
+  --shadow-modal: 0 16px 48px rgb(20 26 46 / 0.16), 0 32px 72px rgb(20 26 46 / 0.2);
+
+  /* Focus ring (teal, on every focusable) */
+  --focus-ring: 0 0 0 2px rgb(42 127 140 / 0.45), 0 0 0 4px rgb(42 127 140 / 0.2);
+
+  /* Motion tokens — see DESIGN-SYSTEM.md Part 3 (CSS-first, no library) */
+  --dur-instant: 90ms;
+  --dur-fast: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 260ms;
+  --dur-cinematic: 480ms; /* signature moments only */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* default (out-quint) */
+  --ease-out-soft: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* on-screen moves */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1); /* drawers */
+  --ease-emphasis: cubic-bezier(0.19, 1, 0.22, 1); /* signature reveals */
+  --spring-gentle: linear(0, 0.1, 0.25, 0.5, 0.68, 0.8, 0.88, 0.94, 0.98, 0.995, 1);
+  --spring-subtle: linear(0, 0.18, 0.5, 0.83, 1.05, 1.04, 1.01, 1, 0.999, 1);
+
+  /*
+    The migration trick: the legacy gray ramp is RE-TINTED to the ink/cool
+    neutrals so the thousands of existing `gray-*` utilities inherit the new
+    temperature for free, and `dark:bg-gray-800/900` literals land on the navy
+    surfaces automatically. New/touched code prefers the semantic tokens above.
+  */
+  --color-gray-50: #f6f8f9;
+  --color-gray-100: #eef2f4;
+  --color-gray-200: #e3e9ec;
+  --color-gray-300: #c6ceda;
+  --color-gray-400: #97a0b2;
+  --color-gray-500: #6b7488;
+  --color-gray-600: #4a5268;
+  --color-gray-700: #2e3650;
+  --color-gray-800: #1a2140;
+  --color-gray-900: #141a2e;
+  --color-gray-950: #0e1320;
+
+  /* Teal brand ramp (hue ~185–190 — aqua, away from green). REPLACES
+     Tailwind's default teal so every `teal-*` utility = the brand ramp. */
+  --color-teal-50: #ecfbfa;
+  --color-teal-100: #d2f5f2;
+  --color-teal-200: #a8ece7;
+  --color-teal-300: #74ddd6;
+  --color-teal-400: #4dcdc4; /* logo aqua — dark-mode fill */
+  --color-teal-500: #28b3ad; /* primary fill (light) */
+  --color-teal-600: #1f938f; /* hover / pressed */
+  --color-teal-700: #2a7f8c; /* logo deep — focus rings, gradient anchor */
+  --color-teal-800: #1e5e69;
+  --color-teal-900: #163f47;
 
   --color-violet-50: #f1eeff;
   --color-violet-100: #e6e1ff;
@@ -88,6 +160,16 @@
   --color-yellow-950: #342809;
 
   --font-inter: "Inter", "sans-serif";
+
+  /* Dashboard UI font (Geist Sans) + numeral font (Geist Mono). The
+     `--font-geist-*` variables are injected by the `geist` package via the
+     classes on <html> (app/layout.tsx); these map them to Tailwind families
+     so `font-sans-dashboard` / `font-mono-num` utilities work. Scoped to the
+     dashboard shells — the public site / portal / marketing keep their own. */
+  --font-sans-dashboard: var(--font-geist-sans), "Inter", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono-num: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo,
+    monospace;
 
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.5;
@@ -244,4 +326,240 @@
   color: var(--color-stone-400, #a8a29e);
   font-size: 13px;
   font-style: italic;
+}
+
+/* ====================================================================
+   Design System v2 — runtime layer (dark overrides, surfaces, motion).
+   Token DEFINITIONS live in @theme above; this block redefines the
+   semantic custom properties under `.dark` (luminance = elevation, navy
+   world) and ships the component/utility classes the v2 primitives use.
+   See DESIGN-SYSTEM.md Parts 2 + 3.
+   ==================================================================== */
+
+/* DARK: navy-black world. Override the SAME semantic properties — no
+   parallel palette. Utilities resolving to var(--color-surface-2) etc. flip
+   automatically. The re-tinted gray ramp already reads as navy on dark, so
+   `dark:bg-gray-800/900` literals land on these surfaces with no extra work. */
+.dark {
+  --color-canvas: #0e1320;
+  --color-surface-1: #151b2b;
+  --color-surface-2: #1b2336;
+  --color-surface-sunk: #0b0f1a;
+  --color-hairline: rgb(255 255 255 / 0.06);
+  --color-hairline-strong: rgb(255 255 255 / 0.1);
+  /* teal fills brighten to the 400 aqua on dark; ink inverts toward white */
+  --color-ink-900: #f3f6fb;
+  --color-ink-800: #e4e9f2;
+  --color-ink-700: #c7cedd;
+  --color-ink-600: #a6aec2;
+  --color-ink-500: #8b94a8;
+  --color-ink-400: #6b7488;
+  /* navy-tinted shadows go deeper/blacker on dark for the same perceived lift */
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 4px 12px rgb(0 0 0 / 0.45), 0 8px 24px rgb(0 0 0 / 0.4),
+    inset 0 0 0 1px var(--color-hairline);
+  --shadow-modal: 0 16px 48px rgb(0 0 0 / 0.55), 0 32px 72px rgb(0 0 0 / 0.5);
+}
+
+/* --------------------------------------------------------------------
+   Font scope — the dashboard UI font (Geist Sans) applied via a class
+   on the dashboard/auth/onboarding shells so the public site / portal /
+   marketing keep their own families. The `--font-geist-*` variables are
+   set globally by the geist classes on <html> (harmless there); usage is
+   gated to .v2-app subtrees.
+   -------------------------------------------------------------------- */
+.v2-app {
+  font-family: var(--font-sans-dashboard);
+}
+
+/* --------------------------------------------------------------------
+   Surfaces — the "etched instrument panel" recipe.
+   -------------------------------------------------------------------- */
+
+/* Resting card: surface-2 + inset hairline ring + 8px radius + NO shadow.
+   Separation is a 1px hairline + a luminance step, never a drop-shadow. */
+.v2-card {
+  background-color: var(--color-surface-2);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--color-hairline);
+}
+
+/* Interactive (drillable) card: lift on pointer-fine hover only. */
+.v2-card-interactive {
+  background-color: var(--color-surface-2);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--color-hairline);
+  transition: box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .v2-card-interactive:hover {
+    box-shadow: inset 0 0 0 1px var(--color-hairline-strong), var(--shadow-xs);
+    transform: translateY(-2px);
+  }
+}
+
+/* Raised panel — one luminance step above the canvas, larger radius. */
+.v2-panel {
+  background-color: var(--color-surface-1);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--color-hairline);
+}
+
+/* Sunk well — table headers, empty states, inset zones. */
+.v2-well {
+  background-color: var(--color-surface-sunk);
+  border-radius: var(--r-md);
+}
+
+/* --------------------------------------------------------------------
+   Chrome aura + grain — the brand signature. CHROME ONLY (shell, header,
+   page-title zone, auth). NEVER behind data surfaces.
+   -------------------------------------------------------------------- */
+
+/* Soft radial teal→navy gradient bleeding from the top-left. Subtle. */
+.aura-chrome {
+  background-image: radial-gradient(
+    120% 120% at 0% 0%,
+    rgb(42 127 140 / 0.1) 0%,
+    rgb(42 127 140 / 0.04) 28%,
+    transparent 60%
+  );
+}
+.dark .aura-chrome {
+  background-image: radial-gradient(
+    120% 120% at 0% 0%,
+    rgb(77 205 196 / 0.1) 0%,
+    rgb(20 26 46 / 0.4) 32%,
+    transparent 64%
+  );
+}
+
+/* 2–3% noise overlay — kills banding, echoes the logo's liquid texture.
+   Inline SVG feTurbulence data-URI; pointer-events:none so it never blocks. */
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark .grain::after {
+  opacity: 0.04;
+}
+
+/* --------------------------------------------------------------------
+   Motion — skeleton shimmer, section enter, ambient breath. CSS-first.
+   -------------------------------------------------------------------- */
+
+/* Skeleton: left→right shimmer (~1.4s) over a sunk base. Shaped to the
+   real layout by the caller; static under reduced-motion (below). */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-surface-sunk);
+  border-radius: var(--r-xs);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.55) 50%,
+    transparent 100%
+  );
+  animation: v2-shimmer 1.4s ease-in-out infinite;
+}
+.dark .skeleton::after {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.06) 50%,
+    transparent 100%
+  );
+}
+@keyframes v2-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Section/page content enter: fade + y(6px), slow, on first paint via
+   @starting-style. Opacity-only fallback survives reduced-motion. */
+.section-enter {
+  transition: opacity var(--dur-slow) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out);
+}
+@starting-style {
+  .section-enter {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Slide-up-fast: floating overlays that pop in from below (bulk bar, toast).
+   Fast/ease-out on first paint via @starting-style. */
+.slide-up-fast {
+  transition: opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+@starting-style {
+  .slide-up-fast {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Ambient breath: ~6s compositor-only gradient drift. The brand alive at
+   rest — applied to the page's single primary button + the active nav item
+   only. Subliminal. Killed under reduced-motion. */
+.breath {
+  background-size: 180% 180%;
+  animation: v2-breath 6s ease-in-out infinite;
+}
+@keyframes v2-breath {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* --------------------------------------------------------------------
+   Accessibility: honor prefers-reduced-motion. Kill transforms, shimmer,
+   breath, and count-up — KEEP opacity/color fades (per DESIGN-SYSTEM Part 3).
+   -------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+    display: none;
+  }
+  .breath {
+    animation: none;
+  }
+  .section-enter,
+  .slide-up-fast {
+    transition: opacity var(--dur-base) linear;
+  }
+  @starting-style {
+    .section-enter,
+    .slide-up-fast {
+      transform: none;
+    }
+  }
+  .v2-card-interactive {
+    transition: box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .v2-card-interactive:hover {
+    transform: none;
+  }
 }

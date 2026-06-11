@@ -177,7 +177,7 @@ export default function SignInForm() {
       {!magicMode && (
         <button
           type="button"
-          className="mt-4 w-full text-center text-sm text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 font-medium"
+          className="mt-4 w-full text-center text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
           onClick={() => {
             setError(null)
             setMode('magic')

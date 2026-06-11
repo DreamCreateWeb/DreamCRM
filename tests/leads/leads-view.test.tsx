@@ -111,9 +111,10 @@ describe('LeadsView — list + filters + drawer trigger', () => {
     expect(badges).toHaveLength(1)
   })
 
-  it('tones the status pills per the contract — Contacted is sky (ball is theirs), not amber', () => {
-    // Tone remap: new=violet (special), contacted=sky (info — amber would
-    // imply WE still owe action), converted=emerald (ok), archived=gray.
+  it('tones the status pills per the contract — Contacted is info/indigo (ball is theirs), not amber', () => {
+    // Tone remap: new=violet (special), contacted=indigo (info — amber would
+    // imply WE still owe action; v2 moved info sky→indigo), converted=emerald
+    // (ok), archived=gray.
     const rows = [
       makeRow({ id: 'l1', name: 'New Person', status: 'new' }),
       makeRow({ id: 'l2', name: 'Contacted Person', status: 'contacted' }),
@@ -124,7 +125,7 @@ describe('LeadsView — list + filters + drawer trigger', () => {
     const pillFor = (name: string) =>
       // the row's status pill sits right after the patient name in the header row
       screen.getByText(name).parentElement!.querySelector('span.rounded-full') as HTMLElement
-    expect(pillFor('Contacted Person').className).toContain('text-sky-700')
+    expect(pillFor('Contacted Person').className).toContain('text-indigo-700')
     expect(pillFor('Contacted Person').className).not.toContain('amber')
     expect(pillFor('New Person').className).toContain('text-violet-700')
     expect(pillFor('Converted Person').className).toContain('text-emerald-700')

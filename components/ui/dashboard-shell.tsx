@@ -41,7 +41,9 @@ export default async function DashboardShell({
         : `${ctx.planTier[0].toUpperCase()}${ctx.planTier.slice(1)} Plan`
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
+    // `v2-app` scopes the Geist Sans dashboard UI font to the authenticated
+    // shell only (public site / portal / marketing keep their own families).
+    <div className="v2-app flex h-[100dvh] overflow-hidden">
       <TenantSidebar
         modules={modules}
         orgName={ctx.organizationName}

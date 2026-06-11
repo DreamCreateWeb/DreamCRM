@@ -20,9 +20,13 @@
  * - ok      (emerald) healthy · done-good · confirmed · fresh
  * - warn    (amber)   needs OUR action · aging · unconfirmed · due
  * - urgent  (rose)    overdue · failed · problem — act now
- * - info    (sky)     in flight · ball in the patient's court · FYI
- * - special (violet)  new arrival · featured · selected · brand
+ * - info    (indigo)  in flight · ball in the patient's court · FYI
+ * - special (violet)  new arrival · featured · selected (brand vacated it)
  * - neutral (gray)    archived · draft · n/a · terminal-neutral
+ *
+ * v2 change: `info` moved sky → indigo. The brand is now teal, and a
+ * teal/sky pair is too close in hue to disambiguate at a glance. Teal is
+ * NEVER a status — identity only (primary, selection, focus, links, nav).
  */
 export type Tone = 'ok' | 'warn' | 'urgent' | 'info' | 'special' | 'neutral'
 
@@ -31,7 +35,7 @@ export const TONE_PILL: Record<Tone, string> = {
   ok: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   warn: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
   urgent: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-  info: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+  info: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
   special: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
   neutral: 'bg-gray-500/15 text-gray-600 dark:text-gray-300',
 }
@@ -41,7 +45,7 @@ export const TONE_TEXT: Record<Tone, string> = {
   ok: 'text-emerald-700 dark:text-emerald-300',
   warn: 'text-amber-700 dark:text-amber-300',
   urgent: 'text-rose-700 dark:text-rose-300',
-  info: 'text-sky-700 dark:text-sky-300',
+  info: 'text-indigo-700 dark:text-indigo-300',
   special: 'text-violet-700 dark:text-violet-300',
   neutral: 'text-gray-500 dark:text-gray-400',
 }

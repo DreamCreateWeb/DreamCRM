@@ -45,39 +45,42 @@ export default function Drawer({
   return (
     <Transition show={open} as={Fragment}>
       <Dialog as="div" onClose={onClose} className="relative z-50">
-        {/* Backdrop */}
+        {/* Backdrop — fade (enter base, exit ~20% faster) */}
         <TransitionChild
           as={Fragment}
-          enter="transition-opacity ease-out duration-200"
+          enter="transition-opacity ease-[var(--ease-out)] duration-[var(--dur-base)]"
           enterFrom="opacity-0"
           enterTo="opacity-100"
-          leave="transition-opacity ease-in duration-150"
+          leave="transition-opacity ease-[var(--ease-out)] duration-[var(--dur-fast)]"
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-stone-900/30 backdrop-blur-[2px]" aria-hidden="true" />
+          <div
+            className="fixed inset-0 bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px]"
+            aria-hidden="true"
+          />
         </TransitionChild>
 
-        {/* Drawer panel */}
+        {/* Drawer panel — slide in (base/ios), out fast (ios) */}
         <div className="fixed inset-0 flex justify-end pointer-events-none">
           <TransitionChild
             as={Fragment}
-            enter="transform transition ease-out duration-250"
+            enter="transform transition ease-[var(--ease-ios)] duration-[var(--dur-base)]"
             enterFrom="translate-x-full"
             enterTo="translate-x-0"
-            leave="transform transition ease-in duration-200"
+            leave="transform transition ease-[var(--ease-ios)] duration-[var(--dur-fast)]"
             leaveFrom="translate-x-0"
             leaveTo="translate-x-full"
           >
             <DialogPanel
               className={cn(
-                'pointer-events-auto w-full bg-white dark:bg-stone-900 shadow-2xl flex flex-col h-full',
+                'pointer-events-auto w-full flex flex-col h-full rounded-l-[var(--r-lg)] bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)]',
                 SIZES[size],
               )}
             >
               {(title || actions) && (
-                <div className="sticky top-0 z-10 bg-white/95 dark:bg-stone-900/95 backdrop-blur border-b border-stone-200 dark:border-stone-700/60 px-5 py-3 flex items-center gap-3">
-                  <div className="min-w-0 grow text-[14px] font-medium text-stone-900 dark:text-stone-100 truncate">
+                <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur border-b border-[color:var(--color-hairline)] px-5 py-3 flex items-center gap-3">
+                  <div className="min-w-0 grow text-[14px] font-medium text-gray-900 dark:text-gray-100 truncate">
                     {title}
                   </div>
                   <div className="shrink-0 flex items-center gap-1">
@@ -85,7 +88,7 @@ export default function Drawer({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="p-1.5 rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100 dark:hover:text-stone-200 dark:hover:bg-stone-800 transition-colors"
+                      className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
                       title="Close (Esc)"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -97,7 +100,7 @@ export default function Drawer({
               )}
               <div className="flex-1 overflow-y-auto">{children}</div>
               {footer && (
-                <div className="sticky bottom-0 bg-white/95 dark:bg-stone-900/95 backdrop-blur border-t border-stone-200 dark:border-stone-700/60 px-5 py-3">
+                <div className="sticky bottom-0 bg-[color:var(--color-surface-2)]/95 backdrop-blur border-t border-[color:var(--color-hairline)] px-5 py-3">
                   {footer}
                 </div>
               )}

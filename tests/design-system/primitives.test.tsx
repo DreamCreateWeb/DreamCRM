@@ -10,10 +10,27 @@ import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 
 describe('ActionButton', () => {
-  it('renders the primary variant in brand violet', () => {
+  it('renders the primary variant in brand teal (v2 — not violet)', () => {
     render(<ActionButton variant="primary">+ Add patient</ActionButton>)
     const btn = screen.getByRole('button', { name: '+ Add patient' })
-    expect(btn.className).toContain('bg-violet-600')
+    expect(btn.className).toContain('bg-teal-500')
+    expect(btn.className).not.toContain('bg-violet')
+  })
+
+  it('adds the ambient breath skin only on a primary marked breath', () => {
+    const { rerender } = render(
+      <ActionButton variant="primary" breath>
+        + New booking
+      </ActionButton>,
+    )
+    expect(screen.getByRole('button', { name: '+ New booking' }).className).toContain('breath')
+    // breath is ignored on non-primary variants (one ambient primary per page).
+    rerender(
+      <ActionButton variant="secondary" breath>
+        + New booking
+      </ActionButton>,
+    )
+    expect(screen.getByRole('button', { name: '+ New booking' }).className).not.toContain('breath')
   })
 
   it('renders a link when href is given', () => {
@@ -55,6 +72,14 @@ describe('StatusPill', () => {
     expect(pill.className).toContain('amber')
     expect(pill.getAttribute('title')).toBe('Needs a confirmation text')
   })
+
+  it('renders the info tone in indigo (v2 — moved off sky), never teal', () => {
+    render(<StatusPill tone="info" label="Contacted" />)
+    const pill = screen.getByText('Contacted')
+    expect(pill.className).toContain('indigo')
+    expect(pill.className).not.toContain('sky')
+    expect(pill.className).not.toContain('teal')
+  })
 })
 
 describe('FilterChip', () => {
@@ -79,6 +104,21 @@ describe('FilterChip', () => {
       </FilterChip>,
     )
     expect(screen.getByRole('button', { name: /Birthday/ }).getAttribute('title')).toBe('Birthday this month')
+  })
+
+  it('uses the teal selection treatment when active (selection ≠ status)', () => {
+    const { rerender } = render(
+      <FilterChip active onClick={() => {}}>
+        New
+      </FilterChip>,
+    )
+    expect(screen.getByRole('button', { name: /New/ }).className).toContain('teal')
+    rerender(
+      <FilterChip active={false} onClick={() => {}}>
+        New
+      </FilterChip>,
+    )
+    expect(screen.getByRole('button', { name: /New/ }).className).not.toContain('teal')
   })
 })
 
@@ -131,9 +171,34 @@ describe('KpiStat', () => {
     expect(screen.getByText('3 need a reminder').className).toContain('amber')
   })
 
-  it('is drillable when href is set', () => {
-    render(<KpiStat label="New leads" value={6} href="/leads?status=new" />)
+  it('renders the hero number in Geist Mono with tabular figures, on an etched card', () => {
+    const { container } = render(<KpiStat label="Recall due" value={12} />)
+    const numeral = screen.getByText('12')
+    expect(numeral.className).toContain('font-mono-num')
+    expect(numeral.className).toContain('tabular-nums')
+    // Etched resting surface (no drop-shadow), not the old rounded-xl card.
+    expect(container.querySelector('.v2-card')).not.toBeNull()
+  })
+
+  it('is drillable when href is set (and uses the interactive etched card)', () => {
+    const { container } = render(<KpiStat label="New leads" value={6} href="/leads?status=new" />)
     expect(screen.getByRole('link')).toHaveAttribute('href', '/leads?status=new')
+    expect(container.querySelector('.v2-card-interactive')).not.toBeNull()
+  })
+
+  it('count-up snaps to the final value once the session flag is set', () => {
+    // Simulate "already counted up this session" → no animation, render final.
+    sessionStorage.setItem('v2-countup-done', '1')
+    render(<KpiStat label="New patients" value={42} countUp />)
+    expect(screen.getByText('42')).toBeInTheDocument()
+    sessionStorage.removeItem('v2-countup-done')
+  })
+
+  it('count-up sets the once-per-session flag on first entry', () => {
+    sessionStorage.removeItem('v2-countup-done')
+    render(<KpiStat label="New patients" value={7} countUp />)
+    expect(sessionStorage.getItem('v2-countup-done')).toBe('1')
+    sessionStorage.removeItem('v2-countup-done')
   })
 })
 

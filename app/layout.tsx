@@ -1,5 +1,7 @@
 import './css/style.css'
 
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import Theme from './theme-provider'
 import AppProvider from './app-provider'
 
@@ -16,8 +18,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // Geist font variables are declared globally on <html> (just CSS custom
+  // properties — harmless everywhere); only the `.v2-app` dashboard/auth/
+  // onboarding shells actually CONSUME them, so the public site / portal /
+  // marketing keep Inter/Fraunces.
   return (
-    <html lang="en" suppressHydrationWarning>{/* suppressHydrationWarning: https://github.com/vercel/next.js/issues/44343 */}
+    // suppressHydrationWarning: https://github.com/vercel/next.js/issues/44343
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className="font-inter antialiased bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400">
         <Theme>
           <AppProvider>
