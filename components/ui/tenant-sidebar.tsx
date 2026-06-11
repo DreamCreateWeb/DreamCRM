@@ -150,8 +150,9 @@ export default function TenantSidebar({
   }
 
   // Rail = collapsed AND a real ≥lg layout. Below lg the drawer is always
-  // full-width (w-64), so the rail treatment only matters at lg+.
-  const railClass = railCollapsed ? 'lg:w-20' : 'lg:w-64'
+  // full-width (w-64), so the rail treatment only matters at lg+. Rail = 64px
+  // (w-16) per DESIGN-SYSTEM Part 4; expanded = 256px (w-64, the ~248px slot).
+  const railClass = railCollapsed ? 'lg:w-16' : 'lg:w-64'
 
   return (
     <div className="min-w-fit">
@@ -317,9 +318,9 @@ function OrgSwitcher({
         aria-expanded={hasMenu ? open : undefined}
         disabled={!hasMenu}
         title={orgName}
-        className={`group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition ${
-          hasMenu ? 'hover:bg-ink-900/[0.04] cursor-pointer' : 'cursor-default'
-        }`}
+        className={`group flex w-full items-center gap-2 rounded-lg py-1.5 text-left transition ${
+          rail ? 'lg:justify-center lg:px-0 px-2' : 'px-2'
+        } ${hasMenu ? 'hover:bg-ink-900/[0.04] cursor-pointer' : 'cursor-default'}`}
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300 text-xs font-bold">
           {initial}
@@ -521,7 +522,7 @@ function NavItem({
             {count > 0 && (
               <span
                 className="ml-2 inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold tabular-nums text-white"
-                aria-hidden="true"
+                aria-label={`${count} ${count === 1 ? 'item needs' : 'items need'} attention`}
               >
                 {countLabel}
               </span>

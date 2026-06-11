@@ -6,13 +6,22 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 
+// Expanded (non-rail) sidebar: railCollapsed=false renders inline labels +
+// the visible count pill (with its accessible label) next to each entry.
 vi.mock('@/app/app-provider', () => ({
-  useAppProvider: () => ({ sidebarOpen: false, setSidebarOpen: vi.fn(), sidebarExpanded: true }),
+  useAppProvider: () => ({
+    sidebarOpen: false,
+    setSidebarOpen: vi.fn(),
+    sidebarExpanded: true,
+    railCollapsed: false,
+    toggleRail: vi.fn(),
+  }),
 }))
 
-// Logo + NavIcon pull in assets/icons we don't care about here.
-vi.mock('@/components/ui/logo', () => ({ default: () => <div data-testid="logo" /> }))
+// Brand mark + NavIcon pull in assets/icons we don't care about here.
+vi.mock('@/components/brand/dream-create-logo', () => ({ DreamCreateMark: () => <div data-testid="logo" /> }))
 vi.mock('@/components/ui/nav-icons', () => ({ NavIcon: () => <svg /> }))
+vi.mock('@/components/dropdown-profile', () => ({ default: () => <div data-testid="profile" /> }))
 
 import TenantSidebar from '@/components/ui/tenant-sidebar'
 
@@ -38,7 +47,7 @@ function jsonResponse(body: unknown) {
 }
 
 describe('TenantSidebar badges', () => {
-  it('renders violet count pills next to Messages/Leads/Shop for a clinic tenant', async () => {
+  it('renders amber count pills next to Messages/Leads/Shop for a clinic tenant', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ messages: 3, leads: 2, shop: 5 }))
     render(<TenantSidebar modules={MODULES} tenantType="clinic" />)
     // Pills appear after the polling effect's fetch resolves.
