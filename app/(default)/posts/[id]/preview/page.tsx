@@ -31,7 +31,7 @@ export default async function BlogPreviewPage({ params }: { params: Promise<{ id
   if (ctx.tenantType === 'platform') {
     return (
       <div className="bg-white text-gray-950 antialiased">
-        <div className="sticky top-0 z-50 bg-violet-600 text-white text-[13px] font-medium px-4 py-2 flex items-center justify-between">
+        <div className="sticky top-0 z-50 bg-teal-600 text-white text-xs font-medium px-4 py-2 flex items-center justify-between">
           <span>
             Preview · {post.status === 'published' ? 'published' : 'draft'} — only you can see this
           </span>
@@ -80,7 +80,7 @@ export default async function BlogPreviewPage({ params }: { params: Promise<{ id
 
   return (
     <div>
-      <div className="sticky top-0 z-50 bg-violet-600 text-white text-[13px] font-medium px-4 py-2 flex items-center justify-between">
+      <div className="sticky top-0 z-50 bg-teal-600 text-white text-xs font-medium px-4 py-2 flex items-center justify-between">
         <span>
           Preview · {post.status === 'published' ? 'published' : 'draft'} — only you can see this
         </span>

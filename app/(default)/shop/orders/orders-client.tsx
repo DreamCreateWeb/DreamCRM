@@ -136,23 +136,21 @@ export default function OrdersClient({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
-          <EmptyState
-            icon="📦"
-            title={filter === 'all' ? 'No orders yet' : 'Nothing in this view'}
-            body={
-              filter === 'all'
-                ? 'When a patient checks out on your storefront, the order lands here so you can fulfill it.'
-                : 'No orders match this filter right now.'
-            }
-          />
-        </div>
+        <EmptyState
+          icon="📦"
+          title={filter === 'all' ? 'No orders yet' : 'Nothing in this view'}
+          body={
+            filter === 'all'
+              ? 'When a patient checks out on your storefront, the order lands here so you can fulfill it.'
+              : 'No orders match this filter right now.'
+          }
+        />
       ) : (
         <div className="space-y-2.5">
           {filtered.map((o) => (
             <div
               key={o.id}
-              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4"
+              className="v2-card p-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -177,12 +175,12 @@ export default function OrdersClient({
                       (o.patientId ? (
                         <Link
                           href={`/patients/${o.patientId}`}
-                          className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                          className="text-xs text-teal-700 dark:text-teal-400 hover:underline"
                         >
                           · {o.patientName}
                         </Link>
                       ) : (
-                        <span className="text-xs text-violet-600 dark:text-violet-400">· {o.patientName}</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-300">· {o.patientName}</span>
                       ))}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -195,16 +193,16 @@ export default function OrdersClient({
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-bold tabular-nums text-gray-800 dark:text-gray-100">
+                  <p className="text-sm font-bold tabular-nums font-mono-num text-gray-800 dark:text-gray-100">
                     {formatCents(o.totalCents)}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
                     {o.ageHours < 24 ? `${o.ageHours}h ago` : `${Math.floor(o.ageHours / 24)}d ago`}
                   </p>
                 </div>
               </div>
               {o.status === 'paid' && NEXT_STEPS[o.fulfillmentStatus].length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
+                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
                   {NEXT_STEPS[o.fulfillmentStatus].map((s, i) => {
                     // One primary per row — the most likely next move leads;
                     // the alternate (e.g. "Mark shipped" vs "Mark ready") is secondary.

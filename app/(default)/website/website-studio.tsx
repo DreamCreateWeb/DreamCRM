@@ -159,9 +159,9 @@ export function tourStops(
 }
 
 const btnPrimary =
-  'inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 transition disabled:opacity-60'
+  'inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60'
 const btnSecondary =
-  'inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/60 transition'
+  'inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition'
 
 /**
  * Website Studio — the full-screen, chrome-less editor. Hosts the clinic's real
@@ -349,10 +349,10 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   }, [])
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-stone-900">
-      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 bg-stone-900 text-stone-100 border-b border-stone-700">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-gray-900">
+      <div className="aura-chrome h-12 shrink-0 flex items-center justify-between gap-3 px-4 bg-gray-900 text-gray-100 border-b border-[color:var(--color-hairline-strong)]">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/dashboard" className="text-sm text-stone-300 hover:text-white whitespace-nowrap">
+          <Link href="/dashboard" className="text-sm text-gray-300 hover:text-white whitespace-nowrap">
             ← Exit
           </Link>
           <button
@@ -367,23 +367,23 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
                 f.src = home
               }
             }}
-            className="text-sm text-stone-300 hover:text-white whitespace-nowrap"
+            className="text-sm text-gray-300 hover:text-white whitespace-nowrap"
             title="Return to your homepage (the logo isn't clickable in edit mode)"
           >
             🏠 Home
           </button>
           <span className="text-sm font-semibold whitespace-nowrap">Editing your website</span>
-          <span className="hidden sm:inline text-xs text-stone-300 truncate">
+          <span className="hidden sm:inline text-xs text-gray-300 truncate">
             Click text to edit it · hover a section for its “Edit” button · click the hero image to replace it.
           </span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {status === 'saving' && <span className="text-xs text-stone-300">Saving…</span>}
+          {status === 'saving' && <span className="text-xs text-gray-300">Saving…</span>}
           {status === 'saved' && <span className="text-xs text-emerald-400">Saved ✓ live</span>}
           {status === 'error' && (
             <span className="text-xs text-rose-400 max-w-[16rem] truncate">{errorMsg ?? 'Could not save'}</span>
           )}
-          <Link href="/settings/clinic" className="hidden sm:inline text-xs text-stone-300 hover:text-white">
+          <Link href="/settings/clinic" className="hidden sm:inline text-xs text-gray-300 hover:text-white">
             Advanced edits
           </Link>
           <ActionButton variant="secondary" size="sm" href={siteUrl} target="_blank">
@@ -544,20 +544,20 @@ function StudioModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-[color:var(--color-ink-900)]/50 p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
-        className={`w-full ${isWide ? 'max-w-2xl' : 'max-w-lg'} max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-stone-900 shadow-2xl`}
+        className={`w-full ${isWide ? 'max-w-2xl' : 'max-w-lg'} max-h-[88vh] flex flex-col overflow-hidden rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)]`}
       >
-        <div className="shrink-0 flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-stone-200 dark:border-stone-700/60">
-          <h2 className="text-[15px] font-bold text-stone-900 dark:text-stone-100">{title}</h2>
+        <div className="shrink-0 flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-[color:var(--color-hairline)]">
+          <h2 className="text-[15px] font-bold text-gray-900 dark:text-gray-100">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition"
+            className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-[var(--r-md)] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
             aria-label="Close"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round">
@@ -579,8 +579,8 @@ function StudioModal({
                 onChange={(u) => setImageUrl(u)}
               />
               {imageCfg.focalAspect && imageUrl && (
-                <div className="mt-4 pt-4 border-t border-stone-200 dark:border-stone-700/60">
-                  <label className="block text-[12px] font-semibold text-stone-600 dark:text-stone-300 mb-2">
+                <div className="mt-4 pt-4 border-t border-[color:var(--color-hairline)]">
+                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
                     Focus point
                   </label>
                   <FocalPointPicker
@@ -595,7 +595,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'stats' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Three short trust signals shown under your hero — “8,000+ five-star reviews,”
                 “Same-week appointments,” “Most insurance accepted.”
               </p>
@@ -607,7 +607,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'testimonials' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Patient quotes shown on your homepage. Reviews submitted through the Reviews
                 module can be featured here too — and you can add your own.
               </p>
@@ -619,7 +619,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'about' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Your story — who you are, your approach, and what patients can expect. A few
                 short paragraphs work best.
               </p>
@@ -634,7 +634,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'staff' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The people patients will meet. Add a photo, name, title, and a short bio for
                 each — they appear on your homepage and the Team page.
               </p>
@@ -643,7 +643,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'officePhotos' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 A few warm shots of your space — the waiting room, an operatory, the front
                 desk. They appear in your office-tour gallery.
               </p>
@@ -655,7 +655,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'faq' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Questions patients ask before booking — insurance, first visits, billing,
                 anxiety. They’re grouped by category on your FAQ page.
               </p>
@@ -664,7 +664,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'acceptedInsuranceCarriers' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The insurance carriers you accept. They appear on your homepage Insurance band
                 and Insurance page. Leave blank to show “call to verify.”
               </p>
@@ -678,7 +678,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'differenceChips' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The short “Why us” highlight chips next to your homepage intro. Leave blank to
                 auto-build from your top services + standard reassurances (“No judgment, ever,”
                 “Same-week visits,” …).
@@ -693,7 +693,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'insurance_verifier' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The fields on your “Check your insurance” form. Add, remove, reorder, or
                 rename fields. Keep an email or phone so you can reach the lead — the carrier
                 and service dropdowns pull their options from your live lists.
@@ -709,7 +709,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'contact' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The fields on your homepage contact form. Add, remove, reorder, or rename
                 fields. Keep a phone or email so you can reach the lead. Submissions land in
                 your Leads queue.
@@ -755,7 +755,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'hours' && (
             <form ref={formRef}>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Your weekly office hours, shown in the footer of every page. Check “Closed” for
                 days you’re not open.
               </p>
@@ -771,7 +771,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'services' && (
             <div>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The services shown across your site. Add from the library, reorder, swap
                 photos, or rewrite copy with AI — each change saves automatically.
               </p>
@@ -785,7 +785,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && modal.field === 'differenceVideoUrl' && (
             <div>
-              <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 A short, muted, looping clip that plays in your “Why us?” section. Upload one
                 from your computer, or paste a direct video URL. Leave it blank to show a photo
                 there instead.
@@ -795,7 +795,7 @@ function StudioModal({
                   type="button"
                   onClick={() => videoFileRef.current?.click()}
                   disabled={uploading}
-                  className="btn-sm bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 disabled:opacity-60"
+                  className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 disabled:opacity-60"
                 >
                   {uploading ? 'Uploading…' : videoUrl ? 'Upload a different video' : 'Upload a video'}
                 </button>
@@ -820,7 +820,7 @@ function StudioModal({
                   }}
                 />
               </div>
-              <label className="block text-[12px] font-medium text-stone-600 dark:text-stone-300 mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                 …or paste a video URL
               </label>
               <input
@@ -830,10 +830,10 @@ function StudioModal({
                 placeholder="https://…/clinic-intro.mp4"
                 className={inputCls}
               />
-              <p className="text-[11px] text-stone-400 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 MP4, MOV, or WebM · up to 50MB · short, muted &amp; looping looks best.
               </p>
-              {uploadError && <p className="text-[12px] text-rose-600 mt-2">{uploadError}</p>}
+              {uploadError && <p className="text-xs text-rose-600 mt-2">{uploadError}</p>}
               {videoUrl.trim() && (
                 <video
                   key={videoUrl}
@@ -842,21 +842,21 @@ function StudioModal({
                   loop
                   autoPlay
                   playsInline
-                  className="mt-3 w-full max-h-48 object-cover rounded-lg bg-stone-100 dark:bg-stone-800"
+                  className="mt-3 w-full max-h-48 object-cover rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)]"
                 />
               )}
             </div>
           )}
           {modal.kind === 'section' && LINK_OUTS[modal.field] && (
             <div className="space-y-3">
-              <p className="text-[13px] text-stone-500 dark:text-stone-400">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 {LINK_OUTS[modal.field].desc}
               </p>
               <a
                 href={LINK_OUTS[modal.field].href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-sm inline-flex bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
+                className="btn-sm inline-flex bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
               >
                 {LINK_OUTS[modal.field].cta} ↗
               </a>
@@ -864,7 +864,7 @@ function StudioModal({
           )}
           {modal.kind === 'section' && !SECTION_TITLES[modal.field] && (
             <div className="space-y-3">
-              <p className="text-sm text-stone-600 dark:text-stone-300">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
                 This editor was added in a newer version of the Studio than this tab is running.
                 Refresh to pick it up — your saved edits are safe.
               </p>
@@ -875,7 +875,7 @@ function StudioModal({
           )}
         </div>
 
-        <div className="shrink-0 flex items-center justify-end gap-2.5 px-5 sm:px-6 py-3.5 border-t border-stone-200 dark:border-stone-700/60 bg-stone-50/60 dark:bg-stone-900">
+        <div className="shrink-0 flex items-center justify-end gap-2.5 px-5 sm:px-6 py-3.5 border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)]">
           {isServices ? (
             <button type="button" onClick={() => { reload(); onClose() }} className={btnPrimary}>
               Done

@@ -91,7 +91,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
               {i.ready ? (
                 <ScheduleControl id={i.id} onDone={() => router.refresh()} />
               ) : (
-                <span className="text-xs text-stone-500 dark:text-stone-400 italic">
+                <span className="text-xs text-gray-500 dark:text-gray-400 italic">
                   Add content + an author to schedule
                 </span>
               )}
@@ -102,7 +102,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
         <Section title="Scheduled" count={scheduled.length} empty="Nothing scheduled yet.">
           {scheduled.map((i) => (
             <Row key={i.id} item={i}>
-              <span className="text-xs text-sky-700 dark:text-sky-300 tabular-nums">
+              <span className="text-xs text-indigo-700 dark:text-indigo-300 tabular-nums font-mono-num">
                 Goes live {fmtDateTime(i.scheduledFor)}
               </span>
               <UnscheduleButton id={i.id} onDone={() => router.refresh()} />
@@ -113,7 +113,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
         <Section title="Recently published" count={published.length} empty="No published posts yet.">
           {published.map((i) => (
             <Row key={i.id} item={i}>
-              <span className="text-xs text-stone-500 dark:text-stone-400 tabular-nums">{fmt(i.publishedAt)}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">{fmt(i.publishedAt)}</span>
             </Row>
           ))}
         </Section>
@@ -137,15 +137,15 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 mb-3">
-        {title} <span className="text-stone-500 dark:text-stone-400 font-normal tabular-nums">· {count}</span>
+      <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+        {title} <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums">· {count}</span>
       </h2>
       {count === 0 ? (
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-6 text-center">
-          <p className="text-sm text-stone-500 dark:text-stone-400 italic">{empty}</p>
+        <div className="v2-well p-6 text-center">
+          <p className="text-sm text-gray-500 dark:text-gray-400 italic">{empty}</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 divide-y divide-stone-100 dark:divide-stone-700/40">
+        <div className="v2-card divide-y divide-[color:var(--color-hairline)]">
           {children}
         </div>
       )}
@@ -160,13 +160,13 @@ function Row({ item, children }: { item: CalendarItem; children: React.ReactNode
         <div className="flex items-center gap-2">
           <Link
             href={`/posts/${item.id}`}
-            className="text-sm font-medium text-stone-800 dark:text-stone-100 hover:text-violet-600 dark:hover:text-violet-400"
+            className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-400"
           >
             {item.title}
           </Link>
           {item.source === 'ai_draft' && <StatusPill tone="special" label="AI" title="AI-drafted" />}
         </div>
-        <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{item.category ?? 'Uncategorized'}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{item.category ?? 'Uncategorized'}</div>
       </div>
       <div className="flex items-center gap-2 shrink-0">{children}</div>
     </div>
@@ -196,7 +196,7 @@ function ScheduleControl({ id, onDone }: { id: string; onDone: () => void }) {
         type="datetime-local"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="text-xs px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+        className="text-xs px-2 py-1 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
       />
       <ActionButton variant="primary" size="sm" onClick={schedule} disabled={pending}>
         {pending ? 'Scheduling…' : 'Schedule'}
@@ -263,15 +263,15 @@ function GenerateIdeasModal({ onClose, onAdded }: { onClose: () => void; onAdded
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 flex items-center justify-center p-4"
       onClick={busy || pending ? undefined : onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-lg p-5 max-h-[85vh] overflow-y-auto"
+        className="bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-lg p-5 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">✨ Generate ideas</h2>
-        <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">✨ Generate ideas</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
           Original topic ideas tailored to your services, town, and the season. Pick the ones you like — each becomes a
           draft you finish with one click. Nothing publishes on its own.
         </p>
@@ -286,7 +286,7 @@ function GenerateIdeasModal({ onClose, onAdded }: { onClose: () => void; onAdded
               {ideas.map((idea, i) => (
                 <label
                   key={i}
-                  className="flex items-start gap-2.5 p-2.5 rounded-lg border border-stone-200 dark:border-stone-700 cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/40"
+                  className="flex items-start gap-2.5 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40"
                 >
                   <input
                     type="checkbox"
@@ -295,9 +295,9 @@ function GenerateIdeasModal({ onClose, onAdded }: { onClose: () => void; onAdded
                     className="mt-1"
                   />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-stone-800 dark:text-stone-100">{idea.title}</p>
-                    <p className="text-sm text-stone-500 dark:text-stone-400">{idea.angle}</p>
-                    <span className="text-xs uppercase tracking-wider font-semibold text-violet-600 dark:text-violet-400">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{idea.title}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{idea.angle}</p>
+                    <span className="text-xs uppercase tracking-wider font-semibold text-teal-700 dark:text-teal-400">
                       {idea.category}
                     </span>
                   </div>
@@ -308,7 +308,7 @@ function GenerateIdeasModal({ onClose, onAdded }: { onClose: () => void; onAdded
               <button
                 onClick={generate}
                 disabled={busy}
-                className="text-xs text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 disabled:opacity-50"
+                className="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 disabled:opacity-50"
               >
                 {busy ? 'Regenerating…' : '↻ Regenerate'}
               </button>
@@ -329,7 +329,7 @@ function GenerateIdeasModal({ onClose, onAdded }: { onClose: () => void; onAdded
           </>
         ) : (
           <div className="text-center py-6">
-            <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
               AI is unavailable right now — try again in a moment.
             </p>
             <ActionButton variant="primary" size="sm" onClick={onClose}>

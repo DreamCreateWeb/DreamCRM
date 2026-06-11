@@ -83,14 +83,14 @@ export default function LeadFormBuilder({
               />
             </Field>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-stone-600 dark:text-stone-300">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600 dark:text-gray-300">
               <label className="flex items-center gap-1.5">
                 <span className="font-medium">Type</span>
                 <select
                   value={f.type}
                   disabled={locked(f)}
                   onChange={(e) => update(i, { type: e.target.value as LeadFormFieldType })}
-                  className={`${selectCls} py-1 text-[12px] disabled:opacity-60`}
+                  className={`${selectCls} py-1 text-xs disabled:opacity-60`}
                 >
                   {TYPE_OPTIONS.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -108,9 +108,9 @@ export default function LeadFormBuilder({
                 />
                 <span className="font-medium">Required</span>
               </label>
-              {f.systemKey && <span className="text-stone-400">→ saves to {f.systemKey}</span>}
+              {f.systemKey && <span className="text-gray-500 dark:text-gray-400">→ saves to {f.systemKey}</span>}
               {f.dynamicOptions && (
-                <span className="text-stone-400">
+                <span className="text-gray-500 dark:text-gray-400">
                   options from your {f.dynamicOptions === 'carriers' ? 'insurance carriers' : 'services'}
                 </span>
               )}
