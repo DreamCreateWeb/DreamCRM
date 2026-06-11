@@ -129,12 +129,12 @@ export default async function SeoPage({ searchParams }: Props) {
       />
 
       {gscConnected && (
-        <div className="mb-4 text-sm px-4 py-2.5 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+        <div className="mb-4 text-sm px-4 py-2.5 rounded-[var(--r-md)] bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
           Search Console connected.
         </div>
       )}
       {gscError && (
-        <div className="mb-4 text-sm px-4 py-2.5 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+        <div className="mb-4 text-sm px-4 py-2.5 rounded-[var(--r-md)] bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
           Couldn&apos;t connect Search Console: {gscError}
         </div>
       )}
@@ -142,11 +142,11 @@ export default async function SeoPage({ searchParams }: Props) {
       {/* ── Site Health + Organic attribution (clinic only) ───────────── */}
       {!isManage && (
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4 mb-8">
-        <section className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+        <section className="v2-card p-5">
           <div className="flex items-baseline justify-between mb-4">
-            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Site health</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Site health</h2>
             <span
-              className={`text-3xl font-bold tabular-nums ${
+              className={`text-3xl font-bold tabular-nums font-mono-num ${
                 scoreTone === 'ok'
                   ? 'text-emerald-700 dark:text-emerald-300'
                   : scoreTone === 'warn'
@@ -155,7 +155,7 @@ export default async function SeoPage({ searchParams }: Props) {
               }`}
             >
               {health.score}
-              <span className="text-base text-stone-500 dark:text-stone-400">/100</span>
+              <span className="text-base text-gray-500 dark:text-gray-400">/100</span>
             </span>
           </div>
           <ul className="space-y-2.5">
@@ -171,43 +171,43 @@ export default async function SeoPage({ searchParams }: Props) {
                     {icon.mark}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-stone-800 dark:text-stone-100">{c.label}</p>
-                    <p className="text-xs text-stone-500 dark:text-stone-400">{c.detail}</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{c.label}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{c.detail}</p>
                   </div>
                 </li>
               )
             })}
           </ul>
-          <Link href="/settings/clinic" className="inline-block mt-4 text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline">
+          <Link href="/settings/clinic" className="inline-block mt-4 text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
             Fix the gaps in Settings → Clinic →
           </Link>
         </section>
 
-        <section className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 mb-1">Organic search → results</h2>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">
+        <section className="v2-card p-5">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Organic search → results</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             The funnel from search to booked patients · last {attr.windowDays} days
           </p>
           {/* Total visits vs search clicks — two honestly-different numbers
               side by side so the clinic understands the distinction. */}
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="px-3 py-3 rounded-lg bg-stone-50 dark:bg-stone-800/40">
-              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+            <div className="v2-well px-3 py-3">
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                 Visits (your site)
               </p>
-              <p className="text-2xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">
+              <p className="text-2xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">
                 {traffic.total.toLocaleString()}
               </p>
-              <p className="text-xs text-stone-500 dark:text-stone-400">all visits, every channel</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">all visits, every channel</p>
             </div>
-            <div className="px-3 py-3 rounded-lg bg-stone-50 dark:bg-stone-800/40">
-              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+            <div className="v2-well px-3 py-3">
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                 Clicks from Google
               </p>
-              <p className="text-2xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">
+              <p className="text-2xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">
                 {perf ? perf.clicks.toLocaleString() : '—'}
               </p>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {perf ? 'from Google search only' : 'connect Search Console'}
               </p>
             </div>
@@ -217,7 +217,7 @@ export default async function SeoPage({ searchParams }: Props) {
             <AttrTile label="Leads from organic" value={attr.organicLeads} total={attr.totalLeads} />
             <AttrTile label="Bookings from organic" value={attr.organicBookings} total={attr.totalBookings} />
           </div>
-          <p className="text-xs text-stone-500 dark:text-stone-400">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             {perf
               ? 'Search Console clicks → the leads + bookings our forms attribute to organic search. The whole funnel, one screen.'
               : isManage
@@ -229,12 +229,12 @@ export default async function SeoPage({ searchParams }: Props) {
       )}
 
       {/* ── Search Console ────────────────────────────────────────────── */}
-      <section className="mb-8 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+      <section className="v2-card mb-8 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Google Search Console</h2>
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Google Search Console</h2>
           {isManage && gsc.connected && (
             <form action={disconnectGscAction}>
-              <button className="text-xs text-stone-500 hover:text-rose-600 dark:text-stone-400 dark:hover:text-rose-400">
+              <button className="text-xs text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400">
                 Disconnect
               </button>
             </form>
@@ -252,34 +252,34 @@ export default async function SeoPage({ searchParams }: Props) {
             )}
           </p>
         ) : !gscOAuthConfigured() ? (
-          <p className="text-sm text-stone-500 dark:text-stone-400 italic">
+          <p className="text-sm text-gray-500 dark:text-gray-400 italic">
             Google OAuth isn&apos;t configured on this environment yet.
           </p>
         ) : isManage ? (
           /* ── Platform admin: manage the one shared connection ── */
           !gsc.connected ? (
             <div>
-              <p className="text-sm text-stone-600 dark:text-stone-300 mb-3 max-w-xl">
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 max-w-xl">
                 Connect once with the <strong>Domain property</strong> for <strong>dreamcreatestudio.com</strong>. It
                 covers the apex, www, and every clinic subdomain — so each clinic&apos;s SEO tab lights up
                 automatically with their own scoped data. Clinics connect nothing.
               </p>
               <a
                 href="/api/oauth/gsc/start"
-                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900"
+                className="inline-flex items-center px-4 py-2 rounded-[var(--r-sm)] text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
               >
                 Connect Search Console
               </a>
             </div>
           ) : gsc.status === 'needs_site' ? (
             <div>
-              <p className="text-sm text-stone-600 dark:text-stone-300 mb-3">
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
                 Connected. Pick the property to track (the <strong>sc-domain:dreamcreatestudio.com</strong> Domain
                 property is the one that covers every clinic):
               </p>
               {sites.length === 0 ? (
-                <div className="text-xs text-stone-500 dark:text-stone-400 max-w-md space-y-1.5">
-                  <p className="font-medium text-stone-600 dark:text-stone-300">
+                <div className="text-xs text-gray-500 dark:text-gray-400 max-w-md space-y-1.5">
+                  <p className="font-medium text-gray-600 dark:text-gray-300">
                     No verified properties on this Google account yet.
                   </p>
                   <p>
@@ -297,7 +297,7 @@ export default async function SeoPage({ searchParams }: Props) {
                 <form action={setGscSiteAction} className="flex items-center gap-2">
                   <select
                     name="siteUrl"
-                    className="text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                    className="text-sm px-2 py-1.5 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                   >
                     {sites.map((s) => (
                       <option key={s.siteUrl} value={s.siteUrl}>
@@ -305,7 +305,7 @@ export default async function SeoPage({ searchParams }: Props) {
                       </option>
                     ))}
                   </select>
-                  <button className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900">
+                  <button className="text-sm font-semibold px-3 py-1.5 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300">
                     Track this site
                   </button>
                 </form>
@@ -314,23 +314,23 @@ export default async function SeoPage({ searchParams }: Props) {
           ) : perf ? (
             <PerfBlock perf={perf} subtitle={`${gsc.siteUrl} · whole domain · last 28 days`} />
           ) : (
-            <p className="text-sm text-stone-500 dark:text-stone-400 italic">No Search Console data yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 italic">No Search Console data yet.</p>
           )
         ) : /* ── Clinic: scoped read of the shared connection, zero setup ── */
         !clinicScope?.platformConnected ? (
-          <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xl">
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl">
             Organic search analytics show up here automatically — nothing for you to set up. They turn on once Search
             Console is connected for the practice network.
           </p>
         ) : clinicScope.customDomain ? (
-          <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xl">
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl">
             You&apos;re on a custom domain ({clinicScope.scopeLabel}). Per-domain Search Console data is on the roadmap —
             until then, organic clicks for it aren&apos;t shown here.
           </p>
         ) : perf && perf.impressions > 0 ? (
           <PerfBlock perf={perf} subtitle="Your site · last 28 days" />
         ) : (
-          <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xl">
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl">
             No Search Console clicks yet for your site. This fills in automatically as Google indexes your pages and
             patients start finding you in search (data lags ~2 days).
           </p>
@@ -340,14 +340,14 @@ export default async function SeoPage({ searchParams }: Props) {
       {!isManage && (
       <>
       {/* ── Reviews as a ranking signal ───────────────────────────────── */}
-      <section className="mb-8 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+      <section className="v2-card mb-8 p-5">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Reviews — a top local ranking signal</h2>
-          <Link href="/reviews" className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Reviews — a top local ranking signal</h2>
+          <Link href="/reviews" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
             Manage reviews →
           </Link>
         </div>
-        <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           Review volume + recency is one of the strongest local-search factors. Keep the flow steady from the Reviews
           module.
         </p>
@@ -359,19 +359,19 @@ export default async function SeoPage({ searchParams }: Props) {
       </section>
 
       {/* ── Google Business Profile checklist ─────────────────────────── */}
-      <section className="mb-8 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+      <section className="v2-card mb-8 p-5">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">Google Business Profile</h2>
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Google Business Profile</h2>
           <a
             href="https://business.google.com/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+            className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
           >
             Open Google Business →
           </a>
         </div>
-        <p className="text-xs text-stone-500 dark:text-stone-400 mb-4 max-w-2xl">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-2xl">
           Your Google Business Profile is the single biggest driver of the local map pack — where most new dental
           patients find you. Full in-app management is on the roadmap; for now here&apos;s the checklist that moves the
           needle most, done in Google directly.
@@ -384,13 +384,13 @@ export default async function SeoPage({ searchParams }: Props) {
           <GbpStep n={2} title="Match your name, address &amp; phone exactly">
             Google rewards consistency between your profile and your website. Use these — copied from your site — verbatim:
             {nap ? (
-              <div className="mt-2 rounded-lg bg-stone-50 dark:bg-stone-800/40 p-3 text-stone-700 dark:text-stone-200 space-y-0.5">
+              <div className="mt-2 v2-well p-3 text-gray-700 dark:text-gray-200 space-y-0.5">
                 <p className="font-medium">{nap.name}</p>
-                {nap.address ? <p className="tabular-nums">{nap.address}</p> : <p className="italic text-stone-400">Add your address in Settings → Clinic</p>}
-                {nap.phone ? <p className="tabular-nums">{nap.phone}</p> : <p className="italic text-stone-400">Add your phone in Settings → Clinic</p>}
+                {nap.address ? <p className="tabular-nums font-mono-num">{nap.address}</p> : <p className="italic text-gray-400">Add your address in Settings → Clinic</p>}
+                {nap.phone ? <p className="tabular-nums font-mono-num">{nap.phone}</p> : <p className="italic text-gray-400">Add your phone in Settings → Clinic</p>}
               </div>
             ) : (
-              <span className="block mt-1 italic text-stone-400">
+              <span className="block mt-1 italic text-gray-400">
                 Fill in your clinic name, address, and phone in Settings → Clinic so they match Google.
               </span>
             )}
@@ -405,22 +405,22 @@ export default async function SeoPage({ searchParams }: Props) {
             desk.
             {googleReviewUrl ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <code className="text-xs px-2 py-1 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 break-all">
+                <code className="text-xs px-2 py-1 rounded-[var(--r-xs)] v2-well text-gray-700 dark:text-gray-200 break-all">
                   {googleReviewUrl}
                 </code>
                 <a
                   href={googleReviewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                  className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
                 >
                   Test it →
                 </a>
               </div>
             ) : (
-              <span className="block mt-1 italic text-stone-400">
+              <span className="block mt-1 italic text-gray-400">
                 Add your Google Place ID in{' '}
-                <Link href="/reviews" className="not-italic text-violet-600 dark:text-violet-400 hover:underline">
+                <Link href="/reviews" className="not-italic text-teal-700 dark:text-teal-400 hover:underline">
                   Reviews
                 </Link>{' '}
                 and your one-click review link appears here.
@@ -432,11 +432,11 @@ export default async function SeoPage({ searchParams }: Props) {
 
       {/* ── Coming next ───────────────────────────────────────────────── */}
       <section>
-        <div className="bg-stone-100 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-5">
-          <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+        <div className="v2-well p-5">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Coming next
           </p>
-          <ul className="text-xs text-stone-600 dark:text-stone-300 space-y-1">
+          <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
             <li>· Google Business Profile in-app: posting (from your blog) + profile insights + review replies (access request in progress — the checklist above is the manual path until then)</li>
             <li>· Core Web Vitals (page speed) on your key pages</li>
             <li>· Rank tracking for your top local terms</li>
@@ -452,12 +452,12 @@ export default async function SeoPage({ searchParams }: Props) {
 function GbpStep({ n, title, children }: { n: number; title: React.ReactNode; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3">
-      <span className="flex-none mt-0.5 w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-xs font-bold tabular-nums flex items-center justify-center">
+      <span className="flex-none mt-0.5 w-6 h-6 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 text-xs font-bold tabular-nums font-mono-num flex items-center justify-center">
         {n}
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-medium text-stone-800 dark:text-stone-100">{title}</p>
-        <div className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">{children}</div>
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{title}</p>
+        <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{children}</div>
       </div>
     </li>
   )
@@ -466,23 +466,23 @@ function GbpStep({ n, title, children }: { n: number; title: React.ReactNode; ch
 function AttrTile({ label, value, total }: { label: string; value: number; total?: number }) {
   const pct = total != null && total > 0 ? Math.round((value / total) * 100) : null
   return (
-    <div className="px-3 py-3 rounded-lg bg-stone-50 dark:bg-stone-800/40">
-      <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">{label}</p>
-      <p className="text-2xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">
+    <div className="v2-well px-3 py-3">
+      <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">{label}</p>
+      <p className="text-2xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">
         {value.toLocaleString()}
-        {total != null && <span className="text-sm font-normal text-stone-500 dark:text-stone-400"> / {total}</span>}
+        {total != null && <span className="text-sm font-normal text-gray-500 dark:text-gray-400"> / {total}</span>}
       </p>
-      {pct != null && <p className="text-xs text-stone-500 dark:text-stone-400">{pct}% from organic</p>}
+      {pct != null && <p className="text-xs text-gray-500 dark:text-gray-400">{pct}% from organic</p>}
     </div>
   )
 }
 
 function MiniStat({ label, value, tone }: { label: string; value: string | number; tone?: 'ok' }) {
   return (
-    <div className="px-3 py-2 rounded-lg bg-stone-50 dark:bg-stone-800/40">
-      <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">{label}</p>
+    <div className="v2-well px-3 py-2">
+      <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">{label}</p>
       <p
-        className={`text-xl font-bold tabular-nums mt-0.5 ${tone === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-stone-900 dark:text-stone-100'}`}
+        className={`text-xl font-bold tabular-nums font-mono-num mt-0.5 ${tone === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-900 dark:text-gray-100'}`}
       >
         {value}
       </p>
@@ -493,7 +493,7 @@ function MiniStat({ label, value, tone }: { label: string; value: string | numbe
 function PerfBlock({ perf, subtitle }: { perf: GscPerformance; subtitle: string }) {
   return (
     <div>
-      <p className="text-xs text-stone-500 dark:text-stone-400 mb-3 tabular-nums">{subtitle}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 tabular-nums font-mono-num">{subtitle}</p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <MiniStat label="Clicks" value={perf.clicks.toLocaleString()} tone="ok" />
         <MiniStat label="Impressions" value={perf.impressions.toLocaleString()} />
@@ -502,11 +502,11 @@ function PerfBlock({ perf, subtitle }: { perf: GscPerformance; subtitle: string 
       </div>
       {perf.topQueries.length > 0 && (
         <div>
-          <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Top search queries
           </p>
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400">
+            <thead className="text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="py-1 font-semibold">Query</th>
                 <th className="py-1 text-right font-semibold">Clicks</th>
@@ -516,11 +516,11 @@ function PerfBlock({ perf, subtitle }: { perf: GscPerformance; subtitle: string 
             </thead>
             <tbody>
               {perf.topQueries.map((q) => (
-                <tr key={q.query} className="border-t border-stone-100 dark:border-stone-700/40">
-                  <td className="py-1.5 text-stone-800 dark:text-stone-100">{q.query}</td>
-                  <td className="py-1.5 text-right tabular-nums text-stone-600 dark:text-stone-300">{q.clicks}</td>
-                  <td className="py-1.5 text-right tabular-nums text-stone-500 dark:text-stone-400">{q.impressions}</td>
-                  <td className="py-1.5 text-right tabular-nums text-stone-500 dark:text-stone-400">{q.position.toFixed(1)}</td>
+                <tr key={q.query} className="border-t border-[color:var(--color-hairline)]">
+                  <td className="py-1.5 text-gray-800 dark:text-gray-100">{q.query}</td>
+                  <td className="py-1.5 text-right tabular-nums font-mono-num text-gray-600 dark:text-gray-300">{q.clicks}</td>
+                  <td className="py-1.5 text-right tabular-nums font-mono-num text-gray-500 dark:text-gray-400">{q.impressions}</td>
+                  <td className="py-1.5 text-right tabular-nums font-mono-num text-gray-500 dark:text-gray-400">{q.position.toFixed(1)}</td>
                 </tr>
               ))}
             </tbody>

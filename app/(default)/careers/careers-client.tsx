@@ -399,7 +399,7 @@ function ApplicantDrawer({
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder="Private notes for the team…"
-          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
+          className="w-full text-sm px-3 py-2 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
         />
         <div className="mt-2">
           <ActionButton variant="secondary" size="sm" disabled={isPending} onClick={() => run(() => updateApplicationNotesAction(app.id, notes || null, rating || null))}>
