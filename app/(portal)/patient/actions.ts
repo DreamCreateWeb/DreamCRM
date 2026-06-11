@@ -5,7 +5,9 @@ import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { appointment, patient } from '@/lib/db/schema/clinic'
+import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant, type TenantContext } from '@/lib/auth/context'
+import { visitTypeDuration } from '@/lib/types/visit-types'
 import { getPortalSettings } from '@/lib/services/portal-settings'
 import {
   getAccessiblePatientIds,
@@ -216,7 +218,17 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
     return { ok: false, error: 'That time is too soon to book online — pick a later slot or give us a call.' }
   }
 
-  const free = await isSlotAvailable(ctx.organizationId, startTime)
+  // Resolve the visit-type duration from the clinic's catalog so the race-guard
+  // checks the whole appointment window and endTime reflects the real length
+  // (mirrors the public + front-desk booking paths; wave 1 left this at +30min).
+  const [vtRow] = await db
+    .select({ visitTypeSettings: clinicProfile.visitTypeSettings })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, ctx.organizationId))
+    .limit(1)
+  const durationMinutes = visitTypeDuration(vtRow?.visitTypeSettings ?? null, type)
+
+  const free = await isSlotAvailable(ctx.organizationId, startTime, durationMinutes)
   if (!free) return { ok: false, error: 'That time was just taken — pick another one.' }
 
   const notes = formData.get('notes')?.toString().trim() || ''
@@ -236,7 +248,8 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
     .limit(1)
   const patientName = forPatient ? `${forPatient.firstName} ${forPatient.lastName}` : ctx.userName
 
-  const endTime = new Date(startTime.getTime() + SLOT_MINUTES * 60_000)
+  // End time = start + the visit-type duration (never shorter than one slot).
+  const endTime = new Date(startTime.getTime() + Math.max(SLOT_MINUTES, durationMinutes) * 60_000)
   const apptId = randomUUID()
   await db.insert(appointment).values({
     id: apptId,

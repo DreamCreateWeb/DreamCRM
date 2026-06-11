@@ -155,7 +155,43 @@ export async function listBookingSlots(
   return getSlotsForDay(orgId, date, undefined, durationMinutes)
 }
 
-export async function submitBookingRequest(formData: FormData) {
+/**
+ * Confirmation payload returned to the booking widget so the success screen can
+ * render the booked details, a maps link, an inline "Add to calendar" .ics, and
+ * (when the clinic has one) a "fill out your intake form now" CTA. Email-less
+ * (phone-only) bookers get this same on-screen artifact — it's their only
+ * record, since no confirmation email is sent.
+ */
+export interface BookingConfirmation {
+  patientName: string
+  clinicName: string
+  clinicPhone: string | null
+  /** Absolute instant of the visit start (the client renders it in the clinic's zone). */
+  startTimeIso: string
+  /** Absolute instant of the visit end. */
+  endTimeIso: string
+  /** IANA timezone the visit is scheduled in, so the screen labels match the email. */
+  timeZone: string
+  /** Human visit-type label, e.g. "Cleaning". */
+  visitTypeLabel: string
+  /** One-line address for display + the .ics LOCATION (null when unset). */
+  addressText: string | null
+  /** Google Maps directions deep link (null when no address). */
+  mapsUrl: string | null
+  /** Public intake-form URL when the clinic has a default form (null otherwise). */
+  intakeFormUrl: string | null
+  /** Whether a confirmation email was sent (false for phone-only bookers). */
+  emailSent: boolean
+}
+
+/** Title-case a visit-type id into a display label ("root_canal" → "Root canal"). */
+function visitTypeLabelFromId(id: string): string {
+  const spaced = id.replace(/_/g, ' ').trim()
+  if (!spaced) return 'Visit'
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+export async function submitBookingRequest(formData: FormData): Promise<BookingConfirmation> {
   const slug = formData.get('slug')?.toString()
   const firstName = formData.get('firstName')?.toString().trim()
   const lastName = formData.get('lastName')?.toString().trim()
@@ -163,7 +199,20 @@ export async function submitBookingRequest(formData: FormData) {
   const phone = formData.get('phone')?.toString().trim() || null
   const appointmentType = formData.get('type')?.toString() || 'checkup'
   const startTimeRaw = formData.get('startTime')?.toString()
-  const notes = formData.get('notes')?.toString().trim() || null
+  const notesRaw = formData.get('notes')?.toString().trim() || ''
+
+  // Optional front-desk-context questions (NexHealth-style). Both optional, no
+  // schema — they ride the appointment notes as labelled lines so the front
+  // desk sees them without a new column. `__skip__`/empty are ignored.
+  const visitedBefore = formData.get('visitedBefore')?.toString().trim() || ''
+  const hasInsurance = formData.get('hasInsurance')?.toString().trim() || ''
+  const contextLines: string[] = []
+  if (visitedBefore === 'new') contextLines.push('New patient (first visit)')
+  else if (visitedBefore === 'returning') contextLines.push('Returning patient')
+  if (hasInsurance === 'yes') contextLines.push('Has dental insurance')
+  else if (hasInsurance === 'no') contextLines.push('No dental insurance')
+  else if (hasInsurance === 'unsure') contextLines.push('Unsure about dental insurance')
+  const notes = [...contextLines, notesRaw].filter(Boolean).join('\n') || null
 
   // Source attribution (mirrors the contact form) — powers SEO organic→booking
   // attribution. All optional.
@@ -301,31 +350,40 @@ export async function submitBookingRequest(formData: FormData) {
       displayName: clinicProfile.displayName,
       phone: clinicProfile.phone,
       websiteDomain: clinicProfile.websiteDomain,
+      addressLine1: clinicProfile.addressLine1,
+      addressLine2: clinicProfile.addressLine2,
+      city: clinicProfile.city,
+      state: clinicProfile.state,
+      postalCode: clinicProfile.postalCode,
     })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
 
-  if (email) {
-    // Build the intake-form link when the clinic has a default form.
-    let intakeFormUrl: string | null = null
-    const defaultForm = await getDefaultFormTemplate(orgId)
-    if (defaultForm) {
-      const [org] = await db
-        .select({ slug: organization.slug })
-        .from(organization)
-        .where(eq(organization.id, orgId))
-        .limit(1)
-      if (org) {
-        const base = publicSiteUrl({
-          slug: org.slug,
-          profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
-        })
-        intakeFormUrl = `${base}/intake/${defaultForm.slug}`
-      }
+  // Build the intake-form link when the clinic has a default form. Done once
+  // (independent of email) so the on-screen success CTA can surface it even for
+  // phone-only bookers — the on-screen artifact replaces the email they'll
+  // never get.
+  let intakeFormUrl: string | null = null
+  const defaultForm = await getDefaultFormTemplate(orgId)
+  if (defaultForm) {
+    const [org] = await db
+      .select({ slug: organization.slug })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1)
+    if (org) {
+      const base = publicSiteUrl({
+        slug: org.slug,
+        profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+      })
+      intakeFormUrl = `${base}/intake/${defaultForm.slug}`
     }
+  }
 
-    const sender = await getClinicSenderIdentity(orgId)
+  const sender = await getClinicSenderIdentity(orgId)
+
+  if (email) {
     sendBookingConfirmationEmail(
       email,
       {
@@ -346,5 +404,30 @@ export async function submitBookingRequest(formData: FormData) {
       note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
       mode: 'Email',
     }).catch(() => {})
+  }
+
+  // One-line address for display + the .ics LOCATION, and a directions deep
+  // link. Hides cleanly when the clinic hasn't set an address.
+  const addressText =
+    [profile?.addressLine1, profile?.addressLine2, profile?.city, profile?.state, profile?.postalCode]
+      .map((p) => p?.trim())
+      .filter(Boolean)
+      .join(', ') || null
+  const mapsUrl = addressText
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressText)}`
+    : null
+
+  return {
+    patientName: `${firstName} ${lastName}`,
+    clinicName: sender.name,
+    clinicPhone: profile?.phone ?? null,
+    startTimeIso: startTime.toISOString(),
+    endTimeIso: endTime.toISOString(),
+    timeZone: sender.timeZone,
+    visitTypeLabel: visitTypeLabelFromId(appointmentType),
+    addressText,
+    mapsUrl,
+    intakeFormUrl,
+    emailSent: Boolean(email),
   }
 }

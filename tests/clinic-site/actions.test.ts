@@ -4,7 +4,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const insertedRows: Array<{ table: string; values: unknown }> = []
 const selectStubs = {
   patient: null as { id: string } | null,
-  profile: null as { email: string | null; displayName: string | null; phone?: string | null } | null,
+  profile: null as
+    | {
+        email: string | null
+        displayName: string | null
+        phone?: string | null
+        addressLine1?: string | null
+        addressLine2?: string | null
+        city?: string | null
+        state?: string | null
+        postalCode?: string | null
+        visitTypeSettings?: unknown
+      }
+    | null,
 }
 
 function chain(returnFn: () => unknown) {
@@ -78,7 +90,15 @@ vi.mock('@/lib/services/clinic-sender', () => ({
     from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
     replyTo: 'front@acmedental.com',
     name: 'Acme Dental',
+    timeZone: 'America/New_York',
   })),
+}))
+
+// Default-form lookup for the booking confirmation's intake CTA. Controllable
+// per test via `defaultForm`.
+let defaultForm: { slug: string } | null = null
+vi.mock('@/lib/services/forms', () => ({
+  getDefaultFormTemplate: vi.fn(async () => defaultForm),
 }))
 
 // The actions now resolve the org from the public slug server-side instead of
@@ -96,6 +116,7 @@ beforeEach(() => {
   insertedRows.length = 0
   selectStubs.patient = null
   selectStubs.profile = null
+  defaultForm = null
   vi.clearAllMocks()
   slotAvailableMock.mockResolvedValue(true)
   notifyOrgMembersMock.mockResolvedValue(undefined)
@@ -381,5 +402,80 @@ describe('submitBookingRequest', () => {
     expect(vals.status).toBe('scheduled')
     expect(vals.type).toBe('root_canal')
     expect(vals.title).toMatch(/Root canal/)
+  })
+
+  // ── Optional front-desk-context questions (ride the notes, no schema) ──
+  it('prefixes the appointment notes with new-patient + insurance context when answered', async () => {
+    await submitBookingRequest(
+      form({ ...baseFields, visitedBefore: 'new', hasInsurance: 'yes', notes: 'Nervous patient' }),
+    )
+    const vals = insertedRows.find((r) => r.table === 'appointment')!.values as { notes: string | null }
+    expect(vals.notes).toContain('New patient (first visit)')
+    expect(vals.notes).toContain('Has dental insurance')
+    expect(vals.notes).toContain('Nervous patient')
+  })
+
+  it('records the returning-patient + no-insurance + unsure answers', async () => {
+    await submitBookingRequest(form({ ...baseFields, visitedBefore: 'returning', hasInsurance: 'no' }))
+    let vals = insertedRows.find((r) => r.table === 'appointment')!.values as { notes: string | null }
+    expect(vals.notes).toContain('Returning patient')
+    expect(vals.notes).toContain('No dental insurance')
+
+    insertedRows.length = 0
+    await submitBookingRequest(form({ ...baseFields, hasInsurance: 'unsure' }))
+    vals = insertedRows.find((r) => r.table === 'appointment')!.values as { notes: string | null }
+    expect(vals.notes).toContain('Unsure about dental insurance')
+  })
+
+  it('leaves notes null when both optional questions are skipped and no free-text note', async () => {
+    await submitBookingRequest(form({ ...baseFields, notes: null }))
+    const vals = insertedRows.find((r) => r.table === 'appointment')!.values as { notes: string | null }
+    expect(vals.notes).toBeNull()
+  })
+
+  // ── Confirmation payload returned to the success screen ──
+  it('returns a confirmation payload with the visit details, address + maps link', async () => {
+    selectStubs.profile = {
+      email: 'clinic@x.com',
+      displayName: 'X Dental',
+      phone: '555-clinic',
+      addressLine1: '123 Main St',
+      city: 'Springfield',
+      state: 'IL',
+      postalCode: '62704',
+    }
+    const conf = await submitBookingRequest(form({ ...baseFields, type: 'cleaning' }))
+    expect(conf.patientName).toBe('Jane Doe')
+    expect(conf.clinicName).toBe('Acme Dental') // sender identity name
+    expect(conf.visitTypeLabel).toBe('Cleaning')
+    expect(conf.timeZone).toBe('America/New_York')
+    expect(conf.addressText).toContain('123 Main St')
+    expect(conf.addressText).toContain('Springfield')
+    expect(conf.mapsUrl).toContain('google.com/maps')
+    expect(conf.emailSent).toBe(true)
+    // endTime is after startTime.
+    expect(new Date(conf.endTimeIso).getTime()).toBeGreaterThan(new Date(conf.startTimeIso).getTime())
+  })
+
+  it('returns emailSent=false and null address bits for a phone-only booker with no clinic address', async () => {
+    selectStubs.profile = { email: null, displayName: 'X Dental', phone: '555-clinic' }
+    const conf = await submitBookingRequest(form({ ...baseFields, email: null }))
+    expect(conf.emailSent).toBe(false)
+    expect(conf.addressText).toBeNull()
+    expect(conf.mapsUrl).toBeNull()
+  })
+
+  it('surfaces the intake-form URL in the confirmation when the clinic has a default form', async () => {
+    selectStubs.profile = { email: 'jane@x.com', displayName: 'X Dental', phone: '555' }
+    defaultForm = { slug: 'new-patient' }
+    const conf = await submitBookingRequest(form(baseFields))
+    expect(conf.intakeFormUrl).toContain('/intake/new-patient')
+  })
+
+  it('confirmation intakeFormUrl is null when the clinic has no default form', async () => {
+    selectStubs.profile = { email: 'jane@x.com', displayName: 'X Dental', phone: '555' }
+    defaultForm = null
+    const conf = await submitBookingRequest(form(baseFields))
+    expect(conf.intakeFormUrl).toBeNull()
   })
 })
