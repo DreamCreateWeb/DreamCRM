@@ -46,7 +46,7 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
 
   return (
     <>
-      <ActionButton variant="primary" onClick={() => setOpen(true)}>
+      <ActionButton variant="primary" breath onClick={() => setOpen(true)}>
         + New campaign
       </ActionButton>
 

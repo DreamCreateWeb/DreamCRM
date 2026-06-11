@@ -562,7 +562,7 @@ function AiImproveModal({
             <button
               key={p}
               onClick={() => onChange(p)}
-              className="text-xs font-medium px-2 py-1 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700/40 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700/40 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
             >
               {p}
             </button>

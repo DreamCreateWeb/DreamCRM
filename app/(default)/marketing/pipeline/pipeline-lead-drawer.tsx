@@ -146,7 +146,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
               setDraft((d) => (d ? { ...d, pipelineStage: e.target.value } : d))
               setDirty(true)
             }}
-            className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+            className="form-select w-full"
           >
             {stages.map((s) => (
               <option key={s.key} value={s.key}>
@@ -163,7 +163,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
               setDraft((d) => (d ? { ...d, leadSource: e.target.value || null } : d))
               setDirty(true)
             }}
-            className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+            className="form-select w-full"
           >
             <option value="">—</option>
             {sources.map((s) => (
@@ -181,7 +181,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
               setDraft((d) => (d ? { ...d, name: e.target.value } : d))
               setDirty(true)
             }}
-            className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+            className="form-input w-full"
           />
         </Section>
         <Section label="Email">
@@ -192,7 +192,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
               setDraft((d) => (d ? { ...d, email: e.target.value } : d))
               setDirty(true)
             }}
-            className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+            className="form-input w-full"
           />
         </Section>
         <div className="grid grid-cols-2 gap-3">
@@ -204,7 +204,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
                 setDraft((d) => (d ? { ...d, phone: e.target.value || null } : d))
                 setDirty(true)
               }}
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="form-input w-full"
             />
           </Section>
           <Section label="Location">
@@ -214,7 +214,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
                 setDraft((d) => (d ? { ...d, location: e.target.value || null } : d))
                 setDirty(true)
               }}
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+              className="form-input w-full"
             />
           </Section>
         </div>
@@ -226,11 +226,11 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
               setDirty(true)
             }}
             rows={6}
-            className="w-full text-sm px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 resize-y"
+            className="form-textarea w-full resize-y"
           />
         </Section>
 
-        <div className="flex items-center justify-between gap-3 bg-stone-50 dark:bg-gray-900/40 rounded-lg px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3 v2-well px-3 py-2.5">
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
               Marketing emails
@@ -246,7 +246,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
           </ActionButton>
         </div>
 
-        <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums pt-2 border-t border-gray-100 dark:border-gray-700/40">
+        <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num pt-2 border-t border-[color:var(--color-hairline)]">
           Added {new Date(draft.createdAt).toLocaleDateString()}
           {draft.lastActivityAt && ` · Last activity ${new Date(draft.lastActivityAt).toLocaleDateString()}`}
         </div>

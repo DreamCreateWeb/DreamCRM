@@ -160,13 +160,13 @@ export default function FormBuilder({ template }: Props) {
       <div>
         <Link
           href="/intake-forms"
-          className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
+          className="text-sm text-teal-700 dark:text-teal-300 hover:underline"
         >
           ← All intake forms
         </Link>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 space-y-4">
+      <div className="v2-card p-6 space-y-4">
         <div>
           <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
             Form title
@@ -208,7 +208,7 @@ export default function FormBuilder({ template }: Props) {
       {sections.map((section, si) => (
         <div
           key={section.id}
-          className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 space-y-4 border border-gray-100 dark:border-gray-700/60"
+          className="v2-card p-5 space-y-4"
         >
           <div className="flex items-start gap-3">
             <div className="flex flex-col gap-1 mt-1">
@@ -216,7 +216,7 @@ export default function FormBuilder({ template }: Props) {
                 type="button"
                 onClick={() => moveSection(si, -1)}
                 disabled={si === 0}
-                className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs leading-none"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
                 aria-label="Move section up"
               >
                 ▲
@@ -225,7 +225,7 @@ export default function FormBuilder({ template }: Props) {
                 type="button"
                 onClick={() => moveSection(si, 1)}
                 disabled={si === sections.length - 1}
-                className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs leading-none"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
                 aria-label="Move section down"
               >
                 ▼
@@ -250,14 +250,14 @@ export default function FormBuilder({ template }: Props) {
             <button
               type="button"
               onClick={() => removeSection(si)}
-              className="text-xs text-red-500 hover:text-red-600 mt-2"
+              className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 mt-2"
             >
               Remove section
             </button>
           </div>
 
           {/* Fields */}
-          <div className="space-y-3 pl-6 border-l-2 border-gray-100 dark:border-gray-700/60 ml-2">
+          <div className="space-y-3 pl-6 border-l-2 border-[color:var(--color-hairline)] ml-2">
             {section.fields.length === 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400 italic">No fields yet — add one below.</p>
             )}
@@ -281,15 +281,15 @@ export default function FormBuilder({ template }: Props) {
       <button
         type="button"
         onClick={addSection}
-        className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200"
+        className="w-full py-3 rounded-[var(--r-lg)] border-2 border-dashed border-[color:var(--color-hairline-strong)] text-sm text-gray-500 dark:text-gray-400 hover:border-teal-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
       >
         + Add Section
       </button>
 
       {/* Save bar */}
-      <div className="sticky bottom-4 bg-white dark:bg-gray-800 shadow-lg rounded-xl px-5 py-4 flex items-center justify-between border border-gray-100 dark:border-gray-700/60">
+      <div className="sticky bottom-4 bg-[color:var(--color-surface-2)] shadow-[var(--shadow-pop)] rounded-[var(--r-lg)] px-5 py-4 flex items-center justify-between">
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          {error && <span className="text-red-600">{error}</span>}
+          {error && <span className="text-rose-600 dark:text-rose-400">{error}</span>}
           {saved && <span className="text-emerald-600">Saved ✓</span>}
           {!error && !saved && (
             <span>
@@ -331,14 +331,14 @@ function FieldRow({
   onMoveDown?: () => void
 }) {
   return (
-    <div className="bg-gray-50 dark:bg-gray-900/30 rounded-lg p-3">
+    <div className="v2-well p-3">
       <div className="flex items-start gap-3">
         <div className="flex flex-col gap-1 mt-1">
           <button
             type="button"
             onClick={onMoveUp}
             disabled={!onMoveUp}
-            className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs leading-none"
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
             aria-label="Move field up"
           >
             ▲
@@ -347,7 +347,7 @@ function FieldRow({
             type="button"
             onClick={onMoveDown}
             disabled={!onMoveDown}
-            className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs leading-none"
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
             aria-label="Move field down"
           >
             ▼
@@ -355,7 +355,7 @@ function FieldRow({
         </div>
         <div className="flex-1 space-y-2">
           <div className="flex gap-2 flex-wrap items-center">
-            <span className="text-xs font-semibold uppercase tracking-wider bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-semibold uppercase tracking-wider bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-[var(--r-pill)]">
               {FIELD_TYPE_LABELS[field.type]}
             </span>
             <label className="text-xs flex items-center gap-1 text-gray-600 dark:text-gray-400">
@@ -404,7 +404,7 @@ function FieldRow({
                       const next = field.options.filter((_, j) => j !== i)
                       onChange({ options: next.length ? next : ['Option 1'] })
                     }}
-                    className="text-xs text-red-500 hover:text-red-600"
+                    className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400"
                   >
                     ×
                   </button>
@@ -413,7 +413,7 @@ function FieldRow({
               <button
                 type="button"
                 onClick={() => onChange({ options: [...field.options, `Option ${field.options.length + 1}`] })}
-                className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                className="text-xs text-teal-700 dark:text-teal-300 hover:underline"
               >
                 + Add option
               </button>
@@ -437,7 +437,7 @@ function FieldRow({
         <button
           type="button"
           onClick={onRemove}
-          className="text-xs text-red-500 hover:text-red-600 mt-2"
+          className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 mt-2"
         >
           Remove
         </button>
@@ -461,7 +461,7 @@ function FieldTypeMenu({ onPick }: { onPick: (type: FormFieldType) => void }) {
   ]
   return (
     <details className="ml-8">
-      <summary className="text-sm text-violet-600 dark:text-violet-400 cursor-pointer hover:underline list-none">
+      <summary className="text-sm text-teal-700 dark:text-teal-300 cursor-pointer hover:underline list-none">
         + Add field
       </summary>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mt-2">
@@ -470,7 +470,7 @@ function FieldTypeMenu({ onPick }: { onPick: (type: FormFieldType) => void }) {
             key={t}
             type="button"
             onClick={() => onPick(t)}
-            className="text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 text-left"
+            className="text-xs px-3 py-2 rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] hover:border-teal-400 hover:bg-teal-500/5 dark:hover:bg-teal-500/10 text-left transition-colors"
           >
             {FIELD_TYPE_LABELS[t]}
           </button>

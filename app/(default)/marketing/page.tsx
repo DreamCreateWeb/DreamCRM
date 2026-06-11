@@ -81,7 +81,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
             <ActionButton variant="secondary" href="/marketing/campaigns">
               Campaigns
             </ActionButton>
-            <ActionButton variant="primary" href="/marketing/pipeline">
+            <ActionButton variant="primary" breath href="/marketing/pipeline">
               Open pipeline
             </ActionButton>
           </>

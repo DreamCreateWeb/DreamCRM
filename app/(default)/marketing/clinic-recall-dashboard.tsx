@@ -85,7 +85,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
             <ActionButton variant="secondary" href="/marketing/campaigns">
               Campaigns
             </ActionButton>
-            <ActionButton variant="primary" href="/marketing/outreach">
+            <ActionButton variant="primary" breath href="/marketing/outreach">
               Open outreach queue
             </ActionButton>
           </>

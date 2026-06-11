@@ -126,7 +126,7 @@ export default async function ReviewsPage() {
         }
         actions={
           stats.completed30d > 0 ? (
-            <ActionButton variant="primary" href="/reviews/received">
+            <ActionButton variant="primary" breath href="/reviews/received">
               Browse received reviews
             </ActionButton>
           ) : undefined

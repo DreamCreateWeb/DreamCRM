@@ -24,24 +24,24 @@ export default async function EditFormPage({ params }: Props) {
 
       <div className="mt-10">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">
-          Submissions <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums">({submissions.length})</span>
+          Submissions <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums font-mono-num">({submissions.length})</span>
         </h2>
         {submissions.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             No submissions yet. Send this form to a patient from their detail page or the appointment drawer.
           </p>
         ) : (
-          <ul className="bg-white dark:bg-gray-800 rounded-xl shadow-sm divide-y divide-gray-100 dark:divide-gray-700/60">
+          <ul className="v2-card divide-y divide-[color:var(--color-hairline)] overflow-hidden">
             {submissions.map((s) => (
               <li key={s.id}>
                 <Link
                   href={`/intake-forms/submissions/${s.id}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors"
                 >
                   <span className="text-sm text-gray-800 dark:text-gray-100">
                     {s.submitterName ?? s.submitterEmail ?? 'Anonymous'}
                   </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
                     {new Date(s.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </Link>

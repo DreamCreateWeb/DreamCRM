@@ -43,7 +43,7 @@ export default async function SubmissionPage({ params }: Props) {
       <div className="mb-6">
         <Link
           href={`/intake-forms/${template.id}`}
-          className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
+          className="text-sm text-teal-700 dark:text-teal-300 hover:underline"
         >
           ← Back to {template.title}
         </Link>
@@ -53,7 +53,7 @@ export default async function SubmissionPage({ params }: Props) {
           {patientName ? (
             <Link
               href={`/patients/${patientId}`}
-              className="font-medium text-violet-600 dark:text-violet-400 hover:underline"
+              className="font-medium text-teal-700 dark:text-teal-300 hover:underline"
             >
               {patientName}
             </Link>
@@ -69,7 +69,7 @@ export default async function SubmissionPage({ params }: Props) {
         )}
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm divide-y divide-gray-100 dark:divide-gray-700/60">
+      <div className="v2-card divide-y divide-[color:var(--color-hairline)]">
         {(schema?.sections ?? []).map((section) => (
           <div key={section.id} className="p-5">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
