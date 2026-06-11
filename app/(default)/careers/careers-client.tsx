@@ -144,15 +144,15 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-5 border-b border-stone-200 dark:border-stone-700">
+      <div className="flex gap-1 mb-5 border-b border-gray-200 dark:border-gray-700">
         {(['roles', 'applicants'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 ${
               tab === t
-                ? 'border-violet-500 text-stone-900 dark:text-stone-100'
-                : 'border-transparent text-stone-500 dark:text-stone-400 hover:text-stone-700'
+                ? 'border-teal-500 text-gray-900 dark:text-gray-100'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700'
             }`}
           >
             {t === 'roles' ? `Roles (${jobs.length})` : `Applicants (${counts.all})`}
@@ -163,43 +163,41 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
       {tab === 'roles' ? (
         <div className="space-y-2.5">
           {jobs.length === 0 ? (
-            <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60">
-              <EmptyState
-                icon="📣"
-                title="No roles yet"
-                body="Post your first opening — it goes live on your site and gets indexed by Google for Jobs and Indeed for free."
-                action={
-                  <ActionButton variant="primary" size="sm" href="/careers/new">
-                    + New role
-                  </ActionButton>
-                }
-              />
-            </div>
+            <EmptyState
+              icon="📣"
+              title="No roles yet"
+              body="Post your first opening — it goes live on your site and gets indexed by Google for Jobs and Indeed for free."
+              action={
+                <ActionButton variant="primary" size="sm" href="/careers/new">
+                  + New role
+                </ActionButton>
+              }
+            />
           ) : (
             jobs.map((j) => (
               <div
                 key={j.id}
-                className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 flex flex-wrap items-center gap-3"
+                className="v2-card p-4 flex flex-wrap items-center gap-3"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">{j.title}</span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{j.title}</span>
                     <StatusPill tone={JOB_STATUS_TONE[j.status]} label={JOB_STATUS_LABEL[j.status]} />
                     {j.applicantCount > 0 && (
-                      <span className="text-xs text-stone-500 dark:text-stone-400 tabular-nums">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                         {j.applicantCount} applicant{j.applicantCount === 1 ? '' : 's'}
-                        {j.newApplicantCount > 0 && <span className="text-sky-600 dark:text-sky-400"> · {j.newApplicantCount} new</span>}
+                        {j.newApplicantCount > 0 && <span className="text-amber-700 dark:text-amber-300"> · {j.newApplicantCount} new</span>}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {ROLE_LABELS[j.role]} · {EMPLOYMENT_LABELS[j.employmentType]}
-                    {formatComp(j) ? ` · ${formatComp(j)}` : ''}
+                    {formatComp(j) ? <> · <span className="font-mono-num">{formatComp(j)}</span></> : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {j.status === 'open' && publicBase && (
-                    <a href={`${publicBase}/${j.slug}`} target="_blank" rel="noopener" className="btn-sm border-transparent shadow-none text-stone-500 hover:text-violet-600 dark:text-stone-400">
+                    <a href={`${publicBase}/${j.slug}`} target="_blank" rel="noopener" className="btn-sm border-transparent shadow-none text-gray-500 hover:text-teal-700 dark:text-gray-400">
                       View ↗
                     </a>
                   )}
@@ -248,32 +246,30 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
             </div>
             <div className="space-y-2">
               {filtered.length === 0 ? (
-                <div className="bg-white dark:bg-stone-900 rounded-xl border border-dashed border-stone-300 dark:border-stone-700">
-                  <EmptyState
-                    icon="🗂️"
-                    title={statusFilter === 'all' ? 'No applicants yet' : 'Nothing in this view'}
-                    body={
-                      statusFilter === 'all'
-                        ? 'When someone applies through your site, they land here for review.'
-                        : 'No applicants match this filter right now.'
-                    }
-                  />
-                </div>
+                <EmptyState
+                  icon="🗂️"
+                  title={statusFilter === 'all' ? 'No applicants yet' : 'Nothing in this view'}
+                  body={
+                    statusFilter === 'all'
+                      ? 'When someone applies through your site, they land here for review.'
+                      : 'No applicants match this filter right now.'
+                  }
+                />
               ) : (
                 filtered.map((a) => (
                   <button
                     key={a.id}
                     onClick={() => setSelectedId(a.id)}
-                    className={`w-full text-left bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700/60 border-l-4 ${agingBorderClass(applicantTier(a))} p-3 ${
-                      selectedId === a.id ? 'ring-2 ring-violet-300 dark:ring-violet-500/40' : ''
+                    className={`w-full text-left v2-card-interactive border-l-4 ${agingBorderClass(applicantTier(a))} p-3 ${
+                      selectedId === a.id ? 'ring-1 ring-inset ring-teal-500/40 bg-teal-500/5' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">{a.name}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{a.name}</span>
                       <StatusPill tone={APP_STATUS_TONE[a.status]} label={APP_STATUS_LABEL[a.status]} title={APP_STATUS_MEANING[a.status]} className="shrink-0" />
                     </div>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 truncate">
-                      {a.jobTitle} · applied {a.ageHours < 24 ? `${a.ageHours}h ago` : `${Math.floor(a.ageHours / 24)}d ago`}
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                      {a.jobTitle} · applied <span className="font-mono-num">{a.ageHours < 24 ? `${a.ageHours}h ago` : `${Math.floor(a.ageHours / 24)}d ago`}</span>
                     </p>
                   </button>
                 ))
@@ -286,7 +282,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
             {selected ? (
               <ApplicantDrawer key={selected.id} app={selected} isPending={isPending} run={run} />
             ) : (
-              <div className="bg-white dark:bg-stone-900 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-6 text-center text-sm text-stone-500 dark:text-stone-400">
+              <div className="v2-well p-6 text-center text-sm text-gray-500 dark:text-gray-400">
                 Select an applicant to review.
               </div>
             )}
@@ -315,27 +311,27 @@ function ApplicantDrawer({
   const otherStages = APPLICATION_PIPELINE.filter((s) => s !== app.status && s !== advance)
 
   return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+    <div className="v2-card p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="font-semibold text-stone-900 dark:text-stone-100">{app.name}</h3>
-          <p className="text-xs text-stone-500 dark:text-stone-400">{app.jobTitle}</p>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{app.name}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{app.jobTitle}</p>
         </div>
         <StatusPill tone={APP_STATUS_TONE[app.status]} label={APP_STATUS_LABEL[app.status]} title={APP_STATUS_MEANING[app.status]} />
       </div>
 
       <div className="mt-3 space-y-1 text-sm">
-        <a href={`mailto:${app.email}`} className="block text-violet-600 dark:text-violet-400 hover:underline truncate">{app.email}</a>
-        {app.phone && <a href={`tel:${app.phone}`} className="block text-stone-600 dark:text-stone-300">{app.phone}</a>}
+        <a href={`mailto:${app.email}`} className="block text-teal-700 dark:text-teal-400 hover:underline truncate">{app.email}</a>
+        {app.phone && <a href={`tel:${app.phone}`} className="block text-gray-600 dark:text-gray-300">{app.phone}</a>}
         {app.linkedinUrl && (
-          <a href={app.linkedinUrl} target="_blank" rel="noopener" className="block text-violet-600 dark:text-violet-400 hover:underline truncate">
+          <a href={app.linkedinUrl} target="_blank" rel="noopener" className="block text-teal-700 dark:text-teal-400 hover:underline truncate">
             LinkedIn ↗
           </a>
         )}
       </div>
 
       {app.coverNote && (
-        <p className="mt-3 text-sm text-stone-600 dark:text-stone-300 whitespace-pre-wrap border-l-2 border-stone-200 dark:border-stone-700 pl-3">
+        <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap border-l-2 border-[color:var(--color-hairline-strong)] pl-3">
           {app.coverNote}
         </p>
       )}
@@ -355,7 +351,7 @@ function ApplicantDrawer({
             href={app.resumeUrl}
             target="_blank"
             rel="noopener"
-            className="btn-sm bg-white dark:bg-gray-800 border-stone-200 dark:border-stone-700/60 hover:border-stone-300 dark:hover:border-stone-600 text-stone-800 dark:text-stone-300"
+            className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
           >
             Download résumé ↗
           </a>
@@ -364,7 +360,7 @@ function ApplicantDrawer({
 
       {/* Other pipeline moves */}
       <div className="mt-3">
-        <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">Move to</p>
+        <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Move to</p>
         <div className="flex flex-wrap gap-1.5">
           {otherStages.map((s) => (
             <ActionButton key={s} variant="secondary" size="sm" disabled={isPending} onClick={() => run(() => setApplicationStatusAction(app.id, s))}>
@@ -391,7 +387,7 @@ function ApplicantDrawer({
             <button
               key={n}
               onClick={() => setRating(n === rating ? 0 : n)}
-              className={`text-lg leading-none ${n <= rating ? 'text-amber-400' : 'text-stone-300 dark:text-stone-600'}`}
+              className={`text-lg leading-none ${n <= rating ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600'}`}
               aria-label={`Rate ${n} star${n === 1 ? '' : 's'}`}
             >
               ★
@@ -403,7 +399,7 @@ function ApplicantDrawer({
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder="Private notes for the team…"
-          className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 resize-none"
+          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
         />
         <div className="mt-2">
           <ActionButton variant="secondary" size="sm" disabled={isPending} onClick={() => run(() => updateApplicationNotesAction(app.id, notes || null, rating || null))}>

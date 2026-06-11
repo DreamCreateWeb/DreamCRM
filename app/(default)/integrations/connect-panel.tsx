@@ -29,10 +29,10 @@ export default function ConnectPanel({ configured }: { configured: boolean }) {
   return (
     <div
       id="connect-open-dental"
-      className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5 scroll-mt-20"
+      className="v2-panel p-5 scroll-mt-20"
     >
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+        <div className="w-10 h-10 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
           <PlugIcon />
         </div>
         <div>
@@ -52,7 +52,7 @@ export default function ConnectPanel({ configured }: { configured: boolean }) {
       </ol>
 
       {!configured && (
-        <div className="mb-4 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-lg px-3 py-2">
+        <div className="mb-4 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">
           Open Dental isn&apos;t enabled on this DreamCRM instance yet (the platform Developer Key is missing). Contact
           support and we&apos;ll switch it on.
         </div>
@@ -69,12 +69,12 @@ export default function ConnectPanel({ configured }: { configured: boolean }) {
             autoComplete="off"
             placeholder="e.g. VzkU8w…"
             disabled={pending || !configured}
-            className="flex-1 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+            className="form-input flex-1 text-sm disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={pending || !configured}
-            className="btn-sm bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-60 disabled:pointer-events-none whitespace-nowrap"
+            className="btn-sm bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60 disabled:pointer-events-none whitespace-nowrap"
           >
             {pending ? 'Verifying…' : 'Connect'}
           </button>
@@ -82,7 +82,7 @@ export default function ConnectPanel({ configured }: { configured: boolean }) {
       </form>
 
       {error && (
-        <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-lg px-3 py-2">{error}</p>
+        <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">{error}</p>
       )}
 
       <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{OPEN_DENTAL_API_FEE_NOTE}</p>

@@ -134,8 +134,8 @@ export default function ShopClient({
         </div>
       )}
 
-      {/* Stripe Connect status */}
-      <div className="mb-6 rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-5">
+      {/* Stripe Connect status — etched panel (status hero) */}
+      <div className="v2-panel mb-6 p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <div className="flex items-center gap-2">
@@ -170,7 +170,7 @@ export default function ShopClient({
               href="https://dashboard.stripe.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+              className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
             >
               Manage payouts in Stripe →
             </a>
@@ -208,13 +208,13 @@ export default function ShopClient({
             />
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            <Link href="/shop/orders" className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline">
+            <Link href="/shop/orders" className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline">
               View orders
               {orderStats.unfulfilledCount > 0 ? ` · ${orderStats.unfulfilledCount} to fulfill` : ''} →
             </Link>
             <Link
               href="/shop/memberships"
-              className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+              className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
             >
               Membership plans
               {membershipStats.activeMembers > 0
@@ -224,13 +224,13 @@ export default function ShopClient({
             </Link>
             <Link
               href="/shop/coupons"
-              className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+              className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
             >
               Coupons &amp; birthday codes →
             </Link>
           </div>
         </div>
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-4">
+        <div className="v2-card p-4">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
             Fulfillment &amp; storefront
           </p>
@@ -271,23 +271,21 @@ export default function ShopClient({
       {/* Product list */}
       <div className="space-y-2.5">
         {products.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-            <EmptyState
-              icon="🛍️"
-              title="No products yet"
-              body="Add your first product — a whitening kit, an electric brush, or branded merch — and it goes live on your storefront."
-              action={
-                <ActionButton variant="primary" size="sm" href="/shop/products/new">
-                  + Add product
-                </ActionButton>
-              }
-            />
-          </div>
+          <EmptyState
+            icon="🛍️"
+            title="No products yet"
+            body="Add your first product — a whitening kit, an electric brush, or branded merch — and it goes live on your storefront."
+            action={
+              <ActionButton variant="primary" size="sm" href="/shop/products/new">
+                + Add product
+              </ActionButton>
+            }
+          />
         ) : (
           products.map((p) => (
             <div
               key={p.id}
-              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4 flex items-center gap-4"
+              className="v2-card p-4 flex items-center gap-4"
             >
               <div className="w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden shrink-0 flex items-center justify-center">
                 {p.images[0] ? (
@@ -304,7 +302,8 @@ export default function ShopClient({
                   {p.fsaEligible && <span className="text-xs text-sky-700 dark:text-sky-300">FSA (Rx)</span>}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">
-                  {CATEGORY_LABELS[p.category]} · {priceRangeLabel(p)} · {p.variants.length} variant
+                  {CATEGORY_LABELS[p.category]} ·{' '}
+                  <span className="font-mono-num">{priceRangeLabel(p)}</span> · {p.variants.length} variant
                   {p.variants.length === 1 ? '' : 's'}
                   {p.totalInventory != null && ` · ${p.totalInventory} in stock`}
                 </p>

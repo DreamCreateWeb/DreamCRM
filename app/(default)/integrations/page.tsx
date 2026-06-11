@@ -149,8 +149,8 @@ export default async function IntegrationsPage() {
       />
 
       {/* ── Trust banner ──────────────────────────────────────────── */}
-      <div className="mb-6 bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-4 flex items-start gap-3">
-        <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+      <div className="mb-6 bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/30 rounded-[var(--r-lg)] p-4 flex items-start gap-3">
+        <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
           <ShieldIcon />
         </div>
         <div>
@@ -167,14 +167,14 @@ export default async function IntegrationsPage() {
         <>
           {/* ── First-import progress (renders only mid-import) ────── */}
           {importInProgress && (
-            <div className="mb-6 rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-500/10 p-4 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center bg-sky-500/15 text-sky-700 dark:text-sky-300">
+            <div className="mb-6 rounded-[var(--r-lg)] ring-1 ring-inset ring-indigo-500/30 bg-indigo-500/10 p-4 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
                 <RefreshIcon />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-sky-800 dark:text-sky-200">Importing your patients…</p>
-                <p className="text-sm mt-0.5 text-sky-800/80 dark:text-sky-300/80">
-                  Imported {importCursor.toLocaleString()} so far — large practices import in batches, and this continues
+                <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Importing your patients…</p>
+                <p className="text-sm mt-0.5 text-indigo-800/80 dark:text-indigo-300/80">
+                  Imported <span className="font-mono-num">{importCursor.toLocaleString()}</span> so far — large practices import in batches, and this continues
                   automatically every hour. You can keep working; hit “Sync now” any time to push it along.
                 </p>
               </div>
@@ -185,15 +185,15 @@ export default async function IntegrationsPage() {
           {health && health.severity !== 'info' && (
             <div
               className={[
-                'mb-6 rounded-xl border p-4 flex items-start gap-3',
+                'mb-6 rounded-[var(--r-lg)] ring-1 ring-inset p-4 flex items-start gap-3',
                 health.severity === 'error'
-                  ? 'bg-rose-500/10 border-rose-200 dark:border-rose-500/30'
-                  : 'bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
+                  ? 'bg-rose-500/10 ring-rose-500/30'
+                  : 'bg-amber-500/10 ring-amber-500/30',
               ].join(' ')}
             >
               <div
                 className={[
-                  'w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold',
+                  'w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center text-base font-semibold',
                   health.severity === 'error'
                     ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
                     : 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
@@ -225,11 +225,11 @@ export default async function IntegrationsPage() {
             </div>
           )}
 
-          {/* ── Status card ───────────────────────────────────────── */}
-          <section className="mb-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+          {/* ── Status card (etched panel — status hero) ──────────── */}
+          <section className="v2-panel mb-6 p-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                <div className="w-10 h-10 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
                   <PlugIcon />
                 </div>
                 <div>
@@ -254,7 +254,7 @@ export default async function IntegrationsPage() {
               isDemo={!!isDemo}
             />
             {connection!.lastError && (
-              <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-lg px-3 py-2">
+              <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">
                 Last sync error: {connection!.lastError}
               </p>
             )}
@@ -280,17 +280,15 @@ export default async function IntegrationsPage() {
           <section className="mb-8">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Sync history (PMS → DreamCRM)</h2>
             {recentRuns.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-                <EmptyState
-                  icon="🔄"
-                  title="No syncs yet"
-                  body="Hit “Sync now” to pull your patients and schedule into DreamCRM."
-                />
-              </div>
+              <EmptyState
+                icon="🔄"
+                title="No syncs yet"
+                body="Hit “Sync now” to pull your patients and schedule into DreamCRM."
+              />
             ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+              <div className="v2-card overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60">
+                  <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
                     <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                       <th className="px-3 py-2">When</th>
                       <th className="px-3 py-2">Trigger</th>
@@ -300,8 +298,8 @@ export default async function IntegrationsPage() {
                   </thead>
                   <tbody>
                     {recentRuns.map((r) => (
-                      <tr key={r.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0">
-                        <td className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 tabular-nums">
+                      <tr key={r.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0">
+                        <td className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">
                           {fmtRelative(r.startedAt)}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 capitalize">{r.trigger}</td>
@@ -324,17 +322,15 @@ export default async function IntegrationsPage() {
               <p className="text-xs text-gray-500 dark:text-gray-400">Every record we created in your PMS, via the API</p>
             </div>
             {recentWrites.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60">
-                <EmptyState
-                  icon="📤"
-                  title="No write-backs yet"
-                  body="New bookings from your website, portal, or front desk will appear here once they’re pushed to the PMS."
-                />
-              </div>
+              <EmptyState
+                icon="📤"
+                title="No write-backs yet"
+                body="New bookings from your website, portal, or front desk will appear here once they’re pushed to the PMS."
+              />
             ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+              <div className="v2-card overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700/60">
+                  <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
                     <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                       <th className="px-3 py-2">Record</th>
                       <th className="px-3 py-2">Type</th>
@@ -345,7 +341,7 @@ export default async function IntegrationsPage() {
                   </thead>
                   <tbody>
                     {recentWrites.map((w) => (
-                      <tr key={w.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-b-0">
+                      <tr key={w.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0">
                         <td className="px-3 py-2.5">
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{w.label}</p>
                           {w.error && <p className="text-xs text-rose-600 dark:text-rose-400">{w.error}</p>}
@@ -356,8 +352,8 @@ export default async function IntegrationsPage() {
                         <td className="px-3 py-2.5">
                           <StatusPill tone={WRITE_TONE[w.status]} label={WRITE_OP_STATUS_LABELS[w.status]} />
                         </td>
-                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 font-mono">{w.externalId ?? '—'}</td>
-                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 tabular-nums">{fmtRelative(w.createdAt)}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 font-mono-num">{w.externalId ?? '—'}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">{fmtRelative(w.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -380,7 +376,7 @@ export default async function IntegrationsPage() {
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Other systems</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {PMS_PROVIDERS.filter((p) => p.id !== 'open_dental').map((p) => (
-                <div key={p.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+                <div key={p.id} className="v2-card p-4">
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{p.name}</h3>
                     <AvailabilityPill availability={p.availability} />
@@ -399,7 +395,7 @@ export default async function IntegrationsPage() {
 
       {/* ── Coming next ───────────────────────────────────────────── */}
       <section>
-        <div className="bg-gray-100 dark:bg-gray-800/40 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-5">
+        <div className="v2-well p-5">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
           <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
             <li>· Near-real-time sync via Open Dental webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
@@ -416,12 +412,12 @@ export default async function IntegrationsPage() {
 function ScopeSection() {
   return (
     <section className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+      <div className="v2-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">What we sync</h2>
         <ul className="space-y-2.5">
           {SYNCED_ENTITIES.map((e) => (
             <li key={e.label} className="flex items-start gap-2.5">
-              <span className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+              <span className="w-7 h-7 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
                 <ScopeIcon icon={e.icon} />
               </span>
               <div>
@@ -431,19 +427,19 @@ function ScopeSection() {
             </li>
           ))}
         </ul>
-        <p className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-3 pt-3 border-t border-[color:var(--color-hairline)] text-xs text-gray-500 dark:text-gray-400">
           Records deleted in Open Dental are kept here — we never auto-delete a patient or appointment from DreamCRM, so
           your history and notes stay intact.
         </p>
       </div>
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-5">
+      <div className="v2-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">What stays in your PMS</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           We&apos;re the relationship layer, not your chart. Clinical data never leaves the PMS.
         </p>
         <div className="flex flex-wrap gap-1.5">
           {NEVER_TOUCHED.map((n) => (
-            <span key={n} className="text-xs px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300">
+            <span key={n} className="text-xs px-2 py-1 rounded-[var(--r-xs)] bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300">
               {n}
             </span>
           ))}
@@ -462,19 +458,19 @@ function FieldMapSection() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {OPEN_DENTAL_FIELD_MAP.map((em) => (
-          <div key={em.entity} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+          <div key={em.entity} className="v2-card p-4">
             <div className="flex items-center gap-2 mb-2">
               <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{em.label}</h3>
-              <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300">
+              <span className="text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300">
                 {em.direction === 'two_way' ? 'Two-way' : 'Import'}
               </span>
             </div>
             <ul className="space-y-1">
               {em.fields.map((f) => (
                 <li key={f.pms} className="text-xs text-gray-600 dark:text-gray-300">
-                  <span className="font-mono text-gray-500 dark:text-gray-400">{f.pms}</span>
+                  <span className="font-mono-num text-gray-500 dark:text-gray-400">{f.pms}</span>
                   <span className="text-gray-400 dark:text-gray-500"> → </span>
-                  <span className="font-mono">{f.crm}</span>
+                  <span className="font-mono-num">{f.crm}</span>
                   {f.note && <span className="block text-xs text-gray-400 dark:text-gray-500 pl-1">{f.note}</span>}
                 </li>
               ))}
