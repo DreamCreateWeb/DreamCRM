@@ -2,7 +2,7 @@ import 'server-only'
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
-import { Resend } from 'resend'
+import { deliver } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
@@ -501,42 +501,20 @@ async function sendReviewRequestEmail(opts: {
     <p style="font-size:13px;line-height:1.55;color:#57534e;margin:24px 0 0">Thank you,<br/>The team at ${escapeHtml(opts.clinicName)}</p>
   </div>
 </body></html>`
-  const text = `Hi ${opts.patientFirstName},
 
-Thanks for coming in. Quick favor — would you take a minute to share how it went? It really helps other people find us, and your honest take (good, bad, or in-between) is what we want.
-
-Leave a review: ${opts.reviewUrl}
-
-Thank you,
-The team at ${opts.clinicName}`
-
-  // Tier 2 — send AS the clinic's own Google mailbox. Fall back to the platform
-  // sender (below) if the Gmail connection is broken, so the ask still goes out.
-  if (opts.gmail) {
-    try {
-      const { getAccessToken, sendMessage } = await import('@/lib/services/gmail')
-      const token = await getAccessToken(opts.gmail.accountId)
-      await sendMessage(token, { from: opts.gmail.from, to: [opts.to], subject, bodyText: text, bodyHtml: html })
-      return
-    } catch (err) {
-      console.warn('[reviews] Gmail send failed; falling back to platform sender:', err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) throw new Error('RESEND_API_KEY env var is not set')
-  const resend = new Resend(apiKey)
-  // Resend returns `{ data, error }` and does not throw — check it so a failed
-  // review-request send surfaces instead of being reported as sent.
-  const res = await resend.emails.send({
-    from: opts.from || `Dream Create <Hello@DreamCreateWeb.com>`,
+  // Route through the shared deliver() path — the SAME provider/driver/Gmail-
+  // fallback every other patient-facing send uses. This drops the duplicate
+  // Resend client + its stale hardcoded `Dream Create <Hello@DreamCreateWeb.com>`
+  // From; the clinic sender identity (Tier 1/2) supplied by the caller now owns
+  // the From + Reply-To + Gmail routing.
+  await deliver({
     to: opts.to,
+    from: opts.from,
+    replyTo: opts.replyTo,
+    gmail: opts.gmail,
     subject,
     html,
-    text,
-    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
   })
-  if (res?.error) throw new Error(res.error.message || 'Resend send failed')
 }
 
 function escapeHtml(s: string): string {
@@ -693,6 +671,33 @@ export async function submitReviewText(input: {
       updatedAt: now,
     })
     .where(eq(schema.reviewRequest.id, row.id))
+
+  // Ping the front desk so a fresh review can be featured (or a low rating
+  // followed up) promptly. Best-effort — the completion above is the truth.
+  try {
+    const [p] = await db
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
+      .limit(1)
+    const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
+    const stars = input.rating != null ? `${input.rating}★ ` : ''
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      row.organizationId,
+      {
+        bucket: 'comments',
+        type: 'review_submitted',
+        title: `New review — ${stars}from ${who}`.replace('  ', ' '),
+        body: text.slice(0, 140),
+        linkPath: '/reviews/received',
+        meta: { reviewRequestId: row.id, patientId: row.patientId, rating: input.rating ?? null },
+      },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[reviews.submitReviewText] notification failed', err)
+  }
 
   return { ok: true, organizationId: row.organizationId, patientId: row.patientId }
 }

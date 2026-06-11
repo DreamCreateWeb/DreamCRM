@@ -46,6 +46,7 @@ export default async function DashboardShell({
         orgName={ctx.organizationName}
         badge={badge}
         variant={sidebarVariant}
+        tenantType={ctx.tenantType}
       />
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Header variant={headerVariant} />

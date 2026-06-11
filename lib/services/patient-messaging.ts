@@ -705,6 +705,32 @@ export async function recordInboundMessage(input: {
     })
     .where(eq(schema.patientThread.id, threadId))
 
+  // Ping the front desk so an inbound patient message doesn't wait for someone
+  // to refresh /messages. Best-effort — the message row above is the truth.
+  try {
+    const [p] = await db
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, input.organizationId), eq(schema.patient.id, input.patientId)))
+      .limit(1)
+    const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      input.organizationId,
+      {
+        bucket: 'comments',
+        type: 'patient_message',
+        title: `New message from ${who}`,
+        body: input.body.trim().slice(0, 140),
+        linkPath: `/messages?thread=${threadId}`,
+        meta: { threadId, messageId, channel: input.channel },
+      },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[patient-messaging.recordInboundMessage] notification failed', err)
+  }
+
   return { threadId, messageId }
 }
 

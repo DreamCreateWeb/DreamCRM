@@ -52,6 +52,14 @@ vi.mock('@/lib/db', async () => {
 vi.mock('@/lib/email', () => ({
   sendContactRequestEmail: vi.fn().mockResolvedValue(undefined),
   sendBookingConfirmationEmail: vi.fn().mockResolvedValue(undefined),
+  sendNotificationEmail: vi.fn().mockResolvedValue(undefined),
+}))
+
+const { notifyOrgMembersMock } = vi.hoisted(() => ({
+  notifyOrgMembersMock: vi.fn(async () => undefined),
+}))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyOrgMembers: notifyOrgMembersMock,
 }))
 
 // Slot availability is exercised in its own test file; the action tests
@@ -82,7 +90,7 @@ vi.mock('@/lib/services/clinic-site', () => ({
 }))
 
 import { submitContactRequest, submitBookingRequest } from '@/app/site/[slug]/actions'
-import { sendContactRequestEmail, sendBookingConfirmationEmail } from '@/lib/email'
+import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
 
 beforeEach(() => {
   insertedRows.length = 0
@@ -90,6 +98,7 @@ beforeEach(() => {
   selectStubs.profile = null
   vi.clearAllMocks()
   slotAvailableMock.mockResolvedValue(true)
+  notifyOrgMembersMock.mockResolvedValue(undefined)
 })
 
 describe('submitContactRequest', () => {
@@ -197,6 +206,45 @@ describe('submitContactRequest', () => {
       utmMedium: 'cpc',
       utmCampaign: 'fall_recall',
     })
+  })
+
+  it('notifies org owners/admins of the new website lead → /leads', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    await submitContactRequest(
+      form({ slug: 'acme', name: 'Jane Doe', phone: '5551234', email: 'jane@example.com', message: 'Tooth hurts' }),
+    )
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({
+        type: 'website_lead',
+        title: expect.stringContaining('Jane Doe'),
+        linkPath: '/leads',
+      }),
+      { roles: ['owner', 'admin'] },
+    )
+  })
+
+  it('sends the patient a warm auto-acknowledgement when they leave an email', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    await submitContactRequest(
+      form({ slug: 'acme', name: 'Jane Doe', phone: '5551234', email: 'jane@example.com', message: 'Tooth hurts' }),
+    )
+    expect(sendNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'jane@example.com',
+        title: expect.stringContaining('Acme Dental'), // clinic sender name
+        body: expect.stringContaining('one business day'),
+      }),
+      expect.objectContaining({ from: 'Acme Dental <acme-dental@dreamcreatestudio.com>' }),
+    )
+  })
+
+  it('skips the patient auto-acknowledgement when no email is supplied', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    await submitContactRequest(form({ slug: 'acme', name: 'Jane', phone: '555' }))
+    expect(sendNotificationEmail).not.toHaveBeenCalled()
+    // …but the front desk is still pinged about the lead.
+    expect(notifyOrgMembersMock).toHaveBeenCalled()
   })
 })
 
@@ -310,6 +358,20 @@ describe('submitBookingRequest', () => {
     selectStubs.profile = { email: 'clinic@x.com', displayName: 'X', phone: null }
     await submitBookingRequest(form({ ...baseFields, email: null }))
     expect(sendBookingConfirmationEmail).not.toHaveBeenCalled()
+  })
+
+  it('notifies org owners/admins of the new online booking → /appointments', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    await submitBookingRequest(form(baseFields))
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({
+        type: 'online_booking',
+        title: expect.stringContaining('Jane Doe'),
+        linkPath: '/appointments',
+      }),
+      { roles: ['owner', 'admin'] },
+    )
   })
 
   it('persists the appointment status as scheduled and the type as provided', async () => {

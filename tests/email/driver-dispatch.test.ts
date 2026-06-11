@@ -17,7 +17,12 @@ vi.mock('@/lib/services/gmail', () => ({
   sendMessage: mocks.gmailSend,
 }))
 
-import { sendPasswordResetEmail, sendInvitationEmail, sendIntakeRequestEmail } from '@/lib/email'
+import {
+  sendPasswordResetEmail,
+  sendInvitationEmail,
+  sendIntakeRequestEmail,
+  sendCancellationConfirmation,
+} from '@/lib/email'
 
 const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
 const GMAIL_SENDER = {
@@ -113,6 +118,52 @@ describe('transactional email driver dispatch', () => {
     expect(caught).not.toBeNull()
     expect(caught!.message).toMatch(/test mode/i)
     expect(caught!.message).not.toMatch(/US-EAST-1/)
+  })
+})
+
+describe('sendCancellationConfirmation', () => {
+  const CLINIC_SENDER = {
+    name: 'Acme Dental',
+    from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+    replyTo: 'front@acmedental.com',
+    timeZone: 'America/New_York',
+  }
+  const baseData = {
+    patientName: 'Mia Hayes',
+    clinicName: 'Acme Dental',
+    clinicPhone: '555-1212',
+    startTime: new Date('2026-07-01T14:00:00Z'),
+    appointmentType: 'cleaning',
+  }
+
+  it('composes a warm cancellation email FROM the clinic identity with a rebook link', async () => {
+    mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
+    await sendCancellationConfirmation(
+      'mia@example.com',
+      { ...baseData, rebookUrl: 'https://acme.dreamcreatestudio.com/book' },
+      CLINIC_SENDER,
+    )
+    expect(mocks.resendSend).toHaveBeenCalledOnce()
+    const msg = mocks.resendSend.mock.calls[0]![0] as { from: string; to: string; replyTo?: string; subject: string; html: string }
+    expect(msg.from).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
+    expect(msg.replyTo).toBe('front@acmedental.com')
+    expect(msg.to).toBe('mia@example.com')
+    expect(msg.subject).toMatch(/cancelled/i)
+    expect(msg.html).toContain('Mia Hayes')
+    // Rebook CTA present + points at the public /book page.
+    expect(msg.html).toContain('https://acme.dreamcreatestudio.com/book')
+    expect(msg.html).toMatch(/find a new time/i)
+    // Anti-shame voice — no guilt-trip language.
+    expect(msg.html.toLowerCase()).not.toContain('you missed')
+    expect(msg.html.toLowerCase()).not.toContain('fee')
+  })
+
+  it('falls back to call-us copy (no rebook link) when the plan has no online booking', async () => {
+    mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
+    await sendCancellationConfirmation('mia@example.com', { ...baseData, rebookUrl: null }, CLINIC_SENDER)
+    const msg = mocks.resendSend.mock.calls[0]![0] as { html: string }
+    expect(msg.html).not.toContain('/book')
+    expect(msg.html).toContain('555-1212') // "give us a call at …"
   })
 })
 

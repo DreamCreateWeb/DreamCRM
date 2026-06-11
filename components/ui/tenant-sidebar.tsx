@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAppProvider } from '@/app/app-provider'
 import Logo from './logo'
 import { NavIcon } from './nav-icons'
-import type { ModuleDef } from '@/lib/modules/types'
+import type { ModuleDef, TenantType } from '@/lib/modules/types'
 
 interface TenantSidebarProps {
   modules: ModuleDef[]
@@ -15,7 +15,25 @@ interface TenantSidebarProps {
   /** Optional badge text (e.g., "Pro Plan", "Patient Portal") */
   badge?: string
   variant?: 'default' | 'v2'
+  /** Drives the live unread-count badges (clinic tenants only). */
+  tenantType?: TenantType
 }
+
+/** Live "needs attention" counts shown as pills next to nav entries. */
+interface NavBadgeCounts {
+  messages: number
+  leads: number
+  shop: number
+}
+
+/** Maps a module id → which badge count drives its pill. */
+const BADGE_FOR_MODULE: Record<string, keyof NavBadgeCounts> = {
+  messages: 'messages',
+  leads: 'leads',
+  shop: 'shop',
+}
+
+const BADGE_POLL_MS = 60_000
 
 /**
  * Data-driven sidebar that renders nav based on a list of modules.
@@ -29,10 +47,45 @@ export default function TenantSidebar({
   orgName,
   badge,
   variant = 'default',
+  tenantType,
 }: TenantSidebarProps) {
   const sidebar = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const { sidebarOpen, setSidebarOpen, sidebarExpanded } = useAppProvider()
+  const [badges, setBadges] = useState<NavBadgeCounts>({ messages: 0, leads: 0, shop: 0 })
+
+  // Live unread-count pills (Messages / Leads / Shop). Clinic tenants only —
+  // platform + patient sidebars don't surface those entries. Polls on an
+  // interval + on window focus (mirrors the header bell), and stays resilient:
+  // any fetch error silently keeps the previous counts rather than blanking.
+  const isClinic = tenantType === 'clinic'
+  const refreshBadges = useCallback(async () => {
+    if (!isClinic) return
+    try {
+      const res = await fetch('/api/nav-badges', { cache: 'no-store' })
+      if (!res.ok) return
+      const json = (await res.json()) as Partial<NavBadgeCounts>
+      setBadges({
+        messages: Number(json.messages ?? 0),
+        leads: Number(json.leads ?? 0),
+        shop: Number(json.shop ?? 0),
+      })
+    } catch {
+      // Swallow — keep prior counts; next tick retries.
+    }
+  }, [isClinic])
+
+  useEffect(() => {
+    if (!isClinic) return
+    refreshBadges()
+    const id = setInterval(refreshBadges, BADGE_POLL_MS)
+    const onFocus = () => refreshBadges()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [isClinic, refreshBadges])
 
   // close on click outside
   useEffect(() => {
@@ -123,6 +176,8 @@ export default function TenantSidebar({
                 {items.map((m) => {
                   const active = isActive(m.path)
                   const isSoon = m.status === 'soon'
+                  const badgeKey = BADGE_FOR_MODULE[m.id]
+                  const badgeCount = badgeKey ? badges[badgeKey] : 0
                   return (
                     <li
                       key={m.id}
@@ -144,10 +199,18 @@ export default function TenantSidebar({
                       >
                         <div className="flex items-center">
                           <NavIcon name={m.icon} className={`shrink-0 fill-current ${active ? 'text-violet-500' : 'text-gray-400 dark:text-gray-500'}`} />
-                          <span className="text-sm font-medium ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                          <span className="text-sm font-medium ml-3 grow truncate lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
                             {m.label}
                             {isSoon && <span className="ml-2 text-xs text-gray-400">soon</span>}
                           </span>
+                          {badgeCount > 0 && (
+                            <span
+                              className="shrink-0 ml-2 min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-xs font-semibold tabular-nums lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                              aria-label={`${badgeCount} ${badgeCount === 1 ? 'item needs' : 'items need'} attention`}
+                            >
+                              {badgeCount > 99 ? '99+' : badgeCount}
+                            </span>
+                          )}
                         </div>
                       </Link>
                     </li>
