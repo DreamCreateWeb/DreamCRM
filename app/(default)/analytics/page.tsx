@@ -95,15 +95,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <Card>
             <div className="flex items-baseline justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">New patients</p>
-                <p className="text-4xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">{a.acquisition.newPatients}</p>
+                <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">New patients</p>
+                <p className="text-4xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">{a.acquisition.newPatients}</p>
               </div>
               <DeltaBadge value={newPatientsDelta} />
             </div>
             <Bars points={a.acquisition.trend} className="mt-4" />
           </Card>
           <Card>
-            <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-3">Source mix</p>
+            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">Source mix</p>
             {a.acquisition.sourceMix.length === 0 ? (
               <Empty>No new patients in this window.</Empty>
             ) : (
@@ -112,7 +112,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           </Card>
         </div>
         <Card className="mt-4">
-          <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-3">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">
             Website funnel — search to booked
           </p>
           <Funnel
@@ -129,20 +129,20 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <Card className="mt-4">
           <div className="flex items-baseline justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                 Website visits
               </p>
-              <p className="text-4xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">
+              <p className="text-4xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">
                 {traffic.total.toLocaleString()}
               </p>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 all visits to your public site · last {windowDays} days
               </p>
             </div>
             <DeltaBadge value={trafficDelta} />
           </div>
           {traffic.total === 0 ? (
-            <p className="mt-4 text-xs text-stone-500 dark:text-stone-400 italic">
+            <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 italic">
               No visits counted yet — this fills in as people land on your site.
             </p>
           ) : (
@@ -153,7 +153,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               />
               {traffic.topPages.length > 0 && (
                 <div className="mt-4">
-                  <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
                     Top pages
                   </p>
                   <RankBars
@@ -199,7 +199,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           />
         </div>
         {anyLowVol ? (
-          <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             Rates shown as counts where the sample is still small (under {LOW_VOL}) — they firm up into
             percentages as your history grows.
           </p>
@@ -208,18 +208,18 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         )}
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4">
           <Card>
-            <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-1">Volume by week</p>
+            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-1">Volume by week</p>
             <Bars points={a.schedule.volumeTrend} className="mt-3" />
           </Card>
           <div className="grid grid-rows-2 gap-4">
             <Card>
-              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">By booking source</p>
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">By booking source</p>
               {a.schedule.bySource.length === 0 ? <Empty>No appointments.</Empty> : (
                 <RankBars rows={a.schedule.bySource.map((s) => ({ label: humanize(s.source), value: s.count }))} compact />
               )}
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">By provider</p>
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">By provider</p>
               {a.schedule.byProvider.length === 0 ? <Empty>No provider assigned.</Empty> : (
                 <RankBars rows={a.schedule.byProvider.map((s) => ({ label: s.provider, value: s.count }))} compact />
               )}
@@ -234,14 +234,14 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <Card>
             <div className="flex items-baseline justify-between mb-4">
               <div>
-                <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">Recall due now</p>
-                <p className="text-3xl font-bold tabular-nums text-stone-900 dark:text-stone-100 mt-0.5">{a.recall.due}</p>
+                <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Recall due now</p>
+                <p className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">{a.recall.due}</p>
               </div>
-              <Link href="/patients?status=recall_due" className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline self-end">
+              <Link href="/patients?status=recall_due" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 hover:underline self-end">
                 View list →
               </Link>
             </div>
-            <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
               Outreach funnel · last {windowDays} days
             </p>
             <Funnel
@@ -269,7 +269,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                 { label: 'Reviews left', value: a.reputation.completed, href: '/reviews/received' },
               ]}
             />
-            <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mt-4 mb-2">Platform mix</p>
+            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mt-4 mb-2">Platform mix</p>
             <RankBars
               rows={[
                 { label: 'Google', value: a.reputation.byPlatform.google },
@@ -286,18 +286,18 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
       {/* ── PMS-owned (honest deferral) ─────────────────────────────────── */}
       <section>
-        <div className="bg-stone-100 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-5">
-          <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-1">Lives in your PMS</p>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mb-3 max-w-2xl">
+        <div className="v2-well border border-dashed border-[color:var(--color-hairline-strong)] p-5">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-1">Lives in your PMS</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 max-w-2xl">
             These are clinical metrics your practice-management system owns. We don&apos;t estimate them — they&apos;ll
             surface here once two-way PMS sync (Integrations) is connected.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
             {a.pmsOwned.map((p) => (
               <div key={p.label} className="flex items-start gap-2">
-                <span className="text-stone-400 dark:text-stone-500 mt-0.5" aria-hidden="true">·</span>
-                <p className="text-xs text-stone-600 dark:text-stone-300">
-                  <span className="font-medium text-stone-700 dark:text-stone-200">{p.label}</span> — {p.detail}
+                <span className="text-gray-400 dark:text-gray-500 mt-0.5" aria-hidden="true">·</span>
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  <span className="font-medium text-gray-700 dark:text-gray-200">{p.label}</span> — {p.detail}
                 </p>
               </div>
             ))}
@@ -314,8 +314,8 @@ function Section({ title, subtitle, children, flush }: { title: string; subtitle
   return (
     <section className={flush ? '' : 'mb-8'}>
       <div className="mb-3">
-        <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">{title}</h2>
-        {subtitle && <p className="text-xs text-stone-500 dark:text-stone-400">{subtitle}</p>}
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>}
       </div>
       {children}
     </section>
@@ -323,18 +323,18 @@ function Section({ title, subtitle, children, flush }: { title: string; subtitle
 }
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5 ${className}`}>{children}</div>
+  return <div className={`v2-card p-5 ${className}`}>{children}</div>
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-stone-500 dark:text-stone-400 italic">{children}</p>
+  return <p className="text-xs text-gray-500 dark:text-gray-400 italic">{children}</p>
 }
 
 function DeltaBadge({ value }: { value: number }) {
-  if (value === 0) return <span className="text-xs text-stone-500 dark:text-stone-400">no change</span>
+  if (value === 0) return <span className="text-xs text-gray-500 dark:text-gray-400">no change</span>
   const up = value > 0
   return (
-    <span className={`text-xs font-semibold tabular-nums ${up ? TONE_TEXT.ok : TONE_TEXT.urgent}`}>
+    <span className={`text-xs font-semibold tabular-nums font-mono-num ${up ? TONE_TEXT.ok : TONE_TEXT.urgent}`}>
       {up ? '▲' : '▼'} {Math.abs(value)} vs prev
     </span>
   )
@@ -346,13 +346,14 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
     <div className={`flex items-end gap-1 h-24 ${className}`}>
       {points.map((p, i) => (
         <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group">
-          <span className="text-xs tabular-nums text-stone-500 dark:text-stone-400 opacity-0 group-hover:opacity-100">{p.count}</span>
+          <span className="text-xs tabular-nums font-mono-num text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100">{p.count}</span>
+          {/* Chart series 1 = teal (identity; the only teal allowed in data). */}
           <div
-            className="w-full rounded-t bg-violet-500/80 dark:bg-violet-400/70 min-h-[2px]"
+            className="w-full rounded-t bg-teal-500/80 dark:bg-teal-400/70 min-h-[2px]"
             style={{ height: `${(p.count / max) * 100}%` }}
             title={`${p.label}: ${p.count}`}
           />
-          <span className="text-xs text-stone-500 dark:text-stone-400 truncate w-full text-center">{p.label}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 truncate w-full text-center">{p.label}</span>
         </div>
       ))}
     </div>
@@ -367,11 +368,11 @@ function RankBars({ rows, compact, emptyNote }: { rows: { label: string; value: 
       {rows.map((r) => (
         <div key={r.label}>
           <div className="flex items-center justify-between text-xs mb-0.5">
-            <span className="text-stone-700 dark:text-stone-200 truncate">{r.label}</span>
-            <span className="tabular-nums font-medium text-stone-500 dark:text-stone-400">{r.value}</span>
+            <span className="text-gray-700 dark:text-gray-200 truncate">{r.label}</span>
+            <span className="tabular-nums font-mono-num font-medium text-gray-500 dark:text-gray-400">{r.value}</span>
           </div>
-          <div className="h-1.5 rounded-full bg-stone-100 dark:bg-stone-800 overflow-hidden">
-            <div className="h-full rounded-full bg-violet-500/70 dark:bg-violet-400/60" style={{ width: `${(r.value / max) * 100}%` }} />
+          <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+            <div className="h-full rounded-full bg-teal-500/70 dark:bg-teal-400/60" style={{ width: `${(r.value / max) * 100}%` }} />
           </div>
         </div>
       ))}
@@ -386,13 +387,13 @@ function Funnel({ steps }: { steps: { label: string; value: number | null; note?
       {steps.map((s) => {
         const w = s.value == null ? 0 : (s.value / top) * 100
         const inner = (
-          <div className="relative h-9 rounded-lg bg-stone-100 dark:bg-stone-800 overflow-hidden">
-            <div className="absolute inset-y-0 left-0 bg-violet-500/25 dark:bg-violet-400/20" style={{ width: `${Math.max(w, s.value ? 6 : 0)}%` }} />
+          <div className="relative h-9 rounded-[var(--r-sm)] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+            <div className="absolute inset-y-0 left-0 bg-teal-500/25 dark:bg-teal-400/20" style={{ width: `${Math.max(w, s.value ? 6 : 0)}%` }} />
             <div className="relative h-full flex items-center justify-between px-3">
-              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">{s.label}</span>
-              <span className="text-sm tabular-nums font-semibold text-stone-800 dark:text-stone-100">
-                {s.value == null ? <span className="text-stone-500 dark:text-stone-400 font-normal">{s.note ?? '—'}</span> : s.value}
-                {s.value != null && s.note && <span className="ml-1 text-xs font-normal text-stone-500 dark:text-stone-400">{s.note}</span>}
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{s.label}</span>
+              <span className="text-sm tabular-nums font-mono-num font-semibold text-gray-900 dark:text-gray-100">
+                {s.value == null ? <span className="text-gray-500 dark:text-gray-400 font-normal">{s.note ?? '—'}</span> : s.value}
+                {s.value != null && s.note && <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">{s.note}</span>}
               </span>
             </div>
           </div>
