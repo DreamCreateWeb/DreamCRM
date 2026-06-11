@@ -58,6 +58,11 @@ export interface ClinicAnalytics {
   }
   reputation: {
     sent: number
+    /** Real measured count of requests whose review link was opened — NOT
+     *  reconstructed from a rate. Null engagement tracking beyond this:
+     *  there is no email-open signal on review_request, so the honest funnel
+     *  is Sent → Opened (clicked) → Reviewed. */
+    opened: number
     completed: number
     clickRate: number | null
     completionRate: number | null
@@ -210,8 +215,8 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     }
   }
 
-  // ── Reputation (reuse getReviewStats — fixed 30d window) ────────────────
-  const reviews = await getReviewStats(organizationId)
+  // ── Reputation (reuse getReviewStats, scoped to the SAME window) ────────
+  const reviews = await getReviewStats(organizationId, windowDays)
 
   return {
     windowDays,
@@ -255,6 +260,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     recall: { due: recallDue, outreach },
     reputation: {
       sent: reviews.sent30d,
+      opened: reviews.clicked30d,
       completed: reviews.completed30d,
       clickRate: reviews.clickRate30d != null ? reviews.clickRate30d / 100 : null,
       completionRate: reviews.completionRate30d != null ? reviews.completionRate30d / 100 : null,

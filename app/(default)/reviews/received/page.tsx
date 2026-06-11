@@ -37,6 +37,10 @@ export default async function ReviewsReceivedPage() {
     selectedSite: r.selectedSite,
     reviewText: r.reviewText,
     rating: r.rating,
+    // The visit that triggered the request, when one is linked — lets the
+    // card cite "After their {date} visit" and link back to the schedule.
+    appointmentId: r.appointmentId,
+    appointmentDateIso: r.appointmentDate ? r.appointmentDate.toISOString() : null,
     isFeatured: featuredIds.has(r.patientId),
   }))
 

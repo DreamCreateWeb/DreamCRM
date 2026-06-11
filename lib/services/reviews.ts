@@ -75,20 +75,31 @@ export interface ReviewRequestRow {
 }
 
 export interface ReviewStats {
-  /** Total requests sent in the last 30 days. */
+  /** The window these stats cover, in days (30 by default; 90 from the
+   *  Analytics range toggle). The `*30d` field-name suffixes below are a
+   *  legacy default-window label — the VALUES reflect `windowDays`. */
+  windowDays: number
+  /** Total requests sent in the window. */
   sent30d: number
-  /** Sent → clicked rate as a percentage (0-100), null if no sends. */
+  /** Sent → clicked (opened the review link) rate as a percentage (0-100),
+   *  null if no sends. There is no email-open tracking on review_request —
+   *  `clicked` (the patient opened the /r/<token> landing) is the only real
+   *  engagement signal we measure, so the funnel is Sent → Opened → Reviewed. */
   clickRate30d: number | null
   /** Clicked → completed rate as a percentage, null if no clicks. */
   completionRate30d: number | null
-  /** Total completed (proxy for "left a review") in the last 30 days. */
+  /** Requests whose link was opened (clicked) within the window — a real,
+   *  measured count (NOT reconstructed from a rate). */
+  clicked30d: number
+  /** Total completed (proxy for "left a review") in the window. */
   completed30d: number
   /** Eligible patients: had a completed visit in last 30d, no recent
-   * request, has email. Drives the "ready to send" CTA. */
+   * request, has email. Drives the "ready to send" CTA. Always 30-day
+   * scoped (the ask cadence), independent of the stats window. */
   eligibleCount: number
-  /** Per-site completion breakdown for the recent window. */
+  /** Per-site completion breakdown for the window. */
   byPlatform: { google: number; healthgrades: number; facebook: number; yelp: number }
-  /** Pending requests not yet sent. */
+  /** Pending requests not yet sent (all-time, not window-scoped). */
   pending: number
 }
 
@@ -742,8 +753,22 @@ export async function getCompletedReviewCount(organizationId: string): Promise<n
   return Number(row?.c ?? 0)
 }
 
-export async function getReviewStats(organizationId: string): Promise<ReviewStats> {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+/**
+ * Review funnel stats for the dashboard + the Analytics Reputation band.
+ *
+ * `windowDays` (30 default; 90 from the Analytics range toggle) scopes the
+ * sent / clicked / completed / platform-mix aggregates. Only `clicked`
+ * (the patient opened the /r/<token> landing) is a measured engagement
+ * signal — review_request has no email-open tracking — so the funnel is
+ * Sent → Opened (clicked) → Reviewed, with no reconstructed-from-a-rate
+ * counts. `eligibleCount` stays 30-day scoped (the ask cadence) and
+ * `pending` is all-time, independent of the window.
+ */
+export async function getReviewStats(
+  organizationId: string,
+  windowDays = 30,
+): Promise<ReviewStats> {
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
 
   const [sentAgg, clickAgg, completedAgg, pendingAgg, byPlatformRows] = await Promise.all([
     db
@@ -752,7 +777,7 @@ export async function getReviewStats(organizationId: string): Promise<ReviewStat
       .where(
         and(
           eq(schema.reviewRequest.organizationId, organizationId),
-          gte(schema.reviewRequest.sentAt, thirtyDaysAgo),
+          gte(schema.reviewRequest.sentAt, since),
         ),
       )
       .then((r) => Number(r[0]?.c ?? 0)),
@@ -763,7 +788,7 @@ export async function getReviewStats(organizationId: string): Promise<ReviewStat
         and(
           eq(schema.reviewRequest.organizationId, organizationId),
           isNotNull(schema.reviewRequest.clickedAt),
-          gte(schema.reviewRequest.clickedAt, thirtyDaysAgo),
+          gte(schema.reviewRequest.clickedAt, since),
         ),
       )
       .then((r) => Number(r[0]?.c ?? 0)),
@@ -774,7 +799,7 @@ export async function getReviewStats(organizationId: string): Promise<ReviewStat
         and(
           eq(schema.reviewRequest.organizationId, organizationId),
           eq(schema.reviewRequest.status, 'completed'),
-          gte(schema.reviewRequest.completedAt, thirtyDaysAgo),
+          gte(schema.reviewRequest.completedAt, since),
         ),
       )
       .then((r) => Number(r[0]?.c ?? 0)),
@@ -798,7 +823,7 @@ export async function getReviewStats(organizationId: string): Promise<ReviewStat
         and(
           eq(schema.reviewRequest.organizationId, organizationId),
           eq(schema.reviewRequest.status, 'completed'),
-          gte(schema.reviewRequest.completedAt, thirtyDaysAgo),
+          gte(schema.reviewRequest.completedAt, since),
           isNotNull(schema.reviewRequest.selectedSite),
         ),
       )
@@ -816,9 +841,11 @@ export async function getReviewStats(organizationId: string): Promise<ReviewStat
   const eligibleCount = (await listEligiblePatients(organizationId, 1000)).length
 
   return {
+    windowDays,
     sent30d: sentAgg,
     clickRate30d: sentAgg > 0 ? Math.round((clickAgg / sentAgg) * 100) : null,
     completionRate30d: clickAgg > 0 ? Math.round((completedAgg / clickAgg) * 100) : null,
+    clicked30d: clickAgg,
     completed30d: completedAgg,
     eligibleCount,
     byPlatform,
@@ -902,6 +929,13 @@ export interface ReviewReceivedRow {
   reviewText: string | null
   /** Optional 1-5 rating the patient gave alongside their review. */
   rating: number | null
+  /** The visit that triggered this review request, when one is linked
+   *  (`review_request.appointmentId`). Null for requests sent ad-hoc from
+   *  the patient detail page with no appointment, or whose appointment was
+   *  later deleted (the FK is ON DELETE SET NULL). Lets the received-review
+   *  card cite "After their {date} visit". */
+  appointmentId: string | null
+  appointmentDate: Date | null
 }
 
 /**
@@ -925,9 +959,14 @@ export async function listReviewsReceived(
       selectedSite: schema.reviewRequest.selectedSite,
       reviewText: schema.reviewRequest.reviewText,
       rating: schema.reviewRequest.rating,
+      appointmentId: schema.reviewRequest.appointmentId,
+      // Left-join so requests with no linked appointment (or a deleted one,
+      // FK is ON DELETE SET NULL) still return — appointmentDate is just null.
+      appointmentDate: schema.appointment.startTime,
     })
     .from(schema.reviewRequest)
     .innerJoin(schema.patient, eq(schema.reviewRequest.patientId, schema.patient.id))
+    .leftJoin(schema.appointment, eq(schema.reviewRequest.appointmentId, schema.appointment.id))
     .where(
       and(
         eq(schema.reviewRequest.organizationId, organizationId),
@@ -947,6 +986,8 @@ export async function listReviewsReceived(
     selectedSite: r.selectedSite as ReviewSite | null,
     reviewText: r.reviewText,
     rating: r.rating,
+    appointmentId: r.appointmentId,
+    appointmentDate: r.appointmentDate,
   }))
 }
 
