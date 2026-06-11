@@ -55,6 +55,9 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     intakeSubmissions: { count: 0, preview: [] },
     outstandingBalances: { count: 0, totalCents: 0 },
     newLeads: { count: 0, preview: [] },
+    paidOrdersUnfulfilled: 0,
+    unreadMessages: 0,
+    reviewsReceived: { completed30d: 0, sent30d: 0 },
     trends: {
       bookingsToday: 0,
       newPatientsMTD: 0,
@@ -146,7 +149,7 @@ describe('Needs your attention cards', () => {
     render(ui)
     expect(screen.getByText(/Every booking in the next 48h is confirmed/)).toBeInTheDocument()
     expect(screen.getByText(/No intake submissions this week/)).toBeInTheDocument()
-    expect(screen.getByText(/No outstanding shop balances/)).toBeInTheDocument()
+    expect(screen.getByText(/No balances on file from your PMS/)).toBeInTheDocument()
   })
 
   it('shows counts + preview when items exist', async () => {
@@ -410,15 +413,47 @@ describe('Recent activity feed', () => {
   })
 })
 
-describe('Coming soon strip', () => {
-  it('renders the two honest "coming soon" placeholders', async () => {
-    mockGetOverview.mockResolvedValueOnce(makeData())
+describe('Bottom strip — Reviews (live) + the honest coming-soon', () => {
+  it('replaces the old Reviews placeholder with a real 30-day reviews card', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ reviewsReceived: { completed30d: 4, sent30d: 7 } }))
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByText('Reviews & reputation')).toBeInTheDocument()
+    // Reviews is LIVE now — real count + link, NOT a "coming soon" placeholder.
+    expect(screen.getByText('Reviews received (30d)')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText(/from 7 requests sent/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Read reviews & feature them/i })).toBeInTheDocument()
+    expect(screen.queryByText('Reviews & reputation')).not.toBeInTheDocument()
+    // SMS stays an honest coming-soon (not wired yet).
     expect(screen.getByText('SMS replies')).toBeInTheDocument()
-    // Website leads is no longer a placeholder — it has its own real
-    // AttentionCard in the row above now.
-    expect(screen.queryByText('Capture every contact-form submission')).not.toBeInTheDocument()
+  })
+})
+
+describe('New attention cards (money + messages)', () => {
+  it('shows the outstanding-balances card sourced from the PMS', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ outstandingBalances: { count: 3, totalCents: 12000 } }))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('Outstanding balances')).toBeInTheDocument()
+    expect(screen.getByText(/From your PMS/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /See who owes/i })).toBeInTheDocument()
+  })
+
+  it('renders the Unanswered-messages card on pro+ and the Orders card only on premium', async () => {
+    // pro tenant: messages card present, orders card absent.
+    mockGetOverview.mockResolvedValueOnce(makeData({ unreadMessages: 2, paidOrdersUnfulfilled: 5 }))
+    const proUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'pro' }) })
+    const { unmount } = render(proUi)
+    expect(screen.getByText('Unanswered messages')).toBeInTheDocument()
+    expect(screen.queryByText('Orders to fulfill')).not.toBeInTheDocument()
+    unmount()
+
+    // premium tenant: both cards present.
+    mockGetOverview.mockResolvedValueOnce(makeData({ unreadMessages: 2, paidOrdersUnfulfilled: 5 }))
+    const premUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'premium' }) })
+    render(premUi)
+    expect(screen.getByText('Unanswered messages')).toBeInTheDocument()
+    expect(screen.getByText('Orders to fulfill')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Fulfill orders/i })).toBeInTheDocument()
   })
 })

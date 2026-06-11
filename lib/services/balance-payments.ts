@@ -1,8 +1,10 @@
 import 'server-only'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, ne } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
+import { notifyOrgMembers } from './notifications'
+import { sendNotificationEmail } from '@/lib/email'
 
 /**
  * Online balance payments from the patient portal. Money moves through the
@@ -148,7 +150,7 @@ export async function finalizeBalancePaymentFromSession(
   })
   if (session.payment_status !== 'paid') return
 
-  await db
+  const claimed = await db
     .update(schema.patientBalancePayment)
     .set({
       status: 'paid',
@@ -161,12 +163,75 @@ export async function finalizeBalancePaymentFromSession(
         ne(schema.patientBalancePayment.status, 'paid'),
       ),
     )
+    .returning({ id: schema.patientBalancePayment.id })
+
+  // Only the race winner notifies the clinic — the front desk needs to post
+  // this to the PMS ledger. Best-effort; never blocks finalize.
+  if (claimed.length > 0) {
+    const [pat] = await db
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .from(schema.patient)
+      .where(eq(schema.patient.id, payment.patientId))
+      .limit(1)
+    const who = pat ? `${pat.firstName} ${pat.lastName}`.trim() : 'A patient'
+    const amount = `$${(payment.amountCents / 100).toFixed(2)}`
+    await notifyBalancePaymentReceived({
+      organizationId,
+      title: `Online payment — ${amount}`,
+      body: `${who} paid ${amount} toward their balance online. Post it to your PMS ledger when you get a chance.`,
+      linkPath: '/shop/payments',
+    })
+  }
+}
+
+/**
+ * Best-effort "online payment received" alert to the clinic — in-app to
+ * owners/admins + an email to the clinic's own contact address. Swallows its
+ * own errors so it never blocks payment finalization.
+ */
+async function notifyBalancePaymentReceived(input: {
+  organizationId: string
+  title: string
+  body: string
+  linkPath: string
+}): Promise<void> {
+  try {
+    await notifyOrgMembers(
+      input.organizationId,
+      // 'comments' = clinic "Patient activity" bucket (default ON) — a patient
+      // paying their balance is patient activity, not 'offers' (billing, OFF).
+      { bucket: 'comments', type: 'balance_payment_paid', title: input.title, body: input.body, linkPath: input.linkPath },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[balance-payments] notifyOrgMembers failed', err)
+  }
+  try {
+    const [profile] = await db
+      .select({ email: schema.clinicProfile.email })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, input.organizationId))
+      .limit(1)
+    if (profile?.email) {
+      await sendNotificationEmail({
+        to: profile.email,
+        name: null,
+        title: input.title,
+        body: input.body,
+        linkPath: input.linkPath,
+      })
+    }
+  } catch (err) {
+    console.warn('[balance-payments] clinic payment email failed', err)
+  }
 }
 
 export interface PendingBalancePaymentRow {
   id: string
+  patientId: string
   patientName: string
   amountCents: number
+  status: string
   paidAt: Date | null
   createdAt: Date
   balanceCentsAtPayment: number | null
@@ -176,16 +241,20 @@ export interface PendingBalancePaymentRow {
  * Clinic-side reconciliation list: online payments the front desk still
  * needs to post to the PMS ledger. v1 surfaces PAID rows; "posted to PMS"
  * tracking can layer on later without schema change (note column exists).
+ * Most-recent first. Joined to patient so the surface can link + name rows.
  */
 export async function listRecentBalancePayments(
   organizationId: string,
   limit = 50,
 ): Promise<PendingBalancePaymentRow[]> {
-  return db
+  const rows = await db
     .select({
       id: schema.patientBalancePayment.id,
-      patientName: schema.patient.firstName,
+      patientId: schema.patientBalancePayment.patientId,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
       amountCents: schema.patientBalancePayment.amountCents,
+      status: schema.patientBalancePayment.status,
       paidAt: schema.patientBalancePayment.paidAt,
       createdAt: schema.patientBalancePayment.createdAt,
       balanceCentsAtPayment: schema.patientBalancePayment.balanceCentsAtPayment,
@@ -198,6 +267,16 @@ export async function listRecentBalancePayments(
         eq(schema.patientBalancePayment.status, 'paid'),
       ),
     )
-    .orderBy(schema.patientBalancePayment.createdAt)
+    .orderBy(desc(schema.patientBalancePayment.createdAt))
     .limit(limit)
+  return rows.map((r) => ({
+    id: r.id,
+    patientId: r.patientId,
+    patientName: `${r.firstName} ${r.lastName ?? ''}`.trim(),
+    amountCents: r.amountCents,
+    status: r.status,
+    paidAt: r.paidAt,
+    createdAt: r.createdAt,
+    balanceCentsAtPayment: r.balanceCentsAtPayment,
+  }))
 }

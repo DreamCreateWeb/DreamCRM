@@ -33,6 +33,12 @@ function money(cents: number): string {
   return `$${dollars.toFixed(0)}`
 }
 
+/** Short "as of Jun 3" stamp for the PMS balance freshness line. */
+function fmtAsOf(d: Date | null): string {
+  if (!d) return ''
+  return `as of ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+}
+
 function fmtFullDate(d: Date | null): string {
   if (!d) return '—'
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
@@ -75,12 +81,26 @@ const SOURCE_LABEL: Record<string, string> = {
   invite: 'patient invite',
 }
 
-const FILTER_KEYS: Array<{ key: TimelineKind | 'all'; label: string; countKey: keyof TimelineCounts }> = [
+// Timeline filter tabs. "Billing" is a GROUP — it matches every money-shaped
+// kind (legacy invoices + the real commerce sources: shop orders, online
+// balance payments, memberships), mirroring BILLING_TIMELINE_KINDS in the
+// service. The other tabs map 1:1 to a kind. (Reviews show under "All" only.)
+type FilterTab = 'all' | 'appointment' | 'message' | 'form_submission' | 'billing' | 'note'
+
+const BILLING_KINDS = new Set<TimelineKind>(['invoice', 'shop_order', 'balance_payment', 'membership'])
+
+function matchesTab(tab: FilterTab, kind: TimelineKind): boolean {
+  if (tab === 'all') return true
+  if (tab === 'billing') return BILLING_KINDS.has(kind)
+  return kind === tab
+}
+
+const FILTER_KEYS: Array<{ key: FilterTab; label: string; countKey: keyof TimelineCounts }> = [
   { key: 'all', label: 'All', countKey: 'all' },
   { key: 'appointment', label: 'Appointments', countKey: 'appointments' },
   { key: 'message', label: 'Messages', countKey: 'messages' },
   { key: 'form_submission', label: 'Forms', countKey: 'forms' },
-  { key: 'invoice', label: 'Billing', countKey: 'billing' },
+  { key: 'billing', label: 'Billing', countKey: 'billing' },
   { key: 'note', label: 'Notes', countKey: 'notes' },
 ]
 
@@ -102,14 +122,14 @@ export default function PatientDetail({
   /** id+name list for the guardian (family-access) picker in the edit modal. */
   patientOptions?: Array<{ id: string; name: string }>
 }) {
-  const [filter, setFilter] = useState<TimelineKind | 'all'>('all')
+  const [filter, setFilter] = useState<FilterTab>('all')
   const [editOpen, setEditOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [archivePending, startArchive] = useTransition()
 
   const filtered = useMemo(
-    () => filter === 'all' ? timeline : timeline.filter((e) => e.kind === filter),
+    () => filter === 'all' ? timeline : timeline.filter((e) => matchesTab(filter, e.kind)),
     [filter, timeline],
   )
 
@@ -216,13 +236,27 @@ export default function PatientDetail({
             value={header.nextVisitAt ? fmtFullDate(header.nextVisitAt) : 'None scheduled'}
             hint={header.nextVisitType ? header.nextVisitType.replace(/_/g, ' ') : ''}
           />
+          {/* Balance is the PMS-synced figure. NULL = nothing on file — we show
+              "—" + an honest hint, never a fabricated $0. */}
           <Stat
             label="Balance"
-            value={money(header.outstandingBalanceCents)}
-            hint={header.outstandingBalanceCents > 0 ? 'unpaid' : 'paid up'}
-            tone={header.outstandingBalanceCents > 0 ? 'warn' : 'ok'}
+            value={header.outstandingBalanceCents == null ? '—' : money(header.outstandingBalanceCents)}
+            hint={
+              header.outstandingBalanceCents == null
+                ? 'No PMS balance on file'
+                : header.outstandingBalanceCents > 0
+                  ? fmtAsOf(header.balanceAsOf) || 'unpaid'
+                  : fmtAsOf(header.balanceAsOf) || 'paid up'
+            }
+            tone={
+              header.outstandingBalanceCents == null
+                ? 'neutral'
+                : header.outstandingBalanceCents > 0
+                  ? 'warn'
+                  : 'ok'
+            }
           />
-          <Stat label="Lifetime spend" value={money(header.lifetimeValueCents)} hint="shop invoices" />
+          <Stat label="Shop purchases" value={money(header.shopSpendCents)} hint="paid in your store" />
         </div>
       </header>
 
@@ -449,11 +483,11 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
       sendIntake: true,
     })
   }
-  if (header.outstandingBalanceCents > 0) {
+  if (header.outstandingBalanceCents != null && header.outstandingBalanceCents > 0) {
     items.push({
       severity: 'warn',
-      copy: `${money(header.outstandingBalanceCents)} balance outstanding.`,
-      cta: { label: 'View invoices', href: '/ecommerce/invoices' },
+      copy: `${money(header.outstandingBalanceCents)} balance on file (from your PMS).`,
+      cta: { label: 'See online payments', href: '/shop/payments' },
     })
   }
   if (header.flags.lapsed) {
@@ -580,6 +614,22 @@ const KIND_ICON: Record<TimelineKind, string> = {
   invoice: '💵',
   note: '📌',
   created: '🌱',
+  shop_order: '🛍️',
+  membership: '🦷',
+  balance_payment: '💳',
+  review: '⭐',
+}
+
+// Commerce/payment status → tone (ball-in-court: pending = info, paid = ok,
+// failed/past-due = urgent, cancelled/refunded = neutral).
+const COMMERCE_STATUS: Record<string, { tone: Tone; label: string }> = {
+  pending: { tone: 'info', label: 'Pending' },
+  paid: { tone: 'ok', label: 'Paid' },
+  active: { tone: 'ok', label: 'Active' },
+  failed: { tone: 'urgent', label: 'Failed' },
+  past_due: { tone: 'urgent', label: 'Past due' },
+  cancelled: { tone: 'neutral', label: 'Cancelled' },
+  refunded: { tone: 'neutral', label: 'Refunded' },
 }
 
 function TimelineRow({ event }: { event: TimelineEvent }) {
@@ -592,6 +642,15 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
     if (event.kind === 'invoice' && event.status) {
       const s = INV_STATUS[event.status] ?? INV_STATUS.draft
       return <StatusPill tone={s.tone} label={s.label} />
+    }
+    if (
+      (event.kind === 'shop_order' ||
+        event.kind === 'balance_payment' ||
+        event.kind === 'membership') &&
+      event.status
+    ) {
+      const s = COMMERCE_STATUS[event.status]
+      if (s) return <StatusPill tone={s.tone} label={s.label} />
     }
     if (event.kind === 'message' && event.direction) {
       return (

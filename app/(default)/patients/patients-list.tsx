@@ -400,7 +400,9 @@ function PatientRow({
   onToggle: () => void
 }) {
   const recall = RECALL[row.recallStatus]
-  const balanceClass = row.outstandingBalanceCents > 0
+  // Balance is the PMS-synced figure; NULL = none on file (render "—").
+  const hasBalance = row.outstandingBalanceCents != null && row.outstandingBalanceCents > 0
+  const balanceClass = hasBalance
     ? 'text-rose-700 dark:text-rose-300 font-semibold'
     : 'text-gray-500 dark:text-gray-400'
   const lastVisitDays = daysSince(row.lastVisitAt)
@@ -459,8 +461,11 @@ function PatientRow({
       <td className="px-4 py-3">
         <StatusPill tone={recall.tone} label={recall.label} title={recall.title} />
       </td>
-      <td className={`px-4 py-3 text-right tabular-nums ${balanceClass}`}>
-        {money(row.outstandingBalanceCents)}
+      <td
+        className={`px-4 py-3 text-right tabular-nums ${balanceClass}`}
+        title={row.outstandingBalanceCents == null ? 'No PMS balance on file' : undefined}
+      >
+        {row.outstandingBalanceCents == null ? '—' : money(row.outstandingBalanceCents)}
       </td>
       <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
         {row.source ? SOURCE_LABEL[row.source] ?? row.source : '—'}

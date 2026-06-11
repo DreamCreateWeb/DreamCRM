@@ -1,9 +1,12 @@
 import 'server-only'
-import { and, asc, count, desc, eq, inArray, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import { slugify } from '@/lib/utils'
+import { notifyOrgMembers } from './notifications'
+import { sendNotificationEmail } from '@/lib/email'
+import { normalizePhone, samePhone } from '@/lib/contact-normalize'
 import type {
   PlanRow,
   PlanInput,
@@ -220,20 +223,36 @@ export async function createMembershipCheckout(
 
   const priceId = await ensurePlanPrice(plan, accountId)
 
-  // Match or create the patient (membership.patientId is required).
+  // Match or create the patient (membership.patientId is required). Matched
+  // with normalization so a case/format mismatch still links: email case-
+  // insensitively in SQL, phone on digits via samePhone over a small set.
   let patientId: string
-  const [match] = await db
+  const emailLower = input.email.trim().toLowerCase()
+  const [emailMatch] = await db
     .select({ id: schema.patient.id })
     .from(schema.patient)
     .where(
       and(
         eq(schema.patient.organizationId, organizationId),
-        or(eq(schema.patient.email, input.email), input.phone ? eq(schema.patient.phone, input.phone) : sql`false`)!,
+        sql`lower(${schema.patient.email}) = ${emailLower}`,
       ),
     )
     .limit(1)
-  if (match) {
-    patientId = match.id
+  let matchedId: string | null = emailMatch?.id ?? null
+  if (!matchedId && normalizePhone(input.phone)) {
+    const candidates = await db
+      .select({ id: schema.patient.id, phone: schema.patient.phone })
+      .from(schema.patient)
+      .where(
+        and(
+          eq(schema.patient.organizationId, organizationId),
+          sql`${schema.patient.phone} is not null`,
+        ),
+      )
+    matchedId = candidates.find((c) => samePhone(c.phone, input.phone))?.id ?? null
+  }
+  if (matchedId) {
+    patientId = matchedId
   } else {
     patientId = `pat_${randomBytes(10).toString('hex')}`
     const now = new Date()
@@ -311,11 +330,69 @@ export async function finalizeMembershipFromSession(organizationId: string, sess
   // Compare-and-swap: only the caller that flips pending->active runs the write
   // (the success page AND the Connect webhook both finalize). Mirrors the
   // shop-order finalizer so future activation side-effects fire exactly once.
-  await db
+  const claimed = await db
     .update(schema.membership)
     .set({ status: 'active', stripeSubscriptionId: subId, startedAt: now, currentPeriodEnd: periodEnd, updatedAt: now })
     .where(and(eq(schema.membership.id, m.id), ne(schema.membership.status, 'active')))
+    .returning({ id: schema.membership.id })
+
+  // Only the race winner notifies the clinic (best-effort, never blocks).
+  if (claimed.length > 0) {
+    const [pat] = await db
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .from(schema.patient)
+      .where(eq(schema.patient.id, m.patientId))
+      .limit(1)
+    const who = pat ? `${pat.firstName} ${pat.lastName}`.trim() : 'A patient'
+    await notifyMembershipJoined({
+      organizationId,
+      title: `New member — ${planName}`,
+      body: `${who} just joined ${planName}.`,
+      linkPath: '/shop/memberships',
+    })
+  }
   return { active: true, planName }
+}
+
+/**
+ * Best-effort "new member" alert to the clinic — in-app to owners/admins + an
+ * email to the clinic's own contact address. Swallows its own errors.
+ */
+async function notifyMembershipJoined(input: {
+  organizationId: string
+  title: string
+  body: string
+  linkPath: string
+}): Promise<void> {
+  try {
+    await notifyOrgMembers(
+      input.organizationId,
+      // 'comments' = clinic "Patient activity" bucket (default ON) — a patient
+      // joining a plan is patient activity, not 'offers' (billing/platform, OFF).
+      { bucket: 'comments', type: 'membership_joined', title: input.title, body: input.body, linkPath: input.linkPath },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[membership] notifyOrgMembers failed', err)
+  }
+  try {
+    const [profile] = await db
+      .select({ email: schema.clinicProfile.email })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, input.organizationId))
+      .limit(1)
+    if (profile?.email) {
+      await sendNotificationEmail({
+        to: profile.email,
+        name: null,
+        title: input.title,
+        body: input.body,
+        linkPath: input.linkPath,
+      })
+    }
+  } catch (err) {
+    console.warn('[membership] clinic member email failed', err)
+  }
 }
 
 /** Subscription lifecycle from the Connect webhook (updated / deleted). */

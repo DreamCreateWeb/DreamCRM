@@ -1,10 +1,13 @@
 import 'server-only'
-import { and, eq, ne, or, sql } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { priceCart, newOrderId } from './shop'
 import { validateCoupon, markCouponUsed } from './coupons'
+import { notifyOrgMembers } from './notifications'
+import { sendNotificationEmail } from '@/lib/email'
+import { normalizePhone, samePhone } from '@/lib/contact-normalize'
 
 /**
  * Shop checkout — creates a Stripe Checkout Session ON THE CLINIC'S CONNECTED
@@ -213,20 +216,36 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
     session.customer_details?.address ??
     null) as Record<string, string> | null
 
-  // Link to an existing patient by email/phone (best-effort).
+  // Link to an existing patient by email/phone (best-effort), normalized so a
+  // case/format mismatch ("Bob@X.com" vs "bob@x.com", "(512) 555-0100" vs
+  // "5125550100") still links. Email is matched case-insensitively in SQL;
+  // phone is matched on digits via samePhone over a small candidate set.
   let patientId = order.patientId
   if (!patientId) {
-    const [match] = await db
+    const emailLower = order.email.trim().toLowerCase()
+    const [emailMatch] = await db
       .select({ id: schema.patient.id })
       .from(schema.patient)
       .where(
         and(
           eq(schema.patient.organizationId, organizationId),
-          or(eq(schema.patient.email, order.email), order.phone ? eq(schema.patient.phone, order.phone) : sql`false`)!,
+          sql`lower(${schema.patient.email}) = ${emailLower}`,
         ),
       )
       .limit(1)
-    patientId = match?.id ?? null
+    patientId = emailMatch?.id ?? null
+    if (!patientId && normalizePhone(order.phone)) {
+      const candidates = await db
+        .select({ id: schema.patient.id, phone: schema.patient.phone })
+        .from(schema.patient)
+        .where(
+          and(
+            eq(schema.patient.organizationId, organizationId),
+            sql`${schema.patient.phone} is not null`,
+          ),
+        )
+      patientId = candidates.find((c) => samePhone(c.phone, order.phone))?.id ?? null
+    }
   }
 
   // Atomically claim the order (pending → paid). Only the caller that actually
@@ -271,5 +290,64 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
       )
   }
 
+  // Tell the clinic a real order just came in — best-effort, never blocks the
+  // finalize. (a) in-app notification to owners/admins; (b) an email to the
+  // clinic's own contact address (same pattern as the contact-form lead email).
+  const orderTotalCents = session.amount_total ?? order.totalCents
+  const itemCount = items.reduce((n, it) => n + (it.quantity ?? 0), 0)
+  await notifyOrderReceived({
+    organizationId: order.organizationId,
+    title: `Paid order — ${itemCount} ${itemCount === 1 ? 'item' : 'items'}, ${dollarsFromCents(orderTotalCents)}`,
+    body: `${order.name || order.email} just paid for ${items.map((it) => `${it.quantity}× ${it.productName}`).join(', ') || 'an order'}.`,
+    linkPath: '/shop/orders',
+  })
+
   return { ...order, status: 'paid', patientId }
+}
+
+/** Compact dollar string from cents for clinic notifications. */
+function dollarsFromCents(cents: number): string {
+  return `$${(Number(cents) / 100).toFixed(2)}`
+}
+
+/**
+ * Best-effort "money just came in" alert to the clinic — an in-app notification
+ * to owners/admins + an email to the clinic's own contact address. Swallows its
+ * own errors so a notification/email failure never breaks order finalization.
+ */
+async function notifyOrderReceived(input: {
+  organizationId: string
+  title: string
+  body: string
+  linkPath: string
+}): Promise<void> {
+  try {
+    await notifyOrgMembers(
+      input.organizationId,
+      // 'comments' = clinic "Patient activity" bucket (default ON), the right
+      // home for "a patient just paid you" — not 'offers' (billing/platform, OFF).
+      { bucket: 'comments', type: 'shop_order_paid', title: input.title, body: input.body, linkPath: input.linkPath },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[shop-checkout] notifyOrgMembers failed', err)
+  }
+  try {
+    const [profile] = await db
+      .select({ email: schema.clinicProfile.email })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, input.organizationId))
+      .limit(1)
+    if (profile?.email) {
+      await sendNotificationEmail({
+        to: profile.email,
+        name: null,
+        title: input.title,
+        body: input.body,
+        linkPath: input.linkPath,
+      })
+    }
+  } catch (err) {
+    console.warn('[shop-checkout] clinic order email failed', err)
+  }
 }

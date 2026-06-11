@@ -2,6 +2,8 @@ import 'server-only'
 import { and, asc, between, count, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getIntegrationsHealth, type IntegrationsHealth } from '@/lib/services/pms/health'
+import { getReviewStats } from '@/lib/services/reviews'
+import { getInboxStats } from '@/lib/services/patient-messaging'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -36,6 +38,9 @@ export interface ClinicOverviewData {
     count: number
     preview: IntakeSubmissionPreviewRow[]
   }
+  // Outstanding balances — aggregated from PMS-synced `patient.pms_balance_cents`
+  // (the only system that knows the clinical ledger), NOT the legacy invoices
+  // table. count = patients with a positive PMS balance.
   outstandingBalances: {
     count: number
     totalCents: number
@@ -43,6 +48,15 @@ export interface ClinicOverviewData {
   newLeads: {
     count: number
     preview: LeadPreviewRow[]
+  }
+  /** Paid shop orders still awaiting fulfillment — your move to ship/ready. */
+  paidOrdersUnfulfilled: number
+  /** Unread inbound patient messages (the ball is in our court). */
+  unreadMessages: number
+  /** Reviews completed in the last 30 days + how many requests went out. */
+  reviewsReceived: {
+    completed30d: number
+    sent30d: number
   }
   trends: {
     bookingsToday: number
@@ -339,17 +353,18 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     })),
   }
 
-  // ── Outstanding balances ────────────────────────────────────────────
+  // ── Outstanding balances (from the PMS sync, not legacy invoices) ───────
   const [balanceRow] = await db
     .select({
       count: count(),
-      totalCents: sql<number>`coalesce(sum(${schema.invoices.totalCents}), 0)::int`,
+      totalCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::int`,
     })
-    .from(schema.invoices)
+    .from(schema.patient)
     .where(
       and(
-        eq(schema.invoices.organizationId, organizationId),
-        inArray(schema.invoices.status, ['pending', 'overdue']),
+        eq(schema.patient.organizationId, organizationId),
+        eq(schema.patient.isActive, 1),
+        sql`${schema.patient.pmsBalanceCents} > 0`,
       ),
     )
 
@@ -558,7 +573,24 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   activity.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
   const recentActivity = activity.slice(0, 10)
 
-  const integrationsHealth = await getIntegrationsHealth(organizationId, now)
+  // ── Extra attention signals (reuse existing services) ───────────────
+  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats] = await Promise.all([
+    getIntegrationsHealth(organizationId, now),
+    // Paid shop orders still awaiting fulfillment (our move).
+    db
+      .select({ count: count() })
+      .from(schema.shopOrder)
+      .where(
+        and(
+          eq(schema.shopOrder.organizationId, organizationId),
+          eq(schema.shopOrder.status, 'paid'),
+          eq(schema.shopOrder.fulfillmentStatus, 'unfulfilled'),
+        ),
+      ),
+    getReviewStats(organizationId),
+    // currentUserId isn't used for the unread count (the service `void`s it).
+    getInboxStats(organizationId, ''),
+  ])
 
   return {
     date: now,
@@ -567,6 +599,9 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     intakeSubmissions,
     outstandingBalances,
     newLeads,
+    paidOrdersUnfulfilled: Number(paidUnfulfilledRow[0]?.count ?? 0),
+    unreadMessages: inboxStats.unread,
+    reviewsReceived: { completed30d: reviewStats.completed30d, sent30d: reviewStats.sent30d },
     trends,
     recentActivity,
     integrationsHealth,
