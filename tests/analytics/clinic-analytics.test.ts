@@ -12,16 +12,22 @@ vi.mock('@/lib/db', () => {
   return { db: { select: () => chain() }, schema: new Proxy({}, { get: () => new Proxy({}, { get: () => ({}) }) }) }
 })
 
+const getReviewStatsMock = vi.fn(async (_org: string, windowDays = 30) => ({
+  windowDays,
+  sent30d: 10,
+  completed30d: 4,
+  // `clicked30d` is the REAL measured open-the-link count (5), distinct
+  // from clickRate30d (50%). The analytics Reputation band must surface
+  // the measured count, not reconstruct `round(sent * rate)`.
+  clicked30d: 5,
+  clickRate30d: 50,
+  completionRate30d: 40,
+  eligibleCount: 5,
+  byPlatform: { google: 3, healthgrades: 1, facebook: 0, yelp: 0 },
+  pending: 2,
+}))
 vi.mock('@/lib/services/reviews', () => ({
-  getReviewStats: vi.fn(async () => ({
-    sent30d: 10,
-    completed30d: 4,
-    clickRate30d: 50,
-    completionRate30d: 40,
-    eligibleCount: 5,
-    byPlatform: { google: 3, healthgrades: 1, facebook: 0, yelp: 0 },
-    pending: 2,
-  })),
+  getReviewStats: (org: string, windowDays?: number) => getReviewStatsMock(org, windowDays),
 }))
 vi.mock('@/lib/services/patients', () => ({
   listPatients: vi.fn(async () => [{ recallStatus: 'due' }, { recallStatus: 'overdue' }, { recallStatus: 'na' }]),
@@ -39,7 +45,19 @@ import { getClinicAnalytics, weeklyTrend } from '@/lib/services/analytics'
 
 beforeEach(() => {
   q.queue.length = 0
+  getReviewStatsMock.mockClear()
 })
+
+/** Seed the DB query queue with a minimal happy-path so getClinicAnalytics
+ *  runs end-to-end. Order matches the service's query sequence. */
+function seedHappyPath() {
+  q.queue.push([]) // 1. newPatientRows
+  q.queue.push([{ c: 0 }]) // 2. prevNewPatients
+  q.queue.push([]) // 3. leadRows
+  q.queue.push([]) // 4. apptRows
+  q.queue.push([{ id: 1 }]) // 5. patientCampaigns
+  q.queue.push([]) // 6. eventRows
+}
 
 describe('weeklyTrend', () => {
   it('buckets dates by week oldest→newest and counts within the window', () => {
@@ -109,5 +127,48 @@ describe('getClinicAnalytics', () => {
     expect(a.reputation.sent).toBe(10)
     expect(a.reputation.completed).toBe(4)
     expect(a.reputation.byPlatform.google).toBe(3)
+    // `opened` is the REAL measured open count (clicked30d=5), NOT
+    // round(sent * clickRate) = round(10 * 0.5) = 5 — which would collide here
+    // by coincidence. Prove it tracks clicked30d, not the reconstruction, by
+    // also asserting it equals the mock's clicked30d exactly.
+    expect(a.reputation.opened).toBe(5)
+  })
+})
+
+describe('getClinicAnalytics — reputation window + honesty', () => {
+  it('threads windowDays into getReviewStats (30 and 90 produce different scoped reads)', async () => {
+    seedHappyPath()
+    await getClinicAnalytics('org_1', 30)
+    expect(getReviewStatsMock).toHaveBeenLastCalledWith('org_1', 30)
+
+    seedHappyPath()
+    await getClinicAnalytics('org_1', 90)
+    expect(getReviewStatsMock).toHaveBeenLastCalledWith('org_1', 90)
+  })
+
+  it('exposes the measured opened count, not a rate-reconstructed one', async () => {
+    // Make round(sent * clickRate) DIVERGE from the real clicked count so the
+    // test fails loudly if anyone reintroduces the `round(sent * rate)` hack.
+    getReviewStatsMock.mockImplementationOnce(async (_org: string, windowDays = 30) => ({
+      windowDays,
+      sent30d: 9,
+      completed30d: 1,
+      clicked30d: 4, // the truth
+      clickRate30d: 50, // round(9 * 0.5) = 5 ≠ 4 — the reconstruction would be wrong
+      completionRate30d: 25,
+      eligibleCount: 0,
+      byPlatform: { google: 0, healthgrades: 0, facebook: 0, yelp: 0 },
+      pending: 0,
+    }))
+    seedHappyPath()
+    const a = await getClinicAnalytics('org_1', 30)
+    expect(a.reputation.opened).toBe(4) // the measured value, not 5
+    expect(a.reputation.sent).toBe(9)
+  })
+
+  it('propagates the windowDays onto the result for the page subtitle', async () => {
+    seedHappyPath()
+    const a = await getClinicAnalytics('org_1', 90)
+    expect(a.windowDays).toBe(90)
   })
 })

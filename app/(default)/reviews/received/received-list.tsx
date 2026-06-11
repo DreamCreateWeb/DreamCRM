@@ -41,6 +41,9 @@ export interface ReceivedRow {
   selectedSite: ReviewSite | null
   reviewText: string | null
   rating: number | null
+  /** The visit that triggered the request, when linked. */
+  appointmentId: string | null
+  appointmentDateIso: string | null
   isFeatured: boolean
 }
 
@@ -60,6 +63,18 @@ function fmtLocation(row: ReceivedRow): string {
   const s = row.patientState?.trim()
   if (c && s) return `${c}, ${s}`
   return c || s || ''
+}
+
+/** "Jun 3" / "Jun 3, 2025" — the visit that triggered the review request. */
+function fmtVisitDate(iso: string | null): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -132,6 +147,15 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
                 </>
               )}
             </p>
+            {fmtVisitDate(row.appointmentDateIso) && (
+              <Link
+                href={`/patients/${row.patientId}#timeline`}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400 hover:underline"
+                title="See this visit on the patient timeline"
+              >
+                After their {fmtVisitDate(row.appointmentDateIso)} visit
+              </Link>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {row.rating != null && <Stars rating={row.rating} />}
