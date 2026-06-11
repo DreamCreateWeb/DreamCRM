@@ -120,3 +120,44 @@ export async function removeTeamMember(userId: string) {
   revalidatePath('/settings/team')
   return { ok: true }
 }
+
+const RoleChangeInput = z.object({
+  userId: z.string().min(1),
+  role: z.enum(['admin', 'member']),
+})
+
+/**
+ * Change a teammate's role between member ↔ admin. Gating rules:
+ *  - only owners/admins can change roles (requireTeamAdmin)
+ *  - nobody can change their OWN role (you can't demote/lock yourself out)
+ *  - the owner's role is immutable here — you can't promote someone to owner
+ *    or demote the owner (ownership transfer is a separate, deliberate flow)
+ *  - the target must be a real member of this org (scoped update)
+ */
+export async function changeTeamMemberRole(input: unknown) {
+  const ctx = await requireTeamAdmin()
+  const { userId, role } = RoleChangeInput.parse(input)
+
+  if (userId === ctx.userId) {
+    throw new Error("You can't change your own role.")
+  }
+
+  const [target] = await db
+    .select({ role: schema.member.role })
+    .from(schema.member)
+    .where(and(eq(schema.member.userId, userId), eq(schema.member.organizationId, ctx.organizationId)))
+    .limit(1)
+  if (!target) {
+    throw new Error('That person is not a member of this workspace.')
+  }
+  if (target.role === 'owner') {
+    throw new Error("The owner's role can't be changed here.")
+  }
+
+  await db
+    .update(schema.member)
+    .set({ role })
+    .where(and(eq(schema.member.userId, userId), eq(schema.member.organizationId, ctx.organizationId)))
+  revalidatePath('/settings/team')
+  return { ok: true }
+}

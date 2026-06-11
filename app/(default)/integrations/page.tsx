@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireTenant } from '@/lib/auth/context'
+import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getIntegrationsDashboard, openDentalConfigured } from '@/lib/services/pms'
 import { getIntegrationsHealth } from '@/lib/services/pms/health'
 import {
@@ -105,6 +105,7 @@ export default async function IntegrationsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+  await requirePlan(ctx, 'premium', 'integrations')
 
   const [dashboard, configured, health] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),

@@ -22,7 +22,6 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
   const router = useRouter()
   const [name, setName] = useState(initialUser.name)
   const [companyName, setCompanyName] = useState(initialUser.companyName ?? '')
-  const [businessId, setBusinessId] = useState('')
   const [location, setLocation] = useState(initialUser.city ?? '')
   const [email, setEmail] = useState(initialUser.email)
   const [image, setImage] = useState(initialUser.image)
@@ -102,17 +101,13 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
             <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Profile</h2>
             <div className="text-sm text-gray-500 dark:text-gray-400">Update your display name, company and address.</div>
             <div className="sm:flex sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 mt-5">
-              <div className="sm:w-1/3">
+              <div className="sm:w-1/2">
                 <label className="block text-sm font-medium mb-1" htmlFor="acct-name">Full Name</label>
                 <input id="acct-name" className="form-input w-full" type="text" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-              <div className="sm:w-1/3">
+              <div className="sm:w-1/2">
                 <label className="block text-sm font-medium mb-1" htmlFor="acct-company">Business Name</label>
                 <input id="acct-company" className="form-input w-full" type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-              </div>
-              <div className="sm:w-1/3">
-                <label className="block text-sm font-medium mb-1" htmlFor="acct-bizid">Business ID</label>
-                <input id="acct-bizid" className="form-input w-full" type="text" value={businessId} onChange={(e) => setBusinessId(e.target.value)} />
               </div>
             </div>
             <div className="mt-4">

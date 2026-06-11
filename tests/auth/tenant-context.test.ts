@@ -87,6 +87,24 @@ describe('getTenantContext — membership resolution', () => {
     expect(ctx!.planTier).toBe('pro')
   })
 
+  it('surfaces subscriptionStatus from the clinic_profile row (drives the dunning banner)', async () => {
+    state.session = sessionFor('org_a')
+    state.member = [[{ role: 'owner', organizationId: 'org_a', userId: 'u1' }]]
+    state.organization = [[{ id: 'org_a', type: 'clinic', name: 'A Dental', slug: 'a-dental' }]]
+    state.clinicProfile = [[{ planTier: 'pro', subscriptionStatus: 'past_due' }]]
+    const ctx = await getTenantContext()
+    expect(ctx!.subscriptionStatus).toBe('past_due')
+  })
+
+  it('leaves subscriptionStatus null when the clinic has no subscription on file', async () => {
+    state.session = sessionFor('org_a')
+    state.member = [[{ role: 'owner', organizationId: 'org_a', userId: 'u1' }]]
+    state.organization = [[{ id: 'org_a', type: 'clinic', name: 'A Dental', slug: 'a-dental' }]]
+    state.clinicProfile = [[{ planTier: 'basic' }]]
+    const ctx = await getTenantContext()
+    expect(ctx!.subscriptionStatus ?? null).toBeNull()
+  })
+
   it('does NOT grant access to a stale active org the user was removed from — falls back to a real membership', async () => {
     state.session = sessionFor('org_gone')
     // No member row in org_gone (removed); first real membership is org_real.

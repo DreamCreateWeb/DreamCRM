@@ -87,6 +87,105 @@ export async function createCheckoutSession(args: {
   })
 }
 
+export interface OrgStripeInvoice {
+  id: string
+  number: string | null
+  amountPaidCents: number
+  currency: string
+  status: string | null
+  createdAt: Date
+  hostedInvoiceUrl: string | null
+  pdfUrl: string | null
+}
+
+/**
+ * List this clinic org's own Stripe invoices, scoped to its Stripe customer.
+ * Replaces the old cross-tenant `invoices` table read on Settings → Billing
+ * (which had NO organization filter — a tenant could see every clinic's rows).
+ *
+ * Returns [] when the org has no Stripe customer yet, or if the Stripe call
+ * fails — the billing page degrades to "no invoices yet · manage in Stripe"
+ * rather than erroring. Full invoice history + downloads always live in the
+ * Stripe Customer Portal, which the page links to.
+ */
+export async function listOrgStripeInvoices(
+  organizationId: string,
+  limit = 12,
+): Promise<OrgStripeInvoice[]> {
+  const [profile] = await db
+    .select({ stripeCustomerId: schema.clinicProfile.stripeCustomerId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const customerId = profile?.stripeCustomerId
+  if (!customerId) return []
+
+  try {
+    const res = await stripe.invoices.list({ customer: customerId, limit })
+    return res.data.map((inv) => ({
+      id: inv.id ?? '',
+      number: inv.number ?? null,
+      amountPaidCents: inv.amount_paid ?? 0,
+      currency: (inv.currency ?? 'usd').toUpperCase(),
+      status: inv.status ?? null,
+      createdAt: new Date((inv.created ?? 0) * 1000),
+      hostedInvoiceUrl: inv.hosted_invoice_url ?? null,
+      pdfUrl: inv.invoice_pdf ?? null,
+    }))
+  } catch (err) {
+    console.warn('[billing] listOrgStripeInvoices failed', err)
+    return []
+  }
+}
+
+export interface OrgSubscriptionSummary {
+  status: string | null
+  interval: BillingInterval | null
+  currentPeriodEnd: Date | null
+  cancelAtPeriodEnd: boolean
+}
+
+/**
+ * Cheap read of the clinic's live subscription headline for Settings → Billing:
+ * status, billing interval (from the price recurrence), the next renewal date,
+ * and whether it's set to cancel at period end. Returns null when there's no
+ * subscription on file or the Stripe call fails (page falls back to plan-only).
+ */
+export async function getOrgSubscriptionSummary(
+  organizationId: string,
+): Promise<OrgSubscriptionSummary | null> {
+  const [profile] = await db
+    .select({ stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const subId = profile?.stripeSubscriptionId
+  if (!subId) return null
+
+  try {
+    const sub = await stripe.subscriptions.retrieve(subId, { expand: ['items.data.price'] })
+    const price = sub.items?.data?.[0]?.price
+    const recurring = price?.recurring?.interval
+    const interval: BillingInterval | null =
+      recurring === 'year' ? 'annual' : recurring === 'month' ? 'monthly' : null
+    // Stripe SDK shapes the period end on the subscription item in newer API
+    // versions; read both spots defensively so we don't depend on one shape.
+    const periodEndRaw =
+      (sub as { current_period_end?: number | null }).current_period_end ??
+      (sub.items?.data?.[0] as { current_period_end?: number | null } | undefined)?.current_period_end ??
+      null
+    return {
+      status: sub.status ?? null,
+      interval,
+      currentPeriodEnd: periodEndRaw ? new Date(periodEndRaw * 1000) : null,
+      cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+    }
+  } catch (err) {
+    console.warn('[billing] getOrgSubscriptionSummary failed', err)
+    return null
+  }
+}
+
 export async function createPortalSession(args: {
   organizationId: string
   email: string

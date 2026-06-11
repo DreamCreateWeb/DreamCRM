@@ -2,15 +2,23 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
+import { planAllows } from '@/lib/modules'
+import type { PlanTier } from '@/lib/modules'
 import { connectOpenDental, disconnectPms, runImport, setAutoSync, setSyncDirection } from '@/lib/services/pms'
 import type { SyncDirection } from '@/lib/types/pms'
 
-function ensureClinicAdmin(ctx: { tenantType: string; role: string }) {
+function ensureClinicAdmin(ctx: { tenantType: string; role: string; planTier: PlanTier }) {
   if (ctx.tenantType !== 'clinic') {
     throw new Error('Integrations is only available for clinic tenants.')
   }
   if (ctx.role === 'patient') {
     throw new Error('Patients cannot manage integrations.')
+  }
+  // Integrations is Premium-tier (lib/modules/clinic.ts) — block below-tier
+  // clinics from firing the action even via deep-link. Demo contexts inherit
+  // the demo org's tier (premium), so they pass.
+  if (!planAllows(ctx.planTier, 'premium')) {
+    throw new Error('Integrations is on the Premium plan. Upgrade to connect your PMS.')
   }
 }
 
