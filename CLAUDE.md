@@ -118,6 +118,84 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Launch-readiness audit + fix sweep (2026-06-11, PRs #309–#324)** — a
+  9-agent full-platform audit (every module traced end-to-end in code vs
+  Weave/NexHealth/RevenueWell/Solutionreach/Adit/Lighthouse) found ~70 gaps;
+  16 PRs closed every blocker. Suite 1583 → **2142 tests**. The big ones:
+  **(money)** clinic-side patient Balance/"Shop purchases" now read
+  `pms_balance_cents` + paid `shop_order` (the legacy `invoices` table no
+  dental flow writes is out of the money path; clinic `/ecommerce/invoices`
+  308s to `/shop/payments`); patient timeline shows orders/memberships/online
+  balance payments/reviews; order/membership/balance-payment finalizers
+  notify owner+admin + email the clinic; new `/shop/payments` reconciliation
+  page; ⌘K searches shop orders. **(automation — EventBridge rules are LIVE
+  in prod, provisioned via `scripts/setup-cron-schedules.sh`)**: pms-sync
+  hourly (auto-sync toggle is real now; write-backs flush unattended; failure
+  streaks email the clinic), send-reminders every 30min (migration 0055
+  `reminder_settings` jsonb, default ON @ T-24h, idempotent via
+  `appointment_reminder_log`, Settings → Reminders), send-scheduled-campaigns
+  every 15min (editor gained "Send later"; atomic claim prevents
+  double-send), auto-send-reviews hourly (rule finally created).
+  **(operability)** Settings → Practice: providers CRUD + visit-type
+  editor (one resolver feeds front-desk/widget/portal; migration 0054) +
+  chair count (slot math blocks only when concurrent ≥ chairs — multi-op
+  practices can take simultaneous bookings) + default recall interval w/
+  per-patient override; front-desk booking gained provider/type/duration/
+  slot-picker + walk-in mode; "Needs rebooking" recovery chip; CSV patient
+  import (header auto-map + normalized dedupe) + CSV export; bulk
+  "Invite to portal". **(notifications)** `notifyOrgMembers` wired into all
+  formerly-silent events (bookings, portal cancel/reschedule, leads incl.
+  insurance-verifier, intake submits, inbound messages, reviews, paid
+  orders); patient cancellation-confirmation email; sidebar unread badges
+  (`/api/nav-badges`); contact-form auto-ack to the patient.
+  **(email compliance)** campaigns send from the clinic identity w/
+  Reply-To, clinic postal address fail-closed, RFC-8058 List-Unsubscribe
+  headers, duplicate-send claim; `patient-bulk-comms` routed through
+  `deliver()` (was a dead hardcoded sender). **(billing truth)**
+  Settings → Plan/Billing read org-scoped `clinic_profile` (was a stale
+  user-keyed table showing "free" after payment); cross-tenant invoice
+  leak deleted; persistent dunning banner on past_due/unpaid;
+  `requirePlan` server-side gates (pages + shop/marketing/careers/
+  integrations actions). **(custom domains v1)** Settings → Clinic
+  "Custom domain" card → App Runner association via instance role
+  (`APP_RUNNER_SERVICE_ARN` env + scoped IAM live) → copy-paste DNS
+  records table (www CNAME + ACM validation) → status polling;
+  middleware routes unknown hosts via a cached host→slug map
+  (`/api/internal/custom-domains`); migration 0056; runbook
+  `docs/custom-domains.md`. **(portal funnel)** magic-link no-account
+  dead-end now sends a portal invite when a patient row matches;
+  active-org set on sign-in (multi-clinic patients land in the right
+  portal); case-insensitive linking + `createPatient` duplicate detection
+  w/ "Add anyway"; clinic-branded accept-invite + magic-link emails;
+  portal reschedule honors notice window on the NEW slot. **(site)**
+  upload route magic-byte MIME allowlist (SVG rejected); sitemap careers
+  URLs + services gating; letter-mark favicon fallback; hero LCP preload;
+  COPY_KEYS 46→78 w/ drift-guard test; site-wide visitor beacon →
+  `site_pageview` daily rollups (migration 0058) surfaced on /analytics +
+  /seo; per-page SEO meta editor (Settings → Search appearance,
+  `clinic_profile.seo_meta`); GBP setup checklist on /seo. **(booking)**
+  rich post-booking screen (.ics data-URL, intake CTA, what-to-expect,
+  phone-only variant), optional new-patient/insurance questions (ride
+  notes), closed-window "call us" card, portal visit-type duration.
+  **(PMS robustness)** first import batched + time-budgeted + resumable
+  (cursor in `pms_connection.meta`, durable progress UI, cron resumes;
+  budget-partials don't false-alarm), stale `running` rows reaped,
+  portal-linked patients keep email/phone over PMS values, OD 429/5xx
+  backoff. **(integrity)** email change verified via better-auth
+  `changeEmail`; real `db.transaction()` restored in
+  reschedule/convert-lead/reorder-task (stale "Neon" comments removed);
+  Connect OAuth state cookie cleared path-scoped; stale pending
+  memberships swept lazily. **(analytics honesty)** fabricated "Opened"
+  removed (measured link-clicks only), 30/90 window threads through
+  `getReviewStats`, schedule KPIs drill to real appointment filters,
+  reviews link their triggering visit. Migrations 0054–0058 (0057 is the
+  parallel-branch snapshot reconciliation; journal chain verified clean).
+  Audit gaps deliberately NOT fixed (recorded for later): inbound-parse
+  for Tier-1 email replies into /messages; recall drip sequences
+  (set-and-forget); waitlist + recurring appointments; patient merge;
+  tags/documents; patient-access audit log; 2FA + idle timeout;
+  per-location booking; mid-life comp/suspend platform tools; ⌘K
+  coverage for reviews/applicants/intake; GSC for custom domains.
 - **Launch-ready signup + managed clinic provisioning (2026-06-10, PRs #302
   + #303)** — the two acquisition paths. **Self-serve:** /pricing CTAs carry
   `?plan=` → dental signup (name/email/practice/password — Mosaic Role-
@@ -334,7 +412,7 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   all of it (logo → header letter-mark fallback; hero image with gradient
   overlay; configurable services strip; Meet The Team section that
   auto-hides when empty).
-- **Vitest test suite** (1488 tests) covering middleware, billing sync,
+- **Vitest test suite** (2142 tests as of PR #324) covering middleware, billing sync,
   site rendering, server actions, invite-details, link-patient, patient
   booking, profile updates, services/staff JSON parsing, Gmail webhook
   auth gate, tenant-scoping on ecommerce services, demo-mode actions
@@ -1318,13 +1396,12 @@ booking slots + emails are now timezone-correct (no longer UTC).
    `re_BZDw…` (now the live prod key — create a fresh one in Resend, swap it into
    `dreamcrm/app-secrets`, redeploy; also delete the dead `re_T8fyc…`) and the
    AWS access key `AKIA53LCNZ3Y66OJGLOI`. **This is the user's action item.**
-2. **Lower-severity audit findings (deferred, low risk):** Connect OAuth state
-   cookie delete-path; platform Stripe webhook idempotency ledger (dup
-   owner-notifications on retries); orphan `pending` membership on abandoned
-   checkout; review auto-send timing anchored to `completedAt` vs visit time;
-   restore real `db.transaction()` in `rescheduleAppointment`/`convertLeadToPatient`/
-   `moveTask` (the "Neon has no transactions" comments are STALE — it's
-   node-postgres now, which supports them).
+2. **Lower-severity audit findings — mostly CLOSED by PR #324 (2026-06-11):**
+   Connect OAuth state cookie delete-path ✓; orphan `pending` membership sweep ✓;
+   real `db.transaction()` restored in reschedule/convert-lead/reorder-task ✓.
+   Still open: platform Stripe webhook idempotency ledger (dup
+   owner-notifications on retries); review auto-send timing anchored to
+   `completedAt` vs visit time.
 3. **Patient email replies don't loop back into `/messages`** for arbitrary
    addresses — inbound email is only ingested via the Gmail integration. With
    Tier 2 (clinic's connected Gmail = the sender), replies to that mailbox DO
@@ -1432,22 +1509,15 @@ eventual App Runner → ECS move) are tracked in that section.
    stays disabled in UI until `clinic_sms_config.a2p_status='approved'`.
    Twilio creds from prior conversation transcripts can be rotated +
    discarded — they're no longer the target integration.
-2. **Reviews auto-trigger (v1.1)** — code shipped, **needs an
-   EventBridge schedule rule to start firing.** Handler at
-   `/api/cron/auto-send-reviews` (Bearer `CRON_SECRET`, same pattern as
-   `publish-scheduled-posts`). Service `autoSendDueReviewRequests` in
-   `lib/services/reviews.ts` finds every org with
-   `clinic_review_config.autoSendEnabled=1` + a complete platform
-   config, scans `appointment.status='completed'` past the per-org
-   `autoSendDelayHours` cutoff (default 24h), and fires one send per
-   appointment with no existing `review_request` row pointing at it
-   (per-appointment idempotency means hourly is safe). Expected
-   guard misses (opted out / no email / rate limit / no platforms) are
-   classified as `skipped`; unexpected errors land in `result.errors`
-   for ops alerting. **To activate:** add an EventBridge schedule rule
-   (`cron(0 * * * ? *)` for hourly) that POSTs to
-   `https://www.dreamcreatestudio.com/api/cron/auto-send-reviews` with
-   `Authorization: Bearer ${CRON_SECRET}`.
+2. ~~**Reviews auto-trigger (v1.1)**~~ — **DONE (2026-06-11).** The
+   EventBridge rule `dreamcrm-auto-send-reviews` (hourly) is live and
+   POSTs `/api/cron/auto-send-reviews` with the Bearer secret —
+   provisioned alongside `dreamcrm-pms-sync` (hourly),
+   `dreamcrm-send-reminders` (30 min), and
+   `dreamcrm-send-scheduled-campaigns` (15 min) via the idempotent
+   `scripts/setup-cron-schedules.sh` (reuses the `dreamcrm-cron`
+   connection + `DreamCRMEventBridgeCron` role). Per-org sends still
+   gate on `clinic_review_config.autoSendEnabled` (default off).
 3. ~~**Subdomain DNS**~~ — **DONE (2026-05-28).** `*.dreamcreatestudio.com`
    is wired and serving: clinic sites are live at
    `{slug}.dreamcreatestudio.com` (verified `acme-dental-demo.…` → 200
