@@ -224,7 +224,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       <div className="mb-4 flex items-center justify-between gap-3">
         <Link
           href="/posts"
-          className="text-sm font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100"
+          className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100"
         >
           ← All posts
         </Link>
@@ -233,12 +233,12 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             type="button"
             onClick={preview}
             disabled={pending}
-            className="text-xs font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 disabled:opacity-50"
+            className="text-xs font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 disabled:opacity-50"
             title="See exactly how this looks on your live site"
           >
             Preview ↗
           </button>
-          <span className="text-xs text-stone-400 dark:text-stone-500">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
             {pending ? 'Saving…' : dirty ? 'Editing…' : savedAt ? 'Saved' : 'Up to date'}
           </span>
         </div>
@@ -247,26 +247,26 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-4">
         {/* ── Editor column ── */}
         <div className="space-y-4">
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 overflow-hidden">
-          <div className="px-5 py-4 border-b border-stone-100 dark:border-stone-700/40 space-y-3">
+        <div className="v2-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] space-y-3">
             <input
               value={draft.title}
               onChange={(e) => field('title', e.target.value)}
               placeholder="Post title"
-              className="w-full text-2xl font-bold text-stone-900 dark:text-stone-100 bg-transparent border-none focus:outline-none focus:ring-0 px-0 placeholder:text-stone-300 dark:placeholder:text-stone-600"
+              className="w-full text-2xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none focus:outline-none focus:ring-0 px-0 placeholder:text-gray-300 dark:placeholder:text-gray-600"
             />
-            <div className="flex items-center gap-1 text-xs text-stone-400 dark:text-stone-500">
+            <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
               <span className="shrink-0">/blog/</span>
               <input
                 value={draft.slug}
                 onChange={(e) => field('slug', e.target.value)}
                 placeholder="post-url"
-                className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-0 px-0 font-mono text-stone-500 dark:text-stone-400"
+                className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-0 px-0 font-mono text-gray-500 dark:text-gray-400"
               />
             </div>
           </div>
 
-          <div className="px-5 py-2 border-b border-stone-100 dark:border-stone-700/40 flex items-center gap-2 flex-wrap bg-stone-50/40 dark:bg-stone-800/30">
+          <div className="px-5 py-2 border-b border-[color:var(--color-hairline)] flex items-center gap-2 flex-wrap bg-[color:var(--color-surface-sunk)]">
             <button
               type="button"
               onClick={() => setShowAi(true)}
@@ -275,7 +275,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             >
               ✨ Draft with AI
             </button>
-            <span className="text-xs text-stone-400 dark:text-stone-500 ml-auto">
+            <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
               {aiBusy ? 'AI working…' : 'AI drafts are never auto-published'}
             </span>
           </div>
@@ -286,9 +286,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             <EditorContent editor={editor} />
           </div>
 
-          <div className="px-5 py-4 border-t border-stone-100 dark:border-stone-700/40">
+          <div className="px-5 py-4 border-t border-[color:var(--color-hairline)]">
             <label className="block">
-              <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
                 Excerpt
               </span>
               <textarea
@@ -296,9 +296,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 onChange={(e) => field('excerpt', e.target.value)}
                 rows={2}
                 placeholder={derivedExcerpt || 'One or two sentences shown on the blog index + used as the search description.'}
-                className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 resize-none"
               />
-              <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                 Leave blank and we&apos;ll use the opening of your post.
               </p>
             </label>
@@ -317,7 +317,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
         {/* ── Sidebar ── */}
         <aside className="space-y-3">
           {/* Status + publish */}
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
+          <div className="v2-card p-4">
             <div className="flex items-center justify-between mb-3">
               <StatusPill
                 tone={published ? 'ok' : scheduled ? 'info' : 'neutral'}
@@ -328,15 +328,15 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   href={liveUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-stone-500 hover:text-violet-600 dark:text-stone-400 dark:hover:text-violet-400"
+                  className="text-xs text-gray-500 hover:text-teal-700 dark:text-gray-400 dark:hover:text-teal-400"
                 >
                   View ↗
                 </a>
               )}
             </div>
             {published && (
-              <p className="text-xs text-stone-500 dark:text-stone-400 mb-3 tabular-nums">
-                {post.viewCount} {post.viewCount === 1 ? 'read' : 'reads'}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 tabular-nums">
+                <span className="font-mono-num">{post.viewCount}</span> {post.viewCount === 1 ? 'read' : 'reads'}
               </p>
             )}
             {published ? (
@@ -346,7 +346,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             ) : scheduled ? (
               <>
                 {post.scheduledFor && (
-                  <p className="text-xs text-sky-700 dark:text-sky-300 mb-2 tabular-nums">
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-2 tabular-nums">
                     Goes live{' '}
                     {new Date(post.scheduledFor).toLocaleString('en-US', {
                       month: 'short',
@@ -359,7 +359,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 <ActionButton variant="secondary" onClick={unschedule} disabled={pending} className="w-full">
                   Unschedule
                 </ActionButton>
-                <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 leading-snug">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
                   Reschedule from the content calendar.
                 </p>
               </>
@@ -372,15 +372,15 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{publishError}</p>
             )}
             {!published && !scheduled && (
-              <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 leading-snug">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
                 Publishing needs a title, some content, and an author byline.
               </p>
             )}
           </div>
 
           {/* Author */}
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
-            <h3 className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+          <div className="v2-card p-4">
+            <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
               Author
             </h3>
             {authors.length === 0 ? (
@@ -390,9 +390,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   value={draft.authorName}
                   onChange={(e) => field('authorName', e.target.value)}
                   placeholder="Byline, e.g. The DreamCRM team"
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 />
-                <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
                   No staff directory on this org — type the byline directly (required to publish).
                 </p>
               </>
@@ -401,7 +401,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 <select
                   value={draft.authorStaffId}
                   onChange={(e) => field('authorStaffId', e.target.value)}
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 >
                   <option value="">Choose an author…</option>
                   {authors.map((a) => (
@@ -411,7 +411,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
                   Real bylines with credentials are how Google trusts health content.
                 </p>
               </>
@@ -420,15 +420,15 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
           {/* Medically reviewed by (optional) */}
           {authors.length > 0 && (
-            <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
-              <h3 className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-2">
+            <div className="v2-card p-4">
+              <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
                 Medically reviewed by{' '}
-                <span className="normal-case font-normal text-stone-400 dark:text-stone-500">· optional</span>
+                <span className="normal-case font-normal text-gray-400 dark:text-gray-500">· optional</span>
               </h3>
               <select
                 value={draft.medicallyReviewedByStaffId}
                 onChange={(e) => field('medicallyReviewedByStaffId', e.target.value)}
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
               >
                 <option value="">No reviewer</option>
                 {authors.map((a) => (
@@ -438,16 +438,16 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-snug">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
                 Adds a &ldquo;Medically reviewed by&rdquo; line — a strong trust signal on clinical posts.
               </p>
             </div>
           )}
 
           {/* Category + tags */}
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 space-y-3">
+          <div className="v2-card p-4 space-y-3">
             <label className="block">
-              <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
                 Category
               </span>
               <input
@@ -455,7 +455,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 onChange={(e) => field('category', e.target.value)}
                 list="blog-categories"
                 placeholder="e.g. Oral Health"
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
               />
               <datalist id="blog-categories">
                 {categorySuggestions.map((c) => (
@@ -464,20 +464,20 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               </datalist>
             </label>
             <label className="block">
-              <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
                 Tags
               </span>
               <input
                 value={draft.tagsText}
                 onChange={(e) => field('tagsText', e.target.value)}
                 placeholder="comma, separated, tags"
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
               />
             </label>
           </div>
 
           {/* Cover image */}
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
+          <div className="v2-card p-4">
             <ImageUploader
               name="coverImageUrl"
               defaultValue={draft.coverImageUrl}
@@ -489,16 +489,16 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             />
             {draft.coverImageUrl && (
               <label className="block mt-3">
-                <span className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 block mb-1">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
                   Image description (alt text)
                 </span>
                 <input
                   value={draft.coverImageAlt}
                   onChange={(e) => field('coverImageAlt', e.target.value)}
                   placeholder="e.g. A dental hygienist smiling with a patient"
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 />
-                <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                   Describe the photo for screen readers + image search.
                 </p>
               </label>
@@ -506,11 +506,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
           </div>
 
           {/* SEO */}
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4">
+          <div className="v2-card p-4">
             <button
               type="button"
               onClick={() => setShowSeo((s) => !s)}
-              className="w-full flex items-center justify-between text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400"
+              className="w-full flex items-center justify-between text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400"
             >
               <span>SEO (optional)</span>
               <span>{showSeo ? '−' : '+'}</span>
@@ -518,18 +518,18 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             {showSeo && (
               <div className="space-y-3 mt-3">
                 <label className="block">
-                  <span className="text-xs text-stone-500 dark:text-stone-400 block mb-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">
                     Search title
                   </span>
                   <input
                     value={draft.seoTitle}
                     onChange={(e) => field('seoTitle', e.target.value)}
                     placeholder="Falls back to the post title"
-                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs text-stone-500 dark:text-stone-400 block mb-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">
                     Search description
                   </span>
                   <textarea
@@ -537,7 +537,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     onChange={(e) => field('seoDescription', e.target.value)}
                     rows={2}
                     placeholder="Falls back to the excerpt"
-                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 resize-none"
+                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
                   />
                 </label>
               </div>
@@ -545,13 +545,13 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
           </div>
 
           {/* Tools */}
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-4 space-y-2">
+          <div className="v2-card p-4 space-y-2">
             {published && (
               <button
                 type="button"
                 onClick={() => startTransition(async () => { await emailThisPostAction(post.id) })}
                 disabled={pending}
-                className="w-full text-xs font-medium px-2 py-1.5 rounded-md bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 disabled:opacity-50"
+                className="w-full text-xs font-medium px-2 py-1.5 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
                 title="Create a Recall & Outreach email from this post"
               >
                 ✉️ Email to patients
@@ -643,17 +643,17 @@ function AiDraftModal({
   const [topic, setTopic] = useState(defaultTopic ?? '')
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 flex items-center justify-center p-4"
       onClick={busy ? undefined : onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-lg p-5"
+        className="bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-lg p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">
           ✨ Draft with AI
         </h2>
-        <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           Give a topic — Claude writes a first draft in your clinic&apos;s warm, no-judgment voice.
           You review and edit it, add an author, and publish when it&apos;s right.{' '}
           <strong>It never publishes on its own.</strong>
@@ -663,16 +663,16 @@ function AiDraftModal({
           onChange={(e) => setTopic(e.target.value)}
           rows={4}
           placeholder="e.g. Why electric toothbrushes are worth it, for nervous patients. Keep it reassuring and practical."
-          className="w-full text-sm px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600 resize-none"
+          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 resize-none"
         />
-        <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
           This replaces the current title, content, and excerpt.
         </p>
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
             disabled={busy}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700 disabled:opacity-50"
+            className="text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -701,26 +701,26 @@ function SocialModal({
   const [copied, setCopied] = useState(false)
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-900/40 dark:bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-stone-900 rounded-xl shadow-xl w-full max-w-md p-5"
+        className="bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 mb-1">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">
           ✨ Social caption
         </h2>
-        <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           Copy this into Instagram, Facebook, or wherever you post. Scheduling is coming later.
         </p>
-        <div className="text-sm text-stone-700 dark:text-stone-200 bg-stone-50 dark:bg-stone-800/50 rounded-lg p-3 min-h-[80px] whitespace-pre-wrap">
+        <div className="text-sm text-gray-700 dark:text-gray-200 v2-well p-3 min-h-[80px] whitespace-pre-wrap">
           {busy ? 'Writing…' : text}
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700"
+            className="text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             Close
           </button>
@@ -731,7 +731,7 @@ function SocialModal({
                 setCopied(true)
                 setTimeout(() => setCopied(false), 1500)
               }}
-              className="text-sm font-medium px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-white dark:text-stone-900"
+              className="text-sm font-medium px-3 py-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 text-white dark:bg-gray-100 dark:hover:bg-white dark:text-gray-900"
             >
               {copied ? 'Copied' : 'Copy'}
             </button>
@@ -753,8 +753,8 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         className={cn(
           'text-xs font-medium px-2 py-1 rounded-md',
           active
-            ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-            : 'text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-700',
+            ? 'bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
+            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
         )}
       >
         {label}
@@ -779,11 +779,11 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   }
 
   return (
-    <div className="px-5 py-2 border-b border-stone-100 dark:border-stone-700/40 flex items-center gap-1 flex-wrap">
+    <div className="px-5 py-2 border-b border-[color:var(--color-hairline)] flex items-center gap-1 flex-wrap">
       {btn(editor.isActive('bold'), 'B', () => editor.chain().focus().toggleBold().run())}
       {btn(editor.isActive('italic'), 'I', () => editor.chain().focus().toggleItalic().run())}
       {btn(editor.isActive('strike'), 'S', () => editor.chain().focus().toggleStrike().run())}
-      <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
+      <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
       {btn(editor.isActive('heading', { level: 2 }), 'H2', () =>
         editor.chain().focus().toggleHeading({ level: 2 }).run(),
       )}
@@ -791,10 +791,10 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         editor.chain().focus().toggleHeading({ level: 3 }).run(),
       )}
       {btn(editor.isActive('blockquote'), '“ ”', () => editor.chain().focus().toggleBlockquote().run())}
-      <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
+      <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
       {btn(editor.isActive('bulletList'), '• List', () => editor.chain().focus().toggleBulletList().run())}
       {btn(editor.isActive('orderedList'), '1. List', () => editor.chain().focus().toggleOrderedList().run())}
-      <span className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
+      <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
       {btn(editor.isActive('link'), 'Link', setLink)}
       {btn(false, 'Image', addImage)}
     </div>
@@ -836,9 +836,9 @@ function FaqEditor({
   }
 
   return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700/60 p-5">
+    <div className="v2-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-100">FAQ</h3>
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">FAQ</h3>
         <button
           type="button"
           onClick={generate}
@@ -848,38 +848,38 @@ function FaqEditor({
           {busy ? 'Generating…' : '✨ Generate with AI'}
         </button>
       </div>
-      <p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
+      <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
         Common questions about this topic. Shown on the post + added as FAQ structured data — helps you appear in
         Google and AI answers.
       </p>
       {faq.length === 0 ? (
-        <p className="text-xs text-stone-400 dark:text-stone-500 italic mb-3">
+        <p className="text-xs text-gray-400 dark:text-gray-500 italic mb-3">
           No FAQs yet — add your own or generate them.
         </p>
       ) : (
         <div className="space-y-3 mb-3">
           {faq.map((f, i) => (
-            <div key={i} className="rounded-lg border border-stone-200 dark:border-stone-700 p-3">
+            <div key={i} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
               <div className="flex items-start gap-2">
                 <div className="flex-1 space-y-2 min-w-0">
                   <input
                     value={f.q}
                     onChange={(e) => update(i, 'q', e.target.value)}
                     placeholder="Question"
-                    className="w-full text-sm font-medium px-2 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800"
+                    className="w-full text-sm font-medium px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                   />
                   <textarea
                     value={f.a}
                     onChange={(e) => update(i, 'a', e.target.value)}
                     rows={2}
                     placeholder="Answer"
-                    className="w-full text-sm px-2 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 resize-none"
+                    className="w-full text-sm px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => onChange(faq.filter((_, idx) => idx !== i))}
-                  className="text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 text-sm shrink-0 px-1"
+                  className="text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 text-sm shrink-0 px-1"
                   title="Remove"
                 >
                   ✕
@@ -892,7 +892,7 @@ function FaqEditor({
       <button
         type="button"
         onClick={() => onChange([...faq, { q: '', a: '' }])}
-        className="text-xs font-medium text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-100"
+        className="text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
       >
         + Add question
       </button>
