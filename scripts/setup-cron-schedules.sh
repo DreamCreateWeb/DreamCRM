@@ -127,13 +127,14 @@ create_one() {
   fi
 
   # ---- Target (put-targets is idempotent on target Id) ----
-  # Empty input "{}" => the route reads CRON_SECRET from the connection's auth
-  # header; no event payload is needed. A static Id keeps re-runs from stacking
+  # The route reads CRON_SECRET from the connection's auth header; no event
+  # payload is needed (Input must be a JSON *string* when provided, so we send
+  # an empty-object string). A static Id keeps re-runs from stacking
   # duplicate targets.
   aws events put-targets \
     --region "$REGION" \
     --rule "$rule_name" \
-    --targets "Id=${rule_name}-target,Arn=${dest_arn},RoleArn=${ROLE_ARN},Input={},HttpParameters={}" >/dev/null
+    --targets "[{\"Id\":\"${rule_name}-target\",\"Arn\":\"${dest_arn}\",\"RoleArn\":\"${ROLE_ARN}\",\"Input\":\"{}\"}]" >/dev/null
   echo "    target: linked rule -> api-destination"
 }
 

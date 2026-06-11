@@ -349,6 +349,52 @@ export async function getInboxStats(
   }
 }
 
+// ── Thread patient context (the thread-header context strip) ─────────
+
+/**
+ * Slim patient context for the message-thread header — so staff replying
+ * "see you Thursday?" can see the patient's next/last visit, PMS balance,
+ * and whether intake is missing without leaving the inbox.
+ *
+ * Reuses `getPatientHeader` (the patients-list derivation, already the
+ * single source of truth for these derived columns — next/last visit,
+ * the honest PMS-balance framing, the missing-intake-before-next-visit
+ * flag) and maps it down to a serializable, render-ready shape. Returns
+ * null when the patient isn't in this org (defensive — the caller already
+ * org-scopes the thread lookup).
+ */
+export interface ThreadPatientContext {
+  patientId: string
+  nextVisitAt: string | null
+  nextVisitType: string | null
+  lastVisitAt: string | null
+  /** PMS-sync balance. null = none on file → show "No PMS balance", never $0. */
+  outstandingBalanceCents: number | null
+  balanceAsOf: string | null
+  /** True when a visit is booked within 7d and no intake form is on file. */
+  missingIntake: boolean
+}
+
+export async function getThreadPatientContext(
+  organizationId: string,
+  patientId: string,
+): Promise<ThreadPatientContext | null> {
+  // Imported lazily to keep this server-only module's import graph flat —
+  // patients.ts is a sibling service and getPatientHeader is exported cleanly.
+  const { getPatientHeader } = await import('@/lib/services/patients')
+  const header = await getPatientHeader(organizationId, patientId)
+  if (!header) return null
+  return {
+    patientId: header.id,
+    nextVisitAt: header.nextVisitAt ? header.nextVisitAt.toISOString() : null,
+    nextVisitType: header.nextVisitType,
+    lastVisitAt: header.lastVisitAt ? header.lastVisitAt.toISOString() : null,
+    outstandingBalanceCents: header.outstandingBalanceCents,
+    balanceAsOf: header.balanceAsOf ? header.balanceAsOf.toISOString() : null,
+    missingIntake: header.flags.missingIntakeBeforeAppt,
+  }
+}
+
 // ── Thread detail + messages ─────────────────────────────────────────
 
 /**

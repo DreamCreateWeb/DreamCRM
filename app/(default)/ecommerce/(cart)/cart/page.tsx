@@ -5,6 +5,7 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
+import { redirect } from 'next/navigation'
 import CartItems from '../cart-items'
 import CheckoutButton from '../checkout-button'
 import { requireTenant } from '@/lib/auth/context'
@@ -13,6 +14,9 @@ import { formatMoney } from '@/lib/utils'
 
 export default async function Cart() {
   const ctx = await requireTenant()
+  // The clinic's commerce surface is /shop — this generic Mosaic cart isn't
+  // in their nav. (Mirrors the /calendar clinic redirect.)
+  if (ctx.tenantType === 'clinic') redirect('/shop')
   const { subtotalCents, itemCount, lines } = await cartTotal(ctx.userId, ctx.organizationId)
   const currency = lines[0]?.currency ?? 'USD'
   const taxes = Math.round(subtotalCents * 0.1)

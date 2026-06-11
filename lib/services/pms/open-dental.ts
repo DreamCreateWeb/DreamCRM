@@ -37,6 +37,18 @@ import type {
 const DEFAULT_BASE_URL = 'https://api.opendental.com/api/v1'
 const PAGE = 1000 // Remote API caps pages ~1000 elements; loop with Offset.
 
+// Open Dental's free-tier read key is rate-limited (~1 request / 5s). A
+// multi-page pull (a few-thousand-patient office) WILL trip a 429 without
+// throttling, so we (a) sleep a beat between pages and (b) retry a 429/5xx with
+// exponential backoff. Tunables; `sleep` is injectable so tests don't actually
+// wait. 1s → 3s → 9s, max 3 retries.
+const BACKOFF_MS = [1_000, 3_000, 9_000]
+const INTER_PAGE_DELAY_MS = 250
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504])
+
+export type SleepFn = (ms: number) => Promise<void>
+const realSleep: SleepFn = (ms) => new Promise((r) => setTimeout(r, ms))
+
 export function openDentalConfigured(): boolean {
   return Boolean(process.env.PMS_OPEN_DENTAL_DEVELOPER_KEY)
 }
@@ -132,6 +144,8 @@ export interface OpenDentalOptions {
   timeZone?: string
   /** Operatory to book DreamCRM-originated appointments into (Op is required). */
   defaultOperatoryNum?: number
+  /** Injectable sleep for deterministic backoff/inter-page-delay tests. */
+  sleep?: SleepFn
 }
 
 const DEFAULT_TZ = 'America/New_York'
@@ -142,6 +156,7 @@ export class OpenDentalProvider implements PmsProviderClient {
   private authHeader: string
   private timeZone: string
   private defaultOperatoryNum: number | undefined
+  private sleep: SleepFn
 
   constructor(customerKey: string, opts?: OpenDentalOptions) {
     const devKey = process.env.PMS_OPEN_DENTAL_DEVELOPER_KEY
@@ -150,8 +165,12 @@ export class OpenDentalProvider implements PmsProviderClient {
     this.authHeader = `ODFHIR ${devKey}/${customerKey}`
     this.timeZone = opts?.timeZone || DEFAULT_TZ
     this.defaultOperatoryNum = opts?.defaultOperatoryNum
+    this.sleep = opts?.sleep ?? realSleep
   }
 
+  // Single-shot request — fails fast on any non-2xx. Used by writes + the
+  // cheap reachability probe (testConnection), where a long backoff would just
+  // make a real error (bad key / bad payload) take 13s to surface.
   private async req<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
@@ -169,15 +188,40 @@ export class OpenDentalProvider implements PmsProviderClient {
     return (await res.json()) as T
   }
 
+  // GET that retries a 429 (rate limit) or transient 5xx with exponential
+  // backoff (1s/3s/9s, max 3). A 4xx other than 429 (bad key, bad payload) is
+  // a real error — fail fast. Only the bulk paginated read loop uses this; a
+  // few-thousand-patient office WILL trip the free-tier ~1-req/5s limit
+  // otherwise. `sleep` is injectable so tests don't actually wait.
+  private async getWithRetry<T>(path: string): Promise<T> {
+    let lastErr: Error | null = null
+    for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method: 'GET',
+        headers: { Authorization: this.authHeader },
+        cache: 'no-store',
+      })
+      if (res.ok) return (await res.json()) as T
+      const text = await res.text().catch(() => '')
+      lastErr = new Error(`Open Dental GET ${path} → ${res.status} ${text.slice(0, 300)}`)
+      if (!RETRYABLE_STATUS.has(res.status) || attempt === BACKOFF_MS.length) break
+      await this.sleep(BACKOFF_MS[attempt])
+    }
+    throw lastErr ?? new Error(`Open Dental GET ${path} → failed`)
+  }
+
   // Paginated GET via Offset/Limit. Stops on a short page; guards against an
-  // ignored Offset (page repeats) and runaway loops.
+  // ignored Offset (page repeats) and runaway loops. Sleeps a beat between
+  // pages + backs off on 429/5xx so a multi-page pull doesn't hammer (or get
+  // throttled by) the rate-limited read key.
   private async getAll<T extends Record<string, unknown>>(path: string, idKey: string): Promise<T[]> {
     const out: T[] = []
     let offset = 0
     let lastFirstId: unknown
     for (let i = 0; i < 200; i++) {
+      if (i > 0) await this.sleep(INTER_PAGE_DELAY_MS)
       const sep = path.includes('?') ? '&' : '?'
-      const page = await this.req<T[]>('GET', `${path}${sep}Limit=${PAGE}&Offset=${offset}`)
+      const page = await this.getWithRetry<T[]>(`${path}${sep}Limit=${PAGE}&Offset=${offset}`)
       if (!page || page.length === 0) break
       const firstId = page[0]?.[idKey]
       if (firstId !== undefined && firstId === lastFirstId) break // Offset not honored

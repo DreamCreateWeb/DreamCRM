@@ -31,6 +31,9 @@ export default async function ClinicMembershipPage({ params }: Props) {
   const config = await getShopConfig(data.orgId)
   if (!config.membershipEnabled) notFound()
   const plans = await listActivePlans(data.orgId)
+  // Mirror /dental-plans: with membership enabled but zero active plans there's
+  // nothing to join, so 404 rather than render an empty join form.
+  if (plans.length === 0) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'

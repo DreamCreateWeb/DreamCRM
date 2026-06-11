@@ -16,6 +16,9 @@ import {
   copyOverride,
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
+import { hasBookableSlotsInWindow } from '@/lib/services/booking'
+import { formatOdDate } from '@/lib/services/pms/datetime'
+import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
@@ -104,10 +107,16 @@ export default async function BookPage({ params }: Props) {
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const copyOverrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
   const basePath = await resolveSiteBasePath(slug)
-  const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
+  // Whether ANY day in the bookable window has an opening, so we can surface a
+  // prominent "call us" fallback when the whole window is closed/full (phone is
+  // otherwise only in a side card, below the fold on mobile).
+  const tz = data.profile.timezone?.trim() || CLINIC_DEFAULT_TZ
+  const todayKey = formatOdDate(new Date(), tz)
+  const [publishedPosts, membershipPlans, openJobs, windowHasAvailability] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
     getOpenJobs(data.orgId),
+    hasBookableSlotsInWindow(data.orgId, todayKey, 14),
   ])
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
@@ -272,6 +281,8 @@ export default async function BookPage({ params }: Props) {
                     slug={data.slug}
                     brand={brand}
                     clinicName={name}
+                    clinicPhone={data.profile.phone ?? null}
+                    windowHasAvailability={windowHasAvailability}
                     visitTypes={publicVisitTypes(data.profile.visitTypeSettings).map((t) => ({
                       id: t.id,
                       label: t.label,

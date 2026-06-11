@@ -51,12 +51,28 @@ interface TemplateOption {
   rendered: string
 }
 
+/** Slim patient context for the thread header — mirrors the service's
+ *  ThreadPatientContext (serialized dates). null when unavailable. */
+interface PatientContext {
+  patientId: string
+  nextVisitAt: string | null
+  nextVisitType: string | null
+  lastVisitAt: string | null
+  outstandingBalanceCents: number | null
+  balanceAsOf: string | null
+  missingIntake: boolean
+}
+
 interface Props {
   thread: ThreadHeader
   messages: SerializedMessage[]
   currentUserName: string | null
   templates: TemplateOption[]
   hasEmail: boolean
+  /** Patient context strip data (next/last visit, balance, intake). */
+  patientContext?: PatientContext | null
+  /** Mobile-only "← All conversations" link back to the list pane. */
+  backHref?: string
 }
 
 const SNOOZE_OPTIONS = [
@@ -71,12 +87,24 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   sms: 'SMS',
 }
 
+/** Short, scannable date for the context strip ("Thu, Jun 12"). */
+function fmtVisitDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+/** Money for the context strip — same `$X.XX` shape as the patient detail page. */
+function fmtMoney(cents: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+}
+
 export default function ThreadDetailPanel({
   thread,
   messages,
   currentUserName,
   templates,
   hasEmail,
+  patientContext,
+  backHref,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -145,7 +173,18 @@ export default function ThreadDetailPanel({
   return (
     <>
       {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="border-b border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 px-5 py-3 flex items-center justify-between gap-3 shrink-0">
+      <div className="border-b border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 px-5 py-3 shrink-0">
+        {/* Mobile-only back link to the thread list (the two panes collapse
+            to one below lg). Hidden at lg+ where both panes are visible. */}
+        {backHref && (
+          <Link
+            href={backHref}
+            className="lg:hidden inline-flex items-center gap-1 text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 mb-2"
+          >
+            ← All conversations
+          </Link>
+        )}
+        <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <Link
             href={`/patients/${thread.patientId}`}
@@ -209,6 +248,69 @@ export default function ThreadDetailPanel({
             View patient →
           </ActionButton>
         </div>
+        </div>
+
+        {/* ── Patient context strip ──────────────────────────────────
+            One calm line so staff answering "see you Thursday?" can see the
+            visit/balance/intake picture without leaving the inbox. Tones
+            follow the contract: missing-intake is amber (OUR action), a
+            positive balance is rose (problem now). Links to the patient. */}
+        {patientContext && (
+          <Link
+            href={`/patients/${patientContext.patientId}`}
+            title="Open this patient's record"
+            className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100"
+          >
+            <span>
+              <span className="text-stone-400 dark:text-stone-500">Next visit </span>
+              {patientContext.nextVisitAt ? (
+                <span className="font-medium text-stone-700 dark:text-stone-200 tabular-nums">
+                  {fmtVisitDate(patientContext.nextVisitAt)}
+                  {patientContext.nextVisitType ? ` · ${patientContext.nextVisitType}` : ''}
+                </span>
+              ) : (
+                <span className="text-stone-500 dark:text-stone-400">none scheduled</span>
+              )}
+            </span>
+            <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
+            <span>
+              <span className="text-stone-400 dark:text-stone-500">Last visit </span>
+              {patientContext.lastVisitAt ? (
+                <span className="font-medium text-stone-700 dark:text-stone-200 tabular-nums">
+                  {fmtVisitDate(patientContext.lastVisitAt)}
+                </span>
+              ) : (
+                <span className="text-stone-500 dark:text-stone-400">none yet</span>
+              )}
+            </span>
+            <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
+            <span>
+              <span className="text-stone-400 dark:text-stone-500">Balance </span>
+              {patientContext.outstandingBalanceCents == null ? (
+                <span className="text-stone-500 dark:text-stone-400" title="No balance synced from the PMS">
+                  no PMS balance
+                </span>
+              ) : patientContext.outstandingBalanceCents > 0 ? (
+                <span className="font-semibold text-rose-700 dark:text-rose-300 tabular-nums">
+                  {fmtMoney(patientContext.outstandingBalanceCents)}
+                </span>
+              ) : (
+                <span className="font-medium text-emerald-700 dark:text-emerald-300 tabular-nums">paid up</span>
+              )}
+            </span>
+            {patientContext.missingIntake && (
+              <>
+                <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
+                <span
+                  className="font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                  title="A visit is booked soon and no intake form is on file"
+                >
+                  📝 Intake missing
+                </span>
+              </>
+            )}
+          </Link>
+        )}
       </div>
 
       {/* ── Message stream ────────────────────────────────────────── */}

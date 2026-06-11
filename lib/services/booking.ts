@@ -234,6 +234,37 @@ export async function getAvailableSlots(
 }
 
 /**
+ * Whether the clinic has ANY bookable slot across the next `days` calendar days
+ * starting from `fromDateKey` (a `YYYY-MM-DD` clinic-local day). Used by the
+ * public booking widget to decide whether to surface a prominent "call us"
+ * fallback when the entire visible window is closed or fully booked (vs. just
+ * a single empty day). Stops at the first available slot it finds, so the
+ * common case (availability soon) returns fast.
+ *
+ * `durationMinutes` makes the check respect the visit length (a longer visit
+ * may have no fit even when 30-min starts exist).
+ */
+export async function hasBookableSlotsInWindow(
+  organizationId: string,
+  fromDateKey: string,
+  days = 14,
+  durationMinutes?: number,
+): Promise<boolean> {
+  if (!DATE_KEY_RE.test(fromDateKey)) return false
+  const [y, m, d] = fromDateKey.split('-').map((n) => parseInt(n, 10))
+  // Step the calendar day via a UTC anchor (date-only math is zone-agnostic —
+  // we only ever read Y-M-D back out, never an instant).
+  const anchor = Date.UTC(y, m - 1, d)
+  for (let i = 0; i < Math.max(1, days); i++) {
+    const day = new Date(anchor + i * 86_400_000)
+    const key = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, '0')}-${String(day.getUTCDate()).padStart(2, '0')}`
+    const { slots } = await getSlotsForDay(organizationId, key, undefined, durationMinutes)
+    if (slots.some((s) => s.available)) return true
+  }
+  return false
+}
+
+/**
  * Server-side guard: after a patient submits a booking, confirm the slot
  * is still actually free (someone else could have grabbed it in the
  * seconds between page load and form submit). Returns true when the

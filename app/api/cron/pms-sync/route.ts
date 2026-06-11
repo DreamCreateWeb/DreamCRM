@@ -7,7 +7,13 @@ import { notifyOrgMembers } from '@/lib/services/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120
+export const maxDuration = 300
+
+// Cron-wide soft deadline (kept under maxDuration) + a per-org cap, so one
+// huge first import can't starve every other clinic in a single invocation.
+// A budget-capped org just resumes next hour from its parked cursor.
+const CRON_BUDGET_MS = 250_000
+const PER_ORG_BUDGET_MS = 90_000
 
 /**
  * Scheduled PMS auto-sync. Until now `runImport` was only ever called from the
@@ -42,33 +48,46 @@ async function run(request: Request) {
         and(eq(schema.pmsConnection.status, 'connected'), eq(schema.pmsConnection.autoSyncEnabled, 1)),
       )
 
-    const results: Array<{ organizationId: string; status: string; error: string | null; alerted: boolean }> = []
+    const results: Array<{ organizationId: string; status: string; error: string | null; alerted: boolean; resuming?: boolean }> = []
     let succeeded = 0
     let failed = 0
+    let resuming = 0
+    let deferred = 0
 
+    const cronDeadline = Date.now() + CRON_BUDGET_MS
     for (const conn of connections) {
+      // Out of cron time — leave the rest for next hour (their cursors, if any,
+      // are already parked, so nothing is lost).
+      if (Date.now() >= cronDeadline) {
+        deferred++
+        continue
+      }
+      const orgBudget = Math.min(PER_ORG_BUDGET_MS, cronDeadline - Date.now())
       try {
-        const r = await runImport(conn.organizationId, { trigger: 'scheduled' })
-        const alerted = r.status === 'error' || r.status === 'partial'
-          ? await maybeAlertFailure(conn.organizationId)
-          : false
-        if (r.status === 'success') succeeded++
+        const r = await runImport(conn.organizationId, { trigger: 'scheduled', softBudgetMs: orgBudget })
+        // A budget-capped run (resumeAvailable) is HEALTHY progress, not a
+        // failure — it must not trip the failure-streak alert. Only a real
+        // error / data-skip partial alerts.
+        const isRealFailure = r.status === 'error' || (r.status === 'partial' && !r.resumeAvailable)
+        const alerted = isRealFailure ? await maybeAlertFailure(conn.organizationId) : false
+        if (r.resumeAvailable) resuming++
+        else if (r.status === 'success') succeeded++
         else failed++
-        results.push({ organizationId: conn.organizationId, status: r.status, error: r.error, alerted })
+        results.push({ organizationId: conn.organizationId, status: r.status, error: r.error, alerted, resuming: r.resumeAvailable })
       } catch (err) {
         // A throw here means runImport bailed BEFORE writing a sync_run row —
-        // usually transient/benign (the 15-min concurrency guard saw an
-        // overlapping run) or a config issue (no Customer Key). We don't
-        // alert on it (the streak rule keys off real sync_run rows, and an
-        // overlap isn't a failure); just record it and keep the loop going so
-        // one bad org can't stop the rest.
+        // usually transient/benign (the concurrency guard saw an overlapping
+        // run) or a config issue (no Customer Key). We don't alert on it (the
+        // streak rule keys off real sync_run rows, and an overlap isn't a
+        // failure); just record it and keep the loop going so one bad org can't
+        // stop the rest.
         failed++
         const message = err instanceof Error ? err.message : 'unknown'
         results.push({ organizationId: conn.organizationId, status: 'error', error: message, alerted: false })
       }
     }
 
-    return NextResponse.json({ ok: true, scanned: connections.length, succeeded, failed, results })
+    return NextResponse.json({ ok: true, scanned: connections.length, succeeded, failed, resuming, deferred, results })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

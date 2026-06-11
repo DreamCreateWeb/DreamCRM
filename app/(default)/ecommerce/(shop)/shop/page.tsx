@@ -5,6 +5,7 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
+import { redirect } from 'next/navigation'
 import ShopCards05 from '../shop-cards-05'
 import ShopCards06 from '../shop-cards-06'
 import ProductList from '../product-list'
@@ -13,6 +14,9 @@ import { listProducts } from '@/lib/services/products'
 
 export default async function Shop() {
   const ctx = await requireTenant()
+  // The clinic-facing storefront admin lives at /shop — this generic Mosaic
+  // browse page isn't in their nav. (Mirrors the /calendar clinic redirect.)
+  if (ctx.tenantType === 'clinic') redirect('/shop')
   const products = await listProducts(ctx.organizationId, { limit: 24 })
 
   return (

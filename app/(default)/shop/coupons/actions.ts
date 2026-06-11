@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
+import { planAllows } from '@/lib/modules'
 import { createCoupon, deactivateCoupon, generateBirthdayCoupons } from '@/lib/services/coupons'
 import type { DiscountType } from '@/lib/types/shop'
 
@@ -9,6 +10,12 @@ async function ensureClinicAdmin() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') throw new Error('Coupons are only available for clinic tenants.')
   if (ctx.role === 'patient') throw new Error('Patients cannot manage coupons.')
+  // Coupons live inside the Premium-tier Shop module (lib/modules/clinic.ts)
+  // — block below-tier clinics from the action even via deep-link. Demo
+  // contexts inherit the demo org's premium tier, so they pass.
+  if (!planAllows(ctx.planTier, 'premium')) {
+    throw new Error('Shop is on the Premium plan. Upgrade to manage coupons.')
+  }
   return ctx
 }
 

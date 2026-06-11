@@ -6,7 +6,8 @@ import { getSiteTraffic } from '@/lib/services/site-analytics'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
-import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
+import { KpiStat } from '@/components/ui/kpi-stat'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 
 export const metadata = { title: 'Practice Analytics - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -42,9 +43,19 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const trafficDelta = traffic.total - traffic.totalPrev
 
   const newPatientsDelta = a.acquisition.newPatients - a.acquisition.newPatientsPrev
-  // Rates on a tiny sample are meaningless (and a single no-show would read as
-  // 100%). Show counts + a "building history" note until enough visits resolve.
-  const lowVol = a.schedule.attended < 5
+  // Rates on a tiny sample are meaningless (a single no-show would read as
+  // 100%). Show counts + a "building history" note until enough resolve.
+  // Each rate gets a low-volume flag keyed to ITS OWN denominator — the
+  // no-show rate is over attended visits, but the cancellation rate is over
+  // all booked appointments, so they can't share one threshold.
+  const LOW_VOL = 5
+  const confirmableDenom = a.schedule.total - a.schedule.cancelled // matches confirmationRate
+  const lowVolAttended = a.schedule.attended < LOW_VOL // no-show rate
+  const lowVolCancellation = a.schedule.total < LOW_VOL // cancellation rate (denom = total)
+  const lowVolConfirmation = confirmableDenom < LOW_VOL // confirmation rate
+  // The "building history" footnote shows whenever ANY headline rate is on a
+  // thin sample — it explains every "x/y" fallback rendered above it.
+  const anyLowVol = lowVolAttended || lowVolCancellation || lowVolConfirmation
   const now = new Date()
 
   return (
@@ -157,32 +168,44 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       </Section>
 
       {/* ── Schedule health ─────────────────────────────────────────────── */}
-      <Section title="Schedule health" subtitle={`Appointments completed in the last ${windowDays} days`}>
+      {/* Every headline number drills into the filtered Appointments view that
+          explains it (design doctrine: numbers are never dead ends). */}
+      <Section title="Schedule health" subtitle={`Appointments with a visit time in the last ${windowDays} days`}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-1.5">
-          <Stat label="Appointments" value={a.schedule.total} />
-          <Stat
+          <KpiStat
+            label="Appointments"
+            value={a.schedule.total}
+            href="/appointments?window=past_30d"
+          />
+          <KpiStat
             label="Confirmation rate"
-            value={a.schedule.attended === 0 ? '—' : lowVol ? `${a.schedule.confirmed}/${a.schedule.total}` : pct(a.schedule.confirmationRate)}
-            tone={lowVol ? undefined : 'ok'}
+            value={confirmableDenom === 0 ? '—' : lowVolConfirmation ? `${a.schedule.confirmed}/${confirmableDenom}` : pct(a.schedule.confirmationRate)}
+            sub="who still need a text →"
+            tone={lowVolConfirmation || a.schedule.confirmationRate == null ? undefined : 'ok'}
+            href="/appointments?attention=unconfirmed"
           />
-          <Stat
+          <KpiStat
             label="No-show rate"
-            value={a.schedule.attended === 0 ? '—' : lowVol ? `${a.schedule.noShow} of ${a.schedule.attended}` : pct(a.schedule.noShowRate)}
-            tone={lowVol || a.schedule.noShowRate == null ? undefined : a.schedule.noShowRate > a.schedule.benchmarkNoShowRate ? 'urgent' : 'ok'}
-            sub={a.schedule.attended === 0 ? 'no visits yet' : lowVol ? 'visits so far' : `benchmark ${pct(a.schedule.benchmarkNoShowRate)}`}
+            value={a.schedule.attended === 0 ? '—' : lowVolAttended ? `${a.schedule.noShow} of ${a.schedule.attended}` : pct(a.schedule.noShowRate)}
+            tone={lowVolAttended || a.schedule.noShowRate == null ? undefined : a.schedule.noShowRate > a.schedule.benchmarkNoShowRate ? 'urgent' : 'ok'}
+            sub={a.schedule.attended === 0 ? 'no visits yet' : lowVolAttended ? 'visits so far' : `benchmark ${pct(a.schedule.benchmarkNoShowRate)}`}
+            href="/appointments?window=past_30d&attention=no_show"
           />
-          <Stat
+          <KpiStat
             label="Cancellation rate"
-            value={a.schedule.total === 0 ? '—' : lowVol ? `${a.schedule.cancelled}/${a.schedule.total}` : pct(a.schedule.cancellationRate)}
+            value={a.schedule.total === 0 ? '—' : lowVolCancellation ? `${a.schedule.cancelled}/${a.schedule.total}` : pct(a.schedule.cancellationRate)}
+            sub={a.schedule.total === 0 ? undefined : lowVolCancellation ? 'booked so far' : `${a.schedule.cancelled} of ${a.schedule.total} booked`}
+            href="/appointments?window=past_30d&attention=cancelled"
           />
         </div>
-        {lowVol && (
+        {anyLowVol ? (
           <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">
-            Based on {a.schedule.attended} completed visit{a.schedule.attended === 1 ? '' : 's'} in this window — rates firm up as your
-            history grows.
+            Rates shown as counts where the sample is still small (under {LOW_VOL}) — they firm up into
+            percentages as your history grows.
           </p>
+        ) : (
+          <div className="mb-4" />
         )}
-        {!lowVol && <div className="mb-4" />}
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4">
           <Card>
             <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mb-1">Volume by week</p>
@@ -232,13 +255,18 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           </Card>
         </Section>
 
-        <Section title="Reputation" subtitle="Review requests · last 30 days" flush>
+        <Section title="Reputation" subtitle={`Review requests · last ${windowDays} days`} flush>
           <Card>
+            {/* Sent → Opened → Reviewed. "Opened" is the REAL count of requests
+                whose review link the patient opened (review_request.clickedAt) —
+                not a number reconstructed from the click rate. review_request
+                has no email-open tracking, so this is the only honest middle
+                step; the rate rides alongside as context. */}
             <Funnel
               steps={[
                 { label: 'Requests sent', value: a.reputation.sent },
-                { label: 'Opened', value: a.reputation.completed > 0 || a.reputation.clickRate ? Math.round(a.reputation.sent * (a.reputation.clickRate ?? 0)) : 0, note: a.reputation.clickRate != null ? pct(a.reputation.clickRate) : undefined },
-                { label: 'Reviews left', value: a.reputation.completed, href: '/reviews' },
+                { label: 'Opened the link', value: a.reputation.opened, note: a.reputation.clickRate != null ? pct(a.reputation.clickRate) : undefined },
+                { label: 'Reviews left', value: a.reputation.completed, href: '/reviews/received' },
               ]}
             />
             <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 mt-4 mb-2">Platform mix</p>
@@ -300,17 +328,6 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-stone-500 dark:text-stone-400 italic">{children}</p>
-}
-
-function Stat({ label, value, tone, sub }: { label: string; value: string | number; tone?: Tone; sub?: string }) {
-  const toneCls = tone ? TONE_TEXT[tone] : 'text-stone-900 dark:text-stone-100'
-  return (
-    <div className="px-3 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/60">
-      <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">{label}</p>
-      <p className={`text-2xl font-bold tabular-nums mt-0.5 ${toneCls}`}>{value}</p>
-      {sub && <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{sub}</p>}
-    </div>
-  )
 }
 
 function DeltaBadge({ value }: { value: number }) {
