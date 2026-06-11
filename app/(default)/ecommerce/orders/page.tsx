@@ -25,7 +25,15 @@ export default async function OrdersOrPipeline() {
 
   if (ctx.tenantType === 'platform') return <SalesPipeline />
 
-  // Clinic tenants — keep the existing CRM-style orders / treatment plans view.
+  // Clinic tenants belong in the dental-correct Shop orders surface — this
+  // generic Mosaic orders/pipeline view isn't part of their nav. Platform
+  // keeps the sales pipeline above. (Mirrors the /calendar → /appointments
+  // and /ecommerce/customers → /patients clinic redirects.)
+  if (ctx.tenantType === 'clinic') redirect('/shop/orders')
+
+  // Unreachable now (platform returned the pipeline above; patient + clinic
+  // redirect away) — the original Mosaic orders view is kept below intact so
+  // the route still works if the tenant branching ever changes.
   const [orders, customers] = await Promise.all([
     listOrders(ctx.organizationId),
     listCustomers(ctx.organizationId),

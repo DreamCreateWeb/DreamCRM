@@ -5,12 +5,14 @@ import {
   CANNED_TEMPLATES,
   getInboxStats,
   getPatientThreadById,
+  getThreadPatientContext,
   listMessagesInThread,
   listPatientThreads,
   markThreadRead,
   renderTemplate,
   type ThreadFilters,
   type ThreadMessage,
+  type ThreadPatientContext,
   type ThreadRow,
 } from '@/lib/services/patient-messaging'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -106,9 +108,15 @@ export default async function ClinicMessagesView({
     ? await getPatientThreadById(ctx.organizationId, searchParams.thread)
     : null
 
-  const messages: ThreadMessage[] = activeThread
-    ? await listMessagesInThread(ctx.organizationId, activeThread.id)
-    : []
+  // Pull the message stream + the slim patient context strip in parallel —
+  // so staff replying see next/last visit, PMS balance, and missing-intake
+  // without leaving the inbox.
+  const [messages, patientContext]: [ThreadMessage[], ThreadPatientContext | null] = activeThread
+    ? await Promise.all([
+        listMessagesInThread(ctx.organizationId, activeThread.id),
+        getThreadPatientContext(ctx.organizationId, activeThread.patientId),
+      ])
+    : [[], null]
 
   // Mark the active thread read when it has unread messages on the
   // staff side. Call the service directly (NOT the server action wrapper):
@@ -123,6 +131,10 @@ export default async function ClinicMessagesView({
   }
 
   const filterEmpty = threads.length === 0 && hasActiveFilters(filters)
+  // Drives the mobile single-pane collapse: a thread is "selected" when the
+  // ?thread= param resolved to a real thread. List shows when false; detail
+  // shows when true. At lg+ both render regardless.
+  const threadSelected = activeThread != null
 
   return (
     <div className="flex flex-col h-full bg-stone-50 dark:bg-stone-950">
@@ -178,9 +190,16 @@ export default async function ClinicMessagesView({
       </div>
 
       {/* ── Two-column body ─────────────────────────────────────────── */}
+      {/* Below lg, this is one pane at a time (list OR detail) — picking a
+          thread (?thread=…) swaps to the detail with a "← All conversations"
+          back link; with none selected we show the list. At lg+ both panes
+          show side-by-side, exactly as before. */}
       <div className="flex-1 flex min-h-0">
-        {/* Thread list */}
-        <aside className="w-[22rem] shrink-0 border-r border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 overflow-y-auto">
+        {/* Thread list — full width on mobile when no thread is selected;
+            hidden on mobile once a thread is open; fixed-width column at lg+. */}
+        <aside
+          className={`${threadSelected ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[22rem] shrink-0 border-r border-stone-200 dark:border-stone-700/60 bg-white dark:bg-stone-900 overflow-y-auto`}
+        >
           {threads.length === 0 ? (
             <EmptyState
               icon={filterEmpty ? '🔍' : '💬'}
@@ -250,8 +269,10 @@ export default async function ClinicMessagesView({
           )}
         </aside>
 
-        {/* Thread detail */}
-        <section className="flex-1 min-w-0 flex flex-col">
+        {/* Thread detail — full width on mobile once a thread is open;
+            hidden on mobile when none is selected (the list shows instead);
+            grows beside the list at lg+. */}
+        <section className={`${threadSelected ? 'flex' : 'hidden lg:flex'} flex-1 min-w-0 flex-col`}>
           {activeThread ? (
             <ThreadDetailPanel
               // Re-mount the panel per thread so its useState-initializer
@@ -273,6 +294,8 @@ export default async function ClinicMessagesView({
                 snoozedUntil: activeThread.snoozedUntil ? activeThread.snoozedUntil.toISOString() : null,
                 lastMessageChannel: activeThread.lastMessageChannel,
               }}
+              patientContext={patientContext}
+              backHref={buildHref(searchParams, { thread: undefined })}
               messages={messages.map((m) => ({
                 ...m,
                 sentAt: m.sentAt.toISOString(),
