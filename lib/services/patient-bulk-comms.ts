@@ -1,37 +1,33 @@
 import 'server-only'
 import { and, eq, inArray } from 'drizzle-orm'
-import { Resend } from 'resend'
 import { db, schema } from '@/lib/db'
+import { sendPatientMessageEmail } from '@/lib/email'
+import { getClinicSenderIdentity } from './clinic-sender'
 
 /**
- * Bulk patient communication. v1 = email only (via Resend). SMS comes when
- * the Twilio module ships.
+ * Bulk patient communication. v1 = email only. These are 1:1 staff→patient
+ * messages (not marketing blasts), so they go through the SAME delivery path as
+ * a Patient Communications email reply — `sendPatientMessageEmail` →
+ * `deliver()` in lib/email.ts — which:
+ *   - sends FROM the clinic's sender identity (Tier 1 display name on the
+ *     verified domain, or the connected Gmail at Tier 2), with Reply-To = the
+ *     clinic's contact inbox so a patient reply reaches the clinic, not a dead
+ *     platform mailbox;
+ *   - inspects Resend's `{ error }` return and THROWS on a real failure (the
+ *     Resend SDK doesn't throw), so a failed send is recorded, never silently
+ *     counted as sent.
  *
- * Skip rules:
+ * Skip rules (unchanged):
  * - Patient with no email — skipped (no channel to reach them)
  * - Patient archived (isActive=0) — skipped (don't broadcast to archived
  *   relationships; staff should re-activate first if intentional)
  *
  * Failures don't abort the batch — we record per-patient errors and
  * continue. Returns a result the UI can render as a toast.
+ *
+ * Note: these are direct 1:1 messages, so no RFC-8058 List-Unsubscribe header
+ * (that's for marketing blasts — see lib/services/marketing-send.ts).
  */
-
-const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
-
-function getResend() {
-  const key = process.env.RESEND_API_KEY
-  if (!key) throw new Error('RESEND_API_KEY env var is not set')
-  return new Resend(key)
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 export interface BulkEmailInput {
   organizationId: string
@@ -79,37 +75,25 @@ export async function sendBulkPatientEmail(input: BulkEmailInput): Promise<BulkE
       ),
     )
 
-  let from = FROM
-  if (input.fromName) {
-    const safeName = input.fromName.replace(/[<>"]/g, '').trim()
-    if (safeName) from = `${safeName} <Hello@DreamCreateWeb.com>`
-  }
-
-  const resend = getResend()
+  // Resolve the clinic sender identity once for the whole batch — FROM header,
+  // deliverable Reply-To, and any Tier-2 Gmail routing.
+  const sender = await getClinicSenderIdentity(input.organizationId)
+  const fromName = input.fromName?.trim() || sender.name
+  const clinicName = fromName
 
   for (const p of patients) {
     if (!p.email) { result.skippedNoEmail += 1; continue }
     if (p.isActive === 0) { result.skippedArchived += 1; continue }
     try {
-      // Per-recipient personalization — first name prefix if the body
-      // doesn't start with a greeting already.
-      const greeting = `Hi ${p.firstName},`
-      const res = await resend.emails.send({
-        from,
+      await sendPatientMessageEmail({
         to: p.email,
-        subject,
-        html: `
-          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1c1917">
-            <p style="margin:0 0 16px;color:#1c1917;line-height:1.55">${escapeHtml(greeting)}</p>
-            <div style="margin:0 0 24px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(body)}</div>
-            <p style="margin:24px 0 0;font-size:11px;color:#a8a29e">
-              You received this because you're a patient at our practice. To stop receiving these messages, reply STOP.
-            </p>
-          </div>
-        `,
+        patientFirstName: p.firstName,
+        clinicName,
+        body: `${subject ? `${subject}\n\n` : ''}${body}`.trim(),
+        from: sender.from,
+        replyTo: sender.replyTo,
+        gmail: sender.gmail,
       })
-      // Resend returns `{ data, error }` and does not throw — record real failures.
-      if (res?.error) throw new Error(res.error.message || 'Resend send failed')
       result.sent += 1
     } catch (err) {
       result.errors.push({ patientId: p.id, error: (err as Error).message })
