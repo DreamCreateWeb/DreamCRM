@@ -324,15 +324,12 @@ export async function voidAccruedCommission(partnerId: string, note: string): Pr
           eq(schema.referralCommission.status, 'accrued'),
         ),
       )
+    // The reversed rows ARE the audit trail (preserved + labeled "Reversed" in
+    // the ledger — no silent money deletion). `referral_commission` has no
+    // per-row note column (the migration is data-only), so the reason is logged
+    // to the server audit log alongside the row reversal.
+    console.info('[referral] void accrued commission', { partnerId, voidedCents, note })
   }
-  // Stamp the reason on the partner row for the audit trail (terms_note is a
-  // free-text field already surfaced; we leave it for the admin, and instead
-  // record the void on a payout-style note via the partner's updatedAt bump).
-  await db
-    .update(schema.referralPartner)
-    .set({ updatedAt: new Date() })
-    .where(eq(schema.referralPartner.id, partnerId))
-  void note
   return { voidedCents }
 }
 
