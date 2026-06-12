@@ -9,6 +9,7 @@ import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { seedClinicDay0Defaults } from '@/lib/onboarding/defaults'
+import { applyStarterFloor } from '@/lib/services/starter-pack'
 import { PLANS, type BillingInterval } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -242,6 +243,22 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     await seedClinicDay0Defaults(orgId)
   } catch (err) {
     console.warn('[onboarding] could not seed day-0 defaults', err)
+  }
+
+  // Day-0 COMPLETE FLOOR: deterministic starter copy (tagline / about / stats /
+  // FAQ / payment methods / cancellation policy) + 4 canonical core services,
+  // so the clinic's public site reads as finished the moment they land — they
+  // shouldn't have to fill anything for it not to look empty. Idempotent
+  // (null-only fill) + best-effort. (Staff / testimonials / insurance carriers
+  // are deliberately NOT pre-filled — see starter-pack.ts trust boundary.)
+  try {
+    await applyStarterFloor(orgId, {
+      displayName,
+      city: data.city?.trim() || null,
+      state: data.state?.trim() || null,
+    })
+  } catch (err) {
+    console.warn('[onboarding] could not apply starter floor', err)
   }
 
   const [profile] = await db

@@ -187,6 +187,11 @@ describe('createDemoClinic', () => {
     // Testimonials self-heal: no profile row returned → topUpLinkedDemoTestimonials
     // returns early without touching the patient table or producing updates.
     state.selectQueue.push([])
+    // renameDemoAcmeArtifacts (one-time 2026-06 rename): location lookup
+    // returns a non-Acme name (no update) + profile lookup returns null seoMeta
+    // (no update), so it fires zero writes.
+    state.selectQueue.push([{ id: 'loc_existing', name: 'Dream Dental — Downtown' }])
+    state.selectQueue.push([{ seoMeta: null }])
     // Reviews self-heal: pretend config exists + seed has already been
     // run for pat_existing_1 so the seed loop short-circuits with 0
     // inserts.
@@ -911,5 +916,149 @@ describe('createDemoClinic', () => {
     // doesn't exist on this org.
     expect((emmaLead.values as { status: string }).status).toBe('converted')
     expect((emmaLead.values as { convertedToPatientId: string | null }).convertedToPatientId).toBeNull()
+  })
+
+  // ── Acme→Dream Dental rename (2026-06) ──────────────────────────────────
+  describe('Dream Dental rename', () => {
+    function minimalFreshQueue() {
+      state.selectQueue.push([]) // org lookup — none → fresh path
+      state.selectQueue.push([]) // (defensive) profile-ish
+      state.selectQueue.push([{ id: 'tmpl' }])
+      state.selectQueue.push([])
+      state.selectQueue.push([
+        { id: 1, name: 'Reactivation — come back for a cleaning' },
+        { id: 2, name: 'Birthday — warm monthly check-in' },
+        { id: 3, name: 'New-patient welcome' },
+      ])
+      state.selectQueue.push([{ id: 'appt_aiden_recall' }])
+    }
+
+    it('fresh seed: slug stays the stable acme-dental-demo constant', async () => {
+      minimalFreshQueue()
+      const out = await createDemoClinic()
+      expect(out.organizationSlug).toBe('acme-dental-demo')
+      const orgInsert = state.inserts.find((i) => i.table === 'organization')!
+      expect((orgInsert.values as { slug: string }).slug).toBe('acme-dental-demo')
+      // …but the org NAME is the renamed Dream Dental.
+      expect((orgInsert.values as { name: string }).name).toBe('Dream Dental Demo')
+    })
+
+    it('fresh seed: clinic_profile + location carry zero "Acme" content', async () => {
+      minimalFreshQueue()
+      await createDemoClinic()
+
+      const profileInsert = state.inserts.find((i) => i.table === 'clinic_profile')!
+      const pv = profileInsert.values as Record<string, unknown>
+      expect(pv.displayName).toBe('Dream Dental')
+      expect(pv.legalName).toBe('Dream Dental, PLLC')
+      // Deep-scan the entire seeded profile JSON (about, services customized
+      // blobs, stats, staff bios, testimonials, faq, seo) for any "Acme".
+      expect(JSON.stringify(pv)).not.toMatch(/Acme/)
+
+      const locInsert = state.inserts.find((i) => i.table === 'clinic_location')!
+      expect(JSON.stringify(locInsert.values)).not.toMatch(/Acme/)
+      expect((locInsert.values as { name: string }).name).toBe('Dream Dental — Downtown')
+    })
+
+    it('force-refresh: an existing demo with old "Acme" identity is renamed in place', async () => {
+      // org lookup → an existing demo still on the OLD Acme name.
+      state.selectQueue.push([
+        { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
+      ])
+      // self-heal profile read — OLD Acme identity + an Acme-bearing customized
+      // service blob that backfill-when-missing would never touch.
+      state.selectQueue.push([
+        {
+          brandColor: '#9CAF9F',
+          displayName: 'Acme Dental',
+          legalName: 'Acme Dental, PLLC',
+          email: 'hello@acme-dental.example',
+          about:
+            'We started Acme to make going to the dentist feel like going to any other thoughtful, modern place.',
+          tagline: 'Dental care that finally feels human.',
+          services: [
+            {
+              id: 'svc1',
+              librarySlug: 'family-dental-care',
+              name: 'Family Dental Care',
+              category: 'core',
+              customized: { body: 'Families across Austin pick Acme because it just fits.' },
+            },
+          ],
+          staff: [
+            {
+              // id must match a DEMO_STAFF persona (p1 = Dr. Jordan Reyes) so the
+              // bio-rename branch can restore the template copy.
+              id: 'p1',
+              name: 'Dr. Jordan Reyes',
+              title: 'Lead Dentist',
+              bio: 'Dr. Reyes founded Acme to make dentistry feel human.',
+              slug: 'dr-jordan-reyes',
+              credentials: 'DDS',
+              specialties: ['Implants'],
+            },
+          ],
+          stats: [{ id: 's', value: 'X', label: 'y' }],
+          testimonials: [{ id: 't', patientId: 'p0', quote: 'I love Acme!' }],
+          officePhotos: [{ id: 'o', url: 'u' }],
+          faq: [{ id: 'f', category: 'Booking', question: 'q', answer: 'a' }],
+          paymentMethods: ['Cash'],
+          financingPartners: [{ id: 'fp', name: 'CareCredit' }],
+          cancellationPolicy: 'policy',
+          timezone: 'America/Chicago',
+          logoUrl: 'http://x/logo.png',
+          heroImageUrl: 'http://x/hero.png',
+          heroImageUrl2: 'http://x/hero2.png',
+          differenceVideoUrl: 'http://x/v.mp4',
+          acceptedInsuranceCarriers: ['Aetna'],
+          portalSettings: { x: 1 },
+          chairCount: 3,
+          visitTypeSettings: [{ id: 'v' }],
+          recallDefaultMonths: 6,
+        },
+      ])
+      // Everything after the profile read returns [] (exhausted queue) — the
+      // remaining self-heal steps no-op, which is all we need to exercise the
+      // rename patches captured on db.update.
+      const out = await createDemoClinic()
+      expect(out.created).toBe(false)
+
+      // The org name row was force-renamed (slug stays put).
+      const dreamRename = state.inserts // org update goes through db.update, not insert
+      void dreamRename
+
+      // Identity force-refresh landed in the profile patch.
+      const profilePatch = state.updates
+        .map((u) => u.set as Record<string, unknown>)
+        .find((s) => s.displayName === 'Dream Dental' || s.about?.toString().startsWith('We started Dream Dental'))
+      expect(profilePatch).toBeTruthy()
+      expect(profilePatch!.displayName).toBe('Dream Dental')
+      expect(profilePatch!.legalName).toBe('Dream Dental, PLLC')
+      expect(profilePatch!.email).toBe('hello@dream-dental.example')
+      expect((profilePatch!.about as string).startsWith('We started Dream Dental')).toBe(true)
+      // The Acme-bearing customized service blob was force-replaced with the
+      // Dream Dental copy from DEMO_CUSTOMIZED.
+      const svcs = profilePatch!.services as Array<{ customized?: { body?: string } }>
+      expect(svcs[0].customized?.body).toContain('Dream Dental')
+      expect(svcs[0].customized?.body).not.toContain('Acme')
+      // The Acme-bearing staff bio was restored to the Dream Dental template.
+      const staff = profilePatch!.staff as Array<{ bio?: string }>
+      expect(staff[0].bio).toContain('Dream Dental')
+      expect(staff[0].bio).not.toContain('Acme')
+    })
+
+    it('force-refresh: org name is renamed when it still starts with "Acme"', async () => {
+      state.selectQueue.push([
+        { id: 'org_existing', name: 'Acme Dental Demo', slug: 'acme-dental-demo' },
+      ])
+      // minimal profile so the rest of the self-heal can run/no-op
+      state.selectQueue.push([{ brandColor: '#9CAF9F' }])
+      await createDemoClinic()
+      // The org rename rides db.update; assert a patch set name to the new value.
+      const orgRename = state.updates
+        .map((u) => u.set as Record<string, unknown>)
+        .find((s) => s.name === 'Dream Dental Demo')
+      expect(orgRename).toBeTruthy()
+    })
   })
 })

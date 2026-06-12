@@ -104,6 +104,59 @@ describe('ModernTemplate', () => {
     expect(bookLinks.length).toBeGreaterThan(0)
   })
 
+  describe('brand-tinted hero placeholders (Day-0 imagery floor)', () => {
+    it('paints an empty hero oval with a brand-derived gradient (not a flat fill)', () => {
+      const { container } = render(
+        <ModernTemplate data={makeData({ heroImageUrl: null, brandColor: '#2A7F8C' })} basePath="/site/test" />,
+      )
+      // The empty oval is a round div carrying a brand-derived radial gradient
+      // (so a photo-less site still looks designed). Find round divs whose
+      // inline backgroundImage references the brand color.
+      const rounds = Array.from(container.querySelectorAll('div')).filter((d) =>
+        (d.getAttribute('style') ?? '').includes('border-radius: 50%'),
+      )
+      const brandTinted = rounds.filter((d) => {
+        const style = d.getAttribute('style') ?? ''
+        return style.includes('radial-gradient') && style.toLowerCase().includes('#2a7f8c')
+      })
+      expect(brandTinted.length).toBeGreaterThan(0)
+    })
+
+    it('renders the decorative line-motif SVG over an empty oval', () => {
+      const { container } = render(
+        <ModernTemplate data={makeData({ heroImageUrl: null, brandColor: '#2A7F8C' })} basePath="/site/test" />,
+      )
+      // The motif is an aria-hidden SVG with brand-colored concentric circles
+      // (stroke is set on the wrapping <g>). Find groups stroked in the brand
+      // color that contain circles.
+      const groups = Array.from(container.querySelectorAll('svg g')).filter(
+        (g) =>
+          (g.getAttribute('stroke') ?? '').toLowerCase() === '#2a7f8c' &&
+          g.querySelectorAll('circle').length > 0,
+      )
+      expect(groups.length).toBeGreaterThan(0)
+    })
+
+    it('keeps the WITH-photo path unchanged: renders the <img>, no gradient/motif', () => {
+      const heroUrl = 'https://example.com/hero.jpg'
+      const { container } = render(
+        <ModernTemplate
+          data={makeData({ heroImageUrl: heroUrl, brandColor: '#2A7F8C' })}
+          basePath="/site/test"
+        />,
+      )
+      // The hero photo renders as an <img> with the supplied src.
+      const imgs = Array.from(container.querySelectorAll('img')).filter(
+        (i) => i.getAttribute('src') === heroUrl,
+      )
+      expect(imgs.length).toBeGreaterThan(0)
+      // The oval that now holds the photo is a plain backgroundColor fill — no
+      // brand gradient painted behind a present photo (left hero oval).
+      const photoOval = imgs[0].closest('div')
+      expect(photoOval?.getAttribute('style') ?? '').not.toContain('radial-gradient')
+    })
+  })
+
   it('omits about section when not provided', () => {
     render(<ModernTemplate data={makeData({ about: null })} basePath="/site/test" />)
     // The about *section* eyebrow lives in a <p>. The footer also carries

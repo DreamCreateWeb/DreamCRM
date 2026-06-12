@@ -364,7 +364,7 @@ export default async function MarketingHome() {
                 See it running before you sign up for anything
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-[0.95rem] leading-relaxed text-gray-400">
-                Acme Dental is a fully-populated demo practice — browse its public website, then
+                Dream Dental is a fully-populated demo practice — browse its public website, then
                 start your own setup whenever you&apos;re convinced.
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

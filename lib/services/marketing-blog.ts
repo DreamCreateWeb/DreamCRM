@@ -53,7 +53,7 @@ const LAUNCH_POSTS: LaunchPost[] = [
 <h2>What we deliberately don't do</h2>
 <p>We are not a practice management system, and we don't pretend to be. Charts, procedures, claims, prescriptions — those stay in your PMS, which keeps doing what it's good at. We also don't do VoIP phones, and SMS texting is on our roadmap rather than in the product today; we'd rather tell you that on the pricing page than surprise you after the contract. There is no contract, incidentally.</p>
 <h2>See it before you sign anything</h2>
-<p>Acme Dental is a fully-populated demo practice: browse its public website, booking flow, and patient-facing pages. When you're convinced, setup takes about ten minutes and your own site is live on your subdomain before your next patient checks out.</p>`,
+<p>Dream Dental is a fully-populated demo practice: browse its public website, booking flow, and patient-facing pages. When you're convinced, setup takes about ten minutes and your own site is live on your subdomain before your next patient checks out.</p>`,
   },
   {
     slug: 'why-we-wrap-your-pms',

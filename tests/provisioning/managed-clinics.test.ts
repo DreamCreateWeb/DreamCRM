@@ -10,6 +10,8 @@ const {
   mockCheckoutCreate,
   mockSendInvitationEmail,
   mockSeedIntake,
+  mockSeedDay0,
+  mockStarterFloor,
   mockAssignReferral,
 } = vi.hoisted(() => {
   process.env.STRIPE_PRICE_STARTER_MONTHLY = 'price_basic_m'
@@ -18,6 +20,8 @@ const {
   process.env.NEXT_PUBLIC_APP_URL = 'https://www.dreamcreatestudio.com'
   return {
     mockSeedIntake: vi.fn(async () => undefined),
+    mockSeedDay0: vi.fn(async () => undefined),
+    mockStarterFloor: vi.fn(async () => ({ applied: true, fields: [] })),
     mockSelect: vi.fn(),
     mockInsert: vi.fn(),
     mockUpdate: vi.fn(),
@@ -33,6 +37,8 @@ const {
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/email', () => ({ sendInvitationEmail: mockSendInvitationEmail }))
 vi.mock('@/lib/services/forms', () => ({ seedDefaultIntakeForm: mockSeedIntake }))
+vi.mock('@/lib/onboarding/defaults', () => ({ seedClinicDay0Defaults: mockSeedDay0 }))
+vi.mock('@/lib/services/starter-pack', () => ({ applyStarterFloor: mockStarterFloor }))
 // createManagedClinic dynamically imports this only when a referral is supplied.
 vi.mock('@/lib/services/referrals', () => ({ assignClinicReferral: mockAssignReferral }))
 vi.mock('@/lib/stripe', () => ({
@@ -124,6 +130,14 @@ describe('createManagedClinic', () => {
 
     // Every new clinic starts with the standard intake form.
     expect(mockSeedIntake).toHaveBeenCalledWith(result.organizationId)
+
+    // Day-0 COMPLETE FLOOR: a managed clinic still gets the full starter site
+    // (managed provisioning has no phone/address, so the floor is called with
+    // just the clinic name — its copy must not require either).
+    expect(mockStarterFloor).toHaveBeenCalledWith(
+      result.organizationId,
+      expect.objectContaining({ displayName: 'Bright Smile Dental' }),
+    )
   })
 
   it('managed + percent off forever: creates the coupon, stays on basic with the plan reserved', async () => {
