@@ -46,9 +46,9 @@ import {
   saveLeadForm,
   saveHours,
   saveDifferenceVideo,
-  isValidVideoUrl,
   type SectionResult,
 } from './website-actions'
+import { isValidVideoUrl } from '@/lib/website-url'
 
 interface Props {
   slug: string

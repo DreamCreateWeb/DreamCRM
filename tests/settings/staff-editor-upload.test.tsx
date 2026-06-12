@@ -66,7 +66,7 @@ describe('StaffEditor — upload error surfacing (was silently swallowed)', () =
 
   it('does NOT surface a user cancel as an error', async () => {
     uploadFileWithProgress.mockReturnValue({
-      promise: Promise.reject(new FakeCancel('Upload cancelled')),
+      promise: Promise.reject(new FakeCancel()),
       cancel: () => {},
     })
     render(<StaffEditor name="staff" defaultValue={[staff()]} />)

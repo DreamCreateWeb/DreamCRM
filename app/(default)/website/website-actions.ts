@@ -7,6 +7,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant, type TenantContext } from '@/lib/auth/context'
 import type { LeadFormField } from '@/lib/types/lead-forms'
+import { isValidVideoUrl } from '@/lib/website-url'
 import {
   parseStaff,
   parseStats,
@@ -293,21 +294,10 @@ export type InlineField =
   | 'tagline' | 'about' | 'displayName' | 'legalName' | 'phone' | 'email'
   | 'logoUrl' | 'heroImageUrl' | 'heroImageUrl2'
 
-/** Accepts an http(s) URL or a same-origin /-rooted path (uploaded clips), or
- *  empty (clears the field). Rejects javascript:/data: and other schemes. */
-export function isValidVideoUrl(raw: string): boolean {
-  const v = raw.trim()
-  if (!v) return true
-  if (v.startsWith('/')) return true
-  try {
-    const u = new URL(v)
-    return u.protocol === 'http:' || u.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 // ── Intro ("difference") video — single column, URL-validated ────────────────
+// `isValidVideoUrl` is a pure helper, so it lives in lib/website-url.ts (a
+// `'use server'` file may only export async functions). Both this action and the
+// Studio client import it from there.
 export async function saveDifferenceVideo(url: string): Promise<SectionResult> {
   if (!isValidVideoUrl(url)) {
     return { ok: false, error: 'Enter a valid video link (https://…) or upload a file.' }

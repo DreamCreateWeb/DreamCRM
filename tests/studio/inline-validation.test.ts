@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { dayHoursError } from '@/app/(default)/website/hours-editor'
-import { isValidVideoUrl } from '@/app/(default)/website/website-actions'
+import { isValidVideoUrl } from '@/lib/website-url'
 
 /**
  * Client-side validators that mirror the server rules so the Website Studio can
