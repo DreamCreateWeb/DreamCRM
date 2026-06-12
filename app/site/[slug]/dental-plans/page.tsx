@@ -55,6 +55,9 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/dental-plans`
+  // NOTE: not threaded through resolveSeoMeta — see the deferral note on
+  // SEO_PAGE_KEYS in lib/types/seo-meta.ts (the Search-appearance editor would
+  // need a matching arm). Standalone title/description below, complete OG/Twitter.
   const title = `Dental Plans — ${name}`
   const description = `No insurance? Join the ${name} dental plan — preventive care covered, savings on every treatment, no claims.`
   return {

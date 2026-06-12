@@ -41,14 +41,33 @@ export async function generateMetadata({ params }: Props) {
   const url = `${publicSiteUrl(data)}/book`
   const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).book, {
     title: `Book a Visit — ${name}`,
-    description: `Book your appointment online with ${name}. Same-week availability.`,
+    description: `Book your appointment online with ${name} — pick a time that works for you.`,
   })
+  // Mirror the home page's metadata completeness: siteName, OG/Twitter images
+  // (hero photo when present), and the favicon.
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: 'website' },
-    twitter: { card: 'summary', title, description },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: name,
+      type: 'website',
+      ...(data.profile.heroImageUrl
+        ? { images: [{ url: data.profile.heroImageUrl, alt: name }] }
+        : {}),
+    },
+    twitter: {
+      card: data.profile.heroImageUrl ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      ...(data.profile.heroImageUrl ? { images: [data.profile.heroImageUrl] } : {}),
+    },
+    icons: data.profile.logoUrl
+      ? { icon: data.profile.logoUrl, apple: data.profile.logoUrl }
+      : undefined,
   }
 }
 

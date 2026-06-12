@@ -471,6 +471,10 @@ export default async function PaymentFinancingPage({ params }: Props) {
                         src={p.logoUrl}
                         alt={p.name}
                         className="h-10 w-auto object-contain mb-5 self-start"
+                        width={160}
+                        height={40}
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <span

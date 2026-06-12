@@ -58,7 +58,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
     setValues((prev) => ({ ...prev, [fieldId]: value }))
   }
 
-  function validate(): string | null {
+  function validate(): { fieldId: string; message: string } | null {
     for (const section of schema.sections) {
       for (const field of section.fields) {
         if (!field.required) continue
@@ -69,7 +69,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
           (Array.isArray(v) && v.length === 0) ||
           (field.type === 'yes_no' && typeof v !== 'boolean')
         ) {
-          return `“${field.label}” is required.`
+          return { fieldId: field.id, message: `“${field.label}” is required.` }
         }
       }
     }
@@ -80,8 +80,24 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
     e.preventDefault()
     const validationError = validate()
     if (validationError) {
-      setErrorMsg(validationError)
+      setErrorMsg(validationError.message)
       setStatus('error')
+      // Scroll the first missing field into view + focus it — on a long intake
+      // form the inline error at the bottom is easy to miss.
+      if (typeof document !== 'undefined') {
+        const el = document.getElementById(`f-${validationError.fieldId}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Focus after the scroll settles (focus alone can jump abruptly).
+          window.setTimeout(() => {
+            try {
+              ;(el as HTMLElement).focus({ preventScroll: true })
+            } catch {
+              /* non-focusable container (e.g. radio group) — scroll is enough */
+            }
+          }, 350)
+        }
+      }
       return
     }
     setStatus('pending')
@@ -376,7 +392,10 @@ function FieldInput({
             placeholder="Type your full name to sign"
             required={field.required}
             className="w-full px-4 py-3 rounded-xl text-lg font-medium italic focus:outline-none focus:ring-2"
-            style={{ ...inputStyle, fontFamily: 'cursive' }}
+            // An italic-serif stack reads as a "signature" reliably across
+            // platforms — the bare `cursive` keyword falls back to Comic Sans
+            // on many systems. Georgia/Times anchor it with the site's serif.
+            style={{ ...inputStyle, fontFamily: 'Georgia, "Times New Roman", "Apple Garamond", serif' }}
           />
           {helpEl}
         </div>

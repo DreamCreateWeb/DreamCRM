@@ -258,6 +258,7 @@ export default async function ServicesPage({ params }: Props) {
               headingInk={headingInk}
               bookHref={bookHref}
               bookLabel={bookLabel}
+              startIndex={0}
             />
           </div>
         )}
@@ -280,6 +281,7 @@ export default async function ServicesPage({ params }: Props) {
               headingInk={headingInk}
               bookHref={bookHref}
               bookLabel={bookLabel}
+              startIndex={core.length}
             />
           </div>
         )}
@@ -329,6 +331,7 @@ function ServiceGrid({
   headingInk,
   bookHref,
   bookLabel,
+  startIndex = 0,
 }: {
   services: EnrichedService[]
   basePath: string
@@ -336,6 +339,9 @@ function ServiceGrid({
   headingInk: string
   bookHref: string
   bookLabel: string
+  /** Numbering offset so Core + Special read as one continuous 01,02,03…
+   *  sequence rather than each section restarting at 01. */
+  startIndex?: number
 }) {
   return (
     <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
@@ -359,7 +365,7 @@ function ServiceGrid({
                   style={{ color: INK_MUTED, fontFamily: 'var(--font-display, Georgia, serif)' }}
                   aria-hidden="true"
                 >
-                  {String(i + 1).padStart(2, '0')}
+                  {String(startIndex + i + 1).padStart(2, '0')}
                 </span>
                 {s.offer && (
                   <span

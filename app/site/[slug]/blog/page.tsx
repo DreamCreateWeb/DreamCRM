@@ -265,6 +265,10 @@ function FeaturedPostCard({
               src={post.coverImageUrl}
               alt=""
               className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
+              width={1280}
+              height={800}
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center" style={{ color: brand }}>
@@ -335,6 +339,10 @@ function PostCard({
             src={post.coverImageUrl}
             alt=""
             className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
+            width={1280}
+            height={800}
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center" style={{ color: brand }}>

@@ -92,7 +92,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
         <div className="flex items-center gap-3">
           {author?.photoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={author.photoUrl} alt={author.name} className="w-11 h-11 rounded-full object-cover" />
+            <img src={author.photoUrl} alt={author.name} className="w-11 h-11 rounded-full object-cover" width={44} height={44} loading="lazy" decoding="async" />
           ) : author ? (
             <span
               className="flex items-center justify-center w-11 h-11 rounded-full text-white text-sm font-bold"
@@ -137,6 +137,11 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
             src={post.coverImageUrl}
             alt={post.coverImageAlt ?? ''}
             className="w-full aspect-[16/9] object-cover transition duration-700 hover:scale-[1.02]"
+            width={1280}
+            height={720}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         </div>
       )}
@@ -193,7 +198,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
           <div className="flex items-start gap-4">
             {author.photoUrl && (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={author.photoUrl} alt={author.name} className="w-14 h-14 rounded-full object-cover shrink-0" />
+              <img src={author.photoUrl} alt={author.name} className="w-14 h-14 rounded-full object-cover shrink-0" width={56} height={56} loading="lazy" decoding="async" />
             )}
             <div>
               <p className="font-semibold" style={{ color: INK }}>
@@ -228,7 +233,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
                   >
                     {r.coverImageUrl && (
                       /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]" />
+                      <img src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]" width={1280} height={800} loading="lazy" decoding="async" />
                     )}
                   </div>
                   {r.category && (

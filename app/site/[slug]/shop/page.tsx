@@ -89,6 +89,10 @@ export default async function ClinicShopPage({ params }: Props) {
                         src={p.images[0]}
                         alt={p.name}
                         className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                        width={600}
+                        height={600}
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-sm" style={{ color: headingInk }}>

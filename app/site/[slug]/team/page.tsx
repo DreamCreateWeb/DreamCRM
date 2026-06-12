@@ -232,6 +232,10 @@ export default async function TeamPage({ params }: Props) {
                               alt={s.name}
                               className="w-full h-full object-cover"
                               style={s.photoPosition ? { objectPosition: s.photoPosition } : undefined}
+                              width={384}
+                              height={448}
+                              loading="lazy"
+                              decoding="async"
                             />
                           ) : (
                             <div

@@ -5,6 +5,8 @@ import { listBookingSlots, submitBookingRequest, type BookingConfirmation } from
 import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
 import { OTHER_VISIT_TYPE_ID } from '@/lib/types/visit-types'
 import { buildIcs, icsDataUrl } from '@/lib/ics'
+import { readableInk } from '@/lib/clinic-site-theme'
+import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 
 /** Public-bookable visit type, shaped for the form (server passes the
  *  resolved, bookablePublic-filtered catalog with each type's duration). */
@@ -156,6 +158,8 @@ export function formatConfirmationWhen(startIso: string, timeZone: string): stri
  */
 export function BookingSuccess({ confirmation, brand }: { confirmation: BookingConfirmation; brand: string }) {
   const c = confirmation
+  // Contrast-safe text fill (links) on the warm ground.
+  const brandInk = readableInk(brand)
   const whenLabel = formatConfirmationWhen(c.startTimeIso, c.timeZone)
 
   const calendarHref = useMemo(() => {
@@ -233,7 +237,7 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-semibold hover:underline"
-                    style={{ color: brand }}
+                    style={{ color: brandInk }}
                   >
                     {c.addressText}
                   </a>
@@ -309,6 +313,9 @@ export default function BookForm({
   windowHasAvailability = true,
   visitTypes,
 }: Props) {
+  // Contrast-safe text fill for brand-colored eyebrows/links on the warm ground
+  // (raw brand stays on backgrounds, borders, and SVG icon strokes).
+  const brandInk = readableInk(brand)
   const apptTypes = useMemo(() => buildVisitTypeOptions(visitTypes), [visitTypes])
   const defaultApptType = apptTypes[0]?.value ?? OTHER_VISIT_TYPE_ID
   const [selectedType, setSelectedType] = useState<string>(defaultApptType)
@@ -329,6 +336,9 @@ export default function BookForm({
   const [selectedSlotIso, setSelectedSlotIso] = useState<string | null>(null)
   const [slots, setSlots] = useState<BookingSlot[]>([])
   const [closedReason, setClosedReason] = useState<SlotsClosedReason | null>(null)
+  // Distinct from "no slots" — a failed fetch must NOT masquerade as "we're
+  // closed this day". When true, we show a retry hint instead of a closed copy.
+  const [slotsError, setSlotsError] = useState(false)
   const [slotsPending, startSlotsTransition] = useTransition()
   const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -339,6 +349,8 @@ export default function BookForm({
   // ~5 days visible at a time), so we surface explicit arrow buttons —
   // less obvious-to-discover than swipe on a touchpad/mouse setup.
   const dayStripRef = useRef<HTMLDivElement | null>(null)
+  // Scroll target for the "pick a time" validation error.
+  const timeSectionRef = useRef<HTMLElement | null>(null)
   const scrollDays = useCallback((dir: 1 | -1) => {
     const el = dayStripRef.current
     if (!el) return
@@ -355,14 +367,17 @@ export default function BookForm({
         .then(({ slots: next, closedReason: reason }) => {
           setSlots(next)
           setClosedReason(reason)
+          setSlotsError(false)
           // Clear the selected slot if the date changed and it's no longer in the new grid.
           setSelectedSlotIso((cur) =>
             cur && next.some((s) => s.startIso === cur && s.available) ? cur : null,
           )
         })
         .catch(() => {
+          // Network/server hiccup — surface a retry hint, NOT a false "closed".
           setSlots([])
           setClosedReason(null)
+          setSlotsError(true)
         })
     })
   }, [orgId, selectedDate, selectedDuration])
@@ -376,6 +391,9 @@ export default function BookForm({
     if (!selectedSlotIso) {
       setErrorMsg('Pick a time before submitting.')
       setSubmitState('error')
+      // Scroll the first thing the patient must fix (the time picker) into
+      // view — on mobile the submit button + error sit far below it.
+      timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
     setSubmitState('pending')
@@ -409,6 +427,9 @@ export default function BookForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-10">
+      {/* Spam-trust hidden fields — picked up by `new FormData(form)` and
+          validated by `looksLikeBot` in submitBookingRequest. */}
+      <FormTrustFields />
       {/* ── Closed-window fallback ───────────────────────────────────────
           When the entire bookable window is closed/full, lead with a clear
           "call us" card so phone isn't buried in a side panel below the fold.
@@ -441,7 +462,7 @@ export default function BookForm({
       <section>
         <p
           className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
-          style={{ color: brand }}
+          style={{ color: brandInk }}
         >
           01 · Pick a date
         </p>
@@ -510,10 +531,10 @@ export default function BookForm({
       </section>
 
       {/* ── 2. Pick a time ─────────────────────────────────────────────── */}
-      <section>
+      <section ref={timeSectionRef} style={{ scrollMarginTop: 'calc(var(--site-header-h, 64px) + 12px)' }}>
         <p
           className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
-          style={{ color: brand }}
+          style={{ color: brandInk }}
         >
           02 · Pick a time · {fmtDayLabel(selectedDate)}
         </p>
@@ -527,6 +548,15 @@ export default function BookForm({
               />
             ))}
           </div>
+        ) : slotsError ? (
+          <p
+            className="text-sm leading-relaxed rounded-xl px-4 py-6 text-center"
+            style={{ backgroundColor: SURFACE, border: `1px dashed ${BORDER}`, color: INK_MUTED }}
+          >
+            We couldn&rsquo;t load available times just now. Please refresh the
+            page and try again
+            {clinicPhone ? <> — or call us at {clinicPhone}</> : null}.
+          </p>
         ) : !hasAnySlot ? (
           <p
             className="text-sm leading-relaxed rounded-xl px-4 py-6 text-center"
@@ -578,7 +608,7 @@ export default function BookForm({
       <section>
         <p
           className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
-          style={{ color: brand }}
+          style={{ color: brandInk }}
         >
           03 · Your info
         </p>

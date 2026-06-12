@@ -81,7 +81,16 @@ export default async function ClinicProductPage({ params }: Props) {
           >
             {product.images[0] ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+              <img
+                src={product.images[0]}
+                alt={product.name}
+                className="w-full h-full object-cover"
+                width={800}
+                height={800}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-base" style={{ color: headingInk }}>
                 {CATEGORY_LABELS[product.category]}

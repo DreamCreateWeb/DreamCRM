@@ -227,6 +227,11 @@ export default async function StaffDetailPage({ params }: Props) {
                     <img
                       src={staff.photoUrl}
                       alt={staff.name}
+                      width={640}
+                      height={800}
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="async"
                       className="w-full h-full object-cover"
                       style={staff.photoPosition ? { objectPosition: staff.photoPosition } : undefined}
                     />
@@ -396,6 +401,10 @@ export default async function StaffDetailPage({ params }: Props) {
                             <img
                               src={s.photoUrl}
                               alt={s.name}
+                              width={192}
+                              height={224}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover"
                               style={s.photoPosition ? { objectPosition: s.photoPosition } : undefined}
                             />
