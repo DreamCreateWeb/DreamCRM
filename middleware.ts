@@ -131,8 +131,16 @@ export async function middleware(request: NextRequest) {
   // Health check is always served (never redirected) so App Runner stays green.
   if (pathname === '/api/health') return NextResponse.next()
 
-  // app.<domain> is a legacy alias; send it to the canonical www host.
-  if (hostname === `app.${SITE_DOMAIN}`) {
+  // Vendor webhooks (Stripe, Stripe Connect, Gmail Pub/Sub, …) POST here and
+  // do NOT follow redirects — a host-canonicalization 308 reads as a failed
+  // delivery on their side. Serve them on whatever host they arrive at.
+  // (2026-06-12: Stripe deliveries to app.<domain> were silently 308ing.)
+  if (pathname.startsWith('/api/webhooks/')) return NextResponse.next()
+
+  // app.<domain> is a legacy alias and the bare apex's canonical home is www
+  // (the apex previously redirected via a Vercel project — retired; DNS now
+  // points the apex straight at App Runner). Both 308 to www.
+  if (hostname === `app.${SITE_DOMAIN}` || hostname === SITE_DOMAIN) {
     const url = request.nextUrl.clone()
     url.hostname = `www.${SITE_DOMAIN}`
     url.port = ''
