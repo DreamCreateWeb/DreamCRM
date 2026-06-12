@@ -5,9 +5,10 @@ import { db, schema } from '@/lib/db'
 import { upsertPmsConnection, getPmsConnection } from './connection'
 
 /**
- * Seed (or self-heal) the Acme demo's PMS integration so the /integrations
- * module showcases every state without a live Open Dental. Idempotent: no-op
- * once a connection row exists. Presented as "Open Dental (Sandbox)".
+ * Seed (or self-heal) the Dream Dental demo's PMS integration so the
+ * /integrations module showcases every state without a live Open Dental.
+ * Idempotent: no-op once a connection row exists. Presented as "Open Dental
+ * (Sandbox)".
  *
  * What it builds, all over the demo's EXISTING rows (no fake content):
  *   - a connected, two-way 'demo' connection (last synced 2h ago)
@@ -26,6 +27,17 @@ export async function seedDemoPms(organizationId: string): Promise<void> {
     // next entry (maps + sync/write history stay intact — no re-seed).
     if (existing.provider === 'demo' && existing.status !== 'connected') {
       await upsertPmsConnection(organizationId, { provider: 'demo', status: 'connected' })
+    }
+    // one-time (2026-06): Acme→Dream Dental — the /integrations status line
+    // reads connection.meta.practiceTitle. Re-seed never overwrites meta on an
+    // existing connection, so patch a stale "Acme…" title in place (preserve
+    // the rest of meta). Remove with the rest of the rename branches.
+    const meta = (existing.meta ?? {}) as Record<string, unknown>
+    if (typeof meta.practiceTitle === 'string' && meta.practiceTitle.includes('Acme')) {
+      await upsertPmsConnection(organizationId, {
+        provider: 'demo',
+        meta: { ...meta, practiceTitle: 'Dream Dental (Sandbox)' },
+      })
     }
     return
   }
@@ -54,7 +66,7 @@ export async function seedDemoPms(organizationId: string): Promise<void> {
     syncDirection: 'two_way',
     autoSyncEnabled: 1,
     meta: {
-      practiceTitle: 'Acme Dental (Sandbox)',
+      practiceTitle: 'Dream Dental (Sandbox)',
       version: 'Open Dental 24.3 — simulated',
       eConnectorReachable: true,
       scopeNote: 'Sandbox — showcases the real sync engine without contacting a live PMS',

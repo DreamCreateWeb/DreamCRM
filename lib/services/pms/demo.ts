@@ -47,7 +47,7 @@ export class DemoProvider implements PmsProviderClient {
   async testConnection(): Promise<PmsTestResult> {
     return {
       ok: true,
-      practiceTitle: 'Acme Dental (Sandbox)',
+      practiceTitle: 'Dream Dental (Sandbox)',
       version: 'Open Dental 24.3 — simulated',
       eConnectorReachable: true,
       scopeNote: 'Sandbox — no real PMS is contacted',

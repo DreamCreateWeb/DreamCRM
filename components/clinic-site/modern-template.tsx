@@ -304,6 +304,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <OvalPortrait
                 src={leftPortraitImage}
                 bg={leftPortraitBg}
+                brand={brand}
                 variant="left"
                 editField="heroImageUrl"
                 position={imagePositions['heroImageUrl']}
@@ -424,6 +425,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <OvalPortrait
                 src={rightPortraitImage}
                 bg={rightPortraitBg}
+                brand={brand}
                 variant="right"
                 editField="heroImageUrl2"
                 editKind="image"
@@ -1468,17 +1470,69 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// heroPlaceholderStyle — build a brand-aware abstract for an EMPTY hero oval.
+// Founder goal: a brand-new clinic with no photos should still look
+// intentional, never like a flat colored blob. We layer soft brand-derived
+// radial blooms (two offsets, low opacity) over the existing Tend pastel
+// backdrop, so the shape reads as a designed gradient that ties to the
+// clinic's identity. Pure CSS (no external assets, no stock photos), static
+// (reduced-motion-safe by construction), and it only paints the SAME box —
+// zero layout shift, and the with-photo path never touches it.
+//
+// `brand` is the clinic hex. The pastel `bg` stays the base so the warm
+// palette survives on every brand color; the brand only tints the blooms.
+function heroPlaceholderStyle(brand: string, bg: string): React.CSSProperties {
+  // 8-digit hex alpha suffixes (e.g. `${brand}59` ≈ 35%). Brand may be any
+  // 6-digit hex; if it isn't, the suffixes simply produce an ignored value and
+  // the solid `bg` base still shows — safe degradation, no throw.
+  return {
+    backgroundColor: bg,
+    backgroundImage: [
+      `radial-gradient(120% 90% at 22% 18%, ${brand}59 0%, ${brand}1f 38%, transparent 70%)`,
+      `radial-gradient(110% 80% at 82% 88%, ${brand}40 0%, transparent 64%)`,
+      // A faint diagonal wash gives the surface depth without a second color.
+      `linear-gradient(135deg, ${brand}14 0%, transparent 55%)`,
+    ].join(', '),
+  }
+}
+
+// HeroPlaceholderMotif — a subtle inline-SVG line motif drawn over the brand
+// bloom so the empty oval has a touch of texture (concentric soft arcs, like
+// a calm ripple). Server-renderable, decorative (aria-hidden), no dependency.
+// Strokes use the brand color at very low opacity so it whispers, never shouts.
+function HeroPlaceholderMotif({ brand }: { brand: string }) {
+  return (
+    <svg
+      className="absolute inset-0 w-full h-full"
+      viewBox="0 0 200 250"
+      preserveAspectRatio="xMidYMid slice"
+      fill="none"
+      aria-hidden="true"
+    >
+      <g stroke={brand} strokeOpacity={0.16} strokeWidth={1.5} fill="none">
+        <circle cx={100} cy={125} r={48} />
+        <circle cx={100} cy={125} r={78} />
+        <circle cx={100} cy={125} r={108} />
+      </g>
+    </svg>
+  )
+}
+
 // OvalPortrait — symmetric vertical-pill photo panel that flanks the hero
 // + the clinical-team section's outer columns. Uses a pure `50%` ellipse
 // over a 4/5 portrait aspect so both ends are equally rounded and the
 // curvature reads as a soft wide-pill shape (smoother than the prior
 // asymmetric pebble). Backdrops are the clinic-site palette's blue and
 // peach (passed in by the parent), giving a Tend-style flat solid backing.
+// When EMPTY *and* a `brand` is supplied, the backdrop upgrades to a
+// brand-aware abstract gradient (heroPlaceholderStyle + motif) so a photo-less
+// site still looks designed.
 // ────────────────────────────────────────────────────────────────────────
 
 function OvalPortrait({
   src,
   bg,
+  brand,
   variant: _variant,
   editField,
   editKind = 'image',
@@ -1488,6 +1542,10 @@ function OvalPortrait({
 }: {
   src: string | null
   bg: string
+  /** Clinic brand hex — when set, the EMPTY state renders a brand-tinted
+   *  abstract instead of a flat fill. Omit (e.g. on the team band) to keep the
+   *  plain pastel backing. */
+  brand?: string
   variant?: 'left' | 'right'
   /** When set, the panel becomes editable in the Website Studio. */
   editField?: string
@@ -1499,10 +1557,18 @@ function OvalPortrait({
   /** The hero LCP image — eager + high fetch priority; others stay lazy. */
   priority?: boolean
 }) {
+  // Only the EMPTY state gets the brand abstract; a present photo covers the
+  // box entirely, so the with-photo render stays pixel-identical to before.
+  const empty = !src
+  const brandPlaceholder = empty && brand
   return (
     <div
       className="relative overflow-hidden w-full aspect-[4/5]"
-      style={{ borderRadius: '50%', backgroundColor: bg }}
+      style={
+        brandPlaceholder
+          ? { borderRadius: '50%', ...heroPlaceholderStyle(brand, bg) }
+          : { borderRadius: '50%', backgroundColor: bg }
+      }
       {...(editField
         ? {
             'data-edit-field': editField,
@@ -1529,22 +1595,28 @@ function OvalPortrait({
           fetchPriority={priority ? 'high' : 'auto'}
           decoding={priority ? 'sync' : 'async'}
         />
-      ) : editField ? (
-        /* Empty oval. Publicly it stays a clean solid-color decorative shape
-           (no broken-image, no alt). In the Studio (dc-edit-only) it surfaces
-           a hint so the owner knows the empty oval is a click target for
-           adding a hero photo. dc-edit-only flips display:block, so the
-           centering lives on an inner element that stays absolutely
-           positioned. */
-        <span className="dc-edit-only">
-          <span
-            className="absolute inset-0 flex items-center justify-center text-center px-6 text-[13px] font-semibold"
-            style={{ color: 'rgba(28, 26, 23, 0.55)' }}
-          >
-            + Add a photo
-          </span>
-        </span>
-      ) : null}
+      ) : (
+        <>
+          {/* Brand line-motif over the bloom (publicly visible, decorative). */}
+          {brandPlaceholder ? <HeroPlaceholderMotif brand={brand} /> : null}
+          {/* Empty oval. Publicly it stays a clean decorative shape (no
+              broken-image, no alt). In the Studio (dc-edit-only) it surfaces a
+              hint so the owner knows the empty oval is a click target for
+              adding a hero photo. dc-edit-only flips display:block, so the
+              centering lives on an inner element that stays absolutely
+              positioned. */}
+          {editField ? (
+            <span className="dc-edit-only">
+              <span
+                className="absolute inset-0 flex items-center justify-center text-center px-6 text-[13px] font-semibold"
+                style={{ color: 'rgba(28, 26, 23, 0.55)' }}
+              >
+                + Add a photo
+              </span>
+            </span>
+          ) : null}
+        </>
+      )}
     </div>
   )
 }

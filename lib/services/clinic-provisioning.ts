@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe'
 import { sendInvitationEmail } from '@/lib/email'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { seedClinicDay0Defaults } from '@/lib/onboarding/defaults'
+import { applyStarterFloor } from '@/lib/services/starter-pack'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN, isValidClinicSlug } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -172,6 +173,17 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     await seedClinicDay0Defaults(organizationId)
   } catch (err) {
     console.warn('[provisioning] could not seed day-0 defaults', err)
+  }
+
+  // Day-0 COMPLETE FLOOR: deterministic starter copy + 4 canonical core
+  // services so a managed clinic's site reads as finished the moment the org
+  // exists. The floor copy intentionally requires neither phone nor address,
+  // so it applies cleanly even though managed provisioning has neither yet.
+  // Idempotent (null-only fill) + best-effort.
+  try {
+    await applyStarterFloor(organizationId, { displayName: name })
+  } catch (err) {
+    console.warn('[provisioning] could not apply starter floor', err)
   }
 
   // Invitation row in the exact shape better-auth's acceptInvitation expects

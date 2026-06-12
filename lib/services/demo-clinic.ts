@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, gte, isNull } from 'drizzle-orm'
+import { and, eq, gte, isNull, like, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
@@ -16,6 +16,7 @@ import {
 } from '@/lib/types/clinic-content'
 import { DEFAULT_VISIT_TYPES, OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
+import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 
 /**
  * Demo-clinic seeder. Creates a fully-populated clinic org so platform
@@ -253,7 +254,7 @@ const DEMO_STATS = [
   { id: 'st3', value: 'Most', label: 'insurance accepted' },
 ]
 
-// Acme's services reference the shared service library by slug — a mix of core
+// The demo's services reference the shared service library by slug — a mix of core
 // + special so the /services index grouping + Core/Special nav dropdowns are
 // both exercised. Each row pulls name + icon + category from the canonical
 // seed (so they stay in sync). Teeth Whitening carries a per-clinic photo +
@@ -273,10 +274,10 @@ const DEMO_SERVICE_SLUGS = [
 const DEMO_WHITENING_PHOTO_URL =
   'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=1200&q=80'
 
-// Hand-written per-clinic AI customization blobs for each Acme demo service.
+// Hand-written per-clinic AI customization blobs for each Dream Dental demo service.
 // These mirror what `customizeServiceForClinic` would produce — same shape,
 // same structure (process-step count + FAQ count match the canonical seed),
-// warm Acme-flavored voice, no fabricated prices. Authored by hand to avoid
+// warm Dream-Dental-flavored voice, no fabricated prices. Authored by hand to avoid
 // hitting the Anthropic API on every resync (the resync runs on EVERY deploy
 // via scripts/resync-demo.mjs — see CLAUDE.md "Deployment & operations").
 // The detail-page resolver prefers these over canonical+tokens (1B path)
@@ -294,7 +295,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'Plain-English explanations, no scare tactics',
     ],
     body:
-      "At Acme Dental, we look after the people who matter to you — toddlers learning to brush, teens between school and sports, parents juggling everything, grandparents getting back into a routine. We tailor each visit to the person in the chair and make it easy to book the whole household on the same morning. Families across Austin pick Acme because it just fits real life.",
+      "At Dream Dental, we look after the people who matter to you — toddlers learning to brush, teens between school and sports, parents juggling everything, grandparents getting back into a routine. We tailor each visit to the person in the chair and make it easy to book the whole household on the same morning. Families across Austin pick Dream Dental because it just fits real life.",
     processSteps: [
       {
         title: 'A real welcome',
@@ -355,7 +356,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'Findings shown to you on-screen in plain words',
     ],
     body:
-      "Regular exams are how we keep dentistry simple and affordable — small things stay small. At Acme Dental, your exam runs at your pace: we show you what we see, explain what it means in plain English, and let you decide what's next without ever pushing you. Austin patients tell us it's the first dental exam they've actually enjoyed.",
+      "Regular exams are how we keep dentistry simple and affordable — small things stay small. At Dream Dental, your exam runs at your pace: we show you what we see, explain what it means in plain English, and let you decide what's next without ever pushing you. Austin patients tell us it's the first dental exam they've actually enjoyed.",
     processSteps: [
       {
         title: 'Catch us up',
@@ -416,7 +417,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'A noticeably fresher, smoother smile',
     ],
     body:
-      "Even the most disciplined brushing can't get to the hardened buildup along the gumline — that's what a professional cleaning is for. At Acme Dental our hygienists are gentle, calm, and happy to go slowly. You'll leave with a cleaner mouth and a few simple, judgment-free pointers to keep it that way until next time.",
+      "Even the most disciplined brushing can't get to the hardened buildup along the gumline — that's what a professional cleaning is for. At Dream Dental our hygienists are gentle, calm, and happy to go slowly. You'll leave with a cleaner mouth and a few simple, judgment-free pointers to keep it that way until next time.",
     processSteps: [
       {
         title: 'A quick check-in',
@@ -477,7 +478,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'A shade tailored to your face, not a billboard',
     ],
     body:
-      "Coffee, tea, red wine, and time all leave their mark. Professional whitening at Acme Dental lifts years of stains far more effectively than store-bought strips — and we tailor the final shade so it looks bright and natural, never theatrical. Austin patients love how it feels: a noticeable change you'd actually want to show off.",
+      "Coffee, tea, red wine, and time all leave their mark. Professional whitening at Dream Dental lifts years of stains far more effectively than store-bought strips — and we tailor the final shade so it looks bright and natural, never theatrical. Austin patients love how it feels: a noticeable change you'd actually want to show off.",
     processSteps: [
       {
         title: 'A short consult',
@@ -543,7 +544,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'A custom plan designed around your smile',
     ],
     body:
-      "Clear aligners straighten teeth without anyone needing to notice. At Acme Dental we design a custom series of smooth, removable trays that gently guide your teeth into place — so you can eat what you like, brush normally, and smile through the whole process with confidence. Plenty of Austin adults have finally fixed something that bothered them for decades.",
+      "Clear aligners straighten teeth without anyone needing to notice. At Dream Dental we design a custom series of smooth, removable trays that gently guide your teeth into place — so you can eat what you like, brush normally, and smile through the whole process with confidence. Plenty of Austin adults have finally fixed something that bothered them for decades.",
     processSteps: [
       {
         title: 'See if aligners fit',
@@ -604,7 +605,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'A clear plan from start to finish',
     ],
     body:
-      "A missing tooth is more than a gap — it can shift neighboring teeth and slowly weaken the jawbone underneath. A dental implant replaces the whole tooth, root and all, for a result that looks, feels, and functions like the real thing. At Acme Dental we walk you through every step calmly, so the process feels manageable and the result lasts.",
+      "A missing tooth is more than a gap — it can shift neighboring teeth and slowly weaken the jawbone underneath. A dental implant replaces the whole tooth, root and all, for a result that looks, feels, and functions like the real thing. At Dream Dental we walk you through every step calmly, so the process feels manageable and the result lasts.",
     processSteps: [
       {
         title: 'Plan your implant',
@@ -665,7 +666,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'A calm, reassuring room — not a clinical maze',
     ],
     body:
-      "\"Surgery\" sounds scary, but most oral procedures are routine, well-practiced, and far more comfortable than people expect. At Acme Dental we explain everything in plain language, offer sedation when it helps, and keep you calm and pain-free from the moment you sit down to the moment you walk out.",
+      "\"Surgery\" sounds scary, but most oral procedures are routine, well-practiced, and far more comfortable than people expect. At Dream Dental we explain everything in plain language, offer sedation when it helps, and keep you calm and pain-free from the moment you sit down to the moment you walk out.",
     processSteps: [
       {
         title: 'Consult and plan',
@@ -726,7 +727,7 @@ const DEMO_CUSTOMIZED: Record<string, NonNullable<ClinicService['customized']>> 
       'Monitored by trained clinicians throughout',
     ],
     body:
-      "For patients with strong dental anxiety — or longer procedures you'd rather not remember — IV sedation offers a deeply relaxed, comfortable experience. At Acme Dental sedation is administered and monitored by trained clinicians, so you can get the care you need while staying calm and safe from start to finish.",
+      "For patients with strong dental anxiety — or longer procedures you'd rather not remember — IV sedation offers a deeply relaxed, comfortable experience. At Dream Dental sedation is administered and monitored by trained clinicians, so you can get the care you need while staying calm and safe from start to finish.",
     processSteps: [
       {
         title: 'Review your health and goals',
@@ -833,7 +834,7 @@ const DEMO_INSURANCE_CARRIERS: string[] = [
   'United Healthcare (UHC)',
 ]
 
-// Acme demo payment-method list — matches DEFAULT_PAYMENT_METHODS in shape
+// Dream Dental demo payment-method list — matches DEFAULT_PAYMENT_METHODS in shape
 // but is duplicated here so the seeded demo doesn't drift if the universal
 // fallback ever moves. Same 5 entries every US dental practice can claim.
 const DEMO_PAYMENT_METHODS: string[] = [
@@ -956,7 +957,7 @@ const DEMO_REVIEW_TEXTS: Record<number, { text: string; rating: number }> = {
   // Mia Hayes (idx 0) — completed Google · 5d ago
   0: {
     text:
-      "I dreaded the dentist for years. Acme treated me like a person, not a tooth. I actually look forward to my cleanings now — I can't believe I'm saying that.",
+      "I dreaded the dentist for years. Dream Dental treated me like a person, not a tooth. I actually look forward to my cleanings now — I can't believe I'm saying that.",
     rating: 5,
   },
   // Liam Brooks (idx 1) — completed Healthgrades · 8d ago. NOT pre-featured.
@@ -1017,7 +1018,7 @@ const DEMO_FREE_TEXT_TESTIMONIAL = {
   authorName: 'Jen R.',
   authorLocation: 'Cedar Park, TX' as string | null,
   quote:
-    "My kids actually ASK to go to Acme. The hygienist remembered that Lily likes the bubblegum fluoride. Small thing — huge difference for a six-year-old.",
+    "My kids actually ASK to go to Dream Dental. The hygienist remembered that Lily likes the bubblegum fluoride. Small thing — huge difference for a six-year-old.",
 }
 
 /** Build the final testimonial JSON from DEMO_REVIEW_TEXTS + the seeded
@@ -1129,7 +1130,7 @@ const DEMO_OFFICE_PHOTOS = [
 ]
 
 /**
- * Acme demo staff — 5 members covering every role + every glyph state on the
+ * Dream Dental demo staff — 5 members covering every role + every glyph state on the
  * /team detail page. Bios are warm and plausible (not autobiographical); they
  * exist to showcase the template, not to invent credentials at a real clinic.
  *
@@ -1150,7 +1151,7 @@ const DEMO_STAFF: ClinicStaff[] = [
     title: 'Lead Dentist',
     slug: 'dr-jordan-reyes',
     credentials: 'DDS · 15 years experience',
-    bio: 'Dr. Reyes founded Acme to make going to the dentist feel like going to any other thoughtful place — calm rooms, plain-English explanations, no judgment about how long it has been. He trained at a community health center before moving into private practice, and brings that "everyone deserves great care" sensibility to every visit.',
+    bio: 'Dr. Reyes founded Dream Dental to make going to the dentist feel like going to any other thoughtful place — calm rooms, plain-English explanations, no judgment about how long it has been. He trained at a community health center before moving into private practice, and brings that "everyone deserves great care" sensibility to every visit.',
     specialties: ['Family dentistry', 'Restorative care', 'Anxious patients'],
     funFact: 'On weekends you can find him on the trails outside Austin — he is slowly working his way through every hike in the Texas Hill Country.',
     bookHref: null,
@@ -1199,7 +1200,7 @@ const DEMO_STAFF: ClinicStaff[] = [
     title: 'Hygienist',
     slug: null,
     credentials: 'RDH · 6 years experience',
-    bio: 'Renee joined Acme in 2024. She is especially good with kids and first-time-in-a-while patients — patient, plainspoken, and never in a rush. She trained with the periodontal team at UT Health and brings that careful attention to every cleaning.',
+    bio: 'Renee joined Dream Dental in 2024. She is especially good with kids and first-time-in-a-while patients — patient, plainspoken, and never in a rush. She trained with the periodontal team at UT Health and brings that careful attention to every cleaning.',
     specialties: ['Pediatric hygiene', 'First-visit comfort'],
     funFact: null,
     bookHref: null,
@@ -1259,11 +1260,16 @@ async function seedSecondDemoIntakeForm(orgId: string) {
 }
 
 export async function createDemoClinic(): Promise<DemoClinicResult> {
-  const name = 'Acme Dental Demo'
-  const slug = slugify(name)
+  // Org NAME is decoupled from the SLUG (2026-06 Acme→Dream Dental rename): the
+  // public name became "Dream Dental Demo" but the slug stays the stable,
+  // already-deployed `acme-dental-demo` (DEMO_CLINIC_SLUG) so the demo's live
+  // subdomain + every self-heal key never moves. slugify(name) would have
+  // produced `dream-dental-demo` — explicitly NOT what we want.
+  const name = 'Dream Dental Demo'
+  const slug = DEMO_CLINIC_SLUG
 
   // Seed the platform-owned canonical service library (idempotent — upserts
-  // by slug). Acme's services + every clinic's /services pages read from it,
+  // by slug). the demo's services + every clinic's /services pages read from it,
   // so it must exist before we wire the demo's library-linked services below.
   await seedServiceLibrary()
 
@@ -1276,9 +1282,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   if (existing) {
     // Self-heal: flag legacy demos (seeded before the is_demo column
     // existed) so they're excluded from platform business metrics.
+    // one-time (2026-06): Acme→Dream Dental — also rename the org row when it
+    // still carries the old 'Acme…' name (the slug stays acme-dental-demo). The
+    // org-switcher label + any name-based UI then read "Dream Dental Demo".
+    // Scoped to this single isDemo org. Remove with the rename branches.
     await db
       .update(schema.organization)
-      .set({ isDemo: true })
+      .set({
+        isDemo: true,
+        ...(existing.name?.startsWith('Acme') ? { name } : {}),
+      })
       .where(eq(schema.organization.id, existing.id))
 
     // Keep the demo on the current template defaults so it always
@@ -1291,6 +1304,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     const [profile] = await db
       .select({
         brandColor: schema.clinicProfile.brandColor,
+        displayName: schema.clinicProfile.displayName,
+        legalName: schema.clinicProfile.legalName,
+        email: schema.clinicProfile.email,
         about: schema.clinicProfile.about,
         tagline: schema.clinicProfile.tagline,
         services: schema.clinicProfile.services,
@@ -1321,16 +1337,30 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (profile?.brandColor === '#0ea5e9') patch.brandColor = '#9CAF9F'
     // Backfill the clinic timezone on legacy demos (seeded before the column).
     if (!profile?.timezone) patch.timezone = 'America/Chicago'
+
+    // one-time (2026-06): Acme→Dream Dental — force-refresh the clinic identity
+    // on existing demos. backfill-when-null never fires here (these fields were
+    // always populated), so detect the OLD Acme literals and replace. Safe:
+    // every write in this block is scoped to the isDemo org. Remove this branch
+    // once all live demos have been re-seeded past the rename.
+    if (profile?.displayName === 'Acme Dental') patch.displayName = 'Dream Dental'
+    if (profile?.legalName === 'Acme Dental, PLLC') patch.legalName = 'Dream Dental, PLLC'
+    if (profile?.email === 'hello@acme-dental.example') patch.email = 'hello@dream-dental.example'
+
     // About + tagline upgrade: legacy demos shipped with a meta-disclosure
     // "this is a demonstration clinic seeded by..." paragraph that broke the
     // public-site immersion. Replace it with real warm copy so the demo looks
     // like a real clinic site. Skips when the demo has been hand-edited.
+    // one-time (2026-06): Acme→Dream Dental — also detect the prior warm
+    // "We started Acme…" literal so the rename reaches demos seeded after the
+    // disclosure was already replaced but before the rename.
     if (
       !profile?.about ||
-      profile.about.startsWith('Acme Dental is a demonstration clinic')
+      profile.about.startsWith('Acme Dental is a demonstration clinic') ||
+      profile.about.startsWith('We started Acme to make going to the dentist')
     ) {
       patch.about =
-        'We started Acme to make going to the dentist feel like going to any other thoughtful, modern place. Calm rooms, plain-English explanations, no judgment about how long it\'s been. Whether it\'s your first cleaning in years or a routine check-up, you\'ll be in good hands — and out the door knowing exactly what happened and why.'
+        'We started Dream Dental to make going to the dentist feel like going to any other thoughtful, modern place. Calm rooms, plain-English explanations, no judgment about how long it\'s been. Whether it\'s your first cleaning in years or a routine check-up, you\'ll be in good hands — and out the door knowing exactly what happened and why.'
     }
     if (!profile?.tagline || profile.tagline === 'Bright smiles, gentle care') {
       patch.tagline = 'Dental care that finally feels human.'
@@ -1364,6 +1394,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       const alreadyLibraryLinked =
         storedServices !== null &&
         storedServices.some((s) => typeof s?.librarySlug === 'string' && s.librarySlug)
+      // one-time (2026-06): Acme→Dream Dental — a stored customized blob whose
+      // body still names "Acme" predates the rename and must be force-replaced
+      // (backfill-when-missing below never touches an existing blob). The
+      // DEMO_CUSTOMIZED constants now carry Dream Dental copy and only ever
+      // write the isDemo org, so this is safe. Remove with the rename branches.
+      const needsRename = (s: ClinicService): boolean =>
+        typeof s?.librarySlug === 'string' &&
+        Boolean(DEMO_CUSTOMIZED[s.librarySlug]) &&
+        typeof s.customized?.body === 'string' &&
+        s.customized.body.includes('Acme')
       if (!alreadyLibraryLinked) {
         patch.services = DEMO_SERVICES
       } else if (storedServices) {
@@ -1371,14 +1411,14 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
           (s) =>
             typeof s?.librarySlug === 'string' &&
             DEMO_CUSTOMIZED[s.librarySlug] &&
-            !s.customized,
+            (!s.customized || needsRename(s)),
         )
         if (missingCustomized) {
           patch.services = storedServices.map((s) => {
             if (
               typeof s?.librarySlug === 'string' &&
               DEMO_CUSTOMIZED[s.librarySlug] &&
-              !s.customized
+              (!s.customized || needsRename(s))
             ) {
               return { ...s, customized: DEMO_CUSTOMIZED[s.librarySlug] }
             }
@@ -1513,6 +1553,19 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
               photoUrl: template.photoUrl,
               photoPosition: template.photoPosition ?? null,
             }
+          }
+          // one-time (2026-06): Acme→Dream Dental — a demo persona's bio that
+          // still names "Acme" predates the rename. Restore the template bio
+          // (Dream Dental copy) for that persona only, by id + matching name, so
+          // a clinic-renamed entry is never clobbered. Remove with the rename.
+          if (
+            template &&
+            next.name === template.name &&
+            typeof next.bio === 'string' &&
+            next.bio.includes('Acme') &&
+            template.bio
+          ) {
+            next = { ...next, bio: template.bio }
           }
           return next
         })
@@ -1785,6 +1838,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // completed reviews (Mia, Noah) plus one free-text legacy entry.
     await topUpLinkedDemoTestimonials(existing.id, existingPatientIds)
 
+    // one-time (2026-06): Acme→Dream Dental — force-refresh the location name +
+    // seo_meta on existing demos (both seed-only paths that backfill-when-null
+    // never revisits). Scoped to this isDemo org. Remove with the rename.
+    await renameDemoAcmeArtifacts(existing.id)
+
     // Reviews self-heal: top up config + review requests for legacy demos.
     const existingReviewConfigRows = await db
       .select({ id: schema.clinicReviewConfig.organizationId })
@@ -1913,16 +1971,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   await db.insert(schema.clinicProfile).values({
     organizationId: orgId,
-    legalName: 'Acme Dental, PLLC',
-    displayName: 'Acme Dental',
+    legalName: 'Dream Dental, PLLC',
+    displayName: 'Dream Dental',
     // Tagline is now the hero H1, so it carries the real value-prop weight.
     tagline: 'Dental care that finally feels human.',
     about:
-      'We started Acme to make going to the dentist feel like going to any other thoughtful, modern place. Calm rooms, plain-English explanations, no judgment about how long it\'s been. Whether it\'s your first cleaning in years or a routine check-up, you\'ll be in good hands — and out the door knowing exactly what happened and why.',
+      'We started Dream Dental to make going to the dentist feel like going to any other thoughtful, modern place. Calm rooms, plain-English explanations, no judgment about how long it\'s been. Whether it\'s your first cleaning in years or a routine check-up, you\'ll be in good hands — and out the door knowing exactly what happened and why.',
     brandColor: '#9CAF9F',
     template: 'modern',
     phone: '(512) 555-0100',
-    email: 'hello@acme-dental.example',
+    email: 'hello@dream-dental.example',
     logoUrl: DEMO_LOGO_URL,
     heroImageUrl: DEMO_HERO_IMAGE_URL,
     heroImageUrl2: DEMO_HERO_IMAGE_2_URL,
@@ -1969,7 +2027,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   await db.insert(schema.clinicLocation).values({
     id: locationId,
     organizationId: orgId,
-    name: 'Acme Dental — Downtown',
+    name: 'Dream Dental — Downtown',
     addressLine1: '500 Main St',
     city: 'Austin',
     state: 'TX',
@@ -3089,12 +3147,20 @@ async function topUpLinkedDemoTestimonials(
     .where(eq(schema.clinicProfile.organizationId, orgId))
     .limit(1)
   if (!profile) return
-  const current = (profile.testimonials ?? []) as Array<{ patientId?: string | null }>
+  const current = (profile.testimonials ?? []) as Array<{ patientId?: string | null; quote?: string }>
   const expectedLinked = DEMO_FEATURED_PATIENT_IDXS.length
   const currentLinked = current.filter((t) => !!t.patientId).length
+  // one-time (2026-06): Acme→Dream Dental — a stored testimonial quote that
+  // still names "Acme" predates the rename and must be rebuilt even when the
+  // demo is already fully linked. buildDemoTestimonials sources fresh quotes
+  // from DEMO_REVIEW_TEXTS (now Dream Dental copy). Remove with the rename.
+  const hasAcmeQuote = current.some(
+    (t) => typeof t.quote === 'string' && t.quote.includes('Acme'),
+  )
   // Skip when the demo is already up to date OR when a real clinic has
-  // curated more linked testimonials than the seed defines (don't clobber).
-  if (currentLinked >= expectedLinked) return
+  // curated more linked testimonials than the seed defines (don't clobber) —
+  // unless a stale Acme quote forces a rebuild.
+  if (currentLinked >= expectedLinked && !hasAcmeQuote) return
 
   // Re-fetch the seeded patients by their canonical name so we can build the
   // "First L." + city display labels. We match by (firstName, lastName)
@@ -3275,7 +3341,14 @@ async function topUpDemoReviewText(orgId: string): Promise<void> {
       and(
         eq(schema.reviewRequest.organizationId, orgId),
         eq(schema.reviewRequest.status, 'completed'),
-        isNull(schema.reviewRequest.reviewText),
+        // Fill null review_text (pre-0035 legacy) OR force-refresh any text that
+        // still names "Acme" — one-time (2026-06): Acme→Dream Dental. The
+        // matched rows are overwritten from DEMO_REVIEW_TEXTS (Dream Dental
+        // copy) below. Remove the like() clause with the rename branches.
+        or(
+          isNull(schema.reviewRequest.reviewText),
+          like(schema.reviewRequest.reviewText, '%Acme%'),
+        ),
       ),
     )
   if (rows.length === 0) return
@@ -3316,6 +3389,49 @@ async function topUpDemoReviewText(orgId: string): Promise<void> {
 }
 
 /**
+ * one-time (2026-06): Acme→Dream Dental — force-refresh demo artifacts that
+ * live in seed-only write paths (so the standard backfill-when-null self-heal
+ * never revisits them on an already-seeded demo): the primary location NAME and
+ * the seo_meta title/description copy. We rewrite the literal "Acme" → "Dream
+ * Dental" in the stored values rather than re-seeding, so any clinic-side
+ * tweaks to the surrounding text survive. Scoped entirely to the isDemo org.
+ * Remove this helper + its call site with the rest of the rename branches.
+ */
+async function renameDemoAcmeArtifacts(orgId: string): Promise<void> {
+  // Primary location name.
+  const [loc] = await db
+    .select({ id: schema.clinicLocation.id, name: schema.clinicLocation.name })
+    .from(schema.clinicLocation)
+    .where(eq(schema.clinicLocation.organizationId, orgId))
+    .limit(1)
+  if (loc && typeof loc.name === 'string' && loc.name.includes('Acme')) {
+    await db
+      .update(schema.clinicLocation)
+      .set({ name: loc.name.replace(/Acme Dental/g, 'Dream Dental').replace(/Acme/g, 'Dream Dental') })
+      .where(eq(schema.clinicLocation.id, loc.id))
+  }
+
+  // seo_meta title + descriptions.
+  const [profile] = await db
+    .select({ seoMeta: schema.clinicProfile.seoMeta })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, orgId))
+    .limit(1)
+  if (profile?.seoMeta) {
+    const json = JSON.stringify(profile.seoMeta)
+    if (json.includes('Acme')) {
+      const renamed = JSON.parse(
+        json.replace(/Acme Dental/g, 'Dream Dental').replace(/Acme/g, 'Dream Dental'),
+      )
+      await db
+        .update(schema.clinicProfile)
+        .set({ seoMeta: renamed, updatedAt: new Date() })
+        .where(eq(schema.clinicProfile.organizationId, orgId))
+    }
+  }
+}
+
+/**
  * Seed Reviews & Reputation demo content. Lays down the clinic review
  * config (Google Place ID + Healthgrades URL) and a curated set of
  * review_request rows covering every funnel state. Idempotent —
@@ -3332,16 +3448,18 @@ async function seedReviewsForOrg(
   let configAdded = false
   let requestsAdded = 0
 
-  // Seed config (Acme Dental's "Google Place ID" — visibly fake but
+  // Seed config (Dream Dental's "Google Place ID" — visibly fake but
   // well-formed, so the public landing page renders the right URL even
-  // though the deep link won't resolve in dev).
+  // though the deep link won't resolve in dev). The healthgrades/facebook
+  // handles mirror the demo SLUG (acme-dental-demo, deliberately unchanged by
+  // the Acme→Dream Dental rename), so they stay slug-consistent.
   if (!configExists) {
     await db.insert(schema.clinicReviewConfig).values({
       organizationId: orgId,
-      googlePlaceId: 'ChIJDemo000000000_AcmeDental',
+      googlePlaceId: 'ChIJDemo000000000_DreamDental',
       healthgradesUrl: 'https://www.healthgrades.com/dental-practice/acme-dental-demo',
       facebookPageId: 'acme-dental-demo',
-      yelpBusinessSlug: null, // opt-in only; Acme keeps it off
+      yelpBusinessSlug: null, // opt-in only; the demo keeps it off
       minDaysBetweenRequests: 365,
       npsEnabled: 0,
       autoSendEnabled: 0,
@@ -4144,7 +4262,7 @@ async function seedDemoMemberships(orgId: string, now: Date, patientIds: string[
 // No-ops when the rows already exist, so it's safe to run on every entry.
 /**
  * Referral partner program demo seed. Creates a single is_demo partner
- * ("Brightline IT (Demo MSP)", 10%, ongoing), attributes the Acme demo clinic
+ * ("Brightline IT (Demo MSP)", 10%, ongoing), attributes the Dream Dental demo clinic
  * to it (only when the clinic has no referral set — never clobbers a real
  * assignment), and seeds 3 commission rows (2 accrued + 1 paid w/ a payout row)
  * so /partners + the partner-detail math + the clinic Referral card all
@@ -4197,7 +4315,7 @@ async function seedDemoReferralPartner(orgId: string) {
   }
   if (!partner) return
 
-  // Attribute the Acme clinic — ONLY when it has no referral yet (never
+  // Attribute the demo clinic — ONLY when it has no referral yet (never
   // overwrite a real assignment a platform admin made). Per the live-resolution
   // semantics, the demo clinic carries NO per-clinic override (NULL) so it
   // tracks the partner's CURRENT default (10%) — the same path real clinics use.
@@ -4447,13 +4565,13 @@ export async function seedDemoSiteAnalytics(orgId: string): Promise<void> {
       .set({
         seoMeta: {
           home: {
-            title: 'Acme Dental — Gentle, judgment-free dentistry in Austin',
+            title: 'Dream Dental — Gentle, judgment-free dentistry in Austin',
             description:
-              'Acme Dental is a calm, modern family practice in Austin. Same-week visits, plain-English care, and no judgment about how long it has been. Book online today.',
+              'Dream Dental is a calm, modern family practice in Austin. Same-week visits, plain-English care, and no judgment about how long it has been. Book online today.',
           },
           book: {
             description:
-              'Book your visit at Acme Dental online in under a minute. Same-week appointments for new and returning patients across Austin.',
+              'Book your visit at Dream Dental online in under a minute. Same-week appointments for new and returning patients across Austin.',
           },
         },
         updatedAt: new Date(),

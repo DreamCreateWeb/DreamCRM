@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockCustomersCreate, mockCheckoutCreate ,
-  mockSeedIntake,
+  mockSeedIntake, mockSeedDay0, mockStarterFloor,
 } = vi.hoisted(() => {
   // stripe-config reads these at module load — set before imports evaluate.
   process.env.STRIPE_PRICE_STARTER_MONTHLY = 'price_basic_m'
@@ -9,6 +9,8 @@ const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockCustomersCreate,
   process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY = 'price_premium_m'
   return {
     mockSeedIntake: vi.fn(async () => undefined),
+    mockSeedDay0: vi.fn(async () => undefined),
+    mockStarterFloor: vi.fn(async () => ({ applied: true, fields: [] })),
     mockGetSession: vi.fn(),
     mockSelect: vi.fn(),
     mockInsert: vi.fn(),
@@ -22,6 +24,8 @@ vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
 vi.mock('@/lib/auth/server', () => ({ auth: { api: { getSession: mockGetSession } } }))
 vi.mock('@/lib/services/forms', () => ({ seedDefaultIntakeForm: mockSeedIntake }))
+vi.mock('@/lib/onboarding/defaults', () => ({ seedClinicDay0Defaults: mockSeedDay0 }))
+vi.mock('@/lib/services/starter-pack', () => ({ applyStarterFloor: mockStarterFloor }))
 vi.mock('@/lib/stripe', () => ({
   stripe: {
     customers: { create: mockCustomersCreate },
@@ -164,6 +168,31 @@ describe('submitOnboarding', () => {
 
     // Every new clinic starts with the standard intake form.
     expect(mockSeedIntake).toHaveBeenCalledTimes(1)
+
+    // Day-0 COMPLETE FLOOR: starter copy + canonical services are applied, with
+    // the practice name + city threaded through for {city} substitution.
+    expect(mockStarterFloor).toHaveBeenCalledTimes(1)
+    expect(mockStarterFloor).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ displayName: 'Bright Smile Dental', city: 'Austin', state: 'TX' }),
+    )
+  })
+
+  it('applies the floor even with no address (city left null)', async () => {
+    selectReturning([[], [], [{ stripeCustomerId: 'cus_123' }]])
+    mockCheckoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.test/cs_3' })
+
+    await submitOnboarding({
+      practiceName: 'No Address Dental',
+      planId: 'basic',
+      interval: 'monthly',
+    })
+
+    expect(mockStarterFloor).toHaveBeenCalledTimes(1)
+    expect(mockStarterFloor).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ displayName: 'No Address Dental', city: null }),
+    )
   })
 
   it('falls back to a suffixed slug when the picked one was taken meanwhile', async () => {
