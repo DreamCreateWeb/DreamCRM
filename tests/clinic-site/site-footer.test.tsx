@@ -164,3 +164,40 @@ describe('SiteFooter', () => {
     expect(screen.queryByRole('heading', { level: 2, name: /^Services$/ })).not.toBeInTheDocument()
   })
 })
+
+describe('SiteFooter — logo is editable from the canvas', () => {
+  function renderFooter(profile: Partial<ClinicSiteData['profile']> = {}) {
+    const { container } = render(
+      <SiteFooter
+        data={makeData(profile)}
+        basePath=""
+        navLinks={navLinks}
+        bookHref="/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    return container
+  }
+
+  it('instruments the logo region with data-edit-* for the Studio image modal (logo set)', () => {
+    const container = renderFooter({ logoUrl: 'https://x/logo.png' })
+    const region = container.querySelector('[data-edit-field="logoUrl"]') as HTMLElement
+    expect(region).toBeTruthy()
+    // EditBridge emits `editImage` for kind="image" → opens the logo modal.
+    expect(region.getAttribute('data-edit-kind')).toBe('image')
+    expect(region.getAttribute('data-edit-label')).toBe('logo')
+    // The real logo <img> lives inside the region (the bridge swaps its src).
+    expect(region.querySelector('img')).toBeTruthy()
+  })
+
+  it('instruments the letter-mark fallback too, so a logo can be ADDED (no logo yet)', () => {
+    const container = renderFooter({ logoUrl: null })
+    const region = container.querySelector('[data-edit-field="logoUrl"]') as HTMLElement
+    expect(region).toBeTruthy()
+    expect(region.getAttribute('data-edit-kind')).toBe('image')
+    // No <img> (letter-mark), but an editor-only "+ Add logo" nudge is present.
+    expect(region.querySelector('img')).toBeNull()
+    expect(region.querySelector('.dc-edit-only')?.textContent).toMatch(/add logo/i)
+  })
+})

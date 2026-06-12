@@ -37,15 +37,27 @@ export default function EditBridge() {
       const sel = window.getSelection()
       sel?.removeAllRanges()
       sel?.addRange(range)
+      // Hint: empty clears to the standard wording (the server nulls a blank
+      // field → the template falls back to its built-in default).
+      showHint(el, 'Enter to save · Esc to cancel · clearing restores the standard wording')
 
       const finish = (commit: boolean) => {
         el.removeEventListener('blur', onBlur)
         el.removeEventListener('keydown', onKey)
         el.removeEventListener('paste', onPaste)
         el.setAttribute('contenteditable', 'false')
+        hideHint()
         const value = (el.textContent ?? '').trim()
-        if (commit && value !== original.trim()) post({ type: 'save', field, value })
-        else el.textContent = original
+        if (commit && value !== original.trim()) {
+          // Remember the pre-edit text + element so the Studio can RESTORE it if
+          // the save fails (it posts back a `restore` for this field), and show a
+          // brief saving→saved tick on the element.
+          pendingEdits.set(field, { el, original })
+          markSaving(el)
+          post({ type: 'save', field, value })
+        } else {
+          el.textContent = original
+        }
       }
       const onBlur = () => finish(true)
       const onKey = (ev: KeyboardEvent) => {
@@ -143,6 +155,102 @@ export default function EditBridge() {
     editBtn.addEventListener('mouseleave', scheduleHideBtn)
     document.body.appendChild(editBtn)
 
+    // Coarse pointer (touch / iPad): there's no hover, so the per-section ✎/📷
+    // affordances would never appear. Inject a small always-visible tap target
+    // into each modal/image region so the canvas is editable on touch.
+    // (Template-side hero-oval rendering is owned elsewhere; this is just the
+    // affordance visibility.)
+    const isCoarse =
+      typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+    let touchObserver: MutationObserver | null = null
+    function tagTouchAffordance(el: HTMLElement) {
+      const kind = el.getAttribute('data-edit-kind')
+      if (kind !== 'modal' && kind !== 'image') return
+      if (el.querySelector(':scope > .dc-edit-touch-tag')) return
+      const field = el.getAttribute('data-edit-field') ?? ''
+      const label = el.getAttribute('data-edit-label') ?? (kind === 'image' ? 'photo' : 'section')
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'dc-edit-touch-tag'
+      btn.textContent = kind === 'image' ? `📷 ${label}` : `✎ ${label}`
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault()
+        ev.stopPropagation()
+        post({ type: kind === 'image' ? 'editImage' : 'openModal', field })
+      })
+      // Anchor the badge to the region without disturbing layout.
+      if (getComputedStyle(el).position === 'static') el.style.position = 'relative'
+      el.appendChild(btn)
+    }
+    if (isCoarse) {
+      document.body.classList.add('dc-edit-touch')
+      document
+        .querySelectorAll<HTMLElement>('[data-edit-kind="modal"],[data-edit-kind="image"]')
+        .forEach(tagTouchAffordance)
+      // Catch regions added after first paint (e.g. lazy sections).
+      touchObserver = new MutationObserver((records) => {
+        for (const rec of records) {
+          rec.addedNodes.forEach((n) => {
+            if (!(n instanceof HTMLElement)) return
+            if (n.matches?.('[data-edit-kind="modal"],[data-edit-kind="image"]')) tagTouchAffordance(n)
+            n.querySelectorAll?.<HTMLElement>('[data-edit-kind="modal"],[data-edit-kind="image"]').forEach(
+              tagTouchAffordance,
+            )
+          })
+        }
+      })
+      touchObserver.observe(document.body, { childList: true, subtree: true })
+    }
+
+    // Per-field in-flight edit state: lets the Studio RESTORE a failed inline
+    // edit's element (it posts `restore` for the field) and lets us flash a
+    // saving→saved tick on the element. Keyed by edit field.
+    const pendingEdits = new Map<string, { el: HTMLElement; original: string }>()
+
+    // A tiny floating hint shown under the active inline editor.
+    const hint = document.createElement('div')
+    hint.className = 'dc-edit-hint'
+    hint.style.display = 'none'
+    document.body.appendChild(hint)
+    function showHint(el: HTMLElement, text: string) {
+      hint.textContent = text
+      const r = el.getBoundingClientRect()
+      hint.style.top = `${Math.min(window.innerHeight - 28, r.bottom + 6)}px`
+      hint.style.left = `${Math.max(8, Math.min(window.innerWidth - 320, r.left))}px`
+      hint.style.display = 'block'
+    }
+    function hideHint() {
+      hint.style.display = 'none'
+    }
+
+    // A brief saving→saved tick rendered at the edited element's corner.
+    const tick = document.createElement('div')
+    tick.className = 'dc-edit-tick'
+    tick.style.display = 'none'
+    document.body.appendChild(tick)
+    let tickTimer: ReturnType<typeof setTimeout> | null = null
+    function placeTick(el: HTMLElement) {
+      const r = el.getBoundingClientRect()
+      tick.style.top = `${Math.max(8, r.top - 8)}px`
+      tick.style.left = `${Math.min(window.innerWidth - 90, r.right - 80)}px`
+      tick.style.display = 'block'
+    }
+    function markSaving(el: HTMLElement) {
+      tick.textContent = 'Saving…'
+      tick.classList.remove('dc-edit-tick-ok')
+      placeTick(el)
+      if (tickTimer) clearTimeout(tickTimer)
+    }
+    function markSaved(el: HTMLElement) {
+      tick.textContent = '✓ Saved'
+      tick.classList.add('dc-edit-tick-ok')
+      placeTick(el)
+      if (tickTimer) clearTimeout(tickTimer)
+      tickTimer = setTimeout(() => {
+        tick.style.display = 'none'
+      }, 1400)
+    }
+
     function showEditBtn(el: HTMLElement) {
       editBtnField = el.getAttribute('data-edit-field') ?? ''
       editBtnKind = el.getAttribute('data-edit-kind') ?? ''
@@ -220,6 +328,28 @@ export default function EditBridge() {
           ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       } else if (d.type === 'reveal' && d.field) {
         revealField(d.field)
+      } else if (d.type === 'restore' && d.field) {
+        // The Studio's inline save failed — put the element's original text back
+        // so an unsaved value never lingers looking saved. Show a "couldn't save"
+        // tick on it.
+        const pend = pendingEdits.get(d.field)
+        if (pend) {
+          pend.el.textContent = pend.original
+          pendingEdits.delete(d.field)
+          tick.textContent = 'Couldn’t save'
+          tick.classList.remove('dc-edit-tick-ok')
+          placeTick(pend.el)
+          if (tickTimer) clearTimeout(tickTimer)
+          tickTimer = setTimeout(() => { tick.style.display = 'none' }, 2200)
+        }
+      } else if (d.type === 'saved' && d.field) {
+        // Confirmed save — flash the saved tick (the canvas usually reloads right
+        // after, so this is a brief confirmation in the in-flight window).
+        const pend = pendingEdits.get(d.field)
+        if (pend) {
+          markSaved(pend.el)
+          pendingEdits.delete(d.field)
+        }
       }
     }
 
@@ -256,10 +386,16 @@ export default function EditBridge() {
       document.removeEventListener('mouseout', onOut)
       window.removeEventListener('message', onMessage)
       document.body.classList.remove('dc-edit-mode')
+      document.body.classList.remove('dc-edit-touch')
       if (hideTimer) clearTimeout(hideTimer)
       if (revealTimer) clearTimeout(revealTimer)
       if (flashTimer) clearTimeout(flashTimer)
+      if (tickTimer) clearTimeout(tickTimer)
       editBtn.remove()
+      hint.remove()
+      tick.remove()
+      touchObserver?.disconnect()
+      document.querySelectorAll('.dc-edit-touch-tag').forEach((n) => n.remove())
     }
   }, [])
 
@@ -283,6 +419,30 @@ export default function EditBridge() {
         padding: 8px 13px; border-radius: 9px; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
       }
       .dc-edit-btn:hover { background: #7c3aed; }
+      .dc-edit-hint {
+        position: fixed; z-index: 2147483646; pointer-events: none;
+        background: rgba(17,24,39,0.92); color: #e5e7eb;
+        font: 500 11px/1.3 Inter, system-ui, sans-serif;
+        padding: 5px 9px; border-radius: 7px; max-width: 320px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+      }
+      .dc-edit-tick {
+        position: fixed; z-index: 2147483646; pointer-events: none;
+        background: rgba(17,24,39,0.92); color: #fde68a;
+        font: 600 11px/1 Inter, system-ui, sans-serif;
+        padding: 5px 9px; border-radius: 999px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+      }
+      .dc-edit-tick.dc-edit-tick-ok { color: #6ee7b7; }
+      /* Always-visible touch affordance injected into each editable region on
+         coarse pointers (iPad/phone), where hover doesn't exist. */
+      .dc-edit-touch-tag {
+        position: absolute; top: 6px; right: 6px; z-index: 2147483645;
+        border: none; cursor: pointer; background: rgba(139,92,246,0.92); color: #fff;
+        font: 600 11px/1 Inter, system-ui, sans-serif;
+        padding: 5px 9px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       @keyframes dcRevealFlash {
         0%   { outline-color: rgba(139,92,246,0); background-color: rgba(139,92,246,0); }
         18%  { outline-color: rgba(139,92,246,0.95); background-color: rgba(139,92,246,0.16); }

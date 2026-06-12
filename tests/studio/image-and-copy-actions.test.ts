@@ -51,7 +51,11 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-import { saveImageField, saveInlineField } from '@/app/(default)/website/website-actions'
+import {
+  saveImageField,
+  saveInlineField,
+  saveDifferenceVideo,
+} from '@/app/(default)/website/website-actions'
 
 beforeEach(() => {
   ops.length = 0
@@ -65,6 +69,53 @@ beforeEach(() => {
 })
 
 const profileSet = () => ops.find((o) => o.table === 'clinic_profile')!.set
+
+describe('saveDifferenceVideo — URL-validated single column', () => {
+  it('rejects a malformed URL without writing', async () => {
+    const res = await saveDifferenceVideo('not a url')
+    expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/valid video/i) })
+    expect(ops).toHaveLength(0)
+  })
+
+  it('rejects a dangerous scheme', async () => {
+    const res = await saveDifferenceVideo('javascript:alert(1)')
+    expect(res).toMatchObject({ ok: false })
+    expect(ops).toHaveLength(0)
+  })
+
+  it('stores a valid https URL', async () => {
+    const res = await saveDifferenceVideo('https://cdn.x/clip.mp4')
+    expect(res).toEqual({ ok: true })
+    expect(profileSet().differenceVideoUrl).toBe('https://cdn.x/clip.mp4')
+  })
+
+  it('stores an uploaded /-rooted path', async () => {
+    const res = await saveDifferenceVideo('/uploads/clinic-video/a.mp4')
+    expect(res).toEqual({ ok: true })
+    expect(profileSet().differenceVideoUrl).toBe('/uploads/clinic-video/a.mp4')
+  })
+
+  it('clears the field on empty (falls back to a photo)', async () => {
+    const res = await saveDifferenceVideo('')
+    expect(res).toEqual({ ok: true })
+    expect(profileSet().differenceVideoUrl).toBeNull()
+  })
+
+  it('still gates non-clinic tenants', async () => {
+    tenantCtx = { tenantType: 'platform', role: 'owner', organizationId: 'p', organizationSlug: 'd' }
+    const res = await saveDifferenceVideo('https://cdn.x/clip.mp4')
+    expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/clinic/i) })
+    expect(ops).toHaveLength(0)
+  })
+})
+
+describe('saveInlineField — differenceVideoUrl no longer inline-editable', () => {
+  it('rejects differenceVideoUrl on the inline path (it has its own action now)', async () => {
+    const res = await saveInlineField('differenceVideoUrl', 'https://cdn.x/clip.mp4')
+    expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/cannot be edited inline/i) })
+    expect(ops).toHaveLength(0)
+  })
+})
 
 describe('saveImageField — gate + whitelist', () => {
   it('rejects a field not on the image whitelist', async () => {

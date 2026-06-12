@@ -7,6 +7,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant, type TenantContext } from '@/lib/auth/context'
 import type { LeadFormField } from '@/lib/types/lead-forms'
+import { isValidVideoUrl } from '@/lib/website-url'
 import {
   parseStaff,
   parseStats,
@@ -279,14 +280,33 @@ export async function savePaymentFinancing(formData: FormData): Promise<SectionR
 // studio. Whitelisted single-column writes only — never an array/jsonb field
 // (those go through their section action via a modal). `value` is trimmed;
 // empty → null so the public site falls back to its default.
+//
+// NOTE: `differenceVideoUrl` is NOT here — it's a `kind="modal"` field (edited
+// via the Intro-video modal, never clicked inline on the canvas), so it has its
+// own `saveDifferenceVideo` action with URL-shape validation. Keeping it off the
+// inline whitelist removes a dead membership that implied it was inline-editable.
 const INLINE_TEXT_FIELDS = new Set([
-  'tagline', 'about', 'displayName', 'legalName', 'phone', 'email', 'differenceVideoUrl',
+  'tagline', 'about', 'displayName', 'legalName', 'phone', 'email',
 ])
 const INLINE_IMAGE_FIELDS = new Set(['logoUrl', 'heroImageUrl', 'heroImageUrl2'])
 
 export type InlineField =
   | 'tagline' | 'about' | 'displayName' | 'legalName' | 'phone' | 'email'
-  | 'logoUrl' | 'heroImageUrl' | 'heroImageUrl2' | 'differenceVideoUrl'
+  | 'logoUrl' | 'heroImageUrl' | 'heroImageUrl2'
+
+// ── Intro ("difference") video — single column, URL-validated ────────────────
+// `isValidVideoUrl` is a pure helper, so it lives in lib/website-url.ts (a
+// `'use server'` file may only export async functions). Both this action and the
+// Studio client import it from there.
+export async function saveDifferenceVideo(url: string): Promise<SectionResult> {
+  if (!isValidVideoUrl(url)) {
+    return { ok: false, error: 'Enter a valid video link (https://…) or upload a file.' }
+  }
+  return runSection(async (ctx) => {
+    const v = typeof url === 'string' && url.trim() ? url.trim() : null
+    await writeSection(ctx, { differenceVideoUrl: v } as Partial<typeof clinicProfile.$inferInsert>)
+  })
+}
 
 // ── Image field + focal point (Website Studio image modal) ──────────────────
 // Writes the single-column image URL AND merges this image's focal point into
