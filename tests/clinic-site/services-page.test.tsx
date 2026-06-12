@@ -195,4 +195,55 @@ describe('ServicesPage', () => {
     const prompt = screen.getByText(/\+ Add your services/i)
     expect(prompt.className).toContain('dc-edit-only')
   })
+
+  // ── Wave 4: contrast floor ─────────────────────────────────────────────
+  it('renders the H1 with a CONTRAST-SAFE fill for a pale brand (not the raw pale hex)', async () => {
+    // A pale mint brand would be unreadable as a heading on the #FAF7F2 ground;
+    // readableInk darkens it. The H1 must NOT carry the raw pale value.
+    await renderPage(makeData({ brandColor: '#CFE8D6' }))
+    const h1 = screen.getByRole('heading', { level: 1, name: /Dental services at/i })
+    const color = (h1 as HTMLElement).style.color
+    // happy-dom serializes the inline color; it should be a darkened value, not
+    // the raw pale brand. Assert it's set and isn't the pale source.
+    expect(color).toBeTruthy()
+    expect(color.replace(/\s/g, '').toLowerCase()).not.toContain('#cfe8d6')
+    // The pale-mint string also shouldn't appear (rgb form) — a crude guard
+    // that we didn't fall through to the raw brand.
+    expect(color.toLowerCase()).not.toBe('rgb(207, 232, 214)')
+  })
+
+  // ── Wave 4: continuous Core→Special numbering ──────────────────────────
+  it('numbers services continuously across Core then Special (no restart at 01)', async () => {
+    // MIXED_SERVICES → 2 core (Hygiene, Whitening) + 2 special (Oral Surgery,
+    // IV Sedation). Continuous numbering means Special starts at 03, so we see
+    // 01,02,03,04 — and crucially NOT two "01"s.
+    const { container } = await renderPage()
+    const nums = Array.from(container.querySelectorAll('span[aria-hidden="true"]'))
+      .map((el) => el.textContent?.trim())
+      .filter((t): t is string => !!t && /^\d{2}$/.test(t))
+    expect(nums).toContain('01')
+    expect(nums).toContain('03')
+    // No duplicate "01" — the Special grid did NOT restart.
+    expect(nums.filter((n) => n === '01')).toHaveLength(1)
+  })
+
+  // ── Wave 4: services ItemList JSON-LD ──────────────────────────────────
+  it('emits an ItemList of MedicalProcedure JSON-LD for the services', async () => {
+    const { container } = await renderPage()
+    const scripts = Array.from(container.querySelectorAll('script[type="application/ld+json"]'))
+    const parsed = scripts.map((s) => JSON.parse(s.textContent || '{}'))
+    const itemList = parsed.find((p) => p['@type'] === 'ItemList')
+    expect(itemList).toBeTruthy()
+    const firstItem = itemList.itemListElement[0].item
+    expect(firstItem['@type']).toBe('MedicalProcedure')
+  })
+
+  it('omits the services JSON-LD when there are no services', async () => {
+    const { container } = await renderPage(makeData({ services: null as never }, []))
+    const scripts = Array.from(container.querySelectorAll('script[type="application/ld+json"]'))
+    const hasItemList = scripts
+      .map((s) => JSON.parse(s.textContent || '{}'))
+      .some((p) => p['@type'] === 'ItemList')
+    expect(hasItemList).toBe(false)
+  })
 })
