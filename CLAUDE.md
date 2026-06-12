@@ -118,6 +118,51 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Website system sprint — "complete in seconds" (2026-06-12, PRs #342–#345)**
+  — 4 audits + 4 build waves refined the ENTIRE clinic-website system to the
+  day-0-complete model (supersedes the honest-empty framing of #304–#307 for
+  everything non-trust): **(W1 floor)** `lib/services/starter-pack.ts`
+  `applyStarterFloor` (idempotent, null-only) gives EVERY new clinic — both
+  creation paths — a finished site instantly: starter tagline/about/3
+  qualitative stats/6 persisted editable FAQ rows/payment methods/cancellation
+  policy + **4 canonical core services** (library 1A token-substitution, no AI
+  latency); STARTER_* constants exported for still-starter detection; empty
+  hero ovals render brand-derived gradient blooms + arc motif (designed, not
+  blank; with-photo path untouched). Trust surfaces (staff/testimonials/
+  carriers/financing) stay honest-empty by rule. Demo renamed **Dream Dental**
+  safely (slug stays `acme-dental-demo`, decoupled from name; all seeded copy
+  swept; one-time isDemo-scoped force-refresh self-heal branches replace the
+  live demo's old Acme content — remove after a deploy cycle). **(W2
+  interview v2)** /welcome is the personalization engine: services become a
+  checkbox step over the library (starters pre-checked), answers
+  server-persisted (migration 0062 `onboarding_interview_draft` +
+  `onboarding_interview_completed_at`), one awaited mega-call (~8–12s, stepped
+  checklist UI) also writing `seo_meta.home` + `brandVoice`, then
+  per-service `customizeServiceForClinic` fired non-blocking with the new
+  hourly `/api/cron/customize-services` (excludes demos, 4/org/run) as the
+  durable net; apply is NON-destructive (overwrites only null/still-starter;
+  reports skipped); failure → floor stands, never empty; success → reveal
+  screen w/ live URL ("View your site" / "Open the editor"); every cohort
+  routed (accept-invite + new `/billing/activated` → /welcome on the new
+  `siteNeedsPersonalization` gate — old `siteUnfilled` is always false
+  post-floor). **(W3 Studio)** 25-defect fix wave: "✨ Rewrite with AI"
+  finally has UI (About/Stats/FAQ modals + tagline popover; review-only,
+  allowance-gated), Undo survives modal opens, dirty-close confirms, logo
+  editable from the canvas (footer instrumentation incl. letter-mark add
+  path), shared XHR upload helper w/ progress+cancel (staff upload failures
+  were silent), inline-save failures revert the element, load-aware tours,
+  AI list-merge guard, touch-device always-visible affordances, stale-tab
+  fallback widened. **(W4 site polish)** `readableInk` contrast floor behind
+  every brand-filled heading sitewide; /membership 308→/dental-plans;
+  honeypot+time-trap+privacy microcopy on all public forms; 9 JSON-LD
+  builders wired (ItemList/Person/Blog/FAQPage/Product+Offer/Breadcrumbs);
+  /r/[token] reskinned to clinic brand on shared MinimalSiteChrome (also
+  intake-start + site 404); teal ClosingCTA rhythm on subpages; false
+  "we'll text a reminder" + hardcoded claims universalized; cart stepper +
+  form ergonomics; image lazy/dims + detail-hero fetchpriority; FAQ sticky
+  via --site-header-h. Suite 2402 → **2601 tests**. Deferred (inline-doc'd):
+  SEO_PAGE_KEYS dental-plans key (cross-boundary into settings form);
+  multi-level undo, keyboard a11y, Studio optimistic locking.
 - **Design System v2 — "Instrument Panel, Liquid Soul" (2026-06-11, PRs
   #330–#337)** — the entire authenticated dashboard re-skinned + re-navigated
   to the research-backed v2 language, and the platform re-branded to **Dream
