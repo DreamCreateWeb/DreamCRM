@@ -9,7 +9,13 @@ const stubs = {
     orgId: string
   },
   org: null as null | { name: string; type?: string },
-  clinicProfile: null as null | { displayName: string | null; logoUrl: string | null; brandColor: string | null },
+  clinicProfile: null as null | {
+    displayName: string | null
+    logoUrl: string | null
+    brandColor: string | null
+    tagline?: string | null
+    onboardingInterviewCompletedAt?: Date | null
+  },
   // Account-state resolution (user + credential account row) — default empty.
   user: null as null | { id: string },
   account: null as null | { id: string },
@@ -141,6 +147,8 @@ describe('getInvitationDetails', () => {
       brand: null,
       // No user/account rows match in the mocked db → 'none' (create-account).
       accountState: 'none',
+      // Platform/staff orgs have no clinic site → never needs personalization.
+      siteNeedsPersonalization: false,
     })
   })
 
@@ -163,6 +171,47 @@ describe('getInvitationDetails', () => {
       logoUrl: 'https://x/logo.png',
       brandColor: '#2563eb',
     })
+  })
+
+  it('siteNeedsPersonalization=true for a clinic that never finished the interview', async () => {
+    stubs.invitation = {
+      email: 'owner@x.com',
+      role: 'admin',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86400_000),
+      orgId: 'org_clinic',
+    }
+    stubs.org = { name: 'Acme Dental', type: 'clinic' }
+    // No completed_at + starter-ish tagline → still needs the AI pass.
+    stubs.clinicProfile = {
+      displayName: 'Acme Family Dental',
+      logoUrl: null,
+      brandColor: null,
+      tagline: null,
+      onboardingInterviewCompletedAt: null,
+    }
+    const result = await getInvitationDetails('tok')
+    expect(result?.siteNeedsPersonalization).toBe(true)
+  })
+
+  it('siteNeedsPersonalization=false once the clinic finished the interview with a real tagline', async () => {
+    stubs.invitation = {
+      email: 'owner@x.com',
+      role: 'admin',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86400_000),
+      orgId: 'org_clinic',
+    }
+    stubs.org = { name: 'Acme Dental', type: 'clinic' }
+    stubs.clinicProfile = {
+      displayName: 'Acme Family Dental',
+      logoUrl: null,
+      brandColor: null,
+      tagline: 'We make Austin smile',
+      onboardingInterviewCompletedAt: new Date(),
+    }
+    const result = await getInvitationDetails('tok')
+    expect(result?.siteNeedsPersonalization).toBe(false)
   })
 
   it('falls back to "member" role when invitation.role is null', async () => {

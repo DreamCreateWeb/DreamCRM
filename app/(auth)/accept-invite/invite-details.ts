@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { invitation, organization } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { siteNeedsPersonalization as needsPersonalization } from '@/lib/services/starter-pack'
 
 export interface InvitationDetails {
   email: string
@@ -26,6 +27,14 @@ export interface InvitationDetails {
    * exists" (Bug 2). 'none' for a brand-new email.
    */
   accountState: import('@/lib/auth/account-state').AccountState
+  /**
+   * Whether this clinic's public site still needs the AI personalization pass
+   * (interview never completed OR tagline still the day-0 starter). Drives the
+   * accept-invite cohort routing: a clinic owner/admin accepting an invite into
+   * a still-unpersonalized clinic lands in `/welcome` instead of the dashboard.
+   * Always false for platform/staff orgs (no clinic site).
+   */
+  siteNeedsPersonalization: boolean
 }
 
 export async function getInvitationDetails(token: string): Promise<InvitationDetails | null> {
@@ -54,12 +63,15 @@ export async function getInvitationDetails(token: string): Promise<InvitationDet
   // they're joining THEIR dentist, not generic "DreamCRM". Platform/staff
   // invites keep the default platform style (brand stays null).
   let brand: InvitationDetails['brand'] = null
+  let siteNeedsPersonalization = false
   if (org?.type === 'clinic') {
     const [profile] = await db
       .select({
         displayName: clinicProfile.displayName,
         logoUrl: clinicProfile.logoUrl,
         brandColor: clinicProfile.brandColor,
+        tagline: clinicProfile.tagline,
+        onboardingInterviewCompletedAt: clinicProfile.onboardingInterviewCompletedAt,
       })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, row.orgId))
@@ -69,6 +81,10 @@ export async function getInvitationDetails(token: string): Promise<InvitationDet
       logoUrl: profile?.logoUrl ?? null,
       brandColor: profile?.brandColor ?? null,
     }
+    siteNeedsPersonalization = needsPersonalization({
+      tagline: profile?.tagline ?? null,
+      onboardingInterviewCompletedAt: profile?.onboardingInterviewCompletedAt ?? null,
+    })
   }
 
   // Resolve the invite email's account state so the accept page can offer the
@@ -84,6 +100,7 @@ export async function getInvitationDetails(token: string): Promise<InvitationDet
     orgType: org?.type ?? 'clinic',
     brand,
     accountState,
+    siteNeedsPersonalization,
     // Anything other than a still-pending invitation can't be accepted
     // (accepted / canceled / rejected all count as no-longer-usable), as does
     // a past expiry. better-auth blocks non-pending accepts server-side; this

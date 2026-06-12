@@ -90,6 +90,21 @@ export const clinicProfile = pgTable('clinic_profile', {
   // resolveSeoMeta() in lib/types/seo-meta.ts so junk can't poison the column
   // and a new page key never needs a backfill.
   seoMeta: jsonb('seo_meta'),
+  // Server-persisted draft of the post-checkout AI website interview (the
+  // /welcome step). Shape: OnboardingInterviewDraft in
+  // lib/types/onboarding-interview.ts — { answers: Record<string,string>,
+  // step: number, serviceSlugs?: string[], updatedAt: string }. Saved
+  // (debounced) on every step advance so a refresh resumes mid-interview;
+  // CLEARED (set null) on successful completion. Null = no draft in flight.
+  onboardingInterviewDraft: jsonb('onboarding_interview_draft'),
+  // When the clinic finished the AI website interview (or explicitly skipped
+  // it through to the end). Null = never completed. With Wave 1's day-0 floor
+  // the old "siteUnfilled" heuristic is always false, so this timestamp (plus
+  // "tagline still equals the starter constant") is what drives
+  // siteNeedsPersonalization → the /welcome re-entry banner + cohort routing.
+  onboardingInterviewCompletedAt: timestamp('onboarding_interview_completed_at', {
+    withTimezone: true,
+  }),
   // Patient-portal customization (Settings → Patient portal): feature
   // toggles + booking/reschedule notice windows + clinic-editable copy.
   // Shape: PortalSettings in lib/types/portal.ts. Null = defaults; partial

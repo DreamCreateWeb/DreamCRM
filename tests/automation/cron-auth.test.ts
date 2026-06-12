@@ -8,11 +8,16 @@ vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn() }))
 vi.mock('@/lib/services/reminder-automation', () => ({ runDueReminders: vi.fn(async () => ({})) }))
 vi.mock('@/lib/services/marketing-scheduled', () => ({ sendDueScheduledCampaigns: vi.fn(async () => ({})) }))
+const customizePendingServices = vi.fn(async () => ({ scanned: 0, customized: 0, orgsTouched: 0, errors: 0 }))
+vi.mock('@/lib/services/customize-services-cron', () => ({
+  customizePendingServices: () => customizePendingServices(),
+}))
 
 const ROUTES = [
   '@/app/api/cron/pms-sync/route',
   '@/app/api/cron/send-reminders/route',
   '@/app/api/cron/send-scheduled-campaigns/route',
+  '@/app/api/cron/customize-services/route',
 ] as const
 
 beforeEach(() => {
@@ -47,5 +52,25 @@ describe.each(ROUTES)('cron auth gate — %s', (routePath) => {
     })
     const res = await POST(req)
     expect(res.status).toBe(401)
+  })
+})
+
+describe('customize-services cron — authorized run', () => {
+  it('runs the sweep + returns ok:true with batch health on a valid bearer', async () => {
+    customizePendingServices.mockResolvedValueOnce({
+      scanned: 3,
+      customized: 2,
+      orgsTouched: 1,
+      errors: 1,
+    })
+    const { POST } = await import('@/app/api/cron/customize-services/route')
+    const req = new Request('https://www.dreamcreatestudio.com/api/cron', {
+      method: 'POST',
+      headers: { authorization: 'Bearer test-secret' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, scanned: 3, customized: 2, orgsTouched: 1, errors: 1 })
+    expect(customizePendingServices).toHaveBeenCalledTimes(1)
   })
 })
