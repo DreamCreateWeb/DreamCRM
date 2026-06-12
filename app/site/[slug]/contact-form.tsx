@@ -3,6 +3,20 @@
 import { useState } from 'react'
 import { submitContactRequest } from './actions'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
+import FormTrustFields from '@/components/clinic-site/form-trust-fields'
+
+/** Map a lead-form field to the right mobile keyboard + browser-autofill hint
+ *  so phones surface the dialpad/email keys and Safari/Chrome can autofill. */
+function fieldInputAttrs(f: LeadFormField): {
+  inputMode?: 'tel' | 'email' | 'text'
+  autoComplete?: string
+} {
+  if (f.type === 'tel') return { inputMode: 'tel', autoComplete: 'tel' }
+  if (f.type === 'email') return { inputMode: 'email', autoComplete: 'email' }
+  const key = f.id.toLowerCase()
+  if (key.includes('name')) return { autoComplete: 'name' }
+  return {}
+}
 
 interface Props {
   /** Public slug — the action resolves the org from it server-side (never a
@@ -142,6 +156,7 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
     }
     const inputType =
       f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'
+    const attrs = fieldInputAttrs(f)
     return (
       <div key={f.id}>
         {label}
@@ -152,6 +167,8 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
           required={f.required}
           placeholder={f.placeholder ?? ''}
           min={f.type === 'date' ? new Date().toISOString().split('T')[0] : undefined}
+          inputMode={attrs.inputMode}
+          autoComplete={attrs.autoComplete}
           className={inputClass}
           style={{ ['--tw-ring-color' as string]: brand }}
         />
@@ -161,6 +178,7 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <FormTrustFields />
       {formFields.map(renderField)}
 
       {status === 'error' && (
@@ -175,8 +193,8 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
       >
         {status === 'pending' ? 'Sending…' : 'Send Request'}
       </button>
-      <p className="text-xs text-gray-400 text-center">
-        We respect your privacy. Your information is never shared.
+      <p className="text-xs text-gray-500 text-center">
+        We only use this to reach you about your visit — never spam.
       </p>
     </form>
   )

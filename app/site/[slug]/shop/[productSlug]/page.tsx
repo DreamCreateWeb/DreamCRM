@@ -3,6 +3,8 @@ import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/s
 import { getActiveProductBySlug, getShopConfig } from '@/lib/services/shop'
 import { CATEGORY_LABELS } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
+import { readableInk } from '@/lib/clinic-site-theme'
+import { productJsonLd } from '@/lib/clinic-site-jsonld'
 import AddToCart from '../add-to-cart'
 
 const INK = '#1C1A17'
@@ -40,14 +42,35 @@ export default async function ClinicProductPage({ params }: Props) {
 
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
+  const name = data.profile.displayName ?? data.orgName
+
+  // Product + Offer JSON-LD — lowest variant price + honest availability (a
+  // product is in stock when any variant is in stock; untracked inventory =
+  // available). No fabricated price: minPriceCents is the real catalog price.
+  const productLd = productJsonLd({
+    name: product.name,
+    description: product.description ?? null,
+    image: product.images[0] ?? null,
+    url: `${publicSiteUrl(data)}/shop/${product.slug}`,
+    priceCents: product.minPriceCents,
+    inStock: product.totalInventory == null || product.totalInventory > 0,
+    clinicName: name,
+  })
 
   return (
     <BlogChrome data={data} basePath={basePath}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }}
+      />
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
         <a
           href={`${basePath}/shop`}
           className="inline-flex items-center gap-1 text-[14px] font-semibold transition-all duration-300 hover:gap-2"
-          style={{ color: brand }}
+          style={{ color: headingInk }}
         >
           <span aria-hidden="true">←</span> All products
         </a>
@@ -58,9 +81,18 @@ export default async function ClinicProductPage({ params }: Props) {
           >
             {product.images[0] ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+              <img
+                src={product.images[0]}
+                alt={product.name}
+                className="w-full h-full object-cover"
+                width={800}
+                height={800}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-base" style={{ color: brand }}>
+              <div className="w-full h-full flex items-center justify-center text-base" style={{ color: headingInk }}>
                 {CATEGORY_LABELS[product.category]}
               </div>
             )}
@@ -68,13 +100,13 @@ export default async function ClinicProductPage({ params }: Props) {
           <div>
             <span
               className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               {CATEGORY_LABELS[product.category]}
             </span>
             <h1
               className="text-[32px] sm:text-[40px] lg:text-[48px] font-semibold tracking-[-0.015em] leading-[1.08] mt-2"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               {product.name}
             </h1>

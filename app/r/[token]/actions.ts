@@ -9,6 +9,7 @@ import {
   submitReviewText,
   type ReviewSite,
 } from '@/lib/services/reviews'
+import { looksLikeBot } from '@/lib/form-trust'
 
 /**
  * PRIMARY completion path — patient wrote their review on /r/<token> and
@@ -20,6 +21,10 @@ export async function submitReviewAction(
   token: string,
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Silent spam drop (the signed token is the primary gate; this is
+  // defense-in-depth). A filled honeypot / instant submit returns success
+  // without persisting.
+  if (looksLikeBot(formData)) return { ok: true }
   const text = (formData.get('reviewText')?.toString() ?? '').trim()
   const ratingRaw = formData.get('rating')?.toString()
   const rating = ratingRaw ? Number(ratingRaw) : null

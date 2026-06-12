@@ -842,7 +842,7 @@ const DEMO_PAYMENT_METHODS: string[] = [
   'Credit & debit cards',
   'HSA / FSA cards',
   'Apple Pay & Google Pay',
-  'ACH bank transfer',
+  'Bank transfer',
 ]
 
 // Two demo financing partners — the two most common in US dental

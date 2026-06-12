@@ -13,7 +13,7 @@ import {
   DEFAULT_FAQ_ITEMS,
   FAQ_CATEGORIES,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -90,6 +90,9 @@ export default async function FaqPage({ params }: Props) {
 
   const { profile } = data
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
@@ -176,7 +179,7 @@ export default async function FaqPage({ params }: Props) {
           </p>
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
-            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             data-edit-field="copy:faq.heroTitle"
             data-edit-kind="text"
             data-edit-label="headline"
@@ -194,10 +197,13 @@ export default async function FaqPage({ params }: Props) {
       </section>
 
       {/* ── Category tabs ──────────────────────────────────────────────── */}
+      {/* Sticky offset derived from the one `--site-header-h` var (set in the
+          /site layout) so the tab bar + the floating header stay in lockstep —
+          change the header height once, not per-page. */}
       <nav
         aria-label="FAQ categories"
-        className="sticky top-[68px] z-30 backdrop-blur-md"
-        style={{ backgroundColor: `${BG}EE` }}
+        className="sticky z-30 backdrop-blur-md"
+        style={{ backgroundColor: `${BG}EE`, top: 'calc(var(--site-header-h, 64px) + 4px)' }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-3">
           <ul
@@ -236,7 +242,7 @@ export default async function FaqPage({ params }: Props) {
               <ScrollReveal>
                 <h2
                   className="text-2xl sm:text-3xl font-semibold leading-[1.1] mb-6"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
                   {c}
                 </h2>
@@ -256,14 +262,14 @@ export default async function FaqPage({ params }: Props) {
                         <span
                           aria-hidden="true"
                           className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                          style={{ color: brand }}
+                          style={{ color: headingInk }}
                         >
                           +
                         </span>
                         <span
                           aria-hidden="true"
                           className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                          style={{ color: brand }}
+                          style={{ color: headingInk }}
                         >
                           −
                         </span>

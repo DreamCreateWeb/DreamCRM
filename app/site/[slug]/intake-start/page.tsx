@@ -7,7 +7,8 @@ import {
 } from '@/lib/services/clinic-site'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { auth } from '@/lib/auth/server'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import IntakeStartForm from './intake-start-form'
 
 interface Props {
@@ -21,7 +22,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 }
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const { INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
 export default async function IntakeStartPage({ params }: Props) {
   const { slug } = await params
@@ -64,54 +65,29 @@ export default async function IntakeStartPage({ params }: Props) {
   const profile = data.profile
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
 
   return (
-    <div
-      className="min-h-screen antialiased flex flex-col"
-      style={{
-        backgroundColor: BG,
-        color: INK,
-        fontFamily: 'var(--font-sans, Inter, sans-serif)',
-      }}
+    <MinimalSiteChrome
+      clinicName={name}
+      logoUrl={profile.logoUrl}
+      brand={brand}
+      homeHref={basePath || '/'}
     >
-      {/* Minimal chrome — same intent as /intake/[formSlug]: this is a
-          focused flow, not a browsable surface. Just clinic name + a way
-          back to the site. */}
-      <header
-        className="sticky top-0 z-30 backdrop-blur-md border-b"
-        style={{ backgroundColor: `${BG}EE`, borderColor: BORDER }}
-      >
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[64px] flex items-center justify-between gap-4">
-          <a href={basePath || '/'} className="flex items-center min-w-0">
-            <span
-              className="font-semibold text-[17px] sm:text-[19px] leading-tight truncate"
-              style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              {name}
-            </span>
-          </a>
-          <a
-            href={basePath || '/'}
-            className="text-sm font-medium transition hover:underline"
-            style={{ color: INK_MUTED }}
-          >
-            ← Back to site
-          </a>
-        </div>
-      </header>
-
-      <main className="flex-1 py-12 sm:py-20">
+      <div className="py-12 sm:py-20">
         <div className="max-w-[480px] mx-auto px-5 sm:px-8">
           <div className="text-center mb-8">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               Patient intake
             </p>
             <h1
               className="text-[32px] sm:text-[40px] lg:text-[44px] font-semibold leading-[1.06] tracking-[-0.015em] mb-4"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Save your intake to your account.
             </h1>
@@ -140,7 +116,7 @@ export default async function IntakeStartPage({ params }: Props) {
             .
           </p>
         </div>
-      </main>
-    </div>
+      </div>
+    </MinimalSiteChrome>
   )
 }

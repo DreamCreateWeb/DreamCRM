@@ -14,6 +14,15 @@
 
 /** The set of public pages a clinic can override SEO copy for. Each maps to a
  *  page under app/site/[slug] whose generateMetadata threads resolveSeoMeta. */
+// NOTE (Wave 4 deferral): a `'dental-plans'` per-page Search-appearance key was
+// scoped here, but adding it cascades into the Settings → Search appearance
+// editor (app/(default)/settings/seo/seo-meta-form.tsx) which hardcodes a
+// `Record<SeoPageKey, …>` PAGE_PATH map + a `derivedFor` switch — both would
+// need a matching `dental-plans` arm. That editor was out of this wave's scope,
+// so /dental-plans keeps its own complete generateMetadata (canonical + OG +
+// Twitter + favicon) and simply isn't editable from the Search-appearance panel
+// yet. Add the key here + the two arms in seo-meta-form.tsx together when that
+// editor is next touched.
 export const SEO_PAGE_KEYS = [
   'home',
   'about',

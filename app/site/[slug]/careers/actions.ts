@@ -7,15 +7,14 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { createApplication } from '@/lib/services/careers'
 import { uploadBlob } from '@/lib/blob'
 import { sendContactRequestEmail } from '@/lib/email'
-
-const ALLOWED_RESUME_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]
-const MAX_RESUME_BYTES = 5 * 1024 * 1024
+import { ALLOWED_RESUME_TYPES, MAX_RESUME_BYTES } from '@/lib/types/careers'
+import { looksLikeBot } from '@/lib/form-trust'
 
 export async function submitApplication(formData: FormData) {
+  // Silent spam drop — honeypot / instant-submit returns normally (no throw =
+  // success in the apply form) without creating an application row.
+  if (looksLikeBot(formData)) return
+
   const orgId = formData.get('orgId')?.toString()
   const jobPostingId = formData.get('jobPostingId')?.toString()
   const name = formData.get('name')?.toString().trim()
@@ -45,7 +44,7 @@ export async function submitApplication(formData: FormData) {
     if (resume.size > MAX_RESUME_BYTES) throw new Error('Résumé must be under 5MB.')
     // Require a recognised type — an absent/empty Content-Type must NOT slip an
     // arbitrary file through (it previously short-circuited the check).
-    if (!resume.type || !ALLOWED_RESUME_TYPES.includes(resume.type)) {
+    if (!resume.type || !(ALLOWED_RESUME_TYPES as readonly string[]).includes(resume.type)) {
       throw new Error('Résumé must be a PDF or Word document.')
     }
     const safe = (resume.name || 'resume').replace(/[^a-z0-9_.-]/gi, '_')

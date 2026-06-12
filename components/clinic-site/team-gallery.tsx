@@ -84,6 +84,9 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
                   className="w-full h-full object-cover"
                   style={m.position ? { objectPosition: m.position } : undefined}
                   loading="lazy"
+                  decoding="async"
+                  width={640}
+                  height={800}
                 />
               </div>
               <figcaption className="px-1 pb-1">

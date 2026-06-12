@@ -400,10 +400,11 @@ describe('ModernTemplate', () => {
     )
     // Tagline appears in both the strip AND the hero H1, so accept ≥1.
     expect(screen.getAllByText(/Caring for smiles/i).length).toBeGreaterThanOrEqual(1)
-    // "No judgment, ever" and "Same-week visits" appear in the strip,
-    // the hero subhead, and the "difference" chip checklist — accept any.
+    // Universal value-prop chips appear in the closer strip + the "difference"
+    // chip checklist. Wave 4 universalized them to voice/quality claims (no
+    // operational "same-week" / "most insurance" promises).
     expect(screen.getAllByText(/No judgment, ever/i).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText(/Same-week visits/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/Gentle, modern care/i).length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders the Tend-style centered hero composition with the H1 in the brand color', () => {

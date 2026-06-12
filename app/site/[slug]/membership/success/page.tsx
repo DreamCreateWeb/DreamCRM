@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { finalizeMembershipFromSession } from '@/lib/services/membership'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
+import { readableInk } from '@/lib/clinic-site-theme'
 
 const INK = '#1C1A17'
 const INK_MUTED = '#6B635A'
@@ -19,6 +20,9 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const basePath = await resolveSiteBasePath(slug)
 
   let active = false
@@ -46,7 +50,7 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
         </div>
         <h1
           className="text-[32px] sm:text-[44px] lg:text-[52px] font-semibold leading-[1.06] tracking-[-0.015em] mt-7"
-          style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
         >
           {active ? `You're a member!` : 'Almost there — confirming your membership'}
         </h1>
@@ -58,7 +62,7 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
         <a
           href={`${basePath || '/'}`}
           className="inline-flex items-center gap-1.5 mt-7 text-[15px] font-semibold transition-all duration-300 hover:gap-2.5"
-          style={{ color: brand }}
+          style={{ color: headingInk }}
         >
           Back to home <span aria-hidden="true">→</span>
         </a>

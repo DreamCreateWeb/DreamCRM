@@ -14,7 +14,8 @@ import {
   groupByCategory,
   type EnrichedService,
 } from '@/lib/services/service-library'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { servicesItemListJsonLd } from '@/lib/clinic-site-jsonld'
 import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -84,6 +85,9 @@ export default async function ServicesPage({ params }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/links on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   // Per-card Book CTA: pro+ goes to the slot picker; basic routes back to the
   // homepage's #contact anchor since there is no /services#contact section.
@@ -101,6 +105,23 @@ export default async function ServicesPage({ params }: Props) {
     city: profile.city,
   })
   const { core, special } = groupByCategory(resolved)
+
+  // ItemList of MedicalProcedure for the services index — lets search engines
+  // surface the catalog as a carousel. Only emitted when the clinic actually
+  // has services (no empty list).
+  const siteUrl = publicSiteUrl(data)
+  const servicesLd =
+    resolved.length > 0
+      ? servicesItemListJsonLd(
+          resolved.map((s) => ({
+            name: s.name,
+            description: s.shortDescription ?? s.description ?? null,
+            url: `${siteUrl}/services/${s.routingSlug}`,
+          })),
+          name,
+          siteUrl,
+        )
+      : null
 
   const navLinks = buildClinicNavLinks({
     basePath,
@@ -124,6 +145,12 @@ export default async function ServicesPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      {servicesLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(servicesLd) }}
+        />
+      )}
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -152,7 +179,7 @@ export default async function ServicesPage({ params }: Props) {
           </p>
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
-            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
             Dental services at {name}.
           </h1>
@@ -219,7 +246,7 @@ export default async function ServicesPage({ params }: Props) {
             <ScrollReveal>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Core services.
               </h2>
@@ -228,8 +255,10 @@ export default async function ServicesPage({ params }: Props) {
               services={core}
               basePath={basePath}
               brand={brand}
+              headingInk={headingInk}
               bookHref={bookHref}
               bookLabel={bookLabel}
+              startIndex={0}
             />
           </div>
         )}
@@ -240,7 +269,7 @@ export default async function ServicesPage({ params }: Props) {
             <ScrollReveal>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Special services.
               </h2>
@@ -249,8 +278,10 @@ export default async function ServicesPage({ params }: Props) {
               services={special}
               basePath={basePath}
               brand={brand}
+              headingInk={headingInk}
               bookHref={bookHref}
               bookLabel={bookLabel}
+              startIndex={core.length}
             />
           </div>
         )}
@@ -266,6 +297,7 @@ export default async function ServicesPage({ params }: Props) {
             : undefined
         }
         brand={brand}
+        variant="teal"
       />
 
       </main>
@@ -296,14 +328,20 @@ function ServiceGrid({
   services,
   basePath,
   brand,
+  headingInk,
   bookHref,
   bookLabel,
+  startIndex = 0,
 }: {
   services: EnrichedService[]
   basePath: string
   brand: string
+  headingInk: string
   bookHref: string
   bookLabel: string
+  /** Numbering offset so Core + Special read as one continuous 01,02,03…
+   *  sequence rather than each section restarting at 01. */
+  startIndex?: number
 }) {
   return (
     <div className="grid gap-5 sm:gap-6 lg:gap-7 sm:grid-cols-2 lg:grid-cols-3">
@@ -327,7 +365,7 @@ function ServiceGrid({
                   style={{ color: INK_MUTED, fontFamily: 'var(--font-display, Georgia, serif)' }}
                   aria-hidden="true"
                 >
-                  {String(i + 1).padStart(2, '0')}
+                  {String(startIndex + i + 1).padStart(2, '0')}
                 </span>
                 {s.offer && (
                   <span
@@ -355,7 +393,7 @@ function ServiceGrid({
                 <a
                   href={detailHref}
                   className="inline-flex items-center gap-1 text-sm font-semibold transition-all duration-300 group-hover:gap-2.5"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                 >
                   Learn more
                   <span aria-hidden="true">→</span>
@@ -363,7 +401,7 @@ function ServiceGrid({
                 <a
                   href={bookHref}
                   className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold border transition hover:shadow-sm hover:scale-[1.02]"
-                  style={{ color: brand, borderColor: brand }}
+                  style={{ color: headingInk, borderColor: brand }}
                 >
                   {bookLabel}
                 </a>

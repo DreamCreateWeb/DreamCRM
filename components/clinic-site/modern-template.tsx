@@ -8,7 +8,7 @@ import type {
   ClinicOfficePhoto,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
 import {
   firstSentence,
   copyOverride,
@@ -98,6 +98,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
+  // Contrast-safe text fill for brand-colored headings/eyebrows/links/numerals
+  // on the warm ground. Raw `brand` stays on backgrounds, borders, pills, and
+  // SVG icon strokes (decorative accents); only text fills route through this.
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const heroImageUrl = profile.heroImageUrl ?? null
   // Full service list (drives the nav dropdowns); `services` stays capped at 6
@@ -181,13 +185,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // announcement strip in SiteHeader so the page composition rhymes —
   // chartreuse top, chartreuse bottom, with the closer card as the
   // bridge. Kept short + generic so they read on every clinic.
+  // Voice/quality claims every clinic can honestly make — no operational
+  // promises (no "same-week" availability guarantee, no "most insurance"
+  // coverage claim) so the strip never overstates on a real clinic.
   const closerChips: string[] = [
     'No judgment, ever',
-    'Same-week visits',
-    'Most insurance accepted',
+    'Gentle, modern care',
+    'Insurance welcome',
     'Modern technology',
-    'Caring team',
-    'Convenient hours',
+    'A caring team',
+    'Comfortable visits',
   ]
 
   // Two flanking portrait photos for the hero. Left = clinic's hero image,
@@ -234,8 +241,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     const out: string[] = []
     for (const s of services.slice(0, 4)) out.push(s.name)
     out.push('No judgment, ever')
-    out.push('Same-week visits')
-    out.push('Most insurance accepted')
+    out.push('Gentle, modern care')
+    out.push('Insurance welcome')
     out.push('Modern technology')
     out.push('Friendly staff')
     return out.slice(0, 8)
@@ -333,7 +340,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </p>
               <h1
                 className="text-[34px] sm:text-[56px] lg:text-[80px] font-semibold leading-[1.05] tracking-[-0.02em] mb-5 sm:mb-6"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-section="hero"
                 data-edit-field="tagline"
                 data-edit-kind="text"
@@ -375,7 +382,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     href={`tel:${profile.phone}`}
                     className="inline-flex items-center px-6 py-3.5 rounded-full text-base font-semibold bg-white transition hover:bg-[#FAF7F2]"
                     style={{
-                      color: brand,
+                      color: headingInk,
                       border: `1.5px solid ${brand}`,
                     }}
                   >
@@ -396,7 +403,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <a
                 href={`${appBaseUrl()}/site/${data.slug}/intake-start`}
                 className="inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 New patient? Start your intake
                 <span aria-hidden="true">→</span>
@@ -406,7 +413,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   italic) emphasis on the last phrase. */}
               <h2
                 className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.15] tracking-[-0.01em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:home.differenceHeadline"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -542,7 +549,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   <li key={s.id} className="text-center px-6 py-7 sm:py-9" style={{ borderColor: BORDER }}>
                     <div
                       className="text-[34px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
-                      style={{ color: brand }}
+                      style={{ color: headingInk }}
                     >
                       {s.value}
                     </div>
@@ -576,7 +583,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:home.teamGalleryTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -665,13 +672,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <div>
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 Why us?
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:home.differenceTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -818,7 +825,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <h2
               className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               data-edit-field="copy:home.testimonialsTitle"
               data-edit-kind="text"
               data-edit-label="headline"
@@ -852,7 +859,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-4"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:home.locationTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -1107,13 +1114,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           <div className="text-center max-w-[680px] mx-auto mb-10 sm:mb-14">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                 >
                   Care that puts you first
                 </p>
                 <h2
                   className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                   data-edit-field="copy:home.teamHeading"
                   data-edit-kind="text"
                   data-edit-label="headline"
@@ -1146,7 +1153,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               >
                 <span
                   className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: `${brand}1F`, color: brand }}
+                  style={{ backgroundColor: `${brand}1F`, color: headingInk }}
                   aria-hidden="true"
                 >
                         <TeamCalloutIcon kind={c.icon} />
@@ -1178,7 +1185,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <a
               href={`${basePath}/about`}
               className="inline-flex items-center gap-2 text-sm font-semibold hover:underline"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               Meet our team →
             </a>
@@ -1198,7 +1205,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <div className="flex flex-wrap items-end justify-between gap-4 mb-12">
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:home.blogTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -1241,7 +1248,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     {post.category && (
                       <p
                         className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-3"
-                        style={{ color: brand }}
+                        style={{ color: headingInk }}
                       >
                         {post.category}
                       </p>
@@ -1262,7 +1269,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     )}
                     <span
                       className="mt-auto text-sm font-semibold inline-flex items-center gap-1"
-                      style={{ color: brand }}
+                      style={{ color: headingInk }}
                     >
                       Read more →
                     </span>
@@ -1314,7 +1321,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <div className="lg:col-span-8">
                 <h2
                   className="text-3xl sm:text-4xl lg:text-[52px] font-semibold leading-[1.1] tracking-[-0.015em]"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                   data-edit-field="copy:home.closerTitle"
                   data-edit-kind="text"
                   data-edit-label="headline"
@@ -1398,7 +1405,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <div className="max-w-[600px] mx-auto text-center">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-5"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
                 data-edit-field="copy:home.contactEyebrow"
                 data-edit-kind="text"
                 data-edit-label="eyebrow"
@@ -1407,7 +1414,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:home.contactTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"

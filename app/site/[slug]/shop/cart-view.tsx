@@ -78,7 +78,7 @@ export default function CartView({
       })
   }
 
-  const FIELD = 'w-full text-[15px] px-3.5 py-2.5 rounded-xl border bg-white'
+  const FIELD = 'w-full text-[15px] px-3.5 py-3 rounded-xl border bg-white'
 
   return (
     <div>
@@ -88,23 +88,52 @@ export default function CartView({
         {lines.map((l) => (
           <div key={l.variantId} className="flex items-center gap-4 rounded-xl border p-3" style={{ borderColor: BORDER }}>
             <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ backgroundColor: `${brand}1A` }}>
-              {l.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={l.image} alt="" className="w-full h-full object-cover" />}
+              {l.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={l.image} alt="" className="w-full h-full object-cover" width={80} height={80} loading="lazy" decoding="async" />}
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate" style={{ color: INK }}>{l.productName}</p>
               {l.variantName !== 'Default' && <p className="text-[13px]" style={{ color: INK_MUTED }}>{l.variantName}</p>}
               <p className="text-[14px]" style={{ color: INK }}>{formatCents(l.priceCents)}</p>
             </div>
-            <input
-              type="number"
-              min={1}
-              max={99}
-              value={l.qty}
-              onChange={(e) => setQty(slug, l.variantId, parseInt(e.target.value) || 1)}
-              className="w-14 text-[15px] px-2 py-1.5 rounded-lg border bg-white"
-              style={{ borderColor: BORDER }}
-            />
-            <button onClick={() => removeLine(slug, l.variantId)} className="text-stone-400 hover:text-rose-600 text-lg leading-none">×</button>
+            {/* Quantity stepper — ≥44px tap targets beat a fiddly number spinner
+                on mobile. Buttons clamp to 1–99; the value stays a live count. */}
+            <div className="flex items-center rounded-lg border shrink-0" style={{ borderColor: BORDER }}>
+              <button
+                type="button"
+                aria-label={`Decrease quantity of ${l.productName}`}
+                onClick={() => setQty(slug, l.variantId, Math.max(1, l.qty - 1))}
+                disabled={l.qty <= 1}
+                className="w-11 h-11 flex items-center justify-center text-xl leading-none rounded-l-lg disabled:opacity-40 hover:bg-black/[0.03]"
+                style={{ color: INK }}
+              >
+                −
+              </button>
+              <span
+                className="w-9 text-center text-[15px] tabular-nums select-none"
+                aria-live="polite"
+                aria-label={`Quantity: ${l.qty}`}
+              >
+                {l.qty}
+              </span>
+              <button
+                type="button"
+                aria-label={`Increase quantity of ${l.productName}`}
+                onClick={() => setQty(slug, l.variantId, Math.min(99, l.qty + 1))}
+                disabled={l.qty >= 99}
+                className="w-11 h-11 flex items-center justify-center text-xl leading-none rounded-r-lg disabled:opacity-40 hover:bg-black/[0.03]"
+                style={{ color: INK }}
+              >
+                +
+              </button>
+            </div>
+            <button
+              type="button"
+              aria-label={`Remove ${l.productName} from cart`}
+              onClick={() => removeLine(slug, l.variantId)}
+              className="w-11 h-11 flex items-center justify-center text-stone-400 hover:text-rose-600 text-xl leading-none shrink-0"
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>
@@ -173,10 +202,10 @@ export default function CartView({
 
       {/* Contact */}
       <div className="space-y-3 mb-5">
-        <input type="email" placeholder="Email *" value={email} onChange={(e) => setEmail(e.target.value)} className={FIELD} style={{ borderColor: BORDER }} />
+        <input type="email" inputMode="email" autoComplete="email" placeholder="Email *" value={email} onChange={(e) => setEmail(e.target.value)} className={FIELD} style={{ borderColor: BORDER }} />
         <div className="grid sm:grid-cols-2 gap-3">
-          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} className={FIELD} style={{ borderColor: BORDER }} />
-          <input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className={FIELD} style={{ borderColor: BORDER }} />
+          <input autoComplete="name" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} className={FIELD} style={{ borderColor: BORDER }} />
+          <input type="tel" inputMode="tel" autoComplete="tel" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className={FIELD} style={{ borderColor: BORDER }} />
         </div>
       </div>
 

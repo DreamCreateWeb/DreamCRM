@@ -571,6 +571,15 @@ export interface PublicReviewContext {
    *  form. Null when they haven't written anything yet. */
   existingReviewText: string | null
   existingRating: number | null
+  /** Clinic branding so the public review page wears the clinic's identity
+   *  (warm ground + brand accent + logo + name) rather than generic gray. */
+  clinic: {
+    displayName: string | null
+    brandColor: string | null
+    logoUrl: string | null
+    slug: string | null
+    websiteDomain: string | null
+  }
 }
 
 /**
@@ -588,10 +597,16 @@ export async function getPublicReviewContext(token: string): Promise<PublicRevie
       rating: schema.reviewRequest.rating,
       patientFirstName: schema.patient.firstName,
       clinicName: schema.organization.name,
+      orgSlug: schema.organization.slug,
+      displayName: schema.clinicProfile.displayName,
+      brandColor: schema.clinicProfile.brandColor,
+      logoUrl: schema.clinicProfile.logoUrl,
+      websiteDomain: schema.clinicProfile.websiteDomain,
     })
     .from(schema.reviewRequest)
     .innerJoin(schema.patient, eq(schema.reviewRequest.patientId, schema.patient.id))
     .innerJoin(schema.organization, eq(schema.reviewRequest.organizationId, schema.organization.id))
+    .leftJoin(schema.clinicProfile, eq(schema.clinicProfile.organizationId, schema.reviewRequest.organizationId))
     .where(eq(schema.reviewRequest.token, token))
     .limit(1)
   if (!row) return null
@@ -610,6 +625,13 @@ export async function getPublicReviewContext(token: string): Promise<PublicRevie
     patientFirstName: row.patientFirstName,
     existingReviewText: row.reviewText,
     existingRating: row.rating,
+    clinic: {
+      displayName: row.displayName ?? null,
+      brandColor: row.brandColor ?? null,
+      logoUrl: row.logoUrl ?? null,
+      slug: row.orgSlug ?? null,
+      websiteDomain: row.websiteDomain ?? null,
+    },
   }
 }
 

@@ -1,11 +1,33 @@
+import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
+import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+
+const { INK, INK_MUTED } = CLINIC_THEME
+
+/**
+ * Clinic-site 404 — shown when a slug doesn't resolve to a clinic. We have no
+ * clinic data here (the clinic doesn't exist), so MinimalSiteChrome renders its
+ * neutral fallback (sage accent + "Dental Care" wordmark, no back link). Still
+ * the warm #FAF7F2 ground + Fraunces display so it doesn't drop to bare gray.
+ */
 export default function ClinicNotFound() {
   return (
-    <div className="min-h-screen bg-white font-sans flex items-center justify-center px-4">
-      <div className="text-center">
-        <p className="text-5xl mb-6">🦷</p>
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">Clinic not found</h1>
-        <p className="text-gray-500">This clinic website doesn't exist or the link may have changed.</p>
+    <MinimalSiteChrome homeHref={null}>
+      <div className="flex items-center justify-center px-4 py-24 sm:py-32">
+        <div className="text-center max-w-md">
+          <p className="text-5xl mb-6" aria-hidden="true">
+            🦷
+          </p>
+          <h1
+            className="text-3xl sm:text-4xl font-semibold mb-3 tracking-tight"
+            style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          >
+            Clinic not found
+          </h1>
+          <p className="text-[15px] leading-relaxed" style={{ color: INK_MUTED }}>
+            This clinic website doesn&rsquo;t exist, or the link may have changed.
+          </p>
+        </div>
       </div>
-    </div>
+    </MinimalSiteChrome>
   )
 }

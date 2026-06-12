@@ -30,6 +30,16 @@ export function firstSentence(text: string): string {
   return m ? m[0] : text.trim()
 }
 
+/** The complement of `firstSentence`: everything AFTER the first sentence,
+ *  trimmed. Empty string when the text is a single sentence (or has no
+ *  terminator). Used to avoid duplicating the hero subhead — which already
+ *  shows `firstSentence(about)` — in the body copy below it. */
+export function afterFirstSentence(text: string): string {
+  const first = firstSentence(text)
+  const rest = text.trim().slice(first.length).trim()
+  return rest
+}
+
 /**
  * Resolve a per-clinic copy override (Website Studio) by stable key, falling
  * back to the template's built-in default. `overrides` is the

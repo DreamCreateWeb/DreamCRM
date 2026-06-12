@@ -103,13 +103,22 @@ describe('AboutPage', () => {
     expect(screen.getAllByText(/About Acme Dental/i).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders the full about text in the story section', async () => {
+  it('shows the about first sentence once (hero) and the remainder in the story — no duplication', async () => {
     await renderPage()
-    expect(
-      screen.getByText(
-        /We started Acme to make going to the dentist feel like going to a thoughtful place\. No judgment\./,
+    // Wave 4: the hero subhead carries the first sentence, and the Story
+    // section below carries only the REMAINDER, so the opening line isn't
+    // printed twice. The first sentence must appear exactly once.
+    const firstSentenceMatches = screen.getAllByText(
+      /We started Acme to make going to the dentist feel like going to a thoughtful place\./,
+      { exact: false },
+    ).filter((el) =>
+      el.textContent?.trim().startsWith(
+        'We started Acme to make going to the dentist feel like going to a thoughtful place.',
       ),
-    ).toBeInTheDocument()
+    )
+    expect(firstSentenceMatches.length).toBe(1)
+    // The remainder ("No judgment.") still renders in the story body.
+    expect(screen.getByText('No judgment.')).toBeInTheDocument()
   })
 
   it('renders a Book CTA in the hero', async () => {

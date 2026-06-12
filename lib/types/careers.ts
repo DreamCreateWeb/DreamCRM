@@ -2,6 +2,19 @@
 // components can import labels/pipeline/formatters. DB functions live in
 // lib/services/careers.ts.
 
+/** Résumé upload constraints — shared by the public apply form (client-side
+ *  guard + filename echo) and the server action (authoritative re-check).
+ *  Single source of truth so the two can't drift. */
+export const MAX_RESUME_BYTES = 5 * 1024 * 1024
+export const ALLOWED_RESUME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const
+/** `accept` attribute value for the file input. */
+export const RESUME_ACCEPT =
+  '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
 export type JobRole =
   | 'hygienist'
   | 'dental_assistant'

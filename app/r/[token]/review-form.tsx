@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
+import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { pickPlatformAction, submitReviewAction } from './actions'
+
+const { INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
 type ReviewSite = 'google' | 'healthgrades' | 'facebook' | 'yelp'
 
@@ -22,6 +27,7 @@ const PLATFORM_BLURB: Record<ReviewSite, string> = {
 export default function ReviewForm({
   token,
   clinicName,
+  brand,
   patientFirstName,
   alreadyCompleted,
   existingReviewText,
@@ -30,6 +36,7 @@ export default function ReviewForm({
 }: {
   token: string
   clinicName: string
+  brand: string
   patientFirstName: string
   alreadyCompleted: boolean
   existingReviewText: string | null
@@ -45,6 +52,10 @@ export default function ReviewForm({
   const [submitted, setSubmitted] = useState(justSubmittedInitial)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const ink = readableInk(brand)
+  const display = { fontFamily: 'var(--font-display, Georgia, serif)' }
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -52,6 +63,15 @@ export default function ReviewForm({
     const fd = new FormData()
     fd.set('reviewText', text)
     if (rating != null) fd.set('rating', String(rating))
+    // The form builds FormData by hand (reviewText comes from state), so pull
+    // the spam-trust hidden values off the rendered inputs and carry them.
+    const el = formRef.current
+    if (el) {
+      const hp = el.querySelector<HTMLInputElement>(`[name="${HONEYPOT_FIELD}"]`)
+      const ts = el.querySelector<HTMLInputElement>(`[name="${TIMETRAP_FIELD}"]`)
+      if (hp) fd.set(HONEYPOT_FIELD, hp.value)
+      if (ts) fd.set(TIMETRAP_FIELD, ts.value)
+    }
     startTransition(async () => {
       const r = await submitReviewAction(token, fd)
       if (r.ok) setSubmitted(true)
@@ -61,28 +81,34 @@ export default function ReviewForm({
 
   if (submitted) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 md:p-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500 mb-2">
+      <div
+        className="rounded-3xl p-8 md:p-10 shadow-sm"
+        style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-2" style={{ color: INK_MUTED }}>
           {clinicName}
         </p>
-        <h1 className="text-2xl md:text-3xl font-bold text-stone-900 tracking-tight mb-3">
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-3" style={{ color: ink, ...display }}>
           Thank you, {escapeText(patientFirstName)}.
         </h1>
-        <p className="text-[15px] text-stone-700 leading-relaxed mb-6">
+        <p className="text-[15px] leading-relaxed mb-6" style={{ color: INK_MUTED }}>
           Your review is in — {clinicName} can read it from their dashboard. It
           means a lot.
         </p>
 
-        <blockquote className="bg-stone-50 rounded-xl p-4 border-l-2 border-stone-300 mb-6 text-[15px] leading-relaxed text-stone-800 italic whitespace-pre-wrap">
+        <blockquote
+          className="rounded-xl p-4 mb-6 text-[15px] leading-relaxed italic whitespace-pre-wrap"
+          style={{ backgroundColor: `${brand}0D`, borderLeft: `3px solid ${brand}`, color: INK }}
+        >
           &ldquo;{text}&rdquo;
         </blockquote>
 
         {sites.length > 0 && (
           <>
-            <p className="text-sm font-semibold text-stone-900 mb-3">
+            <p className="text-sm font-semibold mb-3" style={{ color: INK }}>
               Also share your review publicly?
             </p>
-            <p className="text-[13px] text-stone-600 mb-4">
+            <p className="text-[13px] mb-4" style={{ color: INK_MUTED }}>
               Honest reviews on the platforms below help other people find
               {' '}{clinicName}. Totally optional — your review&apos;s already in.
             </p>
@@ -91,17 +117,18 @@ export default function ReviewForm({
                 <form key={site} action={pickPlatformAction.bind(null, token, site)}>
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-xl border-2 border-stone-200 hover:border-stone-900 hover:bg-stone-50 transition text-left"
+                    className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-xl border-2 transition text-left hover:bg-black/[0.02]"
+                    style={{ borderColor: BORDER }}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-stone-900">
+                      <p className="text-sm font-bold" style={{ color: INK }}>
                         Share on {PLATFORM_LABEL[site]}
                       </p>
-                      <p className="text-[11px] text-stone-500 mt-0.5">
+                      <p className="text-[12px] mt-0.5" style={{ color: INK_MUTED }}>
                         {PLATFORM_BLURB[site]}
                       </p>
                     </div>
-                    <span className="text-stone-400 text-xl shrink-0">→</span>
+                    <span className="text-xl shrink-0" style={{ color: brand }}>→</span>
                   </button>
                 </form>
               ))}
@@ -109,8 +136,8 @@ export default function ReviewForm({
           </>
         )}
 
-        <div className="mt-8 pt-6 border-t border-stone-100 text-center">
-          <p className="text-[11px] text-stone-400">
+        <div className="mt-8 pt-6 text-center" style={{ borderTop: `1px solid ${BORDER}` }}>
+          <p className="text-[12px]" style={{ color: INK_MUTED }}>
             You can close this page now — your review is saved.
           </p>
         </div>
@@ -119,27 +146,33 @@ export default function ReviewForm({
   }
 
   return (
-    <form onSubmit={submit} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 md:p-10">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500 mb-2">
+    <form
+      ref={formRef}
+      onSubmit={submit}
+      className="rounded-3xl p-8 md:p-10 shadow-sm"
+      style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
+    >
+      <FormTrustFields />
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-2" style={{ color: INK_MUTED }}>
         {clinicName}
       </p>
-      <h1 className="text-2xl md:text-3xl font-bold text-stone-900 tracking-tight mb-3">
+      <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-3" style={{ color: ink, ...display }}>
         Thanks for coming in, {escapeText(patientFirstName)}.
       </h1>
-      <p className="text-[15px] text-stone-700 leading-relaxed mb-6">
+      <p className="text-[15px] leading-relaxed mb-6" style={{ color: INK_MUTED }}>
         Would you take a minute to share how your visit went? Honest, good or
         bad — your words help other patients decide.
       </p>
 
       <div className="mb-5">
-        <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-500 mb-2">
+        <label className="block text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: INK_MUTED }}>
           How was your visit? (optional)
         </label>
         <RatingSelector value={rating} onChange={setRating} />
       </div>
 
       <div className="mb-5">
-        <label htmlFor="review-text" className="block text-[11px] uppercase tracking-wider font-semibold text-stone-500 mb-2">
+        <label htmlFor="review-text" className="block text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: INK_MUTED }}>
           Your review
         </label>
         <textarea
@@ -148,28 +181,28 @@ export default function ReviewForm({
           onChange={(e) => setText(e.target.value)}
           rows={6}
           maxLength={2000}
-          className="w-full text-[15px] leading-relaxed px-4 py-3 rounded-xl border border-stone-200 focus:border-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-100 resize-none"
+          className="w-full text-[15px] leading-relaxed px-4 py-3 rounded-xl focus:outline-none focus:ring-2 resize-none"
+          style={{ border: `1px solid ${BORDER}`, color: INK, ['--tw-ring-color' as string]: `${brand}55` }}
           placeholder="What stood out? 2-4 sentences works best."
           required
         />
-        <p className="text-[11px] text-stone-400 mt-1 tabular-nums text-right">
+        <p className="text-[11px] mt-1 tabular-nums text-right" style={{ color: INK_MUTED }}>
           {text.length} / 2000
         </p>
       </div>
 
-      {error && (
-        <p className="text-[13px] text-rose-600 mb-3">{error}</p>
-      )}
+      {error && <p className="text-[13px] text-rose-600 mb-3">{error}</p>}
 
       <button
         type="submit"
         disabled={pending || !text.trim()}
-        className="w-full inline-flex items-center justify-center px-5 py-3.5 rounded-full text-sm font-semibold text-white bg-stone-900 hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full inline-flex items-center justify-center px-5 py-3.5 rounded-full text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition hover:opacity-95"
+        style={{ backgroundColor: brand }}
       >
         {pending ? 'Submitting…' : 'Submit my review'}
       </button>
 
-      <p className="text-[11px] text-stone-400 mt-4 text-center">
+      <p className="text-[12px] mt-4 text-center" style={{ color: INK_MUTED }}>
         You can also share publicly on Google, Healthgrades, etc — we&apos;ll
         offer those after you submit.
       </p>
@@ -204,7 +237,8 @@ function RatingSelector({
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="ml-2 text-[11px] text-stone-400 hover:text-stone-600 underline"
+          className="ml-2 text-[11px] underline"
+          style={{ color: INK_MUTED }}
         >
           Clear
         </button>

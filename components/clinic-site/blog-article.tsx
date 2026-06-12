@@ -3,7 +3,9 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
 import type { ClinicStaff, BlogFaqItem } from '@/lib/types/clinic-content'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { readingTimeMinutes } from '@/lib/utils'
+import { readableInk } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
+import ClosingCTA from './closing-cta'
 
 const INK = '#1C1A17'
 const INK_MUTED = '#6B635A'
@@ -58,35 +60,39 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
   const [firstHalf, secondHalf] = splitForCta(clean)
   const faq = ((post.faq as BlogFaqItem[] | null) ?? []).filter((f) => f?.q && f?.a)
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
-  const proseStyle = { ['--tw-prose-links' as keyof CSSProperties]: brand } as CSSProperties
+  // Contrast-safe text fill for brand-colored prose headings/links/eyebrows on
+  // the warm ground (raw brand stays on backgrounds/avatar chips/icon strokes).
+  const headingInk = readableInk(brand)
+  const proseStyle = { ['--tw-prose-links' as keyof CSSProperties]: headingInk } as CSSProperties
   const readMin = readingTimeMinutes(clean)
 
   return (
+    <>
     <article className="max-w-[760px] mx-auto px-5 sm:px-8 py-12 sm:py-16">
       <a
         href={`${basePath}/blog`}
         className="inline-flex items-center gap-1 text-[13px] font-semibold transition-all duration-300 hover:gap-2"
-        style={{ color: brand }}
+        style={{ color: headingInk }}
       >
         <span aria-hidden="true">←</span> All posts
       </a>
 
       <header className="mt-6 mb-8">
         {post.category && (
-          <span className="text-[12px] font-semibold uppercase tracking-[0.14em]" style={{ color: brand }}>
+          <span className="text-[12px] font-semibold uppercase tracking-[0.14em]" style={{ color: headingInk }}>
             {post.category}
           </span>
         )}
         <h1
           className="text-3xl sm:text-[42px] lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mt-3 mb-5"
-          style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
         >
           {post.title}
         </h1>
         <div className="flex items-center gap-3">
           {author?.photoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={author.photoUrl} alt={author.name} className="w-11 h-11 rounded-full object-cover" />
+            <img src={author.photoUrl} alt={author.name} className="w-11 h-11 rounded-full object-cover" width={44} height={44} loading="lazy" decoding="async" />
           ) : author ? (
             <span
               className="flex items-center justify-center w-11 h-11 rounded-full text-white text-sm font-bold"
@@ -131,6 +137,11 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
             src={post.coverImageUrl}
             alt={post.coverImageAlt ?? ''}
             className="w-full aspect-[16/9] object-cover transition duration-700 hover:scale-[1.02]"
+            width={1280}
+            height={720}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         </div>
       )}
@@ -160,7 +171,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
         <ScrollReveal as="section" className="mt-12 pt-8 border-t" style={{ borderColor: BORDER }}>
           <h2
             className="text-2xl font-semibold tracking-[-0.01em] mb-5"
-            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
             Frequently asked questions
           </h2>
@@ -187,7 +198,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
           <div className="flex items-start gap-4">
             {author.photoUrl && (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={author.photoUrl} alt={author.name} className="w-14 h-14 rounded-full object-cover shrink-0" />
+              <img src={author.photoUrl} alt={author.name} className="w-14 h-14 rounded-full object-cover shrink-0" width={56} height={56} loading="lazy" decoding="async" />
             )}
             <div>
               <p className="font-semibold" style={{ color: INK }}>
@@ -207,7 +218,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
           <ScrollReveal>
             <p
               className="text-[11px] uppercase tracking-wider font-semibold mb-4"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               Keep reading
             </p>
@@ -222,11 +233,11 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
                   >
                     {r.coverImageUrl && (
                       /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]" />
+                      <img src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]" width={1280} height={800} loading="lazy" decoding="async" />
                     )}
                   </div>
                   {r.category && (
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: brand }}>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: headingInk }}>
                       {r.category}
                     </span>
                   )}
@@ -243,25 +254,17 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
         </div>
       )}
 
-      {/* End CTA */}
-      <ScrollReveal
-        className="mt-12 rounded-2xl p-6 sm:p-8 text-center"
-        style={{ backgroundColor: `${brand}14` }}
-      >
-        <p
-          className="text-xl sm:text-2xl font-semibold tracking-[-0.01em] mb-5"
-          style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-        >
-          Questions about your smile? We&apos;re happy to help.
-        </p>
-        <a
-          href={bookHref}
-          className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-          style={{ backgroundColor: brand }}
-        >
-          Book a Visit
-        </a>
-      </ScrollReveal>
     </article>
+
+      {/* Closing CTA — the shared full-width band (white-on-brand, always
+          readable) replaces the old hand-rolled brand-tint card. One in-article
+          contextual CTA above + this closing band = the ≤1-in-article-plus-
+          closing rhythm. */}
+      <ClosingCTA
+        heading="Questions about your smile? We’re happy to help."
+        primary={{ label: 'Book a Visit', href: bookHref }}
+        brand={brand}
+      />
+    </>
   )
 }

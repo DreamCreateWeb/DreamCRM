@@ -132,14 +132,18 @@ export default function SiteHeader({
       ? trimmedTagline
       : null
 
+  // Universal value-prop chips — deliberately voice/quality claims every clinic
+  // can honestly make, NOT operational promises. We dropped "Same-week visits"
+  // (an availability guarantee a given office may not keep) and "Most insurance
+  // accepted" (a coverage promise) so the marquee never overstates on a real
+  // clinic. The clinic's own tagline leads when it fits.
   const chips = [
     ...(taglineFitsAsChip ? [taglineFitsAsChip] : []),
     'No judgment, ever',
-    'Same-week visits',
-    'Most insurance accepted',
-    'Modern technology',
-    'Convenient hours',
-    'Caring team',
+    'Gentle, modern care',
+    'Insurance welcome',
+    'A caring team',
+    'Comfortable visits',
   ]
   const marqueeChips = [...chips, ...chips]
 

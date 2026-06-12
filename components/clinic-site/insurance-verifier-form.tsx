@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
+import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 
 interface Props {
   /** Public slug — the action resolves the org from it server-side (never a
@@ -165,6 +166,8 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
                   ? 'date'
                   : 'text'
           }
+          inputMode={f.type === 'tel' ? 'tel' : f.type === 'email' ? 'email' : undefined}
+          autoComplete={f.type === 'tel' ? 'tel' : f.type === 'email' ? 'email' : undefined}
           required={f.required}
           placeholder={placeholder}
           className={inputClass}
@@ -175,6 +178,7 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      <FormTrustFields />
       {formFields.map(renderField)}
 
       {status === 'error' && (
@@ -191,6 +195,9 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
       >
         {status === 'pending' ? 'Sending…' : 'Check insurance'}
       </button>
+      <p className="text-xs text-center text-white/70">
+        We only use this to reach you about your visit — never spam.
+      </p>
     </form>
   )
 }

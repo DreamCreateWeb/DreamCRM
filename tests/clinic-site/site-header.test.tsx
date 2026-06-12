@@ -94,9 +94,11 @@ describe('SiteHeader', () => {
     )
     // Marquee duplicates each chip for the seamless loop + a sr-only fallback
     // mirrors the chips, so each label appears multiple times in the DOM.
+    // Wave 4 universalized the chips to voice/quality claims (dropped the
+    // "Same-week" availability + "Most insurance" coverage promises).
     expect(screen.getAllByText(/No judgment, ever/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Same-week visits/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Most insurance accepted/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Gentle, modern care/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Insurance welcome/i).length).toBeGreaterThan(0)
   })
 
   it('includes the tagline as a chip when short enough', () => {

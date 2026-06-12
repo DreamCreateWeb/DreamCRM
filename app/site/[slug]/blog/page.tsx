@@ -6,6 +6,8 @@ import BlogChrome from '@/components/clinic-site/blog-chrome'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
+import { readableInk } from '@/lib/clinic-site-theme'
+import { blogIndexJsonLd } from '@/lib/clinic-site-jsonld'
 
 const BG = '#FAF7F2'
 const INK = '#1C1A17'
@@ -49,6 +51,9 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
 
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const name = data.profile.displayName ?? data.orgName
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
@@ -68,8 +73,32 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
   const restPosts = showFeatured ? posts.slice(1) : posts
   const restAuthors = showFeatured ? authors.slice(1) : authors
 
+  // Blog JSON-LD — the index lists recent posts as BlogPosting stubs; each
+  // post page carries the full BlogPosting. Only emitted when posts exist.
+  const siteUrl = publicSiteUrl(data)
+  const blogLd =
+    posts.length > 0
+      ? blogIndexJsonLd({
+          name: `${name} blog`,
+          url: `${siteUrl}/blog`,
+          clinicName: name,
+          posts: posts.slice(0, 20).map((p) => ({
+            title: p.title,
+            url: `${siteUrl}/blog/${p.slug}`,
+            datePublished: p.publishedAt ? p.publishedAt.toISOString() : null,
+            description: p.excerpt ?? null,
+          })),
+        })
+      : null
+
   return (
     <BlogChrome data={data} basePath={basePath}>
+      {blogLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(blogLd) }}
+        />
+      )}
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section className="relative pt-14 sm:pt-20 pb-10 sm:pb-14 overflow-hidden">
         {/* Soft brand-color decorative blob */}
@@ -82,13 +111,13 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
           <ScrollReveal>
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               The Blog · {name}
             </p>
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Honest answers, real questions.
             </h1>
@@ -218,6 +247,7 @@ function FeaturedPostCard({
   basePath: string
   brand: string
 }) {
+  const headingInk = readableInk(brand)
   return (
     <a
       href={`${basePath}/blog/${post.slug}`}
@@ -235,6 +265,10 @@ function FeaturedPostCard({
               src={post.coverImageUrl}
               alt=""
               className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
+              width={1280}
+              height={800}
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center" style={{ color: brand }}>
@@ -247,7 +281,7 @@ function FeaturedPostCard({
         <div className="p-8 sm:p-10 lg:p-12 flex flex-col justify-center">
           <p
             className="text-[11px] font-semibold uppercase tracking-[0.16em] mb-3"
-            style={{ color: brand }}
+            style={{ color: headingInk }}
           >
             Featured · {post.category ?? 'Latest'}
           </p>
@@ -269,7 +303,7 @@ function FeaturedPostCard({
             </p>
             <span
               className="inline-flex items-center gap-1.5 text-sm font-semibold transition-all duration-300 group-hover:gap-2.5"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               Read article
               <span aria-hidden="true">→</span>
@@ -292,6 +326,7 @@ function PostCard({
   basePath: string
   brand: string
 }) {
+  const headingInk = readableInk(brand)
   return (
     <a href={`${basePath}/blog/${post.slug}`} className="group flex flex-col h-full">
       <div
@@ -304,6 +339,10 @@ function PostCard({
             src={post.coverImageUrl}
             alt=""
             className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
+            width={1280}
+            height={800}
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center" style={{ color: brand }}>
@@ -314,7 +353,7 @@ function PostCard({
         )}
       </div>
       {post.category && (
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-2" style={{ color: brand }}>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-2" style={{ color: headingInk }}>
           {post.category}
         </span>
       )}
