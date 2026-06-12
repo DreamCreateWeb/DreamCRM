@@ -1,7 +1,7 @@
 import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
 
-const { INK } = CLINIC_THEME
+const { INK, TEAL } = CLINIC_THEME
 
 interface CTA {
   label: string
@@ -37,7 +37,7 @@ export default function ClosingCTA({
   variant = 'brand',
   editKeyPrefix,
 }: Props) {
-  const bgColor = variant === 'teal' ? '#36514c' : brand
+  const bgColor = variant === 'teal' ? TEAL : brand
 
   return (
     <section className="py-14 sm:py-24" style={{ backgroundColor: bgColor }}>

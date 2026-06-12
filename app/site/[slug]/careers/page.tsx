@@ -330,6 +330,7 @@ export default async function ClinicCareersPage({ params }: Props) {
               : undefined
           }
           brand={brand}
+          variant="teal"
         />
       </main>
 

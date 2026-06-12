@@ -295,6 +295,7 @@ export default async function ServicesPage({ params }: Props) {
             : undefined
         }
         brand={brand}
+        variant="teal"
       />
 
       </main>

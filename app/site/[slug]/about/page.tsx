@@ -513,6 +513,7 @@ export default async function AboutPage({ params }: Props) {
             : undefined
         }
         brand={brand}
+        variant="teal"
       />
 
       </main>

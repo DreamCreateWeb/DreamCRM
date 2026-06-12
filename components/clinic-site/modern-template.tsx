@@ -185,13 +185,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // announcement strip in SiteHeader so the page composition rhymes —
   // chartreuse top, chartreuse bottom, with the closer card as the
   // bridge. Kept short + generic so they read on every clinic.
+  // Voice/quality claims every clinic can honestly make — no operational
+  // promises (no "same-week" availability guarantee, no "most insurance"
+  // coverage claim) so the strip never overstates on a real clinic.
   const closerChips: string[] = [
     'No judgment, ever',
-    'Same-week visits',
-    'Most insurance accepted',
+    'Gentle, modern care',
+    'Insurance welcome',
     'Modern technology',
-    'Caring team',
-    'Convenient hours',
+    'A caring team',
+    'Comfortable visits',
   ]
 
   // Two flanking portrait photos for the hero. Left = clinic's hero image,
@@ -238,8 +241,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     const out: string[] = []
     for (const s of services.slice(0, 4)) out.push(s.name)
     out.push('No judgment, ever')
-    out.push('Same-week visits')
-    out.push('Most insurance accepted')
+    out.push('Gentle, modern care')
+    out.push('Insurance welcome')
     out.push('Modern technology')
     out.push('Friendly staff')
     return out.slice(0, 8)

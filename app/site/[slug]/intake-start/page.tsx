@@ -8,6 +8,7 @@ import {
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { auth } from '@/lib/auth/server'
 import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import IntakeStartForm from './intake-start-form'
 
 interface Props {
@@ -21,7 +22,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 }
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const { INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
 
 export default async function IntakeStartPage({ params }: Props) {
   const { slug } = await params
@@ -69,41 +70,13 @@ export default async function IntakeStartPage({ params }: Props) {
   const headingInk = readableInk(brand)
 
   return (
-    <div
-      className="min-h-screen antialiased flex flex-col"
-      style={{
-        backgroundColor: BG,
-        color: INK,
-        fontFamily: 'var(--font-sans, Inter, sans-serif)',
-      }}
+    <MinimalSiteChrome
+      clinicName={name}
+      logoUrl={profile.logoUrl}
+      brand={brand}
+      homeHref={basePath || '/'}
     >
-      {/* Minimal chrome — same intent as /intake/[formSlug]: this is a
-          focused flow, not a browsable surface. Just clinic name + a way
-          back to the site. */}
-      <header
-        className="sticky top-0 z-30 backdrop-blur-md border-b"
-        style={{ backgroundColor: `${BG}EE`, borderColor: BORDER }}
-      >
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[64px] flex items-center justify-between gap-4">
-          <a href={basePath || '/'} className="flex items-center min-w-0">
-            <span
-              className="font-semibold text-[17px] sm:text-[19px] leading-tight truncate"
-              style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
-            >
-              {name}
-            </span>
-          </a>
-          <a
-            href={basePath || '/'}
-            className="text-sm font-medium transition hover:underline"
-            style={{ color: INK_MUTED }}
-          >
-            ← Back to site
-          </a>
-        </div>
-      </header>
-
-      <main className="flex-1 py-12 sm:py-20">
+      <div className="py-12 sm:py-20">
         <div className="max-w-[480px] mx-auto px-5 sm:px-8">
           <div className="text-center mb-8">
             <p
@@ -143,7 +116,7 @@ export default async function IntakeStartPage({ params }: Props) {
             .
           </p>
         </div>
-      </main>
-    </div>
+      </div>
+    </MinimalSiteChrome>
   )
 }

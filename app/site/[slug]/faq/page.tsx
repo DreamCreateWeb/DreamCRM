@@ -197,10 +197,13 @@ export default async function FaqPage({ params }: Props) {
       </section>
 
       {/* ── Category tabs ──────────────────────────────────────────────── */}
+      {/* Sticky offset derived from the one `--site-header-h` var (set in the
+          /site layout) so the tab bar + the floating header stay in lockstep —
+          change the header height once, not per-page. */}
       <nav
         aria-label="FAQ categories"
-        className="sticky top-[68px] z-30 backdrop-blur-md"
-        style={{ backgroundColor: `${BG}EE` }}
+        className="sticky z-30 backdrop-blur-md"
+        style={{ backgroundColor: `${BG}EE`, top: 'calc(var(--site-header-h, 64px) + 4px)' }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-3">
           <ul
