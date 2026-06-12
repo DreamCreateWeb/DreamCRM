@@ -362,7 +362,10 @@ export async function createActivationCheckout(args: {
     // The negotiated price rides a pre-applied coupon; otherwise let them
     // type a promo code like any self-serve checkout.
     ...(coupon ? { discounts: [{ coupon }] } : { allow_promotion_codes: true as const }),
-    success_url: `${appUrl}/?billing=activated`,
+    // Route the post-activation owner/admin into the AI website interview when
+    // their site still needs personalization (the billing cohort's seam into
+    // every-cohort routing); the route falls through to the dashboard otherwise.
+    success_url: `${appUrl}/billing/activated`,
     cancel_url: `${appUrl}/billing/activate`,
     subscription_data: {
       metadata: { organizationId: args.organizationId, planId, interval, userId: args.userId },

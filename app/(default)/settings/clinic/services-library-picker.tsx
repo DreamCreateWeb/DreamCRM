@@ -316,10 +316,11 @@ export default function ServicesLibraryPicker({
         </div>
       )}
 
-      {/* Toast */}
+      {/* Toast — z-[90] so it sits above the Website Studio modal (z-[70]) +
+          its picker drawer (z-[80]) when the picker is embedded there. */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-[60] px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${
+          className={`fixed bottom-6 right-6 z-[90] px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${
             toast.kind === 'success'
               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-200 dark:border-emerald-400/30'
               : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-200 dark:border-rose-400/30'

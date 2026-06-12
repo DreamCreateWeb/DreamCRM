@@ -70,12 +70,13 @@ export default function GettingStarted({ checklist }: { checklist: ActivationChe
         <div className="h-1 rounded-r bg-violet-500 transition-all" style={{ width: `${pct}%` }} />
       </div>
 
-      {/* Re-entry to the post-checkout AI website interview. Shown only while
-          the site is still empty (no tagline/about/services) — this is the
-          only path back to /welcome for a clinic that skipped it, and the only
-          path TO it for a managed clinic that never saw the post-checkout step.
-          Auto-disappears once the site has any content. */}
-      {checklist.siteUnfilled && !collapsed && (
+      {/* Re-entry to the post-checkout AI website interview. Shown while the
+          site still needs personalization (the interview was never completed, or
+          the tagline is still the day-0 starter sentence) — the only path back
+          to /welcome for a clinic that skipped it, and the only path TO it for a
+          managed clinic that never saw the post-checkout step. Auto-disappears
+          once they finish the interview or hand-write a real tagline. */}
+      {checklist.siteNeedsPersonalization && !collapsed && (
         <div className="mx-5 mt-4 flex flex-col gap-3 rounded-xl bg-violet-500/10 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">

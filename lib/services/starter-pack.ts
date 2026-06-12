@@ -217,3 +217,97 @@ export async function applyStarterFloor(
   await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, organizationId))
   return { applied: true, fields }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Still-starter" detection — the non-destructive-apply + needs-personalization
+// contract. With the day-0 floor in place, a brand-new clinic's site is never
+// EMPTY, so the legacy "no tagline AND no about AND 0 services" heuristic is
+// always false. These helpers instead detect "untouched starter" by equality
+// against the exported STARTER_* constants, so the AI interview can:
+//   • overwrite a field only when it's still null/empty OR still the starter
+//     value (preserving any human edit), and
+//   • know whether the site still needs personalization at all.
+// All pure — no DB — so they're trivially unit-testable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function blank(v: unknown): boolean {
+  return v == null || (typeof v === 'string' && v.trim() === '')
+}
+
+/** True when the tagline is still null/empty or still the starter sentence. */
+export function isTaglineStillStarter(tagline: unknown): boolean {
+  return blank(tagline) || (typeof tagline === 'string' && tagline.trim() === STARTER_TAGLINE)
+}
+
+/** True when the about is still null/empty or still one of the starter variants
+ *  (with-city or base). */
+export function isAboutStillStarter(about: unknown): boolean {
+  if (blank(about)) return true
+  if (typeof about !== 'string') return false
+  const trimmed = about.trim()
+  if (trimmed === STARTER_ABOUT_BASE) return true
+  // The with-city variant is STARTER_ABOUT_BASE + a trailing sentence. Detect
+  // by prefix so any city value counts as still-starter.
+  return trimmed.startsWith(STARTER_ABOUT_BASE)
+}
+
+/** True when stats are still empty or still exactly the starter trio (by ids).
+ *  The AI's qualitative stats overwrite these; a clinic that edited even one
+ *  stat (different ids/content) is preserved. */
+export function areStatsStillStarter(stats: unknown): boolean {
+  if (stats == null || (Array.isArray(stats) && stats.length === 0)) return true
+  if (!Array.isArray(stats)) return false
+  const starterIds = new Set(STARTER_STATS.map((s) => s.id))
+  if (stats.length !== STARTER_STATS.length) return false
+  return stats.every((s) => {
+    const id = (s as { id?: unknown })?.id
+    return typeof id === 'string' && starterIds.has(id)
+  })
+}
+
+/** True when the FAQ list is still empty or still exactly the starter set
+ *  (by ids). */
+export function isFaqStillStarter(faq: unknown): boolean {
+  if (faq == null || (Array.isArray(faq) && faq.length === 0)) return true
+  if (!Array.isArray(faq)) return false
+  const starterIds = new Set(STARTER_FAQ_ITEMS.map((f) => f.id))
+  if (faq.length !== STARTER_FAQ_ITEMS.length) return false
+  return faq.every((f) => {
+    const id = (f as { id?: unknown })?.id
+    return typeof id === 'string' && starterIds.has(id)
+  })
+}
+
+/** True when the clinic's services list is still empty or still exactly the
+ *  4 starter rows (by their deterministic `starter-svc-*` ids). A clinic that
+ *  added/removed/AI-customized a service has at least one non-starter id (or a
+ *  different count) → preserved. */
+export function areServicesStillStarter(services: unknown): boolean {
+  if (services == null || (Array.isArray(services) && services.length === 0)) return true
+  if (!Array.isArray(services)) return false
+  const starter = buildStarterServices()
+  const starterIds = new Set(starter.map((s) => s.id))
+  if (services.length !== starter.length) return false
+  return services.every((s) => {
+    const id = (s as { id?: unknown })?.id
+    return typeof id === 'string' && starterIds.has(id)
+  })
+}
+
+/**
+ * Whether the clinic's site still needs the AI personalization pass — drives
+ * the /welcome re-entry banner + every-cohort routing. True when:
+ *   • the interview was never completed (no completed_at), OR
+ *   • the tagline is still the starter sentence (a strong "untouched" signal).
+ * A clinic that finished the interview OR hand-wrote a real tagline reads as
+ * personalized and stops being routed/nagged.
+ *
+ * Pure — pass the two clinic_profile fields the caller already loaded.
+ */
+export function siteNeedsPersonalization(input: {
+  onboardingInterviewCompletedAt: Date | string | null | undefined
+  tagline: string | null | undefined
+}): boolean {
+  if (!input.onboardingInterviewCompletedAt) return true
+  return isTaglineStillStarter(input.tagline)
+}

@@ -7,6 +7,7 @@ import {
   type ActivationChecklist,
   type ActivationTask,
 } from '@/lib/types/onboarding'
+import { siteNeedsPersonalization } from '@/lib/services/starter-pack'
 import type { PlanTier } from '@/lib/modules/types'
 
 /**
@@ -131,8 +132,7 @@ export async function getActivationChecklist(
       hours: schema.clinicProfile.hours,
       portalSettings: schema.clinicProfile.portalSettings,
       tagline: schema.clinicProfile.tagline,
-      about: schema.clinicProfile.about,
-      services: schema.clinicProfile.services,
+      onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
     })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -215,18 +215,22 @@ export async function getActivationChecklist(
 
   const doneCount = tasks.filter((t) => t.done).length
 
-  // The public site is "unfilled" when it has none of the three content
-  // signals the AI interview drafts (tagline / about / services). Used to
-  // surface the one-tap "Draft my website with AI" re-entry to /welcome.
-  const servicesArr = Array.isArray(profileRow?.services) ? (profileRow!.services as unknown[]) : []
-  const siteUnfilled =
-    !profileRow?.tagline?.trim() && !profileRow?.about?.trim() && servicesArr.length === 0
+  // The site still "needs personalization" when the AI interview was never
+  // completed OR the tagline is still Wave 1's starter sentence. (With the
+  // day-0 floor a fresh site is never EMPTY, so the old "no content" heuristic
+  // is always false.) Drives the one-tap "Draft your website with AI" re-entry
+  // to /welcome on the Getting-started card. `siteNeedsPersonalization` is a
+  // pure helper in starter-pack.ts so the rule lives in one place.
+  const needs = siteNeedsPersonalization({
+    onboardingInterviewCompletedAt: profileRow?.onboardingInterviewCompletedAt ?? null,
+    tagline: profileRow?.tagline ?? null,
+  })
 
   return {
     tasks,
     doneCount,
     totalCount: tasks.length,
     allDone: doneCount === tasks.length,
-    siteUnfilled,
+    siteNeedsPersonalization: needs,
   }
 }
