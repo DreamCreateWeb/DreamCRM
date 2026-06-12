@@ -6,7 +6,7 @@
 
 import type { Tone } from '@/lib/ui/encodings'
 
-export type PartnerStatus = 'invited' | 'active' | 'suspended'
+export type PartnerStatus = 'invited' | 'active' | 'suspended' | 'archived'
 export type CommissionStatus = 'accrued' | 'paid' | 'reversed'
 export type PayoutStatus = 'paid' | 'failed'
 
@@ -14,15 +14,37 @@ export const PARTNER_STATUS_LABELS: Record<PartnerStatus, string> = {
   invited: 'Invited',
   active: 'Active',
   suspended: 'Suspended',
+  archived: 'Archived',
 }
 
 /** Status → semantic tone. invited = in flight (info/indigo), active = ok,
- *  suspended = neutral (deliberately not urgent — it's a chosen state). */
+ *  suspended = neutral (deliberately not urgent — it's a chosen state),
+ *  archived = neutral (closed account, preserved for audit — never an alarm
+ *  color). */
 export const PARTNER_STATUS_TONE: Record<PartnerStatus, Tone> = {
   invited: 'info',
   active: 'ok',
   suspended: 'neutral',
+  archived: 'neutral',
 }
+
+/**
+ * Which lifecycle path a delete request takes, computed from money history.
+ * Drives the delete confirm modal's copy + the two-resolution choice.
+ *   - 'clean'   → ZERO commission + payout rows → hard delete (row gone,
+ *                 clinic attributions FK set-null, the linked user untouched).
+ *   - 'archive' → money history exists, no outstanding balance → archive
+ *                 (status='archived'; ledger/payouts preserved; clinics keep
+ *                 their historical attribution).
+ *   - 'resolve' → money history AND an accrued balance → must resolve the
+ *                 balance first: pay it out now, or void it, then archive.
+ */
+export type PartnerDeleteDisposition = 'clean' | 'archive' | 'resolve'
+
+/** Provenance of a clinic's effective referral rate/term: did the clinic carry
+ *  an explicit per-clinic override, or is it live-resolving the partner's
+ *  current default? Drives the "default"/"override" provenance labels. */
+export type ReferralValueSource = 'default' | 'override'
 
 /** Whether the partner's Connect payout method is ready. */
 export type PayoutMethodState = 'none' | 'pending' | 'active'

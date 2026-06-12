@@ -87,12 +87,23 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
         actions={
           <PartnerActions
             partnerId={partner.id}
+            partnerName={partner.name}
             status={status}
             accruedCents={balance.accruedCents}
+            lifetimePaidCents={balance.lifetimePaidCents}
+            clinicCount={clinics.length}
             payoutReady={method === 'active'}
           />
         }
       />
+
+      {status === 'archived' && (
+        <div className="mb-6 rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] px-4 py-3 text-sm text-[color:var(--color-ink-600)]">
+          This partner account is <span className="font-medium">closed (archived)</span>. Accrual has
+          stopped and their portal is closed, but their commission ledger, payouts, and referred
+          clinics are preserved for audit. Use <span className="font-medium">Reactivate</span> to reopen.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiStat
@@ -151,7 +162,12 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
             body="Attribute clinics to this partner when you create them (the “+ Add clinic” form), or from a clinic’s detail page → Referral card."
           />
         ) : (
-          <ReferredClinicsTable partnerId={partner.id} clinics={clinics.map((c) => ({ ...c, startedAt: c.startedAt ? c.startedAt.toISOString() : null }))} />
+          <ReferredClinicsTable
+            partnerId={partner.id}
+            partnerDefaultPercentBps={partner.defaultPercentBps}
+            partnerDefaultTermMonths={partner.defaultTermMonths}
+            clinics={clinics.map((c) => ({ ...c, startedAt: c.startedAt ? c.startedAt.toISOString() : null }))}
+          />
         )}
       </div>
 

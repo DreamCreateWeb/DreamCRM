@@ -143,10 +143,16 @@ export interface PayoutResult {
  * safe to retry. If the ledger write fails AFTER a successful transfer, we log
  * loudly (money moved, ledger lagging — recoverable by hand) and record a
  * failed payout row so the discrepancy is visible.
+ *
+ * Status gating:
+ *   - ARCHIVED → always refused (closed account; settle BEFORE archiving).
+ *   - SUSPENDED → the self-serve portal path (`selfServe: true`) is refused
+ *     ("account paused"); the admin "Pay now" path (default) is ALLOWED so the
+ *     platform can settle up a suspended partner.
  */
 export async function payoutPartner(
   partnerId: string,
-  opts: { initiatedBy: string },
+  opts: { initiatedBy: string; selfServe?: boolean },
 ): Promise<PayoutResult> {
   const [p] = await db
     .select({
@@ -159,7 +165,10 @@ export async function payoutPartner(
     .where(eq(schema.referralPartner.id, partnerId))
     .limit(1)
   if (!p) return { ok: false, error: 'Partner not found' }
-  if (p.status === 'suspended') return { ok: false, error: 'This partner account is suspended' }
+  if (p.status === 'archived') return { ok: false, error: 'This partner account is closed' }
+  if (p.status === 'suspended' && opts.selfServe) {
+    return { ok: false, error: 'This partner account is paused' }
+  }
   if (!p.accountId || p.payoutsEnabled !== 1) {
     return { ok: false, error: 'Payout method not ready — set up payouts first' }
   }

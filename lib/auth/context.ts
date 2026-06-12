@@ -302,17 +302,30 @@ export interface PartnerSession {
  * and `tenantType` is never 'partner'. Gating partner pages on tenantType would
  * lock those multi-persona partners out of their own portal. Instead we resolve
  * the partner row directly from the session user id — which works for every
- * persona — and require it to be active.
+ * persona.
  *
- * `redirectOnFail` (default true) sends a non-partner / inactive-partner to `/`
- * (which re-routes by their primary tenancy). Set false in server actions that
- * prefer to throw.
+ * `redirectOnFail` (default true) sends a non-partner / non-resolvable user to
+ * `/` (which re-routes by their primary tenancy). Set false in server actions
+ * that prefer to throw.
+ *
+ * `allowInactive` (default false): by default this requires an ACTIVE partner —
+ * a suspended/archived partner is treated like a non-partner (redirected or
+ * thrown). The portal layout/page pass `allowInactive: true` so they can
+ * RESOLVE a suspended/archived partner row and render the right surface
+ * (suspended → "account paused" banner + disabled withdraw; archived → a calm
+ * "account closed" screen). Server actions keep the strict default so a
+ * suspended/archived partner can't fire a mutation.
  */
-export async function requirePartner(opts: { redirectOnFail?: boolean } = {}): Promise<PartnerSession> {
+export async function requirePartner(
+  opts: { redirectOnFail?: boolean; allowInactive?: boolean } = {},
+): Promise<PartnerSession> {
   const ctx = await requireTenant()
   const { getPartnerByUserId } = await import('@/lib/services/referrals')
   const partner = await getPartnerByUserId(ctx.userId)
-  if (!partner || partner.status !== 'active') {
+  // A row is "acceptable" when it exists AND (active OR allowInactive). Archived
+  // is never active, so the strict path treats it as inactive.
+  const acceptable = partner && (opts.allowInactive || partner.status === 'active')
+  if (!acceptable) {
     if (opts.redirectOnFail === false) {
       throw new Error('Forbidden: active partner account required')
     }

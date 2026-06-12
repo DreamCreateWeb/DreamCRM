@@ -19,10 +19,15 @@ export const dynamic = 'force-dynamic'
  * Authorizes via {@link requirePartner} (a direct referral_partner.user_id
  * lookup), NOT `tenantType === 'partner'` — so a partner who is ALSO a platform
  * admin or clinic staffer can still reach their portal (their membership
- * tenancy would otherwise win in getTenantContext).
+ * tenancy would otherwise win in getTenantContext). Uses `allowInactive` so a
+ * suspended/archived partner still resolves and the page renders the right
+ * state; the layout itself stays minimal for all statuses.
  */
 export default async function PartnerLayout({ children }: { children: React.ReactNode }) {
-  const { partner } = await requirePartner()
+  // allowInactive so a suspended/archived partner still resolves here and the
+  // page can render the right surface (paused banner / closed screen) instead
+  // of being redirected away to `/`.
+  const { partner } = await requirePartner({ allowInactive: true })
 
   return (
     <div className="v2-app min-h-screen bg-[color:var(--color-canvas)] text-gray-900 dark:text-gray-100">

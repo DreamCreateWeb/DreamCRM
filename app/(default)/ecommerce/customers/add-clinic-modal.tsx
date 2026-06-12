@@ -331,7 +331,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                                 value={referralPercent} onChange={(e) => setReferralPercent(e.target.value)}
                                 placeholder={String(selectedPartner.defaultPercentBps / 100)} />
                               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Blank = default {formatBps(selectedPartner.defaultPercentBps)}
+                                Blank uses the partner default — currently {formatBps(selectedPartner.defaultPercentBps)}
                               </p>
                             </div>
                           )}
