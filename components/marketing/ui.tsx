@@ -326,7 +326,7 @@ export function DashboardMock() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[0.58rem] font-bold uppercase tracking-wider text-violet-600">Morning huddle · Tue, Jun 16</p>
-              <p className="text-[0.85rem] font-bold text-gray-900">Acme Dental</p>
+              <p className="text-[0.85rem] font-bold text-gray-900">Dream Dental</p>
             </div>
             <span className="rounded-md bg-violet-600 px-2.5 py-1 text-[0.62rem] font-bold text-white">Open agenda</span>
           </div>
@@ -372,8 +372,8 @@ export function PortalMock() {
   return (
     <div className="mx-auto w-[232px] overflow-hidden rounded-[2rem] border-[6px] border-gray-900 bg-[#FAF7F2] text-left shadow-xl" aria-hidden="true">
       <div className="flex items-center gap-2 border-b border-[#E8E2D9] px-3 py-2.5">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7E957F] text-[0.55rem] font-bold text-white">A</span>
-        <span className="text-[0.7rem] font-bold text-[#1C1A17]">Acme Dental</span>
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7E957F] text-[0.55rem] font-bold text-white">D</span>
+        <span className="text-[0.7rem] font-bold text-[#1C1A17]">Dream Dental</span>
         <span className="ml-auto rounded-full bg-[#7E957F] px-2 py-0.5 text-[0.5rem] font-bold text-white">Book</span>
       </div>
       <div className="space-y-2 p-3">
@@ -475,7 +475,7 @@ export function BookingMock() {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
       <p className="text-[0.85rem] font-bold text-gray-900">Book a visit — Cleaning</p>
-      <p className="mt-0.5 text-[0.66rem] text-gray-400">Real openings from Acme Dental&apos;s calendar</p>
+      <p className="mt-0.5 text-[0.66rem] text-gray-400">Real openings from Dream Dental&apos;s calendar</p>
       <div className="mt-3 flex gap-2">
         {days.map(([dow, d, active]) => (
           <div
@@ -630,7 +630,7 @@ export function ShopMock() {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
       <div className="flex items-center justify-between">
-        <p className="text-[0.85rem] font-bold text-gray-900">Acme Dental Shop</p>
+        <p className="text-[0.85rem] font-bold text-gray-900">Dream Dental Shop</p>
         <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[0.6rem] font-bold text-emerald-700">
           Payouts → your bank
         </span>
