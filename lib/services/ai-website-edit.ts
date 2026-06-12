@@ -233,6 +233,49 @@ const EditEnvelope = z.object({
 
 const FIELD_COLS = new Set(['tagline', 'about', 'displayName', 'phone', 'email'])
 
+/**
+ * Did the owner explicitly ask to shrink a list? The list edit types REPLACE the
+ * whole list, so a model that returns FEWER items than before is usually a bug
+ * (it forgot to echo the kept items) — UNLESS the instruction actually asked to
+ * remove/delete/clear/drop something. Exported for the merge-guard unit test.
+ */
+export function mentionsRemoval(instruction: string): boolean {
+  return /\b(remove|delete|drop|clear|take\s+(?:out|off)|get\s+rid|no\s+longer|stop\s+(?:taking|accepting|offering)|don'?t\s+(?:take|accept|offer)|without|except)\b/i.test(
+    instruction,
+  )
+}
+
+/**
+ * Guard a whole-list replacement against silent data loss. If the model returned
+ * a SHORTER string list than current and the owner didn't ask to remove
+ * anything, treat it as suspect and keep the UNION (current order preserved +
+ * any genuinely-new items appended) instead of letting items vanish. Returns the
+ * safe list + whether the guard fired (so the caller can note it).
+ * Pure + exported for unit tests.
+ */
+export function guardStringList(
+  current: string[],
+  proposed: string[],
+  removalIntent: boolean,
+  cap: number,
+): { list: string[]; merged: boolean } {
+  const clean = (xs: string[]) => xs.map((s) => s.trim()).filter(Boolean)
+  const cur = clean(current)
+  const next = clean(proposed)
+  const suspect = !removalIntent && next.length < cur.length
+  if (!suspect) return { list: next.slice(0, cap), merged: false }
+  // Union: keep current order, append new items the proposal introduced.
+  const seen = new Set(cur.map((s) => s.toLowerCase()))
+  const union = [...cur]
+  for (const item of next) {
+    if (!seen.has(item.toLowerCase())) {
+      union.push(item)
+      seen.add(item.toLowerCase())
+    }
+  }
+  return { list: union.slice(0, cap), merged: true }
+}
+
 function snapshot(profile: typeof clinicProfile.$inferSelect): string {
   const overrides = (profile.copyOverrides as Record<string, string> | null) ?? {}
   const stats = (profile.stats as { value: string; label: string }[] | null) ?? []
@@ -299,11 +342,11 @@ Type details:
 - "field": field ∈ tagline (hero headline), about, displayName, phone, email.
 - "brandColor": value is a hex color like "#2563EB" — tasteful + readable on a light background.
 - "copy": key from editableHeadings; value = new display text.
-- "chips" / "carriers" / "paymentMethods": items = the COMPLETE new list (start from current + apply the change).
-- "stats": stats = COMPLETE new list (max 3) of {value,label}.
+- "chips" / "carriers" / "paymentMethods": items = the COMPLETE new list. CRITICAL: these REPLACE the whole list, so you MUST reproduce EVERY existing item and only then apply the change. For an ADD ("we also take X"), output every current item PLUS X. NEVER return a shorter list than current unless the owner explicitly asked to remove, delete, or clear something. Dropping items the owner didn't mention is a data-loss bug.
+- "stats": stats = COMPLETE new list (max 3) of {value,label}. Same rule — reproduce the ones you're keeping.
 - "cancellationPolicy": value = new prose ("" to hide).
 - "hours": hours keyed by day (mon..sun), each { open:"HH:MM" 24h, close:"HH:MM", closed:boolean }. Only include the days the owner mentioned (the rest are left unchanged).
-- "faq": faq = COMPLETE new list of {category, question, answer}; category ∈ Booking, Your Visit, Insurance, Billing, Comfort.
+- "faq": faq = COMPLETE new list of {category, question, answer}; category ∈ Booking, Your Visit, Insurance, Billing, Comfort. Same rule — to ADD one FAQ, output ALL existing FAQs plus the new one; never drop questions the owner didn't ask to remove.
 
 Examples (instruction → the type you call):
 - "update our hours for Mon, Wed and Fri — we close at 3pm" → hours { mon:{open:"09:00",close:"15:00",closed:false}, wed:{...close:"15:00"...}, fri:{...close:"15:00"...} }
@@ -458,6 +501,11 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     setPage(edit.page)
   }
 
+  // Whether the owner asked to shrink a list — gates the data-loss merge guard.
+  const removalIntent = mentionsRemoval(text)
+  // Human notes appended to the summary when a guard quietly kept items.
+  const mergeNotes: string[] = []
+
   for (const e of envelope.edits) {
     if (e.type === 'field' && e.field && FIELD_COLS.has(e.field) && typeof e.value === 'string') {
       const v = e.value.trim()
@@ -475,23 +523,37 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
       overridesTouched = true
       push({ label: entry.label, preview: trunc(e.value), anchor: `copy:${e.key}`, page: entry.page })
     } else if (e.type === 'chips' && Array.isArray(e.items)) {
-      const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 8)
+      const cur = (profile.differenceChips as string[] | null) ?? []
+      const { list, merged } = guardStringList(cur, e.items, removalIntent, 8)
       patch.differenceChips = list.length > 0 ? list : null
+      if (merged) mergeNotes.push('kept your existing highlights')
       push({ label: '“Why us” highlights', preview: trunc(list.join(', ')), anchor: 'differenceChips', page: '/' })
     } else if (e.type === 'carriers' && Array.isArray(e.items)) {
-      const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 40)
+      const cur = (profile.acceptedInsuranceCarriers as string[] | null) ?? []
+      const { list, merged } = guardStringList(cur, e.items, removalIntent, 40)
       patch.acceptedInsuranceCarriers = list.length > 0 ? list : null
+      if (merged) mergeNotes.push('kept your existing carriers')
       push({ label: 'Insurance carriers', preview: trunc(list.join(', ')), anchor: 'acceptedInsuranceCarriers', page: '/' })
     } else if (e.type === 'stats' && Array.isArray(e.stats)) {
       const list = e.stats
         .slice(0, 3)
         .map((s, i) => ({ id: `stat_${i}`, value: s.value.trim(), label: s.label.trim() }))
         .filter((s) => s.value && s.label)
-      patch.stats = list.length > 0 ? list : null
-      push({ label: 'Trust stats', preview: trunc(list.map((s) => `${s.value} ${s.label}`).join(' · ')), anchor: 'stats', page: '/' })
+      // Stats are objects (no clean union) — if the model dropped one without a
+      // removal ask, keep the current list rather than silently losing a stat.
+      const curStats = (profile.stats as { value: string; label: string }[] | null) ?? []
+      if (!removalIntent && list.length < curStats.length && curStats.length > 0) {
+        mergeNotes.push('kept your current stats (the AI returned fewer — say "remove" to drop one)')
+        push({ label: 'Trust stats', preview: 'unchanged (suspected drop)', anchor: 'stats', page: '/' })
+      } else {
+        patch.stats = list.length > 0 ? list : null
+        push({ label: 'Trust stats', preview: trunc(list.map((s) => `${s.value} ${s.label}`).join(' · ')), anchor: 'stats', page: '/' })
+      }
     } else if (e.type === 'paymentMethods' && Array.isArray(e.items)) {
-      const list = e.items.map((s) => s.trim()).filter(Boolean).slice(0, 12)
+      const cur = (profile.paymentMethods as string[] | null) ?? []
+      const { list, merged } = guardStringList(cur, e.items, removalIntent, 12)
       patch.paymentMethods = list.length > 0 ? list : null
+      if (merged) mergeNotes.push('kept your existing payment methods')
       push({ label: 'Payment methods', preview: trunc(list.join(', ')), anchor: 'paymentFinancing', page: '/payment-financing' })
     } else if (e.type === 'cancellationPolicy' && typeof e.value === 'string') {
       patch.cancellationPolicy = e.value.trim() || null
@@ -510,8 +572,17 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
         .map((f, i) => ({ id: `faq_${i}`, category: f.category.trim(), question: f.question.trim(), answer: f.answer.trim() }))
         .filter((f) => f.question && f.answer && f.category)
         .slice(0, 14)
-      patch.faq = list.length > 0 ? list : null
-      push({ label: 'FAQ', preview: `${list.length} question${list.length === 1 ? '' : 's'}`, anchor: 'faq', page: '/faq' })
+      // FAQ entries are objects — if the model returned fewer than current with
+      // no removal ask, keep the current list (a forgotten echo would otherwise
+      // wipe questions the owner never asked to drop).
+      const curFaq = (profile.faq as { question: string }[] | null) ?? []
+      if (!removalIntent && list.length < curFaq.length && curFaq.length > 0) {
+        mergeNotes.push('kept your current FAQs (the AI returned fewer — say "remove" to drop one)')
+        push({ label: 'FAQ', preview: 'unchanged (suspected drop)', anchor: 'faq', page: '/faq' })
+      } else {
+        patch.faq = list.length > 0 ? list : null
+        push({ label: 'FAQ', preview: `${list.length} question${list.length === 1 ? '' : 's'}`, anchor: 'faq', page: '/faq' })
+      }
     }
   }
 
@@ -535,7 +606,11 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     before[col] = (profile as Record<string, unknown>)[col] ?? null
   }
 
-  await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, orgId))
+  // Every edit may have been a suspect-keep (we intentionally wrote nothing) —
+  // don't issue an empty UPDATE, but still count the spend + report the guard.
+  if (Object.keys(patch).length > 0) {
+    await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, orgId))
+  }
   // Count this successful edit against the allowance — best-effort so a counter
   // hiccup never fails an edit that already applied. Return the fresh snapshot
   // so the bar shows what's left.
@@ -547,11 +622,14 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   }))
 
   const page = resultPage ?? (envelope.page.startsWith('/') ? envelope.page : '/')
+  const baseSummary = envelope.summary.trim() || 'Updated your site'
+  // Surface any data-loss guard that fired so the owner knows we kept items.
+  const summary = mergeNotes.length > 0 ? `${baseSummary} — ${mergeNotes.join('; ')}` : baseSummary
   return {
     ok: true,
     edits: applied,
     page,
-    summary: envelope.summary.trim() || 'Updated your site',
+    summary: summary.slice(0, 200),
     anchor,
     before,
     usage: refreshed,

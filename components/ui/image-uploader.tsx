@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { uploadFileWithProgress, UploadCancelledError, type UploadHandle } from '@/lib/upload-with-progress'
 
 interface Props {
   /** Form field name — the resolved blob URL is set on a hidden input with this name. */
@@ -15,7 +16,7 @@ interface Props {
   hint?: string
   /** Aspect ratio class for the preview box (e.g. 'aspect-square', 'aspect-[3/1]'). */
   previewClass?: string
-  /** Max upload size in bytes (default 5MB). */
+  /** Max upload size in bytes (default 8MB — matches the server's IMAGE_MAX_BYTES). */
   maxBytes?: number
   /** Optional callback fired whenever the resolved URL changes (upload or
    * remove). Lets callers that autosave (rather than submit a form) keep the
@@ -30,7 +31,9 @@ export default function ImageUploader({
   label,
   hint,
   previewClass = 'aspect-[3/1]',
-  maxBytes = 5 * 1024 * 1024,
+  // 8MB matches the server's IMAGE_MAX_BYTES — the old 5MB default rejected
+  // files client-side that the server would have happily accepted.
+  maxBytes = 8 * 1024 * 1024,
   onChange,
 }: Props) {
   const [url, setUrlState] = useState<string | null>(defaultValue ?? null)
@@ -39,8 +42,10 @@ export default function ImageUploader({
     onChange?.(next)
   }
   const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const handleRef = useRef<UploadHandle | null>(null)
 
   async function handleFile(file: File) {
     setError(null)
@@ -53,23 +58,25 @@ export default function ImageUploader({
       return
     }
     setUploading(true)
+    setProgress(0)
+    const handle = uploadFileWithProgress(file, folder, setProgress)
+    handleRef.current = handle
     try {
-      const fd = new FormData()
-      fd.set('file', file)
-      fd.set('folder', folder)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? 'Upload failed')
-      }
-      const { url: blobUrl } = (await res.json()) as { url: string }
+      const blobUrl = await handle.promise
       setUrl(blobUrl)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
+      // A user-initiated cancel is not an error to surface.
+      if (!(err instanceof UploadCancelledError)) {
+        setError(err instanceof Error ? err.message : 'Upload failed')
+      }
     } finally {
       setUploading(false)
+      handleRef.current = null
     }
   }
+
+  const maxMb = Math.floor(maxBytes / 1024 / 1024)
+  const hintText = hint ? `${hint} Up to ${maxMb}MB.` : `Up to ${maxMb}MB.`
 
   return (
     <div>
@@ -85,8 +92,18 @@ export default function ImageUploader({
           <span className="text-xs text-stone-400">No image</span>
         )}
         {uploading && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs">
-            Uploading…
+          <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 text-white text-xs">
+            <span>Uploading… {progress}%</span>
+            <div className="w-3/4 h-1 rounded-full bg-white/25 overflow-hidden">
+              <div className="h-full bg-white transition-[width] duration-150" style={{ width: `${progress}%` }} />
+            </div>
+            <button
+              type="button"
+              onClick={() => handleRef.current?.cancel()}
+              className="mt-0.5 underline underline-offset-2 hover:text-white/80"
+            >
+              Cancel
+            </button>
           </div>
         )}
       </div>
@@ -99,12 +116,11 @@ export default function ImageUploader({
         >
           {url ? 'Replace' : 'Upload'}
         </button>
-        {url && (
+        {url && !uploading && (
           <button
             type="button"
             onClick={() => setUrl(null)}
-            disabled={uploading}
-            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[13px] font-medium text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[13px] font-medium text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition"
           >
             Remove
           </button>
@@ -121,8 +137,8 @@ export default function ImageUploader({
           }}
         />
       </div>
-      {hint && <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">{hint}</p>}
-      {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
+      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">{hintText}</p>
+      {error && <p className="text-xs text-rose-600 mt-1" role="alert">{error}</p>}
     </div>
   )
 }

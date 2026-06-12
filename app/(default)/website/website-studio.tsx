@@ -15,8 +15,10 @@ import type {
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
-import StudioAiBar from './studio-ai-bar'
-import type { AiUsageSnapshot } from '@/lib/types/ai-website'
+import StudioAiBar, { type UndoData } from './studio-ai-bar'
+import RewriteWithAiButton from './rewrite-with-ai-button'
+import HeroTaglineRewrite from './hero-tagline-rewrite'
+import type { AiUsageSnapshot, GeneratedContent } from '@/lib/types/ai-website'
 import { Field, TagListEditor, inputCls, textareaCls } from '@/components/ui/editor-kit'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
 import LeadFormBuilder from './lead-form-builder'
@@ -43,6 +45,8 @@ import {
   saveDifferenceChips,
   saveLeadForm,
   saveHours,
+  saveDifferenceVideo,
+  isValidVideoUrl,
   type SectionResult,
 } from './website-actions'
 
@@ -56,7 +60,9 @@ interface Props {
 }
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
-type ModalState = { kind: 'image' | 'section'; field: string } | null
+// `stale` opens the refresh-to-edit fallback for an affordance this (older) tab
+// can't render — an image field a newer deploy added that isn't in IMAGE_FIELDS.
+type ModalState = { kind: 'image' | 'section' | 'stale'; field: string } | null
 
 const IMAGE_FIELDS: Record<
   string,
@@ -80,7 +86,7 @@ const IMAGE_FIELDS: Record<
     label: 'Logo',
     folder: 'clinic-logos',
     previewClass: 'aspect-square w-40',
-    hint: 'Square logo, 256×256 or larger.',
+    hint: 'Square logo, 256×256 or larger. Leave blank (Remove) to fall back to a letter-mark.',
   },
 }
 
@@ -175,17 +181,53 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const [status, setStatus] = useState<Status>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>(null)
+  // AI usage + the one-click undo target are LIFTED here so the floating AI bar
+  // and the per-section "Rewrite with AI" buttons share one monthly counter,
+  // and so the Undo survives a section modal opening on top of the bar.
+  const [aiUsage, setAiUsage] = useState<AiUsageSnapshot>(initialAiUsage)
+  const [undoData, setUndoData] = useState<UndoData | null>(null)
   // The pending "Saved ✓ → idle" timer. Tracked so a second save can clear a
   // stale one — otherwise the old timer fires mid-save and flips the live
   // "Saving…" indicator back to idle while a write is still in flight.
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const reloadFrame = () => {
+  // The page the OWNER is currently editing on the canvas. We track it from the
+  // bridge's `ready` ping (fired on every page load in edit mode) so that when a
+  // manual save cancels an in-flight AI tour, we reload the page they were on —
+  // not wherever the tour had wandered. Path is relative to /site/<slug> ('' = home).
+  const ownerPage = useRef<string>('')
+  // Resolver for the next bridge `ready` ack — lets navigateFrame wait for the
+  // canvas to actually be mounted before flashing, instead of a blind sleep.
+  const readyResolve = useRef<(() => void) | null>(null)
+
+  const currentCanvasPath = (): string => {
+    const f = iframeRef.current
+    try {
+      const p = f?.contentWindow?.location.pathname ?? ''
+      const m = p.match(new RegExp(`^/site/${slug}(/.*)?$`))
+      return m?.[1] ?? ''
+    } catch {
+      return ''
+    }
+  }
+
+  const reloadFrame = (pagePath?: string) => {
     const f = iframeRef.current
     if (!f) return
     // Reload the iframe's CURRENT page — the clinic may have navigated to a
     // subpage in edit mode, so resetting `src` (the homepage) would bounce
-    // them off it. Same-origin, so reading contentWindow is allowed.
+    // them off it. Same-origin, so reading contentWindow is allowed. When an
+    // explicit page is given (tour-cancel recovery), load THAT page instead.
+    if (pagePath !== undefined) {
+      const path = pagePath && pagePath !== '/' ? pagePath : ''
+      const url = `/site/${slug}${path}?edit=1`
+      try {
+        f.contentWindow!.location.assign(url)
+      } catch {
+        f.src = url
+      }
+      return
+    }
     try {
       f.contentWindow?.location.reload()
     } catch {
@@ -211,6 +253,21 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       f.src = url
     }
   }
+
+  // Resolve once the next `ready` ack lands, or after `timeoutMs` as a fallback
+  // (a page that fails to ping shouldn't stall the whole tour).
+  const waitForReady = (timeoutMs: number) =>
+    new Promise<void>((resolve) => {
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        readyResolve.current = null
+        resolve()
+      }
+      readyResolve.current = finish
+      window.setTimeout(finish, timeoutMs)
+    })
 
   // Flash a changed element in place (no reload) — used while touring same-page
   // edits so the page visibly morphs change-by-change.
@@ -240,6 +297,32 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     }
   }
 
+  // Restore a failed inline edit's original text in place (item: inline-save
+  // failure reverts the element) — keeps the no-reload behaviour for other edits.
+  const postRestore = (field: string) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        { source: 'dreamcrm-studio', type: 'restore', field },
+        window.location.origin,
+      )
+    } catch {
+      /* same-origin guard */
+    }
+  }
+
+  // Confirm a saved inline edit so the bridge can flash a saving→saved tick on
+  // the element (in the window before the canvas reload re-renders it).
+  const postSaved = (field: string) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        { source: 'dreamcrm-studio', type: 'saved', field },
+        window.location.origin,
+      )
+    } catch {
+      /* same-origin guard */
+    }
+  }
+
   // A monotonically-increasing token so a new edit cancels a still-running tour.
   const tourSeq = useRef(0)
   // Abandon any in-flight AI tour. Bumping the token makes the running loop bail
@@ -248,7 +331,6 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const cancelTour = () => {
     tourSeq.current++
   }
-  const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
 
   async function runTour(stops: { page: string; anchor: string }[]) {
     const mine = ++tourSeq.current
@@ -259,10 +341,15 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       if (s.page !== cur) {
         navigateFrame(s.page, s.anchor) // full load + on-load reveal/flash
         cur = s.page
-        await sleep(i === 0 ? 850 : 1250)
+        // Gate on the canvas actually mounting (bridge `ready` ack) instead of a
+        // blind sleep, with a generous timeout fallback so a slow/failed load
+        // can't hang the tour. A small settle pause lets the flash read.
+        await waitForReady(2500)
+        if (tourSeq.current !== mine) return
+        await new Promise<void>((r) => window.setTimeout(r, 450))
       } else {
         postReveal(s.anchor) // same page — just scroll + flash the next change
-        await sleep(1050)
+        await new Promise<void>((r) => window.setTimeout(r, 1050))
       }
     }
   }
@@ -292,10 +379,15 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     void runTour(stops)
   }
 
-  async function persist(fn: () => Promise<SectionResult>): Promise<SectionResult> {
-    // A manual save and a running AI tour both drive the canvas — cancel the
-    // tour first so it stops navigating before this save reloads the page
-    // (otherwise the two fight over the viewport).
+  async function persist(
+    fn: () => Promise<SectionResult>,
+    onOkBeforeReload?: () => void,
+  ): Promise<SectionResult> {
+    // A manual save and a running AI tour both drive the canvas. Remember where
+    // the owner actually is BEFORE cancelling the tour, so the post-save reload
+    // lands on their page rather than wherever the tour had navigated to.
+    const wasTouring = tourSeq.current > 0
+    const ownerAt = ownerPage.current
     cancelTour()
     // Clear a stale "→ idle" timer from a previous save so it can't fire mid-
     // write and flip the live "Saving…" indicator back to idle.
@@ -308,11 +400,17 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     const res = await fn()
     if (res.ok) {
       setStatus('saved')
+      // Fire any pre-reload hook (e.g. the inline saved-tick) while the canvas
+      // still holds the edited element, before the reload re-renders it.
+      onOkBeforeReload?.()
       savedTimer.current = setTimeout(() => {
         setStatus('idle')
         savedTimer.current = null
       }, 1800)
-      reloadFrame()
+      // If a tour was mid-flight, the canvas may be parked on a tour page — bring
+      // it back to the owner's page. Otherwise just reload in place.
+      if (wasTouring && currentCanvasPath() !== ownerAt) reloadFrame(ownerAt)
+      else reloadFrame()
     } else {
       setStatus('error')
       setErrorMsg(res.error)
@@ -329,16 +427,29 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       if (e.origin !== origin) return
       const d = e.data as { source?: string; type?: string; field?: string; value?: string }
       if (!d || d.source !== 'dreamcrm-edit') return
-      if (d.type === 'save' && d.field) {
-        await persist(() => saveInlineField(d.field!, d.value ?? ''))
+      if (d.type === 'ready') {
+        // Track the owner's current page + release any tour waiter.
+        ownerPage.current = currentCanvasPath()
+        readyResolve.current?.()
+      } else if (d.type === 'save' && d.field) {
+        const field = d.field
+        const res = await persist(
+          () => saveInlineField(field, d.value ?? ''),
+          () => postSaved(field), // saved-tick before the reload re-renders
+        )
+        // On failure, restore the element's pre-edit text in the canvas so the
+        // owner doesn't see an unsaved value masquerading as saved.
+        if (!res.ok) postRestore(field)
       } else if (d.type === 'editImage' && d.field) {
-        setModal({ kind: 'image', field: d.field })
+        // Unknown image field from a newer deploy → refresh-to-edit, not a blank modal.
+        setModal({ kind: IMAGE_FIELDS[d.field] ? 'image' : 'stale', field: d.field })
       } else if (d.type === 'openModal' && d.field) {
         setModal({ kind: 'section', field: d.field })
       }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Drop any pending saved-state timer if the Studio unmounts mid-save.
@@ -383,6 +494,15 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           {status === 'error' && (
             <span className="text-xs text-rose-400 max-w-[16rem] truncate">{errorMsg ?? 'Could not save'}</span>
           )}
+          {/* Hero tagline rewrite — the tagline edits inline (no modal), so its
+              AI affordance lives in the top bar, presenting the draft for review
+              before it saves. */}
+          <HeroTaglineRewrite
+            currentTagline={profile.tagline ?? null}
+            usage={aiUsage}
+            onUsage={setAiUsage}
+            onSaved={() => reloadFrame()}
+          />
           <Link href="/settings/clinic" className="hidden sm:inline text-xs text-gray-300 hover:text-white">
             Advanced edits
           </Link>
@@ -399,7 +519,16 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         className="flex-1 w-full border-0 bg-white"
       />
 
-      {!modal && <StudioAiBar onApplied={onAiApplied} initialUsage={initialAiUsage} />}
+      {/* The AI command bar stays MOUNTED while a modal is open (CSS-hidden) so
+          its done-panel + one-click Undo survive opening a section editor. */}
+      <StudioAiBar
+        onApplied={onAiApplied}
+        usage={aiUsage}
+        onUsage={setAiUsage}
+        undoData={undoData}
+        onUndoData={setUndoData}
+        hidden={!!modal}
+      />
 
       {modal && (
         <StudioModal
@@ -407,6 +536,8 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           profile={profile}
           orgId={orgId}
           library={library}
+          aiUsage={aiUsage}
+          onAiUsage={setAiUsage}
           onClose={() => setModal(null)}
           persist={persist}
           reload={reloadFrame}
@@ -422,6 +553,8 @@ function StudioModal({
   profile,
   orgId,
   library,
+  aiUsage,
+  onAiUsage,
   onClose,
   persist,
   reload,
@@ -431,6 +564,8 @@ function StudioModal({
   profile: ClinicProfile
   orgId: string
   library: ServiceLibraryEntryWithStatus[]
+  aiUsage: AiUsageSnapshot
+  onAiUsage: (next: AiUsageSnapshot) => void
   onClose: () => void
   persist: (fn: () => Promise<SectionResult>) => Promise<SectionResult>
   reload: () => void
@@ -454,26 +589,50 @@ function StudioModal({
   const [busy, setBusy] = useState(false)
   const videoFileRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const videoUploadHandle = useRef<{ cancel: () => void } | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  // Dirty tracking: each editor reports whether the owner has changed anything,
+  // so closing (ESC / backdrop / X / Cancel) can confirm before discarding.
+  const [dirty, setDirty] = useState(false)
+  // AI draft → re-key the editor so an uncontrolled editor re-reads its default.
+  // The draft fills the form for REVIEW (never auto-saved); the owner still hits Save.
+  const [aiDraft, setAiDraft] = useState<GeneratedContent | null>(null)
+  const [aiNonce, setAiNonce] = useState(0)
+  // differenceVideoUrl tracks its own dirtiness via videoUrl vs the initial.
+  const initialVideo = useRef(
+    modal.kind === 'section' && modal.field === 'differenceVideoUrl'
+      ? ((profile.differenceVideoUrl as string | null) ?? '')
+      : '',
+  )
+
+  // A close that respects unsaved work.
+  function requestClose() {
+    if (busy || uploading) return
+    if (dirty && !window.confirm('Discard unsaved changes?')) return
+    onClose()
+  }
 
   // ESC closes the modal — matching the backdrop-click affordance (the two were
   // inconsistent before: only backdrop closed). Held off while a save or upload
-  // is in flight so an accidental ESC can't drop work mid-write. Inline
-  // contentEditable lives in the iframe, not here, so there's no conflict.
+  // is in flight so an accidental ESC can't drop work mid-write, and routed
+  // through the dirty-confirm. Inline contentEditable lives in the iframe, not
+  // here, so there's no conflict.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && !busy && !uploading) {
         e.preventDefault()
-        onClose()
+        requestClose()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [busy, uploading, onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, uploading, dirty])
 
   // Direct video upload — reuses the auth-gated /api/upload route (S3), the
-  // same path ImageUploader uses. On success the resolved URL fills the URL
-  // field, so upload and paste-a-URL converge on one value to save.
+  // same path ImageUploader uses, now with progress + cancel. On success the
+  // resolved URL fills the URL field, so upload and paste-a-URL converge.
   async function handleVideoFile(file: File) {
     setUploadError(null)
     if (!file.type.startsWith('video/')) {
@@ -485,27 +644,29 @@ function StudioModal({
       return
     }
     setUploading(true)
+    setUploadProgress(0)
+    const { uploadFileWithProgress, UploadCancelledError } = await import('@/lib/upload-with-progress')
+    const handle = uploadFileWithProgress(file, 'clinic-video', setUploadProgress)
+    videoUploadHandle.current = handle
     try {
-      const fd = new FormData()
-      fd.set('file', file)
-      fd.set('folder', 'clinic-video')
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const b = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(b.error ?? 'Upload failed')
-      }
-      const { url } = (await res.json()) as { url: string }
+      const url = await handle.promise
       setVideoUrl(url)
+      setDirty(true)
     } catch (e) {
-      setUploadError(e instanceof Error ? e.message : 'Upload failed')
+      if (!(e instanceof UploadCancelledError)) {
+        setUploadError(e instanceof Error ? e.message : 'Upload failed')
+      }
     } finally {
       setUploading(false)
+      videoUploadHandle.current = null
     }
   }
 
   const imageCfg = modal.kind === 'image' ? IMAGE_FIELDS[modal.field] : null
-  const title =
-    modal.kind === 'image'
+  const isStale = modal.kind === 'stale'
+  const title = isStale
+    ? 'Refresh to edit'
+    : modal.kind === 'image'
       ? `Replace ${imageCfg?.label ?? 'image'}`
       : (SECTION_TITLES[modal.field] ?? 'Edit section')
   // Services embeds the autosaving library picker — it persists each change
@@ -521,6 +682,11 @@ function StudioModal({
   ])
   const isWide = isServices || (modal.kind === 'section' && WIDE_FIELDS.has(modal.field))
 
+  // Whether this section's editor reports dirtiness via a changed-flag form. The
+  // editors don't all emit one, so we treat any `change`/`input` event in the
+  // form region as "dirty" — a pragmatic, false-positive-safe signal.
+  const onFormChanged = () => setDirty(true)
+
   async function onSave() {
     setBusy(true)
     let res: SectionResult
@@ -530,7 +696,13 @@ function StudioModal({
       // it, but this avoids a flash of the old image while the page reloads).
       if (res.ok && imageUrl) onImageSaved(modal.field, imageUrl)
     } else if (modal.field === 'differenceVideoUrl') {
-      res = await persist(() => saveInlineField('differenceVideoUrl', videoUrl))
+      // Client-side URL-shape guard before the round-trip (server re-validates).
+      if (!isValidVideoUrl(videoUrl)) {
+        setUploadError('Enter a valid video link (https://…) or upload a file.')
+        setBusy(false)
+        return
+      }
+      res = await persist(() => saveDifferenceVideo(videoUrl))
     } else if (FORM_SECTION_SAVES[modal.field]) {
       const save = FORM_SECTION_SAVES[modal.field]
       const fd = new FormData(formRef.current!)
@@ -539,14 +711,37 @@ function StudioModal({
       res = { ok: false, error: 'This section isn’t editable yet' }
     }
     setBusy(false)
-    if (res.ok) onClose()
+    if (res.ok) {
+      setDirty(false)
+      onClose()
+    }
   }
+
+  // Apply an AI draft to the open editor's fields (review-then-Save). Re-keying
+  // the editor makes the uncontrolled field re-read its (new) default value.
+  function applyAiDraft(content: GeneratedContent) {
+    setAiDraft(content)
+    setAiNonce((n) => n + 1)
+    setDirty(true)
+  }
+
+  // Compute the effective defaultValue for editors that can be AI-filled.
+  const aboutDefault =
+    aiDraft?.section === 'about' ? aiDraft.about : (profile.about ?? '')
+  const statsDefault: ClinicStat[] | null =
+    aiDraft?.section === 'stats'
+      ? aiDraft.stats.map((s, i) => ({ id: `stat_${i}`, value: s.value, label: s.label }))
+      : ((profile.stats as ClinicStat[] | null) ?? null)
+  const faqDefault: ClinicFaqItem[] | null =
+    aiDraft?.section === 'faq'
+      ? aiDraft.faq.map((f, i) => ({ id: `faq_${i}`, category: f.category, question: f.question, answer: f.answer }))
+      : ((profile.faq as ClinicFaqItem[] | null) ?? null)
 
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-[color:var(--color-ink-900)]/50 p-4"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) requestClose()
       }}
     >
       <div
@@ -556,7 +751,7 @@ function StudioModal({
           <h2 className="text-[15px] font-bold text-gray-900 dark:text-gray-100">{title}</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-[var(--r-md)] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
             aria-label="Close"
           >
@@ -567,6 +762,17 @@ function StudioModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+          {isStale && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                This editor was added in a newer version of the Studio than this tab is running.
+                Refresh to pick it up — your saved edits are safe.
+              </p>
+              <ActionButton variant="primary" size="sm" onClick={() => window.location.reload()}>
+                Refresh to edit
+              </ActionButton>
+            </div>
+          )}
           {modal.kind === 'image' && imageCfg && (
             <>
               <ImageUploader
@@ -576,7 +782,10 @@ function StudioModal({
                 label={imageCfg.label}
                 hint={imageCfg.hint}
                 previewClass={imageCfg.previewClass}
-                onChange={(u) => setImageUrl(u)}
+                onChange={(u) => {
+                  setImageUrl(u)
+                  setDirty(true)
+                }}
               />
               {imageCfg.focalAspect && imageUrl && (
                 <div className="mt-4 pt-4 border-t border-[color:var(--color-hairline)]">
@@ -587,26 +796,29 @@ function StudioModal({
                     src={imageUrl}
                     aspectClass={imageCfg.focalAspect}
                     value={position}
-                    onChange={setPosition}
+                    onChange={(p) => {
+                      setPosition(p)
+                      setDirty(true)
+                    }}
                   />
                 </div>
               )}
             </>
           )}
           {modal.kind === 'section' && modal.field === 'stats' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Three short trust signals shown under your hero — “8,000+ five-star reviews,”
                 “Same-week appointments,” “Most insurance accepted.”
               </p>
-              <StatsEditor
-                name="stats"
-                defaultValue={(profile.stats as ClinicStat[] | null) ?? null}
-              />
+              <div className="mb-3">
+                <RewriteWithAiButton section="stats" usage={aiUsage} onUsage={onAiUsage} onContent={applyAiDraft} />
+              </div>
+              <StatsEditor key={`stats-${aiNonce}`} name="stats" defaultValue={statsDefault} />
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'testimonials' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Patient quotes shown on your homepage. Reviews submitted through the Reviews
                 module can be featured here too — and you can add your own.
@@ -618,14 +830,18 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'about' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Your story — who you are, your approach, and what patients can expect. A few
                 short paragraphs work best.
               </p>
+              <div className="mb-3">
+                <RewriteWithAiButton section="about" usage={aiUsage} onUsage={onAiUsage} onContent={applyAiDraft} />
+              </div>
               <textarea
+                key={`about-${aiNonce}`}
                 name="about"
-                defaultValue={profile.about ?? ''}
+                defaultValue={aboutDefault}
                 rows={10}
                 placeholder="We're a family-first dental practice…"
                 className={textareaCls}
@@ -633,7 +849,7 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'staff' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The people patients will meet. Add a photo, name, title, and a short bio for
                 each — they appear on your homepage and the Team page.
@@ -642,7 +858,7 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'officePhotos' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 A few warm shots of your space — the waiting room, an operatory, the front
                 desk. They appear in your office-tour gallery.
@@ -654,16 +870,19 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'faq' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Questions patients ask before booking — insurance, first visits, billing,
                 anxiety. They’re grouped by category on your FAQ page.
               </p>
-              <FaqEditor name="faq" defaultValue={(profile.faq as ClinicFaqItem[] | null) ?? null} />
+              <div className="mb-3">
+                <RewriteWithAiButton section="faq" usage={aiUsage} onUsage={onAiUsage} onContent={applyAiDraft} />
+              </div>
+              <FaqEditor key={`faq-${aiNonce}`} name="faq" defaultValue={faqDefault} />
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'acceptedInsuranceCarriers' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The insurance carriers you accept. They appear on your homepage Insurance band
                 and Insurance page. Leave blank to show “call to verify.”
@@ -677,7 +896,7 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'differenceChips' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The short “Why us” highlight chips next to your homepage intro. Leave blank to
                 auto-build from your top services + standard reassurances (“No judgment, ever,”
@@ -692,7 +911,7 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'insurance_verifier' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The fields on your “Check your insurance” form. Add, remove, reorder, or
                 rename fields. Keep an email or phone so you can reach the lead — the carrier
@@ -708,7 +927,7 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'contact' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The fields on your homepage contact form. Add, remove, reorder, or rename
                 fields. Keep a phone or email so you can reach the lead. Submissions land in
@@ -724,7 +943,7 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'paymentFinancing' && (
-            <form ref={formRef} className="space-y-5">
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged} className="space-y-5">
               <Field label="Payment methods">
                 <TagListEditor
                   name="paymentMethods"
@@ -754,7 +973,7 @@ function StudioModal({
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'hours' && (
-            <form ref={formRef}>
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Your weekly office hours, shown in the footer of every page. Check “Closed” for
                 days you’re not open.
@@ -797,12 +1016,28 @@ function StudioModal({
                   disabled={uploading}
                   className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 disabled:opacity-60"
                 >
-                  {uploading ? 'Uploading…' : videoUrl ? 'Upload a different video' : 'Upload a video'}
+                  {uploading
+                    ? `Uploading… ${uploadProgress}%`
+                    : videoUrl
+                      ? 'Upload a different video'
+                      : 'Upload a video'}
                 </button>
+                {uploading && (
+                  <button
+                    type="button"
+                    onClick={() => videoUploadHandle.current?.cancel()}
+                    className="btn-sm text-gray-500 hover:text-rose-600"
+                  >
+                    Cancel
+                  </button>
+                )}
                 {videoUrl && !uploading && (
                   <button
                     type="button"
-                    onClick={() => setVideoUrl('')}
+                    onClick={() => {
+                      setVideoUrl('')
+                      setDirty(true)
+                    }}
                     className="btn-sm text-rose-500 hover:text-rose-600"
                   >
                     Remove
@@ -826,14 +1061,23 @@ function StudioModal({
               <input
                 type="url"
                 value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
+                onChange={(e) => {
+                  setVideoUrl(e.target.value)
+                  setDirty(e.target.value !== initialVideo.current)
+                }}
                 placeholder="https://…/clinic-intro.mp4"
-                className={inputCls}
+                className={`${inputCls} ${!isValidVideoUrl(videoUrl) ? 'border-rose-400 focus:ring-rose-300' : ''}`}
+                aria-invalid={!isValidVideoUrl(videoUrl)}
               />
+              {!isValidVideoUrl(videoUrl) && (
+                <p className="text-xs text-rose-600 mt-1" role="alert">
+                  That doesn’t look like a valid link — use https://… or upload a file.
+                </p>
+              )}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 MP4, MOV, or WebM · up to 50MB · short, muted &amp; looping looks best.
               </p>
-              {uploadError && <p className="text-xs text-rose-600 mt-2">{uploadError}</p>}
+              {uploadError && <p className="text-xs text-rose-600 mt-2" role="alert">{uploadError}</p>}
               {videoUrl.trim() && (
                 <video
                   key={videoUrl}
@@ -876,7 +1120,11 @@ function StudioModal({
         </div>
 
         <div className="shrink-0 flex items-center justify-end gap-2.5 px-5 sm:px-6 py-3.5 border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)]">
-          {isServices ? (
+          {isStale ? (
+            <button type="button" onClick={onClose} className={btnSecondary}>
+              Close
+            </button>
+          ) : isServices ? (
             <button type="button" onClick={() => { reload(); onClose() }} className={btnPrimary}>
               Done
             </button>
@@ -886,7 +1134,7 @@ function StudioModal({
             </button>
           ) : (
             <>
-              <button type="button" onClick={onClose} className={btnSecondary}>
+              <button type="button" onClick={requestClose} className={btnSecondary}>
                 Cancel
               </button>
               <button type="button" onClick={onSave} disabled={busy} className={btnPrimary}>

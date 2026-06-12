@@ -12,13 +12,17 @@ import type { AiUsageSnapshot } from '@/lib/types/ai-website'
  */
 type Phase = 'idle' | 'working' | 'done' | 'error'
 type EditDetail = { label: string; preview: string; anchor: string | null; page: string }
-type UndoData = { before: Record<string, unknown>; page: string; anchor: string | null }
+export type UndoData = { before: Record<string, unknown>; page: string; anchor: string | null }
 
 const FOLLOW_KEY = 'dc-studio-follow'
 
 export default function StudioAiBar({
   onApplied,
-  initialUsage,
+  usage,
+  onUsage,
+  undoData,
+  onUndoData,
+  hidden,
 }: {
   onApplied: (opts: {
     page: string
@@ -26,7 +30,18 @@ export default function StudioAiBar({
     edits: { anchor: string | null; page: string }[]
     follow: boolean
   }) => void
-  initialUsage: AiUsageSnapshot
+  /** Lifted to the Studio shell so the bar + section-modal rewrite buttons share
+   *  one monthly counter. */
+  usage: AiUsageSnapshot
+  onUsage: (next: AiUsageSnapshot) => void
+  /** Lifted so the one-click Undo SURVIVES a section modal opening on top — the
+   *  bar is CSS-hidden under the modal (not unmounted), and the undo target
+   *  lives in the shell either way. */
+  undoData: UndoData | null
+  onUndoData: (next: UndoData | null) => void
+  /** When a section modal is open the bar hides visually but stays mounted so
+   *  its done-panel + Undo aren't lost. */
+  hidden?: boolean
 }) {
   const [value, setValue] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
@@ -35,12 +50,12 @@ export default function StudioAiBar({
   const [error, setError] = useState('')
   const [isClarify, setIsClarify] = useState(false)
   const [follow, setFollow] = useState(true)
-  const [undoData, setUndoData] = useState<UndoData | null>(null)
   const [undoing, setUndoing] = useState(false)
-  // AI edits spend tokens, so they're metered against the monthly allowance.
-  const [usage, setUsage] = useState<AiUsageSnapshot>(initialUsage)
   const [isLimit, setIsLimit] = useState(false)
   const outOfEdits = usage.remaining <= 0
+  // The done-panel (summary of the last edit) should re-appear when the modal
+  // closes if there's still an undoable edit pending.
+  const showDonePanel = phase === 'done' || (!!undoData && phase === 'idle' && details.length > 0)
 
   useEffect(() => {
     try {
@@ -75,8 +90,8 @@ export default function StudioAiBar({
       if (res.ok) {
         setSummary(res.summary)
         setDetails(res.edits)
-        setUndoData({ before: res.before, page: res.page, anchor: res.anchor })
-        setUsage(res.usage)
+        onUndoData({ before: res.before, page: res.page, anchor: res.anchor })
+        onUsage(res.usage)
         setValue('')
         setPhase('done')
         onApplied({ page: res.page, anchor: res.anchor, edits: res.edits, follow })
@@ -87,7 +102,7 @@ export default function StudioAiBar({
         setError(res.error)
         setIsClarify(!!res.clarify)
         setIsLimit(!!res.limit)
-        if (res.usage) setUsage(res.usage)
+        if (res.usage) onUsage(res.usage)
         setPhase('error')
       }
     } catch {
@@ -106,7 +121,8 @@ export default function StudioAiBar({
       if (r.ok) {
         onApplied({ page: undoData.page, anchor: undoData.anchor, edits: [], follow })
         setPhase('idle')
-        setUndoData(null)
+        setDetails([])
+        onUndoData(null)
       }
     } finally {
       setUndoing(false)
@@ -116,8 +132,13 @@ export default function StudioAiBar({
   const working = phase === 'working'
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[65] flex justify-center px-4 pb-6">
-      <div className="pointer-events-auto w-full max-w-xl relative">
+    <div
+      className={`pointer-events-none fixed inset-x-0 bottom-0 z-[65] flex justify-center px-4 pb-6 ${hidden ? 'invisible' : ''}`}
+      aria-hidden={hidden ? true : undefined}
+    >
+      {/* Stacked panels (done-summary + status + bar) cap at the viewport so a
+          long edit list never runs off-screen — the list itself scrolls. */}
+      <div className="pointer-events-auto w-full max-w-xl relative max-h-[80vh] overflow-y-auto">
         {/* Glow behind the bar */}
         <div
           aria-hidden="true"
@@ -127,7 +148,7 @@ export default function StudioAiBar({
         />
 
         {/* Done panel — what changed + Undo */}
-        {phase === 'done' && (
+        {showDonePanel && (
           <div className="relative mb-2.5 rounded-[var(--r-lg)] bg-gray-900/90 backdrop-blur-xl border border-white/10 shadow-[var(--shadow-modal)] p-3 text-gray-100">
             <div className="flex items-center justify-between gap-3 mb-2">
               <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-300 min-w-0">
@@ -139,14 +160,19 @@ export default function StudioAiBar({
                   type="button"
                   onClick={undo}
                   disabled={undoing}
+                  title="Undo last AI change"
                   className="inline-flex items-center gap-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 px-2.5 py-1 text-xs font-semibold text-white transition disabled:opacity-50"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 5L4 9l4 4M4 9h8a4 4 0 010 8h-1" /></svg>
-                  {undoing ? 'Undoing…' : 'Undo'}
+                  {undoing ? 'Undoing…' : 'Undo last AI change'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPhase('idle')}
+                  onClick={() => {
+                    setPhase('idle')
+                    setDetails([])
+                    onUndoData(null)
+                  }}
                   className="w-6 h-6 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition"
                   aria-label="Dismiss"
                 >
