@@ -58,10 +58,33 @@ export default function LeadFormBuilder({
 
   const locked = (f: LeadFormField) => Boolean(f.systemKey) || Boolean(f.dynamicOptions)
 
+  // Mirror the server rules (saveLeadForm) client-side so the owner sees the
+  // problem before saving, not after a round-trip: keep ≥1 field, ≥1 reachable
+  // (email/phone) field, and no blank labels.
+  const hasFields = fields.length > 0
+  const hasContact = fields.some((f) => f.systemKey === 'email' || f.systemKey === 'phone')
+  const hasBlankLabel = fields.some((f) => !f.label.trim())
+  const validationError = !hasFields
+    ? 'Add at least one field.'
+    : !hasContact
+      ? 'Keep at least an email or phone field so leads are reachable.'
+      : hasBlankLabel
+        ? 'Every field needs a label.'
+        : null
+
   return (
     <div>
       <input type="hidden" name="formKey" value={formKey} />
       <input type="hidden" name="fields" value={JSON.stringify(fields)} />
+
+      {validationError && (
+        <p
+          className="mb-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-md px-2.5 py-1.5"
+          role="alert"
+        >
+          {validationError}
+        </p>
+      )}
 
       <div className="space-y-3">
         {fields.map((f, i) => (

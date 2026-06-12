@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
+import { uploadFileWithProgress, UploadCancelledError, type UploadHandle } from '@/lib/upload-with-progress'
 import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
 
 interface Props {
@@ -115,25 +116,42 @@ function StaffRow({
   onRemove: () => void
 }) {
   const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  // Upload type/size/server failures were silently swallowed before — surface
+  // them like ImageUploader does so a bad photo upload never fails quietly.
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [reposition, setReposition] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const handleRef = useRef<UploadHandle | null>(null)
   // Local textarea state for specialties so we don't fight controlled-input
   // round-tripping the array -> string conversion on every keystroke.
   const [specialtiesText, setSpecialtiesText] = useState((value.specialties ?? []).join('\n'))
 
   async function handleUpload(file: File) {
-    if (!file.type.startsWith('image/')) return
-    if (file.size > 5 * 1024 * 1024) return
+    setUploadError(null)
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please pick an image file.')
+      return
+    }
+    // 8MB matches the server's IMAGE_MAX_BYTES (was a silent 5MB drop).
+    if (file.size > 8 * 1024 * 1024) {
+      setUploadError('That image is over 8MB — pick a smaller one.')
+      return
+    }
     setUploading(true)
+    setProgress(0)
+    const handle = uploadFileWithProgress(file, 'clinic-staff', setProgress)
+    handleRef.current = handle
     try {
-      const fd = new FormData()
-      fd.set('file', file)
-      fd.set('folder', 'clinic-staff')
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const body = (await res.json()) as { url?: string }
-      if (body.url) onChange({ photoUrl: body.url })
+      const url = await handle.promise
+      onChange({ photoUrl: url })
+    } catch (err) {
+      if (!(err instanceof UploadCancelledError)) {
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
+      }
     } finally {
       setUploading(false)
+      handleRef.current = null
     }
   }
 
@@ -169,12 +187,26 @@ function StaffRow({
               'Add photo'
             )}
             {uploading && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs">
-                …
+              <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1 text-white text-[10px] leading-none">
+                <span>{progress}%</span>
               </div>
             )}
           </button>
-          {value.photoUrl && (
+          {uploading && (
+            <button
+              type="button"
+              onClick={() => handleRef.current?.cancel()}
+              className="text-[11px] text-gray-400 hover:text-rose-600 leading-tight"
+            >
+              Cancel
+            </button>
+          )}
+          {uploadError && (
+            <p className="text-[11px] text-rose-600 text-center leading-tight" role="alert">
+              {uploadError}
+            </p>
+          )}
+          {value.photoUrl && !uploading && (
             <button
               type="button"
               onClick={() => setReposition((v) => !v)}

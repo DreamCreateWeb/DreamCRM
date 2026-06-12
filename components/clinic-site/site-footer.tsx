@@ -74,20 +74,37 @@ export default function SiteFooter({
       style={{ backgroundColor: FOOTER_BG, color: FOOTER_INK }}
     >
       <div className="max-w-[1400px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
-        {/* Logo + clinic name lockup, full-width above columns */}
+        {/* Logo + clinic name lockup, full-width above columns. The logo region
+            is the Website Studio's edit handle for `logoUrl` — instrumented in
+            BOTH states so a clinic can replace an existing logo OR add one when
+            it's still showing the letter-mark fallback (hover → "📷 Replace
+            logo" in edit mode; inert for public visitors). */}
         <div className="flex items-center gap-3 mb-12">
-          {logoUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
-          ) : (
-            <span
-              aria-hidden="true"
-              className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0"
-              style={{ backgroundColor: brand }}
-            >
-              {name.charAt(0).toUpperCase()}
-            </span>
-          )}
+          <span
+            className="relative inline-flex shrink-0"
+            data-edit-field="logoUrl"
+            data-edit-kind="image"
+            data-edit-label="logo"
+          >
+            {logoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+            ) : (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0"
+                  style={{ backgroundColor: brand }}
+                >
+                  {name.charAt(0).toUpperCase()}
+                </span>
+                {/* Editor-only nudge so an empty logo is obviously addable. */}
+                <span className="dc-edit-only absolute -bottom-5 left-0 whitespace-nowrap text-[10px] font-semibold text-violet-600">
+                  + Add logo
+                </span>
+              </>
+            )}
+          </span>
           <a
             href={homeHref}
             className="font-semibold text-xl"
