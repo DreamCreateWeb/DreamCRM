@@ -43,11 +43,15 @@ BASE_URL="https://www.dreamcreatestudio.com"
 #   pms-sync                 hourly   — 15-min concurrency guard makes overlap safe
 #   send-reminders           30 min   — idempotent per appointment within its window
 #   send-scheduled-campaigns 15 min   — atomic claim prevents double-send
+#   customize-services       hourly   — durable net for the Welcome Interview's
+#                                       fire-and-forget per-service AI rewrites;
+#                                       idempotent (skips services with a blob)
 JOBS=(
   "auto-send-reviews|auto-send-reviews|rate(1 hour)"
   "pms-sync|pms-sync|rate(1 hour)"
   "send-reminders|send-reminders|rate(30 minutes)"
   "send-scheduled-campaigns|send-scheduled-campaigns|rate(15 minutes)"
+  "customize-services|customize-services|rate(1 hour)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

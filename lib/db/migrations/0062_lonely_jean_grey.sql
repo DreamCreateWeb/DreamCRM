@@ -1,0 +1,2 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "onboarding_interview_draft" jsonb;--> statement-breakpoint
+ALTER TABLE "clinic_profile" ADD COLUMN "onboarding_interview_completed_at" timestamp with time zone;

@@ -435,6 +435,13 @@
       "when": 1781340000000,
       "tag": "0061_busy_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1781291366985,
+      "tag": "0062_lonely_jean_grey",
+      "breakpoints": true
     }
   ]
 }

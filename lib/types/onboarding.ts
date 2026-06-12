@@ -23,15 +23,17 @@ export interface ActivationChecklist {
   totalCount: number
   allDone: boolean
   /**
-   * True when the clinic's public site has no real content yet (no tagline,
-   * no about, no services). Drives the "Draft my website with AI" re-entry
-   * banner on the Getting-started card — the only way back to the `/welcome`
-   * onboarding interview for a clinic that skipped it (or a managed clinic
-   * that never saw the post-checkout step). Flips false the moment the site
-   * has any of those, so the banner stops nagging once they've drafted or
-   * hand-written content.
+   * True when the clinic's public site still needs the AI personalization
+   * pass. With Wave 1's day-0 floor a fresh site is never EMPTY, so the old
+   * "no tagline/about/services" heuristic is always false — instead this is
+   * `siteNeedsPersonalization`: the interview was never completed (no
+   * completed_at) OR the tagline is still the starter sentence. Drives the
+   * "Draft your website with AI" re-entry banner on the Getting-started card —
+   * the path back to the `/welcome` interview for a clinic that skipped it (or
+   * a managed clinic that never saw the post-checkout step). Flips false once
+   * they finish the interview or hand-write a real tagline.
    */
-  siteUnfilled: boolean
+  siteNeedsPersonalization: boolean
 }
 
 /** Definition side of a task — the service pairs each with a live `done` check. */
