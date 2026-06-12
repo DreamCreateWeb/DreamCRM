@@ -124,25 +124,36 @@ describe('updatePartnerTerms', () => {
   })
 })
 
-describe('assignClinicReferral', () => {
-  it('copies the partner defaults when no override is supplied + stamps a start date', async () => {
+describe('assignClinicReferral — persists NULL for use-default, value for an override', () => {
+  it('persists NULL (not the copied default) when no override is supplied + stamps a start date', async () => {
     state.partnerRows = [[{ id: 'p1', defaultPercentBps: 1000, defaultTermMonths: null }]]
     state.profileRows = [[{ organizationId: 'org1', currentPartnerId: null, currentStartedAt: null }]]
     await assignClinicReferral('org1', 'p1')
     const upd = state.updates.find((u) => u.table === 'clinicProfile')!
     expect(upd.set.referralPartnerId).toBe('p1')
-    expect(upd.set.referralPercentBps).toBe(1000) // copied default
+    // NULL → live-resolve the partner's current default at accrual time.
+    expect(upd.set.referralPercentBps).toBeNull()
     expect(upd.set.referralTermMonths).toBeNull()
     expect(upd.set.referralStartedAt).toBeInstanceOf(Date)
   })
 
-  it('honors a per-clinic % override', async () => {
+  it('honors a per-clinic % override that DIFFERS from the default', async () => {
     state.partnerRows = [[{ id: 'p1', defaultPercentBps: 1000, defaultTermMonths: 12 }]]
     state.profileRows = [[{ organizationId: 'org1', currentPartnerId: null, currentStartedAt: null }]]
     await assignClinicReferral('org1', 'p1', 1500, 6)
     const upd = state.updates.find((u) => u.table === 'clinicProfile')!
     expect(upd.set.referralPercentBps).toBe(1500)
     expect(upd.set.referralTermMonths).toBe(6)
+  })
+
+  it('a submitted value EQUAL to the partner default collapses to NULL (use-default)', async () => {
+    state.partnerRows = [[{ id: 'p1', defaultPercentBps: 1000, defaultTermMonths: 12 }]]
+    state.profileRows = [[{ organizationId: 'org1', currentPartnerId: null, currentStartedAt: null }]]
+    // Submitting exactly the partner default for both fields → both NULL.
+    await assignClinicReferral('org1', 'p1', 1000, 12)
+    const upd = state.updates.find((u) => u.table === 'clinicProfile')!
+    expect(upd.set.referralPercentBps).toBeNull()
+    expect(upd.set.referralTermMonths).toBeNull()
   })
 
   it('keeps the original start date when re-assigning the SAME partner (no term reset)', async () => {
@@ -152,7 +163,7 @@ describe('assignClinicReferral', () => {
     await assignClinicReferral('org1', 'p1', 1200)
     const upd = state.updates.find((u) => u.table === 'clinicProfile')!
     expect(upd.set.referralStartedAt).toBe(original)
-    expect(upd.set.referralPercentBps).toBe(1200)
+    expect(upd.set.referralPercentBps).toBe(1200) // differs from default → real override
   })
 
   it('throws when the partner does not exist', async () => {

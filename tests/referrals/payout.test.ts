@@ -137,11 +137,33 @@ describe('payoutPartner — guards', () => {
     expect(r.error).toMatch(/not found/i)
   })
 
-  it('rejects a suspended partner', async () => {
+  it('rejects a suspended partner on the SELF-SERVE path ("account paused")', async () => {
     state.partner = { ...activePartner, status: 'suspended' }
-    const r = await payoutPartner('p1', { initiatedBy: 'admin' })
+    const r = await payoutPartner('p1', { initiatedBy: 'partner', selfServe: true })
     expect(r.ok).toBe(false)
-    expect(r.error).toMatch(/suspended/i)
+    expect(r.error).toMatch(/paused/i)
+    expect(mockTransfersCreate).not.toHaveBeenCalled()
+  })
+
+  it('ALLOWS an admin pay-now for a suspended partner (settling up)', async () => {
+    state.partner = { ...activePartner, status: 'suspended' }
+    state.accruedRows = [{ id: 1, amountCents: 5000 }] // over the minimum
+    const r = await payoutPartner('p1', { initiatedBy: 'admin' }) // no selfServe → admin path
+    expect(r.ok).toBe(true)
+    expect(r.amountCents).toBe(5000)
+    expect(mockTransfersCreate).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an archived partner on BOTH paths (closed account)', async () => {
+    state.partner = { ...activePartner, status: 'archived' }
+    state.accruedRows = [{ id: 1, amountCents: 5000 }]
+    const admin = await payoutPartner('p1', { initiatedBy: 'admin' })
+    expect(admin.ok).toBe(false)
+    expect(admin.error).toMatch(/closed/i)
+    const portal = await payoutPartner('p1', { initiatedBy: 'partner', selfServe: true })
+    expect(portal.ok).toBe(false)
+    expect(portal.error).toMatch(/closed/i)
+    expect(mockTransfersCreate).not.toHaveBeenCalled()
   })
 
   it('rejects when payout method not ready (no account / payouts disabled)', async () => {

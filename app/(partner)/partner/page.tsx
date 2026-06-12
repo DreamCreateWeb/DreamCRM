@@ -40,8 +40,27 @@ export default async function PartnerDashboard({
   searchParams: Promise<{ connect?: string }>
 }) {
   // Authorize by partner-row lookup (not tenantType) so a partner who is also a
-  // platform admin / clinic staffer can still see their portal.
-  const { ctx, partner } = await requirePartner()
+  // platform admin / clinic staffer can still see their portal. allowInactive so
+  // suspended/archived partners reach a calm state screen instead of a redirect.
+  const { ctx, partner } = await requirePartner({ allowInactive: true })
+
+  // Archived = closed account. Show a calm closed screen — no data, no actions.
+  if (partner.status === 'archived') {
+    return (
+      <div className="max-w-md mx-auto text-center py-16">
+        <div className="text-3xl mb-3" aria-hidden="true">📁</div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          This partner account has been closed
+        </h1>
+        <p className="text-sm text-[color:var(--color-ink-600)]">
+          Your Dream Create partner account is no longer active. If you think this is a mistake,
+          please get in touch with us.
+        </p>
+      </div>
+    )
+  }
+
+  const suspended = partner.status === 'suspended'
 
   // Returning from (or refreshing) Stripe onboarding → re-pull payout status.
   const { connect } = await searchParams
@@ -74,6 +93,14 @@ export default async function PartnerDashboard({
         </p>
       </div>
 
+      {/* Suspended: account paused — banner + the withdraw control is disabled. */}
+      {suspended && (
+        <div className="rounded-[var(--r-lg)] border border-amber-300/70 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          <span className="font-medium">Your account is paused.</span> You can still see everything
+          here, but withdrawals are on hold. Please contact us and we’ll sort it out.
+        </div>
+      )}
+
       {/* KPI band */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiStat label="Referred clinics" value={clinics.length} />
@@ -95,6 +122,7 @@ export default async function PartnerDashboard({
         method={method}
         methodLabelText={methodLabel}
         accruedCents={balance.accruedCents}
+        paused={suspended}
         payoutMethodPill={{ tone: PAYOUT_METHOD_TONE[method], label: PAYOUT_METHOD_LABELS[method] }}
       />
 

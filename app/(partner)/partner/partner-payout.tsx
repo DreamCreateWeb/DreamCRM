@@ -18,11 +18,15 @@ export default function PartnerPayout({
   method,
   methodLabelText,
   accruedCents,
+  paused = false,
   payoutMethodPill,
 }: {
   method: PayoutMethodState
   methodLabelText: string | null
   accruedCents: number
+  /** When the partner is SUSPENDED, withdrawals are on hold — the button is
+   *  disabled and a "paused" line replaces the normal copy. */
+  paused?: boolean
   payoutMethodPill: { tone: Tone; label: string }
 }) {
   const [toast, setToast] = useState<string | null>(null)
@@ -54,7 +58,7 @@ export default function PartnerPayout({
     })
   }
 
-  const canWithdraw = method === 'active' && accruedCents >= PAYOUT_MIN_CENTS
+  const canWithdraw = !paused && method === 'active' && accruedCents >= PAYOUT_MIN_CENTS
 
   return (
     <div className="v2-card p-5">
@@ -66,14 +70,26 @@ export default function PartnerPayout({
       {method === 'active' ? (
         <>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            {methodLabelText
-              ? `Paid out to ${methodLabelText}. `
-              : 'Your payout method is connected. '}
-            {accruedCents >= PAYOUT_MIN_CENTS
-              ? 'Withdraw your accrued balance whenever you like.'
-              : `You can withdraw once your balance reaches ${moneyExact(PAYOUT_MIN_CENTS)}.`}
+            {paused ? (
+              <span>Withdrawals are paused on your account — please contact us.</span>
+            ) : (
+              <>
+                {methodLabelText
+                  ? `Paid out to ${methodLabelText}. `
+                  : 'Your payout method is connected. '}
+                {accruedCents >= PAYOUT_MIN_CENTS
+                  ? 'Withdraw your accrued balance whenever you like.'
+                  : `You can withdraw once your balance reaches ${moneyExact(PAYOUT_MIN_CENTS)}.`}
+              </>
+            )}
           </p>
-          <ActionButton variant="primary" breath onClick={withdraw} disabled={pending || !canWithdraw}>
+          <ActionButton
+            variant="primary"
+            breath
+            onClick={withdraw}
+            disabled={pending || !canWithdraw}
+            title={paused ? 'Your account is paused — withdrawals are on hold' : undefined}
+          >
             {pending ? 'Sending…' : `Withdraw ${moneyExact(accruedCents)}`}
           </ActionButton>
         </>

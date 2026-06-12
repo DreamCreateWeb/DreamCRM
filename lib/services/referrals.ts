@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { randomBytes } from 'crypto'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { deliver } from '@/lib/email'
@@ -12,14 +12,33 @@ import { deliver } from '@/lib/email'
  *
  * Money flow:
  *   1. A clinic is assigned to a partner (`assignClinicReferral`) → sets
- *      `clinic_profile.referral_partner_id` + snapshots the rate/term +
- *      stamps `referral_started_at` (the term clock).
+ *      `clinic_profile.referral_partner_id`, persists the rate/term ONLY when
+ *      it's an explicit per-clinic override (else NULL → live-resolve the
+ *      partner default), and stamps `referral_started_at` (the term clock).
  *   2. The platform Stripe webhook fires `invoice.payment_succeeded` for that
- *      clinic → `accrueCommissionForInvoice` writes a `referral_commission`
- *      row (idempotent on `stripe_invoice_id`), but only while inside the
- *      clinic's referral term + partner is active.
+ *      clinic → `accrueCommissionForInvoice` resolves the effective rate
+ *      (per-clinic override, else the partner's CURRENT default at accrual
+ *      time) and writes a `referral_commission` row (idempotent on
+ *      `stripe_invoice_id`), but only while inside the clinic's referral term
+ *      + the partner is active (suspended/archived no-op).
  *   3. A payout (`lib/services/referral-payouts.ts`) sweeps accrued rows →
  *      `paid` and moves money to the partner's Stripe Connect Express account.
+ *
+ * PERCENT/TERM RESOLUTION (the binding rule):
+ *   `clinic_profile.referral_percent_bps` / `referral_term_months` hold a value
+ *   ONLY for an explicit per-clinic override. NULL means "live-resolve the
+ *   partner's CURRENT default" — so raising/lowering a partner's default %
+ *   immediately flows to every non-overridden clinic's FUTURE accruals + every
+ *   display surface. The accrual ledger snapshots `percent_bps` at accrual time,
+ *   so already-earned rows never change. A submitted override equal to the
+ *   partner's current default is treated as "use default" and persisted NULL.
+ *
+ * LIFECYCLE: suspend (accrual no-op, portal payouts blocked, admin pay-now ok),
+ * archive (status='archived', accrual no-op, portal shows a closed screen,
+ * clinics keep historical attribution, ledger/payouts preserved), and a
+ * conditional delete (hard-delete only with zero money history; otherwise the
+ * flow becomes archive with a balance-resolution step). See `deletePartner` /
+ * `archivePartner` / `reactivatePartner`.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,12 +114,22 @@ export async function createPartner(input: CreatePartnerInput): Promise<CreatePa
     throw new Error('Percentage must be between 0 and 100')
   }
 
+  // The unique-email constraint conflicts with ANY existing row (incl.
+  // archived). A hard-deleted partner frees the address (its row is gone), but
+  // an ARCHIVED partner still holds it — surface a specific message so the
+  // admin reactivates that one or uses a different email, rather than the
+  // generic "already exists".
   const [dupe] = await db
-    .select({ id: schema.referralPartner.id })
+    .select({ id: schema.referralPartner.id, status: schema.referralPartner.status })
     .from(schema.referralPartner)
     .where(eq(schema.referralPartner.email, email))
     .limit(1)
-  if (dupe) throw new Error('A partner with this email already exists')
+  if (dupe) {
+    if (dupe.status === 'archived') {
+      throw new Error('That email belongs to an archived partner — reactivate them, or use another email')
+    }
+    throw new Error('A partner with this email already exists')
+  }
 
   const id = newId('rp')
   const token = randomBytes(24).toString('hex')
@@ -157,9 +186,11 @@ export interface UpdatePartnerTermsInput {
   termsNote?: string | null
 }
 
-/** Update a partner's default rate / term / note. Applies to FUTURE accruals
- *  + new clinic assignments — never rewrites already-accrued ledger rows or
- *  existing clinic overrides. */
+/** Update a partner's default rate / term / note. Applies to FUTURE accruals of
+ *  every NON-overridden clinic (their override is NULL → live-resolve this new
+ *  default) + new clinic assignments. Never rewrites already-accrued ledger
+ *  rows (they snapshot the rate at accrual) or clinics carrying an explicit
+ *  per-clinic override. */
 export async function updatePartnerTerms(input: UpdatePartnerTermsInput): Promise<void> {
   const patch: Partial<typeof schema.referralPartner.$inferInsert> = { updatedAt: new Date() }
   if (input.defaultPercentBps != null) {
@@ -173,6 +204,11 @@ export async function updatePartnerTerms(input: UpdatePartnerTermsInput): Promis
   await db.update(schema.referralPartner).set(patch).where(eq(schema.referralPartner.id, input.partnerId))
 }
 
+/** Suspend / reactivate a partner. Suspend halts future accrual (the accrual
+ *  guard no-ops on a suspended partner) and blocks self-serve portal payouts;
+ *  reactivate resumes everything. Archived partners are reactivated via
+ *  {@link reactivatePartner} (which validates the email is still free), not
+ *  here — pass only 'active' | 'suspended'. */
 export async function setPartnerStatus(partnerId: string, status: 'active' | 'suspended'): Promise<void> {
   await db
     .update(schema.referralPartner)
@@ -181,14 +217,237 @@ export async function setPartnerStatus(partnerId: string, status: 'active' | 'su
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Lifecycle — delete / archive / reactivate (with money resolution)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PartnerLifecycleInfo {
+  /** True when the partner has ANY commission or payout rows (money history). */
+  hasMoneyHistory: boolean
+  /** Sum of accrued-unpaid commission cents (the outstanding balance). */
+  accruedCents: number
+  /** Which path a delete request will take, given the money history + balance. */
+  disposition: import('@/lib/types/referrals').PartnerDeleteDisposition
+}
+
+/**
+ * Compute the delete disposition + numbers for a partner. The disposition is
+ * the contract the UI confirm modal renders + the delete action enforces:
+ *   - 'clean'   → zero commission + payout rows → safe hard delete.
+ *   - 'archive' → money history, no outstanding balance → archive.
+ *   - 'resolve' → money history AND an accrued balance → must pay or void first.
+ */
+export async function getPartnerLifecycleInfo(partnerId: string): Promise<PartnerLifecycleInfo> {
+  const [commCount] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.referralCommission)
+    .where(eq(schema.referralCommission.partnerId, partnerId))
+  const [payoutCount] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.referralPayout)
+    .where(eq(schema.referralPayout.partnerId, partnerId))
+
+  const [accruedRow] = await db
+    .select({ total: sql<number>`coalesce(sum(${schema.referralCommission.amountCents}), 0)::bigint` })
+    .from(schema.referralCommission)
+    .where(
+      and(
+        eq(schema.referralCommission.partnerId, partnerId),
+        eq(schema.referralCommission.status, 'accrued'),
+      ),
+    )
+
+  const hasMoneyHistory = Number(commCount?.n ?? 0) > 0 || Number(payoutCount?.n ?? 0) > 0
+  const accruedCents = Number(accruedRow?.total ?? 0)
+  const disposition: PartnerLifecycleInfo['disposition'] = !hasMoneyHistory
+    ? 'clean'
+    : accruedCents > 0
+      ? 'resolve'
+      : 'archive'
+  return { hasMoneyHistory, accruedCents, disposition }
+}
+
+export interface DeletePartnerResult {
+  /** What actually happened. 'deleted' = row removed; 'refused' = blocked. */
+  outcome: 'deleted' | 'refused'
+  /** When refused, why — so the caller can route to the archive flow. */
+  reason?: 'has_history'
+  disposition: import('@/lib/types/referrals').PartnerDeleteDisposition
+}
+
+/**
+ * Conditional delete. HARD-deletes the partner row ONLY when there is zero
+ * money history (no commission + no payout rows) — the clinic attributions
+ * detach automatically via the `clinic_profile.referral_partner_id` FK
+ * (ON DELETE set null) and the linked better-auth user is left untouched
+ * (user_id is just a column on the partner; deleting the partner doesn't
+ * cascade to the user). When money history EXISTS, hard delete is REFUSED
+ * (a cascade would wipe the audit trail) and the caller must use the archive
+ * flow instead — surfaced via `outcome: 'refused', reason: 'has_history'`.
+ *
+ * Re-creating a partner with a previously-used email then works, because the
+ * unique-email constraint only conflicts with live rows — a hard delete frees
+ * the address.
+ */
+export async function deletePartner(partnerId: string): Promise<DeletePartnerResult> {
+  const info = await getPartnerLifecycleInfo(partnerId)
+  if (info.hasMoneyHistory) {
+    return { outcome: 'refused', reason: 'has_history', disposition: info.disposition }
+  }
+  await db.delete(schema.referralPartner).where(eq(schema.referralPartner.id, partnerId))
+  return { outcome: 'deleted', disposition: 'clean' }
+}
+
+/**
+ * Void (reverse) a partner's accrued-unpaid commission — flips every 'accrued'
+ * row to 'reversed' with an audit note. Paid rows are untouched (already paid
+ * out). Used by the archive-with-balance "void the balance" resolution; no
+ * money moves, the balance simply zeroes out for audit. Returns the cents
+ * voided. */
+export async function voidAccruedCommission(partnerId: string, note: string): Promise<{ voidedCents: number }> {
+  const accrued = await db
+    .select({ amountCents: schema.referralCommission.amountCents })
+    .from(schema.referralCommission)
+    .where(
+      and(
+        eq(schema.referralCommission.partnerId, partnerId),
+        eq(schema.referralCommission.status, 'accrued'),
+      ),
+    )
+  const voidedCents = accrued.reduce((s, r) => s + r.amountCents, 0)
+  if (voidedCents > 0) {
+    await db
+      .update(schema.referralCommission)
+      .set({ status: 'reversed' })
+      .where(
+        and(
+          eq(schema.referralCommission.partnerId, partnerId),
+          eq(schema.referralCommission.status, 'accrued'),
+        ),
+      )
+    // The reversed rows ARE the audit trail (preserved + labeled "Reversed" in
+    // the ledger — no silent money deletion). `referral_commission` has no
+    // per-row note column (the migration is data-only), so the reason is logged
+    // to the server audit log alongside the row reversal.
+    console.info('[referral] void accrued commission', { partnerId, voidedCents, note })
+  }
+  return { voidedCents }
+}
+
+export interface ArchivePartnerResult {
+  outcome: 'archived' | 'refused'
+  /** When refused, why — the balance must be resolved first. */
+  reason?: 'outstanding_balance'
+  accruedCents?: number
+}
+
+/**
+ * Archive a partner (status='archived'). Accrual stops, the partner's portal
+ * shows a closed screen (requirePartner treats archived as inactive), they're
+ * hidden from the active list, but their clinics KEEP their historical
+ * attribution rows and the commission ledger + payouts are preserved for audit.
+ *
+ * REFUSES when there's an outstanding accrued balance — no silent money
+ * deletion. The caller resolves it first via one of two explicit paths and
+ * passes the matching `resolve` option:
+ *   - 'pay'  → run `payoutPartner` (requires payouts_enabled) BEFORE archiving.
+ *   - 'void' → flip the accrued rows to 'reversed' (no money moves).
+ * With `resolve: undefined` and a balance present, returns
+ * `outcome: 'refused', reason: 'outstanding_balance'`.
+ */
+export async function archivePartner(
+  partnerId: string,
+  opts: { resolve?: 'pay' | 'void'; initiatedBy: string } = { initiatedBy: 'system' },
+): Promise<ArchivePartnerResult> {
+  const info = await getPartnerLifecycleInfo(partnerId)
+
+  if (info.accruedCents > 0) {
+    if (opts.resolve === 'pay') {
+      const { payoutPartner } = await import('@/lib/services/referral-payouts')
+      const r = await payoutPartner(partnerId, { initiatedBy: opts.initiatedBy })
+      if (!r.ok) {
+        // Couldn't settle up — surface as still-outstanding so the UI can show
+        // the payout error; the partner is NOT archived (no silent loss).
+        return { outcome: 'refused', reason: 'outstanding_balance', accruedCents: info.accruedCents }
+      }
+    } else if (opts.resolve === 'void') {
+      await voidAccruedCommission(partnerId, 'Balance voided on partner archive')
+    } else {
+      return { outcome: 'refused', reason: 'outstanding_balance', accruedCents: info.accruedCents }
+    }
+  }
+
+  await db
+    .update(schema.referralPartner)
+    .set({ status: 'archived', inviteToken: null, updatedAt: new Date() })
+    .where(eq(schema.referralPartner.id, partnerId))
+  return { outcome: 'archived' }
+}
+
+export interface ReactivatePartnerResult {
+  outcome: 'reactivated' | 'refused'
+  reason?: 'email_taken' | 'not_archived'
+}
+
+/**
+ * Reactivate an archived partner → back to 'active'. Refuses if a DIFFERENT
+ * live (non-archived) partner now holds the same email (the address was reused
+ * after this one was archived) — the admin must resolve the conflict first.
+ * Their clinics, ledger, and payouts are all still attached, so reactivating
+ * resumes accrual immediately.
+ */
+export async function reactivatePartner(partnerId: string): Promise<ReactivatePartnerResult> {
+  const [p] = await db
+    .select({ id: schema.referralPartner.id, email: schema.referralPartner.email, status: schema.referralPartner.status })
+    .from(schema.referralPartner)
+    .where(eq(schema.referralPartner.id, partnerId))
+    .limit(1)
+  if (!p) return { outcome: 'refused', reason: 'not_archived' }
+  if (p.status !== 'archived') return { outcome: 'refused', reason: 'not_archived' }
+
+  // A live partner with the same email blocks reactivation (unique-email).
+  const conflict = await db
+    .select({ id: schema.referralPartner.id })
+    .from(schema.referralPartner)
+    .where(and(eq(schema.referralPartner.email, p.email), ne(schema.referralPartner.status, 'archived')))
+    .limit(1)
+  if (conflict.length > 0) return { outcome: 'refused', reason: 'email_taken' }
+
+  await db
+    .update(schema.referralPartner)
+    .set({ status: 'active', updatedAt: new Date() })
+    .where(eq(schema.referralPartner.id, partnerId))
+  return { outcome: 'reactivated' }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Clinic attribution
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Attribute a clinic to a partner. Copies the partner's current defaults when
- * a per-clinic override isn't supplied, and stamps `referral_started_at` (the
- * term clock) — unless the clinic is ALREADY assigned to the same partner, in
- * which case we keep the original start so re-saving doesn't reset the term.
+ * Resolve what to PERSIST for a per-clinic override field, applying the binding
+ * "use default" rule: a submission of `undefined` or `null` means "use the
+ * partner default" → persist NULL; a submitted value EQUAL to the partner's
+ * current default is also "use default" → persist NULL; only a value that
+ * differs from the partner default is a real override → persist that value.
+ *
+ * Keeping the override NULL (rather than copying the default in) is what lets
+ * the accrual fallback + every display surface live-resolve the partner's
+ * CURRENT default — so changing the default flows to non-overridden clinics.
+ */
+function persistedOverride<T extends number | null>(submitted: T | undefined, partnerDefault: T): T | null {
+  if (submitted === undefined || submitted === null) return null
+  if (submitted === partnerDefault) return null
+  return submitted
+}
+
+/**
+ * Attribute a clinic to a partner. Persists the per-clinic rate/term ONLY when
+ * the caller passes an explicit override that DIFFERS from the partner's
+ * current default — otherwise NULL, so accrual + display live-resolve the
+ * partner default at invoice time (raising/lowering the default then flows to
+ * this clinic automatically). Stamps `referral_started_at` (the term clock) —
+ * unless the clinic is ALREADY assigned to the same partner, in which case we
+ * keep the original start so re-saving doesn't reset the term.
  *
  * Platform-only (caller gates). Throws when the clinic or partner is missing.
  */
@@ -223,10 +482,10 @@ export async function assignClinicReferral(
     .update(schema.clinicProfile)
     .set({
       referralPartnerId: partnerId,
-      // When an override is explicitly null, store the partner default so the
-      // accrual snapshot is stable even if the partner's default changes later.
-      referralPercentBps: percentBps ?? partner.defaultPercentBps,
-      referralTermMonths: termMonths !== undefined ? termMonths : partner.defaultTermMonths,
+      // NULL unless it's an explicit override that differs from the default.
+      // NULL → live-resolve the partner's current default at accrual time.
+      referralPercentBps: persistedOverride(percentBps, partner.defaultPercentBps),
+      referralTermMonths: persistedOverride(termMonths, partner.defaultTermMonths),
       referralStartedAt: startedAt,
       updatedAt: new Date(),
     })
@@ -234,7 +493,9 @@ export async function assignClinicReferral(
 }
 
 /** Update just the per-clinic rate/term override on an already-assigned clinic
- *  (the clinic-detail "Referral" card). Keeps partner + start date intact. */
+ *  (the clinic-detail "Referral" card). Keeps partner + start date intact.
+ *  A submitted value equal to the partner's current default persists NULL
+ *  ("use default") so the clinic resumes live-resolving the partner default. */
 export async function updateClinicReferralTerms(
   organizationId: string,
   percentBps: number | null,
@@ -243,9 +504,35 @@ export async function updateClinicReferralTerms(
   if (percentBps != null && (!Number.isInteger(percentBps) || percentBps < 0 || percentBps > 10000)) {
     throw new Error('Percentage must be between 0 and 100')
   }
+
+  // Resolve the clinic's current partner so an override == default collapses to
+  // NULL (use-default). No partner assigned → store the raw values as given.
+  const [profile] = await db
+    .select({ partnerId: schema.clinicProfile.referralPartnerId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+
+  let pctToStore = percentBps
+  let termToStore = termMonths
+  if (profile?.partnerId) {
+    const [partner] = await db
+      .select({
+        defaultPercentBps: schema.referralPartner.defaultPercentBps,
+        defaultTermMonths: schema.referralPartner.defaultTermMonths,
+      })
+      .from(schema.referralPartner)
+      .where(eq(schema.referralPartner.id, profile.partnerId))
+      .limit(1)
+    if (partner) {
+      pctToStore = persistedOverride(percentBps, partner.defaultPercentBps)
+      termToStore = persistedOverride(termMonths, partner.defaultTermMonths)
+    }
+  }
+
   await db
     .update(schema.clinicProfile)
-    .set({ referralPercentBps: percentBps, referralTermMonths: termMonths, updatedAt: new Date() })
+    .set({ referralPercentBps: pctToStore, referralTermMonths: termToStore, updatedAt: new Date() })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
@@ -276,7 +563,7 @@ export interface AccrueInput {
 
 export interface AccrueResult {
   accrued: boolean
-  reason?: 'no_partner' | 'suspended' | 'out_of_term' | 'zero_amount' | 'duplicate' | 'no_profile'
+  reason?: 'no_partner' | 'suspended' | 'archived' | 'out_of_term' | 'zero_amount' | 'duplicate' | 'no_profile'
   amountCents?: number
 }
 
@@ -284,9 +571,14 @@ export interface AccrueResult {
  * Accrue commission for one PAID subscription invoice. Idempotent (ON CONFLICT
  * DO NOTHING on the unique stripe_invoice_id), and a no-op when:
  *   - the clinic has no referral partner,
- *   - the partner is suspended,
+ *   - the partner is suspended OR archived (a closed account stops earning),
  *   - the invoice falls outside the clinic's referral term,
  *   - amount is zero/negative.
+ *
+ * The effective rate is the per-clinic override when set, else the partner's
+ * CURRENT default at accrual time (so a default change flows to non-overridden
+ * clinics). The ledger row snapshots that rate, so already-earned rows never
+ * change when the default later moves.
  *
  * Best-effort by contract — the webhook wraps this in try/catch so it can
  * NEVER break billing sync.
@@ -318,8 +610,11 @@ export async function accrueCommissionForInvoice(input: AccrueInput): Promise<Ac
     .limit(1)
   if (!partner) return { accrued: false, reason: 'no_partner' }
   if (partner.status === 'suspended') return { accrued: false, reason: 'suspended' }
+  if (partner.status === 'archived') return { accrued: false, reason: 'archived' }
 
-  // Per-clinic override wins; else the partner default at accrual time.
+  // Per-clinic override wins; else the partner's CURRENT default at accrual
+  // time (a NULL override means "use the default", so a later default change
+  // flows here automatically). The row below snapshots whichever rate applies.
   const percentBps = profile.percentBps ?? partner.defaultPercentBps
   const termMonths = profile.termMonths !== null ? profile.termMonths : partner.defaultTermMonths
 
@@ -357,7 +652,7 @@ export interface PartnerListRow {
   name: string
   company: string | null
   email: string
-  status: 'invited' | 'active' | 'suspended'
+  status: import('@/lib/types/referrals').PartnerStatus
   defaultPercentBps: number
   defaultTermMonths: number | null
   hasConnectAccount: boolean
@@ -368,7 +663,8 @@ export interface PartnerListRow {
   isDemo: boolean
 }
 
-/** Platform admin list — one row per partner with rollup counts. */
+/** Platform admin list — one row per partner (incl. archived; the UI filters
+ *  by status) with rollup counts. */
 export async function listPartners(): Promise<PartnerListRow[]> {
   const partners = await db
     .select()
@@ -411,7 +707,7 @@ export async function listPartners(): Promise<PartnerListRow[]> {
     name: p.name,
     company: p.company,
     email: p.email,
-    status: p.status as PartnerListRow['status'],
+    status: p.status as import('@/lib/types/referrals').PartnerStatus,
     defaultPercentBps: p.defaultPercentBps,
     defaultTermMonths: p.defaultTermMonths,
     hasConnectAccount: Boolean(p.stripeConnectAccountId),
@@ -431,9 +727,10 @@ export interface PartnerPickerOption {
   defaultTermMonths: number | null
 }
 
-/** Lightweight active-partner list for the attribution pickers (add-clinic
- *  modal + clinic-detail Referral card). Active partners only — you can't
- *  attribute a clinic to a suspended/uninvited partner. */
+/** Lightweight assignable-partner list for the attribution pickers (add-clinic
+ *  modal + clinic-detail Referral card). You can't attribute a clinic to a
+ *  suspended or archived partner; 'invited' is allowed (a clinic can be
+ *  attributed before the partner finishes setting up their portal/payouts). */
 export async function listActivePartners(): Promise<PartnerPickerOption[]> {
   const rows = await db
     .select({
@@ -446,27 +743,39 @@ export async function listActivePartners(): Promise<PartnerPickerOption[]> {
     })
     .from(schema.referralPartner)
     .orderBy(schema.referralPartner.name)
-  // Allow 'invited' too — a clinic can be attributed before the partner has
-  // finished setting up their portal/payouts; only 'suspended' is excluded.
   return rows
-    .filter((r) => r.status !== 'suspended')
+    .filter((r) => r.status !== 'suspended' && r.status !== 'archived')
     .map(({ status: _status, ...r }) => r)
 }
 
 export interface ClinicReferralInfo {
   partnerId: string
   partnerName: string
-  /** Effective rate (per-clinic override or partner default), in bps. */
+  /** Effective rate (per-clinic override, else the partner's CURRENT default
+   *  resolved live), in bps. */
   percentBps: number
-  /** Effective term (per-clinic override or partner default), months or null. */
+  /** Effective term (per-clinic override, else the partner default), months or
+   *  null. */
   termMonths: number | null
-  /** True when the clinic carries an explicit per-clinic % override. */
+  /** True when the clinic carries an explicit per-clinic % override (vs.
+   *  live-resolving the partner default). */
   hasPercentOverride: boolean
+  /** True when the clinic carries an explicit per-clinic term override. */
+  hasTermOverride: boolean
+  /** The partner's current default rate — shown in the "Uses partner default —
+   *  currently X%" helper text on the override input. */
+  partnerDefaultPercentBps: number
+  /** The partner's current default term (months or null = ongoing). */
+  partnerDefaultTermMonths: number | null
+  /** True when the attributed partner is archived (closed) — the card shows
+   *  "(archived)" + the clinic stays reassignable. */
+  partnerArchived: boolean
   startedAt: Date | null
 }
 
 /** The current referral attribution for one clinic, or null. Drives the
- *  clinic-detail "Referral" card. */
+ *  clinic-detail "Referral" card. The effective rate/term live-resolves the
+ *  partner's CURRENT default when the clinic has no override (NULL). */
 export async function getClinicReferral(organizationId: string): Promise<ClinicReferralInfo | null> {
   const [profile] = await db
     .select({
@@ -482,6 +791,7 @@ export async function getClinicReferral(organizationId: string): Promise<ClinicR
   const [partner] = await db
     .select({
       name: schema.referralPartner.name,
+      status: schema.referralPartner.status,
       defaultPercentBps: schema.referralPartner.defaultPercentBps,
       defaultTermMonths: schema.referralPartner.defaultTermMonths,
     })
@@ -495,6 +805,10 @@ export async function getClinicReferral(organizationId: string): Promise<ClinicR
     percentBps: profile.percentBps ?? partner.defaultPercentBps,
     termMonths: profile.termMonths !== null ? profile.termMonths : partner.defaultTermMonths,
     hasPercentOverride: profile.percentBps !== null,
+    hasTermOverride: profile.termMonths !== null,
+    partnerDefaultPercentBps: partner.defaultPercentBps,
+    partnerDefaultTermMonths: partner.defaultTermMonths,
+    partnerArchived: partner.status === 'archived',
     startedAt: profile.startedAt,
   }
 }
@@ -523,16 +837,25 @@ export interface ReferredClinicRow {
   slug: string
   planTier: string
   subscriptionStatus: string | null
+  /** Effective rate (per-clinic override, else the partner's CURRENT default
+   *  resolved live), in bps. */
   percentBps: number
   termMonths: number | null
+  /** True when this row's rate is an explicit per-clinic override (vs. the
+   *  partner default) — drives the "10% · override" / "10% · default"
+   *  provenance label on the partner-detail clinics table. */
+  hasPercentOverride: boolean
+  /** True when this row's term is an explicit per-clinic override. */
+  hasTermOverride: boolean
   startedAt: Date | null
   lifetimeCommissionCents: number
 }
 
 /**
  * Clinics referred by a partner, each with its effective rate/term + lifetime
- * commission earned (accrued + paid). `effectivePercentBps` falls back to the
- * partner default when the per-clinic override is null.
+ * commission earned (accrued + paid). The effective rate falls back to the
+ * partner's CURRENT default when the per-clinic override is null, and each row
+ * carries `hasPercentOverride`/`hasTermOverride` so the UI can label provenance.
  */
 export async function getReferredClinics(partnerId: string): Promise<ReferredClinicRow[]> {
   const [partner] = await db
@@ -589,6 +912,8 @@ export async function getReferredClinics(partnerId: string): Promise<ReferredCli
     subscriptionStatus: c.subscriptionStatus,
     percentBps: c.percentBps ?? partner.defaultPercentBps,
     termMonths: c.termMonths !== null ? c.termMonths : partner.defaultTermMonths,
+    hasPercentOverride: c.percentBps !== null,
+    hasTermOverride: c.termMonths !== null,
     startedAt: c.startedAt,
     lifetimeCommissionCents: totalBy.get(c.organizationId) ?? 0,
   }))

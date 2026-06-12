@@ -15,14 +15,14 @@ const svc = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/context', () => ({
   // requirePartner authorizes by partner-row lookup (not tenantType). Mirror
-  // that here: resolve the partner via getPartnerByUserId, redirect when none/
-  // inactive (the new gate), and return { ctx, partner } on success.
-  requirePartner: vi.fn(async () => {
+  // the real gate: with allowInactive, ANY existing partner row resolves
+  // (the page branches on status); without it, only an active one. A missing
+  // row always redirects.
+  requirePartner: vi.fn(async (opts: { allowInactive?: boolean } = {}) => {
     if (!ctx) throw new Error('no ctx')
     const partner = await svc.getPartnerByUserId(ctx.userId)
-    if (!partner || partner.status === 'suspended') {
-      throw new Error('REDIRECT:/')
-    }
+    const acceptable = partner && (opts.allowInactive || partner.status === 'active')
+    if (!acceptable) throw new Error('REDIRECT:/')
     return { ctx, partner }
   }),
 }))
@@ -120,5 +120,30 @@ describe('partner portal dashboard', () => {
     ctx = { tenantType: 'clinic', userId: 'u1', organizationName: 'X' }
     svc.getPartnerByUserId.mockResolvedValue(undefined)
     await expect(PartnerDashboard({ searchParams: Promise.resolve({}) })).rejects.toThrow(/REDIRECT:\//)
+  })
+
+  it('a SUSPENDED partner sees the portal with a paused banner + disabled withdraw', async () => {
+    svc.getPartnerByUserId.mockResolvedValue({
+      ...basePartner,
+      status: 'suspended',
+      payoutsEnabled: 1,
+      stripeConnectAccountId: 'acct_1',
+    })
+    svc.getPartnerBalance.mockResolvedValue({ accruedCents: 5000, lifetimePaidCents: 0 }) // over min
+    const ui = await PartnerDashboard({ searchParams: Promise.resolve({}) })
+    render(ui)
+    expect(screen.getByText(/account is paused/i)).toBeInTheDocument()
+    // The withdraw button still renders (the balance is over min) but is disabled.
+    const withdraw = screen.getByRole('button', { name: /Withdraw/ })
+    expect(withdraw).toBeDisabled()
+  })
+
+  it('an ARCHIVED partner sees the calm "account has been closed" screen, no KPIs', async () => {
+    svc.getPartnerByUserId.mockResolvedValue({ ...basePartner, status: 'archived' })
+    const ui = await PartnerDashboard({ searchParams: Promise.resolve({}) })
+    render(ui)
+    expect(screen.getByText(/account has been closed/i)).toBeInTheDocument()
+    // The closed screen replaces the dashboard — no "Referred clinics" KPI.
+    expect(screen.queryByText('Referred clinics')).not.toBeInTheDocument()
   })
 })

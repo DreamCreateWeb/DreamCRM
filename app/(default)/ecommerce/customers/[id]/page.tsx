@@ -263,6 +263,10 @@ export default async function ClinicDetailPage({
                     percentBps: referral.percentBps,
                     termMonths: referral.termMonths,
                     hasPercentOverride: referral.hasPercentOverride,
+                    hasTermOverride: referral.hasTermOverride,
+                    partnerDefaultPercentBps: referral.partnerDefaultPercentBps,
+                    partnerDefaultTermMonths: referral.partnerDefaultTermMonths,
+                    partnerArchived: referral.partnerArchived,
                   }
                 : null
             }

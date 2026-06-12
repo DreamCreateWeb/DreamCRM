@@ -25,6 +25,14 @@ interface CurrentReferral {
   percentBps: number
   termMonths: number | null
   hasPercentOverride: boolean
+  hasTermOverride: boolean
+  /** The attributed partner's current default rate — for the "Uses partner
+   *  default — currently X%" helper. */
+  partnerDefaultPercentBps: number
+  partnerDefaultTermMonths: number | null
+  /** True when the attributed partner is archived (closed) — shown as
+   *  "(archived)"; the clinic stays reassignable. */
+  partnerArchived: boolean
 }
 
 /**
@@ -123,11 +131,21 @@ export default function ReferralCard({
               <Link href={`/partners/${current.partnerId}`} className="font-medium text-teal-700 dark:text-teal-400 hover:underline">
                 {current.partnerName}
               </Link>
+              {current.partnerArchived && (
+                <span className="ml-1.5 text-xs text-[color:var(--color-ink-500)]">(archived)</span>
+              )}
             </p>
             <p className="text-gray-500 dark:text-gray-400">
               <span className="font-mono-num">{formatBps(current.percentBps)}</span> of each paid invoice · {formatTerm(current.termMonths)}
-              {current.hasPercentOverride && <span className="text-xs"> (custom rate)</span>}
+              <span className="ml-1.5 text-xs">
+                {current.hasPercentOverride ? '· override' : '· partner default'}
+              </span>
             </p>
+            {!current.hasPercentOverride && (
+              <p className="text-xs text-[color:var(--color-ink-500)]">
+                Tracks the partner’s current default — changes to it apply here automatically.
+              </p>
+            )}
           </div>
         ) : (
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -163,7 +181,9 @@ export default function ReferralCard({
           </div>
           {selectedPartner && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Blank fields fall back to the partner default ({formatBps(selectedPartner.defaultPercentBps)} · {formatTerm(selectedPartner.defaultTermMonths)}).
+              Leave blank (or match it) to use the partner default — currently{' '}
+              {formatBps(selectedPartner.defaultPercentBps)} · {formatTerm(selectedPartner.defaultTermMonths)}.
+              The default applies automatically and follows any future change; enter a value only to lock a custom rate.
             </p>
           )}
           {error && <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>}

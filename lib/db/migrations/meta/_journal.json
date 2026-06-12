@@ -428,6 +428,13 @@
       "when": 1781251734365,
       "tag": "0060_puzzling_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1781340000000,
+      "tag": "0061_busy_silver_sable",
+      "breakpoints": true
     }
   ]
 }

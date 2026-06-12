@@ -32,10 +32,13 @@ export async function refreshPayoutStatusAction(): Promise<{ payoutsEnabled: boo
   return { payoutsEnabled: enabled }
 }
 
-/** Withdraw the accrued balance to the connected account. */
+/** Withdraw the accrued balance to the connected account. Self-serve path:
+ *  `requirePartner` already gates to an ACTIVE partner (suspended/archived
+ *  can't reach here), and `payoutPartner({ selfServe: true })` is a second
+ *  guard that refuses a paused/closed account. */
 export async function withdrawAction(): Promise<{ ok: boolean; error?: string; amountCents?: number }> {
   const { ctx, partner } = await requirePartnerAction()
-  const result = await payoutPartner(partner.id, { initiatedBy: ctx.userId })
+  const result = await payoutPartner(partner.id, { initiatedBy: ctx.userId, selfServe: true })
   revalidatePath('/partner')
   return { ok: result.ok, error: result.error, amountCents: result.amountCents }
 }

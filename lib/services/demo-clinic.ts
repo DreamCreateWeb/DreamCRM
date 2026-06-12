@@ -4198,9 +4198,14 @@ async function seedDemoReferralPartner(orgId: string) {
   if (!partner) return
 
   // Attribute the Acme clinic — ONLY when it has no referral yet (never
-  // overwrite a real assignment a platform admin made).
+  // overwrite a real assignment a platform admin made). Per the live-resolution
+  // semantics, the demo clinic carries NO per-clinic override (NULL) so it
+  // tracks the partner's CURRENT default (10%) — the same path real clinics use.
   const [profile] = await db
-    .select({ referralPartnerId: schema.clinicProfile.referralPartnerId })
+    .select({
+      referralPartnerId: schema.clinicProfile.referralPartnerId,
+      referralPercentBps: schema.clinicProfile.referralPercentBps,
+    })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, orgId))
     .limit(1)
@@ -4209,11 +4214,23 @@ async function seedDemoReferralPartner(orgId: string) {
       .update(schema.clinicProfile)
       .set({
         referralPartnerId: partner.id,
-        referralPercentBps: DEMO_PERCENT_BPS,
+        referralPercentBps: null, // NULL = live-resolve the partner default
         referralTermMonths: null,
         referralStartedAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000), // ~4 months ago
         updatedAt: new Date(),
       })
+      .where(eq(schema.clinicProfile.organizationId, orgId))
+  } else if (
+    profile &&
+    profile.referralPartnerId === partner.id &&
+    profile.referralPercentBps === DEMO_PERCENT_BPS
+  ) {
+    // Self-heal legacy demos seeded before the live-resolution fix: a copied
+    // default (== partner default) collapses to NULL (mirrors migration 0061),
+    // so the demo showcases the "tracks partner default" provenance.
+    await db
+      .update(schema.clinicProfile)
+      .set({ referralPercentBps: null, updatedAt: new Date() })
       .where(eq(schema.clinicProfile.organizationId, orgId))
   }
 
