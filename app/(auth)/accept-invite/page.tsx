@@ -21,7 +21,7 @@ type Step =
   | { type: 'wrongUser'; details: InvitationDetails; signedInAs: string }
   | { type: 'accepting' }
   | { type: 'magicSent'; email: string }
-  | { type: 'success'; orgName: string; isClinic: boolean }
+  | { type: 'success'; orgName: string; isClinic: boolean; toWelcome: boolean }
   | { type: 'error'; message: string; expired?: boolean }
 
 function AcceptInviteInner() {
@@ -82,7 +82,7 @@ function AcceptInviteInner() {
           // Signed in — does the session email match the invite email?
           if (signedInAs.trim().toLowerCase() === details.email.trim().toLowerCase()) {
             setStep({ type: 'accepting' })
-            await acceptNow(details.orgName, details.role, details.orgType === 'clinic')
+            await acceptNow(details)
           } else {
             // Different account — staff invites COULD be accepted by any
             // signed-in user via better-auth, but that's the Bug-2 trap (the
@@ -112,18 +112,27 @@ function AcceptInviteInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  async function acceptNow(orgName: string, role: string, clinic: boolean) {
+  async function acceptNow(details: InvitationDetails) {
+    const orgName = details.orgName
+    const clinic = details.orgType === 'clinic'
+    // Route a clinic owner/admin whose site still needs the AI pass into the
+    // /welcome interview after they accept (the accept-invite cohort's seam into
+    // every-cohort routing). Patients / members / staff just land in their app.
+    const toWelcome =
+      clinic &&
+      (details.role === 'owner' || details.role === 'admin') &&
+      details.siteNeedsPersonalization
     try {
       // Patient invites use a dedicated accept path — better-auth's role set is
       // owner/admin/member only, so claiming a patient invite through it would
       // create a clinic 'member' and drop the patient into the admin dashboard.
-      if (role === 'patient') {
+      if (details.role === 'patient') {
         const r = await acceptPatientPortalInvite(token)
         if (!r.ok) {
           setStep({ type: 'error', message: r.error })
           return
         }
-        setStep({ type: 'success', orgName, isClinic: clinic })
+        setStep({ type: 'success', orgName, isClinic: clinic, toWelcome: false })
         return
       }
       const result = await authClient.organization.acceptInvitation({ invitationId: token })
@@ -142,7 +151,7 @@ function AcceptInviteInner() {
       } catch {
         /* non-fatal */
       }
-      setStep({ type: 'success', orgName, isClinic: clinic })
+      setStep({ type: 'success', orgName, isClinic: clinic, toWelcome })
     } catch (err) {
       if (isDeploymentSkewError(err)) return onSkew()
       setStep({ type: 'error', message: 'Something went wrong accepting your invitation. Refresh to try again.' })
@@ -177,7 +186,7 @@ function AcceptInviteInner() {
       }
 
       setStep({ type: 'accepting' })
-      await acceptNow(details.orgName, details.role, details.orgType === 'clinic')
+      await acceptNow(details)
     } catch (err) {
       if (isDeploymentSkewError(err)) return onSkew()
       setFormError('Something went wrong creating your account. Please try again.')
@@ -204,7 +213,7 @@ function AcceptInviteInner() {
       }
 
       setStep({ type: 'accepting' })
-      await acceptNow(details.orgName, details.role, details.orgType === 'clinic')
+      await acceptNow(details)
     } catch (err) {
       if (isDeploymentSkewError(err)) return onSkew()
       setFormError('Something went wrong signing in. Please try again.')
@@ -520,18 +529,20 @@ function AcceptInviteInner() {
         </div>
         <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">You&apos;re in!</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-          {step.orgName
-            ? step.isClinic
-              ? `Welcome to ${step.orgName}.`
-              : `Welcome to ${step.orgName} on DreamCRM.`
-            : "You've joined successfully."}
+          {step.toWelcome
+            ? `Welcome to ${step.orgName || 'your clinic'}. Let's build your website — answer a few quick questions and we'll draft the whole thing for you.`
+            : step.orgName
+              ? step.isClinic
+                ? `Welcome to ${step.orgName}.`
+                : `Welcome to ${step.orgName} on DreamCRM.`
+              : "You've joined successfully."}
         </p>
         <button
-          onClick={() => window.location.assign('/')}
+          onClick={() => window.location.assign(step.toWelcome ? '/welcome' : '/')}
           className="btn w-full text-white hover:opacity-90 bg-gray-900 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
           style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
         >
-          {step.isClinic ? 'Go to my portal' : 'Go to dashboard'}
+          {step.toWelcome ? 'Build my website with AI →' : step.isClinic ? 'Go to my portal' : 'Go to dashboard'}
         </button>
       </div>
     )

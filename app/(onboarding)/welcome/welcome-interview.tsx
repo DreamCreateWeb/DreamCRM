@@ -83,7 +83,7 @@ export default function WelcomeInterview({
     (nextAnswers: Record<string, string>, nextSlugs: Set<string>, step: number) => {
       void saveInterviewDraftAction({
         answers: nextAnswers,
-        serviceSlugs: [...nextSlugs],
+        serviceSlugs: Array.from(nextSlugs),
         step,
       })
     },
@@ -93,7 +93,7 @@ export default function WelcomeInterview({
   async function runDraft(finalAnswers: Record<string, string>, finalSlugs: Set<string>) {
     setPhase('drafting')
     setError(null)
-    const res = await runOnboardingDraft(finalAnswers, [...finalSlugs])
+    const res = await runOnboardingDraft(finalAnswers, Array.from(finalSlugs))
     if (res.ok) {
       setSkipped(res.skippedFields)
       setPhase('reveal')

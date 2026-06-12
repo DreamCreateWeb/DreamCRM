@@ -146,12 +146,19 @@ export function deriveBrandVoice(answers: Record<string, string>): BrandVoice {
   const audience = (answers.audience ?? '').toLowerCase()
   const positioning = (answers.positioning ?? '').toLowerCase()
   const blob = `${audience} ${positioning}`
-  // Family / pediatric signals win first (warmest register).
-  if (/\b(kid|kids|child|children|pediatric|paediatric|famil|teen|teens)\b/.test(blob)) {
+  // Family / pediatric signals win first (warmest register). The `famil` token
+  // is a STEM (family / families / familiar), so it has no trailing boundary —
+  // `\bfamil\b` could never match "family" (the `l→y` is not a word boundary).
+  if (/\b(?:kids?|child(?:ren)?|p(?:a)?ediatric|teens?|famil\w*)\b/.test(blob)) {
     return 'family'
   }
-  // Cosmetic / high-end signals → the clean "modern" register.
-  if (/\b(cosmetic|veneer|veneers|whiten|whitening|luxur|high-end|aesthetic|smile makeover|implant|implants)\b/.test(blob)) {
+  // Cosmetic / high-end signals → the clean "modern" register. `luxur` is also a
+  // stem (luxury / luxurious).
+  if (
+    /\b(?:cosmetic|veneers?|whiten(?:ing)?|luxur\w*|high-end|aesthetic|smile makeover|implants?)\b/.test(
+      blob,
+    )
+  ) {
     return 'modern'
   }
   return 'warm'

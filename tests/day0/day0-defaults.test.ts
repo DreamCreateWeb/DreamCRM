@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * This file drives the DB-backed pieces against a configurable mock:
  *   - seedClinicDay0Defaults (idempotent, only-fills-null)
  *   - getSlotsForDay (proves seeded hours actually produce bookable slots)
- *   - getActivationChecklist.siteUnfilled (the /welcome re-entry signal)
+ *   - getActivationChecklist.siteNeedsPersonalization (the /welcome re-entry signal)
  */
 
 interface HoursMap {
@@ -90,6 +90,7 @@ vi.mock('@/lib/db', async () => {
 import { seedClinicDay0Defaults, DEFAULT_CLINIC_HOURS } from '@/lib/onboarding/defaults'
 import { getSlotsForDay } from '@/lib/services/booking'
 import { getActivationChecklist } from '@/lib/services/staff-onboarding'
+import { STARTER_TAGLINE } from '@/lib/services/starter-pack'
 
 // A future weekday so generated slots aren't all filtered out as "past".
 function dateKeyForWeekday(targetDow: number): string {
@@ -178,53 +179,70 @@ describe('booking with seeded default hours (the "closed every day" fix)', () =>
   })
 })
 
-describe('getActivationChecklist.siteUnfilled — /welcome re-entry signal', () => {
-  it('true for a fresh clinic (no tagline / about / services)', async () => {
+describe('getActivationChecklist.siteNeedsPersonalization — /welcome re-entry signal', () => {
+  // With the day-0 floor in place a fresh site is never EMPTY, so the signal is
+  // no longer "no tagline/about/services" — it's "interview never completed OR
+  // tagline still the Wave-1 starter constant". The checklist now selects
+  // `tagline` + `onboardingInterviewCompletedAt` (not about/services).
+  it('true for a fresh clinic that still carries the day-0 starter tagline', async () => {
     state.profile = {
       logoUrl: null,
       heroImageUrl: null,
       staff: null,
       hours: null,
       portalSettings: null,
-      tagline: null,
-      about: null,
-      services: null,
+      tagline: STARTER_TAGLINE,
+      onboardingInterviewCompletedAt: null,
     }
     const list = await getActivationChecklist('org_1', 'basic')
-    expect(list.siteUnfilled).toBe(true)
+    expect(list.siteNeedsPersonalization).toBe(true)
   })
 
-  it('false once the site has a tagline', async () => {
+  it('true when the interview was never completed even if a real tagline was hand-written', async () => {
     state.profile = {
       logoUrl: null,
       heroImageUrl: null,
       staff: null,
       hours: null,
       portalSettings: null,
-      tagline: 'Dental care that feels human.',
-      about: null,
-      services: null,
+      tagline: 'We make Austin smile',
+      onboardingInterviewCompletedAt: null,
     }
     const list = await getActivationChecklist('org_1', 'basic')
-    expect(list.siteUnfilled).toBe(false)
+    expect(list.siteNeedsPersonalization).toBe(true)
   })
 
-  it('false once the site has services (even with no tagline/about)', async () => {
+  it('false once the interview is completed AND the tagline is no longer the starter', async () => {
     state.profile = {
       logoUrl: null,
       heroImageUrl: null,
       staff: null,
       hours: null,
       portalSettings: null,
-      tagline: null,
-      about: null,
-      services: [{ id: 'svc1', name: 'Cleanings' }],
+      tagline: 'We make Austin smile',
+      onboardingInterviewCompletedAt: new Date(),
     }
     const list = await getActivationChecklist('org_1', 'basic')
-    expect(list.siteUnfilled).toBe(false)
+    expect(list.siteNeedsPersonalization).toBe(false)
   })
 
-  it('treats whitespace-only tagline/about as unfilled', async () => {
+  it('true when completed but the tagline is STILL the starter (a skip kept the floor)', async () => {
+    // completeInterview stamps completed_at even on a skip; if they never wrote
+    // a real tagline the starter equality keeps it flagged as needs-personalization.
+    state.profile = {
+      logoUrl: null,
+      heroImageUrl: null,
+      staff: null,
+      hours: null,
+      portalSettings: null,
+      tagline: STARTER_TAGLINE,
+      onboardingInterviewCompletedAt: new Date(),
+    }
+    const list = await getActivationChecklist('org_1', 'basic')
+    expect(list.siteNeedsPersonalization).toBe(true)
+  })
+
+  it('treats a blank tagline as still-starter when never completed', async () => {
     state.profile = {
       logoUrl: null,
       heroImageUrl: null,
@@ -232,10 +250,9 @@ describe('getActivationChecklist.siteUnfilled — /welcome re-entry signal', () 
       hours: null,
       portalSettings: null,
       tagline: '   ',
-      about: '\n',
-      services: [],
+      onboardingInterviewCompletedAt: null,
     }
     const list = await getActivationChecklist('org_1', 'basic')
-    expect(list.siteUnfilled).toBe(true)
+    expect(list.siteNeedsPersonalization).toBe(true)
   })
 })
