@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { signIn, authClient } from '@/lib/auth-client'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 
 // If the sign-in fetch ever exceeds this, surface an error so the user
 // isn't stuck staring at "Signing In…". Cold DB cold start should be
@@ -43,7 +44,12 @@ export default function SignInForm() {
       }
       setMode('sent')
       setLoading(false)
-    } catch {
+    } catch (err) {
+      if (isDeploymentSkewError(err)) {
+        setError('We just shipped an update — refreshing…')
+        window.location.reload()
+        return
+      }
       setError('We couldn’t send the link right now. Try again in a moment.')
       setLoading(false)
     }
@@ -86,6 +92,11 @@ export default function SignInForm() {
       window.location.assign(redirectTo)
       // Don't unset loading; we're navigating away.
     } catch (err) {
+      if (isDeploymentSkewError(err)) {
+        setError('We just shipped an update — refreshing…')
+        window.location.reload()
+        return
+      }
       setError((err as Error)?.message ?? 'Unable to sign in')
       setLoading(false)
     }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { signUp } from '@/lib/auth-client'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { saveOnboardingState } from '@/lib/onboarding/storage'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
@@ -69,6 +70,11 @@ export default function SignUpForm() {
       // (otherwise the redirect back to /onboarding-01 may flap).
       window.location.assign('/onboarding-01')
     } catch (err) {
+      if (isDeploymentSkewError(err)) {
+        setError('We just shipped an update — refreshing…')
+        window.location.reload()
+        return
+      }
       const message = (err as Error)?.message ?? 'Unable to create account'
       setError(message)
       setLoading(false)

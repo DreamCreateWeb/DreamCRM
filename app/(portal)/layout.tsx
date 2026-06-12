@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
+import { and, eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
+import { auth } from '@/lib/auth/server'
+import { db, schema } from '@/lib/db'
 import { getPortalSettings } from '@/lib/services/portal-settings'
 import {
   getPortalClinicInfo,
@@ -30,7 +34,19 @@ import DemoBanner from '@/components/ui/demo-banner'
  */
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireTenant()
-  if (ctx.tenantType !== 'patient') redirect('/')
+  // A user can wear several hats (one email = one user). If they land here but
+  // their ACTIVE tenancy isn't patient — e.g. a clinic staffer who is also a
+  // patient at another clinic, with their active org pointed at the clinic they
+  // work at — don't bounce them to `/`. Look for a patient-role membership in
+  // another org and switch their active org to it so the portal resolves, then
+  // re-render. (Same active-org-switch pattern used on sign-in + invite accept.)
+  // Only redirect home when they genuinely have no patient membership anywhere.
+  if (ctx.tenantType !== 'patient') {
+    const patientMembership = await findPatientMembershipForUser(ctx.userId, ctx.organizationId)
+    if (!patientMembership) redirect('/')
+    await switchActiveOrg(patientMembership.organizationId)
+    redirect('/patient/dashboard')
+  }
 
   const clinic = await getPortalClinicInfo(ctx.organizationId)
   const brand = clinic?.brandColor ?? '#9CAF9F'
@@ -190,4 +206,35 @@ export default async function PortalLayout({ children }: { children: React.React
       </div>
     </>
   )
+}
+
+/**
+ * Find a patient-role membership for this user in an org OTHER than the one they
+ * have active (so a clinic staffer who is also a patient can be routed into the
+ * portal). Returns the membership's org, or null if they're a patient nowhere.
+ */
+async function findPatientMembershipForUser(
+  userId: string,
+  activeOrgId: string,
+): Promise<{ organizationId: string } | null> {
+  const memberships = await db
+    .select({ organizationId: schema.member.organizationId, role: schema.member.role })
+    .from(schema.member)
+    .where(eq(schema.member.userId, userId))
+  const patientMemberships = memberships.filter((m) => m.role === 'patient')
+  if (patientMemberships.length === 0) return null
+  // Prefer one that isn't the (non-patient) active org; else just the first.
+  const preferred = patientMemberships.find((m) => m.organizationId !== activeOrgId) ?? patientMemberships[0]
+  return { organizationId: preferred.organizationId }
+}
+
+/** Point the current session at `orgId` so getTenantContext resolves the portal
+ *  tenant on the next request. No-op if there's no session. */
+async function switchActiveOrg(orgId: string): Promise<void> {
+  const sess = await auth.api.getSession({ headers: await headers() })
+  if (!sess?.session) return
+  await db
+    .update(schema.session)
+    .set({ activeOrganizationId: orgId })
+    .where(and(eq(schema.session.id, sess.session.id)))
 }

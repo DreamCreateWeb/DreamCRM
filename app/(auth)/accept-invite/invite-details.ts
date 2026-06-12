@@ -18,6 +18,14 @@ export interface InvitationDetails {
     logoUrl: string | null
     brandColor: string | null
   } | null
+  /**
+   * Account state for the invite email — drives which affordance the accept
+   * page renders (create / password sign-in / magic-link sign-in). One email =
+   * one better-auth user across personas, so an invite whose email already has
+   * an account must NOT show a create-account form that fails "user already
+   * exists" (Bug 2). 'none' for a brand-new email.
+   */
+  accountState: import('@/lib/auth/account-state').AccountState
 }
 
 export async function getInvitationDetails(token: string): Promise<InvitationDetails | null> {
@@ -63,12 +71,19 @@ export async function getInvitationDetails(token: string): Promise<InvitationDet
     }
   }
 
+  // Resolve the invite email's account state so the accept page can offer the
+  // right path (create / password / magic-link) instead of blindly showing a
+  // create-account form that would fail for an email that already has a user.
+  const { resolveAccountState } = await import('@/lib/auth/account-state')
+  const { state: accountState } = await resolveAccountState(row.email)
+
   return {
     email: row.email,
     orgName: (brand?.displayName || org?.name) ?? '',
     role: row.role ?? 'member',
     orgType: org?.type ?? 'clinic',
     brand,
+    accountState,
     // Anything other than a still-pending invitation can't be accepted
     // (accepted / canceled / rejected all count as no-longer-usable), as does
     // a past expiry. better-auth blocks non-pending accepts server-side; this

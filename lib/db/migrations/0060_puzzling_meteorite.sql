@@ -1,0 +1,1 @@
+ALTER TABLE "referral_partner" ADD COLUMN "invite_expires_at" timestamp;

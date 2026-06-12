@@ -28,6 +28,9 @@ import { deliver } from '@/lib/email'
 
 const appUrl = () => process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || 'http://localhost:3000'
 
+/** Partner invite token lifetime — 14 days, matching staff/patient invites. */
+const PARTNER_INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000
+
 /** Whole months elapsed from `start` to `now`. Used for the term check. A
  *  clinic referred on Jan 15 is "0 months in" until Feb 15. */
 export function monthsElapsed(start: Date, now: Date): number {
@@ -112,6 +115,7 @@ export async function createPartner(input: CreatePartnerInput): Promise<CreatePa
     termsNote: input.termsNote?.trim() || null,
     inviteToken: token,
     inviteSentAt: new Date(),
+    inviteExpiresAt: new Date(Date.now() + PARTNER_INVITE_TTL_MS),
   })
 
   await sendPartnerInviteEmail({ to: email, name, token })
@@ -132,7 +136,14 @@ export async function resendPartnerInvite(partnerId: string): Promise<{ email: s
   const token = randomBytes(24).toString('hex')
   await db
     .update(schema.referralPartner)
-    .set({ inviteToken: token, inviteSentAt: new Date(), status: 'invited', updatedAt: new Date() })
+    .set({
+      inviteToken: token,
+      inviteSentAt: new Date(),
+      // Re-sending refreshes the 14-day clock so a re-armed invite is usable.
+      inviteExpiresAt: new Date(Date.now() + PARTNER_INVITE_TTL_MS),
+      status: 'invited',
+      updatedAt: new Date(),
+    })
     .where(eq(schema.referralPartner.id, partnerId))
 
   await sendPartnerInviteEmail({ to: p.email, name: p.name, token })
@@ -674,13 +685,26 @@ export interface PartnerInviteDetails {
   partnerId: string
   name: string
   email: string
-  /** True when this user account already exists (so the page links instead of
-   *  prompting for a new password). */
+  /** True when this partner row is already linked to a user (the invite was
+   *  already accepted). The accept page treats this as "sign in" rather than
+   *  "create account". */
   alreadyLinked: boolean
+  /** True when the invite token has passed its expiry. The accept page shows a
+   *  clean "ask for a fresh invite" message instead of a generic error. */
+  expired: boolean
+  /**
+   * Account state for the invite email — drives which affordance the accept
+   * page renders (create / password sign-in / magic-link sign-in). Resolved
+   * via the shared `resolveAccountState` so partner accepts handle the
+   * one-email-one-user reality (Bug 2). 'none' for a brand-new email.
+   */
+  accountState: import('@/lib/auth/account-state').AccountState
 }
 
 /** Resolve an invite token → partner details for the accept page. Null when
- *  the token is invalid (or already consumed). */
+ *  the token is invalid (no such token). Expiry is reported as a flag (not a
+ *  null) so the page can show "this invite expired — ask for a fresh one"
+ *  rather than the generic "invalid or already used" copy. */
 export async function getPartnerInviteByToken(token: string): Promise<PartnerInviteDetails | null> {
   if (!token) return null
   const [p] = await db
@@ -689,11 +713,24 @@ export async function getPartnerInviteByToken(token: string): Promise<PartnerInv
     .where(eq(schema.referralPartner.inviteToken, token))
     .limit(1)
   if (!p) return null
+
+  // Resolve the invite email's account state so the accept page can offer the
+  // right path (create / password / magic-link) instead of blindly showing a
+  // create-account form that would fail for an existing user.
+  const { resolveAccountState } = await import('@/lib/auth/account-state')
+  const { state: accountState } = await resolveAccountState(p.email)
+
+  // Legacy rows (pre-0060) have a null inviteExpiresAt — treat as not expired
+  // so an invite already in flight isn't broken by the migration.
+  const expired = Boolean(p.inviteExpiresAt && new Date() > p.inviteExpiresAt)
+
   return {
     partnerId: p.id,
     name: p.name,
     email: p.email,
     alreadyLinked: Boolean(p.userId),
+    expired,
+    accountState,
   }
 }
 

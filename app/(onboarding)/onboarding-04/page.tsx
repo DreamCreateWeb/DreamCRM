@@ -6,6 +6,7 @@ import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { submitOnboarding } from '../actions'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { clearOnboardingState, loadOnboardingState } from '@/lib/onboarding/storage'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
@@ -54,6 +55,11 @@ export default function Onboarding04() {
           window.location.assign('/')
         }
       } catch (err) {
+        if (isDeploymentSkewError(err)) {
+          setError('We just shipped an update — refreshing…')
+          window.location.reload()
+          return
+        }
         setError((err as Error).message)
       }
     })
