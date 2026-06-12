@@ -6,6 +6,7 @@ import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { checkClinicSlug, saveOnboardingStep3, type SlugCheckResult } from '../actions'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { loadOnboardingState, saveOnboardingState } from '@/lib/onboarding/storage'
 import { isValidClinicSlug } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -86,6 +87,11 @@ export default function Onboarding03() {
         saveOnboardingState({ slug, brandColor })
         await saveOnboardingStep3({ slug, brandColor })
       } catch (err) {
+        if (isDeploymentSkewError(err)) {
+          setError('We just shipped an update — refreshing…')
+          window.location.reload()
+          return
+        }
         setError((err as Error).message)
       }
     })

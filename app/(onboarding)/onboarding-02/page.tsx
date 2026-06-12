@@ -6,6 +6,7 @@ import OnboardingHeader from '../onboarding-header'
 import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { saveOnboardingStep2 } from '../actions'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { loadOnboardingState, saveOnboardingState } from '@/lib/onboarding/storage'
 import { ActionButton } from '@/components/ui/action-button'
 
@@ -55,6 +56,11 @@ export default function Onboarding02() {
           country,
         })
       } catch (err) {
+        if (isDeploymentSkewError(err)) {
+          setError('We just shipped an update — refreshing…')
+          window.location.reload()
+          return
+        }
         setError((err as Error).message)
       }
     })

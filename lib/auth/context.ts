@@ -88,6 +88,26 @@ async function resolvePartnerContext(
  *
  * Platform admins can set a demo_context cookie to simulate any clinic or
  * patient view without changing their actual session.
+ *
+ * PRECEDENCE (which tenancy "wins" when a single user wears several hats —
+ * one email = one better-auth user across platform/clinic/patient/partner):
+ *   1. demo_context cookie (platformAdmin only) — an explicit "view as".
+ *   2. The active-org membership (`session.activeOrganizationId`), if the user
+ *      is actually a member of it. Platform org → 'platform'; clinic org with
+ *      role 'patient' → 'patient', else → 'clinic'.
+ *   3. The user's FIRST membership (when the active org is stale / unset).
+ *   4. Partner derivation — ONLY when the user has NO org membership at all.
+ *
+ * The catch: a multi-persona user (e.g. a platform admin or clinic staffer who
+ * is ALSO a referral partner) resolves to their MEMBERSHIP tenancy here, so
+ * `tenantType` is never 'partner' for them. That's correct for `/` routing
+ * (their primary home is the dashboard), but it means partner SURFACES must NOT
+ * gate on `tenantType === 'partner'` — they'd lock the multi-persona partner
+ * out of their own portal. Partner pages/actions authorize via
+ * {@link requirePartner} (a direct `referral_partner.user_id` lookup) instead,
+ * which works for every persona. Likewise a staff-member-who-is-also-a-patient
+ * reaches `/patient/*` because the portal layout resolves the patient row by
+ * user_id rather than trusting `tenantType` alone.
  */
 export async function getTenantContext(): Promise<TenantContext | null> {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -265,6 +285,41 @@ export async function requireRole(roles: Role | Role[]): Promise<TenantContext> 
     redirect('/')
   }
   return ctx
+}
+
+/** The active partner row + session ctx, returned by {@link requirePartner}. */
+export interface PartnerSession {
+  ctx: TenantContext
+  partner: import('@/lib/db/schema/referrals').ReferralPartner
+}
+
+/**
+ * Authorize a referral-partner surface (portal pages + partner actions).
+ *
+ * Crucially this does NOT gate on `tenantType === 'partner'`: a user can be a
+ * partner AND a platform admin / clinic staffer at the same time (one email =
+ * one user), in which case `getTenantContext` resolves their MEMBERSHIP tenancy
+ * and `tenantType` is never 'partner'. Gating partner pages on tenantType would
+ * lock those multi-persona partners out of their own portal. Instead we resolve
+ * the partner row directly from the session user id — which works for every
+ * persona — and require it to be active.
+ *
+ * `redirectOnFail` (default true) sends a non-partner / inactive-partner to `/`
+ * (which re-routes by their primary tenancy). Set false in server actions that
+ * prefer to throw.
+ */
+export async function requirePartner(opts: { redirectOnFail?: boolean } = {}): Promise<PartnerSession> {
+  const ctx = await requireTenant()
+  const { getPartnerByUserId } = await import('@/lib/services/referrals')
+  const partner = await getPartnerByUserId(ctx.userId)
+  if (!partner || partner.status !== 'active') {
+    if (opts.redirectOnFail === false) {
+      throw new Error('Forbidden: active partner account required')
+    }
+    const { redirect } = await import('next/navigation')
+    redirect('/')
+  }
+  return { ctx, partner: partner as import('@/lib/db/schema/referrals').ReferralPartner }
 }
 
 /**

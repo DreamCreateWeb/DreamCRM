@@ -42,6 +42,11 @@ export const referralPartner = pgTable('referral_partner', {
   // Crypto-random invite token + when it was sent. Cleared once accepted.
   inviteToken: text('invite_token'),
   inviteSentAt: timestamp('invite_sent_at'),
+  // When the invite token stops being acceptable (14 days from issue, matching
+  // staff/patient invites). Null = no expiry recorded (legacy rows pre-0060 —
+  // treated as still valid so an in-flight invite isn't broken by the
+  // migration). Re-sending the invite refreshes this.
+  inviteExpiresAt: timestamp('invite_expires_at'),
   // The better-auth user this partner signs in as. Set on accept. onDelete
   // 'set null' so deleting a user doesn't orphan the commission ledger.
   userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),

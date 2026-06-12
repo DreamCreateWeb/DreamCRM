@@ -6,6 +6,7 @@ import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { saveOnboardingStep1 } from '../actions'
 import { loadOnboardingState, saveOnboardingState } from '@/lib/onboarding/storage'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { ActionButton } from '@/components/ui/action-button'
 
 export default function Onboarding01() {
@@ -29,6 +30,11 @@ export default function Onboarding01() {
         saveOnboardingState({ practiceName: practiceName.trim(), phone: phone.trim() || undefined })
         await saveOnboardingStep1({ practiceName: practiceName.trim(), phone: phone.trim() || undefined })
       } catch (err) {
+        if (isDeploymentSkewError(err)) {
+          setError('We just shipped an update — refreshing…')
+          window.location.reload()
+          return
+        }
         setError((err as Error).message)
       }
     })

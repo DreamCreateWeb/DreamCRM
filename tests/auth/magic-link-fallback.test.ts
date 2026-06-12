@@ -147,6 +147,16 @@ describe('maybeSendPortalInviteForMagicLink', () => {
   it('returns false on an empty email', async () => {
     expect(await maybeSendPortalInviteForMagicLink('')).toBe(false)
   })
+
+  it('a partner-only email (no user, no patient row) returns false WITHOUT throwing', async () => {
+    // A magic-link request for an email that matches only a referral_partner
+    // invite (no user, no patient row) must not 500 — this fallback only looks
+    // at patient rows, so it returns false and the normal magic link no-ops.
+    stub.user = null
+    stub.patient = null
+    await expect(maybeSendPortalInviteForMagicLink('partner@example.com')).resolves.toBe(false)
+    expect(sendPatientPortalInviteEmail).not.toHaveBeenCalled()
+  })
 })
 
 describe('resolveDefaultActiveOrg', () => {

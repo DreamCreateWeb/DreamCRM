@@ -10,10 +10,13 @@ const stubs = {
   },
   org: null as null | { name: string; type?: string },
   clinicProfile: null as null | { displayName: string | null; logoUrl: string | null; brandColor: string | null },
+  // Account-state resolution (user + credential account row) — default empty.
+  user: null as null | { id: string },
+  account: null as null | { id: string },
 }
 
 vi.mock('@/lib/db', async () => {
-  const { invitation, organization } = await import('@/lib/db/schema/auth')
+  const { invitation, organization, user, account } = await import('@/lib/db/schema/auth')
   const { clinicProfile } = await import('@/lib/db/schema/platform')
   const chain = (fn: () => unknown) => {
     const obj: any = {}
@@ -25,11 +28,19 @@ vi.mock('@/lib/db', async () => {
             ? 'organization'
             : table === clinicProfile
               ? 'clinicProfile'
-              : 'unknown'
+              : table === user
+                ? 'user'
+                : table === account
+                  ? 'account'
+                  : 'unknown'
       return obj
     }
     obj.where = () => obj
     obj.limit = async () => {
+      // resolveAccountState (called by getInvitationDetails) queries user +
+      // account; default them empty → accountState 'none' unless a test sets them.
+      if (obj._table === 'user') return stubs.user ? [stubs.user] : []
+      if (obj._table === 'account') return stubs.account ? [stubs.account] : []
       const out =
         obj._table === 'invitation'
           ? stubs.invitation
@@ -49,6 +60,8 @@ beforeEach(() => {
   stubs.invitation = null
   stubs.org = null
   stubs.clinicProfile = null
+  stubs.user = null
+  stubs.account = null
 })
 
 describe('getInvitationDetails', () => {
@@ -126,6 +139,8 @@ describe('getInvitationDetails', () => {
       expired: false,
       orgType: 'platform',
       brand: null,
+      // No user/account rows match in the mocked db → 'none' (create-account).
+      accountState: 'none',
     })
   })
 
@@ -174,5 +189,41 @@ describe('getInvitationDetails', () => {
     stubs.org = null
     const result = await getInvitationDetails('tok')
     expect(result?.orgName).toBe('')
+  })
+
+  describe('accountState resolution', () => {
+    const pending = {
+      email: 'a@x.com',
+      role: 'member',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86400_000),
+      orgId: 'org_1',
+    }
+
+    it("'none' when no user exists for the invite email", async () => {
+      stubs.invitation = pending
+      stubs.org = { name: 'Acme' }
+      stubs.user = null
+      const result = await getInvitationDetails('tok')
+      expect(result?.accountState).toBe('none')
+    })
+
+    it("'password' when a user exists WITH a credential account row", async () => {
+      stubs.invitation = pending
+      stubs.org = { name: 'Acme' }
+      stubs.user = { id: 'u1' }
+      stubs.account = { id: 'acct_cred' } // credential row present
+      const result = await getInvitationDetails('tok')
+      expect(result?.accountState).toBe('password')
+    })
+
+    it("'magic-link' when a user exists but has NO credential row", async () => {
+      stubs.invitation = pending
+      stubs.org = { name: 'Acme' }
+      stubs.user = { id: 'u1' }
+      stubs.account = null // no credential row → magic-link-only
+      const result = await getInvitationDetails('tok')
+      expect(result?.accountState).toBe('magic-link')
+    })
   })
 })

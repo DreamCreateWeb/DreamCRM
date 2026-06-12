@@ -1,9 +1,25 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { requestPasswordReset } from '@/lib/auth-client'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+
+/** Only accept a same-origin relative path as the post-reset return target, so
+ *  ?next= can't be turned into an open redirect. */
+function safeNext(raw: string | null): string {
+  if (!raw) return '/signin'
+  // Must be a root-relative path (not "//evil.com" or "https://…").
+  if (!raw.startsWith('/') || raw.startsWith('//')) return '/signin'
+  return raw
+}
 
 export default function ResetForm() {
+  const params = useSearchParams()
+  // Threaded by the accept pages' "forgot password" link so a reset started
+  // from an invite returns the user to the accept URL afterwards.
+  const next = safeNext(params.get('next'))
+
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -13,16 +29,26 @@ export default function ResetForm() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const { error: err } = await requestPasswordReset({
-      email,
-      redirectTo: '/signin',
-    })
-    setLoading(false)
-    if (err) {
-      setError(err.message ?? 'Unable to send reset link')
-      return
+    try {
+      const { error: err } = await requestPasswordReset({
+        email,
+        redirectTo: next,
+      })
+      setLoading(false)
+      if (err) {
+        setError(err.message ?? 'Unable to send reset link')
+        return
+      }
+      setSent(true)
+    } catch (caught) {
+      if (isDeploymentSkewError(caught)) {
+        setError('We just shipped an update — refreshing…')
+        window.location.reload()
+        return
+      }
+      setLoading(false)
+      setError('Unable to send reset link. Try again in a moment.')
     }
-    setSent(true)
   }
 
   if (sent) {

@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { requireTenant } from '@/lib/auth/context'
+import { requirePartner } from '@/lib/auth/context'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 import PartnerSignOut from './partner/sign-out'
 
@@ -16,11 +15,14 @@ export const dynamic = 'force-dynamic'
  *
  * The /partner/accept page lives OUTSIDE this layout's gate (it's in its own
  * segment that doesn't requireTenant — a brand-new partner has no session yet).
+ *
+ * Authorizes via {@link requirePartner} (a direct referral_partner.user_id
+ * lookup), NOT `tenantType === 'partner'` — so a partner who is ALSO a platform
+ * admin or clinic staffer can still reach their portal (their membership
+ * tenancy would otherwise win in getTenantContext).
  */
 export default async function PartnerLayout({ children }: { children: React.ReactNode }) {
-  const ctx = await requireTenant()
-  // Non-partners never belong here. Send them home (which re-routes by tenant).
-  if (ctx.tenantType !== 'partner') redirect('/')
+  const { partner } = await requirePartner()
 
   return (
     <div className="v2-app min-h-screen bg-[color:var(--color-canvas)] text-gray-900 dark:text-gray-100">
@@ -29,7 +31,7 @@ export default async function PartnerLayout({ children }: { children: React.Reac
           <DreamCreateLogo size={26} />
           <div className="flex items-center gap-3">
             <span className="hidden sm:inline text-sm text-gray-600 dark:text-gray-400">
-              {ctx.organizationName}
+              {partner.name}
             </span>
             <PartnerSignOut />
           </div>

@@ -4,18 +4,6 @@ import React from 'react'
 
 let ctx: { tenantType: string; userId: string; organizationName: string } | null = null
 
-vi.mock('@/lib/auth/context', () => ({
-  requireTenant: vi.fn(async () => {
-    if (!ctx) throw new Error('no ctx')
-    return ctx
-  }),
-}))
-vi.mock('next/navigation', () => ({
-  redirect: (url: string) => {
-    throw new Error(`REDIRECT:${url}`)
-  },
-}))
-
 const svc = vi.hoisted(() => ({
   getPartnerByUserId: vi.fn(),
   getReferredClinics: vi.fn(async () => [] as unknown[]),
@@ -23,6 +11,25 @@ const svc = vi.hoisted(() => ({
   listPayouts: vi.fn(async () => [] as unknown[]),
   refreshPayoutStatus: vi.fn(async () => false),
   getPayoutMethodLabel: vi.fn(async () => null),
+}))
+
+vi.mock('@/lib/auth/context', () => ({
+  // requirePartner authorizes by partner-row lookup (not tenantType). Mirror
+  // that here: resolve the partner via getPartnerByUserId, redirect when none/
+  // inactive (the new gate), and return { ctx, partner } on success.
+  requirePartner: vi.fn(async () => {
+    if (!ctx) throw new Error('no ctx')
+    const partner = await svc.getPartnerByUserId(ctx.userId)
+    if (!partner || partner.status === 'suspended') {
+      throw new Error('REDIRECT:/')
+    }
+    return { ctx, partner }
+  }),
+}))
+vi.mock('next/navigation', () => ({
+  redirect: (url: string) => {
+    throw new Error(`REDIRECT:${url}`)
+  },
 }))
 vi.mock('@/lib/services/referrals', () => ({
   getPartnerByUserId: svc.getPartnerByUserId,
@@ -46,6 +53,7 @@ import PartnerDashboard from '@/app/(partner)/partner/page'
 const basePartner = {
   id: 'p1',
   name: 'Jordan Reyes',
+  status: 'active',
   defaultPercentBps: 1000,
   defaultTermMonths: null,
   termsNote: null,
@@ -106,8 +114,11 @@ describe('partner portal dashboard', () => {
     expect(withdraw).not.toBeDisabled()
   })
 
-  it('non-partner tenant is redirected away', async () => {
+  it('a user with no active partner row is redirected away (even a clinic tenant)', async () => {
+    // Authorization is by partner-row lookup now, not tenantType — a non-partner
+    // (no row) is redirected regardless of their tenant.
     ctx = { tenantType: 'clinic', userId: 'u1', organizationName: 'X' }
+    svc.getPartnerByUserId.mockResolvedValue(undefined)
     await expect(PartnerDashboard({ searchParams: Promise.resolve({}) })).rejects.toThrow(/REDIRECT:\//)
   })
 })

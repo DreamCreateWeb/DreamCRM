@@ -132,4 +132,23 @@ describe('acceptPatientPortalInvite', () => {
     expect(updates.some((u) => u.table === 'session' && u.values.activeOrganizationId === 'org_1')).toBe(true)
     expect(updates.some((u) => u.table === 'invitation' && u.values.status === 'accepted')).toBe(true)
   })
+
+  it('rejects an expired invitation (no membership, no mutation)', async () => {
+    session.current = { user: { id: 'u_1', email: 'real.patient@x.com' }, session: { id: 's_1' } }
+    stubs.invitation = { ...pendingPatientInvite('real.patient@x.com'), expiresAt: new Date(Date.now() - 1000) }
+    stubs.organization = { type: 'clinic' }
+    const res = await acceptPatientPortalInvite('invite_tok')
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/no longer valid/i)
+    expect(inserts).toHaveLength(0)
+  })
+
+  it('rejects an already-accepted (non-pending) invitation', async () => {
+    session.current = { user: { id: 'u_1', email: 'real.patient@x.com' }, session: { id: 's_1' } }
+    stubs.invitation = { ...pendingPatientInvite('real.patient@x.com'), status: 'accepted' }
+    stubs.organization = { type: 'clinic' }
+    const res = await acceptPatientPortalInvite('invite_tok')
+    expect(res.ok).toBe(false)
+    expect(inserts).toHaveLength(0)
+  })
 })

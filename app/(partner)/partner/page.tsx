@@ -4,8 +4,7 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-import { redirect } from 'next/navigation'
-import { requireTenant } from '@/lib/auth/context'
+import { requirePartner } from '@/lib/auth/context'
 import {
   getPartnerByUserId,
   getReferredClinics,
@@ -40,11 +39,9 @@ export default async function PartnerDashboard({
 }: {
   searchParams: Promise<{ connect?: string }>
 }) {
-  const ctx = await requireTenant()
-  if (ctx.tenantType !== 'partner') redirect('/')
-
-  const partner = await getPartnerByUserId(ctx.userId)
-  if (!partner) redirect('/')
+  // Authorize by partner-row lookup (not tenantType) so a partner who is also a
+  // platform admin / clinic staffer can still see their portal.
+  const { ctx, partner } = await requirePartner()
 
   // Returning from (or refreshing) Stripe onboarding → re-pull payout status.
   const { connect } = await searchParams

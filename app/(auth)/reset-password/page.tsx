@@ -3,6 +3,7 @@ export const metadata = {
   description: 'Page description',
 }
 
+import { Suspense } from 'react'
 import AuthHeader from '../auth-header'
 import AuthImage from '../auth-image'
 import ResetForm from './reset-form'
@@ -21,7 +22,9 @@ export default function ResetPassword() {
 
             <div className="max-w-sm mx-auto w-full px-4 py-8">
               <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">Reset your Password</h1>
-              <ResetForm />
+              <Suspense fallback={null}>
+                <ResetForm />
+              </Suspense>
             </div>
 
           </div>
