@@ -1,66 +1,24 @@
-import { notFound } from 'next/navigation'
-import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
-import { getShopConfig } from '@/lib/services/shop'
-import { listActivePlans } from '@/lib/services/membership'
-import BlogChrome from '@/components/clinic-site/blog-chrome'
-import ScrollReveal from '@/components/clinic-site/scroll-reveal'
-import MembershipJoin from './membership-join'
+import { permanentRedirect } from 'next/navigation'
+import { resolveSiteBasePath } from '@/lib/services/clinic-site'
 
 interface Props {
   params: Promise<{ slug: string }>
 }
 
-export async function generateMetadata({ params }: Props) {
-  const { slug } = await params
-  const data = await getClinicSiteBySlug(slug)
-  if (!data) return {}
-  const name = data.profile.displayName ?? data.orgName
-  const url = `${publicSiteUrl(data)}/membership`
-  const title = `Membership — ${name}`
-  const description = `No insurance? Join the ${name} membership plan — preventive care covered plus savings on treatment.`
-  return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, type: 'website' } }
-}
-
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-
+/**
+ * `/membership` is deduped into `/dental-plans` — the canonical public page for
+ * the membership flow (Tend's "Dental Plans" nav voice). Both used to render
+ * the same `MembershipJoin` component; keeping two live URLs split SEO signal
+ * and risked drift. This route now 308s (permanent) to `/dental-plans` so old
+ * links + the canonical page converge on one URL. The `MembershipJoin` client
+ * component + `startMembershipCheckout` action still live here and are imported
+ * by `/dental-plans`.
+ *
+ * `permanentRedirect` issues an HTTP 308 (method-preserving permanent), which
+ * is what we want for a moved page (vs `redirect`'s 307).
+ */
 export default async function ClinicMembershipPage({ params }: Props) {
   const { slug } = await params
-  const data = await getClinicSiteBySlug(slug)
-  if (!data) notFound()
-  const config = await getShopConfig(data.orgId)
-  if (!config.membershipEnabled) notFound()
-  const plans = await listActivePlans(data.orgId)
-  // Mirror /dental-plans: with membership enabled but zero active plans there's
-  // nothing to join, so 404 rather than render an empty join form.
-  if (plans.length === 0) notFound()
-
   const basePath = await resolveSiteBasePath(slug)
-  const brand = data.profile.brandColor ?? '#9CAF9F'
-  const name = data.profile.displayName ?? data.orgName
-
-  return (
-    <BlogChrome data={data} basePath={basePath}>
-      <div className="max-w-[900px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
-        <div className="text-center mb-12 sm:mb-14">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] mb-5" style={{ color: brand }}>
-            Membership
-          </p>
-          <h1
-            className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.04] tracking-[-0.015em] mb-5"
-            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
-          >
-            No insurance? No problem.
-          </h1>
-          <p className="text-lg sm:text-xl leading-[1.55] mt-3 max-w-[600px] mx-auto" style={{ color: INK_MUTED }}>
-            Join the {name} membership plan — your preventive care is covered, plus you save on any other treatment you
-            need. No deductibles, no claim forms, no waiting periods.
-          </p>
-        </div>
-        <ScrollReveal>
-          <MembershipJoin slug={slug} brand={brand} plans={plans} />
-        </ScrollReveal>
-      </div>
-    </BlogChrome>
-  )
+  permanentRedirect(`${basePath}/dental-plans`)
 }

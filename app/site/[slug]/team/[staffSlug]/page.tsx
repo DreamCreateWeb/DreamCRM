@@ -12,7 +12,8 @@ import type {
   ClinicService,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { personJsonLd as buildPersonJsonLd, breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   staffInitials,
   staffSlug as resolveStaffSlug,
@@ -115,6 +116,9 @@ export default async function StaffDetailPage({ params }: Props) {
   const { profile } = data
   const clinicName = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const defaultBookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   // Per-staff override beats the page-level default — some clinics route
@@ -149,20 +153,28 @@ export default async function StaffDetailPage({ params }: Props) {
 
   // Person JSON-LD — schema.org/Person worksFor → Dentist (the clinic).
   // Strong people-search signal: lets Google connect "Dr. Jordan Reyes Austin"
-  // searches directly to the clinic's staff page.
-  const personJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Person',
-    name: staff.name,
-    ...(staff.title ? { jobTitle: staff.title } : {}),
-    ...(staff.photoUrl ? { image: staff.photoUrl } : {}),
-    ...(staff.bio ? { description: staff.bio } : {}),
-    worksFor: {
-      '@type': 'Dentist',
-      name: clinicName,
-      url: publicSiteUrl(data),
+  // searches directly to the clinic's staff page. `mainEntityOfPage` + `url`
+  // mark this Person as the page's primary entity.
+  const siteUrl = publicSiteUrl(data)
+  const pageUrl = `${siteUrl}/team/${resolveStaffSlug(staff)}`
+  const personJsonLd = buildPersonJsonLd(
+    {
+      name: staff.name,
+      url: pageUrl,
+      jobTitle: staff.title ?? null,
+      description: staff.bio ?? null,
+      image: staff.photoUrl ?? null,
     },
-  }
+    { name: clinicName, url: siteUrl },
+    pageUrl,
+  )
+
+  // BreadcrumbList: Home › Team › {name}.
+  const breadcrumbLd = breadcrumbJsonLd([
+    { name: 'Home', url: siteUrl },
+    { name: 'Our Team', url: `${siteUrl}/team` },
+    { name: staff.name },
+  ])
 
   return (
     <div
@@ -176,6 +188,10 @@ export default async function StaffDetailPage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
       <SiteHeader
         data={data}
@@ -219,7 +235,7 @@ export default async function StaffDetailPage({ params }: Props) {
                       className="w-full h-full flex items-center justify-center text-6xl font-bold"
                       style={{
                         background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
-                        color: brand,
+                        color: headingInk,
                       }}
                       aria-label={staff.name}
                     >
@@ -236,13 +252,13 @@ export default async function StaffDetailPage({ params }: Props) {
                 <a
                   href={`${basePath}/team`}
                   className="inline-flex items-center gap-1 text-sm font-semibold mb-4 transition hover:gap-2"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                 >
                   <span aria-hidden="true">←</span> Back to team
                 </a>
                 <h1
                   className="text-[30px] sm:text-[42px] lg:text-[56px] font-semibold leading-[1.05] tracking-[-0.015em] mb-3"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
                   {staff.name}
                 </h1>
@@ -287,12 +303,12 @@ export default async function StaffDetailPage({ params }: Props) {
           <section className="py-16 sm:py-20" style={{ backgroundColor: SURFACE }}>
             <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
               <ScrollReveal className="max-w-[640px] mb-8">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: brand }}>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: headingInk }}>
                   Focus areas
                 </p>
                 <h2
                   className="text-2xl sm:text-3xl font-semibold leading-[1.1]"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
                   What {firstName(staff.name)} specializes in.
                 </h2>
@@ -330,7 +346,7 @@ export default async function StaffDetailPage({ params }: Props) {
                   border: `1px solid ${BORDER}`,
                 }}
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: brand }}>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: headingInk }}>
                   Outside the office
                 </p>
                 <p
@@ -349,12 +365,12 @@ export default async function StaffDetailPage({ params }: Props) {
           <section className="py-16 sm:py-24" style={{ backgroundColor: SURFACE }}>
             <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
               <ScrollReveal className="text-center max-w-[640px] mx-auto mb-12 sm:mb-14">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: brand }}>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-3" style={{ color: headingInk }}>
                   Meet the team
                 </p>
                 <h2
                   className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.1] tracking-[-0.015em]"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
                   More people who&rsquo;ll take care of you.
                 </h2>
@@ -388,7 +404,7 @@ export default async function StaffDetailPage({ params }: Props) {
                               className="w-full h-full flex items-center justify-center text-4xl font-bold"
                               style={{
                                 background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
-                                color: brand,
+                                color: headingInk,
                               }}
                               aria-label={s.name}
                             >
@@ -409,7 +425,7 @@ export default async function StaffDetailPage({ params }: Props) {
                         )}
                         <span
                           className="inline-flex items-center gap-1 text-sm font-semibold transition-all duration-300 group-hover:gap-2"
-                          style={{ color: brand }}
+                          style={{ color: headingInk }}
                         >
                           More <span aria-hidden="true">→</span>
                         </span>

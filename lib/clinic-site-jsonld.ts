@@ -256,10 +256,13 @@ export function dentalPlansJsonLd(input: {
   plans: Array<{
     name: string
     priceCents: number
-    billingInterval: 'month' | 'year' | string
+    /** Accepts the membership `'monthly' | 'annual'` shape (and the bare
+     *  `'month' | 'year'`) — anything year-ish maps to a YEAR billing unit. */
+    billingInterval: string
     description?: string | null
   }>
 }): Record<string, unknown> {
+  const isYear = (i: string) => i === 'annual' || i === 'year' || i === 'yearly'
   return {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
@@ -280,7 +283,7 @@ export function dentalPlansJsonLd(input: {
           priceCurrency: 'USD',
           billingDuration: 1,
           billingIncrement: 1,
-          unitText: p.billingInterval === 'year' ? 'YEAR' : 'MONTH',
+          unitText: isYear(p.billingInterval) ? 'YEAR' : 'MONTH',
         },
         seller: { '@type': 'Dentist', name: input.clinicName, url: input.url },
       },

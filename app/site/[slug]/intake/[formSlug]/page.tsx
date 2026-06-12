@@ -7,6 +7,7 @@ import {
 import { getFormTemplateBySlug } from '@/lib/services/forms'
 import type { FormTemplateSchema } from '@/lib/types/forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import { readableInk } from '@/lib/clinic-site-theme'
 import IntakeFormRunner from './intake-form-runner'
 import { submitIntakeForm } from './actions'
 
@@ -41,6 +42,9 @@ export default async function IntakeFormPage({ params }: Props) {
 
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const basePath = await resolveSiteBasePath(slug)
   const schema = template.schema as FormTemplateSchema
 
@@ -89,13 +93,13 @@ export default async function IntakeFormPage({ params }: Props) {
           <div className="mb-10 text-center">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               Patient intake
             </p>
             <h1
               className="text-[30px] sm:text-[42px] lg:text-[56px] font-semibold leading-[1.06] tracking-[-0.015em] mb-4"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               {template.title}
             </h1>

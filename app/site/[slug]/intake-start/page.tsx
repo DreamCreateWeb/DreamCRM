@@ -7,7 +7,7 @@ import {
 } from '@/lib/services/clinic-site'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { auth } from '@/lib/auth/server'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
 import IntakeStartForm from './intake-start-form'
 
 interface Props {
@@ -64,6 +64,9 @@ export default async function IntakeStartPage({ params }: Props) {
   const profile = data.profile
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
 
   return (
     <div
@@ -105,13 +108,13 @@ export default async function IntakeStartPage({ params }: Props) {
           <div className="text-center mb-8">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               Patient intake
             </p>
             <h1
               className="text-[32px] sm:text-[40px] lg:text-[44px] font-semibold leading-[1.06] tracking-[-0.015em] mb-4"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Save your intake to your account.
             </h1>

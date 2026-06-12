@@ -3,6 +3,7 @@ import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-
 import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
 import { formatCents } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
+import { readableInk } from '@/lib/clinic-site-theme'
 import ClearCart from '../clear-cart'
 
 const INK = '#1C1A17'
@@ -22,6 +23,9 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
   if (!data) notFound()
 
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const basePath = await resolveSiteBasePath(slug)
   let paid = false
   let totalCents = 0
@@ -51,7 +55,7 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
         </div>
         <h1
           className="text-[32px] sm:text-[44px] lg:text-[52px] font-semibold leading-[1.06] tracking-[-0.015em] mt-7"
-          style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+          style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
         >
           {paid ? 'Thank you — your order is confirmed!' : 'Thanks — we’re processing your order'}
         </h1>
@@ -66,7 +70,7 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
         <a
           href={`${basePath}/shop`}
           className="inline-flex items-center gap-1.5 mt-7 text-[15px] font-semibold transition-all duration-300 hover:gap-2.5"
-          style={{ color: brand }}
+          style={{ color: headingInk }}
         >
           Continue shopping <span aria-hidden="true">→</span>
         </a>

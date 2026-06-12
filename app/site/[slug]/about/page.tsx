@@ -15,10 +15,13 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { aboutOrganizationJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   firstSentence,
+  afterFirstSentence,
   staffInitials,
+  staffSlug,
   buildClinicNavLinks,
   navServicesFromClinicServices,
   copyOverride,
@@ -93,6 +96,9 @@ export default async function AboutPage({ params }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
@@ -110,12 +116,37 @@ export default async function AboutPage({ params }: Props) {
   })
 
   const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
+  // The hero subhead already shows `firstSentence(about)`; the Story section
+  // below shows the REMAINDER so the first line isn't printed twice. When about
+  // is a single sentence there's no remainder → the Story section hides.
+  const aboutRest = profile.about ? afterFirstSentence(profile.about) : ''
   const stats: ClinicStat[] = ((profile.stats as ClinicStat[] | null) ?? []).slice(0, 4)
   const testimonials: ClinicTestimonial[] =
     ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 50)
   const officePhotos: ClinicOfficePhoto[] =
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
+
+  // Dentist/Organization JSON-LD enumerating the team as Person members — the
+  // About-page variant of the homepage's primary Dentist node. Staff URLs deep-
+  // link to their /team/[slug] detail pages.
+  const siteUrl = publicSiteUrl(data)
+  const aboutLd = aboutOrganizationJsonLd(
+    {
+      name,
+      url: siteUrl,
+      description: profile.about ?? profile.tagline ?? null,
+      logo: profile.logoUrl ?? null,
+    },
+    staff.map((s) => {
+      const sslug = staffSlug(s)
+      return {
+        name: s.name,
+        jobTitle: s.title ?? null,
+        url: sslug ? `${siteUrl}/team/${sslug}` : null,
+      }
+    }),
+  )
 
   return (
     <div
@@ -126,6 +157,10 @@ export default async function AboutPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutLd) }}
+      />
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -150,7 +185,7 @@ export default async function AboutPage({ params }: Props) {
           </p>
           <h1
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
-            style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             data-edit-field="copy:about.heroTitle"
             data-edit-kind="text"
             data-edit-label="headline"
@@ -190,7 +225,10 @@ export default async function AboutPage({ params }: Props) {
       </section>
 
       {/* ── Story ──────────────────────────────────────────────────────── */}
-      {profile.about && (
+      {/* Body shows everything AFTER the hero's first-sentence subhead, so the
+          opening line isn't duplicated. Hidden entirely for a one-sentence
+          about (the hero already carried it). */}
+      {aboutRest && (
         <section
           className="py-14 sm:py-24"
           style={{ backgroundColor: SURFACE }}
@@ -203,7 +241,7 @@ export default async function AboutPage({ params }: Props) {
               <ScrollReveal className="lg:col-span-4">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em]"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                 >
                   Our story
                 </p>
@@ -213,7 +251,7 @@ export default async function AboutPage({ params }: Props) {
                   className="text-xl sm:text-2xl leading-[1.55] whitespace-pre-wrap font-medium"
                   style={{ color: INK }}
                 >
-                  {profile.about}
+                  {aboutRest}
                 </p>
               </ScrollReveal>
             </div>
@@ -254,7 +292,7 @@ export default async function AboutPage({ params }: Props) {
                   <li key={s.id} className="text-center px-6 py-7 sm:py-9" style={{ borderColor: BORDER }}>
                     <div
                       className="text-[34px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
-                      style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                      style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                     >
                       {s.value}
                     </div>
@@ -285,13 +323,13 @@ export default async function AboutPage({ params }: Props) {
             <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14 text-center mx-auto">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 Our team
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:about.teamTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -336,7 +374,7 @@ export default async function AboutPage({ params }: Props) {
                           className="w-full h-full flex items-center justify-center text-5xl font-semibold"
                           style={{
                             background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
-                            color: brand,
+                            color: headingInk,
                             fontFamily: 'var(--font-display, Georgia, serif)',
                           }}
                           aria-label={s.name}
@@ -384,13 +422,13 @@ export default async function AboutPage({ params }: Props) {
             <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 Inside the office
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:about.officeTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -445,13 +483,13 @@ export default async function AboutPage({ params }: Props) {
             <ScrollReveal className="max-w-[640px] mb-10 sm:mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 In their words
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:about.testimonialsTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"

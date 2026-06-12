@@ -10,7 +10,7 @@ import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
 import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -92,6 +92,9 @@ export default async function ClinicCareersPage({ params }: Props) {
 
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const name = data.profile.displayName ?? data.orgName
   const copyOverrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
   const [jobs, publishedPosts, membershipPlans] = await Promise.all([
@@ -149,7 +152,7 @@ export default async function ClinicCareersPage({ params }: Props) {
             <ScrollReveal>
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
                 data-edit-field="copy:careers.heroEyebrow"
                 data-edit-kind="text"
                 data-edit-label="eyebrow"
@@ -158,7 +161,7 @@ export default async function ClinicCareersPage({ params }: Props) {
               </p>
               <h1
                 className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:careers.heroTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -222,13 +225,13 @@ export default async function ClinicCareersPage({ params }: Props) {
             <ScrollReveal className="mb-10 text-center">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 Open positions
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 We&rsquo;re hiring for these roles.
               </h2>
@@ -280,7 +283,7 @@ export default async function ClinicCareersPage({ params }: Props) {
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px]" style={{ color: INK_MUTED }}>
                               <span
                                 className="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold"
-                                style={{ backgroundColor: `${brand}1A`, color: brand }}
+                                style={{ backgroundColor: `${brand}1A`, color: headingInk }}
                               >
                                 {ROLE_LABELS[j.role]}
                               </span>
@@ -298,7 +301,7 @@ export default async function ClinicCareersPage({ params }: Props) {
                           </span>
                           <span
                             className="shrink-0 sm:hidden text-2xl leading-none transition-transform duration-300 group-hover:translate-x-1"
-                            style={{ color: brand }}
+                            style={{ color: headingInk }}
                             aria-hidden="true"
                           >
                             →

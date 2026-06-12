@@ -10,7 +10,8 @@ import { getOpenJobs } from '@/lib/services/careers'
 import { getShopConfig } from '@/lib/services/shop'
 import { listActivePlans } from '@/lib/services/membership'
 import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { dentalPlansJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -106,10 +107,24 @@ export default async function DentalPlansPage({ params }: Props) {
   const name = profile.displayName ?? data.orgName
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows/glyphs.
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
   const signIn = `${appBaseUrl()}/signin`
+
+  // Offer JSON-LD — each active membership plan as a recurring Offer.
+  const plansLd = dentalPlansJsonLd({
+    url: `${publicSiteUrl(data)}/dental-plans`,
+    clinicName: name,
+    plans: plans.map((p) => ({
+      name: p.name,
+      priceCents: p.priceCents,
+      billingInterval: p.billingInterval,
+      description: p.description ?? null,
+    })),
+  })
 
   const navLinks = buildClinicNavLinks({
     basePath,
@@ -132,6 +147,10 @@ export default async function DentalPlansPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(plansLd) }}
+      />
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -157,7 +176,7 @@ export default async function DentalPlansPage({ params }: Props) {
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
               style={{
-                color: brand,
+                color: headingInk,
                 fontFamily: 'var(--font-display, Georgia, serif)',
               }}
               data-edit-field="copy:dentalPlans.heroTitle"
@@ -203,7 +222,7 @@ export default async function DentalPlansPage({ params }: Props) {
             <ScrollReveal className="max-w-[640px] mb-10">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
                 data-edit-field="copy:dentalPlans.whyEyebrow"
                 data-edit-kind="text"
                 data-edit-label="eyebrow"
@@ -213,7 +232,7 @@ export default async function DentalPlansPage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{
-                  color: brand,
+                  color: headingInk,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:dentalPlans.whyHeading"
@@ -255,7 +274,7 @@ export default async function DentalPlansPage({ params }: Props) {
                   <span
                     className="text-3xl font-bold leading-none tracking-[-0.02em] mb-3 block"
                     style={{
-                      color: brand,
+                      color: headingInk,
                       fontFamily: 'var(--font-display, Georgia, serif)',
                     }}
                     aria-hidden="true"

@@ -9,7 +9,8 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicService, ClinicStaff, ClinicFaqItem } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { faqPageJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -193,6 +194,9 @@ export default async function InsurancePage({ params }: Props) {
   const name = profile.displayName ?? data.orgName
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows/glyphs on the
+  // warm ground (raw brand stays on backgrounds/tints only).
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
@@ -231,6 +235,12 @@ export default async function InsurancePage({ params }: Props) {
   const insuranceFaq =
     insuranceFaqFromClinic.length > 0 ? insuranceFaqFromClinic : DEFAULT_INSURANCE_FAQ
 
+  // FAQPage JSON-LD from the rendered Q&A accordion (real items only — the
+  // universal fallbacks are real answers too, so they're eligible).
+  const faqLd = faqPageJsonLd(
+    insuranceFaq.map((f) => ({ question: f.question, answer: f.answer })),
+  )
+
   return (
     <div
       className="min-h-screen antialiased"
@@ -240,6 +250,12 @@ export default async function InsurancePage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      {faqLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
+        />
+      )}
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -265,7 +281,7 @@ export default async function InsurancePage({ params }: Props) {
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
               style={{
-                color: brand,
+                color: headingInk,
                 fontFamily: 'var(--font-display, Georgia, serif)',
               }}
               data-edit-field="copy:insurance.heading"
@@ -315,7 +331,7 @@ export default async function InsurancePage({ params }: Props) {
             <ScrollReveal className="max-w-[640px] mb-12">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
                 data-edit-field="copy:insurance.helpEyebrow"
                 data-edit-kind="text"
                 data-edit-label="eyebrow"
@@ -325,7 +341,7 @@ export default async function InsurancePage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{
-                  color: brand,
+                  color: headingInk,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:insurance.helpHeading"
@@ -346,7 +362,7 @@ export default async function InsurancePage({ params }: Props) {
                 >
                   <div
                     className="inline-flex items-center justify-center w-10 h-10 rounded-full mb-4"
-                    style={{ backgroundColor: `${brand}1F`, color: brand }}
+                    style={{ backgroundColor: `${brand}1F`, color: headingInk }}
                   >
                     <svg
                       className="w-5 h-5"
@@ -579,7 +595,7 @@ export default async function InsurancePage({ params }: Props) {
             <ScrollReveal className="max-w-[700px] mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
                 data-edit-field="copy:insurance.processEyebrow"
                 data-edit-kind="text"
                 data-edit-label="eyebrow"
@@ -589,7 +605,7 @@ export default async function InsurancePage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{
-                  color: brand,
+                  color: headingInk,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:insurance.processHeading"
@@ -702,7 +718,7 @@ export default async function InsurancePage({ params }: Props) {
               <div>
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                   data-edit-field="copy:insurance.hsaEyebrow"
                   data-edit-kind="text"
                   data-edit-label="eyebrow"
@@ -712,7 +728,7 @@ export default async function InsurancePage({ params }: Props) {
                 <h2
                   className="text-2xl sm:text-3xl lg:text-[36px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
                   style={{
-                    color: brand,
+                    color: headingInk,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
                   data-edit-field="copy:insurance.hsaHeading"
@@ -738,7 +754,7 @@ export default async function InsurancePage({ params }: Props) {
               <div>
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                   data-edit-field="copy:insurance.finalBillEyebrow"
                   data-edit-kind="text"
                   data-edit-label="eyebrow"
@@ -748,7 +764,7 @@ export default async function InsurancePage({ params }: Props) {
                 <h2
                   className="text-2xl sm:text-3xl lg:text-[36px] font-semibold leading-[1.1] tracking-[-0.015em] mb-5"
                   style={{
-                    color: brand,
+                    color: headingInk,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
                   data-edit-field="copy:insurance.finalBillHeading"
@@ -787,7 +803,7 @@ export default async function InsurancePage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
                 style={{
-                  color: brand,
+                  color: headingInk,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:insurance.faqHeading"
@@ -812,14 +828,14 @@ export default async function InsurancePage({ params }: Props) {
                       <span
                         aria-hidden="true"
                         className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                        style={{ color: brand }}
+                        style={{ color: headingInk }}
                       >
                         +
                       </span>
                       <span
                         aria-hidden="true"
                         className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                        style={{ color: brand }}
+                        style={{ color: headingInk }}
                       >
                         −
                       </span>

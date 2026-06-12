@@ -17,7 +17,8 @@ import type {
 import {
   DEFAULT_PAYMENT_METHODS,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { faqPageJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -145,6 +146,8 @@ export default async function PaymentFinancingPage({ params }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows/glyphs.
+  const headingInk = readableInk(brand)
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const howSteps = resolveCopyList(copyOverrides, 'paymentFinancing.how', HOW_IT_WORKS_STEPS)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
@@ -197,6 +200,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
   const billingFaq =
     billingFaqFromClinic.length > 0 ? billingFaqFromClinic : DEFAULT_BILLING_FAQ
 
+  // FAQPage JSON-LD from the rendered Billing Q&A accordion.
+  const faqLd = faqPageJsonLd(
+    billingFaq.map((f) => ({ question: f.question, answer: f.answer })),
+  )
+
   return (
     <div
       className="min-h-screen antialiased"
@@ -206,6 +214,12 @@ export default async function PaymentFinancingPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      {faqLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
+        />
+      )}
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -231,7 +245,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
               style={{
-                color: brand,
+                color: headingInk,
                 fontFamily: 'var(--font-display, Georgia, serif)',
               }}
               data-edit-field="copy:paymentFinancing.heroTitle"
@@ -295,7 +309,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
             <ScrollReveal className="max-w-[640px] mb-10">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
                 data-edit-field="copy:paymentFinancing.methodsEyebrow"
                 data-edit-kind="text"
                 data-edit-label="eyebrow"
@@ -305,7 +319,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em]"
                 style={{
-                  color: brand,
+                  color: headingInk,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:paymentFinancing.methodsHeading"
@@ -330,7 +344,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 >
                   <span
                     className="inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0"
-                    style={{ backgroundColor: `${brand}1F`, color: brand }}
+                    style={{ backgroundColor: `${brand}1F`, color: headingInk }}
                   >
                     <svg
                       className="w-4.5 h-4.5"
@@ -411,7 +425,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
               <ScrollReveal className="max-w-[640px] mb-12">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                   data-edit-field="copy:paymentFinancing.financingEyebrow"
                   data-edit-kind="text"
                   data-edit-label="eyebrow"
@@ -421,7 +435,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 <h2
                   className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
                   style={{
-                    color: brand,
+                    color: headingInk,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
                   data-edit-field="copy:paymentFinancing.financingHeading"
@@ -462,7 +476,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
                       <span
                         className="text-2xl font-bold mb-4 self-start"
                         style={{
-                          color: brand,
+                          color: headingInk,
                           fontFamily: 'var(--font-display, Georgia, serif)',
                         }}
                       >
@@ -489,7 +503,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-sm font-semibold mt-auto self-start transition-all duration-300 hover:gap-2"
-                        style={{ color: brand }}
+                        style={{ color: headingInk }}
                       >
                         Learn more
                         <span aria-hidden="true">→</span>
@@ -515,7 +529,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
               <div className="mb-7">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                   data-edit-field="copy:paymentFinancing.cancelEyebrow"
                   data-edit-kind="text"
                   data-edit-label="eyebrow"
@@ -525,7 +539,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 <h2
                   className="text-2xl sm:text-3xl lg:text-[36px] font-semibold leading-[1.1] tracking-[-0.015em]"
                   style={{
-                    color: brand,
+                    color: headingInk,
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
                   data-edit-field="copy:paymentFinancing.cancelHeading"
@@ -562,7 +576,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
                 style={{
-                  color: brand,
+                  color: headingInk,
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:paymentFinancing.faqHeading"
@@ -587,14 +601,14 @@ export default async function PaymentFinancingPage({ params }: Props) {
                       <span
                         aria-hidden="true"
                         className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                        style={{ color: brand }}
+                        style={{ color: headingInk }}
                       >
                         +
                       </span>
                       <span
                         aria-hidden="true"
                         className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                        style={{ color: brand }}
+                        style={{ color: headingInk }}
                       >
                         −
                       </span>

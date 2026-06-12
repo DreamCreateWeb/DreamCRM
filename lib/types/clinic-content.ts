@@ -241,16 +241,16 @@ export interface ClinicFinancingPartner {
 /**
  * Universal accepted-payment-methods fallback for /payment-financing when
  * `clinic_profile.payment_methods` is null. Every US dental practice can
- * honestly claim all five — cash, cards, HSA/FSA tap, contactless, ACH.
- * Clinics can curate their own list in /settings/clinic; null = render
- * this fallback so the section never reads as empty / under-built.
+ * honestly claim all five — cash, cards, HSA/FSA tap, contactless, bank
+ * transfer. Clinics can curate their own list in /settings/clinic; null =
+ * render this fallback so the section never reads as empty / under-built.
  */
 export const DEFAULT_PAYMENT_METHODS: string[] = [
   'Cash',
   'Credit & debit cards',
   'HSA / FSA cards',
   'Apple Pay & Google Pay',
-  'ACH bank transfer',
+  'Bank transfer',
 ]
 
 // NOTE: there is deliberately NO default services list. A clinic with no

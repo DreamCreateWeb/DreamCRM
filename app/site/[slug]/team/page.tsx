@@ -12,7 +12,8 @@ import type {
   ClinicService,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { teamItemListJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   firstSentence,
   staffInitials,
@@ -88,6 +89,9 @@ export default async function TeamPage({ params }: Props) {
   const { profile } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
@@ -114,6 +118,23 @@ export default async function TeamPage({ params }: Props) {
     ? firstSentence(profile.about)
     : `Real people who care about the experience you have at ${name}.`
 
+  // ItemList of Person — the team roster. Only emitted when there's staff.
+  const siteUrl = publicSiteUrl(data)
+  const teamLd = hasTeam
+    ? teamItemListJsonLd(
+        staff.map((s) => {
+          const sslug = resolveStaffSlug(s)
+          return {
+            name: s.name,
+            jobTitle: s.title ?? null,
+            image: s.photoUrl ?? null,
+            url: sslug ? `${siteUrl}/team/${sslug}` : null,
+          }
+        }),
+        { name, url: siteUrl },
+      )
+    : null
+
   return (
     <div
       className="min-h-screen antialiased"
@@ -123,6 +144,12 @@ export default async function TeamPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      {teamLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(teamLd) }}
+        />
+      )}
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -147,7 +174,7 @@ export default async function TeamPage({ params }: Props) {
             </p>
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               data-edit-field="copy:team.heroTitle"
               data-edit-kind="text"
               data-edit-label="headline"
@@ -211,7 +238,7 @@ export default async function TeamPage({ params }: Props) {
                               className="w-full h-full flex items-center justify-center text-5xl font-bold"
                               style={{
                                 background: `linear-gradient(135deg, ${brand}33 0%, ${brand}1A 100%)`,
-                                color: brand,
+                                color: headingInk,
                               }}
                               aria-label={s.name}
                             >
@@ -237,7 +264,7 @@ export default async function TeamPage({ params }: Props) {
                           <a
                             href={detailHref}
                             className="text-sm font-semibold inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
-                            style={{ color: brand }}
+                            style={{ color: headingInk }}
                           >
                             More <span aria-hidden="true">→</span>
                           </a>

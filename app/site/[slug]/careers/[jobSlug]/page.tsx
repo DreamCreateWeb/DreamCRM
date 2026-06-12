@@ -9,8 +9,9 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobBySlug, getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp, jobPostingJsonLd } from '@/lib/types/careers'
+import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -64,11 +65,12 @@ function Section({
   brand: string
 }) {
   if (!body) return null
+  const headingInk = readableInk(brand)
   return (
     <ScrollReveal delay={delay} className="mt-10">
       <h2
         className="text-2xl font-semibold mb-3 tracking-[-0.01em]"
-        style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+        style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
       >
         {title}
       </h2>
@@ -88,6 +90,9 @@ export default async function ClinicJobDetailPage({ params }: Props) {
 
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const name = data.profile.displayName ?? data.orgName
   const comp = formatComp(job)
   const loc = data.primaryLocation
@@ -135,6 +140,14 @@ export default async function ClinicJobDetailPage({ params }: Props) {
       : null,
   })
 
+  // BreadcrumbList: Home › Careers › {job title}.
+  const siteUrl = publicSiteUrl(data)
+  const breadcrumbLd = breadcrumbJsonLd([
+    { name: 'Home', url: siteUrl },
+    { name: 'Careers', url: `${siteUrl}/careers` },
+    { name: job.title },
+  ])
+
   return (
     <div
       className="min-h-screen antialiased"
@@ -145,6 +158,7 @@ export default async function ClinicJobDetailPage({ params }: Props) {
       }}
     >
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
       <SiteHeader
         data={data}
         basePath={basePath}
@@ -161,7 +175,7 @@ export default async function ClinicJobDetailPage({ params }: Props) {
             <a
               href={`${basePath}/careers`}
               className="inline-flex items-center gap-1 text-sm font-semibold transition-all duration-300 hover:gap-2"
-              style={{ color: brand }}
+              style={{ color: headingInk }}
             >
               <span aria-hidden="true">←</span> All openings
             </a>
@@ -173,14 +187,14 @@ export default async function ClinicJobDetailPage({ params }: Props) {
             </p>
             <h1
               className="text-[36px] sm:text-[52px] lg:text-[60px] font-semibold leading-[1.04] tracking-[-0.015em] mb-6"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               {job.title}
             </h1>
             <div className="flex flex-wrap items-center gap-2.5 mb-8">
               <span
                 className="inline-flex items-center px-3.5 py-1.5 rounded-full text-[13px] font-semibold"
-                style={{ backgroundColor: `${brand}1A`, color: brand }}
+                style={{ backgroundColor: `${brand}1A`, color: headingInk }}
               >
                 {EMPLOYMENT_LABELS[job.employmentType]}
               </span>
@@ -243,13 +257,13 @@ export default async function ClinicJobDetailPage({ params }: Props) {
             <ScrollReveal className="mb-8">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 Apply
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-semibold leading-[1.1] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Tell us about yourself.
               </h2>
@@ -289,13 +303,13 @@ export default async function ClinicJobDetailPage({ params }: Props) {
               <ScrollReveal className="mb-10 text-center">
                 <p
                   className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
-                  style={{ color: brand }}
+                  style={{ color: headingInk }}
                 >
                   More open positions
                 </p>
                 <h2
                   className="text-3xl sm:text-4xl font-semibold leading-[1.1] tracking-[-0.015em]"
-                  style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                  style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 >
                   Other roles at {name}.
                 </h2>
@@ -330,7 +344,7 @@ export default async function ClinicJobDetailPage({ params }: Props) {
                           </div>
                           <span
                             className="shrink-0 text-2xl leading-none transition-transform duration-300 group-hover:translate-x-1"
-                            style={{ color: brand }}
+                            style={{ color: headingInk }}
                             aria-hidden="true"
                           >
                             →

@@ -13,7 +13,8 @@ import {
   resolveClinicServices,
   type EnrichedService,
 } from '@/lib/services/service-library'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
+import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
@@ -101,6 +102,9 @@ export default async function ServiceDetailPage({ params }: Props) {
 
   const { profile } = data
   const brand = profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
@@ -154,6 +158,14 @@ export default async function ServiceDetailPage({ params }: Props) {
     },
   }
 
+  // BreadcrumbList: Home › Services › {service name}.
+  const siteUrl = publicSiteUrl(data)
+  const breadcrumbLd = breadcrumbJsonLd([
+    { name: 'Home', url: siteUrl },
+    { name: 'Services', url: `${siteUrl}/services` },
+    { name: service.name },
+  ])
+
   return (
     <div
       className="min-h-screen antialiased"
@@ -166,6 +178,10 @@ export default async function ServiceDetailPage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
       <SiteHeader
         data={data}
@@ -205,7 +221,7 @@ export default async function ServiceDetailPage({ params }: Props) {
               </p>
               <h1
                 className="text-[30px] sm:text-[42px] lg:text-[56px] font-semibold leading-[1.06] tracking-[-0.015em] mb-6"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 {service.name} at {name}.
               </h1>
@@ -337,7 +353,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                 <ScrollReveal>
                   <h2
                     className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12 text-center"
-                    style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                    style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                   >
                     Have questions about {service.name}?
                   </h2>
@@ -357,14 +373,14 @@ export default async function ServiceDetailPage({ params }: Props) {
                           <span
                             aria-hidden="true"
                             className="shrink-0 mt-0.5 text-2xl leading-none font-light group-open:hidden"
-                            style={{ color: brand }}
+                            style={{ color: headingInk }}
                           >
                             +
                           </span>
                           <span
                             aria-hidden="true"
                             className="shrink-0 mt-0.5 text-2xl leading-none font-light hidden group-open:inline"
-                            style={{ color: brand }}
+                            style={{ color: headingInk }}
                           >
                             −
                           </span>
@@ -392,13 +408,13 @@ export default async function ServiceDetailPage({ params }: Props) {
             <ScrollReveal className="max-w-[640px] mb-14">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
               >
                 In their words
               </p>
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em]"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Patients on the experience.
               </h2>
@@ -415,7 +431,7 @@ export default async function ServiceDetailPage({ params }: Props) {
             <ScrollReveal>
               <h2
                 className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.1] tracking-[-0.015em] mb-10 sm:mb-12"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 You might also be interested in.
               </h2>
@@ -443,7 +459,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                     )}
                     <span
                       className="inline-flex items-center gap-1 text-sm font-semibold mt-auto transition-all duration-300 group-hover:gap-2.5"
-                      style={{ color: brand }}
+                      style={{ color: headingInk }}
                     >
                       Learn more
                       <span aria-hidden="true">→</span>

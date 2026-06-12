@@ -4,6 +4,7 @@ import { listActiveProducts, getShopConfig } from '@/lib/services/shop'
 import { CATEGORY_LABELS, priceRangeLabel } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import { readableInk } from '@/lib/clinic-site-theme'
 import CartButton from './cart-button'
 
 const INK = '#1C1A17'
@@ -39,6 +40,9 @@ export default async function ClinicShopPage({ params }: Props) {
 
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground (raw brand stays on backgrounds/borders/pills only).
+  const headingInk = readableInk(brand)
   const products = await listActiveProducts(data.orgId)
 
   return (
@@ -46,12 +50,12 @@ export default async function ClinicShopPage({ params }: Props) {
       <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
         <div className="flex items-start justify-between gap-4 mb-12 sm:mb-14">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] mb-5" style={{ color: brand }}>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] mb-5" style={{ color: headingInk }}>
               Shop
             </p>
             <h1
               className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em]"
-              style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             >
               Our recommended products
             </h1>
@@ -87,14 +91,14 @@ export default async function ClinicShopPage({ params }: Props) {
                         className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-sm" style={{ color: brand }}>
+                      <div className="w-full h-full flex items-center justify-center text-sm" style={{ color: headingInk }}>
                         {CATEGORY_LABELS[p.category]}
                       </div>
                     )}
                   </div>
                   <span
                     className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-1"
-                    style={{ color: brand }}
+                    style={{ color: headingInk }}
                   >
                     {CATEGORY_LABELS[p.category]}
                   </span>
