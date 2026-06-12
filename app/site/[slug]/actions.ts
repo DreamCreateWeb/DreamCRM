@@ -16,8 +16,13 @@ import { createLead } from '@/lib/services/leads'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { organization } from '@/lib/db/schema/auth'
+import { looksLikeBot } from '@/lib/form-trust'
 
 export async function submitContactRequest(formData: FormData) {
+  // Silent spam drop — a filled honeypot or instant submit returns the normal
+  // success shape (no throw) without persisting anything, so bots get no signal.
+  if (looksLikeBot(formData)) return
+
   // Resolve the org from the PUBLIC slug, never a client-posted orgId — a
   // submission can only ever target the real clinic whose page it came from.
   const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
@@ -227,6 +232,33 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
   if (!firstName || !lastName) throw new Error('Name is required')
   if (!startTimeRaw) throw new Error('Appointment date and time are required')
+
+  // Silent spam drop — a filled honeypot or instant submit books nothing but
+  // returns a benign confirmation shape so bots get no signal. (Real bots
+  // rarely clear the live slot-availability check below anyway; this is a
+  // cheap first gate.)
+  if (looksLikeBot(formData)) {
+    const [p] = await db
+      .select({ displayName: clinicProfile.displayName, phone: clinicProfile.phone, timezone: clinicProfile.timezone })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, orgId))
+      .limit(1)
+    const start = new Date(startTimeRaw)
+    const startIso = isNaN(start.getTime()) ? new Date().toISOString() : start.toISOString()
+    return {
+      patientName: `${firstName} ${lastName}`.trim(),
+      clinicName: p?.displayName ?? 'our office',
+      clinicPhone: p?.phone ?? null,
+      startTimeIso: startIso,
+      endTimeIso: startIso,
+      timeZone: p?.timezone ?? 'America/New_York',
+      visitTypeLabel: visitTypeLabelFromId(appointmentType),
+      addressText: null,
+      mapsUrl: null,
+      intakeFormUrl: null,
+      emailSent: false,
+    }
+  }
 
   const startTime = new Date(startTimeRaw)
   if (isNaN(startTime.getTime())) throw new Error('Invalid date/time')

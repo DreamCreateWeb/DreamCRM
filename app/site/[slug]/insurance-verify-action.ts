@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
+import { looksLikeBot } from '@/lib/form-trust'
 
 /**
  * Public insurance-verifier form action.
@@ -37,6 +38,10 @@ export type InsuranceVerifyResult =
 export async function submitInsuranceVerifyRequest(
   formData: FormData,
 ): Promise<InsuranceVerifyResult> {
+  // Silent spam drop — honeypot / instant-submit returns the normal success
+  // shape without creating a lead, so bots get no signal to adapt.
+  if (looksLikeBot(formData)) return { ok: true }
+
   // Resolve the org from the PUBLIC slug, never a client-posted orgId.
   const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
   if (!orgId) return { ok: false, error: 'We couldn’t find this clinic. Please try again.' }

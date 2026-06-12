@@ -65,7 +65,14 @@ export default async function ClinicSiteLayout({
         <link rel="stylesheet" href={FRAUNCES_HREF} />
       </noscript>
       <style>{`
-        :root { --font-display: 'Fraunces', Georgia, serif; }
+        :root {
+          --font-display: 'Fraunces', Georgia, serif;
+          /* Single source of truth for the sticky site-header height, so
+             sticky offsets + scroll-margin (e.g. the FAQ category tabs and
+             in-page anchor targets) stay in lockstep with the header — change
+             it once here, not per-page. */
+          --site-header-h: 64px;
+        }
         /* Smooth-scroll only for explicit anchor navigation (e.g. nav
            skip links to #verify, #hours). Honors prefers-reduced-motion
            automatically via UA stylesheet. Scoped to the public clinic
