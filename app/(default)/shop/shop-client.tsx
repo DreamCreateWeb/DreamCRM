@@ -20,7 +20,8 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { FlashToast } from '@/components/ui/flash-toast'
-import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
+import { NavIcon } from '@/components/ui/nav-icons'
+import { TONE_TEXT, type PillLegendRow, type Tone } from '@/lib/ui/encodings'
 
 interface OrderStatsView {
   paidCount: number
@@ -53,6 +54,8 @@ interface Props {
   stats: ShopStats
   orderStats: OrderStatsView
   membershipStats: { activeMembers: number; mrrCents: number }
+  couponStats: { activeCount: number }
+  paymentStats: { count: number }
   publicBase: string | null
   connectConfigured: boolean
   connectBanner: string | null
@@ -65,6 +68,8 @@ export default function ShopClient({
   stats,
   orderStats,
   membershipStats,
+  couponStats,
+  paymentStats,
   publicBase,
   connectConfigured,
   connectBanner,
@@ -96,6 +101,60 @@ export default function ShopClient({
         + Add product
       </ActionButton>
     )
+
+  // Doorways into each shop area. Each is a real destination, not a footnote —
+  // an icon, a live stat in mono numerals, a one-line description, hover-lift.
+  const sections: SectionCardProps[] = [
+    {
+      href: '/shop/orders',
+      icon: 'bag',
+      title: 'Orders',
+      stat:
+        orderStats.unfulfilledCount > 0
+          ? `${orderStats.unfulfilledCount} to fulfill`
+          : `${orderStats.paidCount} paid`,
+      statTone: orderStats.unfulfilledCount > 0 ? 'warn' : undefined,
+      description:
+        orderStats.unfulfilledCount > 0
+          ? 'Pack and hand off what patients bought.'
+          : 'Track and fulfill product orders.',
+    },
+    {
+      href: '/shop/memberships',
+      icon: 'star',
+      title: 'Memberships',
+      stat:
+        membershipStats.activeMembers > 0
+          ? `${membershipStats.activeMembers} active · ${formatCents(membershipStats.mrrCents)}/mo`
+          : 'No members yet',
+      statTone: membershipStats.activeMembers > 0 ? 'ok' : undefined,
+      description: 'In-house dental plans with recurring billing.',
+    },
+    {
+      href: '/shop/coupons',
+      icon: 'receipt',
+      title: 'Coupons',
+      stat:
+        couponStats.activeCount > 0
+          ? `${couponStats.activeCount} active ${couponStats.activeCount === 1 ? 'code' : 'codes'}`
+          : 'No active codes',
+      description: 'Promo and birthday codes for your storefront.',
+    },
+    {
+      href: '/shop/payments',
+      icon: 'wallet',
+      title: 'Payments',
+      stat: connectReady
+        ? paymentStats.count > 0
+          ? `${paymentStats.count} to reconcile`
+          : 'Connected'
+        : 'Not connected',
+      statTone: connectReady ? (paymentStats.count > 0 ? 'warn' : 'ok') : 'warn',
+      description: connectReady
+        ? 'Online balance payments to post to your PMS.'
+        : 'Connect Stripe to take online payments.',
+    },
+  ]
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -134,101 +193,99 @@ export default function ShopClient({
         </div>
       )}
 
-      {/* Stripe Connect status — etched panel (status hero) */}
-      <div className="v2-panel mb-6 p-5">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Payments</h2>
-              <StatusPill
-                tone={connectReady ? 'ok' : 'warn'}
-                label={connectReady ? 'Connected' : 'Not connected'}
-                title={
-                  connectReady
-                    ? 'Stripe is connected — payouts go to your bank'
-                    : 'Connect Stripe to start taking payments'
-                }
-              />
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
-              {!connectConfigured
-                ? 'Card payments are being finalized at the platform level. Your "Connect Stripe" button appears here once it\'s ready — then payouts go straight to your bank.'
-                : connectReady
-                  ? 'Connected. Payouts go straight to your bank account; you keep full margin.'
-                  : 'Connect your Stripe account to start accepting payments. Payouts land in your bank, not ours.'}
-            </p>
+      {/* Stripe Connect status — a clean status panel, shown only while it's
+          actionable (setting up or freshly connected). Once steady it folds
+          into the Payments section card, keeping the hub uncluttered. The
+          teal primary CTA leads when not connected; a calm "Connected" state
+          replaces it once payouts are flowing. */}
+      {connectConfigured && !connectReady && (
+        <div className="v2-panel mb-6 p-5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Payments</h2>
+            <StatusPill tone="warn" label="Not connected" title="Connect Stripe to start taking payments" />
           </div>
-        </div>
-        {connectConfigured && !connectReady && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
+            Connect your Stripe account to start accepting payments. Payouts land in your bank, not ours.
+          </p>
           <ActionButton variant="primary" size="sm" href="/api/connect/shop/start" className="mt-3">
             {config.stripeAccountStatus === 'pending' ? 'Finish Stripe setup' : 'Connect Stripe'}
           </ActionButton>
-        )}
-        {connectReady && (
-          <div className="flex items-center gap-3 mt-3">
-            <a
-              href="https://dashboard.stripe.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
-            >
-              Manage payouts in Stripe →
-            </a>
-            <ActionButton
-              variant="ghost"
-              size="sm"
-              disabled={isPending}
-              onClick={() => {
-                if (confirm('Disconnect Stripe? You won’t be able to take payments until you reconnect.'))
-                  run(() => disconnectStripeAction(), 'Stripe disconnected.')
-              }}
-            >
-              Disconnect
-            </ActionButton>
+        </div>
+      )}
+      {!connectConfigured && (
+        <div className="v2-panel mb-6 p-5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Payments</h2>
+            <StatusPill
+              tone="neutral"
+              label="Setup pending"
+              title="Card payments are being finalized at the platform level"
+            />
           </div>
-        )}
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
+            Card payments are being finalized at the platform level. Your &ldquo;Connect Stripe&rdquo; button appears
+            here once it&apos;s ready — then payouts go straight to your bank.
+          </p>
+        </div>
+      )}
+      {connectReady && (
+        <div className="v2-panel mb-6 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Payments</h2>
+                <StatusPill tone="ok" label="Connected" title="Stripe is connected — payouts go to your bank" />
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
+                Payouts go straight to your bank account; you keep full margin.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <a
+                href="https://dashboard.stripe.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
+              >
+                Manage payouts in Stripe →
+              </a>
+              <ActionButton
+                variant="ghost"
+                size="sm"
+                disabled={isPending}
+                onClick={() => {
+                  if (confirm('Disconnect Stripe? You won’t be able to take payments until you reconnect.'))
+                    run(() => disconnectStripeAction(), 'Stripe disconnected.')
+                }}
+              >
+                Disconnect
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section navigation — the front desk's doorways into each shop area.
+          Prominent etched, drillable cards (NOT tiny text links). */}
+      <p className="mb-3 text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+        Manage your shop
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        {sections.map((s) => (
+          <SectionCard key={s.href} {...s} />
+        ))}
       </div>
 
-      {/* Stats + fulfillment config */}
+      {/* Catalog stats + storefront config */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4 mb-6">
-        <div>
-          <div className="grid grid-cols-2 gap-3">
-            <KpiStat label="Products" value={stats.productCount} />
-            <KpiStat
-              label="Live"
-              value={stats.activeCount}
-              tone={stats.activeCount > 0 ? 'ok' : undefined}
-              sub={stats.activeCount > 0 ? 'On your storefront' : undefined}
-            />
-            <KpiStat label="Paid orders" value={orderStats.paidCount} href="/shop/orders" />
-            <KpiStat
-              label="Revenue"
-              value={formatCents(orderStats.revenueCents)}
-              tone={orderStats.revenueCents > 0 ? 'ok' : undefined}
-            />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            <Link href="/shop/orders" className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline">
-              View orders
-              {orderStats.unfulfilledCount > 0 ? ` · ${orderStats.unfulfilledCount} to fulfill` : ''} →
-            </Link>
-            <Link
-              href="/shop/memberships"
-              className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
-            >
-              Membership plans
-              {membershipStats.activeMembers > 0
-                ? ` · ${membershipStats.activeMembers} active (${formatCents(membershipStats.mrrCents)}/mo)`
-                : ''}{' '}
-              →
-            </Link>
-            <Link
-              href="/shop/coupons"
-              className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
-            >
-              Coupons &amp; birthday codes →
-            </Link>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          <KpiStat label="Products" value={stats.productCount} />
+          <KpiStat
+            label="Live"
+            value={stats.activeCount}
+            tone={stats.activeCount > 0 ? 'ok' : undefined}
+            sub={stats.activeCount > 0 ? 'On your storefront' : undefined}
+          />
         </div>
         <div className="v2-card p-4">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
@@ -268,7 +325,17 @@ export default function ShopClient({
         </div>
       </div>
 
-      {/* Product list */}
+      {/* Product catalog — the main working list */}
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          Product catalog
+        </p>
+        {products.length > 0 && (
+          <ActionButton variant="ghost" size="sm" href="/shop/products/new">
+            + Add product
+          </ActionButton>
+        )}
+      </div>
       <div className="space-y-2.5">
         {products.length === 0 ? (
           <EmptyState
@@ -349,6 +416,52 @@ export default function ShopClient({
 
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
+  )
+}
+
+interface SectionCardProps {
+  href: string
+  icon: string
+  title: string
+  /** Live stat line, rendered in mono numerals. */
+  stat: string
+  /** Tone for the stat (warn when it needs our action; ok when healthy). */
+  statTone?: Tone
+  description: string
+}
+
+/**
+ * A doorway into a shop area. Etched, drillable card (hover-lift via
+ * `.v2-card-interactive`); the whole card is the link. Icon + title + a live
+ * mono-numeral stat + a one-line description — a deliberate destination, not a
+ * footnote link.
+ */
+function SectionCard({ href, icon, title, stat, statTone, description }: SectionCardProps) {
+  return (
+    <Link href={href} className="block h-full group">
+      <div className="v2-card-interactive p-4 h-full flex flex-col">
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center justify-center w-9 h-9 rounded-[var(--r-sm)] bg-teal-500/10 text-teal-700 dark:text-teal-300">
+            <NavIcon name={icon} className="shrink-0 fill-current w-5 h-5" />
+          </span>
+          <span
+            className="text-gray-400 dark:text-gray-500 group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors"
+            aria-hidden
+          >
+            →
+          </span>
+        </div>
+        <div className="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-100">{title}</div>
+        <div
+          className={`mt-0.5 text-sm font-medium tabular-nums font-mono-num ${
+            statTone ? TONE_TEXT[statTone] : 'text-gray-600 dark:text-gray-300'
+          }`}
+        >
+          {stat}
+        </div>
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 leading-snug">{description}</p>
+      </div>
+    </Link>
   )
 }
 
