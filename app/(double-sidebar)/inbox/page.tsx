@@ -19,6 +19,7 @@ import { getInboxPatientContext } from '@/lib/services/patient-context'
 import { sanitizeEmailHtml } from '@/lib/email-sanitize'
 import { inboxTerminology, type TenantType } from '@/lib/inbox-terminology'
 import ConnectPrompt from './connect-prompt'
+import MessagesSurfaceTabs from '../messages/surface-tabs'
 import MailboxSidebar from './components/mailbox-sidebar'
 import ThreadView from './components/thread-view'
 import KeyboardHandler from './components/keyboard-handler'
@@ -53,6 +54,10 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   const params = await searchParams
   const activeAccountId = params.account && accounts.some((a) => a.id === params.account) ? params.account : null
   const activeMessageId = params.m ?? null
+  // Clinic tenants reach /inbox via the Mailbox tab inside Messages, so they
+  // get the surface tabs here too (a way back to Patients). Platform tenants
+  // keep Inbox and Messages as separate surfaces — no tabs.
+  const showSurfaceTabs = ctx.tenantType === 'clinic'
   const terminology = inboxTerminology(ctx.tenantType as TenantType)
   const activeCategory = params.cat && VALID_CATEGORIES.has(params.cat) ? params.cat : 'primary'
   // Intent filter only applies inside the Primary tab — on other tabs the
@@ -65,8 +70,11 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   if (accounts.length === 0) {
     return (
       <FlyoutProvider>
-        <div className="relative flex h-full">
-          <ConnectPrompt configured={gmailOAuthConfigured()} />
+        <div className="flex flex-col h-full">
+          {showSurfaceTabs && <MessagesSurfaceTabs active="mailbox" />}
+          <div className="relative flex flex-1 min-h-0">
+            <ConnectPrompt configured={gmailOAuthConfigured()} />
+          </div>
         </div>
       </FlyoutProvider>
     )
@@ -164,28 +172,31 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
           activeIsStarred={activeThread ? activeThread.messages.some((m) => m.isStarred) : false}
           baseUrl={buildBaseUrl({ activeAccountId, activeCategory, activeIntent, unreadOnly, starredOnly, patientsOnly })}
         />
-        <div className="relative flex h-full">
-          <MailboxSidebar
-            accounts={accounts}
-            activeAccountId={activeAccountId}
-            threads={threads}
-            activeThreadId={activeThread?.threadId ?? null}
-            intentCounts={intentCounts}
-            categoryCounts={categoryCounts}
-            activeCategory={activeCategory}
-            activeIntent={activeIntent}
-            unreadOnly={unreadOnly}
-            starredOnly={starredOnly}
-            patientsOnly={patientsOnly}
-            unreadCount={unreadCount}
-            terminology={terminology}
-          />
-          <ThreadView
-            thread={activeThread}
-            sanitizedBodies={sanitizedBodies}
-            patientContext={patientContext}
-            terminology={terminology}
-          />
+        <div className="flex flex-col h-full">
+          {showSurfaceTabs && <MessagesSurfaceTabs active="mailbox" />}
+          <div className="relative flex flex-1 min-h-0">
+            <MailboxSidebar
+              accounts={accounts}
+              activeAccountId={activeAccountId}
+              threads={threads}
+              activeThreadId={activeThread?.threadId ?? null}
+              intentCounts={intentCounts}
+              categoryCounts={categoryCounts}
+              activeCategory={activeCategory}
+              activeIntent={activeIntent}
+              unreadOnly={unreadOnly}
+              starredOnly={starredOnly}
+              patientsOnly={patientsOnly}
+              unreadCount={unreadCount}
+              terminology={terminology}
+            />
+            <ThreadView
+              thread={activeThread}
+              sanitizedBodies={sanitizedBodies}
+              patientContext={patientContext}
+              terminology={terminology}
+            />
+          </div>
         </div>
       </SelectionProvider>
     </FlyoutProvider>

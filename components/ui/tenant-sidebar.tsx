@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAppProvider } from '@/app/app-provider'
@@ -42,6 +43,39 @@ const BADGE_FOR_MODULE: Record<string, keyof NavBadgeCounts> = {
 const BADGE_POLL_MS = 60_000
 const GROUP_STORAGE_PREFIX = 'dc.sidebar.group.'
 
+// "Seen since" model for the leads/shop badges. Unlike Messages (a genuine
+// unread count that drops as you read threads), Leads/Shop count standing
+// backlog — so without this they'd show the same number forever, even after
+// you've looked. Instead we treat them as "new since you last opened this
+// module": visiting /leads or /shop stamps a per-org timestamp, the API only
+// counts items newer than it, and the badge clears the instant you look —
+// then ticks back up as fresh items arrive. The full backlog still lives
+// inside each module (status chips, rot borders), so nothing is hidden.
+const SEEN_BADGE_PATHS: { prefix: string; key: 'leads' | 'shop' }[] = [
+  { prefix: '/leads', key: 'leads' },
+  { prefix: '/shop', key: 'shop' },
+]
+
+function seenStorageKey(orgName?: string) {
+  return `dc.navseen.${orgName ?? 'org'}`
+}
+function readSeen(orgName?: string): Partial<Record<'leads' | 'shop', number>> {
+  try {
+    return JSON.parse(window.localStorage.getItem(seenStorageKey(orgName)) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+function writeSeen(orgName: string | undefined, key: 'leads' | 'shop', at: number) {
+  try {
+    const cur = readSeen(orgName)
+    cur[key] = at
+    window.localStorage.setItem(seenStorageKey(orgName), JSON.stringify(cur))
+  } catch {
+    /* ignore — a badge nudge is non-critical */
+  }
+}
+
 /**
  * v2 data-driven sidebar (DESIGN-SYSTEM.md Part 4). Three states:
  *   - expanded 248px (default ≥xl)
@@ -79,7 +113,13 @@ export default function TenantSidebar({
   const refreshBadges = useCallback(async () => {
     if (!isClinic) return
     try {
-      const res = await fetch('/api/nav-badges', { cache: 'no-store' })
+      // Send the leads/shop "last seen" stamps so the server returns counts of
+      // only what's arrived since — Messages stays a true unread count.
+      const seen = readSeen(orgName)
+      const qs = new URLSearchParams()
+      if (seen.leads) qs.set('leadsSince', String(seen.leads))
+      if (seen.shop) qs.set('shopSince', String(seen.shop))
+      const res = await fetch(`/api/nav-badges${qs.size ? `?${qs}` : ''}`, { cache: 'no-store' })
       if (!res.ok) return
       const json = (await res.json()) as Partial<NavBadgeCounts>
       setBadges({
@@ -90,19 +130,40 @@ export default function TenantSidebar({
     } catch {
       // Swallow — keep prior counts; next tick retries.
     }
-  }, [isClinic])
+  }, [isClinic, orgName])
 
   useEffect(() => {
     if (!isClinic) return
     refreshBadges()
     const id = setInterval(refreshBadges, BADGE_POLL_MS)
     const onFocus = () => refreshBadges()
+    // Surfaces that mutate a counted backlog (e.g. opening a patient thread →
+    // marked read) dispatch this so the badge drops immediately, not on the
+    // next 60s poll.
+    const onRefresh = () => refreshBadges()
     window.addEventListener('focus', onFocus)
+    window.addEventListener('nav-badges:refresh', onRefresh)
     return () => {
       clearInterval(id)
       window.removeEventListener('focus', onFocus)
+      window.removeEventListener('nav-badges:refresh', onRefresh)
     }
   }, [isClinic, refreshBadges])
+
+  // Opening a leads/shop module stamps it "seen now" → its badge clears at
+  // once (optimistic) and the next fetch agrees. Any navigation also refreshes
+  // the unread Messages count promptly.
+  useEffect(() => {
+    if (!isClinic) return
+    const hit = SEEN_BADGE_PATHS.find(
+      (s) => pathname === s.prefix || pathname.startsWith(`${s.prefix}/`),
+    )
+    if (hit) {
+      writeSeen(orgName, hit.key, Date.now())
+      setBadges((b) => ({ ...b, [hit.key]: 0 }))
+    }
+    refreshBadges()
+  }, [pathname, isClinic, orgName, refreshBadges])
 
   // Close the mobile drawer on click outside.
   useEffect(() => {
@@ -482,11 +543,46 @@ function NavItem({
   const countLabel = count > 99 ? '99+' : String(count)
   const ariaCount = count > 0 ? `, ${count} ${count === 1 ? 'item needs' : 'items need'} attention` : ''
 
+  // Rail-mode flyout label. It must escape the sidebar's `overflow-y-auto`
+  // (and the aside's transform containing-block), so a CSS popout would be
+  // clipped no matter the z-index — we portal it to <body> at a fixed point
+  // computed from the item's rect. Hover opens after 200ms; focus opens at
+  // once (keyboard + assistive tech).
+  const liRef = useRef<HTMLLIElement>(null)
+  const [flyout, setFlyout] = useState<{ top: number; left: number } | null>(null)
+  const flyoutTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openFlyout = useCallback((delay: number) => {
+    if (!rail) return
+    if (flyoutTimer.current) clearTimeout(flyoutTimer.current)
+    flyoutTimer.current = setTimeout(() => {
+      const r = liRef.current?.getBoundingClientRect()
+      if (r) setFlyout({ top: r.top + r.height / 2, left: r.right + 8 })
+    }, delay)
+  }, [rail])
+  const closeFlyout = useCallback(() => {
+    if (flyoutTimer.current) clearTimeout(flyoutTimer.current)
+    setFlyout(null)
+  }, [])
+  useEffect(() => {
+    // Rail toggled off (or unmount) → drop any open flyout + pending timer.
+    if (!rail) closeFlyout()
+    return () => {
+      if (flyoutTimer.current) clearTimeout(flyoutTimer.current)
+    }
+  }, [rail, closeFlyout])
+
   return (
-    <li className="group/navitem relative">
+    <li
+      ref={liRef}
+      className="group/navitem relative"
+      onMouseEnter={() => openFlyout(200)}
+      onMouseLeave={closeFlyout}
+    >
       <Link
         href={isSoon ? '#' : m.path}
         onClick={onNavigate}
+        onFocus={() => openFlyout(0)}
+        onBlur={closeFlyout}
         aria-disabled={isSoon}
         aria-current={active ? 'page' : undefined}
         aria-label={rail ? `${m.label}${ariaCount}` : undefined}
@@ -538,27 +634,32 @@ function NavItem({
         )}
       </Link>
 
-      {/* Rail-mode hover flyout: label + count, beside the icon (200ms delay).
-          Rendered in DOM (rail only) so it's queryable; CSS reveals on hover. */}
-      {rail && (
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-md bg-surface-2 px-2.5 py-1.5 text-sm font-medium text-ink-800 opacity-0 shadow-[var(--shadow-pop)] transition-opacity delay-200 duration-150 lg:flex lg:group-hover/navitem:opacity-100"
-          data-testid="nav-flyout"
-        >
-          <span>{m.label}</span>
-          {m.shortcut && showShortcut && (
-            <kbd className="rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-400">
-              {m.shortcut}
-            </kbd>
-          )}
-          {count > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold tabular-nums text-white">
-              {countLabel}
-            </span>
-          )}
-        </span>
-      )}
+      {/* Rail-mode flyout: portaled to <body> so the sidebar's overflow/transform
+          can't clip it; fixed at the item's right edge. Opens on hover/focus. */}
+      {rail &&
+        flyout &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <span
+            role="tooltip"
+            data-testid="nav-flyout"
+            style={{ position: 'fixed', top: flyout.top, left: flyout.left, transform: 'translateY(-50%)', zIndex: 200 }}
+            className="pointer-events-none flex items-center gap-2 whitespace-nowrap rounded-md bg-surface-2 px-2.5 py-1.5 text-sm font-medium text-ink-800 shadow-[var(--shadow-pop)]"
+          >
+            <span>{m.label}</span>
+            {m.shortcut && showShortcut && (
+              <kbd className="rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-400">
+                {m.shortcut}
+              </kbd>
+            )}
+            {count > 0 && (
+              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold tabular-nums text-white">
+                {countLabel}
+              </span>
+            )}
+          </span>,
+          document.body,
+        )}
     </li>
   )
 }
