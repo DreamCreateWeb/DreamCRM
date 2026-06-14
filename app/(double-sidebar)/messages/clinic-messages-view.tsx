@@ -20,6 +20,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
 import { channelMeta, CHANNEL_LEGEND } from './channel-meta'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
+import MessagesSurfaceTabs from './surface-tabs'
+import NavBadgeSync from './nav-badge-sync'
 
 /**
  * Front-style unified Patient Communications inbox for clinic tenants.
@@ -138,31 +140,11 @@ export default async function ClinicMessagesView({
 
   return (
     <div className="flex flex-col h-full bg-[color:var(--color-canvas)]">
-      {/* ── Surface header: eyebrow + the Patients/Mailbox surface tabs.
-          Inbox folds into Messages at nav level (the sidebar drops it); the
-          Mailbox tab is its home — a quiet tab, never a primary. ─────────── */}
-      <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-4 pt-2 flex items-end gap-4 shrink-0">
-        <div className="mr-1 shrink-0 pb-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-400 leading-none">
-            Daily · Messages
-          </p>
-        </div>
-        <nav className="flex items-end gap-1 -mb-px" aria-label="Messages surfaces">
-          <span
-            aria-current="page"
-            className="inline-flex items-center px-3 py-2 text-sm font-semibold text-teal-700 dark:text-teal-300 border-b-2 border-teal-500"
-          >
-            Patients
-          </span>
-          <Link
-            href="/inbox"
-            title="Your connected Gmail mailbox — staff email, triage, threading"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:border-[color:var(--color-hairline-strong)] transition-colors"
-          >
-            Mailbox <span className="text-xs text-gray-400 dark:text-gray-500">(Gmail)</span>
-          </Link>
-        </nav>
-      </div>
+      {/* Drops the sidebar's unread-Messages badge the moment a thread is read. */}
+      <NavBadgeSync signal={activeThread?.id ?? 'list'} />
+      {/* Surface tabs (Patients ⇄ Mailbox) — shared with /inbox so neither is
+          a one-way trip. */}
+      <MessagesSurfaceTabs active="patients" />
 
       {/* ── Top filter bar (the two-pane PageHeader analogue) ────────── */}
       <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-4 py-2 flex items-center gap-2 flex-wrap shrink-0">

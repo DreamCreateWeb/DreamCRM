@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import type { LeadRow } from '@/lib/services/leads'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
@@ -82,5 +82,32 @@ describe('LeadDrawer — existing-patient hint on open', () => {
     render(<LeadDrawer row={makeRow()} onClose={() => {}} />)
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalled())
     expect(screen.queryByText(/Looks like an existing patient/)).not.toBeInTheDocument()
+  })
+})
+
+
+describe('LeadDrawer — dismiss gestures', () => {
+  beforeEach(() => previewLeadConvertAction.mockResolvedValue({ ok: false, error: 'n/a' }))
+
+  it('closes on backdrop click', () => {
+    const onClose = vi.fn()
+    const { container } = render(<LeadDrawer row={makeRow()} onClose={onClose} />)
+    // The backdrop is the outer fixed-inset overlay.
+    fireEvent.click(container.querySelector('.fixed.inset-0')!)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT close when clicking inside the panel', () => {
+    const onClose = vi.fn()
+    render(<LeadDrawer row={makeRow()} onClose={onClose} />)
+    fireEvent.click(screen.getByRole('dialog'))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closes on Escape', () => {
+    const onClose = vi.fn()
+    render(<LeadDrawer row={makeRow()} onClose={onClose} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

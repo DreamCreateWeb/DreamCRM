@@ -146,22 +146,29 @@ describe('TenantSidebar — org switcher + demo pill', () => {
 })
 
 describe('TenantSidebar — rail state + hover flyout', () => {
-  it('expanded mode shows inline labels and no hover flyouts', () => {
+  it('expanded mode shows inline labels and no flyout on focus', () => {
     providerState.railCollapsed = false
     render(<TenantSidebar modules={MODULES} orgName="Acme" badge="Pro plan" tenantType="clinic" />)
-    expect(screen.queryByTestId('nav-flyout')).not.toBeInTheDocument()
     // Inline label visible.
     expect(screen.getByText('Leads')).toBeInTheDocument()
+    // Focusing a nav item does NOT spawn a flyout in expanded mode.
+    fireEvent.focus(screen.getByText('Leads').closest('a')!)
+    expect(screen.queryByTestId('nav-flyout')).not.toBeInTheDocument()
   })
 
-  it('rail mode renders a hover flyout (label) for every nav item', () => {
+  it('rail mode reveals a portaled flyout (label) on focus, gone on blur', async () => {
     providerState.railCollapsed = true
     render(<TenantSidebar modules={MODULES} orgName="Acme" badge="Pro plan" tenantType="clinic" />)
-    const flyouts = screen.getAllByTestId('nav-flyout')
-    // One flyout per nav item (cockpit dupes Overview/Messages/Appointments).
-    expect(flyouts.length).toBeGreaterThanOrEqual(MODULES.length)
-    // Each flyout names its module (Leads is unique → exactly one flyout text).
-    expect(flyouts.some((f) => within(f).queryByText('Leads'))).toBe(true)
+    // No flyout at rest — it portals to <body> only on interaction, so it can
+    // escape the sidebar's overflow clip (the whole point of the change).
+    expect(screen.queryByTestId('nav-flyout')).not.toBeInTheDocument()
+    // The rail link carries its label as aria-label (icon-only); focus reveals it.
+    const leadsLink = screen.getByLabelText(/^Leads/)
+    fireEvent.focus(leadsLink)
+    const flyout = await screen.findByTestId('nav-flyout')
+    expect(within(flyout).getByText('Leads')).toBeInTheDocument()
+    fireEvent.blur(leadsLink)
+    expect(screen.queryByTestId('nav-flyout')).not.toBeInTheDocument()
   })
 
   it('the collapse caret reflects + toggles the rail state', () => {
