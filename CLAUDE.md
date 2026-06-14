@@ -1573,6 +1573,19 @@ eventual App Runner → ECS move) are tracked in that section.
 
 ### Feature work, post-migration
 
+0. **Zernio × Google Business integration — PLANNED, spec in
+   [`docs/zernio-google-integration.md`](./docs/zernio-google-integration.md).**
+   `ZERNIO_API_KEY` is already live in Secrets Manager + App Runner env
+   (validated: `GET zernio.com/api/v1/profiles` → 200). Zernio is a unified
+   social/GBP API (hosted OAuth — we never run Google's API verification). The
+   plan: connect Google Business per clinic, PULL reviews (real ratings → legit
+   AggregateRating JSON-LD)/hours/address/photos/local-metrics, REPLY to reviews
+   + POST offers/events, and a future multi-platform social module. Key limit:
+   Zernio can't write hours/address back to Google (pull-only for the listing;
+   posts/replies push). Refactors Reviews + SEO + hours/location to route through
+   one Google connection. Phased (GBP core → GBP posting → social). Build NOT
+   started — read the doc before implementing.
+
 1. **Phase B — SMS (unlocks across 3 modules)** — Recall & Outreach
    SMS sends, Patient Communications SMS in + outbound, Reviews SMS
    channel. **Plan changed: AWS End User Messaging SMS, not Twilio.**
