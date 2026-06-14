@@ -65,6 +65,16 @@ export default function LeadDrawer({
   // know before they call/convert. Same dry-run the convert step uses.
   const [existingHint, setExistingHint] = useState<string | null>(null)
 
+  // Esc closes the drawer (the ✕ button's title already promises it). Pairs
+  // with backdrop-click below for the two standard "dismiss" gestures.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   // Run the dedupe dry-run when the drawer opens for an actionable lead
   // (new / contacted). Converted leads already link to their patient; the
   // chip would be redundant. Best-effort — a failed preview just hides it.
@@ -152,8 +162,17 @@ export default function LeadDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px]">
-      <div className="section-enter bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Lead"
+        onClick={(e) => e.stopPropagation()}
+        className="section-enter bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col"
+      >
         <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Lead</h2>
           <button onClick={onClose} aria-label="Close" title="Close (Esc)" className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors">✕</button>
