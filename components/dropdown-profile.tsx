@@ -2,11 +2,20 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Menu, MenuButton, MenuItems, MenuItem, Transition } from '@headlessui/react'
+import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/react'
 import UserAvatar from '@/public/images/user-avatar-32.png'
 import { useSession, signOut } from '@/lib/auth-client'
 
-export default function DropdownProfile({ align }: { align?: 'left' | 'right' }) {
+export default function DropdownProfile({
+  align,
+  collapsed = false,
+}: {
+  align?: 'left' | 'right'
+  /** Rail mode: render the avatar only (no name/chevron) so the 64px sidebar
+      doesn't overflow horizontally. Hidden at lg+ only — the mobile drawer
+      (full width) still shows the name. */
+  collapsed?: boolean
+}) {
   const { data: session } = useSession()
   const user = session?.user
 
@@ -26,17 +35,18 @@ export default function DropdownProfile({ align }: { align?: 'left' | 'right' })
   }
 
   return (
-    <Menu as="div" className="relative inline-flex">
-      <MenuButton className="inline-flex justify-center items-center group">
+    <Menu as="div" className="relative inline-flex min-w-0">
+      <MenuButton className="inline-flex min-w-0 justify-center items-center group">
         <Image
-          className="w-8 h-8 rounded-full"
+          className="w-8 h-8 rounded-full shrink-0"
           src={avatar as any}
           width={32}
           height={32}
           alt={displayName}
           unoptimized={typeof avatar === 'string'}
         />
-        <div className="flex items-center truncate">
+        {/* Name + chevron — hidden in the rail (lg+) so the avatar stands alone. */}
+        <div className={`flex min-w-0 items-center ${collapsed ? 'lg:hidden' : ''}`}>
           <span className="truncate ml-2 text-sm font-medium text-gray-600 dark:text-gray-100 group-hover:text-gray-800 dark:group-hover:text-white">
             {displayName}
           </span>
@@ -45,39 +55,37 @@ export default function DropdownProfile({ align }: { align?: 'left' | 'right' })
           </svg>
         </div>
       </MenuButton>
-      <Transition
-        as="div"
-        className={`origin-top-right z-10 absolute top-full min-w-[11rem] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 py-1.5 rounded-lg shadow-lg overflow-hidden mt-1 ${
-          align === 'right' ? 'right-0' : 'left-0'
-        }`}
-        enter="transition ease-out duration-200 transform"
-        enterFrom="opacity-0 -translate-y-2"
-        enterTo="opacity-100 translate-y-0"
-        leave="transition ease-out duration-200"
-        leaveFrom="opacity-100"
-        leaveTo="opacity-0"
+      {/* `anchor` floats the menu in a portal (escapes the sidebar's
+          overflow-hidden clip) and positions it relative to the button:
+          opens UP from the bottom-left profile slot, DOWN from a top-right
+          header. `transition` drives the CSS data-state animation. */}
+      <MenuItems
+        anchor={{ to: align === 'right' ? 'bottom end' : 'top start', gap: 8 }}
+        transition
+        className="z-50 min-w-[12rem] origin-top rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 py-1.5 shadow-lg overflow-hidden transition duration-150 ease-out data-[closed]:opacity-0 data-[closed]:-translate-y-1 focus:outline-hidden"
       >
         <div className="pt-0.5 pb-2 px-3 mb-1 border-b border-gray-200 dark:border-gray-700/60">
-          <div className="font-medium text-gray-800 dark:text-gray-100">{displayName}</div>
+          <div className="font-medium text-gray-800 dark:text-gray-100 truncate">{displayName}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 italic capitalize">{role}</div>
         </div>
-        <MenuItems as="ul" className="focus:outline-hidden">
-          <MenuItem as="li">
-            <Link className="font-medium text-sm flex items-center py-1 px-3 text-violet-500" href="/settings/account">
-              Settings
-            </Link>
-          </MenuItem>
-          <MenuItem as="li">
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="w-full text-left font-medium text-sm flex items-center py-1 px-3 text-violet-500"
-            >
-              Sign Out
-            </button>
-          </MenuItem>
-        </MenuItems>
-      </Transition>
+        <MenuItem>
+          <Link
+            className="font-medium text-sm flex items-center py-1.5 px-3 text-teal-700 dark:text-teal-400 data-[focus]:bg-teal-500/10"
+            href="/settings/account"
+          >
+            Settings
+          </Link>
+        </MenuItem>
+        <MenuItem>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="w-full text-left font-medium text-sm flex items-center py-1.5 px-3 text-teal-700 dark:text-teal-400 data-[focus]:bg-teal-500/10"
+          >
+            Sign Out
+          </button>
+        </MenuItem>
+      </MenuItems>
     </Menu>
   )
 }

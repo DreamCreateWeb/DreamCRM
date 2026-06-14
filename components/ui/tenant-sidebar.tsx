@@ -229,12 +229,19 @@ export default function TenantSidebar({
         id="sidebar"
         ref={sidebar}
         aria-label="Primary navigation"
-        className={`aura-chrome grain flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-auto no-scrollbar w-64 ${railClass} shrink-0 bg-surface-1 border-r border-hairline px-3 py-4 transition-[width,transform] duration-200 ease-in-out ${
+        className={`aura-chrome grain flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-auto overflow-x-hidden no-scrollbar w-64 ${railClass} shrink-0 bg-surface-1 border-r border-hairline px-3 py-4 transition-[width,transform] duration-200 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-64 lg:translate-x-0'
         }`}
       >
-        {/* 1 — Logo + collapse caret */}
-        <div className="relative z-10 flex items-center justify-between mb-3 px-1">
+        {/* 1 — Logo + collapse caret. In the 64px rail the two can't sit
+            side-by-side (they'd overflow → horizontal scroll + the caret gets
+            pushed off the clipped edge, making it miss the first click), so at
+            lg+ rail they stack and center. */}
+        <div
+          className={`relative z-10 mb-3 px-1 flex items-center justify-between ${
+            railCollapsed ? 'lg:flex-col lg:items-center lg:justify-center lg:gap-2' : ''
+          }`}
+        >
           <Link href="/" aria-label="Dream Create — home" className="block shrink-0">
             <DreamCreateMark size={30} />
           </Link>
@@ -327,8 +334,8 @@ export default function TenantSidebar({
               />
             </ul>
           )}
-          <div className={`px-1 pt-1 ${railCollapsed ? 'lg:flex lg:justify-center' : ''}`}>
-            <DropdownProfile align="left" />
+          <div className={`px-1 pt-1 min-w-0 ${railCollapsed ? 'lg:flex lg:justify-center' : ''}`}>
+            <DropdownProfile align="left" collapsed={railCollapsed} />
           </div>
         </div>
       </aside>
