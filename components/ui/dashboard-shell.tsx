@@ -4,6 +4,7 @@ import TenantSidebar from './tenant-sidebar'
 import BillingActivationBanner from './billing-activation-banner'
 import BillingDunningBanner from './billing-dunning-banner'
 import KeyboardShortcuts from './keyboard-shortcuts'
+import { TrailProvider } from '@/app/trail-context'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
 import { getVisibleModules } from '@/lib/modules'
@@ -59,17 +60,22 @@ export default async function DashboardShell({
         tenantType={ctx.tenantType}
         isDemo={ctx.isDemo}
       />
-      <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-        {/* Demo mode: amber 3px top hairline on the canvas (replaces the strip). */}
-        {ctx.isDemo && (
-          <div className="h-[3px] shrink-0 bg-amber-500" aria-hidden="true" data-testid="demo-hairline" />
-        )}
-        <Header variant={headerVariant} moduleIds={moduleIds} isDemo={ctx.isDemo} />
-        {/* Slim billing chip-row (compact skins of the same banners/logic). */}
-        <BillingActivationBanner ctx={ctx} />
-        <BillingDunningBanner ctx={ctx} />
-        <main className="grow [&>*:first-child]:scroll-mt-16">{children}</main>
-      </div>
+      {/* TrailProvider records the per-tab journey-trail so the header's
+          back chip can offer effortless, filter-preserving, multi-step return
+          navigation. It only feeds the chip; it never auto-navigates. */}
+      <TrailProvider modules={modules.map((m) => ({ path: m.path, label: m.label }))}>
+        <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          {/* Demo mode: amber 3px top hairline on the canvas (replaces the strip). */}
+          {ctx.isDemo && (
+            <div className="h-[3px] shrink-0 bg-amber-500" aria-hidden="true" data-testid="demo-hairline" />
+          )}
+          <Header variant={headerVariant} moduleIds={moduleIds} isDemo={ctx.isDemo} />
+          {/* Slim billing chip-row (compact skins of the same banners/logic). */}
+          <BillingActivationBanner ctx={ctx} />
+          <BillingDunningBanner ctx={ctx} />
+          <main className="grow [&>*:first-child]:scroll-mt-16">{children}</main>
+        </div>
+      </TrailProvider>
       {/* Global keyboard map ( [ · ⌘1/2/3 · C · G→P/A/L ). */}
       <KeyboardShortcuts cockpitPaths={cockpitPaths} />
     </div>

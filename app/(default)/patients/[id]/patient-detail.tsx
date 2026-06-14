@@ -6,6 +6,7 @@ import type { PatientHeader } from '@/lib/services/patients'
 import type { TimelineEvent, TimelineCounts, TimelineKind } from '@/lib/services/patient-timeline'
 import type { PatientNoteRow } from '@/lib/services/patient-notes'
 import { patientFlagGlyphs, type Tone } from '@/lib/ui/encodings'
+import { useTrailLabel } from '@/app/trail-context'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -127,6 +128,13 @@ export default function PatientDetail({
   const [bookOpen, setBookOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [archivePending, startArchive] = useTransition()
+
+  // Label this stop on the journey-trail with the patient's name, so the back
+  // chip reads "← Olivia Lopez" instead of "← Patients" when you leave here.
+  // (Other detail routes — /shop/products/[id], /careers/[id], /posts/[id] —
+  // can call useTrailLabel the same way; the registry fallback covers them if
+  // they don't.)
+  useTrailLabel(header.fullName)
 
   const filtered = useMemo(
     () => filter === 'all' ? timeline : timeline.filter((e) => matchesTab(filter, e.kind)),
