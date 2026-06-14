@@ -19,6 +19,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
 import { channelMeta, CHANNEL_LEGEND } from './channel-meta'
+import { avatarTint, messageInitials } from './message-grouping'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
 import MessagesSurfaceTabs from './surface-tabs'
 import NavBadgeSync from './nav-badge-sync'
@@ -204,70 +205,93 @@ export default async function ClinicMessagesView({
           className={`${threadSelected ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[22rem] shrink-0 border-r border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] overflow-y-auto`}
         >
           {threads.length === 0 ? (
-            <EmptyState
-              icon={filterEmpty ? '🔍' : '💬'}
-              title={filterEmpty ? 'No threads match these filters' : 'No conversations yet'}
-              body={
-                filterEmpty
-                  ? 'Try a different status or clear the unread filter to see more.'
-                  : 'When a patient messages you — in-app, by email, or by text — the thread shows up right here.'
-              }
-            />
+            <div className="p-3">
+              <EmptyState
+                icon={filterEmpty ? '🔍' : '💬'}
+                title={filterEmpty ? 'No threads match these filters' : 'No conversations yet'}
+                body={
+                  filterEmpty
+                    ? 'Try a different status, or clear the unread filter to see more.'
+                    : 'When a patient messages you — in-app, by email, or by text — the thread shows up right here, one row per patient.'
+                }
+              />
+            </div>
           ) : (
-            <ul>
+            <ul className="py-1">
               {threads.map((t) => {
                 const ch = channelMeta(t.lastMessageChannel)
                 const active = activeThread?.id === t.id
-                const preview =
-                  t.lastMessagePreview ?? (t.lastMessageDirection ? '' : 'No messages yet')
+                const unread = t.unreadCount > 0
+                const name = `${t.patientFirstName} ${t.patientLastName}`.trim()
+                const tint = avatarTint(t.patientId || name)
                 return (
-                  <li key={t.id} className={`border-b border-[color:var(--color-hairline)] border-l-4 ${rotBorderClass(t)}`}>
+                  <li key={t.id} className={`border-l-4 ${rotBorderClass(t)}`}>
                     <Link
                       href={buildHref(searchParams, { thread: t.id })}
                       aria-current={active ? 'true' : undefined}
-                      className={`block px-4 py-3 transition-colors ${
+                      title={name}
+                      className={`flex items-start gap-3 px-3 py-2.5 mx-1 rounded-[var(--r-md)] transition-colors ${
                         active
                           ? 'bg-teal-500/5 shadow-[inset_0_0_0_1px_rgb(40_179_173/0.4)]'
                           : 'hover:bg-gray-500/[0.06]'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <p className={`text-sm truncate ${t.unreadCount > 0 ? 'font-bold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-200'}`}>
-                          {t.patientFirstName} {t.patientLastName}
-                        </p>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
-                          {fmtRelative(t.lastMessageAt)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={preview || undefined}>
-                        {t.lastMessageDirection === 'outbound' ? (
-                          <span className="text-gray-500 dark:text-gray-400">You: </span>
-                        ) : null}
-                        {t.lastMessagePreview ?? <span className="italic">No messages yet</span>}
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-1.5">
+                      {/* Avatar — initials on a stable per-patient tint so each
+                          patient reads consistently (Gmail/Linear). An amber
+                          dot rides the corner when there are unread messages. */}
+                      <span className="relative shrink-0">
                         <span
-                          className={`text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
-                          title={ch.title}
+                          aria-hidden="true"
+                          className={`flex h-9 w-9 items-center justify-center rounded-[var(--r-pill)] text-xs font-semibold ${tint.bg} ${tint.text}`}
                         >
-                          {ch.label}
+                          {messageInitials(t.patientFirstName, t.patientLastName)}
                         </span>
-                        {t.unreadCount > 0 && (
+                        {unread && (
                           <span
-                            className="text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500 text-white dark:text-gray-900 tabular-nums"
-                            title={`${t.unreadCount} unread message${t.unreadCount === 1 ? '' : 's'}`}
+                            className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-[color:var(--color-surface-1)]"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className={`text-sm truncate ${unread ? 'font-bold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-200'}`}>
+                            {name}
+                          </p>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums shrink-0">
+                            {fmtRelative(t.lastMessageAt)}
+                          </span>
+                        </div>
+                        <p className={`mt-0.5 text-xs truncate ${unread ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                          {t.lastMessageDirection === 'outbound' ? (
+                            <span className="text-gray-400 dark:text-gray-500">You: </span>
+                          ) : null}
+                          {t.lastMessagePreview ?? <span className="italic">No messages yet</span>}
+                        </p>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <span
+                            className={`text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
+                            title={ch.title}
                           >
-                            {t.unreadCount}
+                            {ch.label}
                           </span>
-                        )}
-                        {t.assignedUserName && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 truncate" title={`Assigned to ${t.assignedUserName}`}>
-                            · {t.assignedUserName.split(' ')[0]}
-                          </span>
-                        )}
-                        {t.status === 'snoozed' && (
-                          <span className="text-xs text-amber-700 dark:text-amber-300" title="Snoozed — will resurface later">💤 Snoozed</span>
-                        )}
+                          {unread && (
+                            <span
+                              className="text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500 text-white dark:text-gray-900 tabular-nums"
+                              title={`${t.unreadCount} unread message${t.unreadCount === 1 ? '' : 's'}`}
+                            >
+                              {t.unreadCount}
+                            </span>
+                          )}
+                          {t.status === 'snoozed' ? (
+                            <span className="text-xs text-amber-700 dark:text-amber-300" title="Snoozed — will resurface later">💤</span>
+                          ) : t.assignedUserName ? (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 truncate" title={`Assigned to ${t.assignedUserName}`}>
+                              · {t.assignedUserName.split(' ')[0]}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </Link>
                   </li>
@@ -320,11 +344,16 @@ export default async function ClinicMessagesView({
               hasEmail={!!activeThread.patientEmail}
             />
           ) : (
-            <div className="flex-1 flex items-center justify-center p-10">
+            <div className="flex-1 flex items-center justify-center p-10 bg-[color:var(--color-canvas)]">
               <EmptyState
+                className="max-w-md"
                 icon="💬"
-                title={threads.length === 0 ? 'No patient conversations yet' : 'Pick a thread to read or reply'}
-                body="Every patient who messages you — in-app, by email, or by text — lands here, threaded by patient. One row per relationship, across every channel."
+                title={threads.length === 0 ? 'No patient conversations yet' : 'Pick a conversation to read or reply'}
+                body={
+                  threads.length === 0
+                    ? 'Every patient who messages you — in-app, by email, or by text — lands here, threaded by patient. One row per relationship, across every channel.'
+                    : 'Choose a patient from the list to see the full thread and reply. Conversations waiting on you carry a coloured edge so nothing slips.'
+                }
               />
             </div>
           )}

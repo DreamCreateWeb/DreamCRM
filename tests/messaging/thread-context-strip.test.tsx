@@ -51,9 +51,10 @@ describe('Thread detail — patient context strip', () => {
         missingIntake: false,
       },
     })
-    expect(screen.getByText('Next visit')).toBeInTheDocument()
+    // Scannable eyebrow labels (Next / Last / Balance) lead each stat.
+    expect(screen.getByText('Next')).toBeInTheDocument()
     expect(screen.getByText(/Cleaning/)).toBeInTheDocument()
-    expect(screen.getByText('Last visit')).toBeInTheDocument()
+    expect(screen.getByText('Last')).toBeInTheDocument()
     // A positive PMS balance renders the dollar figure (rose tone).
     expect(screen.getByText('$123.00')).toBeInTheDocument()
     // No intake-missing chip when the flag is false.
@@ -98,7 +99,8 @@ describe('Thread detail — patient context strip', () => {
 
   it('renders no strip at all when context is absent', () => {
     renderPanel({ patientContext: null })
-    expect(screen.queryByText('Next visit')).not.toBeInTheDocument()
+    expect(screen.queryByText('Next')).not.toBeInTheDocument()
+    expect(screen.queryByText('Balance')).not.toBeInTheDocument()
   })
 
   it('shows a mobile back link when backHref is provided', () => {

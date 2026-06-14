@@ -14,6 +14,7 @@ import {
   snoozeThreadAction,
 } from './clinic-actions'
 import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-reply-channel'
+import { avatarTint, groupMessagesByDay, messageInitials } from './message-grouping'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -97,6 +98,11 @@ function fmtMoney(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
 
+/** Bare clock for the per-group timestamp ("3:24 PM"). */
+function fmtClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
 export default function ThreadDetailPanel({
   thread,
   messages,
@@ -119,7 +125,17 @@ export default function ThreadDetailPanel({
     pickDefaultReplyChannel(messages, hasEmail),
   )
   const [showSnooze, setShowSnooze] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
   const streamRef = useRef<HTMLDivElement | null>(null)
+
+  // Group the flat message list into day buckets, each holding runs of
+  // consecutive same-sender messages — so we render one avatar + sender
+  // label per group (iMessage/Front quality), not a label over every bubble.
+  const dayGroups = useMemo(() => groupMessagesByDay(messages), [messages])
+
+  const patientName = `${thread.patientFirstName} ${thread.patientLastName}`.trim()
+  const patientInitials = messageInitials(thread.patientFirstName, thread.patientLastName)
+  const patientTint = avatarTint(thread.patientId || patientName)
 
   // Scroll the message stream to the bottom whenever it changes
   useEffect(() => {
@@ -168,6 +184,7 @@ export default function ThreadDetailPanel({
   function applyTemplate(key: string) {
     const tpl = templates.find((t) => t.key === key)
     if (tpl) setBody(tpl.rendered)
+    setShowTemplates(false)
   }
 
   return (
@@ -185,20 +202,42 @@ export default function ThreadDetailPanel({
           </Link>
         )}
         <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <Link
-            href={`/patients/${thread.patientId}`}
-            className="text-base font-bold text-gray-900 dark:text-gray-100 hover:underline truncate inline-block"
+        <div className="min-w-0 flex-1 flex items-center gap-3">
+          {/* Patient avatar — initials on the patient's stable tint, the same
+              chip the thread list shows, so identity carries across panes. */}
+          <span
+            aria-hidden="true"
+            className={`hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--r-pill)] text-sm font-semibold ${patientTint.bg} ${patientTint.text}`}
           >
-            {thread.patientFirstName} {thread.patientLastName}
-          </Link>
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {thread.patientEmail ?? <span className="italic">no email on file</span>}
-            {thread.patientPhone && <span> · {thread.patientPhone}</span>}
-            {thread.assignedUserName && (
-              <span className="ml-2 text-gray-600 dark:text-gray-300">Assigned to {thread.assignedUserName}</span>
-            )}
-          </p>
+            {patientInitials}
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/patients/${thread.patientId}`}
+                className="text-base font-bold text-gray-900 dark:text-gray-100 hover:underline truncate inline-block"
+              >
+                {patientName}
+              </Link>
+              {thread.status === 'snoozed' && (
+                <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300" title="Snoozed — will resurface later">
+                  💤 Snoozed
+                </span>
+              )}
+              {thread.status === 'archived' && (
+                <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-gray-500/15 text-gray-600 dark:text-gray-300" title="Archived — closed and tucked away">
+                  Archived
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {thread.patientEmail ?? <span className="italic">no email on file</span>}
+              {thread.patientPhone && <span> · {thread.patientPhone}</span>}
+              {thread.assignedUserName && (
+                <span className="ml-2 text-gray-600 dark:text-gray-300">Assigned to {thread.assignedUserName}</span>
+              )}
+            </p>
+          </div>
         </div>
         {/* Routine triage actions — all secondary; none competes with the
             reply composer's single primary, and archive is NOT destructive. */}
@@ -259,10 +298,10 @@ export default function ThreadDetailPanel({
           <Link
             href={`/patients/${patientContext.patientId}`}
             title="Open this patient's record"
-            className="v2-well group mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-[color:var(--color-hairline)]"
+            className="v2-well group mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 transition-colors hover:bg-[color:var(--color-hairline)]"
           >
-            <span>
-              <span className="text-gray-500 dark:text-gray-400">Next visit </span>
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-[color:var(--color-ink-500)] uppercase tracking-wide text-[0.625rem] font-semibold">Next</span>
               {patientContext.nextVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.nextVisitAt)}
@@ -273,8 +312,8 @@ export default function ThreadDetailPanel({
               )}
             </span>
             <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
-            <span>
-              <span className="text-gray-500 dark:text-gray-400">Last visit </span>
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-[color:var(--color-ink-500)] uppercase tracking-wide text-[0.625rem] font-semibold">Last</span>
               {patientContext.lastVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.lastVisitAt)}
@@ -284,8 +323,8 @@ export default function ThreadDetailPanel({
               )}
             </span>
             <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
-            <span>
-              <span className="text-gray-500 dark:text-gray-400">Balance </span>
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-[color:var(--color-ink-500)] uppercase tracking-wide text-[0.625rem] font-semibold">Balance</span>
               {patientContext.outstandingBalanceCents == null ? (
                 <span className="text-gray-500 dark:text-gray-400" title="No balance synced from the PMS">
                   no PMS balance
@@ -314,57 +353,115 @@ export default function ThreadDetailPanel({
       </div>
 
       {/* ── Message stream ────────────────────────────────────────── */}
-      <div ref={streamRef} className="flex-1 overflow-y-auto px-5 py-4 bg-[color:var(--color-canvas)]">
+      <div ref={streamRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-[color:var(--color-canvas)]">
         {messages.length === 0 ? (
-          <EmptyState
-            icon="✍️"
-            title="No messages yet"
-            body={`Send the first one to ${thread.patientFirstName} below.`}
-          />
+          <div className="flex h-full items-center justify-center">
+            <EmptyState
+              icon="✍️"
+              title="No messages yet"
+              body={`Start the conversation with ${thread.patientFirstName} — type a note below and it lands in their thread across every channel.`}
+            />
+          </div>
         ) : (
-          <ul className="space-y-3 max-w-3xl mx-auto">
-            {messages.map((m) => {
-              const ch = channelMeta(m.channel)
-              return (
-                <li key={m.id} className={m.direction === 'outbound' ? 'flex justify-end' : 'flex justify-start'}>
-                  <div className="max-w-[80%]">
-                    <div className={`text-xs uppercase tracking-wider font-semibold mb-1 text-gray-500 dark:text-gray-400 ${m.direction === 'outbound' ? 'text-right' : ''}`}>
-                      {m.direction === 'outbound' ? (m.sentByUserName ?? currentUserName ?? 'You') : `${thread.patientFirstName} ${thread.patientLastName}`}
-                      <span className="ml-1.5 normal-case font-normal text-gray-500 dark:text-gray-400 tabular-nums">
-                        · {new Date(m.sentAt).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                      <span
-                        className={`ml-1.5 normal-case font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] text-xs ${ch.pill}`}
-                        title={ch.title}
+          <div className="max-w-3xl mx-auto space-y-5">
+            {dayGroups.map((day) => (
+              <div key={day.dayKey}>
+                {/* Day separator — a centred hairline pill so the eye can
+                    place each message in time without a loud header. */}
+                <div className="relative my-3 flex items-center justify-center" role="separator" aria-label={day.label}>
+                  <span className="absolute inset-x-0 top-1/2 h-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
+                  <span className="relative z-10 rounded-[var(--r-pill)] bg-[color:var(--color-surface-sunk)] px-2.5 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400 tabular-nums">
+                    {day.label}
+                  </span>
+                </div>
+
+                <ul className="space-y-3.5">
+                  {day.groups.map((group) => {
+                    const outbound = group.direction === 'outbound'
+                    const ch = channelMeta(group.channel)
+                    const senderLabel = outbound
+                      ? (group.senderName ?? currentUserName ?? 'You')
+                      : patientName
+                    const last = group.messages[group.messages.length - 1]
+                    return (
+                      <li
+                        key={group.key}
+                        className={`flex gap-2.5 ${outbound ? 'flex-row-reverse' : 'flex-row'}`}
                       >
-                        {ch.label}
-                      </span>
-                    </div>
-                    {/* Bubbles keep their direction contrast; containers move to the
-                        radius scale (12px) + a hairline ring on the inbound surface. */}
-                    <div className={`px-3.5 py-2.5 rounded-[var(--r-lg)] text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                      m.direction === 'outbound'
-                        ? 'bg-ink-900 text-[color:var(--color-surface-2)] rounded-tr-sm'
-                        : 'bg-[color:var(--color-surface-2)] text-gray-800 dark:text-gray-100 shadow-[inset_0_0_0_1px_var(--color-hairline)] rounded-tl-sm'
-                    }`}>
-                      {m.subject && m.channel === 'email' && (
-                        <p className="font-semibold text-xs mb-1 opacity-75">{m.subject}</p>
-                      )}
-                      {m.body}
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                        {/* Avatar once per group. Inbound = the patient's
+                            stable tint; outbound = a quiet ink chip for "us". */}
+                        <span
+                          aria-hidden="true"
+                          className={`mt-auto hidden sm:flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--r-pill)] text-xs font-semibold ${
+                            outbound
+                              ? 'bg-ink-800/10 text-ink-700 dark:bg-white/10 dark:text-gray-200'
+                              : `${patientTint.bg} ${patientTint.text}`
+                          }`}
+                        >
+                          {outbound ? messageInitials(senderLabel) : patientInitials}
+                        </span>
+
+                        <div className={`flex min-w-0 max-w-[78%] flex-col gap-1 ${outbound ? 'items-end' : 'items-start'}`}>
+                          {/* One sender + channel line per group, quiet. */}
+                          <div className={`flex items-center gap-1.5 px-0.5 text-xs ${outbound ? 'flex-row-reverse' : ''}`}>
+                            <span className="font-semibold text-gray-600 dark:text-gray-300 truncate max-w-[12rem]">
+                              {senderLabel}
+                            </span>
+                            <span
+                              className={`shrink-0 font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
+                              title={ch.title}
+                            >
+                              {ch.label}
+                            </span>
+                          </div>
+
+                          {/* The bubbles. Outbound = ink fill aligned right;
+                              inbound = etched surface aligned left. Tighter
+                              corners between same-sender bubbles in the run. */}
+                          {group.messages.map((m, i) => {
+                            const first = i === 0
+                            const lastInRun = i === group.messages.length - 1
+                            const tail = outbound
+                              ? (first ? 'rounded-tr-md' : '') + (lastInRun ? ' rounded-br-md' : '')
+                              : (first ? 'rounded-tl-md' : '') + (lastInRun ? ' rounded-bl-md' : '')
+                            return (
+                              <div
+                                key={m.id}
+                                className={`w-fit px-3.5 py-2 rounded-[var(--r-lg)] text-sm leading-relaxed whitespace-pre-wrap break-words ${tail} ${
+                                  outbound
+                                    ? 'bg-ink-900 text-[color:var(--color-surface-2)]'
+                                    : 'bg-[color:var(--color-surface-2)] text-gray-800 dark:text-gray-100 shadow-[inset_0_0_0_1px_var(--color-hairline)]'
+                                }`}
+                              >
+                                {m.subject && m.channel === 'email' && (
+                                  <p className="font-semibold text-xs mb-1 opacity-75">{m.subject}</p>
+                                )}
+                                {m.body}
+                              </div>
+                            )
+                          })}
+
+                          {/* Timestamp once per group, on the last bubble. */}
+                          <span className="px-0.5 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                            {fmtClock(last.sentAt)}
+                          </span>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       {/* ── Composer (only when not archived) ─────────────────────── */}
       {thread.status !== 'archived' && (
-        <div className="v2-panel rounded-none border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] px-5 py-3 shrink-0">
+        <div className="border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] px-4 sm:px-6 py-3 shrink-0">
           <div className="max-w-3xl mx-auto">
-            <div className="flex items-center gap-2 mb-2">
+            {/* Controls row — channel select, templates menu, prefers hint. */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <label className="sr-only" htmlFor="reply-channel">Reply channel</label>
               <select
                 id="reply-channel"
@@ -380,24 +477,31 @@ export default function ThreadDetailPanel({
                 <option value="sms" disabled>SMS (coming soon)</option>
               </select>
               {templates.length > 0 && (
-                <>
-                  <label className="sr-only" htmlFor="reply-template">Insert a template</label>
-                  <select
-                    id="reply-template"
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) applyTemplate(e.target.value)
-                      e.target.value = ''
-                    }}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplates((s) => !s)}
+                    aria-expanded={showTemplates}
                     title="Drop a saved reply into the box"
-                    className="form-select text-xs font-medium py-1 pl-2 pr-7 text-gray-700 dark:text-gray-200"
+                    className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
                   >
-                    <option value="">Insert template…</option>
-                    {templates.map((t) => (
-                      <option key={t.key} value={t.key}>{t.label}</option>
-                    ))}
-                  </select>
-                </>
+                    Templates <span aria-hidden="true" className="opacity-60">▾</span>
+                  </button>
+                  {showTemplates && (
+                    <div className="pop-in origin-bottom-left absolute left-0 bottom-full mb-1 z-10 py-1 min-w-[14rem] rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)]">
+                      {templates.map((t) => (
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() => applyTemplate(t.key)}
+                          className="block w-full text-left text-xs px-3 py-1.5 text-gray-700 dark:text-gray-200 hover:bg-gray-500/[0.08]"
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
               {preferred && (
                 // A derived metadata hint, not a status — quiet ink chip in a
@@ -413,19 +517,20 @@ export default function ThreadDetailPanel({
                 ⌘ + Enter to send
               </span>
             </div>
-            <label className="sr-only" htmlFor="reply-body">Your reply</label>
-            <textarea
-              id="reply-body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSend()
-              }}
-              placeholder={`Reply to ${thread.patientFirstName}…`}
-              rows={3}
-              className="form-textarea w-full text-sm resize-none"
-            />
-            <div className="flex justify-end mt-2">
+            {/* Framed reply box — textarea + Send together in one calm panel. */}
+            <div className="v2-panel flex items-end gap-2 p-2 focus-within:shadow-[inset_0_0_0_1px_var(--color-hairline-strong)] transition-shadow">
+              <label className="sr-only" htmlFor="reply-body">Your reply</label>
+              <textarea
+                id="reply-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSend()
+                }}
+                placeholder={`Reply to ${thread.patientFirstName}…`}
+                rows={2}
+                className="flex-1 resize-none border-0 bg-transparent px-1.5 py-1 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-0"
+              />
               {/* The pane's single primary action. */}
               <ActionButton variant="primary" size="sm" onClick={handleSend} disabled={pending || !body.trim()}>
                 {pending ? 'Sending…' : `Send ${channel === 'email' ? 'email' : channel === 'sms' ? 'SMS' : 'message'}`}
