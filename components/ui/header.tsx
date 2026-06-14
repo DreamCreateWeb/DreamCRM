@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAppProvider } from '@/app/app-provider'
+import { useTrail } from '@/app/trail-context'
 
 import SearchModal from '@/components/search-modal'
 import Notifications from '@/components/dropdown-notifications'
@@ -9,6 +10,7 @@ import DropdownHelp from '@/components/dropdown-help'
 import ThemeToggle from '@/components/theme-toggle'
 import QuickCreateMenu from './quick-create-menu'
 import DemoExitChip from './demo-exit-chip'
+import TrailBack from './trail-back'
 
 /**
  * v2 header (DESIGN-SYSTEM.md Part 4) — 56px, surface-1 + bottom hairline.
@@ -34,6 +36,10 @@ export default function Header({
 }) {
   const { sidebarOpen, setSidebarOpen } = useAppProvider()
   const [searchModalOpen, setSearchModalOpen] = useState<boolean>(false)
+  // Whether the journey-trail back chip is showing — mirrors TrailBack's own
+  // visibility rule so the title's "·" separator only renders alongside it.
+  const { trail, previous } = useTrail()
+  const hasTrailBack = trail.length > 1 && !!previous
 
   // ⌘K / Ctrl+K opens the global palette from anywhere in the dashboard.
   useEffect(() => {
@@ -66,8 +72,20 @@ export default function Header({
                 <rect x="4" y="17" width="16" height="2" />
               </svg>
             </button>
+            {/* Journey-trail "← {came-from}" chip — renders only when there's
+                somewhere to go back to, so it sits quietly before the title. */}
+            <TrailBack />
             {title && (
-              <h1 className="truncate text-sm font-semibold text-ink-900">{title}</h1>
+              <h1 className="flex min-w-0 items-center truncate text-sm font-semibold text-ink-900">
+                {/* "·" separator only when the back chip is also showing, so the
+                    row reads "← Patients · Settings" — never a dangling dot. */}
+                {hasTrailBack && (
+                  <span className="mr-1.5 select-none font-normal text-ink-400" aria-hidden="true">
+                    ·
+                  </span>
+                )}
+                {title}
+              </h1>
             )}
           </div>
 
