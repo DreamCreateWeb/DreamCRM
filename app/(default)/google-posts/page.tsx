@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireTenant, requirePlan } from '@/lib/auth/context'
+import { requireTenant } from '@/lib/auth/context'
 import { hasGbpConnection, listGbpPosts } from '@/lib/services/gbp-posts'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { PageHeader } from '@/components/ui/page-header'
@@ -19,9 +19,11 @@ export const dynamic = 'force-dynamic'
 /**
  * Google Posts — Phase 2 of the Zernio × Google Business integration. A composer
  * for GBP Updates / Offers / Events with a CTA button + image, plus a post
- * history. Premium + owner/admin (mirrors Integrations gating). Disconnected →
- * a calm connect-prompt to /integrations. Connected + no posts → an EmptyState
- * leading with "Write your first Google post."
+ * history. Clinic + owner/admin on ANY plan — Google Business posting is part of
+ * the free GBP surface on every tier (Basic included; see
+ * lib/types/social-entitlements.ts). Disconnected → a calm connect-prompt to
+ * /integrations. Connected + no posts → an EmptyState leading with "Write your
+ * first Google post."
  *
  * Honest by design: Google deprecated per-post insights, so the history shows
  * publish STATUS + a permalink — never fabricated per-post metrics. Local
@@ -31,8 +33,7 @@ export default async function GooglePostsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
-  // Premium clinic module. requirePlan no-ops outside clinic tenants.
-  await requirePlan(ctx, 'premium', 'google_posts')
+  // NO plan gate — Google Business posting is free on every tier.
 
   const [connected, posts] = await Promise.all([
     hasGbpConnection(ctx.organizationId),

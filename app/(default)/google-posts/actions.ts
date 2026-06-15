@@ -2,26 +2,23 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
-import type { PlanTier } from '@/lib/modules'
 import { createGbpPost, deleteGbpPost } from '@/lib/services/gbp-posts'
 import type { CreateGbpPostFormInput } from '@/lib/types/zernio'
 
 /**
  * Server actions for the Google Posts surface. Each re-gates clinic + owner/
- * admin + Premium (the page is gated too, but actions must self-gate against a
- * deep-link). Demo contexts inherit the demo org's premium tier so they pass.
- * Returns the `{ ok | error }` convention so the composer can surface inline.
+ * admin — on ANY plan (the page is gated the same, but actions must self-gate
+ * against a deep-link). Google Business posting is part of the free GBP surface
+ * on every tier (Basic included; see lib/types/social-entitlements.ts), so there
+ * is NO plan gate. Returns the `{ ok | error }` convention so the composer can
+ * surface inline.
  */
-function ensureGbpAdmin(ctx: { tenantType: string; role: string; planTier: PlanTier }) {
+function ensureGbpAdmin(ctx: { tenantType: string; role: string }) {
   if (ctx.tenantType !== 'clinic') {
     throw new Error('Google Posts is only available for clinic tenants.')
   }
   if (ctx.role === 'patient' || ctx.role === 'member') {
     throw new Error('Only an owner or admin can publish Google posts.')
-  }
-  if (!planAllows(ctx.planTier, 'premium')) {
-    throw new Error('Google Posts is on the Premium plan.')
   }
 }
 

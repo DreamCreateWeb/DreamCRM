@@ -213,6 +213,19 @@ export const clinicProfile = pgTable('clinic_profile', {
   stripeSubscriptionId: text('stripe_subscription_id'),
   subscriptionStatus: text('subscription_status'),
 
+  // ── Social-connection add-on (Zernio social module, Phase 3, migration 0067)
+  // 1 = the clinic has purchased the flat per-tier "extra social connections"
+  // add-on (a Stripe subscription ITEM on top of the plan), which RAISES the
+  // social-connection cap (Pro 1→3, Premium 2→5). 0 = not purchased (the base
+  // free allotment applies). THE source of truth the entitlement math reads;
+  // kept in sync by the Stripe webhook (detects the add-on price among the
+  // subscription items) for real clinics, and set directly for the demo. GBP is
+  // free + separate on every tier and never gated by this — see
+  // lib/types/social-entitlements.ts.
+  socialAddon: integer('social_addon').notNull().default(0),
+  // When the social add-on was last activated (null when never / removed).
+  socialAddonSince: timestamp('social_addon_since', { withTimezone: true }),
+
   // How this clinic's billing came to be: 'self_serve' = signed up through
   // onboarding; 'managed' = created by the platform admin, owner activates
   // billing from an invite; 'comped' = platform-granted tier, no Stripe sub.

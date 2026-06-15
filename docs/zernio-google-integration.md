@@ -1,13 +1,45 @@
 # Zernio × Google Business integration — plan
 
 **Status: PHASE 1 (Google Business core) COMPLETE + PHASE 2 (GBP posting)
-COMPLETE (2026-06-15).** Foundation + reviews/AggregateRating + hours/address/
-phone/photos sync + GBP local metrics into SEO + Analytics + **GBP posting
-(Updates / Offers / Events composer + CTA + image + history)** are all live.
-Phase 3 (the full social module) is the next phase, **pending a billing/metering
-design discussion** (Zernio bills ~$6 per connected account; the plan is 2 free
-accounts per clinic, then charge for additional connections — details TBD).
-Real-time review ingest via Zernio webhooks is the recommended near-term add.
+COMPLETE + PHASE 3 PR1 (billing + entitlements foundation) COMPLETE
+(2026-06-15).** Foundation + reviews/AggregateRating + hours/address/phone/photos
+sync + GBP local metrics into SEO + Analytics + **GBP posting (Updates / Offers /
+Events composer + CTA + image + history)** are all live, and the **social-module
+billing model is now FINALIZED + shipped** (PR1): per-plan social-connection
+entitlements + a flat per-tier Stripe add-on, and **Google Business is now free
+on every plan tier** (relaxed from Premium-only). Phase 3 PRs 2–4 (the social
+UI itself) are next. Real-time review ingest via Zernio webhooks is the
+recommended near-term add.
+
+## Social-module billing — DECIDED (was "pending"), shipped in Phase 3 PR1
+
+| Plan | GBP | Free social | Social add-on | Social limit (base → with add-on) |
+|---|---|---|---|---|
+| Basic ($99) | ✓ all plans | 0 | **not available** (upgrade to Pro) | 0 |
+| Pro ($149) | ✓ | 1 | **$30/mo** | 1 → **3** |
+| Premium ($199) | ✓ | 2 | **$20/mo** | 2 → **5** |
+
+- **Google Business is FREE + SEPARATE on every tier** — it does NOT count
+  toward the social limit and is never blocked (owner/admin role still required).
+  "Total connections including GBP" = social limit + 1 → Basic 1, Pro 2/4,
+  Premium 3/6.
+- The add-on is a **flat per-tier SKU that raises the cap** (NOT metered per
+  connection). Annual-plan clinics get an annual add-on (10× monthly = 2 months
+  free) matching their interval.
+- Entitlement math: `lib/types/social-entitlements.ts`
+  (`socialConnectionLimit` / `socialAddonAvailable` / `socialAddonPriceCents`).
+  Source of truth: `clinic_profile.social_addon` (migration 0067), kept in sync
+  by the Stripe webhook (detects the add-on price among the subscription items;
+  reconciles on plan change). Purchase/cancel + the cap helper
+  `canConnectSocialPlatform` live in `lib/services/social-billing.ts`. Self-serve
+  buy/cancel on Settings → Billing ("Social connections" card).
+- **Out-of-band Stripe setup (do once, then redeploy):** create two Products
+  with monthly + annual recurring prices — "Social connections — Pro" ($30/mo +
+  $300/yr) and "Social connections — Premium" ($20/mo + $200/yr) — and set the 4
+  price ids in `dreamcrm/app-secrets`: `STRIPE_PRICE_SOCIAL_ADDON_PRO`,
+  `STRIPE_PRICE_SOCIAL_ADDON_PRO_ANNUAL`, `STRIPE_PRICE_SOCIAL_ADDON_PREMIUM`,
+  `STRIPE_PRICE_SOCIAL_ADDON_PREMIUM_ANNUAL`. Until they're set, the add-on CTA
+  degrades to a disabled "coming soon" (everything else still works keyless).
 
 - **GBP posting (Phase 2 — this PR):** ✅ **DONE.** A polished **Google Posts**
   surface (`/google-posts`, premium + owner/admin, Growth sidebar group) lets a
@@ -500,13 +532,26 @@ FB/IG/etc.
   surfaced on `/seo`). Demo seeds 3 posts (published Update + image + Book CTA,
   published Offer + coupon, scheduled Event). See `lib/services/gbp-posts.ts` +
   `app/(default)/google-posts/`. **→ Phase 2 (GBP posting) is now COMPLETE.**
-- **Phase 3 (NEXT) — Full social module:** multi-platform compose/schedule/
-  publish + analytics across the 15 platforms; Facebook reviews folded into the
-  Reviews module alongside Google. **PENDING a billing/metering design
-  discussion:** Zernio bills ~$6 per connected social account; the plan is to
-  include ~2 free connected accounts per clinic (Google Business + one more) and
-  charge for additional connections — exact packaging/tiering TBD before Phase 3
-  ships (the multi-account fan-out is what makes the per-account cost matter).
+- **Phase 3 PR1 (DONE) — billing + entitlements foundation:** the social-module
+  billing is now DECIDED + shipped (see the "Social-module billing — DECIDED"
+  table above): per-plan social-connection entitlements
+  (`lib/types/social-entitlements.ts`), a flat per-tier Stripe add-on
+  (`lib/services/social-billing.ts` + the webhook reconcile + the Settings card),
+  `clinic_profile.social_addon` (migration 0067), the cap helper
+  `canConnectSocialPlatform` (ready for PR2's connect flow), and **Google Business
+  relaxed from Premium-only to all plans** (connect/callback routes, integrations
+  Zernio actions, Settings GBP-sync actions, `/reviews` Google actions,
+  `/google-posts`). The demo (Premium) is seeded with the add-on on (5 social
+  slots).
+- **Phase 3 PR2 (NEXT) — multi-platform connect:** generalize the
+  `/integrations` Google Business card into a cap-aware multi-platform
+  **"Channels"** surface (Instagram / Facebook / TikTok / YouTube / LinkedIn),
+  gating each new social connection on `canConnectSocialPlatform` (GBP always
+  free + uncounted). Then **PR3 — composer/calendar** (multi-platform compose +
+  schedule, generalizing the GBP composer) and **PR4 — social analytics +
+  Facebook reviews** (folded into the Reviews module alongside Google). Zernio
+  bills ~$6 per connected social account; the entitlement caps (2 free on
+  Premium, +add-on to 5) keep that cost bounded.
 
 ## Open questions to resolve at build time
 - Exact webhook event shapes + signature scheme (`docs.zernio.com/webhooks`).

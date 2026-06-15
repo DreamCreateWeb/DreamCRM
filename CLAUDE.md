@@ -345,10 +345,55 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   `POST /v1/posts` (body `profileId` + `content`/`text` + `socialAccountIds[]`/
   `platforms[]` + `scheduledAt`/`scheduledFor` + `mediaUrls` + `publishNow`; GBP
   options under `options`/`googleBusiness`); `GET /v1/posts?page&limit&status`;
-  `DELETE /v1/posts/{postId}`. **Phase 2 (GBP posting) is COMPLETE; Phase 3 (the
-  full social module) is PENDING a billing/metering design discussion** (Zernio
-  ~$6/connected account; plan = ~2 free accounts/clinic then charge for
-  additional connections, TBD). See `docs/zernio-google-integration.md`.
+  `DELETE /v1/posts/{postId}`. **Phase 2 (GBP posting) is COMPLETE.**
+- **Zernio social module — Phase 3 PR1: billing + entitlements + GBP relaxed to
+  all plans (2026-06-15)** — the money foundation for the social module. **The
+  billing model is now DECIDED (was "pending"):** per-plan social-connection
+  entitlements + a flat per-tier Stripe add-on. **Entitlement math** (client-safe,
+  `lib/types/social-entitlements.ts`): `socialConnectionLimit(plan, hasAddon)`
+  (basic 0 · pro 1→3 · premium 2→5), `socialAddonAvailable` (false on basic),
+  `socialAddonPriceCents` (pro 3000 / premium 2000), `GBP_ALLOWED_ALL_PLANS=true`
+  — **Google Business is FREE + SEPARATE on every tier, never counts toward the
+  social limit, never blocked** (owner/admin still required). "Total incl. GBP" =
+  social limit + 1 (Basic 1 · Pro 2/4 · Premium 3/6). **Schema:**
+  `clinic_profile.social_addon` (int, default 0) + `social_addon_since`
+  (**migration 0067**) — the source of truth the entitlement reads; set by the
+  Stripe webhook for real clinics, seeded directly for the demo. **Stripe add-on**
+  (`lib/stripe-config.ts` — 4 env-referenced prices
+  `STRIPE_PRICE_SOCIAL_ADDON_{PRO,PRO_ANNUAL,PREMIUM,PREMIUM_ANNUAL}` +
+  `getSocialAddonPriceId`/`isSocialAddonPriceId`/`socialAddonConfigured`; **these
+  Stripe Prices DON'T EXIST yet** — referenced lazily, every consumer degrades to
+  a disabled "coming soon" when the env is absent so build/tests run keyless).
+  `lib/services/social-billing.ts`: `addSocialAddon`/`removeSocialAddon` (add/del
+  a Stripe **subscription ITEM** at the tier+interval price w/ proration; Basic →
+  "Upgrade to Pro" throw, comped/no-sub → "managed billing" throw; idempotent),
+  `reconcileSocialAddonItem` (swaps a stale add-on item to the new tier price on a
+  plan change), `canConnectSocialPlatform(orgId)` → `{allowed,limit,current,
+  reason?}` (counts non-GBP `zernio_account` rows vs the cap — **GBP never counts**;
+  **ready for PR2's connect flow, not yet wired**), `seedDemoSocialAddon`
+  (patient-guarded, idempotent, NEVER touches Stripe). **Webhook**:
+  `syncSubscriptionFromStripe` now resolves the plan tier from the plan item (not
+  items[0], so an add-on item can't shadow it) AND sets `social_addon` 1/0 by
+  detecting an add-on price among the items — keeps the flag in sync on buy /
+  cancel / **plan change**, idempotent on retry; `clearSubscription` drops it.
+  Server actions `buySocialAddonAction`/`cancelSocialAddonAction` (owner/admin +
+  clinic, `{ ok | error }`) behind a **Settings → Billing "Social connections"
+  card** (DESIGN-SYSTEM v2: shows the entitlement + add-on state — Active w/
+  Cancel · Available w/ Buy $X/mo · "Upgrade to Pro" for Basic · "coming soon" if
+  env unset · "managed billing" for comped). **GBP relaxed from Premium-only to
+  ALL plans** (owner/admin still required) across: the connect/callback routes,
+  the Integrations Zernio actions (split out of the Premium PMS `ensureClinicAdmin`
+  into `ensureClinicGbpAdmin`), the `/integrations` page (no longer redirects
+  below-Premium — renders the GBP card for everyone + a Premium upsell for the PMS
+  body), Settings → "Sync from Google" (`gbp-actions.ts` + always-loaded card),
+  `/reviews` Google actions (already plan-free), and `/google-posts` (page +
+  actions). The `google_posts` + `integrations` sidebar entries lost their
+  `minPlan` (visible on every tier). **Demo**: the Premium demo clinic is seeded
+  `social_addon=1` (5 social slots) so PR2's UI showcases the full allotment.
+  **Out-of-band Stripe setup** (do once, redeploy): create 2 Products × monthly+
+  annual prices (Social — Pro $30/$300, Social — Premium $20/$200) and set the 4
+  env price ids in `dreamcrm/app-secrets`. ~80 new tests (`tests/billing/social-*`
+  + `tests/zernio/gbp-gate-relax`). See `docs/zernio-google-integration.md`.
 - **Website system sprint — "complete in seconds" (2026-06-12, PRs #342–#345)**
   — 4 audits + 4 build waves refined the ENTIRE clinic-website system to the
   day-0-complete model (supersedes the honest-empty framing of #304–#307 for

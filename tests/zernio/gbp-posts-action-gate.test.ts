@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * Google Posts server-action gate: clinic + owner/admin + Premium. A below-tier
- * clinic, a patient/member role, or a platform tenant must NOT reach the
- * underlying service even by deep-linking. requireTenant is mocked to drive the
- * context; the service is stubbed to assert it's only reached when the gate
- * passes, and that the `{ ok | error }` convention is honored.
+ * Google Posts server-action gate: clinic + owner/admin on ANY plan (GBP posting
+ * is free on every tier — Basic included). A patient/member role or a platform
+ * tenant must NOT reach the underlying service even by deep-linking. requireTenant
+ * is mocked to drive the context; the service is stubbed to assert it's only
+ * reached when the gate passes, and that the `{ ok | error }` convention is honored.
  */
 type Ctx = {
   tenantType: 'platform' | 'clinic' | 'patient'
@@ -62,12 +62,18 @@ describe('createGbpPostAction gate', () => {
     expect(createGbpPost).toHaveBeenCalledTimes(1)
   })
 
-  it('blocks a non-premium clinic (returns error, never reaches the service)', async () => {
+  it('passes for a Basic-plan clinic (GBP posting is free on every tier)', async () => {
+    tenantCtx!.planTier = 'basic'
+    const r = await createGbpPostAction(input)
+    expect(r.ok).toBe(true)
+    expect(createGbpPost).toHaveBeenCalledWith('org_1', input)
+  })
+
+  it('passes for a Pro-plan clinic', async () => {
     tenantCtx!.planTier = 'pro'
     const r = await createGbpPostAction(input)
-    expect(r.ok).toBe(false)
-    expect(r.error).toMatch(/Premium/i)
-    expect(createGbpPost).not.toHaveBeenCalled()
+    expect(r.ok).toBe(true)
+    expect(createGbpPost).toHaveBeenCalledTimes(1)
   })
 
   it('blocks a member role', async () => {
@@ -106,8 +112,15 @@ describe('deleteGbpPostAction gate', () => {
     expect(deleteGbpPost).toHaveBeenCalledWith('org_1', 'gbp_1')
   })
 
-  it('blocks a non-premium clinic', async () => {
+  it('passes for a Basic-plan clinic (GBP is free on every tier)', async () => {
     tenantCtx!.planTier = 'basic'
+    const r = await deleteGbpPostAction('gbp_1')
+    expect(r.ok).toBe(true)
+    expect(deleteGbpPost).toHaveBeenCalledWith('org_1', 'gbp_1')
+  })
+
+  it('blocks a member role', async () => {
+    tenantCtx!.role = 'member'
     const r = await deleteGbpPostAction('gbp_1')
     expect(r.ok).toBe(false)
     expect(deleteGbpPost).not.toHaveBeenCalled()

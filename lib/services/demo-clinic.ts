@@ -13,6 +13,7 @@ import { seedDemoGoogleReviews } from '@/lib/services/google-reviews'
 import { seedDemoGbpSync } from '@/lib/services/gbp-sync'
 import { seedDemoGbpMetrics } from '@/lib/services/gbp-metrics'
 import { seedDemoGbpPosts } from '@/lib/services/gbp-posts'
+import { seedDemoSocialAddon } from '@/lib/services/social-billing'
 import {
   DEFAULT_FAQ_ITEMS,
   type ClinicStat,
@@ -1958,6 +1959,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // history on legacy demos. Idempotent; never networks (isDemo rows).
     await seedDemoGbpPosts(existing.id)
 
+    // Social add-on self-heal: flag the demo (Premium) clinic's social_addon = 1
+    // so the entitlement computes the full 5 social slots for PR 2's social UI.
+    // Idempotent; never touches Stripe (the demo has no real subscription).
+    await seedDemoSocialAddon(existing.id)
+
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
     // /shop/payments page, and the commerce timeline events on legacy demos).
@@ -2569,6 +2575,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Posts page showcases the composer output + a populated history. The Book CTA
   // uses the clinic's real /book URL. Never networks (isDemo rows).
   await seedDemoGbpPosts(orgId)
+
+  // Social add-on: flag the demo (Premium) clinic's social_addon = 1 so the
+  // entitlement computes the full 5 social slots for PR 2's social UI. Never
+  // touches Stripe (the demo has no real subscription).
+  await seedDemoSocialAddon(orgId)
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import {
   syncGoogleBusinessProfile,
   revertFieldToManual,
@@ -12,10 +11,11 @@ import type { GbpSyncResult, SyncableField } from '@/lib/types/zernio'
 
 /**
  * Server actions behind the Settings → hours/location "Sync from Google" UI.
- * All three gate to a clinic tenant + owner/admin + the premium plan (the same
- * tier as the Integrations module the connection lives in) so a below-tier or
- * read-only member can't drive the sync. They return the established
- * `{ ok | error }`-shaped results so the client can surface inline feedback.
+ * All three gate to a clinic tenant + owner/admin — on ANY plan. Google Business
+ * is free + separate on every tier (Basic included; see
+ * lib/types/social-entitlements.ts), so there is NO plan gate. They return the
+ * established `{ ok | error }`-shaped results so the client can surface inline
+ * feedback.
  */
 
 type Gate =
@@ -30,12 +30,7 @@ async function gate(): Promise<Gate> {
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
     return { ok: false, error: 'Only owners and admins can sync from Google.' }
   }
-  // Plan gate (premium) — mirrors the Integrations module's gating. We use
-  // planAllows (not requirePlan, which redirects) so the action returns a
-  // friendly error instead of a navigation.
-  if (!planAllows(ctx.planTier, 'premium')) {
-    return { ok: false, error: 'Google Business sync is a premium feature. Upgrade to enable it.' }
-  }
+  // NO plan gate — Google Business is free on every tier (Basic included).
   return { ok: true, ctx }
 }
 

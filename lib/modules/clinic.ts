@@ -62,7 +62,9 @@ export const clinicModules: ModuleRegistry = {
     // ── Growth ─────────────────────────────────────────────────────────
     { id: 'recall',            path: '/marketing',         label: 'Recall & Outreach',section: 'Growth',   icon: 'megaphone',status: 'live', minPlan: 'premium' },
     { id: 'reviews',           path: '/reviews',           label: 'Reviews',          section: 'Growth',   icon: 'star',     status: 'live', minPlan: 'pro' },
-    { id: 'google_posts',      path: '/google-posts',      label: 'Google Posts',     section: 'Growth',   icon: 'megaphone',status: 'live', minPlan: 'premium' },
+    // Google Posts is a pure Google Business surface — GBP is free on every plan
+    // tier (Basic included), so NO minPlan. See lib/types/social-entitlements.ts.
+    { id: 'google_posts',      path: '/google-posts',      label: 'Google Posts',     section: 'Growth',   icon: 'megaphone',status: 'live' },
     { id: 'analytics',         path: '/analytics',         label: 'Analytics',        section: 'Growth',   icon: 'chart',    status: 'live', minPlan: 'premium' },
 
     // ── Website (the trunk) ────────────────────────────────────────────
@@ -73,7 +75,11 @@ export const clinicModules: ModuleRegistry = {
 
     // ── Business ───────────────────────────────────────────────────────
     { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', minPlan: 'premium' },
-    { id: 'integrations',      path: '/integrations',      label: 'Integrations',     section: 'Business', icon: 'plug',     status: 'live', minPlan: 'premium' },
+    // The /integrations page hosts BOTH the Premium PMS sync AND the free
+    // Google Business card (free on every tier). The page renders the GBP card
+    // for everyone + a Premium upsell for the PMS, so the sidebar entry is
+    // visible on every plan (the page no longer redirects below-Premium).
+    { id: 'integrations',      path: '/integrations',      label: 'Integrations',     section: 'Business', icon: 'plug',     status: 'live' },
 
     // ── Settings ───────────────────────────────────────────────────────
     { id: 'settings',          path: '/settings/account',  label: 'Settings',         section: 'Settings', icon: 'gear',     status: 'live' },
