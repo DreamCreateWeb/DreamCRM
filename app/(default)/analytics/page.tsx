@@ -141,10 +141,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           </div>
           {a.acquisition.gbp?.connected ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <KpiStat label="Listing views" value={a.acquisition.gbp.impressions} />
-              <KpiStat label="Calls" value={a.acquisition.gbp.calls} href="/seo" />
-              <KpiStat label="Directions" value={a.acquisition.gbp.directions} href="/seo" />
-              <KpiStat label="Bookings" value={a.acquisition.gbp.bookings} href="/seo" />
+              <KpiStat label="Listing views" value={a.acquisition.gbp.impressions.toLocaleString()} />
+              <KpiStat label="Calls" value={a.acquisition.gbp.calls.toLocaleString()} href="/seo" />
+              <KpiStat label="Directions" value={a.acquisition.gbp.directions.toLocaleString()} href="/seo" />
+              <KpiStat label="Bookings" value={a.acquisition.gbp.bookings.toLocaleString()} href="/seo" />
             </div>
           ) : (
             <p className="text-xs text-gray-500 dark:text-gray-400">
