@@ -1,23 +1,31 @@
 # Zernio × Google Business integration — plan
 
-**Status: PHASE 1 (Google Business core) COMPLETE + PHASE 2 (GBP posting)
-COMPLETE + PHASE 3 PR1 (billing + entitlements) + PR2 (cap-aware multi-platform
-"Channels" connect) COMPLETE (2026-06-15).** Foundation + reviews/AggregateRating
-+ hours/address/phone/photos sync + GBP local metrics into SEO + Analytics + **GBP
-posting (Updates / Offers / Events composer + CTA + image + history)** are all
-live; the **social-module billing model is FINALIZED + shipped** (PR1, per-plan
-social-connection entitlements + a flat per-tier Stripe add-on, **Google Business
-free on every plan tier**); and the **`/channels` surface** (PR2) now lets a
-clinic connect/disconnect Google Business + the 5 shortlisted social platforms
-(Instagram / Facebook / TikTok / YouTube / LinkedIn), enforcing the plan's
-social-connection cap at the connect route (GBP uncapped/free); and the
-**unified `/social-posts` composer + content calendar** (PR3) now lets a clinic
-compose once and publish/schedule to Google Business + the connected socials at
-once (the GBP-only `/google-posts` was generalized — `gbp_post` → `social_post` +
-a `social_post_target` child, migration 0068 — and `/google-posts` redirects to
-`/social-posts`). **Phase 3 PR4 (per-platform social analytics + Facebook reviews)
-is next.** Real-time review ingest via Zernio webhooks is the recommended
-near-term add.
+**Status: THE ENTIRE INTEGRATION IS COMPLETE — PHASE 1 (Google Business core) +
+PHASE 2 (GBP posting) + PHASE 3 (full social module: PR1 billing/entitlements,
+PR2 cap-aware "Channels" connect, PR3 unified composer + content calendar, PR4
+per-platform social analytics + Facebook reviews) all shipped (2026-06-15).**
+Foundation + reviews/AggregateRating + hours/address/phone/photos sync + GBP
+local metrics into SEO + Analytics + **GBP posting (Updates / Offers / Events
+composer + CTA + image + history)** are all live; the **social-module billing
+model is FINALIZED + shipped** (PR1, per-plan social-connection entitlements + a
+flat per-tier Stripe add-on, **Google Business free on every plan tier**); the
+**`/channels` surface** (PR2) lets a clinic connect/disconnect Google Business +
+the 5 shortlisted social platforms (Instagram / Facebook / TikTok / YouTube /
+LinkedIn), enforcing the plan's social-connection cap at the connect route (GBP
+uncapped/free); the **unified `/social-posts` composer + content calendar** (PR3)
+lets a clinic compose once and publish/schedule to Google Business + the connected
+socials at once (the GBP-only `/google-posts` was generalized — `gbp_post` →
+`social_post` + a `social_post_target` child, migration 0068 — and `/google-posts`
+redirects to `/social-posts`); and **PR4** adds **per-platform social analytics**
+(followers / reach / impressions / engagement per connected social channel, on the
+Analytics "Social performance" band) + **Facebook reviews/recommendations folded
+into the Reviews module** (the `google_review` table was generalized →
+`platform_review` with a `platform` column, migration 0069; the public
+AggregateRating stays Google-only). **The only deferred niceties (non-blocking):
+real-time review ingest via Zernio webhooks (`review.new`/`review.updated`) — the
+hourly cron covers it today; and a confirmed Facebook reviews REST shape (Zernio's
+docs only pin the unified `/comments/reviews` surface, so the FB pull is parsed
+entirely defensively + is best-effort).**
 
 ## Social-module billing — DECIDED (was "pending"), shipped in Phase 3 PR1
 
@@ -638,10 +646,77 @@ FB/IG/etc.
     (image + Book CTA), a published GBP Offer (coupon), a scheduled IG+FB social
     cross-post, and a scheduled GBP Event (using the PR2 demo GBP+IG+FB accounts;
     patient-guarded, idempotent, never networks). +75 tests.
-- **Phase 3 PR4 (NEXT) — social analytics + Facebook reviews:** per-platform
-  metrics for the connected socials, and Facebook reviews folded into the Reviews
-  module alongside Google. Zernio bills ~$6 per connected social account; the
-  entitlement caps (2 free on Premium, +add-on to 5) keep that cost bounded.
+- **Phase 3 PR4 (SHIPPED) — per-platform social analytics + Facebook reviews
+  (the FINAL PR; the whole integration is now COMPLETE):**
+  - **Per-platform social analytics** — client wrappers in `lib/zernio.ts`
+    (`getSocialPlatformAnalytics(platform, accountId, {since/until|days})` +
+    `socialAnalyticsSupported`) hit the per-platform `-insights` endpoints
+    (IG `account-insights` · FB `page-insights` · TikTok `account-insights` ·
+    YouTube `channel-insights` · LinkedIn `aggregate-analytics`) — every one
+    returns the SAME `{metrics:{<KEY>:{total,values}}}` envelope as GBP
+    performance, parsed DEFENSIVELY (each logical figure — followers/reach/
+    impressions/engagement/profile-views/posts — tries a list of metric-key
+    aliases, prefers `total`, falls back to summing `values`; followers take the
+    LATEST point not the sum; a missing key → 0). Service
+    `lib/services/social-metrics.ts` `getSocialMetrics(orgId,{days})` →
+    per-connected-social-platform tiles, mirroring `gbp-metrics.ts` discipline
+    EXACTLY: **demo-safe** (isDemo → seeded synthetic per-platform numbers,
+    never network), **best-effort** (no socials → `connected:false`; one
+    platform's failure → that tile reads zeros + an `error`, the others render;
+    never throws), 30/90 window threaded. Surfaced as a **"Social performance"
+    band on `/analytics`** (per-platform followers/reach/impressions/engagement
+    tiles; a connect-prompt to `/channels` when nothing social is connected; an
+    honest "couldn't load — analytics add-on required" note on a 402, never fake
+    zeros-as-data).
+  - **Facebook reviews into the Reviews module** — the `google_review` table was
+    GENERALIZED → `platform_review` (added a `platform` column defaulting
+    `'googlebusiness'` + a `recommendation_type` column for FB's recommend /
+    don't-recommend model + widened the unique key to (org, platform,
+    externalReviewId); **migration 0069**, existing Google rows preserved
+    untouched). Service `lib/services/facebook-reviews.ts` mirrors
+    `google-reviews.ts` (sync via the unified `listFacebookReviews` client
+    wrapper, idempotent upsert, demo-safe, best-effort, recommend/don't tallies)
+    scoped to `platform='facebook'`. A **"From Facebook" section** on
+    `/reviews/received` shows recommendations **read-only** with a "reply on
+    Facebook" link-out — **honest: Zernio exposes NO Facebook reply endpoint**,
+    so we don't fake a reply box. The Google path is UNCHANGED (its functions now
+    filter `platform='googlebusiness'`); the public-site **AggregateRating stays
+    Google-only** (FB recommendations have no star value + aren't SEO-meaningful).
+    The hourly review cron (`/api/cron/sync-google-reviews`) now sweeps BOTH
+    platforms (`{ok, google, facebook}`).
+  - **Confirmed REST shapes (PR4):** per-platform analytics — `GET /v1/analytics/
+    {instagram/account-insights|facebook/page-insights|tiktok/account-insights|
+    youtube/channel-insights|linkedin/aggregate-analytics}?accountId&since&until`
+    → the shared `InstagramAccountInsightsResponse` envelope (`{success,
+    accountId, platform, dateRange, metricType, metrics:{<KEY>:{total,values}}}`),
+    Analytics add-on gated (our account has `hasAnalyticsAccess:true`; 402 = off).
+    Facebook reviews — there is **NO Facebook-only reviews endpoint** (only GBP's
+    `gmb-reviews`); the OpenAPI probe surfaced a UNIFIED `GET /v1/comments/reviews`
+    (filterable by platform) for the FB + GBP inbox-review surface, but the
+    per-FB-review field shape is NOT pinned in the rendered docs — so the FB
+    wrapper hits `/comments/reviews?platform=facebook&accountId=…`, parses every
+    field defensively, and is best-effort (any drift → empty, never destructive;
+    the demo seeds synthetic FB recommendations so the section showcases populated
+    regardless). FB recommendations map FB Graph `positive`/`negative` (and
+    `recommended`/`not_recommended`) → our enum; a legacy FB star coexisting with
+    a recommendation is dropped (keeps `starRating` null).
+  - **Demo:** `seedDemoFacebookReviews` seeds ~4 synthetic FB recommendations
+    (3 recommend, 1 doesn't, 1 bare/no-comment; patient-guarded, idempotent,
+    never networks); `seedDemoSocialMetrics` is a documented no-op hook — the
+    per-platform metrics are a live compute returned whenever the connection is
+    isDemo (the IG+FB accounts from PR2), showing synthetic IG/FB followers/reach/
+    engagement. **+~95 tests** (`tests/zernio/social-analytics-client` ·
+    `facebook-reviews-section` · `tests/services/social-metrics-service` ·
+    `facebook-reviews-service`; extended `google-reviews-service` ·
+    `demo-google-reviews` · `sync-google-reviews-cron` · `analytics-page` for the
+    generalized table + the social band).
+
+**→ THE ENTIRE ZERNIO INTEGRATION (Phases 1–3) IS COMPLETE.** Deferred niceties
+(non-blocking, documented inline): real-time review ingest via Zernio webhooks
+(`review.new`/`review.updated`) into the `platform_review` upsert so reviews land
+instantly instead of waiting for the hourly cron; a confirmed Facebook reviews
+REST shape (the defensive wrapper lights up the moment Zernio pins it); Facebook
+reply support (no Zernio endpoint today — read-only + link-out for now).
 
 ## Open questions to resolve at build time
 - Exact webhook event shapes + signature scheme (`docs.zernio.com/webhooks`).

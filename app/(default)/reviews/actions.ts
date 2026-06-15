@@ -16,6 +16,7 @@ import {
   replyToGoogleReview,
   deleteGoogleReviewReply,
 } from '@/lib/services/google-reviews'
+import { syncFacebookReviews } from '@/lib/services/facebook-reviews'
 
 function ensureClinicAdmin(ctx: { tenantType: string; role: string }) {
   if (ctx.tenantType !== 'clinic') {
@@ -151,4 +152,25 @@ export async function deleteGoogleReviewReplyAction(
   const r = await deleteGoogleReviewReply(ctx.organizationId, externalReviewId)
   if (r.ok) revalidatePath('/reviews/received')
   return r
+}
+
+// ── Facebook reviews / recommendations (synced via Zernio) ───────────────────
+
+/**
+ * Pull the org's Facebook recommendations from Facebook (via Zernio) on demand.
+ * Owner/admin only. Returns the count synced (or a skip reason). FB
+ * recommendations are read-only (no reply endpoint) + excluded from the public
+ * AggregateRating, so this only revalidates the reviews surfaces.
+ */
+export async function syncFacebookReviewsAction(): Promise<
+  { ok: true; synced: number; skipped?: string } | { ok: false; error: string }
+> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot sync reviews.' }
+  const r = await syncFacebookReviews(ctx.organizationId)
+  if (!r.ok) return { ok: false, error: r.error ?? 'Sync failed.' }
+  revalidatePath('/reviews')
+  revalidatePath('/reviews/received')
+  return { ok: true, synced: r.synced, skipped: r.skipped }
 }

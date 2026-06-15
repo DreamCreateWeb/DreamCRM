@@ -10,8 +10,10 @@ import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { seedDemoPms } from '@/lib/services/pms'
 import { seedDemoZernio } from '@/lib/services/zernio'
 import { seedDemoGoogleReviews } from '@/lib/services/google-reviews'
+import { seedDemoFacebookReviews } from '@/lib/services/facebook-reviews'
 import { seedDemoGbpSync } from '@/lib/services/gbp-sync'
 import { seedDemoGbpMetrics } from '@/lib/services/gbp-metrics'
+import { seedDemoSocialMetrics } from '@/lib/services/social-metrics'
 import { seedDemoSocialPosts } from '@/lib/services/social-posts'
 import { seedDemoSocialAddon } from '@/lib/services/social-billing'
 import {
@@ -1941,6 +1943,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Idempotent (upsert by externalReviewId). Never networks.
     await seedDemoGoogleReviews(existing.id)
 
+    // Facebook recommendations self-heal: seed synthetic FB recommendations
+    // (recommend / don't-recommend) so the Reviews "From Facebook" section
+    // showcases populated state on legacy demos. Idempotent; never networks. FB
+    // recommendations are excluded from the public AggregateRating (Google-only).
+    await seedDemoFacebookReviews(existing.id)
+
     // Google Business sync self-heal: flag the synced fields 'google' + stamp
     // googleSyncedAt + seed google_photos so legacy demos showcase the Settings
     // "Sync from Google" provenance + import gallery. Non-destructive (only
@@ -1952,6 +1960,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // whenever the connection is isDemo (seeded above). No row to persist — this
     // asserts the prerequisite + documents where the numbers come from.
     await seedDemoGbpMetrics(existing.id)
+
+    // Per-platform social metrics self-heal: the Analytics "Social performance"
+    // band reads synthetic per-platform numbers (IG/FB followers/reach/
+    // engagement) whenever the connection is isDemo (the IG+FB accounts were
+    // seeded by seedDemoZernio). No row to persist — documented no-op hook.
+    await seedDemoSocialMetrics(existing.id)
 
     // Social posts self-heal: seed multi-channel social posts (a published
     // cross-post to GBP+IG+FB w/ image + Book CTA, a published GBP Offer, a
@@ -2558,6 +2572,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Never networks (isDemo rows).
   await seedDemoGoogleReviews(orgId)
 
+  // Facebook recommendations: seed ~4 synthetic FB recommendations (3 recommend,
+  // 1 doesn't, 1 bare/no-comment) so the Reviews "From Facebook" section + the
+  // recommend/don't tallies populate. Never networks (isDemo rows). Excluded from
+  // the public AggregateRating (Google-only).
+  await seedDemoFacebookReviews(orgId)
+
   // Google Business hours/address/phone/photos sync: flag the synced fields as
   // 'google' + stamp a recent googleSyncedAt + seed google_photos so the
   // Settings "Sync from Google" card showcases the populated provenance + the
@@ -2570,6 +2590,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // connection is isDemo (seeded by seedDemoZernio above). Nothing to persist —
   // this documents the metrics demo path + asserts the connection prerequisite.
   await seedDemoGbpMetrics(orgId)
+
+  // Per-platform social metrics: the Analytics "Social performance" band reads
+  // synthetic per-platform numbers (IG/FB followers/reach/engagement) whenever
+  // the connection is isDemo (the IG+FB accounts were seeded by seedDemoZernio
+  // above). Nothing to persist — documented no-op hook.
+  await seedDemoSocialMetrics(orgId)
 
   // Social posts: seed multi-channel posts (a published cross-post to GBP+IG+FB
   // w/ image + Book CTA, a published GBP Offer, a scheduled IG+FB cross-post, a

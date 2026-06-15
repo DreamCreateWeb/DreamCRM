@@ -1182,46 +1182,74 @@ export const zernioAccount = pgTable(
 )
 export type ZernioAccountRow = typeof zernioAccount.$inferSelect
 
-// ── Google Business reviews (synced from the clinic's GBP via Zernio) ─────────
-// REAL reviews patients left on Google, pulled through the Zernio GBP connection
-// (cron + on-demand). Distinct from `review_request` (the first-party "patient
-// writes the review inside Dream Create" flow) — these we don't own the text of,
-// we just mirror + reply. The synced rating drives the public-site
-// `AggregateRating` JSON-LD (sourced ONLY from real Google data, never faked).
-// Idempotent upsert is keyed by (organizationId, externalReviewId).
-export const googleReview = pgTable(
-  'google_review',
+// ── Platform reviews (synced from the clinic's GBP + Facebook via Zernio) ──────
+// REAL reviews/recommendations patients left on Google Business or Facebook,
+// pulled through the Zernio connection (cron + on-demand). Distinct from
+// `review_request` (the first-party "patient writes the review inside Dream
+// Create" flow) — these we don't own the text of, we just mirror (and reply,
+// where the platform's API allows). The synced Google rating drives the
+// public-site `AggregateRating` JSON-LD (sourced ONLY from real Google data,
+// never faked — Facebook is deliberately excluded from the rich-snippet rating).
+//
+// Generalizes the Phase-1 `google_review` table (renamed → `platform_review` in
+// migration 0069: a `platform` column was added defaulting 'googlebusiness', and
+// every existing Google row was migrated). Facebook uses a recommend / don't-
+// recommend model rather than 1–5 stars, so `starRating` is null for FB rows and
+// `recommendationType` carries 'recommended' | 'not_recommended' (null for GBP).
+// Idempotent upsert is keyed by (organizationId, platform, externalReviewId).
+export const platformReview = pgTable(
+  'platform_review',
   {
     id: text('id').primaryKey(),
     organizationId: text('organization_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    // Google's stable review id (Zernio's `id`/`reviewId`/`name`).
+    // The platform this review came from: 'googlebusiness' | 'facebook'.
+    platform: text('platform').notNull().default('googlebusiness'),
+    // The platform's stable review id (Zernio's `id`/`reviewId`/`name`).
     externalReviewId: text('external_review_id').notNull(),
-    // The Zernio GBP account id the review was pulled from (audit + re-sync key).
+    // The Zernio account id the review was pulled from (audit + re-sync key).
     accountId: text('account_id').notNull(),
     reviewerName: text('reviewer_name'),
     reviewerPhotoUrl: text('reviewer_photo_url'),
-    // Integer 1–5 (null when Google omitted a rating — rare comment-only state).
+    // Integer 1–5 (null when the platform omitted a rating — Google's rare
+    // comment-only state, OR a Facebook recommendation which has no star value).
     starRating: integer('star_rating'),
-    // Google allows rating-only reviews, so the comment is nullable.
+    // Facebook recommendation: 'recommended' | 'not_recommended'. Null for GBP
+    // (which uses starRating instead).
+    recommendationType: text('recommendation_type'),
+    // The platform allows rating-only / comment-only reviews, so this is nullable.
     comment: text('comment'),
     reviewCreatedAt: timestamp('review_created_at', { withTimezone: true }),
     reviewUpdatedAt: timestamp('review_updated_at', { withTimezone: true }),
-    // The clinic's owner reply (posted from the dashboard), null when none.
+    // The clinic's owner reply (posted from the dashboard), null when none. Only
+    // GBP supports replies via Zernio today; FB rows stay null (read-only).
     replyComment: text('reply_comment'),
     replyUpdatedAt: timestamp('reply_updated_at', { withTimezone: true }),
     // Best-effort link to a CRM patient by reviewer name — weak/optional, fine to
-    // leave null in v1 (a Google reviewer name rarely maps 1:1 to a patient row).
+    // leave null in v1 (a reviewer name rarely maps 1:1 to a patient row).
     patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
     // 1 for the demo (Dream Dental) — demo reviews NEVER hit the network.
     isDemo: integer('is_demo').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('google_review_org_external_idx').on(t.organizationId, t.externalReviewId)],
+  (t) => [
+    uniqueIndex('platform_review_org_platform_external_idx').on(
+      t.organizationId,
+      t.platform,
+      t.externalReviewId,
+    ),
+  ],
 )
-export type GoogleReviewRow = typeof googleReview.$inferSelect
+export type PlatformReviewRow = typeof platformReview.$inferSelect
+
+// Back-compat aliases — the original Google-only names. Kept so existing imports
+// (`schema.googleReview`, `GoogleReviewRow`) keep resolving against the
+// generalized table without a wide rename. New code should prefer the
+// `platformReview` / `PlatformReviewRow` names.
+export const googleReview = platformReview
+export type GoogleReviewRow = PlatformReviewRow
 
 // ── Social posts (Phase 3 — unified multi-platform composer) ──────────────────
 // One composed post (text + optional image + optional schedule) fanned out to

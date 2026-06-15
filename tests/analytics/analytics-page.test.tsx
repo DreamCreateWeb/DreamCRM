@@ -44,6 +44,19 @@ vi.mock('@/lib/services/site-analytics', () => ({
   })),
 }))
 
+// The Social-performance band reads per-platform metrics; mock it so the page
+// renders without touching lib/db. Default: no connected socials (connect-prompt);
+// individual tests override via socialMetricsMock.
+const socialMetricsMock = vi.fn(async (_org: string, opts?: { days?: number }) => ({
+  connected: false,
+  isDemo: false,
+  platforms: [] as Array<Record<string, unknown>>,
+  windowDays: opts?.days ?? 30,
+}))
+vi.mock('@/lib/services/social-metrics', () => ({
+  getSocialMetrics: (org: string, opts?: { days?: number }) => socialMetricsMock(org, opts),
+}))
+
 vi.mock('@/components/onboarding/module-hint', () => ({
   default: () => null,
 }))
@@ -113,6 +126,8 @@ function hrefOf(text: RegExp): string[] {
 
 beforeEach(() => {
   getClinicAnalyticsMock.mockReset()
+  socialMetricsMock.mockReset()
+  socialMetricsMock.mockResolvedValue({ connected: false, isDemo: false, platforms: [], windowDays: 30 })
 })
 
 describe('Schedule-health KPIs are drillable', () => {
@@ -248,5 +263,61 @@ describe('cancellation low-volume guard keys on its own denominator', () => {
     await renderPage('30', a)
     const cancelTile = screen.getByText(/Cancellation rate/i).closest('a')!
     expect(within(cancelTile).getByText('1/3')).toBeTruthy()
+  })
+})
+
+describe('Social-performance band (Phase 3 PR 4)', () => {
+  it('renders per-platform tiles (followers/reach/impressions/engagement) when social is connected', async () => {
+    socialMetricsMock.mockResolvedValue({
+      connected: true,
+      isDemo: true,
+      windowDays: 30,
+      platforms: [
+        { platform: 'instagram', label: 'Instagram', icon: '📸', handle: '@dreamdental', followers: 1840, reach: 6200, impressions: 9800, engagement: 540, profileViews: 410, posts: 12 },
+        { platform: 'facebook', label: 'Facebook', icon: '📘', handle: 'Dream Dental', followers: 2310, reach: 4900, impressions: 7400, engagement: 380, profileViews: 260, posts: 9 },
+      ],
+    })
+    await renderPage('30', baseAnalytics())
+    const section = screen.getByText('Social performance').closest('section')!
+    expect(within(section).getByText('Instagram')).toBeTruthy()
+    expect(within(section).getByText('Facebook')).toBeTruthy()
+    expect(within(section).getByText('1,840')).toBeTruthy() // IG followers
+    expect(within(section).getByText('6,200')).toBeTruthy() // IG reach
+    expect(within(section).getByText('2,310')).toBeTruthy() // FB followers
+    expect(within(section).getByText('@dreamdental')).toBeTruthy()
+  })
+
+  it('shows a connect-prompt to /channels when no social channel is connected (no dead zeros)', async () => {
+    socialMetricsMock.mockResolvedValue({ connected: false, isDemo: false, platforms: [], windowDays: 30 })
+    await renderPage('30', baseAnalytics())
+    const section = screen.getByText('Social performance').closest('section')!
+    expect(within(section).getByText(/Connect a social channel/i)).toBeTruthy()
+    const link = within(section).getByText('Channels').closest('a') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('/channels')
+  })
+
+  it('a per-platform error tile shows an honest "couldn\'t load" note, not fake zeros-as-data', async () => {
+    socialMetricsMock.mockResolvedValue({
+      connected: true,
+      isDemo: false,
+      windowDays: 30,
+      platforms: [
+        { platform: 'facebook', label: 'Facebook', icon: '📘', handle: 'Dream Dental', followers: 0, reach: 0, impressions: 0, engagement: 0, profileViews: 0, posts: 0, error: 'Zernio API 402 Payment Required' },
+      ],
+    })
+    await renderPage('30', baseAnalytics())
+    const section = screen.getByText('Social performance').closest('section')!
+    // The note is one <p> built from several JSX expressions — match full text
+    // on the <p> element specifically (ancestors also contain the substring).
+    const note = within(section).getByText(
+      (_t, el) => el?.tagName === 'P' && /couldn't load metrics this load.*analytics add-on required/i.test(el?.textContent ?? ''),
+    )
+    expect(note).toBeTruthy()
+  })
+
+  it('threads the selected window into getSocialMetrics', async () => {
+    await renderPage('90', baseAnalytics({ windowDays: 90 }))
+    expect(socialMetricsMock).toHaveBeenCalledWith('org_1', { days: 90 })
+    expect(screen.getByText(/Reach \+ engagement from your connected social channels · last 90 days/i)).toBeTruthy()
   })
 })

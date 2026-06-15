@@ -1079,3 +1079,340 @@ export async function listPosts(opts: { page?: number; limit?: number; status?: 
 export async function deletePost(postId: string): Promise<void> {
   await zernioFetch(`/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' })
 }
+
+// ── Facebook reviews / recommendations (Phase 3 PR 4) ─────────────────────────
+//
+// Confirmed against the Zernio docs (llms.txt + llms-full.txt + the OpenAPI
+// probe, 2026-06-15):
+//   - Google Business reviews have a DEDICATED endpoint (`/google-business/
+//     gmb-reviews`, wired above).
+//   - There is NO Facebook-only reviews endpoint. The OpenAPI probe surfaced a
+//     UNIFIED review surface — `GET /v1/comments/reviews` (the same review/inbox
+//     surface the CLI `inbox:reviews` reads, documented as covering "Facebook,
+//     Google Business"), filterable by platform — but the exact field shape for
+//     a Facebook *recommendation* (recommend / don't-recommend, which has NO
+//     1–5 star value) is NOT spelled out in the rendered docs (they're JS-only).
+//   - Facebook REPLIES are NOT exposed via a Zernio reply endpoint (only GBP has
+//     `gmb-reviews/{id}/reply`). So FB recommendations are READ-ONLY for us — the
+//     UI shows them + a "Reply on Facebook" link-out (honest; no fake reply box).
+//
+// Because the FB review shape is unconfirmed, this wrapper parses ENTIRELY
+// DEFENSIVELY and the service layer treats it as best-effort (any failure →
+// empty, never destructive). When Zernio confirms/ships the shape, the demo
+// already exercises the render path; only this normalizer may need a tweak.
+//
+// Facebook's recommendation model: each review carries either a
+// `recommendationType` (`'positive'`/`'negative'` on FB's Graph API, sometimes
+// surfaced as `'recommended'`/`'not_recommended'`) OR, on older/normalized
+// shapes, a `rating` 1–5. We map both: a star rating (when present) lands as
+// 1–5; otherwise the recommendation maps to recommended/not_recommended (and we
+// leave starRating null — FB recommendations have no star value, which is why
+// they're deliberately EXCLUDED from the public AggregateRating).
+
+/** A normalized Facebook review/recommendation. Either `starRating` (rare —
+ *  legacy FB page ratings were 1–5) OR `recommendationType` is set; usually the
+ *  recommendation. `comment` may be null (a bare recommendation). */
+export interface FacebookReview {
+  /** Facebook's stable review id (the `id`/`reviewId`/`openGraphStoryId`). */
+  id: string
+  reviewerName: string | null
+  reviewerPhotoUrl: string | null
+  /** Integer 1–5 when FB surfaced a legacy star rating, else null. */
+  starRating: number | null
+  /** FB recommendation, normalized: 'recommended' | 'not_recommended' | null. */
+  recommendationType: 'recommended' | 'not_recommended' | null
+  comment: string | null
+  createTime: string | null
+  updateTime: string | null
+  /** A permalink to the recommendation on Facebook, when surfaced. */
+  permalink: string | null
+}
+
+/** Normalize a Facebook recommendation flag from its several documented shapes
+ *  (`recommendationType`, `recommendation`, `isRecommended`, `type`) into our
+ *  enum, or null when unreadable. FB Graph uses 'positive'/'negative'. */
+export function normalizeRecommendation(raw: unknown): 'recommended' | 'not_recommended' | null {
+  if (raw == null) return null
+  if (typeof raw === 'boolean') return raw ? 'recommended' : 'not_recommended'
+  if (typeof raw === 'string') {
+    const v = raw.trim().toLowerCase()
+    if (!v) return null
+    if (['positive', 'recommended', 'recommend', 'yes', 'true', 'up'].includes(v)) return 'recommended'
+    if (['negative', 'not_recommended', 'notrecommended', "doesn't recommend", 'no', 'false', 'down'].includes(v))
+      return 'not_recommended'
+    return null
+  }
+  return null
+}
+
+/** Raw FB review shape — every variant field optional so parsing never throws. */
+interface ZernioRawFbReview {
+  id?: string
+  reviewId?: string
+  openGraphStoryId?: string
+  name?: string
+  rating?: number | string
+  starRating?: number | string
+  recommendationType?: string | boolean
+  recommendation?: string | boolean
+  isRecommended?: boolean
+  type?: string
+  comment?: string | null
+  text?: string | null
+  reviewText?: string | null
+  message?: string | null
+  createTime?: string
+  createdAt?: string
+  createdTime?: string
+  updateTime?: string
+  updatedAt?: string
+  reviewer?: {
+    displayName?: string | null
+    name?: string | null
+    profilePhotoUrl?: string | null
+    profileImage?: string | null
+    picture?: string | null
+  } | null
+  permalink?: string | null
+  permalinkUrl?: string | null
+  url?: string | null
+}
+
+function normalizeFbReview(raw: ZernioRawFbReview): FacebookReview | null {
+  const id = raw.id ?? raw.reviewId ?? raw.openGraphStoryId ?? raw.name
+  if (!id) return null // a review with no id can't be upserted idempotently
+  const reviewer = raw.reviewer ?? null
+  const star = normalizeStarRating(raw.starRating ?? raw.rating)
+  const rec = normalizeRecommendation(raw.recommendationType ?? raw.recommendation ?? raw.isRecommended ?? raw.type)
+  const permalink = [raw.permalink, raw.permalinkUrl, raw.url].find(
+    (u) => typeof u === 'string' && u.startsWith('http'),
+  )
+  return {
+    id: String(id),
+    reviewerName: reviewer?.displayName ?? reviewer?.name ?? null,
+    reviewerPhotoUrl: reviewer?.profilePhotoUrl ?? reviewer?.profileImage ?? reviewer?.picture ?? null,
+    // A FB recommendation has no star value — only keep a star when there was no
+    // recommendation flag (legacy page rating) so the AggregateRating stays
+    // Google-only and FB never injects a fabricated star.
+    starRating: rec ? null : star,
+    recommendationType: rec,
+    comment: raw.comment ?? raw.text ?? raw.reviewText ?? raw.message ?? null,
+    createTime: raw.createTime ?? raw.createdAt ?? raw.createdTime ?? null,
+    updateTime: raw.updateTime ?? raw.updatedAt ?? null,
+    permalink: permalink ?? null,
+  }
+}
+
+/**
+ * `GET /v1/comments/reviews?platform=facebook&accountId=…[&pageToken=…]` — the
+ * connected Facebook Page's reviews/recommendations through the unified Zernio
+ * review surface. Parsed defensively (the FB review field shape is not pinned in
+ * the rendered docs); tolerates `reviews` / `data` / `recommendations` / a bare
+ * array, and `nextPageToken` / `next` / `paging.cursors.after`. Throws on a
+ * non-2xx (the service layer catches and stays best-effort).
+ */
+export async function listFacebookReviews(opts: {
+  accountId: string
+  pageToken?: string
+  pageSize?: number
+}): Promise<{ reviews: FacebookReview[]; nextPageToken: string | null }> {
+  const qs = new URLSearchParams({ platform: 'facebook', accountId: opts.accountId })
+  if (opts.pageToken) qs.set('pageToken', opts.pageToken)
+  if (opts.pageSize) qs.set('pageSize', String(opts.pageSize))
+  const data = await zernioFetch<
+    | {
+        reviews?: ZernioRawFbReview[]
+        data?: ZernioRawFbReview[]
+        recommendations?: ZernioRawFbReview[]
+        nextPageToken?: string | null
+        next?: string | null
+        paging?: { cursors?: { after?: string | null } | null } | null
+      }
+    | ZernioRawFbReview[]
+  >(`/comments/reviews?${qs.toString()}`)
+  const rawList = Array.isArray(data)
+    ? data
+    : (data.reviews ?? data.data ?? data.recommendations ?? [])
+  const reviews = rawList.map(normalizeFbReview).filter((r): r is FacebookReview => r !== null)
+  const nextPageToken = Array.isArray(data)
+    ? null
+    : (data.nextPageToken ?? data.next ?? data.paging?.cursors?.after ?? null)
+  return { reviews, nextPageToken }
+}
+
+// ── Per-platform social analytics (Phase 3 PR 4) ──────────────────────────────
+//
+// Confirmed against the Zernio docs (llms.txt + the OpenAPI probe, 2026-06-15):
+// every per-platform analytics endpoint returns the SAME envelope as the GBP
+// performance endpoint we already consume —
+//   { success, accountId, platform, dateRange:{since,until}, metricType,
+//     metrics: { <METRIC_KEY>: { total, values:[…] } } }
+// (the OpenAPI `InstagramAccountInsightsResponse` schema is reused across IG /
+// FB / TikTok / YouTube / LinkedIn). Per-platform endpoints (the `-insights`
+// names from llms.txt — these were the readable, confirmed page titles):
+//   GET /v1/analytics/instagram/account-insights ?accountId&since&until
+//   GET /v1/analytics/facebook/page-insights      ?accountId&since&until
+//   GET /v1/analytics/tiktok/account-insights     ?accountId&since&until
+//   GET /v1/analytics/youtube/channel-insights    ?accountId&since&until
+//   GET /v1/analytics/linkedin/aggregate-analytics?accountId&since&until
+// Params: `accountId` (required) + a `since`/`until` (YYYY-MM-DD) date range.
+// The Analytics add-on gates these (our account has hasAnalyticsAccess:true); a
+// 402 surfaces as the thrown status+body which the service catches.
+//
+// The specific METRIC KEYS differ per platform AND each platform's exact key
+// names aren't all pinned in the rendered docs. So the normalizer reads
+// DEFENSIVELY: for each logical figure (followers / reach / impressions /
+// engagement / profile-views / post-count) we try a list of plausible key
+// aliases, prefer a pre-summed `total`, fall back to summing the daily `values`,
+// and tolerate every missing key (→ 0). A drifted/renamed key degrades a single
+// figure to 0 without stranding the rest.
+
+/** Per-platform analytics endpoint path (the `-insights` resource per platform).
+ *  Only the shortlisted social platforms have a surface here (GBP uses its own
+ *  performance endpoint). */
+const SOCIAL_ANALYTICS_PATH: Record<string, string> = {
+  instagram: '/analytics/instagram/account-insights',
+  facebook: '/analytics/facebook/page-insights',
+  tiktok: '/analytics/tiktok/account-insights',
+  youtube: '/analytics/youtube/channel-insights',
+  linkedin: '/analytics/linkedin/aggregate-analytics',
+}
+
+/** Per-figure metric-key aliases. Zernio's GBP keys are SCREAMING_SNAKE; the
+ *  social platforms tend to use the platform's own metric names (IG/FB Graph
+ *  Insights, TikTok/YT/LinkedIn). We try each alias and take the first present.
+ *  These cover the documented + common Graph-API names; a miss just reads 0. */
+const SOCIAL_METRIC_ALIASES: Record<'followers' | 'reach' | 'impressions' | 'engagement' | 'profileViews' | 'posts', string[]> = {
+  followers: ['followers', 'follower_count', 'followers_count', 'total_followers', 'fans', 'page_fans', 'subscribers', 'subscriberCount'],
+  reach: ['reach', 'accounts_reached', 'page_impressions_unique', 'reach_total', 'uniqueViews'],
+  impressions: ['impressions', 'views', 'page_impressions', 'profile_impressions', 'video_views', 'totalViews'],
+  engagement: ['engagement', 'engagements', 'total_interactions', 'accounts_engaged', 'page_engaged_users', 'interactions', 'engagementCount'],
+  profileViews: ['profile_views', 'profileViews', 'page_views_total', 'profile_visits', 'pageViews'],
+  posts: ['posts', 'post_count', 'posts_count', 'media_count', 'total_posts', 'publishedPosts'],
+}
+
+/** Raw analytics metric entry — same `{ total, values }` shape as GBP. */
+interface SocialRawMetric {
+  total?: number | string | null
+  value?: number | string | null
+  values?: Array<{ date?: string; value?: number | string | null } | number | string | null> | null
+}
+
+/** The per-platform analytics envelope (`metrics` keyed by metric name). Some
+ *  shapes wrap it under `{ data: {...} }`; the parser reaches through either. */
+interface SocialRawAnalytics {
+  metrics?: Record<string, SocialRawMetric> | null
+  data?: { metrics?: Record<string, SocialRawMetric> | null } | null
+}
+
+/** A normalized per-platform analytics snapshot — window totals (or the latest
+ *  point for cumulative figures like follower count). Any figure Zernio didn't
+ *  return reads 0. */
+export interface SocialPlatformAnalytics {
+  /** Follower / fan / subscriber count (a point-in-time figure). */
+  followers: number
+  /** Unique accounts reached over the window. */
+  reach: number
+  /** Impressions / views over the window. */
+  impressions: number
+  /** Engagements (likes + comments + shares + saves, however the platform
+   *  aggregates) over the window. */
+  engagement: number
+  /** Profile / page visits over the window. */
+  profileViews: number
+  /** Posts published in the window (when the platform reports it). */
+  posts: number
+}
+
+/** Read a metric's total from the analytics `metrics` map, trying each alias key
+ *  in order. Prefers a pre-summed `total`/`value`; falls back to summing the
+ *  daily `values` series; returns 0 when no alias is present/readable. */
+function readSocialMetric(metrics: Record<string, SocialRawMetric>, aliases: string[]): number {
+  for (const key of aliases) {
+    const m = metrics[key]
+    if (!m) continue
+    const total = toFiniteCount(m.total ?? m.value)
+    if (total != null) return total
+    if (Array.isArray(m.values)) {
+      let sum = 0
+      let any = false
+      for (const v of m.values) {
+        if (v == null) continue
+        const n = typeof v === 'object' ? toFiniteCount(v.value) : toFiniteCount(v)
+        if (n != null) {
+          sum += n
+          any = true
+        }
+      }
+      if (any) return sum
+    }
+  }
+  return 0
+}
+
+/** Follower count is cumulative — when only a daily series exists, the LATEST
+ *  value (not the sum) is the real count. Try total first, else the last
+ *  readable daily point. */
+function readFollowerCount(metrics: Record<string, SocialRawMetric>): number {
+  for (const key of SOCIAL_METRIC_ALIASES.followers) {
+    const m = metrics[key]
+    if (!m) continue
+    const total = toFiniteCount(m.total ?? m.value)
+    if (total != null) return total
+    if (Array.isArray(m.values)) {
+      for (let i = m.values.length - 1; i >= 0; i--) {
+        const v = m.values[i]
+        if (v == null) continue
+        const n = typeof v === 'object' ? toFiniteCount(v.value) : toFiniteCount(v)
+        if (n != null) return n
+      }
+    }
+  }
+  return 0
+}
+
+function unwrapSocialMetrics(data: SocialRawAnalytics): Record<string, SocialRawMetric> {
+  return data.data?.metrics ?? data.metrics ?? {}
+}
+
+/** True when we have a per-platform analytics endpoint for this platform slug. */
+export function socialAnalyticsSupported(platform: string): boolean {
+  return platform in SOCIAL_ANALYTICS_PATH
+}
+
+/**
+ * `GET /v1/analytics/{platform}/...?accountId=…&since=…&until=…` — the connected
+ * social account's insights over the window, normalized into a uniform snapshot
+ * (followers / reach / impressions / engagement / profile-views / posts). Pass a
+ * `{ days }` count (mapped to a since/until range ending today). Throws on a
+ * non-2xx (incl. a 402 when the Analytics add-on is off) so the service can
+ * catch and stay best-effort. Throws synchronously for an unsupported platform.
+ */
+export async function getSocialPlatformAnalytics(
+  platform: string,
+  accountId: string,
+  range: { since: string; until: string } | { days: number },
+): Promise<SocialPlatformAnalytics> {
+  const path = SOCIAL_ANALYTICS_PATH[platform]
+  if (!path) throw new Error(`No analytics endpoint for platform '${platform}'`)
+  const { since, until } = 'days' in range ? sinceUntilFromDays(range.days) : range
+  const qs = new URLSearchParams({ accountId, since, until })
+  const data = await zernioFetch<SocialRawAnalytics>(`${path}?${qs.toString()}`)
+  const metrics = unwrapSocialMetrics(data)
+  return {
+    followers: readFollowerCount(metrics),
+    reach: readSocialMetric(metrics, SOCIAL_METRIC_ALIASES.reach),
+    impressions: readSocialMetric(metrics, SOCIAL_METRIC_ALIASES.impressions),
+    engagement: readSocialMetric(metrics, SOCIAL_METRIC_ALIASES.engagement),
+    profileViews: readSocialMetric(metrics, SOCIAL_METRIC_ALIASES.profileViews),
+    posts: readSocialMetric(metrics, SOCIAL_METRIC_ALIASES.posts),
+  }
+}
+
+/** Compute a `{since,until}` (YYYY-MM-DD) window ending today, `days` wide. */
+function sinceUntilFromDays(days: number): { since: string; until: string } {
+  const n = Number.isFinite(days) && days > 0 ? Math.floor(days) : 30
+  const end = new Date()
+  const start = new Date(end.getTime() - n * 24 * 60 * 60 * 1000)
+  return { since: ymd(start), until: ymd(end) }
+}

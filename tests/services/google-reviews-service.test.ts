@@ -38,6 +38,7 @@ vi.mock('@/lib/services/zernio', () => ({
 interface Row {
   id: string
   organizationId: string
+  platform: string
   externalReviewId: string
   accountId: string
   reviewerName: string | null
@@ -57,7 +58,7 @@ const store: { reviews: Row[]; patients: Array<{ organizationId: string }>; conn
 }
 
 vi.mock('@/lib/db', () => {
-  const T_REVIEW = 'google_review'
+  const T_REVIEW = 'platform_review'
   const T_PAT = 'patient'
   const T_CONN = 'zernio_connection'
 
@@ -98,7 +99,10 @@ vi.mock('@/lib/db', () => {
           then: (resolve: (v: unknown) => void) => {
             if (t.__name === T_REVIEW) {
               const existing = store.reviews.find(
-                (r) => r.organizationId === vals.organizationId && r.externalReviewId === vals.externalReviewId,
+                (r) =>
+                  r.organizationId === vals.organizationId &&
+                  (r.platform ?? 'googlebusiness') === (vals.platform ?? 'googlebusiness') &&
+                  r.externalReviewId === vals.externalReviewId,
               )
               if (existing) Object.assign(existing, set)
               else store.reviews.push(vals as unknown as Row)
@@ -110,7 +114,10 @@ vi.mock('@/lib/db', () => {
           then: (resolve: (v: unknown) => void) => {
             if (t.__name === T_REVIEW) {
               const existing = store.reviews.find(
-                (r) => r.organizationId === vals.organizationId && r.externalReviewId === vals.externalReviewId,
+                (r) =>
+                  r.organizationId === vals.organizationId &&
+                  (r.platform ?? 'googlebusiness') === (vals.platform ?? 'googlebusiness') &&
+                  r.externalReviewId === vals.externalReviewId,
               )
               if (!existing) store.reviews.push(vals as unknown as Row)
             }
@@ -146,23 +153,32 @@ vi.mock('@/lib/db', () => {
   }
 
   // Drizzle column refs → predicate builders. eq(col, val) returns a fn.
-  const eq = (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => r[col.__col] === val
+  // `platform` defaults to 'googlebusiness' on the real table, so a seeded row
+  // that omits it still matches the service's platform filter.
+  const eq = (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) =>
+    (col.__col === 'platform' ? (r.platform ?? 'googlebusiness') : r[col.__col]) === val
   const and = (...preds: unknown[]) => preds
   const desc = () => 'desc'
   const sql = () => 'sql'
 
   // Tag schema tables + columns so the fake can disambiguate.
   const col = (name: string) => ({ __col: name })
+  const platformReview = {
+    __name: T_REVIEW,
+    organizationId: col('organizationId'),
+    platform: col('platform'),
+    externalReviewId: col('externalReviewId'),
+    starRating: col('starRating'),
+    recommendationType: col('recommendationType'),
+    replyComment: col('replyComment'),
+    reviewCreatedAt: col('reviewCreatedAt'),
+    createdAt: col('createdAt'),
+  }
   const schema = {
-    googleReview: {
-      __name: T_REVIEW,
-      organizationId: col('organizationId'),
-      externalReviewId: col('externalReviewId'),
-      starRating: col('starRating'),
-      replyComment: col('replyComment'),
-      reviewCreatedAt: col('reviewCreatedAt'),
-      createdAt: col('createdAt'),
-    },
+    // The table was generalized google_review → platform_review; the service uses
+    // `schema.platformReview` now (with the back-compat `googleReview` alias).
+    platformReview,
+    googleReview: platformReview,
     patient: { __name: T_PAT, organizationId: col('organizationId'), id: col('id') },
     zernioConnection: { __name: T_CONN, organizationId: col('organizationId'), status: col('status'), isDemo: col('isDemo') },
   }
@@ -181,7 +197,8 @@ vi.mock('@/lib/db', () => {
 
 // drizzle-orm helpers used by the service must operate on our predicate shape.
 vi.mock('drizzle-orm', () => ({
-  eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => r[col.__col] === val,
+  eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) =>
+    (col.__col === 'platform' ? (r.platform ?? 'googlebusiness') : r[col.__col]) === val,
   and: (...preds: unknown[]) => preds.flat(),
   desc: () => 'desc',
   sql: () => 'sql',
