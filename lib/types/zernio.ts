@@ -187,3 +187,85 @@ export interface GbpSyncResult {
   skipped?: 'no_connection'
   error?: string
 }
+
+// ── Google Business posts (Phase 2 — GBP posting) ─────────────────────────────
+//
+// Client-safe mirrors of the GBP-post types in lib/zernio.ts + lib/services/
+// gbp-posts.ts, so the composer + history UI import from here (no server-only).
+
+/** Google Business post type. `standard` = What's-new update; `event` carries a
+ *  date range; `offer` carries a coupon/redeem URL. */
+export const GBP_POST_TYPES = ['standard', 'event', 'offer'] as const
+export type GbpPostType = (typeof GBP_POST_TYPES)[number]
+
+/** Human label per post type (composer selector + history badge). */
+export const GBP_POST_TYPE_LABELS: Record<GbpPostType, string> = {
+  standard: 'Update',
+  event: 'Event',
+  offer: 'Offer',
+}
+
+/** Google Business CTA button action types (Google's `actionType` enum). */
+export const GBP_CTA_TYPES = ['LEARN_MORE', 'BOOK', 'ORDER', 'SHOP', 'SIGN_UP', 'CALL'] as const
+export type GbpCtaType = (typeof GBP_CTA_TYPES)[number]
+
+/** Human label per CTA action type (composer picker). */
+export const GBP_CTA_LABELS: Record<GbpCtaType, string> = {
+  LEARN_MORE: 'Learn more',
+  BOOK: 'Book',
+  ORDER: 'Order online',
+  SHOP: 'Shop',
+  SIGN_UP: 'Sign up',
+  CALL: 'Call now',
+}
+
+/** CALL uses the listing's phone number — every other CTA needs a URL. */
+export function ctaNeedsUrl(actionType: GbpCtaType): boolean {
+  return actionType !== 'CALL'
+}
+
+/** Max post body length Google allows (matches Zernio's GBP limit). */
+export const GBP_POST_MAX_CHARS = 1500
+
+/** Publish status of a persisted GBP post. */
+export type GbpPostStatus = 'draft' | 'scheduled' | 'published' | 'failed'
+
+/** A persisted GBP post, shaped for the history view (client-safe). */
+export interface GbpPostView {
+  id: string
+  postType: GbpPostType
+  summary: string
+  imageUrl: string | null
+  ctaType: GbpCtaType | null
+  ctaUrl: string | null
+  eventTitle: string | null
+  eventStartAtIso: string | null
+  eventEndAtIso: string | null
+  offerCouponCode: string | null
+  offerRedeemUrl: string | null
+  offerTerms: string | null
+  status: GbpPostStatus
+  scheduledAtIso: string | null
+  publishedAtIso: string | null
+  googleUrl: string | null
+  lastError: string | null
+  createdAtIso: string
+}
+
+/** The composer's submit payload (server action input). */
+export interface CreateGbpPostFormInput {
+  postType: GbpPostType
+  summary: string
+  imageUrl?: string | null
+  ctaType?: GbpCtaType | null
+  ctaUrl?: string | null
+  eventTitle?: string | null
+  /** ISO datetime-local strings from the form (event start/end). */
+  eventStartAt?: string | null
+  eventEndAt?: string | null
+  offerCouponCode?: string | null
+  offerRedeemUrl?: string | null
+  offerTerms?: string | null
+  /** ISO datetime-local string; when set, schedule for later. */
+  scheduledAt?: string | null
+}

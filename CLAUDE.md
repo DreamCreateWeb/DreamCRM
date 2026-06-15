@@ -296,6 +296,59 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   metrics). Next: GBP posting (Phase 2) + the full social module (Phase 3); +
   real-time review ingest via Zernio webhooks as a near-term add. See
   `docs/zernio-google-integration.md`.
+- **Zernio GBP posting — Updates/Offers/Events composer + CTA + image + history;
+  PHASE 2 COMPLETE (2026-06-15)** — a polished **Google Posts** surface
+  (`/google-posts`, premium + owner/admin, Growth sidebar group) lets a clinic
+  PUBLISH Google Business posts through the Zernio connection — **Updates /
+  Offers / Events**, each with an optional CTA button + a single image — and
+  keeps a post history. **Composer** (`post-composer.tsx`, DESIGN-SYSTEM v2
+  `.v2-panel`, teal primary): post-type selector (Update/Offer/Event) that
+  reveals type-specific fields, a live char counter to **1,500**, image upload
+  via the **shared XHR helper** (`uploadFileWithProgress` → `/api/upload` → public
+  S3 URL passed to Zernio, the same path the website editors use; ≤5MB JPEG/PNG),
+  a CTA picker (`LEARN_MORE`/`BOOK`/`ORDER`/`SHOP`/`SIGN_UP`/`CALL` — **Book
+  defaults to the clinic's `/book` URL** via `publicSiteUrl`; CALL needs no URL),
+  offer fields (coupon/redeem URL/terms) when type=offer, event fields
+  (title/start/end) when type=event, and **"Post to Google" + "Schedule"** (a
+  future time handed to Zernio, which PUBLISHES scheduled posts ITSELF — so there
+  is NO publish cron on our side). **History** (`post-history.tsx`): cards with a
+  type badge, summary preview, image thumb, a StatusPill (published=ok ·
+  scheduled=info · failed=urgent · draft=neutral), the published/scheduled date
+  (`font-mono-num`), a "View on Google" permalink when present, and a
+  confirm-then-delete. Client wrappers in `lib/zernio.ts` (`createGbpPost` /
+  `listPosts` / `deletePost` + the exported `buildGbpPostOptions`) serialize/parse
+  DEFENSIVELY — the GBP options (`topicType` STANDARD/EVENT/OFFER, `callToAction`,
+  `event.schedule`, `offer.{couponCode,redeemOnlineUrl,termsConditions}`) ride
+  several tolerant keys (`options`/`googleBusiness`/`platformOptions`) and the
+  create result is parsed for the post id + any permalink (flat or per-account).
+  Service `lib/services/gbp-posts.ts`: `createGbpPost(orgId, input)` (validate ·
+  resolve the GBP account via `resolveGbpAccount` · **persist the row FIRST** ·
+  call Zernio · on success store `zernioPostId`/`status`/`publishedAt`/`googleUrl`,
+  on failure store `status='failed'`+`lastError` — **best-effort, NEVER throws to
+  the UI**; **demo-safe** — `isDemo` persists a published row with a synthetic id +
+  fake permalink and NEVER networks), `listGbpPosts` (history, newest first),
+  `deleteGbpPost` (best-effort delete at Zernio when a post id exists + ALWAYS
+  drops the local row; demo-local only), `validateGbpPostInput` (pure, exported
+  for tests), `seedDemoGbpPosts`. Schema `gbp_post` (**migration 0066**) — org FK
+  cascade, accountId, `zernioPostId`, postType, summary, imageUrl, ctaType/ctaUrl,
+  event fields, offer fields, status, scheduledAt/publishedAt, googleUrl,
+  lastError, isDemo. Server actions `createGbpPostAction` / `deleteGbpPostAction`
+  (premium + owner/admin re-gated; `{ ok | error }`). Disconnected → a calm
+  connect-prompt to `/integrations`; connected + no posts → a "Write your first
+  Google post." EmptyState. **HONESTY (per the plan):** Google DEPRECATED per-post
+  insights, so the history shows publish STATUS + a permalink, NEVER fabricated
+  per-post metrics — the page points to `/seo` for location-level performance.
+  Demo seeds 3 synthetic `gbp_post` rows (published Update w/ image + Book CTA,
+  published Offer w/ coupon `SMILE99`, scheduled Event "Kids' Smile Day"; behind
+  the real-patient guard, idempotent, never networks). 63 new tests
+  (`tests/zernio/gbp-posts-*`). **Confirmed create-post REST shape:**
+  `POST /v1/posts` (body `profileId` + `content`/`text` + `socialAccountIds[]`/
+  `platforms[]` + `scheduledAt`/`scheduledFor` + `mediaUrls` + `publishNow`; GBP
+  options under `options`/`googleBusiness`); `GET /v1/posts?page&limit&status`;
+  `DELETE /v1/posts/{postId}`. **Phase 2 (GBP posting) is COMPLETE; Phase 3 (the
+  full social module) is PENDING a billing/metering design discussion** (Zernio
+  ~$6/connected account; plan = ~2 free accounts/clinic then charge for
+  additional connections, TBD). See `docs/zernio-google-integration.md`.
 - **Website system sprint — "complete in seconds" (2026-06-12, PRs #342–#345)**
   — 4 audits + 4 build waves refined the ENTIRE clinic-website system to the
   day-0-complete model (supersedes the honest-empty framing of #304–#307 for
@@ -1262,6 +1315,7 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Daily | Intake Forms | `/intake-forms` | **Live (v1)** | Builder + public fill at `{slug}.dreamcreatestudio.com/intake/[formSlug]` |
 | Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
 | Growth | Reviews | `/reviews` + `/reviews/received` | **Live (v2)** | Post-visit review collection — **patient writes the review text inside DreamCRM** (`review_request.review_text`, migration 0035), staff just toggles featured/unfeatured on the public site. Morning-huddle dashboard: 4-stat funnel (Sent · Opened · Reviewed · Ready-to-ask) + platform mix breakdown + Ready-to-ask list + recent activity with ✓ Featured pills + Browse received CTA + inline config. `/reviews/received` shows the patient's actual quote in a read-only italic blockquote + star rating + one-click Feature/Unfeature (staff CANNOT edit). Public landing at `/r/<token>` is text-first: rating + textarea + Submit, then "Also share on Google/Healthgrades/Facebook/Yelp?" as a secondary action (SEO play preserved). `featureReviewAsTestimonial({orgId, patientId})` sources quote from `review_request.reviewText` — throws "has not submitted a review" when null. `clinic_profile.testimonials` gains `patientId` link; display label denormalized to "First L." + city. Featured testimonials surface on the public site (static 3-card grid ≤3, looping marquee >3). FTC-clean (2024 Fake Reviews Rule), no NPS gating, 365-day rate limit. Auto-trigger on appointment completion = v1.1 scaffolded (handler exists, needs EventBridge rule). |
+| Growth | Google Posts | `/google-posts` | **Live (v1 — Zernio Phase 2)** | Premium-tier (owner/admin). PUBLISH Google Business posts — **Updates / Offers / Events** with a CTA button + a single image — through the Zernio GBP connection, plus a post history. Composer: post-type selector, live char counter to 1,500, image upload via the shared XHR helper (→ public S3 URL passed to Zernio; ≤5MB JPEG/PNG), CTA picker (LEARN_MORE/BOOK/ORDER/SHOP/SIGN_UP/CALL — **Book defaults to the clinic's `/book` URL** via `publicSiteUrl`; CALL needs no URL), offer fields (coupon/redeem/terms) + event fields (title/start/end), "Post to Google" + "Schedule" (**Zernio publishes scheduled posts itself — NO publish cron**). History cards: type badge + StatusPill (published/scheduled/failed/draft) + image thumb + date + "View on Google" permalink + confirm-delete. Client wrappers `createGbpPost`/`listPosts`/`deletePost` (`lib/zernio.ts`, defensive — GBP `topicType`/`callToAction`/`event`/`offer` options under tolerant keys); service `lib/services/gbp-posts.ts` (validate + persist-first + best-effort publish — never throws, failure → `status='failed'`+`lastError`; **demo-safe** isDemo persists a published row w/ synthetic id + fake permalink, never networks; `deleteGbpPost` best-effort at Zernio + always drops local row). Schema `gbp_post` (**migration 0066**). Server actions `createGbpPostAction`/`deleteGbpPostAction` (`{ok\|error}`). Disconnected → connect-prompt to `/integrations`; connected + no posts → "Write your first Google post." EmptyState. **HONEST: no per-post metrics** (Google deprecated per-post insights — points to `/seo` for location-level performance). Demo seeds 3 posts (Update+image+Book CTA, Offer+coupon, scheduled Event). Confirmed REST: `POST /v1/posts` · `GET /v1/posts` · `DELETE /v1/posts/{id}`. 63 tests. **Phase 3 (full social module) pending a billing/metering design (Zernio ~$6/account; ~2 free/clinic then charge — TBD)** |
 | Growth | Analytics | `/analytics` | **Live (v1)** | Premium-tier. The honest CRM-vs-PMS split: read-only aggregation (no new schema) over data other modules already capture. 5 bands — Acquisition (new patients via firstSeenAt + source mix + a real GSC-clicks→leads→contacted→converted website funnel + a **Google Business "local actions" tile** — impressions/calls/directions/bookings via the Zernio connection, `getGbpLocalMetrics`, 30/90-aware, connect-prompt when unlinked), Schedule health (volume trend + no-show/cancellation/confirmation rates vs an industry benchmark, with a low-volume guard that shows counts instead of a misleading % on small samples), Recall & outreach (recall-due reuses listPatients + sent→opened→clicked→booked), Reputation (review funnel + platform mix, reuses getReviewStats), and an honest "Lives in your PMS" deferral block (production $, procedure mix, hygiene reappt %, AR aging) that arrives with Integrations rather than being faked. 30/90-day toggle. Aggregates existing demo data — no seeder change |
 | Website | Website Studio | `/website` | **Live (v3 — in-place)** | Full-screen **in-place "navigate-the-canvas" editor** (PRs #199→#212): `/website` hosts an `<iframe>` of the clinic's REAL site (`/site/[slug]?edit=1`); the public site mounts an **EditBridge** (gated owner/admin + `?edit=1` via `EditBridgeGate` in the shared `/site/[slug]/layout.tsx`) so every `data-edit-*` region is hover-to-edit. Inline text (tagline, name) edits in place; images click-to-replace ("📷 Replace"); sections hover → "✎ Edit" → modal reusing the existing editor + **scoped** `website-actions.ts` save → canvas reloads the current page. **Navigate-the-canvas** keeps `?edit=1` across internal links. Coverage: Home (tagline · name · hero image · intro video upload/URL · stats · testimonials · services picker) · About (about · team · office photos) · FAQ · Insurance · Payment & Financing · footer Office Hours (every page). Editors in `app/(default)/website/` (faq/hours) + reused `settings/clinic/*-editor.tsx`. Stale-tab "refresh to edit" fallback. **Loose end:** the Phase-2 per-section "✨ Rewrite with AI" buttons (tier allowance Basic 15 / Pro 50 / Premium 200, `ai_usage_counter` 0042, `ai-website.ts`) were on the old three-pane panels and aren't yet re-wired into the Studio modals (infra intact). `/settings/clinic` is the deep-edit fallback. Next: conversational AI onboarding interview (Phase 3) |
 | Website | Blog | `/blog` | Soon | Phase 1 placeholder — Tiptap editor + SEO + AI-assisted drafts |
@@ -1752,33 +1806,36 @@ eventual App Runner → ECS move) are tracked in that section.
 ### Feature work, post-migration
 
 0. **Zernio × Google Business integration — PHASE 1 (Google Business core)
-   COMPLETE (2026-06-15), spec in
+   COMPLETE + PHASE 2 (GBP posting) COMPLETE (2026-06-15), spec in
    [`docs/zernio-google-integration.md`](./docs/zernio-google-integration.md).**
    `ZERNIO_API_KEY` is live in Secrets Manager + App Runner env. Shipped (see
-   the four "Zernio" bullets under What's wired): the connection architecture
+   the five "Zernio" bullets under What's wired): the connection architecture
    (lazy client, `zernio_connection`/`zernio_account` migration 0063,
    hosted-OAuth connect/disconnect, `/integrations` GBP card); GBP reviews pull +
    reply + legit `AggregateRating` (`google_review` migration 0064);
    hours/address/phone/photos sync into `clinic_profile` with per-field
    `*_source` flags (migration 0065, `lib/services/gbp-sync.ts`, the "Sync from
-   Google" settings card, cron `/api/cron/sync-gbp`); and **GBP local metrics
+   Google" settings card, cron `/api/cron/sync-gbp`); **GBP local metrics
    into SEO + Analytics** (`lib/services/gbp-metrics.ts` + the perf/keywords
    client wrappers in `lib/zernio.ts` — `/seo`'s static "claim your GBP"
    checklist is replaced by a real connected-metrics card, and the Analytics
    Acquisition band gains a "Google Business — local actions" tile; demo-safe +
    best-effort, NO migration — a live pull like the GSC scoped read; the shared
-   `resolveGbpAccount` resolver was factored into `lib/services/zernio.ts`).
+   `resolveGbpAccount` resolver was factored into `lib/services/zernio.ts`); and
+   **GBP posting** (Phase 2 — the `/google-posts` composer for Updates/Offers/
+   Events with a CTA + image + schedule + a post history, `gbp_post` migration
+   0066, `lib/services/gbp-posts.ts`, `createGbpPost`/`listPosts`/`deletePost`
+   wrappers in `lib/zernio.ts`; Zernio publishes scheduled posts itself so NO
+   cron; honest — no fabricated per-post metrics, points to `/seo`).
    **NEXT (recommended near-term add):** real-time review ingest via Zernio
    webhooks (`review.new`/`review.updated`) into the existing `google_review`
    upsert so reviews land instantly instead of waiting for the hourly cron.
-   **Then Phase 2 — GBP posting** (create posts/offers/events to the listing
-   from a composer + whatever per-post performance Google still exposes — note
-   Google deprecated per-post insights; the location-level Performance API
-   shipped in Phase 1 is the durable engagement signal), **then Phase 3 — the
-   full social module** (multi-platform compose/schedule + analytics across the
-   15 platforms; Facebook reviews folded in alongside Google). Key limit
-   unchanged: Zernio is pull-only for the listing fields (posts/replies push; no
-   hours/address write-back).
+   **Then Phase 3 — the full social module** (multi-platform compose/schedule +
+   analytics across the 15 platforms; Facebook reviews folded in alongside
+   Google) — **PENDING a billing/metering design discussion** (Zernio bills ~$6
+   per connected account; plan = ~2 free accounts/clinic then charge for
+   additional connections, TBD). Key limit unchanged: Zernio is pull-only for the
+   listing fields (posts/replies push; no hours/address write-back).
 
 1. **Phase B — SMS (unlocks across 3 modules)** — Recall & Outreach
    SMS sends, Patient Communications SMS in + outbound, Reviews SMS

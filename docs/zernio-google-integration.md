@@ -1,12 +1,44 @@
 # Zernio × Google Business integration — plan
 
-**Status: PHASE 1 (Google Business core) COMPLETE (2026-06-15).** Foundation +
-reviews/AggregateRating + hours/address/phone/photos sync + **GBP local metrics
-into SEO + Analytics** are all live. Phase 2 (GBP posting) + Phase 3 (the full
-social module) are the next phases; real-time review ingest via Zernio webhooks
-is the recommended near-term add. The connection architecture (foundation),
-Phase 1's review work, hours/location sync, AND the GBP local-metrics surface
-are live:
+**Status: PHASE 1 (Google Business core) COMPLETE + PHASE 2 (GBP posting)
+COMPLETE (2026-06-15).** Foundation + reviews/AggregateRating + hours/address/
+phone/photos sync + GBP local metrics into SEO + Analytics + **GBP posting
+(Updates / Offers / Events composer + CTA + image + history)** are all live.
+Phase 3 (the full social module) is the next phase, **pending a billing/metering
+design discussion** (Zernio bills ~$6 per connected account; the plan is 2 free
+accounts per clinic, then charge for additional connections — details TBD).
+Real-time review ingest via Zernio webhooks is the recommended near-term add.
+
+- **GBP posting (Phase 2 — this PR):** ✅ **DONE.** A polished **Google Posts**
+  surface (`/google-posts`, premium + owner/admin, Growth sidebar group) lets a
+  clinic publish GBP posts — **Updates / Offers / Events** with a CTA button + an
+  image — and keeps a post history. Composer: post-type selector, a live char
+  counter to 1,500, image upload via the shared XHR helper (→ public S3 URL
+  passed to Zernio), a CTA picker (Book defaults to the clinic's `/book` via
+  `publicSiteUrl`), offer fields (coupon / redeem URL / terms) when type=offer,
+  event fields (title / start / end) when type=event, "Post to Google" +
+  "Schedule" (Zernio publishes scheduled posts itself — NO publish cron on our
+  side). Client wrappers `createGbpPost` / `listPosts` / `deletePost` +
+  `buildGbpPostOptions` (`lib/zernio.ts`, defensive serialize/parse); service
+  `lib/services/gbp-posts.ts` (`createGbpPost` validates + persists-first +
+  best-effort publish — NEVER throws, failure → `status='failed'`+`lastError`;
+  **demo-safe** — isDemo persists a published row w/ a synthetic id + fake
+  permalink, never networks; `listGbpPosts`; `deleteGbpPost` best-effort at
+  Zernio + always drops the local row; `seedDemoGbpPosts`). Schema `gbp_post`
+  (**migration 0066**) — type/summary/imageUrl/CTA/event/offer/status/scheduled
+  +published timestamps/googleUrl/lastError/isDemo. **HONESTY:** Google
+  DEPRECATED per-post insights, so the history shows publish STATUS + a "View on
+  Google" permalink — never fabricated per-post metrics (the page points to /seo
+  for location-level performance). Disconnected → connect-prompt to
+  `/integrations`; connected + no posts → "Write your first Google post."
+  EmptyState. Demo seeds 3 posts (published Update w/ image + Book CTA, published
+  Offer w/ a coupon, scheduled Event). 63 new tests. **Confirmed create-post
+  REST shape below.**
+
+Foundation + reviews/AggregateRating + hours/address/phone/photos sync + **GBP
+local metrics into SEO + Analytics** are all live. The connection architecture
+(foundation), Phase 1's review work, hours/location sync, AND the GBP
+local-metrics surface are live:
 - **GBP local metrics → SEO + Analytics (this PR):** ✅ **DONE.** Pull the
   clinic's Google Business Performance numbers (impressions / calls / direction
   requests / website clicks / bookings) + top search keywords via Zernio and
@@ -236,6 +268,55 @@ so the paths + params + response shapes are **confirmed**, not assumed.
   engagement signal. Phase 2 posting will surface what it can per post, but
   per-post views/clicks no longer exist on Google's side.
 
+## Confirmed create-post REST shape (Phase 2 — docs.zernio.com llms.txt + llms-full.txt + OpenAPI probe, 2026-06-15)
+The GENERIC post primitives are **confirmed** from the docs; the GBP-specific
+options object is documented in prose only (the rendered `.mdx` API-reference
+pages are JS-only, like the reviews/location pages were), so it is coded to the
+documented/precedent shape and serialized/parsed DEFENSIVELY.
+- **`POST /v1/posts`** — create (publish-now OR schedule). **Confirmed body
+  fields:** `profileId` (required, the clinic's Zernio profile), the post text
+  (the generic docs use **`content`**; some examples **`text`** — we send BOTH,
+  the server ignores the unknown one), the target accounts (**`socialAccountIds:
+  string[]`** AND the confirmed **`platforms: [{ platform, accountId }]`** array —
+  we send both), **`scheduledAt`** / **`scheduledFor`** (ISO 8601 — Zernio
+  PUBLISHES scheduled posts itself, so we run **NO** publish cron), **`mediaUrls`**
+  (a public image URL — documented as comma-separated; we send a single URL string
+  + a 1-element `media` array for tolerance; GBP allows ONE photo per post),
+  **`publishNow: true`** when not scheduling. **GBP options** (prose-documented;
+  Google's GBP post model): we attach them under several tolerant keys
+  (`options` / `googleBusiness` / `platformOptions.googlebusiness`) so whichever
+  Zernio reads wins, with: **`topicType`** (`STANDARD` | `EVENT` | `OFFER`),
+  **`callToAction`** (`{ actionType, url }`; action types `LEARN_MORE` / `BOOK` /
+  `ORDER` / `SHOP` / `SIGN_UP` / `CALL` — CALL omits `url`, it uses the listing
+  phone), **`event`** (`{ title, schedule: { startDate, endDate } }`),
+  **`offer`** (`{ couponCode, redeemOnlineUrl, termsConditions }`). The create
+  response is parsed for the new post id (`_id`/`id`/`postId`, under a `post`/
+  `data` wrapper or at the root) + any live permalink (`permalink`/`searchUrl`/
+  `url`, flat or per-account under `results`/`accounts`/`platforms`). See
+  `lib/zernio.ts::createGbpPost` + `buildGbpPostOptions`.
+- **`GET /v1/posts?page&limit[&status]`** — list posts (newest first; `status` ∈
+  `draft` | `scheduled` | `published` | `failed`; post id is `_id`). Tolerated
+  array keys `posts` / `data` / a bare array. We primarily track posts in our own
+  `gbp_post` table (so the history view never depends on this), but expose the
+  wrapper for an optional status reconcile + tests. See `lib/zernio.ts::listPosts`.
+- **`DELETE /v1/posts/{postId}`** — delete a post at Zernio (removes a scheduled
+  post before it runs, or the published GBP post). Best-effort at the service
+  layer (always drops our local row). See `lib/zernio.ts::deletePost`.
+- **Assumption noted:** the generic body + list/delete paths are confirmed from
+  the docs (`POST/GET /v1/posts`, `DELETE /v1/posts/{id}`, `profileId` /
+  `socialAccountIds` / `platforms` / `content` / `scheduledAt` / `mediaUrls` /
+  `publishNow`). The GBP `options` field names (`topicType`, `callToAction`,
+  `event.schedule`, `offer.*`) follow Google's Business Profile post model (the
+  shape Zernio proxies) and are documented in prose, not the JS-only `.mdx`
+  schema — so they're SENT under multiple tolerant keys + the create result is
+  parsed defensively. If a real connected office reveals a different options key
+  at build time, only `buildGbpPostOptions` + the create-body assembly in
+  `createGbpPost` need adjusting — the service, schema, and UI are shape-agnostic.
+- **No per-post metrics:** Google DEPRECATED per-post insights with no
+  replacement (the docs say so explicitly). The history surfaces publish STATUS
+  + a permalink, NOT fabricated per-post numbers; location-level performance
+  (impressions/calls/directions) lives on `/seo` via `gbp-metrics.ts`.
+
 ## Confirmed connection REST shapes (validated against the live OpenAPI spec, 2026-06-15)
 - **`GET /v1/connect/{platform}`** — the connect query param is **`redirect_url`**
   (snake_case), and **`profileId` is REQUIRED**. Response `{ authUrl, state }`.
@@ -406,14 +487,26 @@ FB/IG/etc.
     (`review.new` / `review.updated` — confirm the signature scheme + payload at
     `docs.zernio.com/webhooks` at build time) into the existing `google_review`
     upsert, so reviews land instantly instead of waiting for the hourly cron.
-- **Phase 2 (NEXT) — GBP posting:** create posts/offers/events to GBP from a
-  composer; surface what per-post performance Google still exposes (note: Google
-  deprecated per-post insights — the location-level Performance API shipped this
-  PR is the durable engagement signal). The "Book" CTA deep-links the clinic's
-  `/book`.
-- **Phase 3 — Full social module:** multi-platform compose/schedule/publish +
-  analytics across the 15 platforms; Facebook reviews folded into the Reviews
-  module alongside Google.
+- **Phase 2 — GBP posting:** ✅ **DONE.** Create Updates / Offers / Events to
+  GBP from a composer (CTA button + image + schedule) with a post history, via
+  `POST /v1/posts` through the Zernio connection. Page `/google-posts` (premium +
+  owner/admin, Growth group); client wrappers `createGbpPost` / `listPosts` /
+  `deletePost` (`lib/zernio.ts`); service `lib/services/gbp-posts.ts` (validate +
+  persist-first + best-effort publish, demo-safe, never throws); schema `gbp_post`
+  (**migration 0066**). The "Book" CTA deep-links the clinic's `/book` (via
+  `publicSiteUrl`). Zernio publishes scheduled posts itself, so NO publish cron.
+  HONEST: no per-post metrics (Google deprecated per-post insights — the
+  location-level Performance API from Phase 1 is the durable engagement signal,
+  surfaced on `/seo`). Demo seeds 3 posts (published Update + image + Book CTA,
+  published Offer + coupon, scheduled Event). See `lib/services/gbp-posts.ts` +
+  `app/(default)/google-posts/`. **→ Phase 2 (GBP posting) is now COMPLETE.**
+- **Phase 3 (NEXT) — Full social module:** multi-platform compose/schedule/
+  publish + analytics across the 15 platforms; Facebook reviews folded into the
+  Reviews module alongside Google. **PENDING a billing/metering design
+  discussion:** Zernio bills ~$6 per connected social account; the plan is to
+  include ~2 free connected accounts per clinic (Google Business + one more) and
+  charge for additional connections — exact packaging/tiering TBD before Phase 3
+  ships (the multi-account fan-out is what makes the per-account cost matter).
 
 ## Open questions to resolve at build time
 - Exact webhook event shapes + signature scheme (`docs.zernio.com/webhooks`).
