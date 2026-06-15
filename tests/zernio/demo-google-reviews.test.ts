@@ -13,7 +13,7 @@ const store: { reviews: Array<Record<string, unknown>>; patients: Array<Record<s
 }
 
 vi.mock('@/lib/db', () => {
-  const T_REVIEW = 'google_review'
+  const T_REVIEW = 'platform_review'
   const T_PAT = 'patient'
   function select() {
     let table = ''
@@ -46,6 +46,7 @@ vi.mock('@/lib/db', () => {
   return {
     db: { select, insert },
     schema: {
+      platformReview: { __name: T_REVIEW },
       googleReview: { __name: T_REVIEW },
       patient: { __name: T_PAT, organizationId: { __col: 'organizationId' }, id: { __col: 'id' } },
     },
@@ -84,9 +85,11 @@ describe('seedDemoGoogleReviews', () => {
     store.patients = [{ id: 'pat_1' }]
     await seedDemoGoogleReviews('org_demo')
     expect(store.reviews.length).toBeGreaterThanOrEqual(5)
-    // Every row is demo-scoped + carries the synthetic account id.
+    // Every row is demo-scoped, tagged as the Google platform, + carries the
+    // synthetic account id.
     for (const r of store.reviews) {
       expect(r.isDemo).toBe(1)
+      expect(r.platform).toBe('googlebusiness')
       expect(r.organizationId).toBe('org_demo')
       expect(r.accountId).toBe('demo_gbp_dream_dental')
       expect(r.externalReviewId).toBeTruthy()

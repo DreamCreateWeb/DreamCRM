@@ -9,8 +9,14 @@ import {
   getGoogleReviewStats,
   hasGoogleBusinessConnection,
 } from '@/lib/services/google-reviews'
+import {
+  listFacebookReviews,
+  getFacebookReviewStats,
+  hasFacebookConnection,
+} from '@/lib/services/facebook-reviews'
 import ReceivedList from './received-list'
 import GoogleReviewsSection, { GoogleConnectPrompt } from './google-reviews-section'
+import FacebookReviewsSection from './facebook-reviews-section'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -27,12 +33,24 @@ export default async function ReviewsReceivedPage() {
   if (ctx.tenantType !== 'clinic') redirect('/reviews')
   if (ctx.role === 'patient') redirect('/')
 
-  const [received, featuredIds, googleReviews, googleStats, googleConnected] = await Promise.all([
+  const [
+    received,
+    featuredIds,
+    googleReviews,
+    googleStats,
+    googleConnected,
+    facebookReviews,
+    facebookStats,
+    facebookConnected,
+  ] = await Promise.all([
     listReviewsReceived(ctx.organizationId),
     listFeaturedTestimonialPatientIds(ctx.organizationId),
     listGoogleReviews(ctx.organizationId),
     getGoogleReviewStats(ctx.organizationId),
     hasGoogleBusinessConnection(ctx.organizationId),
+    listFacebookReviews(ctx.organizationId),
+    getFacebookReviewStats(ctx.organizationId),
+    hasFacebookConnection(ctx.organizationId),
   ])
 
   const googleRows = googleReviews.map((g) => ({
@@ -44,6 +62,15 @@ export default async function ReviewsReceivedPage() {
     reviewCreatedAtIso: g.reviewCreatedAt ? g.reviewCreatedAt.toISOString() : null,
     replyComment: g.replyComment,
     replyUpdatedAtIso: g.replyUpdatedAt ? g.replyUpdatedAt.toISOString() : null,
+  }))
+
+  const facebookRows = facebookReviews.map((f) => ({
+    externalReviewId: f.externalReviewId,
+    reviewerName: f.reviewerName,
+    reviewerPhotoUrl: f.reviewerPhotoUrl,
+    recommendationType: f.recommendationType,
+    comment: f.comment,
+    reviewCreatedAtIso: f.reviewCreatedAt ? f.reviewCreatedAt.toISOString() : null,
   }))
 
   const rows = received.map((r) => ({
@@ -102,6 +129,17 @@ export default async function ReviewsReceivedPage() {
         />
       ) : (
         <GoogleConnectPrompt />
+      )}
+
+      {/* ── Facebook recommendations (real, synced via Zernio) ─────────── */}
+      {/* Only shown when a Facebook Page is connected (no connect-prompt here —
+          /channels is the single connect surface; Google's prompt is enough). */}
+      {facebookConnected && (
+        <FacebookReviewsSection
+          rows={facebookRows}
+          recommended={facebookStats.recommended}
+          notRecommended={facebookStats.notRecommended}
+        />
       )}
 
       {/* ── First-party reviews (patient wrote the text inside DreamCRM) ─ */}

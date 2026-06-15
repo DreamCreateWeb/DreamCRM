@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
 import { getSiteTraffic } from '@/lib/services/site-analytics'
+import { getSocialMetrics } from '@/lib/services/social-metrics'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -36,9 +37,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   const { days } = await searchParams
   const windowDays = days === '90' ? 90 : 30
-  const [a, traffic] = await Promise.all([
+  const [a, traffic, social] = await Promise.all([
     getClinicAnalytics(ctx.organizationId, windowDays),
     getSiteTraffic(ctx.organizationId, windowDays),
+    getSocialMetrics(ctx.organizationId, { days: windowDays }),
   ])
   const trafficDelta = traffic.total - traffic.totalPrev
 
@@ -197,6 +199,53 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             </>
           )}
         </Card>
+      </Section>
+
+      {/* ── Social performance ──────────────────────────────────────────── */}
+      {/* Per-platform reach/engagement from the connected social channels (via
+          Zernio). Honest: only what the API returns; a connect-prompt when no
+          social channel is linked, so the band is never a row of dead zeros. */}
+      <Section
+        title="Social performance"
+        subtitle={`Reach + engagement from your connected social channels · last ${windowDays} days`}
+      >
+        {social.connected ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {social.platforms.map((p) => (
+              <Card key={p.platform}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span aria-hidden="true" className="text-lg">{p.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{p.label}</p>
+                    {p.handle && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{p.handle}</p>}
+                  </div>
+                </div>
+                {p.error ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                    Couldn&apos;t load metrics this load{/analytics add-on|402|payment required/i.test(p.error) ? ' — analytics add-on required' : ''}.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <KpiStat label="Followers" value={p.followers.toLocaleString()} />
+                    <KpiStat label="Reach" value={p.reach.toLocaleString()} />
+                    <KpiStat label="Impressions" value={p.impressions.toLocaleString()} />
+                    <KpiStat label="Engagement" value={p.engagement.toLocaleString()} />
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Connect a social channel (Instagram, Facebook, TikTok, YouTube, or LinkedIn) on{' '}
+              <Link href="/channels" className="text-teal-700 dark:text-teal-400 hover:underline">
+                Channels
+              </Link>{' '}
+              to see followers, reach, and engagement here.
+            </p>
+          </Card>
+        )}
       </Section>
 
       {/* ── Schedule health ─────────────────────────────────────────────── */}

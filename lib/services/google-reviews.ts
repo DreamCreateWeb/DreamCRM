@@ -99,10 +99,11 @@ async function upsertReview(
 ): Promise<void> {
   const now = new Date()
   await db
-    .insert(schema.googleReview)
+    .insert(schema.platformReview)
     .values({
       id: newReviewRowId(),
       organizationId: orgId,
+      platform: GOOGLE_BUSINESS,
       externalReviewId: r.id,
       accountId,
       reviewerName: r.reviewerName,
@@ -116,7 +117,11 @@ async function upsertReview(
       isDemo,
     })
     .onConflictDoUpdate({
-      target: [schema.googleReview.organizationId, schema.googleReview.externalReviewId],
+      target: [
+        schema.platformReview.organizationId,
+        schema.platformReview.platform,
+        schema.platformReview.externalReviewId,
+      ],
       set: {
         accountId,
         reviewerName: r.reviewerName,
@@ -175,14 +180,21 @@ export async function syncGoogleReviews(orgId: string): Promise<SyncGoogleReview
 
 // ── Reads for the UI ──────────────────────────────────────────────────────────
 
-/** Every synced Google review for the org, newest first. */
+/** Every synced Google review for the org, newest first. Scoped to the Google
+ *  platform — Facebook reviews live in the same table but read through
+ *  `lib/services/facebook-reviews.ts`. */
 export async function listGoogleReviews(orgId: string, limit = 100): Promise<GoogleReviewView[]> {
   const rows = await db
     .select()
-    .from(schema.googleReview)
-    .where(eq(schema.googleReview.organizationId, orgId))
+    .from(schema.platformReview)
+    .where(
+      and(
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+      ),
+    )
     .orderBy(
-      desc(sql`COALESCE(${schema.googleReview.reviewCreatedAt}, ${schema.googleReview.createdAt})`),
+      desc(sql`COALESCE(${schema.platformReview.reviewCreatedAt}, ${schema.platformReview.createdAt})`),
     )
     .limit(limit)
   return rows.map(toView)
@@ -195,9 +207,14 @@ export async function listGoogleReviews(orgId: string, limit = 100): Promise<Goo
  */
 export async function getGoogleReviewStats(orgId: string): Promise<GoogleReviewStats> {
   const rows = await db
-    .select({ starRating: schema.googleReview.starRating, replyComment: schema.googleReview.replyComment })
-    .from(schema.googleReview)
-    .where(eq(schema.googleReview.organizationId, orgId))
+    .select({ starRating: schema.platformReview.starRating, replyComment: schema.platformReview.replyComment })
+    .from(schema.platformReview)
+    .where(
+      and(
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+      ),
+    )
 
   let sum = 0
   let count = 0
@@ -218,14 +235,15 @@ export async function getGoogleReviewStats(orgId: string): Promise<GoogleReviewS
 async function loadReview(
   orgId: string,
   externalReviewId: string,
-): Promise<schema.GoogleReviewRow | null> {
+): Promise<schema.PlatformReviewRow | null> {
   const [row] = await db
     .select()
-    .from(schema.googleReview)
+    .from(schema.platformReview)
     .where(
       and(
-        eq(schema.googleReview.organizationId, orgId),
-        eq(schema.googleReview.externalReviewId, externalReviewId),
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+        eq(schema.platformReview.externalReviewId, externalReviewId),
       ),
     )
     .limit(1)
@@ -262,12 +280,13 @@ export async function replyToGoogleReview(
 
   const now = new Date()
   await db
-    .update(schema.googleReview)
+    .update(schema.platformReview)
     .set({ replyComment: comment, replyUpdatedAt: now, updatedAt: now })
     .where(
       and(
-        eq(schema.googleReview.organizationId, orgId),
-        eq(schema.googleReview.externalReviewId, externalReviewId),
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+        eq(schema.platformReview.externalReviewId, externalReviewId),
       ),
     )
   return { ok: true }
@@ -297,12 +316,13 @@ export async function deleteGoogleReviewReply(
 
   const now = new Date()
   await db
-    .update(schema.googleReview)
+    .update(schema.platformReview)
     .set({ replyComment: null, replyUpdatedAt: null, updatedAt: now })
     .where(
       and(
-        eq(schema.googleReview.organizationId, orgId),
-        eq(schema.googleReview.externalReviewId, externalReviewId),
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+        eq(schema.platformReview.externalReviewId, externalReviewId),
       ),
     )
   return { ok: true }
@@ -457,10 +477,11 @@ export async function seedDemoGoogleReviews(organizationId: string): Promise<voi
     const createdAt = new Date(now - seed.daysAgo * dayMs)
     const replyAt = seed.replyDaysAgo != null ? new Date(now - seed.replyDaysAgo * dayMs) : null
     await db
-      .insert(schema.googleReview)
+      .insert(schema.platformReview)
       .values({
         id: `gr_demo_${seed.externalReviewId}`,
         organizationId,
+        platform: GOOGLE_BUSINESS,
         externalReviewId: seed.externalReviewId,
         accountId: 'demo_gbp_dream_dental',
         reviewerName: seed.reviewerName,

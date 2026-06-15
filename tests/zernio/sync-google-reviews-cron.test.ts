@@ -5,6 +5,11 @@ const syncAll = vi.fn(async () => ({ scanned: 2, synced: 5, failed: 0, errors: [
 vi.mock('@/lib/services/google-reviews', () => ({
   syncAllGoogleReviews: () => syncAll(),
 }))
+// PR4: the cron now ALSO sweeps Facebook recommendations.
+const syncAllFb = vi.fn(async () => ({ scanned: 1, synced: 2, failed: 0, errors: [] }))
+vi.mock('@/lib/services/facebook-reviews', () => ({
+  syncAllFacebookReviews: () => syncAllFb(),
+}))
 
 const ROUTE = '@/app/api/cron/sync-google-reviews/route'
 
@@ -44,7 +49,7 @@ describe('sync-google-reviews cron auth gate', () => {
     expect(res.status).toBe(401)
   })
 
-  it('runs the sweep + returns ok:true with batch health on a valid bearer', async () => {
+  it('runs BOTH sweeps + returns ok:true with per-platform batch health on a valid bearer', async () => {
     const { POST } = await import(ROUTE)
     const res = await POST(
       new Request('https://www.dreamcreatestudio.com/api/cron', {
@@ -53,7 +58,24 @@ describe('sync-google-reviews cron auth gate', () => {
       }),
     )
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, scanned: 2, synced: 5, failed: 0, errors: [] })
+    expect(await res.json()).toEqual({
+      ok: true,
+      google: { scanned: 2, synced: 5, failed: 0, errors: [] },
+      facebook: { scanned: 1, synced: 2, failed: 0, errors: [] },
+    })
     expect(syncAll).toHaveBeenCalledTimes(1)
+    expect(syncAllFb).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call either sweep when the bearer is wrong (gate before any work)', async () => {
+    const { POST } = await import(ROUTE)
+    await POST(
+      new Request('https://www.dreamcreatestudio.com/api/cron', {
+        method: 'POST',
+        headers: { authorization: 'Bearer nope' },
+      }),
+    )
+    expect(syncAll).not.toHaveBeenCalled()
+    expect(syncAllFb).not.toHaveBeenCalled()
   })
 })
