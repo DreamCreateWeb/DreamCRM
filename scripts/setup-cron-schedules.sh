@@ -46,12 +46,20 @@ BASE_URL="https://www.dreamcreatestudio.com"
 #   customize-services       hourly   — durable net for the Welcome Interview's
 #                                       fire-and-forget per-service AI rewrites;
 #                                       idempotent (skips services with a blob)
+#   sync-google-reviews      hourly   — Zernio: pull Google + Facebook reviews
+#                                       (idempotent upsert by org+platform+id;
+#                                       demo connections never network)
+#   sync-gbp                 hourly   — Zernio: pull GBP hours/address/phone/
+#                                       photos (NON-force, so it respects any
+#                                       manual *_source edits; demo never networks)
 JOBS=(
   "auto-send-reviews|auto-send-reviews|rate(1 hour)"
   "pms-sync|pms-sync|rate(1 hour)"
   "send-reminders|send-reminders|rate(30 minutes)"
   "send-scheduled-campaigns|send-scheduled-campaigns|rate(15 minutes)"
   "customize-services|customize-services|rate(1 hour)"
+  "sync-google-reviews|sync-google-reviews|rate(1 hour)"
+  "sync-gbp|sync-gbp|rate(1 hour)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"
