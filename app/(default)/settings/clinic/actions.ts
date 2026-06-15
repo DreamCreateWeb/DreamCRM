@@ -82,6 +82,12 @@ export async function updateClinicProfile(formData: FormData) {
   const timezone = clean('timezone', formData)
 
   const payload = {
+    // This mega-form is the clinic deliberately authoring hours/address/phone,
+    // so flag all three as manually-edited. A later automatic Google sync then
+    // respects the edit (only an explicit "Sync from Google" force overrides).
+    hoursSource: 'manual' as const,
+    addressSource: 'manual' as const,
+    phoneSource: 'manual' as const,
     displayName,
     legalName,
     tagline,

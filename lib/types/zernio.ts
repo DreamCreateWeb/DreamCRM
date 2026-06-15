@@ -121,3 +121,69 @@ export interface ZernioConnectionView {
 /** Query-string key the connect callback / return URL uses to flag a fresh
  *  connection (so the Integrations page can auto-refresh). */
 export const ZERNIO_CONNECTED_QS = 'connected'
+
+// ── Google Business Profile field sync (hours / address / phone / photos) ─────
+
+/**
+ * Provenance of a synced clinic_profile field. `'manual'` = the clinic typed it
+ * (or it was never synced); `'google'` = last written by a Google Business
+ * Profile sync. Stored on `clinic_profile.{hours,address,phone}_source`. An
+ * automatic sync only overwrites a `'google'` field; an explicit user-initiated
+ * sync may overwrite a `'manual'` one. Editing a field flips it back to manual.
+ */
+export type FieldSource = 'manual' | 'google'
+
+/** The three clinic_profile field groups the Google sync can write. */
+export type SyncableField = 'hours' | 'address' | 'phone'
+
+export const SYNCABLE_FIELDS: readonly SyncableField[] = ['hours', 'address', 'phone'] as const
+
+/** Human label per syncable field, for the settings UI. */
+export const SYNCABLE_FIELD_LABELS: Record<SyncableField, string> = {
+  hours: 'Office hours',
+  address: 'Address',
+  phone: 'Phone number',
+}
+
+/** A Google Business photo as surfaced to the import-from-Google gallery.
+ *  Mirrors `GooglePhoto` in lib/zernio.ts but client-safe. */
+export interface GooglePhotoView {
+  url: string
+  sourceUrl: string | null
+  category: string | null
+}
+
+/**
+ * Everything the Settings → hours/location "Sync from Google" UI needs to
+ * render honest per-field provenance + the import-photos gallery, without the
+ * server-only service. Returned by `getGbpSyncState`.
+ */
+export interface GbpSyncState {
+  /** Whether a Google Business Profile is connected (demo or real). */
+  connected: boolean
+  /** Whether that connection is the demo (no-network) one. */
+  isDemo: boolean
+  /** Per-field source flag. */
+  sources: Record<SyncableField, FieldSource>
+  /** ISO timestamp of the last sync, or null if never synced. */
+  lastSyncedAtIso: string | null
+  /** Photos pulled from Google, available to import into officePhotos. */
+  googlePhotos: GooglePhotoView[]
+  /** URLs already present in the curated officePhotos (so the picker can
+   *  mark photos that are already imported). */
+  importedPhotoUrls: string[]
+}
+
+/** Result of a "Sync from Google" run, surfaced inline in the UI. */
+export interface GbpSyncResult {
+  ok: boolean
+  /** Field groups that were updated this run (e.g. ['hours', 'phone']). */
+  applied: SyncableField[]
+  /** Field groups skipped because they carry a manual edit (non-force only). */
+  skippedManual: SyncableField[]
+  /** How many Google photos are now available to import. */
+  photoCount: number
+  /** Set when nothing happened for a structural reason (not an error). */
+  skipped?: 'no_connection'
+  error?: string
+}

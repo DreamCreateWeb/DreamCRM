@@ -10,6 +10,7 @@ import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { seedDemoPms } from '@/lib/services/pms'
 import { seedDemoZernio } from '@/lib/services/zernio'
 import { seedDemoGoogleReviews } from '@/lib/services/google-reviews'
+import { seedDemoGbpSync } from '@/lib/services/gbp-sync'
 import {
   DEFAULT_FAQ_ITEMS,
   type ClinicStat,
@@ -1937,6 +1938,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Idempotent (upsert by externalReviewId). Never networks.
     await seedDemoGoogleReviews(existing.id)
 
+    // Google Business sync self-heal: flag the synced fields 'google' + stamp
+    // googleSyncedAt + seed google_photos so legacy demos showcase the Settings
+    // "Sync from Google" provenance + import gallery. Non-destructive (only
+    // fills defaults). Never networks.
+    await seedDemoGbpSync(existing.id)
+
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
     // /shop/payments page, and the commerce timeline events on legacy demos).
@@ -2529,6 +2536,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // dashboard Google stats, and the public-site AggregateRating all populate.
   // Never networks (isDemo rows).
   await seedDemoGoogleReviews(orgId)
+
+  // Google Business hours/address/phone/photos sync: flag the synced fields as
+  // 'google' + stamp a recent googleSyncedAt + seed google_photos so the
+  // Settings "Sync from Google" card showcases the populated provenance + the
+  // import-from-Google gallery. Never networks (applies synthetic demo data).
+  await seedDemoGbpSync(orgId)
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)

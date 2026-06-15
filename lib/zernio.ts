@@ -313,3 +313,245 @@ export async function deleteGoogleReviewReply(opts: {
     method: 'DELETE',
   })
 }
+
+// ── Google Business location details (hours / address / phone / categories) ───
+//
+// Confirmed against the Zernio docs (llms.txt + the OpenAPI probe, 2026-06-15).
+// The rendered `.mdx` pages are JS-only, so per-field detail came from the
+// llms.txt endpoint descriptions ("Returns detailed GBP location info — hours,
+// description, phone, website, categories, services") + the raw probe. The
+// endpoint path itself read ambiguously across probes (the named-resource form
+// `/google-business/get-google-business-location-details`, a flat
+// `/google-business/location-details`, and an account-scoped
+// `/accounts/{accountId}/google-business-location-details`); we follow the
+// SHIPPED reviews precedent (the flat `/google-business/...` namespace with
+// `accountId` as a query param — proven to work for `gmb-reviews`) and name the
+// resource `location-details` / `media`. Every field is parsed DEFENSIVELY so a
+// docs/version drift can't strand us; the underlying payload follows Google's
+// Business Profile `locations.get` shape:
+//   regularHours.periods[] = { openDay, openTime, closeDay, closeTime }
+//     — openDay/closeDay are Google day enums (MONDAY…SUNDAY); openTime/
+//       closeTime are "HH:MM" 24-hour strings (Google's newer schema; the older
+//       schema nested `{ hours, minutes }` — we tolerate both).
+//   storefrontAddress = { addressLines[], locality, administrativeArea,
+//                         postalCode, regionCode }
+//   phoneNumbers.primaryPhone = "(512) 555-0100"
+//   categories.primaryCategory.displayName + additionalCategories[]
+// Some integrations wrap the GBP object under `{ location: {...} }` or
+// `{ data: {...} }`; the normalizer reaches through either.
+
+/** Google Business day enum → our `clinic_profile.hours` day key. */
+const GBP_DAY_TO_KEY: Record<string, 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'> = {
+  MONDAY: 'mon',
+  TUESDAY: 'tue',
+  WEDNESDAY: 'wed',
+  THURSDAY: 'thu',
+  FRIDAY: 'fri',
+  SATURDAY: 'sat',
+  SUNDAY: 'sun',
+}
+
+/** A single open/close period as Google returns it (every field optional). */
+interface GbpRawPeriod {
+  openDay?: string
+  closeDay?: string
+  // Newer schema: "HH:MM" strings. Older schema: { hours, minutes } objects.
+  openTime?: string | { hours?: number; minutes?: number }
+  closeTime?: string | { hours?: number; minutes?: number }
+}
+
+/** Raw location-details payload — Google `locations.get` shape, all optional. */
+interface GbpRawLocation {
+  regularHours?: { periods?: GbpRawPeriod[] } | null
+  storefrontAddress?: {
+    addressLines?: string[] | null
+    locality?: string | null
+    administrativeArea?: string | null
+    postalCode?: string | null
+    regionCode?: string | null
+  } | null
+  phoneNumbers?: { primaryPhone?: string | null } | null
+  // Older schema surfaced a bare `primaryPhone` at the top level.
+  primaryPhone?: string | null
+  categories?: {
+    primaryCategory?: { displayName?: string | null } | null
+    additionalCategories?: Array<{ displayName?: string | null }> | null
+  } | null
+}
+
+/** One normalized open/close period in our `HH:MM` 24-hour shape. */
+export interface GooglePeriod {
+  /** Our day key ('mon'…'sun'), null when the enum was unreadable. */
+  day: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' | null
+  /** "HH:MM" 24-hour, or null when unparseable. */
+  open: string | null
+  /** "HH:MM" 24-hour, or null when unparseable. */
+  close: string | null
+}
+
+/** A normalized GBP location, narrowed to what we sync into clinic_profile. */
+export interface GoogleLocation {
+  /** Open/close periods in our day-key + HH:MM shape (filtered to readable). */
+  periods: GooglePeriod[]
+  addressLines: string[]
+  city: string | null
+  /** Google's `administrativeArea` (a US state like "TX"). */
+  state: string | null
+  postalCode: string | null
+  /** Google's `regionCode` (ISO country, e.g. "US"). */
+  country: string | null
+  phone: string | null
+  /** Primary + additional category display names (for future SEO/metadata). */
+  categories: string[]
+}
+
+/**
+ * Normalize a Google open/close time that may be an "HH:MM" string (newer
+ * schema), an `{ hours, minutes }` object (older schema), or "24:00" (Google's
+ * end-of-day marker → "23:59" so it stays a valid HH:MM and our `open < close`
+ * checks hold). Returns "HH:MM" or null when unreadable.
+ */
+export function normalizeGbpTime(raw: unknown): string | null {
+  if (raw == null) return null
+  if (typeof raw === 'object') {
+    const o = raw as { hours?: number; minutes?: number }
+    const h = typeof o.hours === 'number' && Number.isFinite(o.hours) ? o.hours : 0
+    const m = typeof o.minutes === 'number' && Number.isFinite(o.minutes) ? o.minutes : 0
+    if (h < 0 || h > 24 || m < 0 || m > 59) return null
+    if (h === 24) return '23:59'
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim()
+    if (!s) return null
+    // Accept "9:00", "09:00", "0900", "24:00".
+    const colon = /^(\d{1,2}):([0-5]\d)$/.exec(s)
+    const compact = /^(\d{2})([0-5]\d)$/.exec(s)
+    const m = colon ?? compact
+    if (!m) return null
+    const h = parseInt(m[1], 10)
+    const min = parseInt(m[2], 10)
+    if (h < 0 || h > 24 || min < 0 || min > 59) return null
+    if (h === 24) return '23:59'
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+  }
+  return null
+}
+
+/** Reach through `{ location }` / `{ data }` wrappers to the bare GBP object. */
+function unwrapLocation(data: unknown): GbpRawLocation {
+  if (!data || typeof data !== 'object') return {}
+  const o = data as Record<string, unknown>
+  if (o.location && typeof o.location === 'object') return o.location as GbpRawLocation
+  if (o.data && typeof o.data === 'object' && !Array.isArray(o.data)) return o.data as GbpRawLocation
+  return o as GbpRawLocation
+}
+
+function normalizeLocation(raw: GbpRawLocation): GoogleLocation {
+  const periods: GooglePeriod[] = []
+  for (const p of raw.regularHours?.periods ?? []) {
+    const day = p.openDay ? (GBP_DAY_TO_KEY[p.openDay.toUpperCase()] ?? null) : null
+    periods.push({
+      day,
+      open: normalizeGbpTime(p.openTime),
+      close: normalizeGbpTime(p.closeTime),
+    })
+  }
+  const addr = raw.storefrontAddress ?? null
+  const categories: string[] = []
+  const primary = raw.categories?.primaryCategory?.displayName
+  if (primary) categories.push(primary)
+  for (const c of raw.categories?.additionalCategories ?? []) {
+    if (c?.displayName) categories.push(c.displayName)
+  }
+  return {
+    periods,
+    addressLines: Array.isArray(addr?.addressLines)
+      ? addr!.addressLines.filter((l): l is string => typeof l === 'string' && l.trim().length > 0)
+      : [],
+    city: addr?.locality?.trim() || null,
+    state: addr?.administrativeArea?.trim() || null,
+    postalCode: addr?.postalCode?.trim() || null,
+    country: addr?.regionCode?.trim() || null,
+    phone: (raw.phoneNumbers?.primaryPhone ?? raw.primaryPhone)?.trim() || null,
+    categories,
+  }
+}
+
+/**
+ * `GET /v1/google-business/location-details?accountId=…[&locationId=…]` — the
+ * clinic's verified Google Business Profile location: regular hours, storefront
+ * address, primary phone, and categories. `locationId` is optional (Zernio uses
+ * the account's selected location when omitted). Parsed defensively; throws on
+ * a non-2xx (the service layer catches and stays best-effort).
+ */
+export async function getGoogleBusinessLocation(opts: {
+  accountId: string
+  locationId?: string
+}): Promise<GoogleLocation> {
+  const qs = new URLSearchParams({ accountId: opts.accountId })
+  if (opts.locationId) qs.set('locationId', opts.locationId)
+  const data = await zernioFetch<unknown>(`/google-business/location-details?${qs.toString()}`)
+  return normalizeLocation(unwrapLocation(data))
+}
+
+// ── Google Business media (photos) ────────────────────────────────────────────
+//
+// `GET /v1/google-business/media?accountId=…[&locationId=…]` — the location's
+// media items (photos). The GBP media item shape carries a `googleUrl` (a
+// usable image URL) and/or a `sourceUrl` (the original uploaded URL), plus a
+// `mediaFormat` ('PHOTO' | 'VIDEO') and a `locationAssociation.category` (e.g.
+// 'EXTERIOR' / 'INTERIOR' / 'PROFILE'). We keep only PHOTO items and prefer
+// `googleUrl`, falling back to `sourceUrl`. Response array key tolerated as
+// `mediaItems` / `media` / `data` / a bare array.
+
+interface GbpRawMediaItem {
+  googleUrl?: string | null
+  sourceUrl?: string | null
+  thumbnailUrl?: string | null
+  mediaFormat?: string | null
+  locationAssociation?: { category?: string | null } | null
+  category?: string | null
+}
+
+/** A normalized Google Business photo. */
+export interface GooglePhoto {
+  /** A usable image URL (googleUrl preferred, else sourceUrl). */
+  url: string
+  /** The original uploaded URL when distinct (kept for provenance). */
+  sourceUrl: string | null
+  /** GBP association category ('EXTERIOR' / 'INTERIOR' / …), null when absent. */
+  category: string | null
+}
+
+function normalizeMediaItem(raw: GbpRawMediaItem): GooglePhoto | null {
+  // Skip non-photos (e.g. VIDEO) when the format is declared.
+  if (raw.mediaFormat && raw.mediaFormat.toUpperCase() !== 'PHOTO') return null
+  const url = (raw.googleUrl ?? raw.sourceUrl ?? raw.thumbnailUrl ?? '').trim()
+  if (!url) return null
+  const sourceUrl = raw.sourceUrl?.trim()
+  return {
+    url,
+    sourceUrl: sourceUrl && sourceUrl !== url ? sourceUrl : null,
+    category: (raw.locationAssociation?.category ?? raw.category)?.trim() || null,
+  }
+}
+
+/**
+ * `GET /v1/google-business/media?accountId=…[&locationId=…]` — the photos on the
+ * clinic's Google Business Profile. Returns usable image URLs (PHOTO items
+ * only). Parsed defensively; throws on a non-2xx.
+ */
+export async function listGoogleBusinessMedia(opts: {
+  accountId: string
+  locationId?: string
+}): Promise<GooglePhoto[]> {
+  const qs = new URLSearchParams({ accountId: opts.accountId })
+  if (opts.locationId) qs.set('locationId', opts.locationId)
+  const data = await zernioFetch<
+    | { mediaItems?: GbpRawMediaItem[]; media?: GbpRawMediaItem[]; data?: GbpRawMediaItem[] }
+    | GbpRawMediaItem[]
+  >(`/google-business/media?${qs.toString()}`)
+  const rawList = Array.isArray(data) ? data : (data.mediaItems ?? data.media ?? data.data ?? [])
+  return rawList.map(normalizeMediaItem).filter((p): p is GooglePhoto => p !== null)
+}

@@ -182,6 +182,30 @@ export const clinicProfile = pgTable('clinic_profile', {
   // they render at the wrong wall-clock time.
   timezone: text('timezone'),
 
+  // ── Google Business Profile sync provenance (Zernio, migration 0065) ──────
+  // Per-field source flags so a Google sync NEVER silently clobbers a deliberate
+  // manual edit. Values: 'manual' (the default — the clinic typed it / it was
+  // never synced) | 'google' (last written by a Google Business Profile sync).
+  // An automatic/background sync only overwrites fields whose source is 'google'
+  // (or that were never synced); an explicit user-initiated "Sync from Google"
+  // (force) MAY overwrite a manual field and flips its source to 'google'.
+  // Saving the field through any editor flips its source back to 'manual'. The
+  // public site / booking / footer / JSON-LD read the underlying columns
+  // (`hours`, the address columns, `phone`) UNCHANGED — these flags are pure
+  // provenance + UI-affordance metadata, never read by those consumers.
+  hoursSource: text('hours_source').notNull().default('manual'),
+  addressSource: text('address_source').notNull().default('manual'),
+  phoneSource: text('phone_source').notNull().default('manual'),
+  // When a Google Business Profile sync last applied any field for this clinic.
+  // Null = never synced. Drives the "From Google · synced {date}" indicator.
+  googleSyncedAt: timestamp('google_synced_at', { withTimezone: true }),
+  // Photo URLs pulled from the clinic's Google Business Profile media. Kept
+  // SEPARATE from the curated `officePhotos` — we surface these as an "Import
+  // from Google" gallery the clinic picks from, never auto-clobbering their
+  // curated gallery. Shape: Array<{ url, sourceUrl?, category? }> (defensive —
+  // see resolveGooglePhotos in lib/services/gbp-sync.ts). Null = none pulled.
+  googlePhotos: jsonb('google_photos'),
+
   // Which Dream Create plan tier this clinic is on. Drives module gating.
   // Mirrors Stripe subscription state; updated by the Stripe webhook.
   planTier: text('plan_tier').default('basic'),
