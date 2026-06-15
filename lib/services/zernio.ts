@@ -126,21 +126,40 @@ export function profileNameForOrg(orgId: string, orgName: string): string {
 // ── Connect URL ─────────────────────────────────────────────────────────────
 
 /**
- * Resolve the hosted-OAuth connect URL for Google Business. Ensures the org's
- * Zernio profile first, then asks Zernio for an `authUrl` (which is a real
- * Google consent screen). `redirectUrl` (optional) is where Zernio returns the
- * user after connecting — Zernio appends
- * `?connected=googlebusiness&profileId=…&accountId=…&username=…`. When omitted,
- * Zernio returns the user to its own dashboard, so the UI also polls on focus.
+ * Resolve the hosted-OAuth connect URL for ANY connectable platform (Google
+ * Business or a shortlisted social platform). Ensures the org's Zernio profile
+ * first, then asks Zernio for an `authUrl` (the platform's real consent screen).
+ * `redirectUrl` (optional) is where Zernio returns the user after connecting —
+ * Zernio appends `?connected={platform}&profileId=…&accountId=…&username=…`. When
+ * omitted, Zernio returns the user to its own dashboard, so the UI also polls on
+ * focus.
+ *
+ * The cap check for SOCIAL platforms lives in the connect route (it must redirect
+ * the user with an at-limit param instead of starting OAuth); this function is
+ * the pure URL resolver and does NOT gate.
+ */
+export async function getPlatformConnectUrl(
+  orgId: string,
+  orgName: string,
+  platform: ZernioPlatform,
+  redirectUrl?: string,
+): Promise<string> {
+  const profileId = await ensureProfileForOrg(orgId, orgName)
+  const { authUrl } = await zernioGetConnectUrl(platform, profileId, redirectUrl)
+  return authUrl
+}
+
+/**
+ * Google Business convenience wrapper over {@link getPlatformConnectUrl}. Kept
+ * so the existing GBP call sites (and tests) read intent without re-passing the
+ * platform slug.
  */
 export async function getGoogleBusinessConnectUrl(
   orgId: string,
   orgName: string,
   redirectUrl?: string,
 ): Promise<string> {
-  const profileId = await ensureProfileForOrg(orgId, orgName)
-  const { authUrl } = await zernioGetConnectUrl(GOOGLE_BUSINESS, profileId, redirectUrl)
-  return authUrl
+  return getPlatformConnectUrl(orgId, orgName, GOOGLE_BUSINESS, redirectUrl)
 }
 
 // ── Sync connected accounts ─────────────────────────────────────────────────
@@ -226,15 +245,23 @@ export async function syncConnectedAccounts(orgId: string): Promise<void> {
 
 // ── Read for UI ─────────────────────────────────────────────────────────────
 
-/** Connection + Google Business accounts, shaped for the Integrations card. */
+/**
+ * Connection + ALL connected accounts (GBP + social), shaped for the Channels +
+ * Integrations UI. Returns every `zernio_account` row for the org grouped into
+ * `accounts` (all platforms) plus a `googleBusinessAccounts` convenience slice
+ * (back-compat for the GBP card + `resolveGbpAccount`). The connection `status`
+ * still tracks GBP (it flips connected when ≥1 GBP account exists) — social
+ * connectedness is read per-platform off `accounts`, never off the top-level
+ * status.
+ */
 export async function getZernioConnection(orgId: string): Promise<ZernioConnectionView> {
   const conn = await getConnectionRow(orgId)
   const rows = await db
     .select()
     .from(schema.zernioAccount)
-    .where(and(eq(schema.zernioAccount.organizationId, orgId), eq(schema.zernioAccount.platform, GOOGLE_BUSINESS)))
+    .where(eq(schema.zernioAccount.organizationId, orgId))
 
-  const googleBusinessAccounts: ZernioAccount[] = rows.map((r) => ({
+  const accounts: ZernioAccount[] = rows.map((r) => ({
     id: r.id,
     platform: r.platform,
     profileId: conn?.zernioProfileId ?? '',
@@ -249,7 +276,8 @@ export async function getZernioConnection(orgId: string): Promise<ZernioConnecti
     zernioProfileId: conn?.zernioProfileId ?? null,
     lastError: conn?.lastError ?? null,
     isDemo: conn?.isDemo === 1,
-    googleBusinessAccounts,
+    googleBusinessAccounts: accounts.filter((a) => a.platform === GOOGLE_BUSINESS),
+    accounts,
   }
 }
 
@@ -318,6 +346,23 @@ export async function disconnectPlatform(orgId: string, platform: ZernioPlatform
 const DEMO_GBP_ACCOUNT_ID = 'demo_gbp_dream_dental'
 
 /**
+ * Synthetic SOCIAL accounts for the demo (never real Zernio ids). The demo is
+ * Premium + add-on (5 social slots, from PR 1), so seeding 2 connected social
+ * accounts showcases the Channels surface's connected-social state + a
+ * partially-used cap ("2 of 5 used"). Per the no-fake-content rule, these
+ * populate exactly what the Channels rows render.
+ */
+const DEMO_SOCIAL_ACCOUNTS: ReadonlyArray<{
+  id: string
+  platform: ZernioPlatform
+  username: string
+  displayName: string
+}> = [
+  { id: 'demo_ig_dream_dental', platform: 'instagram', username: '@dreamdental', displayName: 'Dream Dental' },
+  { id: 'demo_fb_dream_dental', platform: 'facebook', username: 'dreamdentalaustin', displayName: 'Dream Dental' },
+]
+
+/**
  * Seed (or self-heal) the demo clinic's Zernio connection so the Integrations
  * Google Business card showcases the CONNECTED state without ever touching the
  * network. Idempotent: no-op once a connected demo row exists. Scoped to the
@@ -366,6 +411,24 @@ export async function seedDemoZernio(organizationId: string, displayName = 'Drea
         accountId: DEMO_GBP_ACCOUNT_ID,
         username: 'dream-dental-austin',
         displayName,
+      })
+      .onConflictDoNothing()
+  }
+
+  // Ensure the synthetic SOCIAL accounts (Instagram + Facebook) so the Channels
+  // surface showcases connected social + a partially-used cap. Idempotent —
+  // onConflictDoNothing keyed by the synthetic id. GBP status is untouched (it
+  // tracks GBP only); social connectedness is read per-platform off accounts.
+  for (const s of DEMO_SOCIAL_ACCOUNTS) {
+    await db
+      .insert(schema.zernioAccount)
+      .values({
+        id: s.id,
+        organizationId,
+        platform: s.platform,
+        accountId: s.id,
+        username: s.username,
+        displayName: s.displayName,
       })
       .onConflictDoNothing()
   }

@@ -173,4 +173,8 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
     title: 'Show up on your Google listing',
     body: 'Publish Updates, Offers, and Events straight to your Google Business Profile — with a Book button that links to your site. They appear in Google Search and Maps.',
   },
+  channels: {
+    title: 'Connect your Google + social presence',
+    body: 'Link your Google Business Profile (free on every plan) and the social accounts you post to — Instagram, Facebook, TikTok, YouTube, LinkedIn. Your plan sets how many social connections you get; Google Business never counts.',
+  },
 }

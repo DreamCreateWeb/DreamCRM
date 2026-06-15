@@ -1,14 +1,18 @@
 # Zernio × Google Business integration — plan
 
 **Status: PHASE 1 (Google Business core) COMPLETE + PHASE 2 (GBP posting)
-COMPLETE + PHASE 3 PR1 (billing + entitlements foundation) COMPLETE
-(2026-06-15).** Foundation + reviews/AggregateRating + hours/address/phone/photos
-sync + GBP local metrics into SEO + Analytics + **GBP posting (Updates / Offers /
-Events composer + CTA + image + history)** are all live, and the **social-module
-billing model is now FINALIZED + shipped** (PR1): per-plan social-connection
-entitlements + a flat per-tier Stripe add-on, and **Google Business is now free
-on every plan tier** (relaxed from Premium-only). Phase 3 PRs 2–4 (the social
-UI itself) are next. Real-time review ingest via Zernio webhooks is the
+COMPLETE + PHASE 3 PR1 (billing + entitlements) + PR2 (cap-aware multi-platform
+"Channels" connect) COMPLETE (2026-06-15).** Foundation + reviews/AggregateRating
++ hours/address/phone/photos sync + GBP local metrics into SEO + Analytics + **GBP
+posting (Updates / Offers / Events composer + CTA + image + history)** are all
+live; the **social-module billing model is FINALIZED + shipped** (PR1, per-plan
+social-connection entitlements + a flat per-tier Stripe add-on, **Google Business
+free on every plan tier**); and the **`/channels` surface** (PR2) now lets a
+clinic connect/disconnect Google Business + the 5 shortlisted social platforms
+(Instagram / Facebook / TikTok / YouTube / LinkedIn), enforcing the plan's
+social-connection cap at the connect route (GBP uncapped/free). **Phase 3 PR3
+(multi-platform composer + content calendar) is next**, then PR4 (social analytics
++ Facebook reviews). Real-time review ingest via Zernio webhooks is the
 recommended near-term add.
 
 ## Social-module billing — DECIDED (was "pending"), shipped in Phase 3 PR1
@@ -543,15 +547,61 @@ FB/IG/etc.
   Zernio actions, Settings GBP-sync actions, `/reviews` Google actions,
   `/google-posts`). The demo (Premium) is seeded with the add-on on (5 social
   slots).
-- **Phase 3 PR2 (NEXT) — multi-platform connect:** generalize the
-  `/integrations` Google Business card into a cap-aware multi-platform
-  **"Channels"** surface (Instagram / Facebook / TikTok / YouTube / LinkedIn),
-  gating each new social connection on `canConnectSocialPlatform` (GBP always
-  free + uncounted). Then **PR3 — composer/calendar** (multi-platform compose +
-  schedule, generalizing the GBP composer) and **PR4 — social analytics +
-  Facebook reviews** (folded into the Reviews module alongside Google). Zernio
-  bills ~$6 per connected social account; the entitlement caps (2 free on
-  Premium, +add-on to 5) keep that cost bounded.
+- **Phase 3 PR2 (DONE) — cap-aware multi-platform connect ("Channels"):** a new
+  **`/channels`** surface (clinic sidebar, Growth group, NO minPlan) is the
+  canonical place a clinic connects its Google + social presence. Shipped:
+  - **The dentist shortlist** = `SOCIAL_CHANNEL_SHORTLIST` in `lib/types/zernio.ts`
+    (`instagram`, `facebook`, `tiktok`, `youtube`, `linkedin`) — we offer ONLY
+    these + Google Business (free, separate, never counts). The other 9 Zernio
+    platforms (X / WhatsApp / Reddit / Telegram / Discord / Bluesky / Threads /
+    Snapchat / Pinterest) are deliberately NOT surfaced; widening the offering is
+    one edit to that constant. Also `CONNECTABLE_PLATFORMS` (GBP + shortlist) +
+    the `isConnectablePlatform` / `isSocialChannelPlatform` guards.
+  - **Generalized connection plumbing** (the foundation's connect logic was
+    already platform-generic — PR1/foundation just restricted the UI to GBP):
+    `getPlatformConnectUrl(orgId, orgName, platform, redirectUrl)` (the generic
+    resolver; `getGoogleBusinessConnectUrl` is now a thin GBP wrapper over it),
+    and `getZernioConnection(orgId)` now returns **ALL** connected accounts in a
+    new `accounts` field (grouped per platform by the UI) **plus** the back-compat
+    `googleBusinessAccounts` slice (so `resolveGbpAccount` + reviews/sync/metrics
+    are untouched). `syncConnectedAccounts` already upserts every platform; the
+    callback re-syncs, so social accounts persist.
+  - **The connect route is opened to the shortlist** (`/api/integrations/zernio/
+    connect`): accepts any shortlisted `platform` (400 otherwise); for a SOCIAL
+    platform it calls `canConnectSocialPlatform` FIRST and — when at the cap (or
+    Basic = 0) — redirects to `/channels?atLimit={platform}` INSTEAD of starting
+    OAuth; GBP stays uncapped/free. The callback + the route's error/at-limit
+    redirects now land on `/channels`.
+  - **The Channels UI** (`app/(default)/channels/`, DESIGN-SYSTEM v2): a Google
+    Business row (free, connect/disconnect/refresh) + a Social channels section
+    listing the 5 shortlisted platforms with connect / connected-handle +
+    Disconnect, a **"{current} of {limit} social connections used"** meter
+    (`font-mono-num`), and an upgrade/add-on CTA → Settings → Billing when at the
+    cap (Pro/Premium → "Add more", Basic → "Upgrade to Pro"). Connect opens
+    Zernio's hosted OAuth in a NEW TAB + re-syncs on window focus + a Refresh
+    button (the GBP-card pattern). Server actions `refreshChannelsAction` /
+    `disconnectChannelAction` (`{ ok | error }`, owner/admin + clinic).
+  - **/integrations cohesion:** the GBP card there is now a STATUS + "Manage
+    channels →" link (no competing connect button) — `/channels` is the single
+    connection-management surface.
+  - **Demo:** `seedDemoZernio` now also seeds 2 synthetic connected social
+    accounts (Instagram `@dreamdental` + Facebook "Dream Dental") so Channels
+    showcases connected social + a partial cap ("2 of 5 used"). Patient-guarded,
+    idempotent, never networks. **NO migration** (`zernio_account` already
+    supports any platform; the entitlement column shipped in PR1).
+  - ~98 new/changed tests (`tests/zernio/connect-route` · `service` ·
+    `google-business-card` · `channels-actions` · `channels-board`).
+- **Phase 3 PR3 (NEXT) — multi-platform composer + content calendar:** generalize
+  the GBP post composer (`app/(default)/google-posts/` + `lib/services/gbp-posts.ts`
+  + `createGbpPost`/`listPosts`/`deletePost` in `lib/zernio.ts`) into a
+  **compose-once → publish/schedule to any connected channel** surface with a
+  content calendar. Targeting reads `getZernioConnection(orgId).accounts` (now
+  multi-platform); the create payload already sends `socialAccountIds[]` +
+  `platforms[{platform,accountId}]` (Zernio publishes scheduled posts itself — no
+  cron). Then **PR4 — social analytics + Facebook reviews** (per-platform metrics,
+  Facebook reviews folded into the Reviews module alongside Google). Zernio bills
+  ~$6 per connected social account; the entitlement caps (2 free on Premium,
+  +add-on to 5) keep that cost bounded.
 
 ## Open questions to resolve at build time
 - Exact webhook event shapes + signature scheme (`docs.zernio.com/webhooks`).

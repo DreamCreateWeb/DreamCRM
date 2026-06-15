@@ -41,6 +41,55 @@ export const ZERNIO_PLATFORMS = [
 export type ZernioPlatform = (typeof ZERNIO_PLATFORMS)[number]
 
 /**
+ * The CURATED dentist shortlist of social platforms we surface for connection
+ * (Phase 3 PR 2). Deliberately a small set — we offer ONLY these (plus Google
+ * Business, which is separate + free) to control Zernio per-account cost and
+ * keep the clinic focused on the channels a dental practice actually uses. The
+ * other 9 Zernio platforms (X / WhatsApp / Reddit / Telegram / Discord /
+ * Bluesky / Threads / Snapchat / Pinterest) are intentionally NOT offered.
+ *
+ * Defined as a single constant so widening (or narrowing) the offering is one
+ * edit. Google Business is NOT in this list — it's free, never counts toward the
+ * social cap, and has its own dedicated row in the Channels UI.
+ */
+export const SOCIAL_CHANNEL_SHORTLIST = [
+  'instagram',
+  'facebook',
+  'tiktok',
+  'youtube',
+  'linkedin',
+] as const
+
+export type SocialChannelPlatform = (typeof SOCIAL_CHANNEL_SHORTLIST)[number]
+
+/** Type guard — is this a shortlisted social platform (NOT GBP)? */
+export function isSocialChannelPlatform(platform: string): platform is SocialChannelPlatform {
+  return (SOCIAL_CHANNEL_SHORTLIST as readonly string[]).includes(platform)
+}
+
+/**
+ * The Google Business slug (free + separate from the social shortlist; never
+ * counts toward the social cap). A named constant so call sites read intent.
+ */
+export const GOOGLE_BUSINESS_PLATFORM = 'googlebusiness' as const
+
+/**
+ * Every platform CONNECTABLE from the Channels surface = GBP + the social
+ * shortlist. The connect route validates an incoming `platform` against this
+ * (rejecting the 9 non-offered Zernio slugs).
+ */
+export const CONNECTABLE_PLATFORMS = [
+  GOOGLE_BUSINESS_PLATFORM,
+  ...SOCIAL_CHANNEL_SHORTLIST,
+] as const
+
+/** Whether a platform slug can be connected from the Channels surface (GBP or a
+ *  shortlisted social platform). */
+export function isConnectablePlatform(platform: string): platform is ZernioPlatform {
+  return (CONNECTABLE_PLATFORMS as readonly string[]).includes(platform)
+}
+
+/**
  * Zernio's connect enum uses `twitter` for X. We surface `x` everywhere in our
  * code (it matches `/accounts` SocialAccount.platform), and translate to the
  * connect-endpoint slug at the boundary. All other slugs are identical between
@@ -108,14 +157,31 @@ export interface ZernioAccount {
 
 export type ZernioConnectionStatus = 'disconnected' | 'connected' | 'error'
 
-/** The connection + its accounts, shaped for the Integrations UI. */
+/** The connection + its accounts, shaped for the Integrations / Channels UI. */
 export interface ZernioConnectionView {
   status: ZernioConnectionStatus
   zernioProfileId: string | null
   lastError: string | null
   isDemo: boolean
-  /** Google Business accounts only (the foundation scope). */
+  /** Google Business accounts only (back-compat for the GBP card; equals
+   *  `accounts` filtered to `platform === 'googlebusiness'`). */
   googleBusinessAccounts: ZernioAccount[]
+  /** EVERY connected account across all platforms (GBP + social). The Channels
+   *  surface groups these per platform; the GBP-only callers ignore it. */
+  accounts: ZernioAccount[]
+}
+
+/**
+ * One row in the Channels surface's social section: a shortlisted platform +
+ * whether it's connected + (when connected) the account. Built by the page from
+ * `ZernioConnectionView.accounts` filtered per platform. Client-safe.
+ */
+export interface SocialChannelView {
+  platform: SocialChannelPlatform
+  label: string
+  icon: string
+  /** The connected account, or null when this platform isn't connected. */
+  account: ZernioAccount | null
 }
 
 /** Query-string key the connect callback / return URL uses to flag a fresh
