@@ -521,13 +521,15 @@ export async function seedDemoGbpSync(organizationId: string): Promise<void> {
   if (!profile) return
 
   const patch: Partial<typeof schema.clinicProfile.$inferInsert> = {}
-  // Flag the synced fields as Google-sourced (demo seeds them to match Google),
-  // but only when still at the default ('manual') — never overwrite a
-  // hand-customized demo (where a platform admin flipped one back to manual).
-  if (profile.hoursSource === 'manual') patch.hoursSource = 'google'
-  if (profile.addressSource === 'manual') patch.addressSource = 'google'
-  if (profile.phoneSource === 'manual') patch.phoneSource = 'google'
+  // First-seed only (googleSyncedAt still null): flag the synced fields
+  // Google-sourced + stamp a recent synced-at, so the card showcases the
+  // populated provenance. Once the demo has been synced once, we NEVER re-flip
+  // the per-field sources — a platform admin may have reverted one to manual,
+  // and that choice must stick (the no-overwrite guarantee).
   if (!profile.googleSyncedAt) {
+    patch.hoursSource = 'google'
+    patch.addressSource = 'google'
+    patch.phoneSource = 'google'
     // ~2 days ago so the "synced {date}" indicator reads as recent.
     patch.googleSyncedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
   }

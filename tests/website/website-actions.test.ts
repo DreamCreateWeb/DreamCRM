@@ -42,6 +42,7 @@ import {
   saveStats,
   saveFaq,
   saveHours,
+  saveContact,
   savePaymentFinancing,
   saveInsurance,
   saveInlineField,
@@ -153,6 +154,39 @@ describe('website section actions — FAQ + hours', () => {
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.error).toMatch(/invalid open time/i)
     expect(ops).toHaveLength(0)
+  })
+})
+
+describe('Google-sync source flags flip to manual on edit', () => {
+  it('saveHours flags hoursSource manual (so an auto Google sync respects the edit)', async () => {
+    const fd = form({})
+    fd.set('hours[mon].open', '09:00')
+    fd.set('hours[mon].close', '17:00')
+    await saveHours(fd)
+    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    expect(set.hoursSource).toBe('manual')
+  })
+
+  it('saveContact flags addressSource + phoneSource manual', async () => {
+    await saveContact(form({ phone: '555-0100', addressLine1: '1 Main St', city: 'Austin' }))
+    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    expect(set.addressSource).toBe('manual')
+    expect(set.phoneSource).toBe('manual')
+  })
+
+  it('inline phone edit flags phoneSource manual', async () => {
+    await saveInlineField('phone', '(512) 555-0100')
+    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    expect(set.phone).toBe('(512) 555-0100')
+    expect(set.phoneSource).toBe('manual')
+  })
+
+  it('inline tagline edit does NOT touch any source flag', async () => {
+    await saveInlineField('tagline', 'Gentle care')
+    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    expect(set.phoneSource).toBeUndefined()
+    expect(set.hoursSource).toBeUndefined()
+    expect(set.addressSource).toBeUndefined()
   })
 })
 
