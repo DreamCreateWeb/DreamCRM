@@ -10,10 +10,14 @@ social-connection entitlements + a flat per-tier Stripe add-on, **Google Busines
 free on every plan tier**); and the **`/channels` surface** (PR2) now lets a
 clinic connect/disconnect Google Business + the 5 shortlisted social platforms
 (Instagram / Facebook / TikTok / YouTube / LinkedIn), enforcing the plan's
-social-connection cap at the connect route (GBP uncapped/free). **Phase 3 PR3
-(multi-platform composer + content calendar) is next**, then PR4 (social analytics
-+ Facebook reviews). Real-time review ingest via Zernio webhooks is the
-recommended near-term add.
+social-connection cap at the connect route (GBP uncapped/free); and the
+**unified `/social-posts` composer + content calendar** (PR3) now lets a clinic
+compose once and publish/schedule to Google Business + the connected socials at
+once (the GBP-only `/google-posts` was generalized — `gbp_post` → `social_post` +
+a `social_post_target` child, migration 0068 — and `/google-posts` redirects to
+`/social-posts`). **Phase 3 PR4 (per-platform social analytics + Facebook reviews)
+is next.** Real-time review ingest via Zernio webhooks is the recommended
+near-term add.
 
 ## Social-module billing — DECIDED (was "pending"), shipped in Phase 3 PR1
 
@@ -591,17 +595,53 @@ FB/IG/etc.
     supports any platform; the entitlement column shipped in PR1).
   - ~98 new/changed tests (`tests/zernio/connect-route` · `service` ·
     `google-business-card` · `channels-actions` · `channels-board`).
-- **Phase 3 PR3 (NEXT) — multi-platform composer + content calendar:** generalize
-  the GBP post composer (`app/(default)/google-posts/` + `lib/services/gbp-posts.ts`
-  + `createGbpPost`/`listPosts`/`deletePost` in `lib/zernio.ts`) into a
-  **compose-once → publish/schedule to any connected channel** surface with a
-  content calendar. Targeting reads `getZernioConnection(orgId).accounts` (now
-  multi-platform); the create payload already sends `socialAccountIds[]` +
-  `platforms[{platform,accountId}]` (Zernio publishes scheduled posts itself — no
-  cron). Then **PR4 — social analytics + Facebook reviews** (per-platform metrics,
-  Facebook reviews folded into the Reviews module alongside Google). Zernio bills
-  ~$6 per connected social account; the entitlement caps (2 free on Premium,
-  +add-on to 5) keep that cost bounded.
+- **Phase 3 PR3 (SHIPPED) — unified multi-platform composer + content calendar:**
+  the GBP-only Google Posts surface was generalized into a **compose-once →
+  publish/schedule to any connected channel** surface at **`/social-posts`**
+  (Growth sidebar, "Social Posts", no minPlan; `/google-posts` permanently
+  REDIRECTS here — exactly ONE composer, no dead page).
+  - **Schema:** `gbp_post` RENAMED → `social_post` (parent: shared composed
+    content + a `status` rollup) + a new `social_post_target` child (per-channel
+    `{platform, accountId, zernioPostId, status, googleUrl, lastError,
+    publishedAt}`) — **migration 0068** (rename table+index+FK, create the child,
+    BACKFILL one `googlebusiness` target per existing post so every Phase-2 GBP
+    post is preserved as a 1-target post, then drop the moved per-channel columns
+    from the parent). A GBP-only post is just a 1-target social post.
+  - **Service** `lib/services/social-posts.ts` (replaces `gbp-posts.ts`):
+    `createSocialPost(orgId, {accountIds, …gbpOptions})` resolves each target
+    account, **persists the parent + per-target rows FIRST**, then calls Zernio
+    PER TARGET (GBP → `createGbpPost` w/ options; social → the new generic
+    `createSocialPost` wrapper in `lib/zernio.ts`, text+media only) → **per-target
+    status ISOLATED** (one channel fails `status='failed'`+`lastError`, the others
+    still publish) + a parent rollup; **best-effort/never-throws + demo-safe**
+    (isDemo persists published/scheduled rows w/ synthetic ids, never networks).
+    Plus `validateSocialPostInput` (GBP-only fields validated ONLY when GBP is a
+    target; char cap = GBP 1,500 when GBP targeted else a generous social
+    ceiling), `getComposerChannels` (GBP first then connected socials, off
+    `getZernioConnection().accounts`), `listSocialPosts` (parent + nested
+    targets), `deleteSocialPost` (best-effort delete each target + always drop
+    local), `seedDemoSocialPosts`.
+  - **UI** (`app/(default)/social-posts/`, DESIGN-SYSTEM v2): a channel-picker
+    (checkboxes over connected accounts w/ icons), shared text/image (shared XHR →
+    S3), a live counter at the tightest cap across picked channels, GBP-specific
+    options shown ONLY when GBP is picked (Book CTA defaults to `/book`), Post-now/
+    Schedule (Zernio publishes — no cron); a **List ⇄ Calendar** toggle — history
+    cards w/ per-channel target chips (icon + status dot + permalink + per-target
+    error) + confirm-delete, and a dependency-free CSS-grid month **content
+    calendar** (post on its scheduled/published-or-created day + channel icons +
+    status dot + detail popover + month nav). Server actions
+    `createSocialPostAction`/`deleteSocialPostAction` (`{ok|error}`, owner/admin +
+    clinic, no plan gate). Disconnected → connect-prompt to `/channels`.
+  - **Honest:** still no fabricated per-post metrics (deprecated on Google + not
+    pulled for socials yet) — points to `/seo`; per-platform analytics are PR4.
+  - **Demo:** `seedDemoSocialPosts` seeds a published GBP+IG+FB cross-post
+    (image + Book CTA), a published GBP Offer (coupon), a scheduled IG+FB social
+    cross-post, and a scheduled GBP Event (using the PR2 demo GBP+IG+FB accounts;
+    patient-guarded, idempotent, never networks). +75 tests.
+- **Phase 3 PR4 (NEXT) — social analytics + Facebook reviews:** per-platform
+  metrics for the connected socials, and Facebook reviews folded into the Reviews
+  module alongside Google. Zernio bills ~$6 per connected social account; the
+  entitlement caps (2 free on Premium, +add-on to 5) keep that cost bounded.
 
 ## Open questions to resolve at build time
 - Exact webhook event shapes + signature scheme (`docs.zernio.com/webhooks`).

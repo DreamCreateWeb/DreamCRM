@@ -62,9 +62,11 @@ export const clinicModules: ModuleRegistry = {
     // ── Growth ─────────────────────────────────────────────────────────
     { id: 'recall',            path: '/marketing',         label: 'Recall & Outreach',section: 'Growth',   icon: 'megaphone',status: 'live', minPlan: 'premium' },
     { id: 'reviews',           path: '/reviews',           label: 'Reviews',          section: 'Growth',   icon: 'star',     status: 'live', minPlan: 'pro' },
-    // Google Posts is a pure Google Business surface — GBP is free on every plan
-    // tier (Basic included), so NO minPlan. See lib/types/social-entitlements.ts.
-    { id: 'google_posts',      path: '/google-posts',      label: 'Google Posts',     section: 'Growth',   icon: 'megaphone',status: 'live' },
+    // Social Posts is the unified multi-platform composer + content calendar —
+    // compose once → publish/schedule to Google Business + the connected socials.
+    // Posting is gated by what's CONNECTED (cap enforced at connect-time on
+    // /channels), so NO minPlan. See lib/types/social-entitlements.ts.
+    { id: 'social_posts',      path: '/social-posts',      label: 'Social Posts',     section: 'Growth',   icon: 'megaphone',status: 'live' },
     // Channels is the connect surface for Google Business (free, every tier) +
     // the social platforms (self-gated by the plan's social-connection cap — Basic
     // shows an upgrade CTA), so NO minPlan. See lib/types/social-entitlements.ts.

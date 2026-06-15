@@ -434,9 +434,59 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   **NO migration** (`zernio_account` already supports any platform; the entitlement
   column shipped in PR1). ~98 new/changed tests (`tests/zernio/connect-route` ·
   `service` · `google-business-card` · `channels-actions` · `channels-board`).
-  **Next: PR3 — multi-platform composer + content calendar** (generalize the GBP
-  post composer; targeting reads `getZernioConnection().accounts`), then PR4
-  (social analytics + Facebook reviews). See `docs/zernio-google-integration.md`.
+- **Zernio social module — Phase 3 PR3: unified multi-platform composer +
+  content calendar (2026-06-15)** — the GBP-only Google Posts surface is
+  GENERALIZED into a **compose-once → publish/schedule to any connected channel**
+  surface at **`/social-posts`** (Growth sidebar, label "Social Posts", **NO
+  minPlan**; `/google-posts` now permanently REDIRECTS here so there's exactly
+  ONE composer, no dead page). **Schema:** `gbp_post` is RENAMED → `social_post`
+  (the parent composed-post row) + a new `social_post_target` child table tracks
+  per-channel `{platform, accountId, zernioPostId, status, googleUrl, lastError,
+  publishedAt}` — **migration 0068** (rename table+index+FK, create the child
+  table, BACKFILL one `googlebusiness` target per existing post so every Phase-2
+  GBP post is preserved as a 1-target social post, then drop the now-redundant
+  per-channel columns from the parent; the parent keeps a `status` ROLLUP +
+  `publishedAt`). A GBP-only post is just a 1-target social post. **Service**
+  `lib/services/social-posts.ts` (replaces `gbp-posts.ts`): `createSocialPost(orgId,
+  {accountIds, …, gbpOptions})` resolves each target account, **persists the parent
+  + per-target rows FIRST**, then calls Zernio **per target** (GBP → `createGbpPost`
+  with the GBP options; social → the new generic `createSocialPost` wrapper, text+
+  media only) so **per-target status is ISOLATED** (one channel can fail
+  `status='failed'`+`lastError` while another publishes) and rolls the parent
+  status up — **best-effort, NEVER throws; demo-safe** (isDemo persists published/
+  scheduled rows w/ synthetic ids, never networks); `validateSocialPostInput`
+  (pure; GBP-only fields — post type/CTA/event/offer — validated ONLY when a GBP
+  account is targeted; the char cap is the GBP 1,500 when GBP is targeted, else a
+  generous social ceiling); `getComposerChannels` (GBP first then connected
+  socials, reads `getZernioConnection().accounts`); `listSocialPosts` (parent +
+  nested targets); `deleteSocialPost` (best-effort delete each target at Zernio +
+  always drop local rows); `seedDemoSocialPosts`. New `lib/zernio.ts`
+  `createSocialPost(input)` (generic single-account POST `/v1/posts`, NO GBP
+  options) alongside the kept `createGbpPost`/`listPosts`/`deletePost`. **UI**
+  (`app/(default)/social-posts/`, DESIGN-SYSTEM v2 `.v2-panel`, teal): a
+  **channel-picker** (checkboxes over the connected accounts w/ platform icons) +
+  shared text/image (shared XHR upload → S3) + a live counter at the tightest
+  cap across picked channels + **GBP-specific options shown ONLY when a GBP
+  channel is selected** (Book CTA still defaults to the clinic `/book`) + Post-now/
+  Schedule (Zernio publishes — no cron). The right panel is a **List ⇄ Calendar**
+  toggle: the history cards carry per-channel target chips (icon + status dot +
+  permalink + per-target error) + confirm-delete; the **content calendar**
+  (`calendar-view.tsx`) is a dependency-free CSS-grid month view placing each post
+  on its scheduled/published (→ created fallback) day w/ channel icons + a status
+  dot + a click-to-open detail popover + month nav. Disconnected → a connect-prompt
+  to `/channels`. Server actions `createSocialPostAction`/`deleteSocialPostAction`
+  (`{ok|error}`, owner/admin + clinic, no plan gate). **HONEST:** still no
+  fabricated per-post metrics (per-post insights deprecated on Google + not yet
+  pulled for the socials) — points to `/seo`; **per-platform social analytics are
+  PR4**. **Demo:** `seedDemoSocialPosts` seeds a published cross-post to GBP+IG+FB
+  (image + Book CTA), a published GBP Offer (coupon), a scheduled IG+FB social
+  cross-post, and a scheduled GBP Event — using the demo's connected GBP+IG+FB
+  accounts (from PR2); patient-guarded, idempotent, never networks. Suite +75
+  social-post tests (`tests/zernio/social-posts-service` · `social-posts-action-gate`
+  · `social-post-composer` · `social-post-history` · `social-post-calendar` +
+  `createSocialPost` in `gbp-posts-client`). **Next: PR4 — per-platform social
+  analytics + Facebook reviews** (folded into the Reviews module alongside
+  Google). See `docs/zernio-google-integration.md`.
 - **Website system sprint — "complete in seconds" (2026-06-12, PRs #342–#345)**
   — 4 audits + 4 build waves refined the ENTIRE clinic-website system to the
   day-0-complete model (supersedes the honest-empty framing of #304–#307 for
@@ -1403,7 +1453,7 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Daily | Intake Forms | `/intake-forms` | **Live (v1)** | Builder + public fill at `{slug}.dreamcreatestudio.com/intake/[formSlug]` |
 | Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
 | Growth | Reviews | `/reviews` + `/reviews/received` | **Live (v2)** | Post-visit review collection — **patient writes the review text inside DreamCRM** (`review_request.review_text`, migration 0035), staff just toggles featured/unfeatured on the public site. Morning-huddle dashboard: 4-stat funnel (Sent · Opened · Reviewed · Ready-to-ask) + platform mix breakdown + Ready-to-ask list + recent activity with ✓ Featured pills + Browse received CTA + inline config. `/reviews/received` shows the patient's actual quote in a read-only italic blockquote + star rating + one-click Feature/Unfeature (staff CANNOT edit). Public landing at `/r/<token>` is text-first: rating + textarea + Submit, then "Also share on Google/Healthgrades/Facebook/Yelp?" as a secondary action (SEO play preserved). `featureReviewAsTestimonial({orgId, patientId})` sources quote from `review_request.reviewText` — throws "has not submitted a review" when null. `clinic_profile.testimonials` gains `patientId` link; display label denormalized to "First L." + city. Featured testimonials surface on the public site (static 3-card grid ≤3, looping marquee >3). FTC-clean (2024 Fake Reviews Rule), no NPS gating, 365-day rate limit. Auto-trigger on appointment completion = v1.1 scaffolded (handler exists, needs EventBridge rule). |
-| Growth | Google Posts | `/google-posts` | **Live (v1 — Zernio Phase 2)** | Premium-tier (owner/admin). PUBLISH Google Business posts — **Updates / Offers / Events** with a CTA button + a single image — through the Zernio GBP connection, plus a post history. Composer: post-type selector, live char counter to 1,500, image upload via the shared XHR helper (→ public S3 URL passed to Zernio; ≤5MB JPEG/PNG), CTA picker (LEARN_MORE/BOOK/ORDER/SHOP/SIGN_UP/CALL — **Book defaults to the clinic's `/book` URL** via `publicSiteUrl`; CALL needs no URL), offer fields (coupon/redeem/terms) + event fields (title/start/end), "Post to Google" + "Schedule" (**Zernio publishes scheduled posts itself — NO publish cron**). History cards: type badge + StatusPill (published/scheduled/failed/draft) + image thumb + date + "View on Google" permalink + confirm-delete. Client wrappers `createGbpPost`/`listPosts`/`deletePost` (`lib/zernio.ts`, defensive — GBP `topicType`/`callToAction`/`event`/`offer` options under tolerant keys); service `lib/services/gbp-posts.ts` (validate + persist-first + best-effort publish — never throws, failure → `status='failed'`+`lastError`; **demo-safe** isDemo persists a published row w/ synthetic id + fake permalink, never networks; `deleteGbpPost` best-effort at Zernio + always drops local row). Schema `gbp_post` (**migration 0066**). Server actions `createGbpPostAction`/`deleteGbpPostAction` (`{ok\|error}`). Disconnected → connect-prompt to `/integrations`; connected + no posts → "Write your first Google post." EmptyState. **HONEST: no per-post metrics** (Google deprecated per-post insights — points to `/seo` for location-level performance). Demo seeds 3 posts (Update+image+Book CTA, Offer+coupon, scheduled Event). Confirmed REST: `POST /v1/posts` · `GET /v1/posts` · `DELETE /v1/posts/{id}`. 63 tests. **Phase 3 social-module billing now DECIDED + shipped (PR1); the multi-platform composer that generalizes this is PR3 — see the Channels row + `docs/zernio-google-integration.md`** |
+| Growth | Social Posts | `/social-posts` | **Live (v1 — Zernio Phase 3 PR3)** | NO minPlan (owner/admin). **Unified multi-platform composer + content calendar** — compose once → publish/schedule to **Google Business + the connected socials** (Instagram / Facebook / TikTok / YouTube / LinkedIn) at once (generalizes the Phase-2 GBP-only Google Posts; `/google-posts` now REDIRECTS here — one composer, no dead page). Composer (`app/(default)/social-posts/`, DESIGN-SYSTEM v2): a **channel-picker** (checkboxes over connected accounts w/ platform icons), shared text + image (shared XHR → S3), a live counter at the tightest cap across picked channels (GBP=1,500 else generous social ceiling), and **GBP-specific options shown ONLY when a GBP channel is picked** (post type / CTA — Book defaults to the clinic `/book` — / event / offer); Post-now / Schedule (**Zernio publishes scheduled posts itself — NO cron**). Right panel is a **List ⇄ Calendar** toggle: history cards carry per-channel target chips (icon + status dot + permalink + per-target error) + confirm-delete; the **content calendar** is a dependency-free CSS-grid month view (each post on its scheduled/published-or-created day + channel icons + status dot + detail popover + month nav). Posting is gated by what's CONNECTED (cap enforced at connect-time on `/channels`), so no plan gate. **Schema:** `gbp_post` RENAMED → `social_post` (parent) + new `social_post_target` child (per-channel `{platform,accountId,zernioPostId,status,googleUrl,lastError,publishedAt}`) — **migration 0068** (rename + create child + backfill 1 GBP target per existing post so Phase-2 posts are preserved + drop the moved columns from the parent; parent keeps a `status` rollup). Service `lib/services/social-posts.ts` (`createSocialPost` persist-parent+targets-first, call Zernio PER TARGET — GBP→`createGbpPost`, social→the new generic `createSocialPost` wrapper — per-target status ISOLATED, best-effort/never-throws, demo-safe; `validateSocialPostInput` GBP-fields only when GBP targeted; `getComposerChannels`; `listSocialPosts` parent+targets; `deleteSocialPost` best-effort + always drop local; `seedDemoSocialPosts`). Server actions `createSocialPostAction`/`deleteSocialPostAction` (`{ok\|error}`). Disconnected → connect-prompt to `/channels`. **HONEST: no per-post metrics** (deprecated on Google + not pulled for socials yet — points to `/seo`; per-platform analytics = PR4). Demo seeds a published GBP+IG+FB cross-post (image+Book), a GBP Offer (coupon), a scheduled IG+FB cross-post, a scheduled GBP Event. +75 tests. **PR4 = per-platform social analytics + Facebook reviews** |
 | Growth | Channels | `/channels` | **Live (v1 — Zernio Phase 3 PR2)** | NO minPlan (owner/admin). The canonical place a clinic connects its Google + social presence through Zernio's hosted OAuth, enforcing the PR1 plan-tier social-connection caps. **Dentist shortlist** `SOCIAL_CHANNEL_SHORTLIST` (`lib/types/zernio.ts`): Instagram / Facebook / TikTok / YouTube / LinkedIn — the ONLY social platforms surfaced (bounds Zernio's ~$6/account cost; the other 9 slugs are hidden; widening = one edit) + Google Business (free, separate, never counts). Page (`app/(default)/channels/`, DESIGN-SYSTEM v2): a Google Business row (connect/disconnect/refresh) + a Social section (5 platforms with connect / connected handle + Disconnect) + a **"{current} of {limit} social connections used"** meter (`font-mono-num`) + an upgrade/add-on CTA → Settings → Billing at the cap (Pro/Premium "Add more", Basic "Upgrade to Pro"). Connect opens hosted OAuth in a NEW TAB + re-syncs on window focus + Refresh. **Generalized service**: `getPlatformConnectUrl` (generic; `getGoogleBusinessConnectUrl` is now its GBP wrapper) + `getZernioConnection` returns ALL accounts in a new `accounts` field (+ back-compat `googleBusinessAccounts` slice so reviews/sync/metrics via `resolveGbpAccount` are untouched). **Connect route** (`/api/integrations/zernio/connect`) opened to the shortlist (400 otherwise); social → `canConnectSocialPlatform` FIRST, at-cap redirects to `/channels?atLimit={platform}` **instead of OAuth**; GBP uncapped. Server actions `refreshChannelsAction`/`disconnectChannelAction` (`{ok\|error}`). **/integrations** GBP card is now a STATUS + "Manage channels →" link (no competing connect button). Demo: `seedDemoZernio` seeds 2 synthetic connected social accounts (IG `@dreamdental` + FB "Dream Dental") → "2 of 5 used". **NO migration** (`zernio_account` already platform-generic). ~98 tests. **PR3 = multi-platform composer + content calendar; PR4 = social analytics + Facebook reviews** |
 | Growth | Analytics | `/analytics` | **Live (v1)** | Premium-tier. The honest CRM-vs-PMS split: read-only aggregation (no new schema) over data other modules already capture. 5 bands — Acquisition (new patients via firstSeenAt + source mix + a real GSC-clicks→leads→contacted→converted website funnel + a **Google Business "local actions" tile** — impressions/calls/directions/bookings via the Zernio connection, `getGbpLocalMetrics`, 30/90-aware, connect-prompt when unlinked), Schedule health (volume trend + no-show/cancellation/confirmation rates vs an industry benchmark, with a low-volume guard that shows counts instead of a misleading % on small samples), Recall & outreach (recall-due reuses listPatients + sent→opened→clicked→booked), Reputation (review funnel + platform mix, reuses getReviewStats), and an honest "Lives in your PMS" deferral block (production $, procedure mix, hygiene reappt %, AR aging) that arrives with Integrations rather than being faked. 30/90-day toggle. Aggregates existing demo data — no seeder change |
 | Website | Website Studio | `/website` | **Live (v3 — in-place)** | Full-screen **in-place "navigate-the-canvas" editor** (PRs #199→#212): `/website` hosts an `<iframe>` of the clinic's REAL site (`/site/[slug]?edit=1`); the public site mounts an **EditBridge** (gated owner/admin + `?edit=1` via `EditBridgeGate` in the shared `/site/[slug]/layout.tsx`) so every `data-edit-*` region is hover-to-edit. Inline text (tagline, name) edits in place; images click-to-replace ("📷 Replace"); sections hover → "✎ Edit" → modal reusing the existing editor + **scoped** `website-actions.ts` save → canvas reloads the current page. **Navigate-the-canvas** keeps `?edit=1` across internal links. Coverage: Home (tagline · name · hero image · intro video upload/URL · stats · testimonials · services picker) · About (about · team · office photos) · FAQ · Insurance · Payment & Financing · footer Office Hours (every page). Editors in `app/(default)/website/` (faq/hours) + reused `settings/clinic/*-editor.tsx`. Stale-tab "refresh to edit" fallback. **Loose end:** the Phase-2 per-section "✨ Rewrite with AI" buttons (tier allowance Basic 15 / Pro 50 / Premium 200, `ai_usage_counter` 0042, `ai-website.ts`) were on the old three-pane panels and aren't yet re-wired into the Studio modals (infra intact). `/settings/clinic` is the deep-edit fallback. Next: conversational AI onboarding interview (Phase 3) |
@@ -1916,15 +1966,18 @@ eventual App Runner → ECS move) are tracked in that section.
    0066, `lib/services/gbp-posts.ts`, `createGbpPost`/`listPosts`/`deletePost`
    wrappers in `lib/zernio.ts`; Zernio publishes scheduled posts itself so NO
    cron; honest — no fabricated per-post metrics, points to `/seo`).
-   **NEXT (recommended near-term add):** real-time review ingest via Zernio
-   webhooks (`review.new`/`review.updated`) into the existing `google_review`
-   upsert so reviews land instantly instead of waiting for the hourly cron.
-   **Then Phase 3 — the full social module** (multi-platform compose/schedule +
-   analytics across the 15 platforms; Facebook reviews folded in alongside
-   Google) — **PENDING a billing/metering design discussion** (Zernio bills ~$6
-   per connected account; plan = ~2 free accounts/clinic then charge for
-   additional connections, TBD). Key limit unchanged: Zernio is pull-only for the
-   listing fields (posts/replies push; no hours/address write-back).
+   **Phase 3 — the full social module — PR1 (billing/entitlements), PR2
+   (cap-aware Channels connect), and PR3 (unified multi-platform composer +
+   content calendar) are SHIPPED** (see the three "Zernio social module" bullets
+   under What's wired). The billing/metering question is DECIDED (PR1): per-plan
+   social-connection caps (basic 0 · pro 1→3 · premium 2→5 w/ a flat per-tier
+   add-on) + GBP free/uncapped on every tier. **NEXT for the social module: PR4 —
+   per-platform social analytics + Facebook reviews** (folded into the Reviews
+   module alongside Google). A separate near-term add: real-time review ingest via
+   Zernio webhooks (`review.new`/`review.updated`) into the existing
+   `google_review` upsert so reviews land instantly instead of waiting for the
+   hourly cron. Key limit unchanged: Zernio is pull-only for the listing fields
+   (posts/replies push; no hours/address write-back).
 
 1. **Phase B — SMS (unlocks across 3 modules)** — Recall & Outreach
    SMS sends, Patient Communications SMS in + outbound, Reviews SMS

@@ -477,6 +477,13 @@
       "when": 1781542166742,
       "tag": "0067_acoustic_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0068_social_posts",
+      "breakpoints": true
     }
   ]
 }
