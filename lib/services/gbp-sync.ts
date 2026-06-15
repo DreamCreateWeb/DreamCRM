@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { getZernioConnection } from '@/lib/services/zernio'
+import { resolveGbpAccount } from '@/lib/services/zernio'
 import {
   getGoogleBusinessLocation,
   listGoogleBusinessMedia,
@@ -55,22 +55,9 @@ interface HoursEntry {
 }
 type HoursMap = Record<DayKey, HoursEntry>
 
-// ── Connection resolution (shared shape with google-reviews.ts) ──────────────
-
-/**
- * Resolve the org's connected Google Business account: its Zernio accountId +
- * whether the connection is the demo (no-network) one, or null when no GBP is
- * connected. Mirrors the resolver in google-reviews.ts.
- */
-async function resolveGbpAccount(
-  orgId: string,
-): Promise<{ accountId: string; isDemo: boolean } | null> {
-  const conn = await getZernioConnection(orgId)
-  if (conn.status !== 'connected') return null
-  const account = conn.googleBusinessAccounts[0]
-  if (!account) return null
-  return { accountId: account.id, isDemo: conn.isDemo }
-}
+// ── Connection resolution ────────────────────────────────────────────────────
+// The org→GBP-account resolver lives in `lib/services/zernio.ts` (shared with
+// google-reviews.ts + gbp-metrics.ts); imported above as `resolveGbpAccount`.
 
 // ── Mapping Google's shape → clinic_profile columns ──────────────────────────
 

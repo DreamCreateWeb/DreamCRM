@@ -66,6 +66,7 @@ function baseAnalytics(over: Partial<ClinicAnalytics> = {}): ClinicAnalytics {
       trend: [{ label: 'May 1', count: 4 }],
       sourceMix: [{ source: 'booking_widget', count: 4 }],
       websiteFunnel: { clicks: 100, leads: 5, contacted: 3, converted: 1 },
+      gbp: { connected: true, impressions: 3000, calls: 25, directions: 30, bookings: 8 },
     },
     schedule: {
       total: 40,
@@ -133,6 +134,35 @@ describe('Schedule-health KPIs are drillable', () => {
   it('the appointments total links to the past-window agenda', async () => {
     await renderPage('30', baseAnalytics())
     expect(hrefOf(/^Appointments$/)).toContain('/appointments?window=past_30d')
+  })
+})
+
+describe('Acquisition — Google Business local-actions tile', () => {
+  it('renders calls / directions / bookings + impressions when GBP is connected', async () => {
+    await renderPage('30', baseAnalytics())
+    // Scope to the GBP card itself (the Acquisition section has other numbers).
+    const card = screen.getByText(/Google Business — local actions/i).closest('div.v2-card') as HTMLElement
+    // The connected snapshot in baseAnalytics: impressions 3000 / calls 25 /
+    // directions 30 / bookings 8 — each under its labeled KPI.
+    expect(within(card).getByText('3,000')).toBeTruthy()
+    expect(within(card).getByText('25')).toBeTruthy()
+    expect(within(card).getByText('30')).toBeTruthy()
+    expect(within(card).getByText('8')).toBeTruthy()
+    expect(within(card).getByText(/Listing views/i)).toBeTruthy()
+    expect(within(card).getByText(/Directions/i)).toBeTruthy()
+    // Connected → the header link points at the SEO details, not a connect CTA.
+    expect(hrefOf(/^Details →$/)).toContain('/seo')
+  })
+
+  it('shows a connect prompt to /integrations when no GBP is connected', async () => {
+    await renderPage('30', baseAnalytics({
+      acquisition: { ...baseAnalytics().acquisition, gbp: null },
+    }))
+    const section = screen.getByText('Acquisition').closest('section')!
+    expect(within(section).getByText(/Connect your/i)).toBeTruthy()
+    // Both the header chip and the inline link route to Integrations.
+    expect(hrefOf(/^Connect →$/)).toContain('/integrations')
+    expect(hrefOf(/Google Business Profile/i)).toContain('/integrations')
   })
 })
 

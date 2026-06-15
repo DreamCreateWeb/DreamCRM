@@ -124,6 +124,38 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             ]}
           />
         </Card>
+        {/* Google Business local actions — how the map-pack listing converts
+            (calls / directions / bookings + impressions). Connect prompt when
+            no GBP is linked, so the card is never a row of dead zeros. */}
+        <Card className="mt-4">
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+              Google Business — local actions
+            </p>
+            <Link
+              href={a.acquisition.gbp?.connected ? '/seo' : '/integrations'}
+              className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 hover:underline"
+            >
+              {a.acquisition.gbp?.connected ? 'Details →' : 'Connect →'}
+            </Link>
+          </div>
+          {a.acquisition.gbp?.connected ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <KpiStat label="Listing views" value={a.acquisition.gbp.impressions.toLocaleString()} />
+              <KpiStat label="Calls" value={a.acquisition.gbp.calls.toLocaleString()} href="/seo" />
+              <KpiStat label="Directions" value={a.acquisition.gbp.directions.toLocaleString()} href="/seo" />
+              <KpiStat label="Bookings" value={a.acquisition.gbp.bookings.toLocaleString()} href="/seo" />
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Connect your{' '}
+              <Link href="/integrations" className="text-teal-700 dark:text-teal-400 hover:underline">
+                Google Business Profile
+              </Link>{' '}
+              to see calls, direction requests, and bookings from your map-pack listing here.
+            </p>
+          )}
+        </Card>
         {/* Website visits — the first real "how many people land on my site"
             number (every channel, not just search). Drillable to top pages. */}
         <Card className="mt-4">

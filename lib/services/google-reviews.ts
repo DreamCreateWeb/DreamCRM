@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { getZernioConnection } from '@/lib/services/zernio'
+import { resolveGbpAccount } from '@/lib/services/zernio'
 import {
   listGoogleReviews as zernioListGoogleReviews,
   replyToGoogleReview as zernioReplyToGoogleReview,
@@ -68,22 +68,8 @@ function toView(r: schema.GoogleReviewRow): GoogleReviewView {
 }
 
 // ── Connection resolution ─────────────────────────────────────────────────────
-
-/**
- * Resolve the org's connected Google Business account. Returns the Zernio
- * accountId + whether the connection is the demo (no-network) one, or null when
- * the clinic hasn't connected a GBP at all. The auto-resolved replacement for
- * the hand-pasted `clinic_review_config.googlePlaceId`.
- */
-async function resolveGbpAccount(
-  orgId: string,
-): Promise<{ accountId: string; isDemo: boolean } | null> {
-  const conn = await getZernioConnection(orgId)
-  if (conn.status !== 'connected') return null
-  const account = conn.googleBusinessAccounts[0]
-  if (!account) return null
-  return { accountId: account.id, isDemo: conn.isDemo }
-}
+// The org→GBP-account resolver lives in `lib/services/zernio.ts` (shared with
+// gbp-sync.ts + gbp-metrics.ts); imported above as `resolveGbpAccount`.
 
 /** Whether the org has a connected GBP (demo or real). Used by the UI to choose
  *  between the reviews surface and the connect-prompt empty state. */

@@ -23,6 +23,15 @@ vi.mock('@/lib/zernio', () => ({
 const conn = { value: null as null | { status: string; isDemo: boolean; googleBusinessAccounts: Array<{ id: string }> } }
 vi.mock('@/lib/services/zernio', () => ({
   getZernioConnection: vi.fn(async () => conn.value ?? { status: 'disconnected', isDemo: false, googleBusinessAccounts: [] }),
+  // `resolveGbpAccount` now lives in lib/services/zernio (shared); the service
+  // imports it from there, so mirror the real derivation off `conn.value`.
+  resolveGbpAccount: vi.fn(async () => {
+    const c = conn.value
+    if (!c || c.status !== 'connected') return null
+    const account = c.googleBusinessAccounts[0]
+    if (!account) return null
+    return { accountId: account.id, isDemo: c.isDemo }
+  }),
 }))
 
 // ── In-memory DB fake ────────────────────────────────────────────────────────

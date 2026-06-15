@@ -2,9 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getSiteHealth, getOrganicAttribution, type CheckStatus } from '@/lib/services/seo'
-import { getReviewStats, getReviewConfig, reviewPlatformUrl } from '@/lib/services/reviews'
+import { getReviewStats } from '@/lib/services/reviews'
 import { getSiteTraffic } from '@/lib/services/site-analytics'
-import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
 import {
   getGscConnectionView,
   listGscSites,
@@ -16,6 +15,7 @@ import {
   type GscConnectionView,
   type ClinicSeoResult,
 } from '@/lib/services/gsc'
+import { getGbpLocalMetrics, type GbpLocalMetrics } from '@/lib/services/gbp-metrics'
 import { setGscSiteAction, disconnectGscAction } from './actions'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
@@ -50,38 +50,22 @@ export default async function SeoPage({ searchParams }: Props) {
   // the clinic read view, which is the point of demo mode.
   const isManage = ctx.tenantType === 'platform'
 
-  const [health, attr, reviews, traffic, reviewConfig, clinicSite] = await Promise.all([
+  const [health, attr, reviews, traffic] = await Promise.all([
     getSiteHealth(ctx.organizationId),
     getOrganicAttribution(ctx.organizationId, 30),
     getReviewStats(ctx.organizationId),
     getSiteTraffic(ctx.organizationId, 30),
-    getReviewConfig(ctx.organizationId),
-    getClinicSiteBySlug(ctx.organizationSlug),
   ])
-  // The clinic's actual Google review write-link, if they configured a Place ID.
-  const googleReviewUrl = reviewPlatformUrl('google', reviewConfig)
-  // NAP (name/address/phone) shown inline on the GBP card so the clinic can
-  // copy it into Google Business Profile verbatim — consistency is the signal.
-  const nap = clinicSite
-    ? {
-        name: clinicSite.profile.displayName ?? clinicSite.orgName,
-        phone: clinicSite.primaryLocation?.phone ?? clinicSite.profile.phone ?? null,
-        address: [
-          clinicSite.primaryLocation?.addressLine1 ?? clinicSite.profile.addressLine1,
-          clinicSite.primaryLocation?.city ?? clinicSite.profile.city,
-          clinicSite.primaryLocation?.state ?? clinicSite.profile.state,
-          clinicSite.primaryLocation?.postalCode ?? clinicSite.profile.postalCode,
-        ]
-          .filter(Boolean)
-          .join(', '),
-      }
-    : null
 
   let gsc: GscConnectionView = { connected: false, status: 'disconnected', siteUrl: null }
   let sites: GscSite[] = []
   let perf: GscPerformance | null = null
   let gscLoadError: string | null = null
   let clinicScope: ClinicSeoResult | null = null
+  // Google Business local metrics (calls/directions/bookings + top keywords) —
+  // clinic surface only; best-effort + demo-safe (never throws). Null when not
+  // loaded (the manage view doesn't render the GBP metrics card).
+  let gbp: GbpLocalMetrics | null = null
 
   if (isManage) {
     gsc = await getGscConnectionView(ctx.organizationId)
@@ -105,6 +89,8 @@ export default async function SeoPage({ searchParams }: Props) {
     } catch (err) {
       gscLoadError = (err as Error).message
     }
+    // Pull the clinic's connected-GBP local metrics over a matching window.
+    gbp = await getGbpLocalMetrics(ctx.organizationId, { days: 30 })
   }
 
   const scoreTone = health.score >= 80 ? 'ok' : health.score >= 60 ? 'warn' : 'bad'
@@ -358,76 +344,95 @@ export default async function SeoPage({ searchParams }: Props) {
         </div>
       </section>
 
-      {/* ── Google Business Profile checklist ─────────────────────────── */}
+      {/* ── Google Business Profile — local performance ───────────────── */}
       <section className="v2-card mb-8 p-5">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Google Business Profile</h2>
-          <a
-            href="https://business.google.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
-          >
-            Open Google Business →
-          </a>
+          {gbp?.connected ? (
+            <Link href="/reviews/received" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+              Manage reviews →
+            </Link>
+          ) : (
+            <Link href="/integrations" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+              Connect →
+            </Link>
+          )}
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-2xl">
           Your Google Business Profile is the single biggest driver of the local map pack — where most new dental
-          patients find you. Full in-app management is on the roadmap; for now here&apos;s the checklist that moves the
-          needle most, done in Google directly.
+          patients find you. {gbp?.connected
+            ? `How your listing performed in the last ${gbp.windowDays} days.`
+            : 'Connect it to see how many people find and act on your listing.'}
         </p>
-        <ol className="space-y-4">
-          <GbpStep n={1} title="Claim &amp; verify your profile">
-            Search your practice name on Google. If you see &ldquo;Own this business?&rdquo; claim it and complete
-            verification (postcard, phone, or video). An unverified profile can&apos;t rank or be edited.
-          </GbpStep>
-          <GbpStep n={2} title="Match your name, address &amp; phone exactly">
-            Google rewards consistency between your profile and your website. Use these — copied from your site — verbatim:
-            {nap ? (
-              <div className="mt-2 v2-well p-3 text-gray-700 dark:text-gray-200 space-y-0.5">
-                <p className="font-medium">{nap.name}</p>
-                {nap.address ? <p className="tabular-nums font-mono-num">{nap.address}</p> : <p className="italic text-gray-400">Add your address in Settings → Clinic</p>}
-                {nap.phone ? <p className="tabular-nums font-mono-num">{nap.phone}</p> : <p className="italic text-gray-400">Add your phone in Settings → Clinic</p>}
+
+        {!gbp?.connected ? (
+          /* Not connected — calm, honest connect prompt (no fabricated numbers). */
+          <div className="v2-well p-4 max-w-2xl">
+            <p className="text-sm text-gray-700 dark:text-gray-200 font-medium mb-1">
+              See your Google Business performance here
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Connect your Google Business Profile to pull real impressions, calls, direction requests, website clicks,
+              bookings, and the top search terms people use to find you — alongside your Search Console clicks above.
+            </p>
+            <Link
+              href="/integrations"
+              className="inline-flex items-center px-4 py-2 rounded-[var(--r-sm)] text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+            >
+              Connect Google Business
+            </Link>
+          </div>
+        ) : (
+          <>
+            {gbp.error ? (
+              <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                Connected, but we couldn&apos;t load metrics this time ({gbp.error}). The figures below will fill in on
+                the next load.
+              </p>
+            ) : null}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+              <MiniStat label="Listing views" value={gbp.impressions.toLocaleString()} tone="ok" />
+              <MiniStat label="Calls" value={gbp.calls.toLocaleString()} />
+              <MiniStat label="Directions" value={gbp.directions.toLocaleString()} />
+              <MiniStat label="Website clicks" value={gbp.websiteClicks.toLocaleString()} />
+              <MiniStat label="Bookings" value={gbp.bookings.toLocaleString()} />
+            </div>
+            {gbp.topKeywords.length > 0 ? (
+              <div>
+                <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                  Top search terms on Google
+                </p>
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    <tr>
+                      <th className="py-1 font-semibold">Search term</th>
+                      <th className="py-1 text-right font-semibold">Impressions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gbp.topKeywords.map((k) => (
+                      <tr key={k.term} className="border-t border-[color:var(--color-hairline)]">
+                        <td className="py-1.5 text-gray-800 dark:text-gray-100">{k.term}</td>
+                        <td className="py-1.5 text-right tabular-nums font-mono-num text-gray-600 dark:text-gray-300">
+                          {k.count.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Aggregated monthly by Google; terms below its minimum-impression threshold are hidden. Data lags ~2-3
+                  days.
+                </p>
               </div>
-            ) : (
-              <span className="block mt-1 italic text-gray-400">
-                Fill in your clinic name, address, and phone in Settings → Clinic so they match Google.
-              </span>
-            )}
-          </GbpStep>
-          <GbpStep n={3} title="Set the right categories">
-            Primary category &ldquo;Dentist&rdquo; (or &ldquo;Pediatric dentist&rdquo; / &ldquo;Cosmetic dentist&rdquo;
-            if that&apos;s your focus), then add secondary categories for the services you offer. Categories are a top
-            local-ranking factor.
-          </GbpStep>
-          <GbpStep n={4} title="Share your review link">
-            Steady, recent reviews lift map-pack ranking. Add your Google review link to receipts, emails, and your front
-            desk.
-            {googleReviewUrl ? (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <code className="text-xs px-2 py-1 rounded-[var(--r-xs)] v2-well text-gray-700 dark:text-gray-200 break-all">
-                  {googleReviewUrl}
-                </code>
-                <a
-                  href={googleReviewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
-                >
-                  Test it →
-                </a>
-              </div>
-            ) : (
-              <span className="block mt-1 italic text-gray-400">
-                Add your Google Place ID in{' '}
-                <Link href="/reviews" className="not-italic text-teal-700 dark:text-teal-400 hover:underline">
-                  Reviews
-                </Link>{' '}
-                and your one-click review link appears here.
-              </span>
-            )}
-          </GbpStep>
-        </ol>
+            ) : !gbp.error ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                No search terms above Google&apos;s reporting threshold yet — they appear as your listing gets more
+                impressions.
+              </p>
+            ) : null}
+          </>
+        )}
       </section>
 
       {/* ── Coming next ───────────────────────────────────────────────── */}
@@ -437,7 +442,7 @@ export default async function SeoPage({ searchParams }: Props) {
             Coming next
           </p>
           <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Google Business Profile in-app: posting (from your blog) + profile insights + review replies (access request in progress — the checklist above is the manual path until then)</li>
+            <li>· Google Business posting (from your blog) + offers &amp; events straight to your listing</li>
             <li>· Core Web Vitals (page speed) on your key pages</li>
             <li>· Rank tracking for your top local terms</li>
           </ul>
@@ -446,20 +451,6 @@ export default async function SeoPage({ searchParams }: Props) {
       </>
       )}
     </div>
-  )
-}
-
-function GbpStep({ n, title, children }: { n: number; title: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-3">
-      <span className="flex-none mt-0.5 w-6 h-6 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 text-xs font-bold tabular-nums font-mono-num flex items-center justify-center">
-        {n}
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{title}</p>
-        <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{children}</div>
-      </div>
-    </li>
   )
 }
 
