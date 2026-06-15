@@ -143,7 +143,7 @@ describe('typed wrappers', () => {
   })
 
   it('deleteAccount DELETEs the account path', async () => {
-    const f = vi.fn(async () => ({ ok: true, status: 204, statusText: 'No Content', json: async () => ({}), text: async () => '' }))
+    const f = vi.fn(async (..._args: unknown[]) => ({ ok: true, status: 204, statusText: 'No Content', json: async () => ({}), text: async () => '' }))
     vi.stubGlobal('fetch', f)
     await deleteAccount('acc_1')
     const [url, init] = f.mock.calls[0] as [string, RequestInit]

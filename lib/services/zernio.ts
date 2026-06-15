@@ -309,6 +309,15 @@ const DEMO_GBP_ACCOUNT_ID = 'demo_gbp_dream_dental'
 export async function seedDemoZernio(organizationId: string, displayName = 'Dream Dental'): Promise<void> {
   const existing = await getConnectionRow(organizationId)
   if (!existing) {
+    // Only seed for a real demo org (one that actually has patients) — mirrors
+    // seedDemoPms's prerequisite guard so an exhausted/empty context can't
+    // spawn an orphan connection.
+    const [anyPatient] = await db
+      .select({ id: schema.patient.id })
+      .from(schema.patient)
+      .where(eq(schema.patient.organizationId, organizationId))
+      .limit(1)
+    if (!anyPatient) return
     await db.insert(schema.zernioConnection).values({
       organizationId,
       zernioProfileId: 'demo_profile',

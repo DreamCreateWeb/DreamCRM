@@ -28,8 +28,9 @@ vi.mock('@/lib/zernio', () => ({
 interface Store {
   connections: Record<string, Record<string, unknown>>
   accounts: Array<Record<string, unknown>>
+  patients: Array<Record<string, unknown>>
 }
-const store: Store = { connections: {}, accounts: [] }
+const store: Store = { connections: {}, accounts: [], patients: [] }
 
 // We can't read drizzle's column refs, so the fake disambiguates by which
 // "table" object the query targets. We tag each schema table with a __name.
@@ -40,6 +41,7 @@ vi.mock('@/lib/db', () => {
   // Local to the (hoisted) factory.
   const T_CONN = 'zernio_connection'
   const T_ACCT = 'zernio_account'
+  const T_PAT = 'patient'
 
   // ── select() ──
   function select(_cols?: unknown) {
@@ -57,7 +59,8 @@ vi.mock('@/lib/db', () => {
       return api
     }
     const run = () => {
-      const rows = table === T_CONN ? Object.values(store.connections) : store.accounts
+      const rows =
+        table === T_CONN ? Object.values(store.connections) : table === T_PAT ? store.patients : store.accounts
       return rows.filter((r) => filters.every((f) => f(r)))
     }
     api.limit = async () => run()
@@ -139,6 +142,11 @@ vi.mock('@/lib/db', () => {
         organizationId: { col: 'organizationId' },
         platform: { col: 'platform' },
       },
+      patient: {
+        __name: T_PAT,
+        id: { col: 'id' },
+        organizationId: { col: 'organizationId' },
+      },
     },
   }
 })
@@ -163,6 +171,7 @@ import {
 beforeEach(() => {
   store.connections = {}
   store.accounts = []
+  store.patients = []
   z.listProfiles.mockReset()
   z.createProfile.mockReset()
   z.getConnectUrl.mockReset()
@@ -333,6 +342,7 @@ describe('disconnectPlatform', () => {
 
 describe('seedDemoZernio', () => {
   it('seeds a connected demo connection + synthetic GBP account (no network)', async () => {
+    store.patients = [{ id: 'pat_1', organizationId: 'org_demo' }]
     await seedDemoZernio('org_demo', 'Dream Dental')
     expect(store.connections['org_demo'].status).toBe('connected')
     expect(store.connections['org_demo'].isDemo).toBe(1)
@@ -343,7 +353,14 @@ describe('seedDemoZernio', () => {
     expect(z.createProfile).not.toHaveBeenCalled()
   })
 
+  it('bails (no insert) when the org has no patients — not a real demo clinic', async () => {
+    await seedDemoZernio('org_empty')
+    expect(store.connections['org_empty']).toBeUndefined()
+    expect(store.accounts).toHaveLength(0)
+  })
+
   it('is idempotent — a second call does not duplicate the account', async () => {
+    store.patients = [{ id: 'pat_1', organizationId: 'org_demo' }]
     await seedDemoZernio('org_demo')
     await seedDemoZernio('org_demo')
     expect(store.accounts.filter((a) => a.platform === 'googlebusiness')).toHaveLength(1)
