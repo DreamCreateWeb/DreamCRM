@@ -1,8 +1,41 @@
 # Zernio × Google Business integration — plan
 
-**Status: FOUNDATION + REVIEWS/AGGREGATERATING SHIPPED (2026-06-15); rest of
-Phase 1 pending.** The connection architecture (foundation) and the first half
-of Phase 1's review work are live:
+**Status: FOUNDATION + REVIEWS/AGGREGATERATING + HOURS/ADDRESS/PHONE/PHOTOS SYNC
+SHIPPED (2026-06-15); GBP local metrics + posting + social module pending.** The
+connection architecture (foundation), Phase 1's review work, AND Phase 1's
+hours/location sync are live:
+- **Hours / Location sync (this PR):** ✅ **DONE.** Pull the clinic's verified
+  hours/address/phone/photos from their connected GBP into `clinic_profile`,
+  with per-field `*_source` flags so a sync never silently clobbers a manual
+  edit. Client wrappers `getGoogleBusinessLocation` + `listGoogleBusinessMedia`
+  (`lib/zernio.ts`, defensive — Google enum days + HH:MM/`{hours,minutes}` times
+  + `{location}`/`{data}` wrappers tolerated); schema columns
+  `clinic_profile.{hours,address,phone}_source` (text DEFAULT `'manual'`) +
+  `google_synced_at` + `google_photos` (**migration 0065**); service
+  `lib/services/gbp-sync.ts` — `syncGoogleBusinessProfile(orgId,{force?})`
+  (SAFETY INVARIANT: auto/background sync only overwrites `'google'` fields,
+  reports `skippedManual`; explicit `force` may overwrite a manual field + flips
+  its source to `'google'`; demo applies seeded synthetic data with NO network;
+  best-effort, never throws), `getGbpSyncState`, `revertFieldToManual`,
+  `markFieldSourceManual` (wired into the save actions so editing a field flips
+  it back to manual), `importGooglePhotos` (append-only into the curated
+  officePhotos — never auto-clobbers), `syncAllGoogleBusinessProfiles` (cron),
+  `seedDemoGbpSync`. Pulled hours map into the EXACT existing
+  `clinic_profile.hours` jsonb shape (`{ mon:{open,close}, … }`, all 7 day keys,
+  HH:MM 24-hour) so booking `getSlotsForDay` + the footer "open today" +
+  `clinicJsonLd` consume it UNCHANGED (round-trip test in
+  `tests/booking/gbp-synced-hours.test.ts`). UI: a "Sync from Google" card on
+  Settings → Clinic profile (premium + owner/admin) — per-field "From Google ·
+  synced {date}" vs "You've customized this" indicators, a force-sync button,
+  per-field "use Google's version" / "stop syncing", and an import-from-Google
+  photo gallery; disconnected → connect-prompt to `/integrations`. Cron
+  `app/api/cron/sync-gbp/route.ts` (CRON_SECRET-gated; non-force, respects manual
+  flags). Demo seeds the synced state + `google_photos` (one overlapping the
+  curated gallery to showcase the "Added" state). Pull-only — NO write-back to
+  Google (Zernio limitation). 62 new tests. **Confirmed location + media REST
+  shapes below.**
+- **Foundation + reviews:** the connection architecture (foundation) and the
+  first half of Phase 1's review work are live:
 - **Foundation:** the lazy client (`lib/zernio.ts`), client-safe types
   (`lib/types/zernio.ts`), the `zernio_connection` + `zernio_account` schema
   (migration **0063**), the connection service (`lib/services/zernio.ts`), the
@@ -28,10 +61,10 @@ of Phase 1's review work are live:
   a 4★ + a rating-only review + replied/unreplied). The hand-pasted
   `clinic_review_config.googlePlaceId` is superseded by the auto-resolved Zernio
   GBP connection (the column stays as a deprecated fallback — not deleted).
-What's NOT built yet: hours/address/photos sync (with `*_source` flags), GBP
-local metrics into SEO/Analytics, posting, the full social module, and
-**real-time review ingest via Zernio webhooks** (`review.new` / `review.updated`
-events exist — that's the recommended NEXT review-side add) — those are the next
+What's NOT built yet: GBP local metrics into SEO/Analytics (the recommended
+NEXT PR — calls/directions/bookings + top keywords), posting, the full social
+module, and **real-time review ingest via Zernio webhooks** (`review.new` /
+`review.updated` events exist — a parallel review-side add) — those are the next
 PRs per the phased roadmap below.
 
 ## Confirmed review REST shapes (validated against docs.zernio.com llms.txt + OpenAPI probe, 2026-06-15)
@@ -63,6 +96,51 @@ PRs per the phased roadmap below.
   normalizer (`lib/zernio.ts::normalizeReview` + `normalizeStarRating`) handles
   BOTH numeric and enum ratings and BOTH field-name shapes — so a future Zernio
   schema change on either won't strand the integration.
+
+## Confirmed location + media REST shapes (this PR — docs.zernio.com llms.txt + OpenAPI probe, 2026-06-15)
+- **`GET /v1/google-business/location-details?accountId=…[&locationId=…]`** —
+  the clinic's verified GBP location ("Returns detailed GBP location info —
+  hours, description, phone, website, categories, services"). Query params:
+  **`accountId`** (the connected GBP account — required), `locationId` (optional;
+  Zernio uses the account's selected location when omitted). Response follows
+  Google's Business Profile `locations.get` shape, parsed defensively:
+  - **`regularHours.periods[]`** = `{ openDay, closeDay, openTime, closeTime }`.
+    `openDay`/`closeDay` are Google day enums (`MONDAY`…`SUNDAY`). `openTime`/
+    `closeTime` are **"HH:MM" 24-hour strings** in Google's newer schema; the
+    older schema nested `{ hours, minutes }` objects — `normalizeGbpTime`
+    tolerates BOTH (and maps the `"24:00"` end-of-day marker → `"23:59"`).
+  - **`storefrontAddress`** = `{ addressLines[], locality, administrativeArea,
+    postalCode, regionCode }` → `addressLine1`/`addressLine2` (lines[0] / joined
+    rest), `city`, `state`, `postalCode`, `country` (defaults `US`).
+  - **`phoneNumbers.primaryPhone`** (older schema: a top-level `primaryPhone` —
+    both tolerated).
+  - **`categories.primaryCategory.displayName`** + `additionalCategories[]`
+    (captured for future SEO/metadata; not written to a column yet).
+  - Some integrations wrap the object under `{ location: {...} }` /
+    `{ data: {...} }`; the normalizer reaches through either.
+- **`GET /v1/google-business/media?accountId=…[&locationId=…]`** — the location's
+  media items (photos). Each item carries **`googleUrl`** (a usable image URL) /
+  **`sourceUrl`** (the original), **`mediaFormat`** (`PHOTO`|`VIDEO` — VIDEO
+  filtered out), and **`locationAssociation.category`** (`EXTERIOR`/`INTERIOR`/
+  `PROFILE`/…). We prefer `googleUrl`, fall back to `sourceUrl`/`thumbnailUrl`.
+  Response array key tolerated as `mediaItems` / `media` / `data` / a bare array.
+- **Assumption noted (path):** the rendered `.mdx` pages are JS-only, so the
+  exact path read AMBIGUOUSLY across probes — the named-resource form
+  (`/google-business/get-google-business-location-details` / `…-media`), a flat
+  form (`/google-business/location-details` / `…/media`), and an account-scoped
+  form (`/accounts/{accountId}/google-business-location-details`). We follow the
+  **shipped reviews precedent** — the flat `/google-business/<resource>`
+  namespace with `accountId` as a query param, proven to work for `gmb-reviews`
+  — and name the resources `location-details` + `media`. EVERY response field is
+  parsed defensively (`normalizeLocation` / `normalizeMediaItem` /
+  `normalizeGbpTime` in `lib/zernio.ts`), so a docs/version drift on either the
+  path or the field shapes won't strand the integration. If a real connected
+  office reveals a different path at build time, only the two `zernioFetch` URLs
+  in the wrappers need adjusting — the mapper + service + UI are path-agnostic.
+- **LIMITATION (unchanged):** Zernio exposes **no** endpoint to WRITE
+  hours/address back to Google. The sync is one-directional Google → Dream
+  Create. True write-back needs Google's native Business Profile API (separate
+  heavy OAuth + verification) — a possible later phase, out of Zernio's scope.
 
 ## Confirmed connection REST shapes (validated against the live OpenAPI spec, 2026-06-15)
 - **`GET /v1/connect/{platform}`** — the connect query param is **`redirect_url`**
@@ -172,14 +250,19 @@ FB/IG/etc.
   "claim your GBP" checklist → a real **connect + live GBP local metrics**
   (calls/directions/bookings + top keywords) alongside GSC web-click data.
   Feeds the Analytics module's Acquisition band too.
-- **Hours / Location** (`clinic_profile.hours` + `clinic_location` +
-  `lib/services/clinic-site.ts` + the hours editor): a **"Sync from Google"**
-  that pulls verified hours/address/phone/photos into `clinic_profile` with a
-  "from Google" indicator + manual override; the public site, booking slot
-  generation, footer "open today", and JSON-LD then ride the clinic's real
-  Google data. Add `*_source` flags (e.g. `hoursSource: 'google' | 'manual'`)
-  so a sync never silently clobbers a deliberate manual edit. (No push-back —
-  see limitation.)
+- **Hours / Location** — ✅ **DONE (this PR).** A **"Sync from Google"** on
+  Settings → Clinic profile pulls verified hours/address/phone/photos into
+  `clinic_profile` (`lib/services/gbp-sync.ts`); the public site, booking
+  `getSlotsForDay`, footer "open today", and `clinicJsonLd` then ride the
+  clinic's real Google data UNCHANGED (the synced hours map into the exact
+  existing `clinic_profile.hours` jsonb shape). Per-field `*_source` flags
+  (`{hours,address,phone}_source: 'google' | 'manual'`, **migration 0065**) so a
+  sync never silently clobbers a manual edit: auto/background sync only
+  overwrites `'google'` fields; an explicit force sync may overwrite a manual
+  one + flips its source to `'google'`; editing a field via any editor flips it
+  back to `'manual'`. Photos land in a separate `google_photos` column + an
+  import-from-Google gallery (never auto-clobbers the curated officePhotos). No
+  push-back to Google — pull-only (see limitation).
 - **NEW Social module**: compose once → publish/schedule to GBP + IG/FB/… with a
   content calendar + per-platform analytics, reusing the same connection. The
   GBP "Book" CTA deep-links the clinic's `/book`.
@@ -201,15 +284,22 @@ FB/IG/etc.
     `clinic_review_config.googlePlaceId` superseded by the auto-resolved Zernio
     GBP connection (column kept as a deprecated fallback). Demo seeds ~6
     synthetic reviews. See `lib/services/google-reviews.ts`.
-  - ⬜ **NEXT (recommended follow-up PR):** **real-time review ingest via Zernio
-    webhooks** (`review.new` / `review.updated` events — confirm the signature
-    scheme + payload at `docs.zernio.com/webhooks` at build time) into the same
-    `google_review` upsert, so reviews land instantly instead of waiting for the
-    hourly cron; THEN pull hours/address/photos into the profile/site with
-    `*_source` flags (e.g. `hoursSource: 'google' | 'manual'`) so a sync never
-    clobbers a manual edit; THEN GBP local metrics (calls/directions/bookings +
-    top keywords) into SEO/Analytics. Refactor SEO + hours to route through the
-    connection.
+  - ✅ **DONE (hours/location sync):** pull verified hours/address/phone/photos
+    into `clinic_profile` with per-field `*_source` flags (**migration 0065**) +
+    a "Sync from Google" card; the public site, booking, footer, and JSON-LD
+    ride Google's data unchanged. See `lib/services/gbp-sync.ts` +
+    `app/(default)/settings/clinic/gbp-sync-card.tsx` + the cron
+    `app/api/cron/sync-gbp/route.ts`.
+  - ⬜ **NEXT (recommended follow-up PR): GBP local metrics into SEO + Analytics**
+    — wire `/analytics/get-google-business-performance` (daily impressions,
+    clicks, calls, directions, bookings) + `…-search-keywords` (top keywords)
+    into a connect + live-metrics surface on the SEO module (replacing the static
+    "claim your GBP" checklist) and feed the Analytics Acquisition band, reusing
+    the same Zernio connection + `resolveGbpAccount` resolver. Then **real-time
+    review ingest via Zernio webhooks** (`review.new` / `review.updated` — confirm
+    the signature scheme + payload at `docs.zernio.com/webhooks` at build time)
+    into the existing `google_review` upsert, so reviews land instantly instead
+    of waiting for the hourly cron.
 - **Phase 2 — GBP posting:** create posts/offers/events to GBP from a composer;
   surface performance per post.
 - **Phase 3 — Full social module:** multi-platform compose/schedule/publish +

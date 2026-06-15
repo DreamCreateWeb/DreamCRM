@@ -117,14 +117,22 @@ export async function saveContact(formData: FormData): Promise<SectionResult> {
       state: clean('state', formData),
       postalCode: clean('postalCode', formData),
       country: clean('country', formData, 'US'),
-    })
+      // The clinic deliberately edited address + phone — flag them manual so a
+      // later automatic Google sync respects the edit (force sync still wins).
+      addressSource: 'manual',
+      phoneSource: 'manual',
+    } as Partial<typeof clinicProfile.$inferInsert>)
   })
 }
 
 // ── Office hours ────────────────────────────────────────────────────────────
 export async function saveHours(formData: FormData): Promise<SectionResult> {
   return runSection(async (ctx) => {
-    await writeSection(ctx, { hours: parseHours(formData) })
+    // Editing hours flags them manual so an automatic Google sync won't clobber.
+    await writeSection(ctx, {
+      hours: parseHours(formData),
+      hoursSource: 'manual',
+    } as Partial<typeof clinicProfile.$inferInsert>)
   })
 }
 
@@ -366,7 +374,11 @@ export async function saveInlineField(field: string, value: string): Promise<Sec
   }
   return runSection(async (ctx) => {
     const v = typeof value === 'string' && value.trim() ? value.trim() : null
-    await writeSection(ctx, { [field]: v } as Partial<typeof clinicProfile.$inferInsert>)
+    const set: Partial<typeof clinicProfile.$inferInsert> = { [field]: v }
+    // Editing the phone inline flags it manual so an automatic Google sync
+    // respects the deliberate edit (force sync still overrides).
+    if (field === 'phone') set.phoneSource = 'manual'
+    await writeSection(ctx, set)
     // Keep the org name in sync with the public display name.
     if (field === 'displayName' && v) {
       await db

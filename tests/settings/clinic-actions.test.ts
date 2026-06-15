@@ -281,4 +281,15 @@ describe('updateClinicProfile', () => {
     expect(set.testimonials).toBeNull()
     expect(set.officePhotos).toBeNull()
   })
+
+  it('flags hours/address/phone source as manual (so a later Google sync respects the edit)', async () => {
+    await updateClinicProfile(form({ displayName: 'X', phone: '555', city: 'Austin' }))
+    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
+    const set = (insertOp.values as {
+      set: { hoursSource: string; addressSource: string; phoneSource: string }
+    }).set
+    expect(set.hoursSource).toBe('manual')
+    expect(set.addressSource).toBe('manual')
+    expect(set.phoneSource).toBe('manual')
+  })
 })

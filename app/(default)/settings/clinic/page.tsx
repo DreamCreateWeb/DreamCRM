@@ -12,9 +12,12 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { listClinicGmailAccounts } from '@/lib/services/clinic-sender'
+import { getGbpSyncState } from '@/lib/services/gbp-sync'
+import { planAllows } from '@/lib/modules'
 import SettingsSidebar from '../settings-sidebar'
 import ClinicProfilePanel from './clinic-profile-panel'
 import CustomDomainCard from './custom-domain-card'
+import GbpSyncCard from './gbp-sync-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
@@ -37,6 +40,12 @@ export default async function ClinicSettings() {
 
   // Connected Google mailboxes the clinic can send patient email from (Tier 2).
   const gmailAccounts = await listClinicGmailAccounts(ctx.organizationId)
+
+  // Google Business Profile sync state (premium-gated, same tier as the
+  // Integrations module the connection lives in). Only load it when the clinic
+  // is on a plan that can use it — below-tier clinics don't see the card.
+  const gbpEligible = planAllows(ctx.planTier, 'premium')
+  const gbpState = gbpEligible ? await getGbpSyncState(ctx.organizationId) : null
 
   const siteUrl = profile?.websiteDomain
     ? `https://${profile.websiteDomain}`
@@ -69,6 +78,7 @@ export default async function ClinicSettings() {
               library={library}
               gmailAccounts={gmailAccounts}
             />
+            {gbpState && <GbpSyncCard state={gbpState} />}
             <div className="border-t border-gray-200 dark:border-gray-700/60">
               <CustomDomainCard
                 initialStatus={customDomainStatus}
