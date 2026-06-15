@@ -254,10 +254,13 @@ export interface GbpSyncResult {
   error?: string
 }
 
-// ── Google Business posts (Phase 2 — GBP posting) ─────────────────────────────
+// ── Google Business post fields (Phase 2 — used by the GBP target) ────────────
 //
-// Client-safe mirrors of the GBP-post types in lib/zernio.ts + lib/services/
-// gbp-posts.ts, so the composer + history UI import from here (no server-only).
+// Client-safe mirrors of the GBP-post field types in lib/zernio.ts. These remain
+// the GBP-specific shape (post type / CTA / event / offer) the unified composer
+// shows only when Google Business is a selected target. The multi-channel view
+// types live further down (SocialPostView etc.); the service is
+// lib/services/social-posts.ts.
 
 /** Google Business post type. `standard` = What's-new update; `event` carries a
  *  date range; `offer` carries a coupon/redeem URL. */
@@ -334,4 +337,110 @@ export interface CreateGbpPostFormInput {
   offerTerms?: string | null
   /** ISO datetime-local string; when set, schedule for later. */
   scheduledAt?: string | null
+}
+
+// ── Social posts (Phase 3 — unified multi-platform composer) ──────────────────
+//
+// Client-safe types for the multi-channel composer + history + content calendar.
+// A composed post fans out to one or more connected channels (GBP + social); a
+// GBP-only post is just a 1-target social post. The GBP-specific fields
+// (postType / CTA / event / offer) only apply when Google Business is a target.
+
+/** Per-platform body-length guidance for the composer's counter/warnings. We
+ *  don't HARD-break a long post — we WARN. GBP allows 1,500; the socials vary
+ *  (Instagram captions ~2,200, Facebook very long, TikTok ~2,200, YouTube
+ *  ~5,000, LinkedIn ~3,000). The composer's hard cap is the GBP limit when GBP
+ *  is targeted, else a generous social ceiling. */
+export const PLATFORM_POST_LIMITS: Record<string, number> = {
+  googlebusiness: 1500,
+  instagram: 2200,
+  facebook: 5000,
+  tiktok: 2200,
+  youtube: 5000,
+  linkedin: 3000,
+}
+
+/** The most generous ceiling across the social channels — the composer's hard
+ *  cap when GBP is NOT targeted (so a long social-only post isn't blocked at
+ *  the GBP 1,500 limit). */
+export const SOCIAL_POST_MAX_CHARS = 2200
+
+/** Resolve the composer's hard character cap for a given set of targeted
+ *  platforms. If Google Business is among them, the tightest limit (1,500)
+ *  governs; otherwise the generous social ceiling applies. */
+export function postCharLimitForTargets(platforms: readonly string[]): number {
+  if (platforms.includes('googlebusiness')) return GBP_POST_MAX_CHARS
+  if (platforms.length === 0) return SOCIAL_POST_MAX_CHARS
+  return Math.min(...platforms.map((p) => PLATFORM_POST_LIMITS[p] ?? SOCIAL_POST_MAX_CHARS))
+}
+
+/** One channel a composed post can target — a connected account, surfaced to
+ *  the composer's channel picker. */
+export interface ComposerChannel {
+  /** The Zernio account id (also the local zernio_account id). */
+  accountId: string
+  platform: ZernioPlatform | string
+  label: string
+  icon: string
+  /** Display handle (username or display name), for the picker row. */
+  handle: string | null
+}
+
+/** Per-channel publish outcome on a persisted social post (history/calendar). */
+export interface SocialPostTargetView {
+  id: string
+  platform: ZernioPlatform | string
+  /** Human label for the platform. */
+  label: string
+  /** Emoji icon for the platform. */
+  icon: string
+  status: GbpPostStatus
+  /** Live permalink when the channel returned one, else null. */
+  url: string | null
+  lastError: string | null
+  publishedAtIso: string | null
+}
+
+/** A persisted social post, shaped for the history + calendar views. Carries the
+ *  shared composed content (with the GBP-only fields) plus the per-channel
+ *  targets. `status` is the parent rollup. */
+export interface SocialPostView {
+  id: string
+  postType: GbpPostType
+  summary: string
+  imageUrl: string | null
+  ctaType: GbpCtaType | null
+  ctaUrl: string | null
+  eventTitle: string | null
+  eventStartAtIso: string | null
+  eventEndAtIso: string | null
+  offerCouponCode: string | null
+  offerRedeemUrl: string | null
+  offerTerms: string | null
+  /** Parent rollup status across the targets. */
+  status: GbpPostStatus
+  scheduledAtIso: string | null
+  publishedAtIso: string | null
+  createdAtIso: string
+  /** The channels this post targeted, with per-channel outcome. */
+  targets: SocialPostTargetView[]
+}
+
+/** The multi-channel composer's submit payload (server action input). Extends
+ *  the GBP form input with the targeted account ids; the GBP-only fields are
+ *  honored only when a Google Business account is among the targets. */
+export interface CreateSocialPostFormInput extends CreateGbpPostFormInput {
+  /** The Zernio account ids to publish to (≥1). */
+  accountIds: string[]
+}
+
+/** Resolve the platform label for any slug (shortlist + GBP) with a safe
+ *  fallback for an unknown one. */
+export function platformLabel(platform: string): string {
+  return (ZERNIO_PLATFORM_LABELS as Record<string, string>)[platform] ?? platform
+}
+
+/** Resolve the platform icon for any slug, with a generic fallback. */
+export function platformIcon(platform: string): string {
+  return (ZERNIO_PLATFORM_ICONS as Record<string, string>)[platform] ?? '🔗'
 }

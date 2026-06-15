@@ -930,6 +930,53 @@ export async function createGbpPost(input: CreateGbpPostInput): Promise<GbpPostR
   return normalizeCreateResult(data)
 }
 
+/** Input for a generic (social) post to a single connected account. No GBP
+ *  options — just text + an optional image — so it works for Instagram /
+ *  Facebook / TikTok / YouTube / LinkedIn. The service fans GBP and social
+ *  targets to the right wrapper (GBP → `createGbpPost`, social → this). */
+export interface CreateSocialPostInput {
+  profileId: string
+  /** The single Zernio account this post targets. */
+  accountId: string
+  platform: string
+  /** The post body. */
+  summary: string
+  /** A PUBLIC image URL (S3) the platform can fetch, or null. */
+  imageUrl?: string | null
+  /** ISO 8601 — when set, Zernio SCHEDULES the post (and publishes it itself). */
+  scheduledAt?: string | null
+}
+
+/**
+ * `POST /v1/posts` — create (publish now or schedule) a generic social post on a
+ * single connected account. Same `/posts` endpoint as the GBP create, but with
+ * NO platform-specific options (the socials don't use GBP's topicType/CTA/event/
+ * offer). Sends the confirmed generic body (content/text + socialAccountIds +
+ * platforms + mediaUrls + schedule). Returns the new post id + any permalink.
+ * Throws status+body on a non-2xx (the service catches → records `failed`).
+ */
+export async function createSocialPost(input: CreateSocialPostInput): Promise<GbpPostResult> {
+  const body: Record<string, unknown> = {
+    profileId: input.profileId,
+    content: input.summary,
+    text: input.summary,
+    socialAccountIds: [input.accountId],
+    platforms: [{ platform: input.platform, accountId: input.accountId }],
+  }
+  if (input.imageUrl) {
+    body.mediaUrls = input.imageUrl
+    body.media = [input.imageUrl]
+  }
+  if (input.scheduledAt) {
+    body.scheduledAt = input.scheduledAt
+    body.scheduledFor = input.scheduledAt
+  } else {
+    body.publishNow = true
+  }
+  const data = await zernioFetch<unknown>('/posts', { method: 'POST', body: JSON.stringify(body) })
+  return normalizeCreateResult(data)
+}
+
 /** Pull a post id + permalink out of a create response, tolerating wrappers. */
 function normalizeCreateResult(data: unknown): GbpPostResult {
   if (!data || typeof data !== 'object') return { zernioPostId: null, googleUrl: null }

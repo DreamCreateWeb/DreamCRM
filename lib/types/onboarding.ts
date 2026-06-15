@@ -169,9 +169,9 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
     title: 'Wraps your PMS — never replaces it',
     body: 'Connect Open Dental and patients, visits, recall, and balances sync two-way through the official API. Every write shows up in your PMS audit trail.',
   },
-  google_posts: {
-    title: 'Show up on your Google listing',
-    body: 'Publish Updates, Offers, and Events straight to your Google Business Profile — with a Book button that links to your site. They appear in Google Search and Maps.',
+  social_posts: {
+    title: 'Post once, everywhere',
+    body: 'Write a post and publish — or schedule — it to your Google Business listing and your social channels at the same time. See it all on a content calendar.',
   },
   channels: {
     title: 'Connect your Google + social presence',

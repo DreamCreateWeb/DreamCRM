@@ -5,18 +5,19 @@ import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
-import { GBP_POST_TYPE_LABELS, type GbpPostView, type GbpPostStatus } from '@/lib/types/zernio'
-import { deleteGbpPostAction } from './actions'
+import { GBP_POST_TYPE_LABELS, type SocialPostView, type SocialPostTargetView, type GbpPostStatus } from '@/lib/types/zernio'
+import { deleteSocialPostAction } from './actions'
 
 /**
- * GBP post history. Each card shows the type badge, summary preview, image
- * thumb, status pill, the relevant date (published or scheduled), a "View on
- * Google" link when a permalink exists, and delete. NO per-post metrics — Google
- * deprecated them; we show publish state honestly (local performance is on /seo).
+ * Social-post history. Each card shows the post type badge (for GBP posts), the
+ * summary preview, image thumb, the per-channel target chips (platform icon +
+ * StatusPill + permalink), the relevant date, and delete. NO per-post metrics —
+ * deprecated on Google, not yet pulled for the socials; we show publish state
+ * honestly (local GBP performance is on /seo).
  */
 
-// Publish status → tone. published = done (ok); scheduled = in flight, will run
-// (info); draft = inert (neutral); failed = needs our attention (urgent).
+// Publish status → tone. published = done (ok); scheduled = in flight (info);
+// draft = inert (neutral); failed = needs our attention (urgent).
 const STATUS_TONE: Record<GbpPostStatus, Tone> = {
   published: 'ok',
   scheduled: 'info',
@@ -30,7 +31,7 @@ const STATUS_LABEL: Record<GbpPostStatus, string> = {
   failed: 'Failed',
 }
 
-export default function PostHistory({ posts }: { posts: GbpPostView[] }) {
+export default function PostHistory({ posts }: { posts: SocialPostView[] }) {
   return (
     <div className="space-y-3">
       {posts.map((p) => (
@@ -40,16 +41,16 @@ export default function PostHistory({ posts }: { posts: GbpPostView[] }) {
   )
 }
 
-function PostCard({ post }: { post: GbpPostView }) {
+function PostCard({ post }: { post: SocialPostView }) {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const [error, setError] = useState<string | null>(post.lastError)
+  const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
 
   function remove() {
     setError(null)
     start(async () => {
-      const r = await deleteGbpPostAction(post.id)
+      const r = await deleteSocialPostAction(post.id)
       if (!r.ok) setError(r.error ?? 'Could not delete the post.')
       else router.refresh()
     })
@@ -62,6 +63,9 @@ function PostCard({ post }: { post: GbpPostView }) {
         ? `Published ${formatDate(post.publishedAtIso)}`
         : `Created ${formatDate(post.createdAtIso)}`
 
+  // Only show a post-type badge when GBP is among the targets (it's GBP-only).
+  const targetsGbp = post.targets.some((t) => t.platform === 'googlebusiness')
+
   return (
     <div className="v2-card p-4">
       <div className="flex gap-3">
@@ -73,11 +77,20 @@ function PostCard({ post }: { post: GbpPostView }) {
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
-              {GBP_POST_TYPE_LABELS[post.postType]}
-            </span>
+            {targetsGbp && post.postType !== 'standard' && (
+              <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                {GBP_POST_TYPE_LABELS[post.postType]}
+              </span>
+            )}
             <StatusPill tone={STATUS_TONE[post.status]} label={STATUS_LABEL[post.status]} />
             <span className="text-[11px] text-gray-400 font-mono-num">{dateLabel}</span>
+          </div>
+
+          {/* Per-channel target chips */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+            {post.targets.map((t) => (
+              <TargetChip key={t.id} target={t} />
+            ))}
           </div>
 
           {post.postType === 'event' && post.eventTitle && (
@@ -101,11 +114,6 @@ function PostCard({ post }: { post: GbpPostView }) {
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            {post.googleUrl && (
-              <ActionButton variant="ghost" size="sm" href={post.googleUrl} target="_blank" rel="noopener noreferrer">
-                View on Google ↗
-              </ActionButton>
-            )}
             {confirming ? (
               <>
                 <ActionButton variant="danger" size="sm" onClick={remove} disabled={pending}>
@@ -122,12 +130,18 @@ function PostCard({ post }: { post: GbpPostView }) {
             )}
           </div>
 
-          {post.status === 'failed' && error && (
-            <p className="mt-2 text-[12px] text-rose-700 dark:text-rose-300 bg-rose-500/10 rounded-[var(--r-md)] px-2.5 py-1.5">
-              {error}
-            </p>
-          )}
-          {post.status !== 'failed' && error && (
+          {/* Per-target failure messages */}
+          {post.targets
+            .filter((t) => t.status === 'failed' && t.lastError)
+            .map((t) => (
+              <p
+                key={`err-${t.id}`}
+                className="mt-2 text-[12px] text-rose-700 dark:text-rose-300 bg-rose-500/10 rounded-[var(--r-md)] px-2.5 py-1.5"
+              >
+                {t.label}: {t.lastError}
+              </p>
+            ))}
+          {error && (
             <p className="mt-2 text-[12px] text-rose-600" role="alert">
               {error}
             </p>
@@ -136,6 +150,47 @@ function PostCard({ post }: { post: GbpPostView }) {
       </div>
     </div>
   )
+}
+
+/** One channel's chip: platform icon + label + a tone dot + optional permalink. */
+function TargetChip({ target }: { target: SocialPostTargetView }) {
+  const tone = STATUS_TONE[target.status]
+  const dot = TONE_DOT[tone]
+  const inner = (
+    <>
+      <span aria-hidden="true">{target.icon}</span>
+      <span>{target.label}</span>
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} title={STATUS_LABEL[target.status]} aria-label={STATUS_LABEL[target.status]} />
+    </>
+  )
+  if (target.url) {
+    return (
+      <a
+        href={target.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:ring-teal-400"
+        title={`View on ${target.label} ↗`}
+      >
+        {inner}
+        <span aria-hidden="true">↗</span>
+      </a>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:text-gray-300">
+      {inner}
+    </span>
+  )
+}
+
+const TONE_DOT: Record<Tone, string> = {
+  ok: 'bg-emerald-500',
+  warn: 'bg-amber-500',
+  urgent: 'bg-rose-500',
+  info: 'bg-indigo-500',
+  special: 'bg-violet-500',
+  neutral: 'bg-gray-400',
 }
 
 const CTA_DISPLAY: Record<string, string> = {

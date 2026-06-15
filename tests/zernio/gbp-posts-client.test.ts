@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   createGbpPost,
+  createSocialPost,
   listPosts,
   deletePost,
   buildGbpPostOptions,
@@ -148,6 +149,43 @@ describe('createGbpPost', () => {
   it('throws without the API key (lazy)', async () => {
     delete process.env.ZERNIO_API_KEY
     await expect(createGbpPost(base)).rejects.toThrow(/ZERNIO_API_KEY is not set/)
+  })
+})
+
+describe('createSocialPost (generic, single account)', () => {
+  it('POSTs to /posts with content/text, targeting, mediaUrls + publishNow (NO GBP options)', async () => {
+    const f = mockFetch({ post: { _id: 'zig', permalink: 'https://ig/1' } })
+    vi.stubGlobal('fetch', f)
+    const out = await createSocialPost({
+      profileId: 'prof_1',
+      accountId: 'acct_ig',
+      platform: 'instagram',
+      summary: 'Behind the smiles',
+      imageUrl: 'https://img/x.jpg',
+    })
+    expect(out.zernioPostId).toBe('zig')
+    expect(out.googleUrl).toBe('https://ig/1')
+    const [url, init] = f.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://zernio.com/api/v1/posts')
+    const body = JSON.parse(init.body as string)
+    expect(body.profileId).toBe('prof_1')
+    expect(body.content).toBe('Behind the smiles')
+    expect(body.socialAccountIds).toEqual(['acct_ig'])
+    expect(body.platforms).toEqual([{ platform: 'instagram', accountId: 'acct_ig' }])
+    expect(body.mediaUrls).toBe('https://img/x.jpg')
+    expect(body.publishNow).toBe(true)
+    // No GBP-specific options on a social post.
+    expect(body.options).toBeUndefined()
+    expect(body.googleBusiness).toBeUndefined()
+  })
+
+  it('sends scheduledAt/scheduledFor (and NO publishNow) when scheduling', async () => {
+    const f = mockFetch({ _id: 'z' })
+    vi.stubGlobal('fetch', f)
+    await createSocialPost({ profileId: 'p', accountId: 'a', platform: 'facebook', summary: 'hi', scheduledAt: '2099-01-01T00:00:00.000Z' })
+    const body = JSON.parse((f.mock.calls[0] as [string, RequestInit])[1].body as string)
+    expect(body.scheduledAt).toBe('2099-01-01T00:00:00.000Z')
+    expect(body.publishNow).toBeUndefined()
   })
 })
 

@@ -1223,60 +1223,109 @@ export const googleReview = pgTable(
 )
 export type GoogleReviewRow = typeof googleReview.$inferSelect
 
-// ── Google Business posts (Phase 2 — GBP posting) ─────────────────────────────
-// Updates / Offers / Events the clinic publishes to their Google Business
-// Profile through the Zernio connection. We persist a row BEFORE the Zernio call
-// so a publish failure is durable (status='failed' + lastError) and the history
-// view never depends on a live read. Zernio publishes scheduled posts itself, so
-// a 'scheduled' row needs no publish cron on our side — it stays as a record.
-// Demo rows (isDemo=1) are seeded as published with synthetic ids + a fake
-// googleUrl and NEVER hit the network.
-export const gbpPost = pgTable(
-  'gbp_post',
+// ── Social posts (Phase 3 — unified multi-platform composer) ──────────────────
+// One composed post (text + optional image + optional schedule) fanned out to
+// one or MORE connected channels (Google Business + Instagram / Facebook /
+// TikTok / YouTube / LinkedIn) through the Zernio connection. Generalizes the
+// Phase-2 `gbp_post` table (renamed → `social_post` in migration 0068): a
+// GBP-only post is now just a 1-target social post.
+//
+// The PARENT row (`social_post`) holds the shared composed content. The CHILD
+// rows (`social_post_target`) hold the per-channel publish outcome — so one
+// channel can fail while another succeeds (per-target status isolation).
+//
+// Discipline carried over from Phase 2: we persist the parent + targets BEFORE
+// the Zernio call, so a publish failure is durable (target status='failed' +
+// lastError) and the history/calendar never depend on a live read. Zernio
+// publishes scheduled posts itself, so a 'scheduled' row needs no publish cron.
+// Demo rows (isDemo=1) seed as published with synthetic ids + a fake permalink
+// and NEVER hit the network.
+//
+// The GBP-specific fields (postType / event* / offer*) live on the parent and
+// only apply when Google Business is one of the targets — they're ignored for a
+// social-only post.
+export const socialPost = pgTable(
+  'social_post',
   {
     id: text('id').primaryKey(),
     organizationId: text('organization_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    // The Zernio GBP account id the post targets (audit + delete key).
-    accountId: text('account_id').notNull(),
-    // Zernio's post id (`_id`), set on a successful publish/schedule. Null for a
-    // draft or a failed create.
-    zernioPostId: text('zernio_post_id'),
-    // 'standard' (What's new) | 'event' | 'offer'.
+    // 'standard' (What's new) | 'event' | 'offer'. Only meaningful for the GBP
+    // target; social channels ignore it. Default 'standard' covers a plain post.
     postType: text('post_type').notNull().default('standard'),
     // The post body (≤1500 chars, validated in the service).
     summary: text('summary').notNull(),
     // A public image URL (S3) attached to the post, null when none.
     imageUrl: text('image_url'),
-    // Call-to-action button: action type ('LEARN_MORE'|'BOOK'|…) + URL ('CALL'
-    // needs no URL). Both null when no CTA.
+    // Call-to-action button (GBP only): action type ('LEARN_MORE'|'BOOK'|…) +
+    // URL ('CALL' needs no URL). Both null when no CTA.
     ctaType: text('cta_type'),
     ctaUrl: text('cta_url'),
-    // EVENT fields (null unless postType='event').
+    // EVENT fields (GBP only; null unless postType='event').
     eventTitle: text('event_title'),
     eventStartAt: timestamp('event_start_at', { withTimezone: true }),
     eventEndAt: timestamp('event_end_at', { withTimezone: true }),
-    // OFFER fields (null unless postType='offer').
+    // OFFER fields (GBP only; null unless postType='offer').
     offerCouponCode: text('offer_coupon_code'),
     offerRedeemUrl: text('offer_redeem_url'),
     offerTerms: text('offer_terms'),
-    // 'draft' | 'scheduled' | 'published' | 'failed'.
+    // Parent-level status ROLLUP across the targets (for list ordering/filtering):
+    // 'failed' if any target failed, else 'scheduled' if scheduled, else
+    // 'published' once any target went live, else 'draft'. The authoritative
+    // per-channel state lives on the child rows.
     status: text('status').notNull().default('draft'),
     // When set, the post is scheduled (Zernio publishes it at this time).
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
     // When the post went live (published-now) — set on a successful publish.
     publishedAt: timestamp('published_at', { withTimezone: true }),
-    // The live GBP post permalink when Zernio returns one (often null — Google
-    // doesn't always surface a stable URL synchronously).
-    googleUrl: text('google_url'),
-    // The last publish error surfaced to the clinic (set when status='failed').
-    lastError: text('last_error'),
     // 1 for the demo (Dream Dental) — demo posts NEVER hit the network.
     isDemo: integer('is_demo').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [index('gbp_post_org_created_idx').on(t.organizationId, t.createdAt)],
+  (t) => [index('social_post_org_created_idx').on(t.organizationId, t.createdAt)],
 )
-export type GbpPostRow = typeof gbpPost.$inferSelect
+export type SocialPostRow = typeof socialPost.$inferSelect
+
+// Per-channel publish outcome for a `social_post`. One row per targeted channel.
+// Persisted up-front (status='draft' for a real post, 'published'/'scheduled'
+// for a demo) then updated with the Zernio post id + permalink on success, or
+// status='failed' + lastError on failure — so a single failing channel never
+// blocks the others.
+export const socialPostTarget = pgTable(
+  'social_post_target',
+  {
+    id: text('id').primaryKey(),
+    socialPostId: text('social_post_id')
+      .notNull()
+      .references(() => socialPost.id, { onDelete: 'cascade' }),
+    // Denormalized org id so target reads scope without a parent join.
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // The platform slug ('googlebusiness'|'instagram'|'facebook'|…).
+    platform: text('platform').notNull(),
+    // The Zernio account id this target publishes to (audit + delete key).
+    accountId: text('account_id').notNull(),
+    // Zernio's post id (`_id`), set on a successful publish/schedule. Null for a
+    // draft or a failed create.
+    zernioPostId: text('zernio_post_id'),
+    // 'draft' | 'scheduled' | 'published' | 'failed'.
+    status: text('status').notNull().default('draft'),
+    // The live post permalink when Zernio returns one (often null — Google + the
+    // socials don't always surface a stable URL synchronously).
+    googleUrl: text('google_url'),
+    // The last publish error surfaced to the clinic (set when status='failed').
+    lastError: text('last_error'),
+    // When this channel went live — set on a successful publish.
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('social_post_target_post_idx').on(t.socialPostId),
+    index('social_post_target_org_idx').on(t.organizationId),
+  ],
+)
+export type SocialPostTargetRow = typeof socialPostTarget.$inferSelect

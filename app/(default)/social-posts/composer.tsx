@@ -9,28 +9,36 @@ import {
   GBP_POST_TYPE_LABELS,
   GBP_CTA_TYPES,
   GBP_CTA_LABELS,
-  GBP_POST_MAX_CHARS,
   ctaNeedsUrl,
+  postCharLimitForTargets,
+  GOOGLE_BUSINESS_PLATFORM,
   type GbpPostType,
   type GbpCtaType,
-  type CreateGbpPostFormInput,
+  type ComposerChannel,
+  type CreateSocialPostFormInput,
 } from '@/lib/types/zernio'
-import { createGbpPostAction } from './actions'
+import { createSocialPostAction } from './actions'
 
 /**
- * Google Business post composer. Post type (Update / Offer / Event) switches the
- * revealed fields; a live char counter caps at 1,500; an image uploads via the
- * shared XHR helper (same as the website editors) and the resulting PUBLIC S3
- * URL is what we pass to Zernio; the CTA picker defaults Book → the clinic's
- * /book URL. "Post to Google" publishes now; "Schedule" hands a future time to
- * Zernio (which publishes it). All wired to the gated `createGbpPostAction`.
+ * Unified multi-platform post composer. Compose once → publish/schedule to one
+ * OR MORE connected channels (Google Business + Instagram / Facebook / TikTok /
+ * YouTube / LinkedIn). A channel picker (checkboxes over the org's connected
+ * accounts) decides targets; the GBP-specific options (post type / CTA / event /
+ * offer) only appear when a Google Business channel is selected. A live char
+ * counter reflects the tightest cap across the picked channels (GBP=1,500). An
+ * image uploads via the shared XHR helper → public S3 URL passed to Zernio.
+ * "Post now" publishes; "Schedule" hands a future time to Zernio (which
+ * publishes it — no cron on our side).
  *
- * Honest: no per-post metrics are promised (Google deprecated them) — the page
- * points to /seo for local performance.
+ * Honest: no per-post metrics are promised (deprecated on Google, not yet
+ * pulled for the socials) — the page points to /seo for local GBP performance.
  */
-export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
+export default function Composer({ channels, bookUrl }: { channels: ComposerChannel[]; bookUrl: string | null }) {
   const router = useRouter()
   const [pending, start] = useTransition()
+
+  // Channel selection — default: all connected channels checked.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(channels.map((c) => c.accountId)))
 
   const [postType, setPostType] = useState<GbpPostType>('standard')
   const [summary, setSummary] = useState('')
@@ -43,16 +51,16 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const handleRef = useRef<UploadHandle | null>(null)
 
-  // CTA
+  // CTA (GBP only)
   const [ctaType, setCtaType] = useState<GbpCtaType | ''>('')
   const [ctaUrl, setCtaUrl] = useState('')
 
-  // Event
+  // Event (GBP only)
   const [eventTitle, setEventTitle] = useState('')
   const [eventStartAt, setEventStartAt] = useState('')
   const [eventEndAt, setEventEndAt] = useState('')
 
-  // Offer
+  // Offer (GBP only)
   const [offerCouponCode, setOfferCouponCode] = useState('')
   const [offerRedeemUrl, setOfferRedeemUrl] = useState('')
   const [offerTerms, setOfferTerms] = useState('')
@@ -64,8 +72,24 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const remaining = GBP_POST_MAX_CHARS - summary.length
+  // Resolve the targeted platforms from the selection.
+  const selectedPlatforms = useMemo(
+    () => channels.filter((c) => selected.has(c.accountId)).map((c) => c.platform),
+    [channels, selected],
+  )
+  const targetsGbp = selectedPlatforms.includes(GOOGLE_BUSINESS_PLATFORM)
+  const charLimit = useMemo(() => postCharLimitForTargets(selectedPlatforms), [selectedPlatforms])
+  const remaining = charLimit - summary.length
   const overLimit = remaining < 0
+
+  function toggleChannel(accountId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(accountId)) next.delete(accountId)
+      else next.add(accountId)
+      return next
+    })
+  }
 
   // When the user picks the Book CTA, prefill the clinic's /book URL.
   function onCtaTypeChange(next: GbpCtaType | '') {
@@ -79,14 +103,13 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
       setUploadError('Pick an image file (JPEG or PNG).')
       return
     }
-    // Google requires ≤5MB for GBP post images.
     if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image too large — Google allows up to 5MB.')
+      setUploadError('Image too large — up to 5MB.')
       return
     }
     setUploading(true)
     setUploadPct(0)
-    const handle = uploadFileWithProgress(file, 'gbp-posts', setUploadPct)
+    const handle = uploadFileWithProgress(file, 'social-posts', setUploadPct)
     handleRef.current = handle
     try {
       const url = await handle.promise
@@ -103,11 +126,13 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
 
   const canSubmit = useMemo(() => {
     if (pending || uploading) return false
+    if (selected.size === 0) return false
     if (!summary.trim() || overLimit) return false
     return true
-  }, [pending, uploading, summary, overLimit])
+  }, [pending, uploading, selected, summary, overLimit])
 
   function reset() {
+    setSelected(new Set(channels.map((c) => c.accountId)))
     setPostType('standard')
     setSummary('')
     setImageUrl(null)
@@ -126,24 +151,30 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
   function submit() {
     setError(null)
     setSuccess(null)
-    const input: CreateGbpPostFormInput = {
-      postType,
+    const accountIds = channels.filter((c) => selected.has(c.accountId)).map((c) => c.accountId)
+    const input: CreateSocialPostFormInput = {
+      accountIds,
+      postType: targetsGbp ? postType : 'standard',
       summary: summary.trim(),
       imageUrl,
-      ctaType: ctaType || null,
-      ctaUrl: ctaType && ctaNeedsUrl(ctaType) ? ctaUrl.trim() : null,
-      eventTitle: postType === 'event' ? eventTitle.trim() : null,
-      eventStartAt: postType === 'event' ? toIso(eventStartAt) : null,
-      eventEndAt: postType === 'event' ? toIso(eventEndAt) : null,
-      offerCouponCode: postType === 'offer' ? offerCouponCode.trim() || null : null,
-      offerRedeemUrl: postType === 'offer' ? offerRedeemUrl.trim() || null : null,
-      offerTerms: postType === 'offer' ? offerTerms.trim() || null : null,
+      ctaType: targetsGbp && ctaType ? ctaType : null,
+      ctaUrl: targetsGbp && ctaType && ctaNeedsUrl(ctaType) ? ctaUrl.trim() : null,
+      eventTitle: targetsGbp && postType === 'event' ? eventTitle.trim() : null,
+      eventStartAt: targetsGbp && postType === 'event' ? toIso(eventStartAt) : null,
+      eventEndAt: targetsGbp && postType === 'event' ? toIso(eventEndAt) : null,
+      offerCouponCode: targetsGbp && postType === 'offer' ? offerCouponCode.trim() || null : null,
+      offerRedeemUrl: targetsGbp && postType === 'offer' ? offerRedeemUrl.trim() || null : null,
+      offerTerms: targetsGbp && postType === 'offer' ? offerTerms.trim() || null : null,
       scheduledAt: scheduleOn ? toIso(scheduledAt) : null,
     }
     start(async () => {
-      const r = await createGbpPostAction(input)
+      const r = await createSocialPostAction(input)
       if (r.ok) {
-        setSuccess(r.status === 'scheduled' ? 'Scheduled — Google will publish it at the time you set.' : 'Posted to Google.')
+        setSuccess(
+          r.status === 'scheduled'
+            ? 'Scheduled — your channels will publish it at the time you set.'
+            : 'Posted to your channels.',
+        )
         reset()
         router.refresh()
       } else {
@@ -160,32 +191,64 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
 
   return (
     <div className="v2-panel p-5">
-      <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Write a post</h2>
+      <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Compose a post</h2>
 
-      {/* Post type selector */}
-      <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Post type">
-        {GBP_POST_TYPES.map((t) => {
-          const active = postType === t
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setPostType(t)}
-              aria-pressed={active}
-              className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition border ${
-                active
-                  ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
-              }`}
-            >
-              {GBP_POST_TYPE_LABELS[t]}
-            </button>
-          )
-        })}
+      {/* Channel picker */}
+      <div className="mb-4">
+        <Label>Post to</Label>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Channels">
+          {channels.map((ch) => {
+            const on = selected.has(ch.accountId)
+            return (
+              <button
+                key={ch.accountId}
+                type="button"
+                onClick={() => toggleChannel(ch.accountId)}
+                aria-pressed={on}
+                title={ch.handle ?? ch.label}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium transition border ${
+                  on
+                    ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                }`}
+              >
+                <span aria-hidden="true">{ch.icon}</span>
+                {ch.label}
+              </button>
+            )
+          })}
+        </div>
+        {selected.size === 0 && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5">Pick at least one channel.</p>
+        )}
       </div>
 
-      {/* Event fields */}
-      {postType === 'event' && (
+      {/* Post type selector — GBP only */}
+      {targetsGbp && (
+        <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Post type">
+          {GBP_POST_TYPES.map((t) => {
+            const active = postType === t
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setPostType(t)}
+                aria-pressed={active}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition border ${
+                  active
+                    ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                }`}
+              >
+                {GBP_POST_TYPE_LABELS[t]}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Event fields — GBP only */}
+      {targetsGbp && postType === 'event' && (
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label>Event title</Label>
@@ -221,20 +284,25 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
 
       {/* Summary + counter */}
       <div className="mb-1.5 flex items-center justify-between">
-        <Label className="mb-0">{postType === 'standard' ? "What's new" : 'Details'}</Label>
+        <Label className="mb-0">{targetsGbp && postType === 'standard' ? "What's new" : 'Message'}</Label>
         <span className={`text-[11px] font-mono-num ${counterCls}`}>{remaining}</span>
       </div>
       <textarea
         value={summary}
         onChange={(e) => setSummary(e.target.value)}
         rows={5}
-        placeholder={PLACEHOLDERS[postType]}
+        placeholder={targetsGbp ? PLACEHOLDERS[postType] : 'Write your post — it goes out to every channel you picked above.'}
         className={`${inputCls} resize-y`}
         aria-label="Post text"
       />
+      {selectedPlatforms.length > 1 && (
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+          Same text goes to every channel. Counter shows the tightest limit ({charLimit}).
+        </p>
+      )}
 
-      {/* Offer fields */}
-      {postType === 'offer' && (
+      {/* Offer fields — GBP only */}
+      {targetsGbp && postType === 'offer' && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
             <Label>Coupon code (optional)</Label>
@@ -316,37 +384,39 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
         {uploadError && <p className="text-xs text-rose-600 mt-1" role="alert">{uploadError}</p>}
       </div>
 
-      {/* CTA picker */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label>Button (optional)</Label>
-          <select value={ctaType} onChange={(e) => onCtaTypeChange(e.target.value as GbpCtaType | '')} className={inputCls}>
-            <option value="">No button</option>
-            {GBP_CTA_TYPES.map((c) => (
-              <option key={c} value={c}>
-                {GBP_CTA_LABELS[c]}
-              </option>
-            ))}
-          </select>
-        </div>
-        {ctaType && ctaNeedsUrl(ctaType) && (
+      {/* CTA picker — GBP only */}
+      {targetsGbp && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
-            <Label>Button link</Label>
-            <input
-              type="url"
-              value={ctaUrl}
-              onChange={(e) => setCtaUrl(e.target.value)}
-              placeholder="https://…"
-              className={inputCls}
-            />
+            <Label>Button (Google only, optional)</Label>
+            <select value={ctaType} onChange={(e) => onCtaTypeChange(e.target.value as GbpCtaType | '')} className={inputCls}>
+              <option value="">No button</option>
+              {GBP_CTA_TYPES.map((c) => (
+                <option key={c} value={c}>
+                  {GBP_CTA_LABELS[c]}
+                </option>
+              ))}
+            </select>
           </div>
-        )}
-        {ctaType === 'CALL' && (
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 self-end pb-2">
-            Uses your Google listing&apos;s phone number.
-          </p>
-        )}
-      </div>
+          {ctaType && ctaNeedsUrl(ctaType) && (
+            <div>
+              <Label>Button link</Label>
+              <input
+                type="url"
+                value={ctaUrl}
+                onChange={(e) => setCtaUrl(e.target.value)}
+                placeholder="https://…"
+                className={inputCls}
+              />
+            </div>
+          )}
+          {ctaType === 'CALL' && (
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 self-end pb-2">
+              Uses your Google listing&apos;s phone number.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Schedule */}
       <div className="mt-4">
@@ -369,9 +439,11 @@ export default function PostComposer({ bookUrl }: { bookUrl: string | null }) {
       {/* Submit */}
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <ActionButton variant="primary" size="md" onClick={submit} disabled={!canSubmit}>
-          {pending ? 'Posting…' : scheduleOn ? 'Schedule' : 'Post to Google'}
+          {pending ? 'Posting…' : scheduleOn ? 'Schedule' : 'Post now'}
         </ActionButton>
-        <p className="text-[11px] text-gray-400">Posts appear on your Google listing. Updates expire after ~7 days on Google.</p>
+        <p className="text-[11px] text-gray-400">
+          Posts go out through your connected channels. Google Updates expire after ~7 days on Google.
+        </p>
       </div>
 
       {error && (
@@ -402,8 +474,7 @@ const PLACEHOLDERS: Record<GbpPostType, string> = {
 }
 
 /** Convert a `datetime-local` value (local wall-clock, no zone) to an ISO
- *  string. `new Date(local)` interprets it in the browser's zone — fine for a
- *  human-picked time. Empty → null. */
+ *  string. Empty → null. */
 function toIso(local: string): string | null {
   if (!local) return null
   const d = new Date(local)
