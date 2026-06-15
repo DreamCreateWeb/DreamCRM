@@ -118,6 +118,42 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Zernio foundation — Google Business connection (2026-06-15)** — the
+  connection architecture for the Zernio × Google Business integration (full
+  plan in `docs/zernio-google-integration.md`). FOUNDATION ONLY (connect /
+  disconnect plumbing; review-pull, hours/location sync, and metrics are the
+  NEXT PRs). Shipped: lazy client `lib/zernio.ts` (Proxy-free fetch wrapper;
+  `zernioFetch` sets the Bearer from `ZERNIO_API_KEY`, base
+  `https://zernio.com/api/v1`, throws status+body on non-2xx; thin wrappers
+  `listProfiles` / `createProfile` / `getConnectUrl` / `listAccounts` /
+  `deleteAccount`); client-safe `lib/types/zernio.ts` (15 platform slugs,
+  `googlebusiness` first-class, labels/icons, `ZernioAccount` /
+  `ZernioConnectionView`); schema `zernio_connection` (org PK, `zernioProfileId`,
+  status, lastError, isDemo) + `zernio_account` (Zernio account id PK, platform,
+  unique on org+platform+accountId) — **migration 0063**; service
+  `lib/services/zernio.ts` (`ensureProfileForOrg` find-or-create idempotent;
+  `getGoogleBusinessConnectUrl`; `syncConnectedAccounts` upsert+reconcile,
+  best-effort `error`+`lastError` on failure, **demo connections never hit the
+  network**; `getZernioConnection`; `disconnectPlatform` best-effort at Zernio +
+  always drops local rows; `seedDemoZernio`). Hosted-OAuth routes
+  `app/api/integrations/zernio/{connect,callback}/route.ts` (authed clinic +
+  owner/admin + premium via `requirePlan`/`planAllows`; connect 302s to the
+  Google consent `authUrl`; callback re-syncs → `/integrations?connected=
+  googlebusiness`). UI: a **Google Business Profile card** on `/integrations`
+  (DESIGN-SYSTEM v2 `.v2-panel`, teal primary, StatusPill) — connect opens in a
+  NEW TAB + re-syncs on window focus + Refresh button (Zernio's default return
+  is its OWN dashboard, so the focus-poll guarantees detection), connected shows
+  the GBP handle + Refresh/Disconnect + an honest "what's next" tease (reviews/
+  hours/metrics arrive next — we don't show data we don't pull yet). Server
+  actions `syncZernioAccountsAction` / `disconnectZernioGoogleAction`. Demo
+  seeds a synthetic connected GBP ("Dream Dental", fake accountId, isDemo). 55
+  tests (`tests/zernio/`). **Confirmed REST shapes:** `/connect/{platform}`
+  takes `redirect_url` (snake_case) + a REQUIRED `profileId`, returns
+  `{ authUrl, state }`, appends `?connected=…&accountId=…&username=…` on the
+  redirect; `/accounts` → `{ accounts: SocialAccount[], hasAnalyticsAccess }`
+  with `profileId` either a string OR an embedded Profile object (normalized);
+  `POST /profiles` returns a `{ message, profile }` wrapper. **Next PR:** GBP
+  reviews pull + reply + legit AggregateRating JSON-LD.
 - **Website system sprint — "complete in seconds" (2026-06-12, PRs #342–#345)**
   — 4 audits + 4 build waves refined the ENTIRE clinic-website system to the
   day-0-complete model (supersedes the honest-empty framing of #304–#307 for
@@ -1573,18 +1609,22 @@ eventual App Runner → ECS move) are tracked in that section.
 
 ### Feature work, post-migration
 
-0. **Zernio × Google Business integration — PLANNED, spec in
-   [`docs/zernio-google-integration.md`](./docs/zernio-google-integration.md).**
-   `ZERNIO_API_KEY` is already live in Secrets Manager + App Runner env
-   (validated: `GET zernio.com/api/v1/profiles` → 200). Zernio is a unified
-   social/GBP API (hosted OAuth — we never run Google's API verification). The
-   plan: connect Google Business per clinic, PULL reviews (real ratings → legit
-   AggregateRating JSON-LD)/hours/address/photos/local-metrics, REPLY to reviews
-   + POST offers/events, and a future multi-platform social module. Key limit:
-   Zernio can't write hours/address back to Google (pull-only for the listing;
-   posts/replies push). Refactors Reviews + SEO + hours/location to route through
-   one Google connection. Phased (GBP core → GBP posting → social). Build NOT
-   started — read the doc before implementing.
+0. **Zernio × Google Business integration — FOUNDATION SHIPPED (2026-06-15),
+   spec in [`docs/zernio-google-integration.md`](./docs/zernio-google-integration.md).**
+   `ZERNIO_API_KEY` is live in Secrets Manager + App Runner env. The connection
+   architecture is built (see the "Zernio foundation" bullet under What's wired):
+   lazy client, `zernio_connection`/`zernio_account` (migration 0063), the
+   hosted-OAuth connect/disconnect flow, and the `/integrations` Google Business
+   card. **NEXT PR (recommended): GBP reviews pull + reply + legit
+   AggregateRating JSON-LD** — pull `/reviews/list-inbox-reviews` into a new
+   `google_review` table (keyed org + Google review id, idempotent via cron +
+   `syncConnectedAccounts`), show on `/reviews/received`, reply from the
+   dashboard, and source the AggregateRating in `clinicJsonLd` from the real
+   synced rating (replacing the hand-pasted `clinic_review_config.googlePlaceId`).
+   Then hours/address/photos sync (with `*_source` flags), then GBP local
+   metrics into SEO/Analytics, then posting (Phase 2), then the social module
+   (Phase 3). Key limit unchanged: Zernio is pull-only for the listing fields
+   (posts/replies push; no hours/address write-back).
 
 1. **Phase B — SMS (unlocks across 3 modules)** — Recall & Outreach
    SMS sends, Patient Communications SMS in + outbound, Reviews SMS

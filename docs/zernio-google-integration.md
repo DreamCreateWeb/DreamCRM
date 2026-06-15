@@ -1,8 +1,43 @@
-# Zernio × Google Business integration — plan (discovery, not yet built)
+# Zernio × Google Business integration — plan
 
-**Status: PLANNED, not implemented (2026-06-14).** This is the build-ready spec
-from the Zernio API discovery pass. Nothing in `app/`/`lib/` is wired to Zernio
-yet — only the credential is in place. When greenlit, build in the phases below.
+**Status: FOUNDATION SHIPPED (2026-06-15); Phase 1 features pending.** The
+connection architecture is built and live: the lazy client (`lib/zernio.ts`),
+client-safe types (`lib/types/zernio.ts`), the `zernio_connection` +
+`zernio_account` schema (migration **0063**), the connection service
+(`lib/services/zernio.ts`), the hosted-OAuth connect + callback routes
+(`app/api/integrations/zernio/{connect,callback}/route.ts`), and the
+**Google Business Profile card** on `/integrations` (connect / refresh /
+disconnect). Demo seeds a synthetic connected GBP (isDemo, no network). What's
+NOT built yet: review pull/reply + AggregateRating, hours/address/photos sync,
+GBP local metrics, posting, and the full social module — those are the next PRs
+per the phased roadmap below.
+
+## Confirmed REST shapes (validated against the live OpenAPI spec, 2026-06-15)
+- **`GET /v1/connect/{platform}`** — the connect query param is **`redirect_url`**
+  (snake_case), and **`profileId` is REQUIRED**. Response `{ authUrl, state }`.
+  In standard (hosted) mode Zernio shows its own account-picker UI, then
+  redirects to `redirect_url` with **`?connected={platform}&profileId=X&
+  accountId=Y&username=Z`** appended (so `redirectUrl` IS supported — we pass
+  `${APP_URL}/api/integrations/zernio/callback`). A `headless=true` mode also
+  exists (raw OAuth data for a custom UI) — not used. The platform enum slug for
+  Google Business is **`googlebusiness`**; the connect enum uses `twitter` for X
+  (we translate `x → twitter` at the boundary). Because the `state`'s default
+  return is Zernio's own dashboard, the UI also re-syncs on window focus + a
+  Refresh button, so a connection completing on Zernio's side is still detected.
+- **`GET /v1/accounts`** → `{ accounts: SocialAccount[], hasAnalyticsAccess:
+  boolean }`. Accepts optional `?profileId=` (+ `platform`, `status`, `page`,
+  `limit`) filters. **`SocialAccount`** fields we parse: `_id`, `platform`
+  (enum incl. `googlebusiness`), **`profileId` (string OR an embedded `Profile`
+  object — normalized to a string)**, `username`, `displayName`,
+  `profilePicture` (nullable), `profileUrl`, `isActive`. We parse defensively
+  (tolerate any missing field) + re-filter to the org's profile.
+- **`GET /v1/profiles`** → `{ profiles: [{ _id, userId, name, isDefault, color,
+  … }] }`. **`POST /v1/profiles`** body `{ name, description?, color? }` → 201
+  with a **wrapper** `{ message, profile: { _id, … } }` (NOT the bare profile).
+- **`DELETE /v1/accounts/{accountId}`** (`deleteAccount`) — used by disconnect
+  (best-effort; we always drop our local rows regardless of the API result).
+
+(Original discovery spec preserved below.)
 
 ## What's already done
 - `ZERNIO_API_KEY` is live: stored in Secrets Manager `dreamcrm/app-secrets`
@@ -98,10 +133,23 @@ FB/IG/etc.
   GBP "Book" CTA deep-links the clinic's `/book`.
 
 ## Phased roadmap
-- **Phase 1 — Google Business core:** `lib/zernio.ts` + `zernio_connection` +
-  the hosted-OAuth connect flow; pull GBP reviews (+reply, +legit AggregateRating);
-  pull hours/address/photos into the profile/site with source flags; GBP local
-  metrics into SEO/Analytics. Refactor Reviews + SEO + hours to route through it.
+- **Phase 1 — Google Business core:**
+  - ✅ **DONE (foundation):** `lib/zernio.ts` + `zernio_connection` /
+    `zernio_account` (migration 0063) + the hosted-OAuth connect flow + the
+    `/integrations` Google Business card (connect / refresh / disconnect) +
+    demo seed.
+  - ⬜ **NEXT (recommended first follow-up PR):** pull GBP reviews
+    (`/reviews/list-inbox-reviews`) into a new `google_review` table keyed by
+    org + Google review id (idempotent sync via cron + the existing
+    `syncConnectedAccounts` plumbing), surface them on `/reviews/received`,
+    **reply from the dashboard** (`/reviews` reply + delete-reply), and emit a
+    **legitimate `AggregateRating`** in `clinicJsonLd` from the real synced
+    rating (deliberately withheld until now — see the FTC note). Replace the
+    hand-pasted `clinic_review_config.googlePlaceId` with the Zernio GBP
+    connection (auto-resolved).
+  - ⬜ Then: pull hours/address/photos into the profile/site with `*_source`
+    flags; GBP local metrics into SEO/Analytics. Refactor Reviews + SEO + hours
+    to route through the connection.
 - **Phase 2 — GBP posting:** create posts/offers/events to GBP from a composer;
   surface performance per post.
 - **Phase 3 — Full social module:** multi-platform compose/schedule/publish +

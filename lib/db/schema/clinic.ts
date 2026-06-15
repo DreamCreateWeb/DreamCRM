@@ -1132,3 +1132,52 @@ export const staffOnboarding = pgTable(
   (t) => [uniqueIndex('staff_onboarding_org_user_idx').on(t.organizationId, t.userId)],
 )
 export type StaffOnboarding = typeof staffOnboarding.$inferSelect
+
+// ── Zernio (Google Business + future social) connection ─────────────────────
+// Zernio is a unified social / Google Business Profile API (hosted OAuth — we
+// never run Google's API-access verification). One Zernio "profile" per clinic
+// org; connected accounts (GBP / IG / FB / …) hang off it. The platform
+// ZERNIO_API_KEY is a server secret; per-clinic scoping is by zernioProfileId.
+// FOUNDATION: connection plumbing + Google Business only. Reviews / hours /
+// metrics sync land in later PRs.
+export const zernioConnection = pgTable('zernio_connection', {
+  organizationId: text('organization_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  // The clinic's Zernio profile id (find-or-created on first connect). Null
+  // until we've ensured one.
+  zernioProfileId: text('zernio_profile_id'),
+  // 'disconnected' | 'connected' | 'error'
+  status: text('status').notNull().default('disconnected'),
+  // Last sync/connect error surfaced to the clinic.
+  lastError: text('last_error'),
+  // 1 for the demo (Dream Dental) — demo connections NEVER hit the network.
+  isDemo: integer('is_demo').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+export type ZernioConnection = typeof zernioConnection.$inferSelect
+
+// One row per connected Zernio account (a clinic's GBP location, or — later —
+// an Instagram/Facebook/… account). Keyed by Zernio's internal account id.
+export const zernioAccount = pgTable(
+  'zernio_account',
+  {
+    // Zernio's internal account id (`_id` from /accounts).
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // Platform slug — 'googlebusiness' for the foundation; others reserved.
+    platform: text('platform').notNull(),
+    // Zernio's account id again (the id we call the API with — mirrors `id` for
+    // now, kept distinct so a future schema where they diverge needs no
+    // migration). Part of the uniqueness key.
+    accountId: text('account_id').notNull(),
+    username: text('username'),
+    displayName: text('display_name'),
+    connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('zernio_account_org_platform_account_idx').on(t.organizationId, t.platform, t.accountId)],
+)
+export type ZernioAccountRow = typeof zernioAccount.$inferSelect

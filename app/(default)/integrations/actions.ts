@@ -100,3 +100,45 @@ export async function setAutoSyncAction(enabled: boolean) {
   await setAutoSync(ctx.organizationId, enabled)
   revalidatePath('/integrations')
 }
+
+// ── Zernio (Google Business) ────────────────────────────────────────────────
+
+export interface ZernioSyncResult {
+  ok: boolean
+  error?: string
+}
+
+/**
+ * Re-pull the org's connected Zernio accounts and persist them. The Google
+ * Business card calls this on window focus + via a "Refresh" button, so a
+ * connection completed at Zernio's dashboard (the default return target) is
+ * detected when the clinic comes back to /integrations. Demo-safe (the service
+ * short-circuits on a demo connection). Best-effort — surfaces any error.
+ */
+export async function syncZernioAccountsAction(): Promise<ZernioSyncResult> {
+  const ctx = await requireTenant()
+  ensureClinicAdmin(ctx)
+  try {
+    const { syncConnectedAccounts } = await import('@/lib/services/zernio')
+    await syncConnectedAccounts(ctx.organizationId)
+    revalidatePath('/integrations')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
+/** Disconnect Google Business for this clinic (best-effort at Zernio, always
+ *  drops our rows). */
+export async function disconnectZernioGoogleAction(): Promise<ZernioSyncResult> {
+  const ctx = await requireTenant()
+  ensureClinicAdmin(ctx)
+  try {
+    const { disconnectPlatform } = await import('@/lib/services/zernio')
+    await disconnectPlatform(ctx.organizationId, 'googlebusiness')
+    revalidatePath('/integrations')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}

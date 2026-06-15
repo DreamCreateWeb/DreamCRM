@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation'
 import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getIntegrationsDashboard, openDentalConfigured } from '@/lib/services/pms'
 import { getIntegrationsHealth } from '@/lib/services/pms/health'
+import { getZernioConnection } from '@/lib/services/zernio'
+import { zernioConfigured } from '@/lib/zernio'
+import GoogleBusinessCard from './google-business-card'
 import {
   NEVER_TOUCHED,
   OPEN_DENTAL_FIELD_MAP,
@@ -112,10 +115,11 @@ export default async function IntegrationsPage() {
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   await requirePlan(ctx, 'premium', 'integrations')
 
-  const [dashboard, configured, health] = await Promise.all([
+  const [dashboard, configured, health, zernio] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),
     Promise.resolve(openDentalConfigured()),
     getIntegrationsHealth(ctx.organizationId),
+    getZernioConnection(ctx.organizationId),
   ])
   const { connection, counts, totals, pendingWrites, recentRuns, recentWrites } = dashboard
   const connected = connection?.status === 'connected'
@@ -162,6 +166,9 @@ export default async function IntegrationsPage() {
           </p>
         </div>
       </div>
+
+      {/* ── Google Business Profile (Zernio) — independent of the PMS ─── */}
+      <GoogleBusinessCard connection={zernio} configured={zernioConfigured()} />
 
       {connected ? (
         <>
