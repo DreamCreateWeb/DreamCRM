@@ -75,7 +75,11 @@ export default async function ClinicSitePage({ params }: Props) {
     getCompletedReviewCount(data.orgId),
     listActivePlans(data.orgId),
     getOpenJobs(data.orgId),
-    getGoogleReviewStats(data.orgId),
+    // Best-effort: the AggregateRating is an optional enrichment, so a review-
+    // stats failure (e.g. the brief window of a table-rename deploy, when the
+    // server is already serving but db-migrate hasn't finished) must NEVER 500
+    // the clinic's public homepage — degrade to the zero-state (no rating).
+    getGoogleReviewStats(data.orgId).catch(() => ({ count: 0, averageRating: null, needsReply: 0 })),
   ])
   // Emit a legit AggregateRating ONLY from real synced Google reviews.
   const jsonLd = clinicJsonLd(data, {
