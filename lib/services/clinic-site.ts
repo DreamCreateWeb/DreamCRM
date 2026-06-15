@@ -232,12 +232,29 @@ interface HoursEntry {
 }
 
 /**
+ * A real, synced aggregate rating sourced ONLY from the clinic's Google
+ * Business reviews (`getGoogleReviewStats`). Passed in by the caller — never
+ * fabricated. `clinicJsonLd` emits an `AggregateRating` ONLY when this is
+ * supplied with `count >= 1` AND a non-null `averageRating`.
+ */
+export interface ClinicAggregateRating {
+  /** Mean star rating over rated Google reviews, rounded to 1 decimal. */
+  averageRating: number | null
+  /** Count of Google reviews carrying a 1–5 rating. */
+  count: number
+}
+
+/**
  * Build a schema.org `Dentist` JSON-LD object for the clinic homepage.
  * Google uses this for the Knowledge Panel + rich results; Bing + AI
  * search overlays read it too. Includes hours when set, address, phone,
- * aggregate rating when stats include a review count.
+ * and — when `aggregateRating` is supplied from REAL synced Google reviews —
+ * a legitimate `AggregateRating` (star rich-snippets). Never fabricated.
  */
-export function clinicJsonLd(data: ClinicSiteData): Record<string, unknown> {
+export function clinicJsonLd(
+  data: ClinicSiteData,
+  aggregateRating?: ClinicAggregateRating | null,
+): Record<string, unknown> {
   const url = publicSiteUrl(data)
   const name = data.profile.displayName ?? data.orgName
   const description =
@@ -266,14 +283,17 @@ export function clinicJsonLd(data: ClinicSiteData): Record<string, unknown> {
     })
   }
 
-  // We deliberately do NOT emit an aggregateRating. There is no real star
-  // rating stored anywhere — the Reviews module tracks review *requests*, not
-  // a published aggregate — and schema.org / Google require a `ratingValue`
-  // for a valid AggregateRating. Emitting a fabricated value (this code used
-  // to hardcode `ratingValue: '4.9'`) is exactly the fake-review violation the
-  // Reviews module is built to avoid (FTC 2024 Fake Reviews Rule + Google's
-  // review-snippet guidelines). Real star rich-results arrive with the Google
-  // Business Profile integration (roadmap), sourced from actual review data.
+  // AggregateRating is emitted ONLY from REAL synced Google Business reviews
+  // (the Zernio GBP integration), passed in via `aggregateRating`. We require a
+  // genuine count (>= 1 rated review) AND a non-null average; otherwise the key
+  // is omitted entirely. This is the deliberate opposite of the old hardcoded
+  // `ratingValue: '4.9'` — emitting a fabricated value is exactly the
+  // fake-review violation the Reviews module + FTC 2024 Fake Reviews Rule +
+  // Google's review-snippet guidelines forbid. No reviews → no rating.
+  const emitRating =
+    aggregateRating != null &&
+    aggregateRating.count >= 1 &&
+    aggregateRating.averageRating != null
 
   const ld: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -298,6 +318,17 @@ export function clinicJsonLd(data: ClinicSiteData): Record<string, unknown> {
         }
       : {}),
     ...(openingHoursSpecification.length ? { openingHoursSpecification } : {}),
+    ...(emitRating
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: aggregateRating!.averageRating,
+            reviewCount: aggregateRating!.count,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     // No fabricated priceRange — we don't know the clinic's pricing, and the
     // project rule is no fake values (the hardcoded ratingValue was dropped for
     // the same reason). schema.org Dentist treats priceRange as optional.

@@ -4,7 +4,13 @@ import {
   listFeaturedTestimonialPatientIds,
   listReviewsReceived,
 } from '@/lib/services/reviews'
+import {
+  listGoogleReviews,
+  getGoogleReviewStats,
+  hasGoogleBusinessConnection,
+} from '@/lib/services/google-reviews'
 import ReceivedList from './received-list'
+import GoogleReviewsSection, { GoogleConnectPrompt } from './google-reviews-section'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -21,10 +27,24 @@ export default async function ReviewsReceivedPage() {
   if (ctx.tenantType !== 'clinic') redirect('/reviews')
   if (ctx.role === 'patient') redirect('/')
 
-  const [received, featuredIds] = await Promise.all([
+  const [received, featuredIds, googleReviews, googleStats, googleConnected] = await Promise.all([
     listReviewsReceived(ctx.organizationId),
     listFeaturedTestimonialPatientIds(ctx.organizationId),
+    listGoogleReviews(ctx.organizationId),
+    getGoogleReviewStats(ctx.organizationId),
+    hasGoogleBusinessConnection(ctx.organizationId),
   ])
+
+  const googleRows = googleReviews.map((g) => ({
+    externalReviewId: g.externalReviewId,
+    reviewerName: g.reviewerName,
+    reviewerPhotoUrl: g.reviewerPhotoUrl,
+    starRating: g.starRating,
+    comment: g.comment,
+    reviewCreatedAtIso: g.reviewCreatedAt ? g.reviewCreatedAt.toISOString() : null,
+    replyComment: g.replyComment,
+    replyUpdatedAtIso: g.replyUpdatedAt ? g.replyUpdatedAt.toISOString() : null,
+  }))
 
   const rows = received.map((r) => ({
     id: r.id,
@@ -73,20 +93,37 @@ export default async function ReviewsReceivedPage() {
         }
       />
 
-      {rows.length === 0 ? (
-        <EmptyState
-          icon="⭐"
-          title="No reviews yet"
-          body="When a patient writes a review on their request link, it lands here so you can read it and decide whether to feature it on your public site."
-          action={
-            <ActionButton variant="secondary" size="sm" href="/reviews">
-              Send a request from the Reviews dashboard
-            </ActionButton>
-          }
+      {/* ── Google reviews (real, synced via Zernio) ──────────────────── */}
+      {googleConnected ? (
+        <GoogleReviewsSection
+          rows={googleRows}
+          count={googleStats.count}
+          averageRating={googleStats.averageRating}
         />
       ) : (
-        <ReceivedList rows={rows} />
+        <GoogleConnectPrompt />
       )}
+
+      {/* ── First-party reviews (patient wrote the text inside DreamCRM) ─ */}
+      <section>
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+          From patients you asked
+        </h2>
+        {rows.length === 0 ? (
+          <EmptyState
+            icon="⭐"
+            title="No reviews yet"
+            body="When a patient writes a review on their request link, it lands here so you can read it and decide whether to feature it on your public site."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/reviews">
+                Send a request from the Reviews dashboard
+              </ActionButton>
+            }
+          />
+        ) : (
+          <ReceivedList rows={rows} />
+        )}
+      </section>
     </div>
   )
 }

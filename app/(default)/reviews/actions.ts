@@ -11,6 +11,11 @@ import {
   type ReviewChannel,
   type ReviewConfig,
 } from '@/lib/services/reviews'
+import {
+  syncGoogleReviews,
+  replyToGoogleReview,
+  deleteGoogleReviewReply,
+} from '@/lib/services/google-reviews'
 
 function ensureClinicAdmin(ctx: { tenantType: string; role: string }) {
   if (ctx.tenantType !== 'clinic') {
@@ -100,4 +105,50 @@ export async function unfeatureReviewTestimonialAction(
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }
+}
+
+// ── Google Business reviews (synced via Zernio) ──────────────────────────────
+
+/**
+ * Pull the org's Google reviews from Google (via Zernio) on demand. Owner/admin
+ * only. Returns the count synced (or a skip reason). Revalidates the surfaces
+ * the reviews render on + the public site (AggregateRating may change).
+ */
+export async function syncGoogleReviewsAction(): Promise<
+  { ok: true; synced: number; skipped?: string } | { ok: false; error: string }
+> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot sync reviews.' }
+  const r = await syncGoogleReviews(ctx.organizationId)
+  if (!r.ok) return { ok: false, error: r.error ?? 'Sync failed.' }
+  revalidatePath('/reviews')
+  revalidatePath('/reviews/received')
+  revalidatePath(`/site/${ctx.organizationSlug}`)
+  return { ok: true, synced: r.synced, skipped: r.skipped }
+}
+
+/** Post (or overwrite) the clinic's reply to a Google review. Owner/admin only. */
+export async function replyToGoogleReviewAction(input: {
+  externalReviewId: string
+  text: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot reply to reviews.' }
+  const r = await replyToGoogleReview(ctx.organizationId, input.externalReviewId, input.text)
+  if (r.ok) revalidatePath('/reviews/received')
+  return r
+}
+
+/** Remove the clinic's reply from a Google review. Owner/admin only. */
+export async function deleteGoogleReviewReplyAction(
+  externalReviewId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot manage replies.' }
+  const r = await deleteGoogleReviewReply(ctx.organizationId, externalReviewId)
+  if (r.ok) revalidatePath('/reviews/received')
+  return r
 }

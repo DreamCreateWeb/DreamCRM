@@ -9,6 +9,7 @@ import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { seedDemoPms } from '@/lib/services/pms'
 import { seedDemoZernio } from '@/lib/services/zernio'
+import { seedDemoGoogleReviews } from '@/lib/services/google-reviews'
 import {
   DEFAULT_FAQ_ITEMS,
   type ClinicStat,
@@ -1931,6 +1932,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // hits the network. Idempotent.
     await seedDemoZernio(existing.id, existing.name)
 
+    // Google Business reviews self-heal: seed the synthetic Google reviews so
+    // legacy demos showcase /reviews/received + the public AggregateRating.
+    // Idempotent (upsert by externalReviewId). Never networks.
+    await seedDemoGoogleReviews(existing.id)
+
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
     // /shop/payments page, and the commerce timeline events on legacy demos).
@@ -2518,6 +2524,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Zernio (Google Business): seed a connected synthetic GBP so the Integrations
   // Google Business card showcases the connected state. Never hits the network.
   await seedDemoZernio(orgId)
+
+  // Google Business reviews: seed ~6 synthetic reviews so /reviews/received, the
+  // dashboard Google stats, and the public-site AggregateRating all populate.
+  // Never networks (isDemo rows).
+  await seedDemoGoogleReviews(orgId)
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)

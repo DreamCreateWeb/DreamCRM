@@ -449,6 +449,13 @@
       "when": 1781492842020,
       "tag": "0063_supreme_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1781495817335,
+      "tag": "0064_supreme_fallen_one",
+      "breakpoints": true
     }
   ]
 }

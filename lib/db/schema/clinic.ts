@@ -1181,3 +1181,44 @@ export const zernioAccount = pgTable(
   (t) => [uniqueIndex('zernio_account_org_platform_account_idx').on(t.organizationId, t.platform, t.accountId)],
 )
 export type ZernioAccountRow = typeof zernioAccount.$inferSelect
+
+// ── Google Business reviews (synced from the clinic's GBP via Zernio) ─────────
+// REAL reviews patients left on Google, pulled through the Zernio GBP connection
+// (cron + on-demand). Distinct from `review_request` (the first-party "patient
+// writes the review inside Dream Create" flow) — these we don't own the text of,
+// we just mirror + reply. The synced rating drives the public-site
+// `AggregateRating` JSON-LD (sourced ONLY from real Google data, never faked).
+// Idempotent upsert is keyed by (organizationId, externalReviewId).
+export const googleReview = pgTable(
+  'google_review',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // Google's stable review id (Zernio's `id`/`reviewId`/`name`).
+    externalReviewId: text('external_review_id').notNull(),
+    // The Zernio GBP account id the review was pulled from (audit + re-sync key).
+    accountId: text('account_id').notNull(),
+    reviewerName: text('reviewer_name'),
+    reviewerPhotoUrl: text('reviewer_photo_url'),
+    // Integer 1–5 (null when Google omitted a rating — rare comment-only state).
+    starRating: integer('star_rating'),
+    // Google allows rating-only reviews, so the comment is nullable.
+    comment: text('comment'),
+    reviewCreatedAt: timestamp('review_created_at', { withTimezone: true }),
+    reviewUpdatedAt: timestamp('review_updated_at', { withTimezone: true }),
+    // The clinic's owner reply (posted from the dashboard), null when none.
+    replyComment: text('reply_comment'),
+    replyUpdatedAt: timestamp('reply_updated_at', { withTimezone: true }),
+    // Best-effort link to a CRM patient by reviewer name — weak/optional, fine to
+    // leave null in v1 (a Google reviewer name rarely maps 1:1 to a patient row).
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    // 1 for the demo (Dream Dental) — demo reviews NEVER hit the network.
+    isDemo: integer('is_demo').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('google_review_org_external_idx').on(t.organizationId, t.externalReviewId)],
+)
+export type GoogleReviewRow = typeof googleReview.$inferSelect

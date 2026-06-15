@@ -12,6 +12,7 @@ import {
   type ReviewSite,
   type ReviewStatus,
 } from '@/lib/services/reviews'
+import { getGoogleReviewStats, hasGoogleBusinessConnection } from '@/lib/services/google-reviews'
 import ReviewConfigPanel from './review-config-panel'
 import EligibleList from './eligible-list'
 import ModuleHint from '@/components/onboarding/module-hint'
@@ -96,12 +97,14 @@ export default async function ReviewsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [config, stats, eligible, recent, featuredIds] = await Promise.all([
+  const [config, stats, eligible, recent, featuredIds, googleStats, googleConnected] = await Promise.all([
     getReviewConfig(ctx.organizationId),
     getReviewStats(ctx.organizationId),
     listEligiblePatients(ctx.organizationId, 25),
     listReviewRequests(ctx.organizationId, 30),
     listFeaturedTestimonialPatientIds(ctx.organizationId),
+    getGoogleReviewStats(ctx.organizationId),
+    hasGoogleBusinessConnection(ctx.organizationId),
   ])
 
   const configured = isReviewConfigComplete(config)
@@ -173,6 +176,31 @@ export default async function ReviewsPage() {
           tone={stats.eligibleCount > 0 ? 'warn' : undefined}
         />
       </div>
+
+      {/* ── Google reviews (real, synced via the GBP connection) ───── */}
+      {googleConnected && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+          <KpiStat
+            label="Google rating"
+            value={googleStats.averageRating != null ? `${googleStats.averageRating.toFixed(1)}★` : '—'}
+            sub={googleStats.count > 0 ? `Across ${googleStats.count} Google review${googleStats.count === 1 ? '' : 's'}` : 'No Google reviews yet'}
+            href="/reviews/received"
+          />
+          <KpiStat
+            label="Google reviews"
+            value={googleStats.count}
+            sub="Synced from your Google Business Profile"
+            href="/reviews/received"
+          />
+          <KpiStat
+            label="Need a reply"
+            value={googleStats.needsReply}
+            sub={googleStats.needsReply > 0 ? 'Reply from Reviews received' : 'All caught up'}
+            tone={googleStats.needsReply > 0 ? 'warn' : undefined}
+            href={googleStats.needsReply > 0 ? '/reviews/received' : undefined}
+          />
+        </div>
+      )}
 
       {/* ── Platform mix ──────────────────────────────────────────── */}
       {stats.completed30d > 0 && (
