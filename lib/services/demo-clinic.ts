@@ -8,6 +8,7 @@ import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-
 import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { seedDemoPms } from '@/lib/services/pms'
+import { seedDemoZernio } from '@/lib/services/zernio'
 import {
   DEFAULT_FAQ_ITEMS,
   type ClinicStat,
@@ -1925,6 +1926,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // sync/write-back history once (idempotent — no-op if already connected).
     await seedDemoPms(existing.id)
 
+    // Zernio (Google Business) self-heal: seed a connected synthetic GBP so the
+    // Integrations Google Business card demos the connected state. Demo never
+    // hits the network. Idempotent.
+    await seedDemoZernio(existing.id, existing.name)
+
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
     // /shop/payments page, and the commerce timeline events on legacy demos).
@@ -2508,6 +2514,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // the connection + entity maps + sync history + write-back log (every state)
   // so /integrations showcases two-way sync without a live PMS.
   await seedDemoPms(orgId)
+
+  // Zernio (Google Business): seed a connected synthetic GBP so the Integrations
+  // Google Business card showcases the connected state. Never hits the network.
+  await seedDemoZernio(orgId)
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)

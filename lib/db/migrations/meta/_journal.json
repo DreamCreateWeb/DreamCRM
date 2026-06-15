@@ -442,6 +442,13 @@
       "when": 1781341000000,
       "tag": "0062_lonely_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1781492842020,
+      "tag": "0063_supreme_silverclaw",
+      "breakpoints": true
     }
   ]
 }
