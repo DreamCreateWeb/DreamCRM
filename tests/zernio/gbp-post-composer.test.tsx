@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-const createAction = vi.fn(async () => ({ ok: true, status: 'published' }))
+const createAction = vi.fn(async (..._a: unknown[]) => ({ ok: true, status: 'published' }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 vi.mock('@/app/(default)/google-posts/actions', () => ({
-  createGbpPostAction: (...a: unknown[]) => createAction(...(a as [])),
+  createGbpPostAction: (...a: unknown[]) => createAction(...a),
   deleteGbpPostAction: vi.fn(async () => ({ ok: true })),
 }))
 // The composer imports the XHR upload helper at module load.

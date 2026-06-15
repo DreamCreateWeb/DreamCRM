@@ -180,7 +180,7 @@ describe('listPosts', () => {
 
 describe('deletePost', () => {
   it('DELETEs the encoded post path', async () => {
-    const f = vi.fn(async () => ({ ok: true, status: 204, statusText: 'No Content', json: async () => ({}), text: async () => '' }))
+    const f = vi.fn(async (..._a: unknown[]) => ({ ok: true, status: 204, statusText: 'No Content', json: async () => ({}), text: async () => '' }))
     vi.stubGlobal('fetch', f)
     await deletePost('post id/1')
     const [url, init] = f.mock.calls[0] as [string, RequestInit]
