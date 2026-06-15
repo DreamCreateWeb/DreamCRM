@@ -2,7 +2,13 @@ import 'server-only'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
-import { PLANS, getPlanByPriceId, type BillingInterval, type PlanId } from '@/lib/stripe-config'
+import {
+  PLANS,
+  getPlanByPriceId,
+  isSocialAddonPriceId,
+  type BillingInterval,
+  type PlanId,
+} from '@/lib/stripe-config'
 
 function publicUrl(path: string) {
   const base =
@@ -249,10 +255,38 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
     return
   }
 
-  const item = sub.items.data[0]
-  const priceId = item?.price?.id
+  // Resolve the PLAN tier from the first NON-add-on item. The add-on is a
+  // separate subscription item (its price isn't a plan price), so scanning for
+  // the plan price among all items keeps the tier correct even when the add-on
+  // sits at items.data[0].
+  const planItem =
+    sub.items.data.find((it) => getPlanByPriceId(it.price?.id ?? '')) ?? sub.items.data[0]
+  const priceId = planItem?.price?.id
   const planMatch = priceId ? getPlanByPriceId(priceId) : undefined
   const planTier = resolvePlanTier(sub.status, planMatch)
+
+  // Social add-on (Zernio social module): the flag is ON when any subscription
+  // item is one of the add-on prices AND the subscription is live. Detecting it
+  // here means the webhook keeps `social_addon` in sync on every event — buy,
+  // cancel, AND plan change — idempotently (writing the same value on retries).
+  // When the subscription isn't active/trialing we treat the add-on as off
+  // (a canceled/unpaid sub grants nothing).
+  const subLive = sub.status === 'active' || sub.status === 'trialing'
+  const hasAddonItem = sub.items.data.some((it) => isSocialAddonPriceId(it.price?.id))
+  const socialAddonActive = subLive && hasAddonItem
+
+  // Only stamp socialAddonSince when flipping ON from OFF; otherwise leave it.
+  const [prev] = await db
+    .select({ socialAddon: schema.clinicProfile.socialAddon })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const wasOn = prev?.socialAddon === 1
+  const sinceSet = socialAddonActive
+    ? wasOn
+      ? {} // already on — keep the original since timestamp
+      : { socialAddonSince: new Date() }
+    : { socialAddonSince: null }
 
   await db
     .update(schema.clinicProfile)
@@ -261,6 +295,8 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
       stripeSubscriptionId: sub.id,
       subscriptionStatus: sub.status,
       planTier,
+      socialAddon: socialAddonActive ? 1 : 0,
+      ...sinceSet,
       // Managed-clinic provisioning: once the reserved subscription is live,
       // the "finish billing setup" state is over.
       ...(sub.status === 'active' || sub.status === 'trialing'
@@ -289,6 +325,9 @@ export async function clearSubscription(subscriptionId: string) {
       stripeSubscriptionId: null,
       subscriptionStatus: 'canceled',
       planTier: 'basic',
+      // A canceled subscription grants nothing — drop the social add-on too.
+      socialAddon: 0,
+      socialAddonSince: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, profile.organizationId))

@@ -71,6 +71,49 @@ export async function openBillingPortal() {
   redirect(portal.url)
 }
 
+// ── Social-connection add-on (Zernio social module) ──────────────────────────
+
+/**
+ * Buy the social-connection add-on (a Stripe subscription item) for this clinic.
+ * Owner/admin + clinic only. Returns the `{ ok | error }` convention so the
+ * Settings card can surface the underlying guard message inline (Basic →
+ * "Upgrade to Pro", comped → "managed billing", env-unset → "coming soon").
+ */
+export async function buySocialAddonAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinics can buy add-ons.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can change billing.' }
+  }
+  try {
+    const { addSocialAddon } = await import('@/lib/services/social-billing')
+    await addSocialAddon(ctx.organizationId)
+    revalidatePath('/settings/billing')
+    revalidatePath('/settings/plans')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
+/** Cancel the social-connection add-on subscription item. Owner/admin + clinic. */
+export async function cancelSocialAddonAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinics can change add-ons.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can change billing.' }
+  }
+  try {
+    const { removeSocialAddon } = await import('@/lib/services/social-billing')
+    await removeSocialAddon(ctx.organizationId)
+    revalidatePath('/settings/billing')
+    revalidatePath('/settings/plans')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
 export async function saveNotificationPrefs(input: unknown) {
   const user = await requireUser()
   const row = await upsertNotificationPrefs(user.id, NotificationPrefsInput.parse(input))

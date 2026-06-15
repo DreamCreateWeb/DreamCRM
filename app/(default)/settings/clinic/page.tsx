@@ -13,7 +13,6 @@ import { requireTenant } from '@/lib/auth/context'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { listClinicGmailAccounts } from '@/lib/services/clinic-sender'
 import { getGbpSyncState } from '@/lib/services/gbp-sync'
-import { planAllows } from '@/lib/modules'
 import SettingsSidebar from '../settings-sidebar'
 import ClinicProfilePanel from './clinic-profile-panel'
 import CustomDomainCard from './custom-domain-card'
@@ -41,11 +40,11 @@ export default async function ClinicSettings() {
   // Connected Google mailboxes the clinic can send patient email from (Tier 2).
   const gmailAccounts = await listClinicGmailAccounts(ctx.organizationId)
 
-  // Google Business Profile sync state (premium-gated, same tier as the
-  // Integrations module the connection lives in). Only load it when the clinic
-  // is on a plan that can use it — below-tier clinics don't see the card.
-  const gbpEligible = planAllows(ctx.planTier, 'premium')
-  const gbpState = gbpEligible ? await getGbpSyncState(ctx.organizationId) : null
+  // Google Business Profile sync state. GBP is free on every plan tier (Basic
+  // included; see lib/types/social-entitlements.ts), so the "Sync from Google"
+  // card loads for all clinics. The card itself renders a connect-prompt when no
+  // GBP is linked, so it's safe to always load.
+  const gbpState = await getGbpSyncState(ctx.organizationId)
 
   const siteUrl = profile?.websiteDomain
     ? `https://${profile.websiteDomain}`

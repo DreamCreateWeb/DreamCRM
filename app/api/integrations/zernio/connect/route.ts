@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantContext } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import { zernioConfigured } from '@/lib/zernio'
 import { getGoogleBusinessConnectUrl } from '@/lib/services/zernio'
 import { ZERNIO_PLATFORMS, type ZernioPlatform } from '@/lib/types/zernio'
@@ -8,8 +7,10 @@ import { ZERNIO_PLATFORMS, type ZernioPlatform } from '@/lib/types/zernio'
 /**
  * Start the Zernio hosted-OAuth connect flow. Authed dashboard route (the
  * session cookie gets it past middleware; we re-gate here): clinic tenant +
- * owner/admin + Premium plan. Resolves the org's Zernio profile, asks Zernio
- * for the Google consent `authUrl`, and 302s the user there.
+ * owner/admin — on ANY plan. Google Business is free + separate on every tier
+ * (Basic included; see lib/types/social-entitlements.ts), so there is NO plan
+ * gate here. Resolves the org's Zernio profile, asks Zernio for the Google
+ * consent `authUrl`, and 302s the user there.
  *
  * The UI opens this in a NEW TAB and polls on focus, so even if Zernio returns
  * the user to its own dashboard (the default when no redirect_url is honored),
@@ -34,9 +35,7 @@ export async function GET(req: NextRequest) {
   if (ctx.role === 'patient' || ctx.role === 'member') {
     return NextResponse.json({ error: 'Only an owner or admin can connect Google Business.' }, { status: 403 })
   }
-  if (!planAllows(ctx.planTier, 'premium')) {
-    return NextResponse.json({ error: 'Integrations are on the Premium plan.' }, { status: 403 })
-  }
+  // NO plan gate — Google Business is free on every tier (Basic included).
 
   // Only Google Business is connectable in the foundation. Reject anything else.
   const requested = (req.nextUrl.searchParams.get('platform') ?? 'googlebusiness') as ZernioPlatform

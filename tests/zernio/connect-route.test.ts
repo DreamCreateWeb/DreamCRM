@@ -67,10 +67,19 @@ describe('GET /api/integrations/zernio/connect', () => {
     expect(res.status).toBe(403)
   })
 
-  it('403 for a below-premium clinic', async () => {
-    ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'pro', organizationId: 'o', organizationName: 'C' }
+  it('allows a Basic-plan clinic owner (GBP is free on every tier)', async () => {
+    ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'basic', organizationId: 'org_1', organizationName: 'C' }
+    svc.getGoogleBusinessConnectUrl.mockResolvedValue('https://accounts.google.com/x')
     const res = await connectGET(req('/api/integrations/zernio/connect'))
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(307)
+    expect(svc.getGoogleBusinessConnectUrl).toHaveBeenCalled()
+  })
+
+  it('allows a Pro-plan clinic owner', async () => {
+    ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'pro', organizationId: 'org_1', organizationName: 'C' }
+    svc.getGoogleBusinessConnectUrl.mockResolvedValue('https://accounts.google.com/y')
+    const res = await connectGET(req('/api/integrations/zernio/connect'))
+    expect(res.status).toBe(307)
   })
 
   it('400 for a non-google platform', async () => {

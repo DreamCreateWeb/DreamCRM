@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { requireTenant, requirePlan } from '@/lib/auth/context'
+import { requireTenant } from '@/lib/auth/context'
+import { planAllows } from '@/lib/modules'
 import { getIntegrationsDashboard, openDentalConfigured } from '@/lib/services/pms'
 import { getIntegrationsHealth } from '@/lib/services/pms/health'
 import { getZernioConnection } from '@/lib/services/zernio'
@@ -113,15 +114,28 @@ export default async function IntegrationsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
-  await requirePlan(ctx, 'premium', 'integrations')
+  // The PMS integration (Open Dental) is Premium-tier. Google Business (Zernio),
+  // however, is FREE on every plan tier (Basic included) — so we no longer
+  // redirect below-Premium clinics away from this page; we render the GBP card
+  // for them and gate ONLY the PMS body behind the Premium plan.
+  const pmsEligible = planAllows(ctx.planTier, 'premium')
 
+  // GBP loads for everyone; the PMS dashboard + health only for Premium (skip
+  // the work + the demo-PMS gating for Basic/Pro).
   const [dashboard, configured, health, zernio] = await Promise.all([
-    getIntegrationsDashboard(ctx.organizationId),
+    pmsEligible ? getIntegrationsDashboard(ctx.organizationId) : Promise.resolve(null),
     Promise.resolve(openDentalConfigured()),
-    getIntegrationsHealth(ctx.organizationId),
+    pmsEligible ? getIntegrationsHealth(ctx.organizationId) : Promise.resolve(null),
     getZernioConnection(ctx.organizationId),
   ])
-  const { connection, counts, totals, pendingWrites, recentRuns, recentWrites } = dashboard
+  const { connection, counts, totals, pendingWrites, recentRuns, recentWrites } = dashboard ?? {
+    connection: null,
+    counts: { patients: 0, appointments: 0, providers: 0 },
+    totals: { patients: 0, appointments: 0 },
+    pendingWrites: 0,
+    recentRuns: [],
+    recentWrites: [],
+  }
   const connected = connection?.status === 'connected'
   const isDemo = connection?.provider === 'demo'
   const meta = (connection?.meta as Record<string, unknown> | undefined) ?? {}
@@ -142,35 +156,55 @@ export default async function IntegrationsPage() {
         subtitle="DreamCRM wraps the practice-management system you already run — it doesn't replace it. We sync the relationship layer (patients, appointments, providers, balances) through your PMS's official API, both directions, and never touch your database directly."
         legend={<EncodingLegend pills={PILL_LEGEND} />}
         actions={
-          connected ? (
-            <SyncNowButton />
-          ) : (
-            <ActionButton variant="primary" breath size="sm" href="#connect-open-dental">
-              Connect Open Dental
-            </ActionButton>
-          )
+          pmsEligible ? (
+            connected ? (
+              <SyncNowButton />
+            ) : (
+              <ActionButton variant="primary" breath size="sm" href="#connect-open-dental">
+                Connect Open Dental
+              </ActionButton>
+            )
+          ) : null
         }
       />
 
-      {/* ── Trust banner ──────────────────────────────────────────── */}
-      <div className="mb-6 bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/30 rounded-[var(--r-lg)] p-4 flex items-start gap-3">
-        <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-          <ShieldIcon />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Sanctioned &amp; audit-clean</p>
-          <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">
-            Every read and write goes through Open Dental&apos;s official API, so each change is recorded in your Open
-            Dental Audit Trail. We never write directly to your database — the practice Open Dental itself warns against.
-            You can see every record we created in your PMS in the write-back log below.
-          </p>
-        </div>
-      </div>
-
-      {/* ── Google Business Profile (Zernio) — independent of the PMS ─── */}
+      {/* ── Google Business Profile (Zernio) — free on every plan tier ── */}
       <GoogleBusinessCard connection={zernio} configured={zernioConfigured()} />
 
-      {connected ? (
+      {pmsEligible && (
+        /* ── Trust banner (PMS-specific) ─────────────────────────── */
+        <div className="mb-6 bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/30 rounded-[var(--r-lg)] p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+            <ShieldIcon />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Sanctioned &amp; audit-clean</p>
+            <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">
+              Every read and write goes through Open Dental&apos;s official API, so each change is recorded in your Open
+              Dental Audit Trail. We never write directly to your database — the practice Open Dental itself warns against.
+              You can see every record we created in your PMS in the write-back log below.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!pmsEligible ? (
+        /* Below-Premium clinics see the GBP card above + a calm upgrade prompt
+           for the PMS integration (instead of being redirected off the page). */
+        <section className="mb-8">
+          <div className="v2-well p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Connect your practice-management system</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">
+                Two-way Open Dental sync — patients, appointments, providers, and balances — is on the Premium plan.
+              </p>
+            </div>
+            <ActionButton variant="primary" size="sm" href="/settings/plans?upgrade=integrations">
+              Upgrade to Premium
+            </ActionButton>
+          </div>
+        </section>
+      ) : connected ? (
         <>
           {/* ── First-import progress (renders only mid-import) ────── */}
           {importInProgress && (
@@ -400,18 +434,20 @@ export default async function IntegrationsPage() {
         </>
       )}
 
-      {/* ── Coming next ───────────────────────────────────────────── */}
-      <section>
-        <div className="v2-well p-5">
-          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
-          <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Near-real-time sync via Open Dental webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
-            <li>· Dentrix Ascend (cloud REST API — pending Henry Schein One partner approval)</li>
-            <li>· Eaglesoft / Dentrix desktop / Curve via a signed local connector per office</li>
-            <li>· Configurable field mapping (today the Open Dental mapping is fixed + shown in full above)</li>
-          </ul>
-        </div>
-      </section>
+      {/* ── Coming next (PMS roadmap) ─────────────────────────────── */}
+      {pmsEligible && (
+        <section>
+          <div className="v2-well p-5">
+            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
+            <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+              <li>· Near-real-time sync via Open Dental webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
+              <li>· Dentrix Ascend (cloud REST API — pending Henry Schein One partner approval)</li>
+              <li>· Eaglesoft / Dentrix desktop / Curve via a signed local connector per office</li>
+              <li>· Configurable field mapping (today the Open Dental mapping is fixed + shown in full above)</li>
+            </ul>
+          </div>
+        </section>
+      )}
     </div>
   )
 }

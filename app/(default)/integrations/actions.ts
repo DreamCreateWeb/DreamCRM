@@ -103,6 +103,21 @@ export async function setAutoSyncAction(enabled: boolean) {
 
 // ── Zernio (Google Business) ────────────────────────────────────────────────
 
+/**
+ * Google Business gate — clinic tenant + owner/admin, on ANY plan. GBP is free
+ * + separate from the Premium PMS integration on every tier (Basic included;
+ * see lib/types/social-entitlements.ts), so it deliberately does NOT use the
+ * Premium-gated `ensureClinicAdmin` above.
+ */
+function ensureClinicGbpAdmin(ctx: { tenantType: string; role: string }) {
+  if (ctx.tenantType !== 'clinic') {
+    throw new Error('Google Business is only available for clinic tenants.')
+  }
+  if (ctx.role === 'patient' || ctx.role === 'member') {
+    throw new Error('Only an owner or admin can manage Google Business.')
+  }
+}
+
 export interface ZernioSyncResult {
   ok: boolean
   error?: string
@@ -116,9 +131,9 @@ export interface ZernioSyncResult {
  * short-circuits on a demo connection). Best-effort — surfaces any error.
  */
 export async function syncZernioAccountsAction(): Promise<ZernioSyncResult> {
-  const ctx = await requireTenant()
-  ensureClinicAdmin(ctx)
   try {
+    const ctx = await requireTenant()
+    ensureClinicGbpAdmin(ctx)
     const { syncConnectedAccounts } = await import('@/lib/services/zernio')
     await syncConnectedAccounts(ctx.organizationId)
     revalidatePath('/integrations')
@@ -131,9 +146,9 @@ export async function syncZernioAccountsAction(): Promise<ZernioSyncResult> {
 /** Disconnect Google Business for this clinic (best-effort at Zernio, always
  *  drops our rows). */
 export async function disconnectZernioGoogleAction(): Promise<ZernioSyncResult> {
-  const ctx = await requireTenant()
-  ensureClinicAdmin(ctx)
   try {
+    const ctx = await requireTenant()
+    ensureClinicGbpAdmin(ctx)
     const { disconnectPlatform } = await import('@/lib/services/zernio')
     await disconnectPlatform(ctx.organizationId, 'googlebusiness')
     revalidatePath('/integrations')
