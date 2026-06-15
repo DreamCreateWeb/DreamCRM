@@ -40,12 +40,28 @@ vi.mock('@/lib/services/gsc', () => ({
     scopeLabel: '/site/acme',
   })),
 }))
+// GBP local metrics is its own service (mocked so it doesn't touch the db queue
+// the chain above shifts through). Default: a connected snapshot.
+const gbpMetricsMock = vi.fn(async () => ({
+  connected: true,
+  impressions: 3000,
+  calls: 25,
+  directions: 30,
+  websiteClicks: 80,
+  bookings: 8,
+  topKeywords: [],
+  windowDays: 30,
+}))
+vi.mock('@/lib/services/gbp-metrics', () => ({
+  getGbpLocalMetrics: (...a: unknown[]) => gbpMetricsMock(...(a as [])),
+}))
 
 import { getClinicAnalytics, weeklyTrend } from '@/lib/services/analytics'
 
 beforeEach(() => {
   q.queue.length = 0
   getReviewStatsMock.mockClear()
+  gbpMetricsMock.mockClear()
 })
 
 /** Seed the DB query queue with a minimal happy-path so getClinicAnalytics
@@ -110,6 +126,9 @@ describe('getClinicAnalytics', () => {
     expect(a.acquisition.newPatientsPrev).toBe(1)
     expect(a.acquisition.sourceMix[0]).toEqual({ source: 'booking_widget', count: 2 })
     expect(a.acquisition.websiteFunnel).toEqual({ clicks: 120, leads: 3, contacted: 2, converted: 1 })
+    // GBP local actions surface (sourced from the mocked getGbpLocalMetrics).
+    expect(a.acquisition.gbp).toEqual({ connected: true, impressions: 3000, calls: 25, directions: 30, bookings: 8 })
+    expect(gbpMetricsMock).toHaveBeenCalledWith('org_1', { days: 30 })
 
     // Schedule rates
     expect(a.schedule.total).toBe(10)

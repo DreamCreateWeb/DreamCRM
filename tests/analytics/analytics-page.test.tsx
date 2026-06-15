@@ -66,6 +66,7 @@ function baseAnalytics(over: Partial<ClinicAnalytics> = {}): ClinicAnalytics {
       trend: [{ label: 'May 1', count: 4 }],
       sourceMix: [{ source: 'booking_widget', count: 4 }],
       websiteFunnel: { clicks: 100, leads: 5, contacted: 3, converted: 1 },
+      gbp: { connected: true, impressions: 3000, calls: 25, directions: 30, bookings: 8 },
     },
     schedule: {
       total: 40,

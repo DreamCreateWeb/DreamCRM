@@ -11,6 +11,7 @@ import { seedDemoPms } from '@/lib/services/pms'
 import { seedDemoZernio } from '@/lib/services/zernio'
 import { seedDemoGoogleReviews } from '@/lib/services/google-reviews'
 import { seedDemoGbpSync } from '@/lib/services/gbp-sync'
+import { seedDemoGbpMetrics } from '@/lib/services/gbp-metrics'
 import {
   DEFAULT_FAQ_ITEMS,
   type ClinicStat,
@@ -1944,6 +1945,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // fills defaults). Never networks.
     await seedDemoGbpSync(existing.id)
 
+    // Google Business local metrics self-heal: the SEO GBP-metrics card + the
+    // Analytics "Google Business — local actions" tile read demoMetrics()
+    // whenever the connection is isDemo (seeded above). No row to persist — this
+    // asserts the prerequisite + documents where the numbers come from.
+    await seedDemoGbpMetrics(existing.id)
+
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
     // /shop/payments page, and the commerce timeline events on legacy demos).
@@ -2542,6 +2549,13 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Settings "Sync from Google" card showcases the populated provenance + the
   // import-from-Google gallery. Never networks (applies synthetic demo data).
   await seedDemoGbpSync(orgId)
+
+  // Google Business local metrics: the SEO GBP-metrics card + the Analytics
+  // "Google Business — local actions" tile read demoMetrics() (synthetic
+  // impressions/calls/directions/bookings + dental top keywords) whenever the
+  // connection is isDemo (seeded by seedDemoZernio above). Nothing to persist —
+  // this documents the metrics demo path + asserts the connection prerequisite.
+  await seedDemoGbpMetrics(orgId)
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)

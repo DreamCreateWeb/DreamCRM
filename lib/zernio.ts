@@ -555,3 +555,228 @@ export async function listGoogleBusinessMedia(opts: {
   const rawList = Array.isArray(data) ? data : (data.mediaItems ?? data.media ?? data.data ?? [])
   return rawList.map(normalizeMediaItem).filter((p): p is GooglePhoto => p !== null)
 }
+
+// ── Google Business performance (local metrics) ───────────────────────────────
+//
+// Confirmed against the Zernio docs (llms-full.txt + the OpenAPI probe,
+// 2026-06-15):
+//   GET /v1/analytics/googlebusiness/performance
+//     ?accountId=…[&metrics=CSV][&startDate=YYYY-MM-DD][&endDate=YYYY-MM-DD]
+//       → daily performance for the connected GBP location. Defaults: startDate
+//         = 30 days ago, endDate = today. Data lags 2-3 days; max 18 months back.
+//       Response: { success, accountId, platform, dateRange, dataDelay,
+//         metrics: { <METRIC_KEY>: { total, values:[…] } } } — each metric
+//         carries a pre-summed `total` PLUS a daily series.
+//   GET /v1/analytics/googlebusiness/search-keywords
+//     ?accountId=…[&startMonth=YYYY-MM][&endMonth=YYYY-MM]
+//       → search terms that triggered impressions, aggregated MONTHLY. Defaults:
+//         startMonth = 3 months ago, endMonth = current. (Google hides terms
+//         below a minimum-impression threshold.) Response: { …, keywords:
+//         [{ keyword, impressions }] }.
+//
+// NOTE: the REST path is the flat `/analytics/googlebusiness/<resource>` form
+// (proven by the docs' curl examples), NOT the named doc-page slug
+// (`/analytics/get-google-business-performance`). We parse DEFENSIVELY: prefer
+// Zernio's pre-summed `total`, but ALSO sum `values` as a fallback when `total`
+// is missing, and tolerate a missing metric key (→ 0). Every field is optional
+// so a docs/version drift can't strand us. (402 = the Analytics add-on isn't on
+// the account — surfaced as the thrown status+body; the service layer catches it
+// and stays best-effort, so the page still renders.)
+
+/** The GBP performance metric keys we read. Google's Business Profile
+ *  Performance API names; impressions are split desktop/mobile × Maps/Search,
+ *  which we sum into one "impressions" total. */
+export const GBP_PERFORMANCE_METRICS = [
+  'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
+  'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
+  'BUSINESS_IMPRESSIONS_MOBILE_MAPS',
+  'BUSINESS_IMPRESSIONS_MOBILE_SEARCH',
+  'CALL_CLICKS',
+  'WEBSITE_CLICKS',
+  'BUSINESS_DIRECTION_REQUESTS',
+  'BUSINESS_BOOKINGS',
+  'BUSINESS_CONVERSATIONS',
+] as const
+
+/** The four impression sub-series we sum into a single impressions figure. */
+const GBP_IMPRESSION_KEYS = [
+  'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
+  'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
+  'BUSINESS_IMPRESSIONS_MOBILE_MAPS',
+  'BUSINESS_IMPRESSIONS_MOBILE_SEARCH',
+] as const
+
+/** One metric entry as Zernio returns it: a pre-summed `total` + a daily series.
+ *  Each daily value may be `{ date, value }` or a bare number — both tolerated.
+ *  Every field optional so parsing never throws. */
+interface GbpRawMetric {
+  total?: number | string | null
+  values?: Array<{ date?: string; value?: number | string | null } | number | string | null> | null
+}
+
+/** The performance payload — `metrics` keyed by metric name. Some integrations
+ *  wrap it under `{ data: {...} }`; the parser reaches through either. */
+interface GbpRawPerformance {
+  metrics?: Record<string, GbpRawMetric> | null
+  data?: { metrics?: Record<string, GbpRawMetric> | null } | null
+}
+
+/** A normalized GBP performance snapshot — totals summed over the window. The
+ *  four impression sub-series are folded into one `impressions`. */
+export interface GoogleBusinessPerformance {
+  /** Maps + Search, desktop + mobile, summed. */
+  impressions: number
+  /** Tap-to-call clicks ("Call" button on the listing). */
+  calls: number
+  /** Direction / route requests. */
+  directions: number
+  /** Clicks through to the clinic's website. */
+  websiteClicks: number
+  /** "Book" action completions on the listing. */
+  bookings: number
+  /** Messaging conversations started from the listing. */
+  conversations: number
+}
+
+/** Coerce a number | numeric-string into a finite non-negative integer total,
+ *  or null when unreadable. (GBP counts are whole; we round defensively.) */
+function toFiniteCount(raw: unknown): number | null {
+  if (raw == null) return null
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw.trim()) : NaN
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.round(n)
+}
+
+/**
+ * Read a single metric's total over the window. Prefers Zernio's pre-summed
+ * `total`; falls back to summing the daily `values` (each `{date,value}` or a
+ * bare number); returns 0 when the metric key is absent or unreadable.
+ */
+function readMetricTotal(metrics: Record<string, GbpRawMetric>, key: string): number {
+  const m = metrics[key]
+  if (!m) return 0
+  const total = toFiniteCount(m.total)
+  if (total != null) return total
+  // Fall back to summing the daily series.
+  if (!Array.isArray(m.values)) return 0
+  let sum = 0
+  for (const v of m.values) {
+    if (v == null) continue
+    const n = typeof v === 'object' ? toFiniteCount(v.value) : toFiniteCount(v)
+    if (n != null) sum += n
+  }
+  return sum
+}
+
+function unwrapPerformanceMetrics(data: GbpRawPerformance): Record<string, GbpRawMetric> {
+  return data.data?.metrics ?? data.metrics ?? {}
+}
+
+/**
+ * `GET /v1/analytics/googlebusiness/performance?accountId=…&startDate=…&endDate=…`
+ * — the connected GBP location's local metrics over the window, normalized into
+ * window totals (impression sub-series folded into one figure). Pass either an
+ * explicit `{ startDate, endDate }` (YYYY-MM-DD) or a `{ days }` count (the
+ * client computes the date range, ending today). Throws on a non-2xx (the
+ * service layer catches and stays best-effort).
+ */
+export async function getGoogleBusinessPerformance(
+  accountId: string,
+  range: { startDate: string; endDate: string } | { days: number },
+): Promise<GoogleBusinessPerformance> {
+  const { startDate, endDate } = 'days' in range ? rangeFromDays(range.days) : range
+  const qs = new URLSearchParams({
+    accountId,
+    startDate,
+    endDate,
+    metrics: GBP_PERFORMANCE_METRICS.join(','),
+  })
+  const data = await zernioFetch<GbpRawPerformance>(`/analytics/googlebusiness/performance?${qs.toString()}`)
+  const metrics = unwrapPerformanceMetrics(data)
+  let impressions = 0
+  for (const k of GBP_IMPRESSION_KEYS) impressions += readMetricTotal(metrics, k)
+  return {
+    impressions,
+    calls: readMetricTotal(metrics, 'CALL_CLICKS'),
+    directions: readMetricTotal(metrics, 'BUSINESS_DIRECTION_REQUESTS'),
+    websiteClicks: readMetricTotal(metrics, 'WEBSITE_CLICKS'),
+    bookings: readMetricTotal(metrics, 'BUSINESS_BOOKINGS'),
+    conversations: readMetricTotal(metrics, 'BUSINESS_CONVERSATIONS'),
+  }
+}
+
+/** A normalized top-search-keyword entry. */
+export interface GoogleBusinessKeyword {
+  term: string
+  /** Impressions the term drove over the window (summed across months). */
+  count: number
+}
+
+/** Raw keyword entry — `keyword` + `impressions` per the docs; we also tolerate
+ *  `searchKeyword` / `value` / `impressionsValue` aliases. Every field optional. */
+interface GbpRawKeyword {
+  keyword?: string | null
+  searchKeyword?: string | null
+  impressions?: number | string | null
+  value?: number | string | null
+  impressionsValue?: number | string | null
+}
+
+interface GbpRawKeywords {
+  keywords?: GbpRawKeyword[] | null
+  data?: { keywords?: GbpRawKeyword[] | null } | null
+}
+
+/**
+ * `GET /v1/analytics/googlebusiness/search-keywords?accountId=…&startMonth=…&endMonth=…`
+ * — the search terms that triggered impressions for the location, aggregated
+ * monthly by Google. Pass either explicit `{ startMonth, endMonth }` (YYYY-MM)
+ * or a `{ days }` count (mapped to a covering month span). Returns the merged,
+ * impression-sorted list, capped to `limit` (default 8). Throws on a non-2xx.
+ */
+export async function getGoogleBusinessSearchKeywords(
+  accountId: string,
+  range: { startMonth: string; endMonth: string } | { days: number },
+  limit = 8,
+): Promise<GoogleBusinessKeyword[]> {
+  const { startMonth, endMonth } = 'days' in range ? monthRangeFromDays(range.days) : range
+  const qs = new URLSearchParams({ accountId, startMonth, endMonth })
+  const data = await zernioFetch<GbpRawKeywords>(`/analytics/googlebusiness/search-keywords?${qs.toString()}`)
+  const rawList = data.data?.keywords ?? data.keywords ?? []
+  // Merge by term (a term can appear in multiple monthly buckets), summing impressions.
+  const merged = new Map<string, number>()
+  for (const k of rawList) {
+    const term = (k.keyword ?? k.searchKeyword ?? '').trim()
+    if (!term) continue
+    const count = toFiniteCount(k.impressions ?? k.value ?? k.impressionsValue) ?? 0
+    merged.set(term, (merged.get(term) ?? 0) + count)
+  }
+  return Array.from(merged.entries())
+    .map(([term, count]) => ({ term, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, Math.max(0, limit))
+}
+
+/** Compute a `{startDate,endDate}` (YYYY-MM-DD) window ending today, `days` wide. */
+function rangeFromDays(days: number): { startDate: string; endDate: string } {
+  const n = Number.isFinite(days) && days > 0 ? Math.floor(days) : 30
+  const end = new Date()
+  const start = new Date(end.getTime() - n * 24 * 60 * 60 * 1000)
+  return { startDate: ymd(start), endDate: ymd(end) }
+}
+
+/** Map a `days` window to a covering month span (keywords are monthly-only). A
+ *  30-day window maps to the last ~1-2 calendar months; 90 days to ~3-4. */
+function monthRangeFromDays(days: number): { startMonth: string; endMonth: string } {
+  const n = Number.isFinite(days) && days > 0 ? Math.floor(days) : 30
+  const end = new Date()
+  const start = new Date(end.getTime() - n * 24 * 60 * 60 * 1000)
+  return { startMonth: ym(start), endMonth: ym(end) }
+}
+
+function ymd(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+function ym(d: Date): string {
+  return d.toISOString().slice(0, 7)
+}

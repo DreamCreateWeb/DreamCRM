@@ -253,6 +253,24 @@ export async function getZernioConnection(orgId: string): Promise<ZernioConnecti
   }
 }
 
+/**
+ * Resolve the org's connected Google Business account: the Zernio accountId +
+ * whether the connection is the demo (no-network) one, or `null` when no GBP is
+ * connected. The single shared resolver for every GBP-data consumer — the
+ * auto-resolved replacement for the hand-pasted `clinic_review_config.
+ * googlePlaceId`. Used by `google-reviews.ts`, `gbp-sync.ts`, and
+ * `gbp-metrics.ts` (which previously each carried an identical private copy).
+ */
+export async function resolveGbpAccount(
+  orgId: string,
+): Promise<{ accountId: string; isDemo: boolean } | null> {
+  const conn = await getZernioConnection(orgId)
+  if (conn.status !== 'connected') return null
+  const account = conn.googleBusinessAccounts[0]
+  if (!account) return null
+  return { accountId: account.id, isDemo: conn.isDemo }
+}
+
 // ── Disconnect ──────────────────────────────────────────────────────────────
 
 /**

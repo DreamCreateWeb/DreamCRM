@@ -59,7 +59,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 // The service also imports the connection resolver + client; neither is used by
 // seedDemoGoogleReviews, but the module evaluates the imports.
-vi.mock('@/lib/services/zernio', () => ({ getZernioConnection: vi.fn() }))
+vi.mock('@/lib/services/zernio', () => ({ getZernioConnection: vi.fn(), resolveGbpAccount: vi.fn() }))
 vi.mock('@/lib/zernio', () => ({
   listGoogleReviews: vi.fn(),
   replyToGoogleReview: vi.fn(),

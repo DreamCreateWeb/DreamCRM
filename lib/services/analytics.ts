@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { getReviewStats } from '@/lib/services/reviews'
 import { listPatients } from '@/lib/services/patients'
 import { getClinicSeoPerformance } from '@/lib/services/gsc'
+import { getGbpLocalMetrics } from '@/lib/services/gbp-metrics'
 
 /**
  * Clinic Analytics. The honest split: a CRM can measure the *relationship,
@@ -36,6 +37,10 @@ export interface ClinicAnalytics {
     trend: TrendPoint[]
     sourceMix: { source: string; count: number }[]
     websiteFunnel: { clicks: number | null; leads: number; contacted: number; converted: number }
+    /** Google Business Profile local actions over the same window (null when no
+     *  GBP is connected — the UI then shows a connect prompt instead of a tile).
+     *  Pulled via the Zernio connection; demo-safe + best-effort. */
+    gbp: { connected: boolean; impressions: number; calls: number; directions: number; bookings: number } | null
   }
   schedule: {
     total: number
@@ -146,6 +151,21 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     gscClicks = null
   }
 
+  // Google Business local actions over the same window (calls/directions/
+  // bookings + impressions), via the Zernio GBP connection. Best-effort +
+  // demo-safe (never throws); null when no GBP is connected so the UI shows a
+  // connect prompt rather than a row of zeros.
+  const gbpMetrics = await getGbpLocalMetrics(organizationId, { days: windowDays })
+  const gbp = gbpMetrics.connected
+    ? {
+        connected: true,
+        impressions: gbpMetrics.impressions,
+        calls: gbpMetrics.calls,
+        directions: gbpMetrics.directions,
+        bookings: gbpMetrics.bookings,
+      }
+    : null
+
   // ── Schedule health (appointments with startTime in window) ─────────────
   const apptRows = await db
     .select({
@@ -233,6 +253,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
         .map(([source, c]) => ({ source, count: c }))
         .sort((a, b) => b.count - a.count),
       websiteFunnel: { clicks: gscClicks, leads: leadRows.length, contacted: leadsContacted, converted: leadsConverted },
+      gbp,
     },
     schedule: {
       total: apptRows.length,
