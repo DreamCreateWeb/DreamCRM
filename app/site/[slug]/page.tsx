@@ -9,6 +9,7 @@ import {
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getCompletedReviewCount } from '@/lib/services/reviews'
+import { getGoogleReviewStats } from '@/lib/services/google-reviews'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
@@ -69,13 +70,18 @@ export default async function ClinicSitePage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
-  const jsonLd = clinicJsonLd(data)
-  const [publishedPosts, reviewCount, membershipPlans, openJobs] = await Promise.all([
+  const [publishedPosts, reviewCount, membershipPlans, openJobs, googleReviewStats] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 3 }),
     getCompletedReviewCount(data.orgId),
     listActivePlans(data.orgId),
     getOpenJobs(data.orgId),
+    getGoogleReviewStats(data.orgId),
   ])
+  // Emit a legit AggregateRating ONLY from real synced Google reviews.
+  const jsonLd = clinicJsonLd(data, {
+    averageRating: googleReviewStats.averageRating,
+    count: googleReviewStats.count,
+  })
   const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
   const heroImageUrl = data.profile.heroImageUrl ?? null
 

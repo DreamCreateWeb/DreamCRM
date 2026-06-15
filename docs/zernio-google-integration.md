@@ -1,18 +1,70 @@
 # Zernio × Google Business integration — plan
 
-**Status: FOUNDATION SHIPPED (2026-06-15); Phase 1 features pending.** The
-connection architecture is built and live: the lazy client (`lib/zernio.ts`),
-client-safe types (`lib/types/zernio.ts`), the `zernio_connection` +
-`zernio_account` schema (migration **0063**), the connection service
-(`lib/services/zernio.ts`), the hosted-OAuth connect + callback routes
-(`app/api/integrations/zernio/{connect,callback}/route.ts`), and the
-**Google Business Profile card** on `/integrations` (connect / refresh /
-disconnect). Demo seeds a synthetic connected GBP (isDemo, no network). What's
-NOT built yet: review pull/reply + AggregateRating, hours/address/photos sync,
-GBP local metrics, posting, and the full social module — those are the next PRs
-per the phased roadmap below.
+**Status: FOUNDATION + REVIEWS/AGGREGATERATING SHIPPED (2026-06-15); rest of
+Phase 1 pending.** The connection architecture (foundation) and the first half
+of Phase 1's review work are live:
+- **Foundation:** the lazy client (`lib/zernio.ts`), client-safe types
+  (`lib/types/zernio.ts`), the `zernio_connection` + `zernio_account` schema
+  (migration **0063**), the connection service (`lib/services/zernio.ts`), the
+  hosted-OAuth connect + callback routes
+  (`app/api/integrations/zernio/{connect,callback}/route.ts`), and the
+  **Google Business Profile card** on `/integrations`. Demo seeds a synthetic
+  connected GBP (isDemo, no network).
+- **Reviews + JSON-LD (this PR):** ✅ **DONE.** Review client wrappers
+  (`listGoogleReviews` / `replyToGoogleReview` / `deleteGoogleReviewReply` in
+  `lib/zernio.ts`); the `google_review` table (migration **0064**, idempotent
+  upsert by `(organizationId, externalReviewId)`); the service
+  `lib/services/google-reviews.ts` (`syncGoogleReviews` — demo-safe + best-
+  effort + paginated; `listGoogleReviews`; `getGoogleReviewStats`;
+  `replyToGoogleReview` / `deleteGoogleReviewReply` — network + demo-local;
+  `syncAllGoogleReviews` for the cron); a **legit `AggregateRating`** in
+  `clinicJsonLd` sourced ONLY from real synced Google reviews (omitted at zero,
+  never fabricated); the **Reviews UI refactor** (a "From Google" section on
+  `/reviews/received` with reply / edit-reply / delete-reply + "Refresh from
+  Google" + a Connect-prompt empty state, plus Google rating/count/needs-reply
+  KPIs on `/reviews`); the cron route
+  `app/api/cron/sync-google-reviews/route.ts` (CRON_SECRET-gated, hourly);
+  demo seed `seedDemoGoogleReviews` (~6 synthetic reviews, varied ratings incl.
+  a 4★ + a rating-only review + replied/unreplied). The hand-pasted
+  `clinic_review_config.googlePlaceId` is superseded by the auto-resolved Zernio
+  GBP connection (the column stays as a deprecated fallback — not deleted).
+What's NOT built yet: hours/address/photos sync (with `*_source` flags), GBP
+local metrics into SEO/Analytics, posting, the full social module, and
+**real-time review ingest via Zernio webhooks** (`review.new` / `review.updated`
+events exist — that's the recommended NEXT review-side add) — those are the next
+PRs per the phased roadmap below.
 
-## Confirmed REST shapes (validated against the live OpenAPI spec, 2026-06-15)
+## Confirmed review REST shapes (validated against docs.zernio.com llms.txt + OpenAPI probe, 2026-06-15)
+- **`GET /v1/google-business/gmb-reviews`** — list a GBP account's reviews
+  ("ratings, comments, and owner replies; use nextPageToken for pagination").
+  Query params: **`accountId`** (the connected GBP account — required),
+  `locationId`, `pageSize`, `pageToken`. Review object fields we parse:
+  **`id`** (review id), **`starRating`** (numeric in Zernio's schema — but we
+  normalize DEFENSIVELY, also accepting Google's historical enum strings
+  `ONE`…`FIVE` and a webhook-style `rating`, always landing an integer 1–5 or
+  null), **`comment`** (text; also accept `text`; nullable — Google allows
+  rating-only), **`reviewer.displayName`** + **`reviewer.profilePhotoUrl`**
+  (also accept `reviewer.name` / `reviewer.profileImage`), **`createTime`** +
+  **`updateTime`** (also `createdAt`/`updatedAt`), and the owner reply
+  **`reviewReply.comment`** + **`reviewReply.updateTime`** (also `reply.text` /
+  `reply.createdAt`/`updatedAt`). Response array key tolerated as `reviews` /
+  `data` / a bare array; `nextPageToken` paged (capped at 10 pages/run).
+- **`POST /v1/google-business/gmb-reviews/{reviewId}/reply`** — post/overwrite
+  the owner reply (PUT semantics on Google's side; a second call overwrites).
+  Body field **`comment`**; **`accountId`** in the query. Review id is
+  URL-encoded (Google ids can be path-like).
+- **`DELETE /v1/google-business/gmb-reviews/{reviewId}/reply`** — remove the
+  owner reply (the review stays). **`accountId`** in the query.
+- **Assumption noted:** the rendered `.mdx` review pages are JS-only, so the
+  per-field detail came from the `llms.txt` endpoint descriptions + the raw
+  OpenAPI probe (which reported `starRating` "numeric" + a webhook
+  `ReviewWebhookReview` with `rating`/`text`/`reviewer.name`/`reviewer.
+  profileImage`/`reply.text`). To be safe across the doc/version split, the
+  normalizer (`lib/zernio.ts::normalizeReview` + `normalizeStarRating`) handles
+  BOTH numeric and enum ratings and BOTH field-name shapes — so a future Zernio
+  schema change on either won't strand the integration.
+
+## Confirmed connection REST shapes (validated against the live OpenAPI spec, 2026-06-15)
 - **`GET /v1/connect/{platform}`** — the connect query param is **`redirect_url`**
   (snake_case), and **`profileId` is REQUIRED**. Response `{ authUrl, state }`.
   In standard (hosted) mode Zernio shows its own account-picker UI, then
@@ -138,18 +190,26 @@ FB/IG/etc.
     `zernio_account` (migration 0063) + the hosted-OAuth connect flow + the
     `/integrations` Google Business card (connect / refresh / disconnect) +
     demo seed.
-  - ⬜ **NEXT (recommended first follow-up PR):** pull GBP reviews
-    (`/reviews/list-inbox-reviews`) into a new `google_review` table keyed by
-    org + Google review id (idempotent sync via cron + the existing
-    `syncConnectedAccounts` plumbing), surface them on `/reviews/received`,
-    **reply from the dashboard** (`/reviews` reply + delete-reply), and emit a
-    **legitimate `AggregateRating`** in `clinicJsonLd` from the real synced
-    rating (deliberately withheld until now — see the FTC note). Replace the
-    hand-pasted `clinic_review_config.googlePlaceId` with the Zernio GBP
-    connection (auto-resolved).
-  - ⬜ Then: pull hours/address/photos into the profile/site with `*_source`
-    flags; GBP local metrics into SEO/Analytics. Refactor Reviews + SEO + hours
-    to route through the connection.
+  - ✅ **DONE (reviews + JSON-LD):** GBP reviews pulled via
+    `GET /v1/google-business/gmb-reviews` into the `google_review` table
+    (migration **0064**, idempotent upsert by org + Google review id; cron
+    `/api/cron/sync-google-reviews` + on-demand "Refresh from Google"); a
+    "From Google" section on `/reviews/received` with **reply / edit-reply /
+    delete-reply** + a Connect-prompt empty state; Google rating/count/needs-
+    reply KPIs on `/reviews`; a **legitimate `AggregateRating`** in
+    `clinicJsonLd` sourced ONLY from the real synced rating (omitted at zero);
+    `clinic_review_config.googlePlaceId` superseded by the auto-resolved Zernio
+    GBP connection (column kept as a deprecated fallback). Demo seeds ~6
+    synthetic reviews. See `lib/services/google-reviews.ts`.
+  - ⬜ **NEXT (recommended follow-up PR):** **real-time review ingest via Zernio
+    webhooks** (`review.new` / `review.updated` events — confirm the signature
+    scheme + payload at `docs.zernio.com/webhooks` at build time) into the same
+    `google_review` upsert, so reviews land instantly instead of waiting for the
+    hourly cron; THEN pull hours/address/photos into the profile/site with
+    `*_source` flags (e.g. `hoursSource: 'google' | 'manual'`) so a sync never
+    clobbers a manual edit; THEN GBP local metrics (calls/directions/bookings +
+    top keywords) into SEO/Analytics. Refactor SEO + hours to route through the
+    connection.
 - **Phase 2 — GBP posting:** create posts/offers/events to GBP from a composer;
   surface performance per post.
 - **Phase 3 — Full social module:** multi-platform compose/schedule/publish +

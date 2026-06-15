@@ -152,8 +152,52 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   `{ authUrl, state }`, appends `?connected=…&accountId=…&username=…` on the
   redirect; `/accounts` → `{ accounts: SocialAccount[], hasAnalyticsAccess }`
   with `profileId` either a string OR an embedded Profile object (normalized);
-  `POST /profiles` returns a `{ message, profile }` wrapper. **Next PR:** GBP
-  reviews pull + reply + legit AggregateRating JSON-LD.
+  `POST /profiles` returns a `{ message, profile }` wrapper.
+- **Zernio Google Business reviews — pull + reply + legit AggregateRating
+  (2026-06-15)** — Phase 1's review work on the Zernio foundation. REAL Google
+  reviews patients left are pulled through the clinic's GBP connection (cron +
+  on-demand) into a new `google_review` table (**migration 0064**, idempotent
+  upsert by `(organizationId, externalReviewId)`; reviewer name/photo, integer
+  star 1–5, comment (nullable — Google allows rating-only), create/update times,
+  owner reply + reply time, `isDemo`). Review client wrappers in `lib/zernio.ts`
+  (`listGoogleReviews` / `replyToGoogleReview` / `deleteGoogleReviewReply`) parse
+  DEFENSIVELY — `normalizeStarRating` accepts BOTH numeric AND Google enum
+  (`"FIVE"`) ratings, and the normalizer tolerates both field-name shapes
+  (`starRating`/`rating`, `comment`/`text`, `reviewer.displayName`/`.name`,
+  `reviewReply`/`reply`) so a docs/version drift can't strand us. Service
+  `lib/services/google-reviews.ts`: `syncGoogleReviews` (resolve the GBP account
+  via `getZernioConnection`, paginated pull, idempotent upsert, reply-field
+  update; **demo connections NEVER network** — seeded rows stand; best-effort —
+  API failure records nothing destructive), `listGoogleReviews`,
+  `getGoogleReviewStats` (`{count, averageRating (1-dp), needsReply}` over rated
+  reviews only — comment-only reviews don't drag the average), `replyToGoogleReview`
+  / `deleteGoogleReviewReply` (call Zernio for real connections, persist/clear
+  locally; demo-local only), `syncAllGoogleReviews` (cron sweep over connected
+  non-demo GBPs). **`clinicJsonLd` now emits a legit `AggregateRating`** sourced
+  ONLY from real synced Google reviews (gated to `count ≥ 1` + non-null average;
+  omitted at zero — never fabricated; passed in by the `/site/[slug]` page that
+  already loads clinic data). **Reviews UI:** `/reviews/received` gains a "From
+  Google" section (reviewer/stars/comment/date + the clinic reply, with Reply /
+  Edit reply / Delete reply owner-admin-gated server actions + "Refresh from
+  Google" + a Connect-prompt empty state linking to `/integrations`); `/reviews`
+  surfaces Google rating/count/needs-reply KPIs. The hand-pasted
+  `clinic_review_config.googlePlaceId` is superseded by the auto-resolved Zernio
+  GBP connection (column kept as a deprecated fallback — not deleted). The
+  first-party "patient writes the review inside DreamCRM" flow is untouched.
+  Cron `app/api/cron/sync-google-reviews/route.ts` (CRON_SECRET-gated, hourly;
+  `/api/cron` is already in the middleware allowlist) — **the EventBridge rule
+  still needs out-of-band provisioning via `scripts/setup-cron-schedules.sh`**.
+  Demo seeds ~6 synthetic `google_review` rows (varied ratings incl. a 4★ + a
+  rating-only null-comment + replied/unreplied) so `/reviews/received`, the
+  dashboard, and the public AggregateRating all showcase populated (never
+  networks; behind the real-patient guard like `seedDemoZernio`). **Confirmed
+  review REST shapes:** `GET /v1/google-business/gmb-reviews?accountId=…`
+  (`pageToken` paged), `POST /v1/google-business/gmb-reviews/{reviewId}/reply`
+  (body `{comment}`, `accountId` query), `DELETE …/{reviewId}/reply`. 52 new
+  tests (`tests/zernio/` + `tests/services/` + `tests/clinic-site/`).
+  **Next:** real-time review ingest via Zernio webhooks (`review.new` /
+  `review.updated`), then hours/address/photos sync (`*_source` flags), then GBP
+  local metrics into SEO/Analytics.
 - **Website system sprint — "complete in seconds" (2026-06-12, PRs #342–#345)**
   — 4 audits + 4 build waves refined the ENTIRE clinic-website system to the
   day-0-complete model (supersedes the honest-empty framing of #304–#307 for
