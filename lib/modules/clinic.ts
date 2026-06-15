@@ -65,6 +65,10 @@ export const clinicModules: ModuleRegistry = {
     // Google Posts is a pure Google Business surface — GBP is free on every plan
     // tier (Basic included), so NO minPlan. See lib/types/social-entitlements.ts.
     { id: 'google_posts',      path: '/google-posts',      label: 'Google Posts',     section: 'Growth',   icon: 'megaphone',status: 'live' },
+    // Channels is the connect surface for Google Business (free, every tier) +
+    // the social platforms (self-gated by the plan's social-connection cap — Basic
+    // shows an upgrade CTA), so NO minPlan. See lib/types/social-entitlements.ts.
+    { id: 'channels',          path: '/channels',          label: 'Channels',         section: 'Growth',   icon: 'plug',     status: 'live' },
     { id: 'analytics',         path: '/analytics',         label: 'Analytics',        section: 'Growth',   icon: 'chart',    status: 'live', minPlan: 'premium' },
 
     // ── Website (the trunk) ────────────────────────────────────────────

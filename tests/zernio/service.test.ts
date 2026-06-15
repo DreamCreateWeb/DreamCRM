@@ -162,6 +162,7 @@ import {
   ensureProfileForOrg,
   profileNameForOrg,
   getGoogleBusinessConnectUrl,
+  getPlatformConnectUrl,
   syncConnectedAccounts,
   getZernioConnection,
   disconnectPlatform,
@@ -227,6 +228,32 @@ describe('getGoogleBusinessConnectUrl', () => {
     const url = await getGoogleBusinessConnectUrl('org_1', 'Acme', 'https://app/cb')
     expect(url).toBe('https://accounts.google.com/x')
     expect(z.getConnectUrl).toHaveBeenCalledWith('googlebusiness', 'prof_1', 'https://app/cb')
+  })
+})
+
+describe('getPlatformConnectUrl', () => {
+  it('ensures a profile then returns the authUrl for any platform', async () => {
+    store.connections['org_1'] = { organizationId: 'org_1', zernioProfileId: 'prof_1' }
+    z.getConnectUrl.mockResolvedValue({ authUrl: 'https://www.instagram.com/oauth' })
+    const url = await getPlatformConnectUrl('org_1', 'Acme', 'instagram', 'https://app/cb')
+    expect(url).toBe('https://www.instagram.com/oauth')
+    expect(z.getConnectUrl).toHaveBeenCalledWith('instagram', 'prof_1', 'https://app/cb')
+  })
+
+  it('creates the profile when none exists yet (find-or-create)', async () => {
+    z.listProfiles.mockResolvedValue([])
+    z.createProfile.mockResolvedValue({ _id: 'prof_new' })
+    z.getConnectUrl.mockResolvedValue({ authUrl: 'https://facebook.com/oauth' })
+    const url = await getPlatformConnectUrl('org_2', 'Beta', 'facebook')
+    expect(url).toBe('https://facebook.com/oauth')
+    expect(z.getConnectUrl).toHaveBeenCalledWith('facebook', 'prof_new', undefined)
+  })
+
+  it('getGoogleBusinessConnectUrl is the GBP wrapper over getPlatformConnectUrl', async () => {
+    store.connections['org_1'] = { organizationId: 'org_1', zernioProfileId: 'prof_1' }
+    z.getConnectUrl.mockResolvedValue({ authUrl: 'https://accounts.google.com/y' })
+    await getGoogleBusinessConnectUrl('org_1', 'Acme')
+    expect(z.getConnectUrl).toHaveBeenCalledWith('googlebusiness', 'prof_1', undefined)
   })
 })
 
@@ -303,10 +330,38 @@ describe('getZernioConnection', () => {
     expect(view.googleBusinessAccounts[0].displayName).toBe('Acme Dental')
   })
 
+  it('returns ALL accounts (GBP + social) in `accounts`, GBP-only in googleBusinessAccounts', async () => {
+    store.connections['org_1'] = { organizationId: 'org_1', zernioProfileId: 'prof_1', status: 'connected', isDemo: 0, lastError: null }
+    store.accounts = [
+      { id: 'g1', organizationId: 'org_1', platform: 'googlebusiness', accountId: 'g1', username: 'acme-gbp', displayName: 'Acme Dental' },
+      { id: 'ig1', organizationId: 'org_1', platform: 'instagram', accountId: 'ig1', username: '@acme', displayName: 'Acme' },
+      { id: 'fb1', organizationId: 'org_1', platform: 'facebook', accountId: 'fb1', username: 'acmefb', displayName: 'Acme' },
+    ]
+    const view = await getZernioConnection('org_1')
+    expect(view.accounts).toHaveLength(3)
+    const platforms = view.accounts.map((a) => a.platform).sort()
+    expect(platforms).toEqual(['facebook', 'googlebusiness', 'instagram'])
+    // Back-compat slice unchanged for the GBP consumers (resolveGbpAccount).
+    expect(view.googleBusinessAccounts).toHaveLength(1)
+    expect(view.googleBusinessAccounts[0].platform).toBe('googlebusiness')
+  })
+
+  it('only scopes to the org (does not leak another org\'s accounts)', async () => {
+    store.connections['org_1'] = { organizationId: 'org_1', zernioProfileId: 'prof_1', status: 'connected', isDemo: 0 }
+    store.accounts = [
+      { id: 'ig1', organizationId: 'org_1', platform: 'instagram', accountId: 'ig1' },
+      { id: 'ig2', organizationId: 'org_other', platform: 'instagram', accountId: 'ig2' },
+    ]
+    const view = await getZernioConnection('org_1')
+    expect(view.accounts).toHaveLength(1)
+    expect(view.accounts[0].id).toBe('ig1')
+  })
+
   it('returns disconnected for an org with no connection row', async () => {
     const view = await getZernioConnection('org_none')
     expect(view.status).toBe('disconnected')
     expect(view.googleBusinessAccounts).toEqual([])
+    expect(view.accounts).toEqual([])
     expect(view.isDemo).toBe(false)
   })
 })
@@ -338,6 +393,20 @@ describe('disconnectPlatform', () => {
     expect(z.deleteAccount).not.toHaveBeenCalled()
     expect(store.accounts).toHaveLength(0)
   })
+
+  it('disconnects a SOCIAL platform — drops only that platform\'s rows, GBP stays', async () => {
+    store.connections['org_1'] = { organizationId: 'org_1', zernioProfileId: 'prof_1', status: 'connected', isDemo: 0 }
+    store.accounts = [
+      { id: 'g1', organizationId: 'org_1', platform: 'googlebusiness', accountId: 'g1' },
+      { id: 'ig1', organizationId: 'org_1', platform: 'instagram', accountId: 'ig1' },
+    ]
+    z.deleteAccount.mockResolvedValue(undefined)
+    await disconnectPlatform('org_1', 'instagram')
+    expect(z.deleteAccount).toHaveBeenCalledWith('ig1')
+    // Only the IG row is gone; GBP remains + status stays connected (GBP present).
+    expect(store.accounts.map((a) => a.platform)).toEqual(['googlebusiness'])
+    expect(store.connections['org_1'].status).toBe('connected')
+  })
 })
 
 describe('seedDemoZernio', () => {
@@ -353,17 +422,32 @@ describe('seedDemoZernio', () => {
     expect(z.createProfile).not.toHaveBeenCalled()
   })
 
+  it('seeds 2 synthetic SOCIAL accounts (Instagram + Facebook) so Channels showcases a partial cap', async () => {
+    store.patients = [{ id: 'pat_1', organizationId: 'org_demo' }]
+    await seedDemoZernio('org_demo', 'Dream Dental')
+    const ig = store.accounts.find((a) => a.platform === 'instagram')
+    const fb = store.accounts.find((a) => a.platform === 'facebook')
+    expect(ig?.username).toBe('@dreamdental')
+    expect(fb?.displayName).toBe('Dream Dental')
+    // 1 GBP + 2 social = 3 total; the cap meter reads "2 of N social used".
+    const social = store.accounts.filter((a) => a.platform !== 'googlebusiness')
+    expect(social).toHaveLength(2)
+    expect(z.listAccounts).not.toHaveBeenCalled()
+  })
+
   it('bails (no insert) when the org has no patients — not a real demo clinic', async () => {
     await seedDemoZernio('org_empty')
     expect(store.connections['org_empty']).toBeUndefined()
     expect(store.accounts).toHaveLength(0)
   })
 
-  it('is idempotent — a second call does not duplicate the account', async () => {
+  it('is idempotent — a second call does not duplicate GBP or social accounts', async () => {
     store.patients = [{ id: 'pat_1', organizationId: 'org_demo' }]
     await seedDemoZernio('org_demo')
     await seedDemoZernio('org_demo')
     expect(store.accounts.filter((a) => a.platform === 'googlebusiness')).toHaveLength(1)
+    expect(store.accounts.filter((a) => a.platform === 'instagram')).toHaveLength(1)
+    expect(store.accounts.filter((a) => a.platform === 'facebook')).toHaveLength(1)
   })
 
   it('re-connects a demo that was disconnected mid-session', async () => {
