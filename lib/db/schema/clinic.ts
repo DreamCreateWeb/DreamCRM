@@ -1222,3 +1222,61 @@ export const googleReview = pgTable(
   (t) => [uniqueIndex('google_review_org_external_idx').on(t.organizationId, t.externalReviewId)],
 )
 export type GoogleReviewRow = typeof googleReview.$inferSelect
+
+// ── Google Business posts (Phase 2 — GBP posting) ─────────────────────────────
+// Updates / Offers / Events the clinic publishes to their Google Business
+// Profile through the Zernio connection. We persist a row BEFORE the Zernio call
+// so a publish failure is durable (status='failed' + lastError) and the history
+// view never depends on a live read. Zernio publishes scheduled posts itself, so
+// a 'scheduled' row needs no publish cron on our side — it stays as a record.
+// Demo rows (isDemo=1) are seeded as published with synthetic ids + a fake
+// googleUrl and NEVER hit the network.
+export const gbpPost = pgTable(
+  'gbp_post',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // The Zernio GBP account id the post targets (audit + delete key).
+    accountId: text('account_id').notNull(),
+    // Zernio's post id (`_id`), set on a successful publish/schedule. Null for a
+    // draft or a failed create.
+    zernioPostId: text('zernio_post_id'),
+    // 'standard' (What's new) | 'event' | 'offer'.
+    postType: text('post_type').notNull().default('standard'),
+    // The post body (≤1500 chars, validated in the service).
+    summary: text('summary').notNull(),
+    // A public image URL (S3) attached to the post, null when none.
+    imageUrl: text('image_url'),
+    // Call-to-action button: action type ('LEARN_MORE'|'BOOK'|…) + URL ('CALL'
+    // needs no URL). Both null when no CTA.
+    ctaType: text('cta_type'),
+    ctaUrl: text('cta_url'),
+    // EVENT fields (null unless postType='event').
+    eventTitle: text('event_title'),
+    eventStartAt: timestamp('event_start_at', { withTimezone: true }),
+    eventEndAt: timestamp('event_end_at', { withTimezone: true }),
+    // OFFER fields (null unless postType='offer').
+    offerCouponCode: text('offer_coupon_code'),
+    offerRedeemUrl: text('offer_redeem_url'),
+    offerTerms: text('offer_terms'),
+    // 'draft' | 'scheduled' | 'published' | 'failed'.
+    status: text('status').notNull().default('draft'),
+    // When set, the post is scheduled (Zernio publishes it at this time).
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    // When the post went live (published-now) — set on a successful publish.
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    // The live GBP post permalink when Zernio returns one (often null — Google
+    // doesn't always surface a stable URL synchronously).
+    googleUrl: text('google_url'),
+    // The last publish error surfaced to the clinic (set when status='failed').
+    lastError: text('last_error'),
+    // 1 for the demo (Dream Dental) — demo posts NEVER hit the network.
+    isDemo: integer('is_demo').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('gbp_post_org_created_idx').on(t.organizationId, t.createdAt)],
+)
+export type GbpPostRow = typeof gbpPost.$inferSelect

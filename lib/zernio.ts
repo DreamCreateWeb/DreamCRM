@@ -780,3 +780,255 @@ function ymd(d: Date): string {
 function ym(d: Date): string {
   return d.toISOString().slice(0, 7)
 }
+
+// ── Google Business posts (Phase 2 — GBP posting) ─────────────────────────────
+//
+// Confirmed against the Zernio docs (llms.txt + llms-full.txt + the OpenAPI
+// probe, 2026-06-15) — the GENERIC post primitives are confirmed; the
+// GBP-specific options object is documented prose-only (the rendered `.mdx`
+// pages are JS-only), so it is coded to the documented/precedent shape and
+// parsed/serialized DEFENSIVELY (see the assumption note in
+// docs/zernio-google-integration.md):
+//
+//   POST   /v1/posts   — create (publish-now OR schedule). Body (confirmed):
+//          `profileId` (required), `content` (the post text; the docs also call
+//          it `text` — we send BOTH keys so a version split can't strand us),
+//          `socialAccountIds: string[]` (the target accounts — we ALSO send the
+//          confirmed `platforms: [{ platform, accountId }]` shape), `scheduledAt`
+//          / `scheduledFor` (ISO 8601 — Zernio PUBLISHES scheduled posts itself,
+//          so we never run our own publish cron), `mediaUrls` (a public image
+//          URL; sent as both a string and a 1-element array for tolerance). GBP
+//          options ride a per-platform `options` / `googleBusiness` object:
+//          `topicType` (`STANDARD` | `EVENT` | `OFFER`), `callToAction`
+//          ({ `actionType`, `url` }), `event` ({ `title`, `schedule:{startDate,
+//          endDate}` }), `offer` ({ `couponCode`, `redeemOnlineUrl`,
+//          `termsConditions` }). We send the options under several keys so
+//          whichever Zernio reads wins; extras are ignored server-side.
+//   GET    /v1/posts?page&limit[&status] — list (newest first; `status` ∈
+//          draft|scheduled|published|failed; post id is `_id`).
+//   DELETE /v1/posts/{postId} — delete a post at Zernio.
+//
+// We surface a small READ-back from create (the new post `_id` + any per-account
+// permalink Zernio returns) so the service can persist `zernioPostId` +
+// `googleUrl`. Everything is optional-parsed so a drifted shape never throws on
+// success.
+
+/** Google Business post type (Zernio's GBP `topicType` enum). `standard` =
+ *  a plain "What's new" update; `event` carries a date range; `offer` carries a
+ *  coupon/redeem URL. (`product` / `alert` exist on Google but aren't surfaced
+ *  by the composer — dental practices don't use them.) */
+export const GBP_POST_TYPES = ['standard', 'event', 'offer'] as const
+export type GbpPostType = (typeof GBP_POST_TYPES)[number]
+
+/** Map our lowercase post type → Zernio/Google's UPPER `topicType` enum. */
+const GBP_TOPIC_TYPE: Record<GbpPostType, string> = {
+  standard: 'STANDARD',
+  event: 'EVENT',
+  offer: 'OFFER',
+}
+
+/** Google Business call-to-action button action types (Google's `actionType`
+ *  enum). `CALL` uses the listing's phone number and needs no URL; every other
+ *  type needs a destination URL. */
+export const GBP_CTA_TYPES = ['LEARN_MORE', 'BOOK', 'ORDER', 'SHOP', 'SIGN_UP', 'CALL'] as const
+export type GbpCtaType = (typeof GBP_CTA_TYPES)[number]
+
+/** A normalized create-post result. `zernioPostId` is Zernio's post `_id`;
+ *  `googleUrl` is the live GBP post permalink when Zernio returns one (Google
+ *  doesn't always surface a stable URL synchronously). */
+export interface GbpPostResult {
+  zernioPostId: string | null
+  googleUrl: string | null
+}
+
+/** The input the create wrapper serializes. Mirrors the service-level input but
+ *  narrowed to the Zernio call (the service does validation + persistence). */
+export interface CreateGbpPostInput {
+  profileId: string
+  accountId: string
+  /** ≤1500 chars (validated upstream). */
+  summary: string
+  postType: GbpPostType
+  /** A PUBLIC image URL (S3) Google/Zernio can fetch, or null. */
+  imageUrl?: string | null
+  /** CTA button. `url` is required unless `actionType === 'CALL'`. */
+  cta?: { actionType: GbpCtaType; url?: string | null } | null
+  /** EVENT fields (required when postType === 'event'). ISO datetimes. */
+  event?: { title: string; startAt: string; endAt?: string | null } | null
+  /** OFFER fields (postType === 'offer'). All optional per Google. */
+  offer?: { couponCode?: string | null; redeemUrl?: string | null; terms?: string | null } | null
+  /** ISO 8601 — when set, Zernio SCHEDULES the post (and publishes it itself). */
+  scheduledAt?: string | null
+}
+
+/** Build the GBP per-platform options object Zernio attaches to a GBP post.
+ *  Exported for unit tests (the body shape is the load-bearing contract). */
+export function buildGbpPostOptions(input: CreateGbpPostInput): Record<string, unknown> {
+  const opts: Record<string, unknown> = { topicType: GBP_TOPIC_TYPE[input.postType] }
+  if (input.cta && input.cta.actionType) {
+    opts.callToAction =
+      input.cta.actionType === 'CALL'
+        ? { actionType: 'CALL' }
+        : { actionType: input.cta.actionType, url: input.cta.url ?? undefined }
+  }
+  if (input.postType === 'event' && input.event) {
+    opts.event = {
+      title: input.event.title,
+      schedule: {
+        startDate: input.event.startAt,
+        ...(input.event.endAt ? { endDate: input.event.endAt } : {}),
+      },
+    }
+  }
+  if (input.postType === 'offer' && input.offer) {
+    const offer: Record<string, unknown> = {}
+    if (input.offer.couponCode) offer.couponCode = input.offer.couponCode
+    if (input.offer.redeemUrl) offer.redeemOnlineUrl = input.offer.redeemUrl
+    if (input.offer.terms) offer.termsConditions = input.offer.terms
+    opts.offer = offer
+  }
+  return opts
+}
+
+/**
+ * `POST /v1/posts` — create (publish now or schedule) a Google Business post.
+ * Sends the confirmed generic body PLUS the GBP options under several tolerant
+ * keys (`options` / `googleBusiness` / `platformOptions`) so whichever Zernio
+ * honors wins. Returns the new post id + any permalink. Throws status+body on a
+ * non-2xx (the service layer catches and records `status='failed'`).
+ */
+export async function createGbpPost(input: CreateGbpPostInput): Promise<GbpPostResult> {
+  const options = buildGbpPostOptions(input)
+  const body: Record<string, unknown> = {
+    profileId: input.profileId,
+    // Send both content + text — the generic docs use `content`, some examples
+    // `text`; sending both is harmless (server ignores the unknown one).
+    content: input.summary,
+    text: input.summary,
+    // The confirmed targeting shapes — a flat id array AND the platforms array.
+    socialAccountIds: [input.accountId],
+    platforms: [{ platform: 'googlebusiness', accountId: input.accountId }],
+    // GBP options under tolerant keys.
+    options,
+    googleBusiness: options,
+    platformOptions: { googlebusiness: options },
+  }
+  if (input.imageUrl) {
+    // mediaUrls is documented as a comma-separated string; also send an array
+    // form for tolerance (one image — GBP allows a single photo per post).
+    body.mediaUrls = input.imageUrl
+    body.media = [input.imageUrl]
+  }
+  if (input.scheduledAt) {
+    body.scheduledAt = input.scheduledAt
+    body.scheduledFor = input.scheduledAt
+  } else {
+    body.publishNow = true
+  }
+
+  const data = await zernioFetch<unknown>('/posts', { method: 'POST', body: JSON.stringify(body) })
+  return normalizeCreateResult(data)
+}
+
+/** Pull a post id + permalink out of a create response, tolerating wrappers. */
+function normalizeCreateResult(data: unknown): GbpPostResult {
+  if (!data || typeof data !== 'object') return { zernioPostId: null, googleUrl: null }
+  const o = data as Record<string, unknown>
+  // The post may be the root object, or under `post` / `data`.
+  const post =
+    (o.post && typeof o.post === 'object' ? (o.post as Record<string, unknown>) : null) ??
+    (o.data && typeof o.data === 'object' && !Array.isArray(o.data) ? (o.data as Record<string, unknown>) : null) ??
+    o
+  const id = post._id ?? post.id ?? post.postId
+  return {
+    zernioPostId: id != null ? String(id) : null,
+    googleUrl: extractPermalink(post) ?? extractPermalink(o),
+  }
+}
+
+/** Find a live post URL in a post object — Zernio may surface it as a flat
+ *  field or per-account under `results`/`accounts`/`platforms`. Best-effort. */
+function extractPermalink(obj: Record<string, unknown>): string | null {
+  const flat = obj.permalink ?? obj.searchUrl ?? obj.url ?? obj.postUrl ?? obj.link
+  if (typeof flat === 'string' && flat.startsWith('http')) return flat
+  for (const key of ['results', 'accounts', 'platforms', 'platformResults']) {
+    const arr = obj[key]
+    if (Array.isArray(arr)) {
+      for (const entry of arr) {
+        if (entry && typeof entry === 'object') {
+          const e = entry as Record<string, unknown>
+          const u = e.permalink ?? e.searchUrl ?? e.url ?? e.postUrl ?? e.link
+          if (typeof u === 'string' && u.startsWith('http')) return u
+        }
+      }
+    }
+  }
+  return null
+}
+
+/** A post as listed by `GET /v1/posts`, narrowed to what the history view uses.
+ *  Defensive — every field optional in the raw payload. */
+export interface ZernioPostListItem {
+  id: string
+  status: string | null
+  content: string | null
+  scheduledAt: string | null
+  publishedAt: string | null
+  googleUrl: string | null
+}
+
+interface ZernioRawPost {
+  _id?: string
+  id?: string
+  status?: string | null
+  content?: string | null
+  text?: string | null
+  scheduledAt?: string | null
+  scheduledFor?: string | null
+  publishedAt?: string | null
+  permalink?: string | null
+  url?: string | null
+  searchUrl?: string | null
+}
+
+/**
+ * `GET /v1/posts?page&limit[&status]` — list posts for the account, newest
+ * first. We primarily track posts in our own `gbp_post` table (so the history
+ * view never depends on this), but expose it for an optional status reconcile +
+ * tests. Tolerates `posts` / `data` / a bare array. Throws on a non-2xx.
+ */
+export async function listPosts(opts: { page?: number; limit?: number; status?: string } = {}): Promise<ZernioPostListItem[]> {
+  const qs = new URLSearchParams()
+  if (opts.page) qs.set('page', String(opts.page))
+  if (opts.limit) qs.set('limit', String(opts.limit))
+  if (opts.status) qs.set('status', opts.status)
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
+  const data = await zernioFetch<{ posts?: ZernioRawPost[]; data?: ZernioRawPost[] } | ZernioRawPost[]>(
+    `/posts${suffix}`,
+  )
+  const rawList = Array.isArray(data) ? data : (data.posts ?? data.data ?? [])
+  return rawList
+    .map((p): ZernioPostListItem | null => {
+      const id = p._id ?? p.id
+      if (!id) return null
+      return {
+        id: String(id),
+        status: p.status ?? null,
+        content: p.content ?? p.text ?? null,
+        scheduledAt: p.scheduledAt ?? p.scheduledFor ?? null,
+        publishedAt: p.publishedAt ?? null,
+        googleUrl:
+          [p.permalink, p.searchUrl, p.url].find((u) => typeof u === 'string' && u.startsWith('http')) ?? null,
+      }
+    })
+    .filter((p): p is ZernioPostListItem => p !== null)
+}
+
+/**
+ * `DELETE /v1/posts/{postId}` — delete a post at Zernio (removes a scheduled
+ * post before it runs, or the published GBP post). Best-effort at the service
+ * layer (we always drop our local row regardless). Throws on a non-2xx.
+ */
+export async function deletePost(postId: string): Promise<void> {
+  await zernioFetch(`/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' })
+}

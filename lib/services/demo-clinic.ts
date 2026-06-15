@@ -12,6 +12,7 @@ import { seedDemoZernio } from '@/lib/services/zernio'
 import { seedDemoGoogleReviews } from '@/lib/services/google-reviews'
 import { seedDemoGbpSync } from '@/lib/services/gbp-sync'
 import { seedDemoGbpMetrics } from '@/lib/services/gbp-metrics'
+import { seedDemoGbpPosts } from '@/lib/services/gbp-posts'
 import {
   DEFAULT_FAQ_ITEMS,
   type ClinicStat,
@@ -1951,6 +1952,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // asserts the prerequisite + documents where the numbers come from.
     await seedDemoGbpMetrics(existing.id)
 
+    // Google Business posts self-heal: seed 3 synthetic GBP posts (published
+    // Update w/ image + Book CTA, published Offer w/ a coupon, scheduled Event)
+    // so the Google Posts page showcases the composer output + a populated
+    // history on legacy demos. Idempotent; never networks (isDemo rows).
+    await seedDemoGbpPosts(existing.id)
+
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
     // /shop/payments page, and the commerce timeline events on legacy demos).
@@ -2556,6 +2563,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // connection is isDemo (seeded by seedDemoZernio above). Nothing to persist —
   // this documents the metrics demo path + asserts the connection prerequisite.
   await seedDemoGbpMetrics(orgId)
+
+  // Google Business posts: seed 3 synthetic GBP posts (published Update w/ image
+  // + Book CTA, published Offer w/ a coupon, scheduled Event) so the Google
+  // Posts page showcases the composer output + a populated history. The Book CTA
+  // uses the clinic's real /book URL. Never networks (isDemo rows).
+  await seedDemoGbpPosts(orgId)
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)
