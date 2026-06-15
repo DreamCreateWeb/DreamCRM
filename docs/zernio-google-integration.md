@@ -1,9 +1,45 @@
 # Zernio × Google Business integration — plan
 
-**Status: FOUNDATION + REVIEWS/AGGREGATERATING + HOURS/ADDRESS/PHONE/PHOTOS SYNC
-SHIPPED (2026-06-15); GBP local metrics + posting + social module pending.** The
-connection architecture (foundation), Phase 1's review work, AND Phase 1's
-hours/location sync are live:
+**Status: PHASE 1 (Google Business core) COMPLETE (2026-06-15).** Foundation +
+reviews/AggregateRating + hours/address/phone/photos sync + **GBP local metrics
+into SEO + Analytics** are all live. Phase 2 (GBP posting) + Phase 3 (the full
+social module) are the next phases; real-time review ingest via Zernio webhooks
+is the recommended near-term add. The connection architecture (foundation),
+Phase 1's review work, hours/location sync, AND the GBP local-metrics surface
+are live:
+- **GBP local metrics → SEO + Analytics (this PR):** ✅ **DONE.** Pull the
+  clinic's Google Business Performance numbers (impressions / calls / direction
+  requests / website clicks / bookings) + top search keywords via Zernio and
+  surface them on the **SEO module** (replacing the static "claim your GBP"
+  checklist with a real connected-metrics card) and the **Analytics Acquisition
+  band** (a "Google Business — local actions" tile beside the GSC clicks→leads
+  funnel). Client wrappers `getGoogleBusinessPerformance` +
+  `getGoogleBusinessSearchKeywords` (`lib/zernio.ts`, defensive — prefer Zernio's
+  pre-summed `total`, fall back to summing the daily `values` series, tolerate a
+  missing metric key → 0, fold the four impression sub-series into one figure,
+  cap + merge keywords across monthly buckets); service `lib/services/gbp-metrics.ts`
+  `getGbpLocalMetrics(orgId,{days})` — **demo-safe** (isDemo → seeded synthetic
+  metrics, NEVER the network) + **best-effort** (no connection →
+  `{connected:false,…zeros}`; an API failure incl. a 402 "Analytics add-on
+  required" → `{connected:true,…zeros,error}`; a keyword-pull failure doesn't
+  zero the performance KPIs; never throws so the SEO/Analytics pages always
+  render). Reuses the **shared `resolveGbpAccount`** resolver — which this PR
+  factored into `lib/services/zernio.ts` (it was duplicated identically in
+  `google-reviews.ts` + `gbp-sync.ts`; both now import the one copy). The
+  30/90-day Analytics toggle threads through; the SEO card uses a 30-day window.
+  **NO new migration** — a live pull per page load, exactly like
+  `getClinicSeoPerformance` (no rollup/cache table; simplest + consistent with
+  GSC). Demo: the metrics are a live compute returned whenever the org's Zernio
+  connection is `isDemo` (seeded by `seedDemoZernio`), so `seedDemoGbpMetrics` is
+  a documented no-op hook — `getGbpLocalMetrics` returns ~4,120 impressions /
+  38 calls / 52 directions / 96 website clicks / 11 bookings per 30 days (scaled
+  to the window) + 5–8 dental top keywords ("dentist near me", "teeth whitening
+  austin", …). 30 new tests. **Confirmed performance + search-keywords REST
+  shapes below.**
+- **Hours / Location sync:** ✅ **DONE.** Pull the clinic's verified
+  hours/address/phone/photos from their connected GBP into `clinic_profile`,
+  with per-field `*_source` flags so a sync never silently clobbers a manual
+  edit. Client wrappers `getGoogleBusinessLocation` + `listGoogleBusinessMedia`
 - **Hours / Location sync (this PR):** ✅ **DONE.** Pull the clinic's verified
   hours/address/phone/photos from their connected GBP into `clinic_profile`,
   with per-field `*_source` flags so a sync never silently clobbers a manual
@@ -61,11 +97,12 @@ hours/location sync are live:
   a 4★ + a rating-only review + replied/unreplied). The hand-pasted
   `clinic_review_config.googlePlaceId` is superseded by the auto-resolved Zernio
   GBP connection (the column stays as a deprecated fallback — not deleted).
-What's NOT built yet: GBP local metrics into SEO/Analytics (the recommended
-NEXT PR — calls/directions/bookings + top keywords), posting, the full social
-module, and **real-time review ingest via Zernio webhooks** (`review.new` /
-`review.updated` events exist — a parallel review-side add) — those are the next
-PRs per the phased roadmap below.
+What's NOT built yet (Phase 1 IS complete): **GBP posting** (Phase 2 — create
+posts/offers/events to the listing from a composer + per-post performance), the
+**full social module** (Phase 3), and **real-time review ingest via Zernio
+webhooks** (`review.new` / `review.updated` events exist — a parallel review-side
+add that lands reviews instantly instead of waiting for the hourly cron) — those
+are the next PRs per the phased roadmap below.
 
 ## Confirmed review REST shapes (validated against docs.zernio.com llms.txt + OpenAPI probe, 2026-06-15)
 - **`GET /v1/google-business/gmb-reviews`** — list a GBP account's reviews
@@ -141,6 +178,63 @@ PRs per the phased roadmap below.
   hours/address back to Google. The sync is one-directional Google → Dream
   Create. True write-back needs Google's native Business Profile API (separate
   heavy OAuth + verification) — a possible later phase, out of Zernio's scope.
+
+## Confirmed performance + search-keywords REST shapes (this PR — docs.zernio.com llms-full.txt + OpenAPI probe, 2026-06-15)
+These pages WERE readable (unlike the JS-only reviews/location `.mdx` — the
+`llms-full.txt` carried the full per-endpoint spec + Node/Python/curl examples),
+so the paths + params + response shapes are **confirmed**, not assumed.
+- **`GET /v1/analytics/googlebusiness/performance`** — "daily performance metrics
+  for a Google Business Profile location." **Path note:** the REST path is the
+  flat `/analytics/googlebusiness/<resource>` form (proven by the docs' curl
+  example: `…/api/v1/analytics/googlebusiness/performance?accountId=…&startDate=…&endDate=…`),
+  NOT the named doc-page slug `/analytics/get-google-business-performance` (which
+  is just the docs URL). Query params:
+  - **`accountId`** (required) — the Zernio SocialAccount id for the GBP account.
+  - **`metrics`** (optional) — comma-separated metric names; defaults to all. We
+    send the explicit CSV (`GBP_PERFORMANCE_METRICS`).
+  - **`startDate`** / **`endDate`** (optional, `YYYY-MM-DD`) — default 30-days-ago
+    → today; max 18 months back. Our client derives the range from a `{ days }`
+    count (ending today) or takes explicit dates.
+  - Requires the Analytics add-on (included on Zernio's usage-based plans). A
+    legacy plan without it returns **402** `{error:'Analytics add-on required',
+    code:'analytics_addon_required'}` — surfaced as the thrown status+body; the
+    service catches it and renders zeros + the error string (best-effort).
+  - **Response:** `{ success, accountId, platform, dateRange:{startDate,endDate},
+    dataDelay, metrics: { <METRIC_KEY>: { total, values:[…] } } }`. Each metric
+    carries a **pre-summed `total`** PLUS a daily time series. We prefer `total`
+    and fall back to summing `values` (each `{date,value}` OR a bare number)
+    DEFENSIVELY; a missing metric key → 0.
+  - **Metric keys** (Google's Business Profile Performance API names):
+    `BUSINESS_IMPRESSIONS_DESKTOP_MAPS`, `BUSINESS_IMPRESSIONS_DESKTOP_SEARCH`,
+    `BUSINESS_IMPRESSIONS_MOBILE_MAPS`, `BUSINESS_IMPRESSIONS_MOBILE_SEARCH`
+    (the four are summed into one **impressions** figure), `CALL_CLICKS` (calls),
+    `WEBSITE_CLICKS`, `BUSINESS_DIRECTION_REQUESTS` (directions),
+    `BUSINESS_BOOKINGS` (bookings), `BUSINESS_CONVERSATIONS`, plus
+    `BUSINESS_FOOD_ORDERS` / `BUSINESS_FOOD_MENU_CLICKS` (irrelevant to dental —
+    not read). Data lags 2-3 days. Some integrations wrap the payload under
+    `{ data: { metrics } }`; the parser reaches through either.
+- **`GET /v1/analytics/googlebusiness/search-keywords`** — "search keywords that
+  triggered impressions, aggregated MONTHLY; keywords below a Google-enforced
+  minimum-impression threshold are excluded; max 18 months." Query params:
+  **`accountId`** (required), **`startMonth`** / **`endMonth`** (optional,
+  `YYYY-MM`; default 3-months-ago → current month). Our client maps a `{ days }`
+  window to a covering month span (keywords are monthly-only). **Response:**
+  `{ success, accountId, platform, monthRange, keywords: [{ keyword, impressions }],
+  note }`. We normalize `{ keyword → term, impressions → count }` (also tolerate
+  `searchKeyword` / `value` / `impressionsValue` aliases + a `{ data:{keywords} }`
+  wrapper), MERGE a term across monthly buckets (summing impressions),
+  impression-sort, and cap (default 8). Same 402 add-on gate as performance.
+- **Assumption noted:** none material — both endpoints' paths, params, and
+  response shapes are quoted verbatim from the live docs. The ONLY defensive
+  hedges are (a) the `{ data: { … } }` wrapper tolerance and (b) the keyword
+  field-name aliases, kept so a future schema tweak can't strand the surface.
+  The performance `total` is pre-summed by Zernio, but we still sum `values` as a
+  fallback in case a metric ever omits `total`.
+- **No write-back here** — these are pull-only analytics reads. Per-POST GBP
+  analytics are deprecated by Google with no replacement (Zernio's docs say so
+  explicitly); the location-level Performance API above is the only GBP
+  engagement signal. Phase 2 posting will surface what it can per post, but
+  per-post views/clicks no longer exist on Google's side.
 
 ## Confirmed connection REST shapes (validated against the live OpenAPI spec, 2026-06-15)
 - **`GET /v1/connect/{platform}`** — the connect query param is **`redirect_url`**
@@ -246,11 +340,17 @@ FB/IG/etc.
   exist, emit a **legitimate `AggregateRating`** (we deliberately withheld it —
   see the FTC note) → star rich-snippets. Source the rating from the synced
   Google reviews, never fabricated.
-- **SEO** (`app/(default)/seo/**`, `lib/services/seo.ts`): the static
-  "claim your GBP" checklist → a real **connect + live GBP local metrics**
-  (calls/directions/bookings + top keywords) alongside GSC web-click data.
-  Feeds the Analytics module's Acquisition band too.
-- **Hours / Location** — ✅ **DONE (this PR).** A **"Sync from Google"** on
+- **SEO** — ✅ **DONE.** The static "claim your GBP" checklist on `/seo` is
+  replaced by a real **connect + live GBP local-metrics card** — when connected:
+  impressions / calls / directions / website clicks / bookings KPIs + a
+  top-search-terms list (honoring the window); when not connected: a calm
+  connect-prompt to `/integrations` (honest — no fabricated numbers). The
+  existing GSC web-click surface stays intact. Same numbers feed the Analytics
+  Acquisition band (a "Google Business — local actions" tile, honoring the 30/90
+  toggle). Service `lib/services/gbp-metrics.ts` (`getGbpLocalMetrics`); client
+  wrappers in `lib/zernio.ts`; reuses the shared `resolveGbpAccount`. Pull-only,
+  demo-safe, best-effort, NO new migration (live pull like the GSC scoped read).
+- **Hours / Location** — ✅ **DONE.** A **"Sync from Google"** on
   Settings → Clinic profile pulls verified hours/address/phone/photos into
   `clinic_profile` (`lib/services/gbp-sync.ts`); the public site, booking
   `getSlotsForDay`, footer "open today", and `clinicJsonLd` then ride the
@@ -290,18 +390,27 @@ FB/IG/etc.
     ride Google's data unchanged. See `lib/services/gbp-sync.ts` +
     `app/(default)/settings/clinic/gbp-sync-card.tsx` + the cron
     `app/api/cron/sync-gbp/route.ts`.
-  - ⬜ **NEXT (recommended follow-up PR): GBP local metrics into SEO + Analytics**
-    — wire `/analytics/get-google-business-performance` (daily impressions,
-    clicks, calls, directions, bookings) + `…-search-keywords` (top keywords)
-    into a connect + live-metrics surface on the SEO module (replacing the static
-    "claim your GBP" checklist) and feed the Analytics Acquisition band, reusing
-    the same Zernio connection + `resolveGbpAccount` resolver. Then **real-time
-    review ingest via Zernio webhooks** (`review.new` / `review.updated` — confirm
-    the signature scheme + payload at `docs.zernio.com/webhooks` at build time)
-    into the existing `google_review` upsert, so reviews land instantly instead
-    of waiting for the hourly cron.
-- **Phase 2 — GBP posting:** create posts/offers/events to GBP from a composer;
-  surface performance per post.
+  - ✅ **DONE (local metrics → SEO + Analytics):** GBP Performance API
+    (impressions/calls/directions/website-clicks/bookings via
+    `GET /v1/analytics/googlebusiness/performance`) + top search keywords
+    (`…/search-keywords`) pulled through the Zernio connection into a real
+    connect + live-metrics card on `/seo` (replacing the static "claim your GBP"
+    checklist) AND the Analytics Acquisition band ("Google Business — local
+    actions" tile, honoring the 30/90 toggle). Client wrappers in `lib/zernio.ts`;
+    service `lib/services/gbp-metrics.ts` (demo-safe + best-effort + window-aware);
+    reuses the shared `resolveGbpAccount` (factored into `lib/services/zernio.ts`
+    this PR). NO new migration — a live pull like the GSC scoped read. Demo
+    returns synthetic metrics (no network). **→ Phase 1 (Google Business core) is
+    now COMPLETE.**
+  - ⬜ **Recommended near-term add: real-time review ingest via Zernio webhooks**
+    (`review.new` / `review.updated` — confirm the signature scheme + payload at
+    `docs.zernio.com/webhooks` at build time) into the existing `google_review`
+    upsert, so reviews land instantly instead of waiting for the hourly cron.
+- **Phase 2 (NEXT) — GBP posting:** create posts/offers/events to GBP from a
+  composer; surface what per-post performance Google still exposes (note: Google
+  deprecated per-post insights — the location-level Performance API shipped this
+  PR is the durable engagement signal). The "Book" CTA deep-links the clinic's
+  `/book`.
 - **Phase 3 — Full social module:** multi-platform compose/schedule/publish +
   analytics across the 15 platforms; Facebook reviews folded into the Reviews
   module alongside Google.
