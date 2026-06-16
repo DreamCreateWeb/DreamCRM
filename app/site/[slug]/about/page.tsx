@@ -342,9 +342,9 @@ export default async function AboutPage({ params }: Props) {
                 staff.length >= 4
                   ? 'grid-cols-2 lg:grid-cols-4'
                   : staff.length === 3
-                    ? 'grid-cols-2 sm:grid-cols-3'
+                    ? 'grid-cols-1 sm:grid-cols-3'
                     : staff.length === 2
-                      ? 'grid-cols-2 max-w-3xl mx-auto'
+                      ? 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto'
                       : 'max-w-sm mx-auto'
               }`}
             >
