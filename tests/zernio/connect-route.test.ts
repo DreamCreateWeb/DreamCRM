@@ -120,19 +120,19 @@ describe('GET /api/integrations/zernio/connect', () => {
     expect(res.headers.get('location')).toBe('https://example.com/oauth')
   })
 
-  it('blocks a social platform at the cap → redirects to /channels?atLimit (NO OAuth)', async () => {
+  it('blocks a social platform at the cap → redirects to /integrations?atLimit (NO OAuth)', async () => {
     ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'premium', organizationId: 'org_1', organizationName: 'Acme' }
     cap.canConnectSocialPlatform.mockResolvedValue({ allowed: false, limit: 2, current: 2, reason: 'used all' })
     const res = await connectGET(req('/api/integrations/zernio/connect?platform=instagram'))
     expect(res.status).toBe(307)
     const loc = res.headers.get('location') ?? ''
-    expect(loc).toContain('/channels')
+    expect(loc).toContain('/integrations')
     expect(loc).toContain('atLimit=instagram')
     // Critically — OAuth is never started.
     expect(svc.getPlatformConnectUrl).not.toHaveBeenCalled()
   })
 
-  it('blocks a Basic-plan social connect (cap = 0) → /channels?atLimit', async () => {
+  it('blocks a Basic-plan social connect (cap = 0) → /integrations?atLimit', async () => {
     ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'basic', organizationId: 'org_1', organizationName: 'Acme' }
     cap.canConnectSocialPlatform.mockResolvedValue({ allowed: false, limit: 0, current: 0, reason: 'upgrade to Pro' })
     const res = await connectGET(req('/api/integrations/zernio/connect?platform=facebook'))
@@ -157,26 +157,26 @@ describe('GET /api/integrations/zernio/connect', () => {
     expect(res.status).toBe(307)
   })
 
-  it('redirects back to /channels with an error param when the service throws', async () => {
+  it('redirects back to /integrations with an error param when the service throws', async () => {
     ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'premium', organizationId: 'org_1', organizationName: 'Acme' }
     svc.getPlatformConnectUrl.mockRejectedValue(new Error('Zernio API 500'))
     const res = await connectGET(req('/api/integrations/zernio/connect'))
     expect(res.status).toBe(307)
     const loc = res.headers.get('location') ?? ''
-    expect(loc).toContain('/channels')
+    expect(loc).toContain('/integrations')
     expect(loc).toContain('zernioError=')
   })
 })
 
 describe('GET /api/integrations/zernio/callback', () => {
-  it('syncs accounts and redirects to /channels?connected=googlebusiness', async () => {
+  it('syncs accounts and redirects to /integrations?connected=googlebusiness', async () => {
     ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'premium', organizationId: 'org_1', organizationName: 'Acme' }
     svc.syncConnectedAccounts.mockResolvedValue(undefined)
     const res = await callbackGET(req('/api/integrations/zernio/callback?platform=googlebusiness&accountId=a1'))
     expect(svc.syncConnectedAccounts).toHaveBeenCalledWith('org_1')
     expect(res.status).toBe(307)
     const loc = res.headers.get('location') ?? ''
-    expect(loc).toContain('/channels')
+    expect(loc).toContain('/integrations')
     expect(loc).toContain('connected=googlebusiness')
   })
 
@@ -195,11 +195,11 @@ describe('GET /api/integrations/zernio/callback', () => {
     expect(res.headers.get('location')).toContain('connected=googlebusiness')
   })
 
-  it('redirects to /channels (no sync) for a non-clinic context', async () => {
+  it('redirects to /integrations (no sync) for a non-clinic context', async () => {
     ctx.value = { tenantType: 'platform', role: 'owner', planTier: 'premium', organizationId: 'o', organizationName: 'P' }
     const res = await callbackGET(req('/api/integrations/zernio/callback'))
     expect(svc.syncConnectedAccounts).not.toHaveBeenCalled()
-    expect(res.headers.get('location')).toContain('/channels')
+    expect(res.headers.get('location')).toContain('/integrations')
   })
 
   it('surfaces a sync error via the zernioError param', async () => {

@@ -133,7 +133,7 @@ export default async function ReviewsReceivedPage() {
 
       {/* ── Facebook recommendations (real, synced via Zernio) ─────────── */}
       {/* Only shown when a Facebook Page is connected (no connect-prompt here —
-          /channels is the single connect surface; Google's prompt is enough). */}
+          /integrations is the single connect surface; Google's prompt is enough). */}
       {facebookConnected && (
         <FacebookReviewsSection
           rows={facebookRows}

@@ -21,8 +21,8 @@ export const dynamic = 'force-dynamic'
  * Compose once → publish/schedule to Google Business + the connected socials
  * (Instagram / Facebook / TikTok / YouTube / LinkedIn), with a content calendar.
  * Clinic + owner/admin on ANY plan — posting to a channel just requires it to be
- * CONNECTED (the social-connection cap is enforced at connect-time on /channels).
- * No channels connected → a calm connect-prompt to /channels.
+ * CONNECTED (the social-connection cap is enforced at connect-time on
+ * /integrations). No channels connected → a calm connect-prompt to /integrations.
  *
  * Honest by design: per-post insights are deprecated on Google and not yet
  * pulled for the socials, so the history/calendar show publish STATUS +
@@ -59,7 +59,7 @@ export default async function SocialPostsPage() {
         subtitle="Compose once and publish — or schedule — to Google Business and your social channels at the same time. See everything on a content calendar."
         actions={
           <>
-            <ActionButton variant="secondary" size="sm" href="/channels">
+            <ActionButton variant="secondary" size="sm" href="/integrations">
               Channels
             </ActionButton>
             <ActionButton variant="secondary" size="sm" href="/seo">
@@ -75,7 +75,7 @@ export default async function SocialPostsPage() {
           title="Connect a channel to start posting"
           body="Link your Google Business Profile and social channels, and you can publish Updates, Offers, and Events to all of them from here."
           action={
-            <ActionButton variant="primary" size="sm" href="/channels">
+            <ActionButton variant="primary" size="sm" href="/integrations">
               Connect channels
             </ActionButton>
           }

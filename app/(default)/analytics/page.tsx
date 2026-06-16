@@ -239,8 +239,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <Card>
             <p className="text-sm text-gray-600 dark:text-gray-300">
               Connect a social channel (Instagram, Facebook, TikTok, YouTube, or LinkedIn) on{' '}
-              <Link href="/channels" className="text-teal-700 dark:text-teal-400 hover:underline">
-                Channels
+              <Link href="/integrations" className="text-teal-700 dark:text-teal-400 hover:underline">
+                Integrations
               </Link>{' '}
               to see followers, reach, and engagement here.
             </p>

@@ -21,15 +21,15 @@ import {
  *    lib/types/social-entitlements.ts) → no plan/cap gate.
  *  - Social platforms: gated by the plan's social-connection CAP via
  *    `canConnectSocialPlatform` (which inherently enforces the plan — Basic = 0
- *    so always blocked). When at the cap, we redirect BACK to /channels with an
- *    `?atLimit={platform}` param INSTEAD of starting OAuth, so the surface shows
- *    the upgrade / add-on CTA.
+ *    so always blocked). When at the cap, we redirect BACK to /integrations with
+ *    an `?atLimit={platform}` param INSTEAD of starting OAuth, so the surface
+ *    shows the upgrade / add-on CTA.
  *  - Anything off the connectable shortlist (the 9 non-offered Zernio slugs) → 400.
  *
  * The UI opens this in a NEW TAB and polls on focus, so even if Zernio returns
  * the user to its own dashboard (the default when no redirect_url is honored),
- * coming back to /channels re-detects the connection via the refresh action. We
- * DO pass our callback as redirect_url so, when Zernio supports it, the user
+ * coming back to /integrations re-detects the connection via the refresh action.
+ * We DO pass our callback as redirect_url so, when Zernio supports it, the user
  * lands back directly.
  */
 function appBase(req: NextRequest): string {
@@ -58,12 +58,12 @@ export async function GET(req: NextRequest) {
   }
 
   // SOCIAL platforms are cap-gated (the cap enforces the plan: Basic = 0). At the
-  // cap → bounce to /channels with ?atLimit so the surface shows the upgrade CTA.
-  // GBP is uncapped/free and skips this entirely.
+  // cap → bounce to /integrations with ?atLimit so the surface shows the upgrade
+  // CTA. GBP is uncapped/free and skips this entirely.
   if (isSocialChannelPlatform(requested)) {
     const check = await canConnectSocialPlatform(ctx.organizationId)
     if (!check.allowed) {
-      const url = new URL('/channels', appBase(req))
+      const url = new URL('/integrations', appBase(req))
       url.searchParams.set('atLimit', requested)
       return NextResponse.redirect(url)
     }
@@ -74,8 +74,8 @@ export async function GET(req: NextRequest) {
     const authUrl = await getPlatformConnectUrl(ctx.organizationId, ctx.organizationName, requested, redirectUrl)
     return NextResponse.redirect(authUrl)
   } catch (e) {
-    // Bounce back to /channels with an error param the page can surface.
-    const url = new URL('/channels', appBase(req))
+    // Bounce back to /integrations with an error param the page can surface.
+    const url = new URL('/integrations', appBase(req))
     url.searchParams.set('zernioError', (e as Error).message.slice(0, 200))
     return NextResponse.redirect(url)
   }

@@ -219,7 +219,7 @@ export function validateSocialPostInput(
  * The org's connected channels, shaped for the composer picker. GBP first, then
  * the connected socials. Reads `getZernioConnection().accounts` (multi-platform
  * since PR 2). Returns [] when nothing is connected → the page shows a
- * connect-prompt to /channels.
+ * connect-prompt to /integrations.
  */
 export async function getComposerChannels(orgId: string): Promise<ComposerChannel[]> {
   const conn = await getZernioConnection(orgId)
