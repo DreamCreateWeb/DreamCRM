@@ -568,41 +568,72 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       )}
 
       {/* ── Meet the team — clay-card photo slider sourced from staff photos ── */}
-      {/* Replaces the old flanking clinical-photo ovals; one source of truth
-          with the Team editor, so editing staff updates this gallery. Hides
-          cleanly when no staff member has a photo yet. */}
-      {teamGalleryMembers.length > 0 && (
-        <section className="pb-16 sm:pb-24">
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="text-center max-w-[640px] mx-auto mb-9 sm:mb-12">
-              <p
-                className="text-xs font-semibold uppercase tracking-[0.22em] mb-3"
-                style={{ color: INK_MUTED }}
-              >
-                Meet the team
-              </p>
-              <h2
-                className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em]"
-                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
-                data-edit-field="copy:home.teamGalleryTitle"
-                data-edit-kind="text"
-                data-edit-label="headline"
-              >
-                {copyOverride(copyOverrides, 'home.teamGalleryTitle', '') || (
-                  <>The faces behind {name}.</>
-                )}
-              </h2>
-            </div>
-            <div
-              data-edit-field="staff"
-              data-edit-kind="modal"
-              data-edit-label="team photos"
+      {/* ALWAYS rendered so the section never "goes missing" in the Studio: with
+          no staff yet it shows editor-only placeholder portraits (dc-edit-only
+          on the whole section) inviting the clinic to add their team; the LIVE
+          site hides it until real people are added — we never show empty/fake
+          faces publicly. Editing staff updates this gallery + the About page. */}
+      <section className={`pb-16 sm:pb-24${teamGalleryMembers.length === 0 ? ' dc-edit-only' : ''}`}>
+        <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+          <div className="text-center max-w-[640px] mx-auto mb-9 sm:mb-12">
+            <p
+              className="text-xs font-semibold uppercase tracking-[0.22em] mb-3"
+              style={{ color: INK_MUTED }}
             >
-              <TeamGallery members={teamGalleryMembers} brand={brand} ink={INK} surface={SURFACE} />
-            </div>
+              Meet the team
+            </p>
+            <h2
+              className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em]"
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
+              data-edit-field="copy:home.teamGalleryTitle"
+              data-edit-kind="text"
+              data-edit-label="headline"
+            >
+              {copyOverride(copyOverrides, 'home.teamGalleryTitle', '') || (
+                <>The faces behind {name}.</>
+              )}
+            </h2>
           </div>
-        </section>
-      )}
+          <div
+            data-edit-field="staff"
+            data-edit-kind="modal"
+            data-edit-label="team photos"
+          >
+            {teamGalleryMembers.length > 0 ? (
+              <TeamGallery members={teamGalleryMembers} brand={brand} ink={INK} surface={SURFACE} />
+            ) : (
+              <ul className="flex gap-6 sm:gap-7 overflow-x-auto pb-4 pt-2 sm:px-14 lg:justify-center" style={{ scrollbarWidth: 'none' }}>
+                {[0, 1, 2, 3].map((i) => (
+                  <li key={i} className="snap-start shrink-0 w-[230px] sm:w-[248px]">
+                    <figure
+                      className="rounded-[30px] p-3.5 text-center"
+                      style={{
+                        backgroundColor: SURFACE,
+                        boxShadow: '13px 13px 30px rgba(28,26,23,0.14), -10px -10px 24px rgba(255,255,255,0.78)',
+                      }}
+                    >
+                      <div
+                        className="relative overflow-hidden rounded-[22px] aspect-[4/5] mb-3.5"
+                        style={heroPlaceholderStyle(brand, `${brand}1A`)}
+                      >
+                        <HeroPlaceholderMotif brand={brand} />
+                      </div>
+                      <figcaption className="px-1 pb-1">
+                        <div className="font-semibold text-[15px] leading-tight" style={{ color: INK_MUTED }}>
+                          Add a team member
+                        </div>
+                        <div className="text-[12.5px] mt-0.5 font-medium" style={{ color: INK_MUTED, opacity: 0.65 }}>
+                          Their role
+                        </div>
+                      </figcaption>
+                    </figure>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* ── "The {clinic} difference" — 2-col feature/checklist ────────── */}
       {/* Left: feature media — video when `differenceVideoUrl` is set
@@ -743,18 +774,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         </div>
       </section>
 
-      {/* ── Studio-only: finish-your-homepage prompts ──────────────────── */}
-      {/* The optional homepage sections (trust stats, team photos, patient
-          reviews) each hide PUBLICLY when empty so a fresh clinic never shows
-          a heading with nothing under it. But that also means there is nothing
-          on the canvas to click to add them. This strip is invisible to the
-          public (dc-edit-only) and gives the Studio one click target per
-          still-empty section — same pattern #304 used for services. Each card
-          carries the section's data-edit-field so clicking opens its editor.
-          The whole strip disappears once every optional section has content. */}
-      {(stats.length === 0 ||
-        teamGalleryMembers.length === 0 ||
-        testimonials.length === 0) && (
+      {/* ── Studio-only: add-trust-stats prompt ─────────────────────────── */}
+      {/* The team + reviews sections now carry their OWN in-place editor
+          placeholders (so they're never "missing" in the Studio), so this strip
+          is just the remaining stats prompt — shown only on the rare emptied-
+          stats case (a fresh clinic ships with the starter stats). dc-edit-only,
+          so the public never sees it. */}
+      {stats.length === 0 && (
         <section className="dc-edit-only py-12 sm:py-16">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8">
             <p
@@ -763,44 +789,17 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             >
               Finish your homepage
             </p>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {stats.length === 0 && (
-                <button
-                  type="button"
-                  className="rounded-2xl border-2 border-dashed text-center py-7 px-5 text-sm font-medium"
-                  style={{ borderColor: BORDER, color: INK_MUTED }}
-                  data-edit-field="stats"
-                  data-edit-kind="modal"
-                  data-edit-label="trust stats"
-                >
-                  + Add trust stats — years open, happy patients, and more.
-                </button>
-              )}
-              {teamGalleryMembers.length === 0 && (
-                <button
-                  type="button"
-                  className="rounded-2xl border-2 border-dashed text-center py-7 px-5 text-sm font-medium"
-                  style={{ borderColor: BORDER, color: INK_MUTED }}
-                  data-edit-field="staff"
-                  data-edit-kind="modal"
-                  data-edit-label="team photos"
-                >
-                  + Add your team — photos appear here and on your About page.
-                </button>
-              )}
-              {testimonials.length === 0 && (
-                <button
-                  type="button"
-                  className="rounded-2xl border-2 border-dashed text-center py-7 px-5 text-sm font-medium"
-                  style={{ borderColor: BORDER, color: INK_MUTED }}
-                  data-edit-field="testimonials"
-                  data-edit-kind="modal"
-                  data-edit-label="reviews"
-                >
-                  + Feature patient reviews — collect them under Reviews, then
-                  star your favorites.
-                </button>
-              )}
+            <div className="max-w-md mx-auto">
+              <button
+                type="button"
+                className="w-full rounded-2xl border-2 border-dashed text-center py-7 px-5 text-sm font-medium"
+                style={{ borderColor: BORDER, color: INK_MUTED }}
+                data-edit-field="stats"
+                data-edit-kind="modal"
+                data-edit-label="trust stats"
+              >
+                + Add trust stats — years open, happy patients, and more.
+              </button>
             </div>
           </div>
         </section>
@@ -812,33 +811,51 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           with white quote text + gold stars + author bottom-right. The full
           services catalog lives on /services; the hero pill carousel keeps
           a name-only preview. */}
-      {testimonials.length > 0 && (
-        <section
-          id="reviews"
-          className="scroll-mt-20 py-16 sm:py-28"
-          data-edit-section="testimonials"
-          data-edit-field="testimonials"
-          data-edit-kind="modal"
-          data-edit-label="reviews"
-        >
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <h2
-              className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
-              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
-              data-edit-field="copy:home.testimonialsTitle"
-              data-edit-kind="text"
-              data-edit-label="headline"
-            >
-              {copyOverride(copyOverrides, 'home.testimonialsTitle', '') || (
-                <>
-                  Why people love <strong className="italic font-semibold">{name}</strong>
-                </>
-              )}
-            </h2>
+      {/* ALWAYS rendered (editor-only placeholder when empty) so the reviews
+          section is never "missing" in the Studio; the live site hides it until
+          the clinic features a real review — never a fabricated testimonial. */}
+      <section
+        id="reviews"
+        className={`scroll-mt-20 py-16 sm:py-28${testimonials.length === 0 ? ' dc-edit-only' : ''}`}
+        data-edit-section="testimonials"
+        data-edit-field="testimonials"
+        data-edit-kind="modal"
+        data-edit-label="reviews"
+      >
+        <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+          <h2
+            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
+            style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            data-edit-field="copy:home.testimonialsTitle"
+            data-edit-kind="text"
+            data-edit-label="headline"
+          >
+            {copyOverride(copyOverrides, 'home.testimonialsTitle', '') || (
+              <>
+                Why people love <strong className="italic font-semibold">{name}</strong>
+              </>
+            )}
+          </h2>
+          {testimonials.length > 0 ? (
             <TestimonialsCarousel testimonials={testimonials} brand={brand} />
-          </div>
-        </section>
-      )}
+          ) : (
+            /* Editor-only preview card matching the real forest-teal testimonial
+               cards — invites the clinic to feature a collected patient review. */
+            <div
+              className="rounded-[28px] px-8 py-12 sm:px-12 sm:py-16 max-w-[760px]"
+              style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
+            >
+              <div className="text-5xl leading-none mb-2" style={{ color: 'rgba(250,247,242,0.5)' }} aria-hidden="true">
+                &ldquo;
+              </div>
+              <p className="text-lg sm:text-xl font-medium leading-[1.5]" style={{ color: 'rgba(250,247,242,0.88)' }}>
+                Feature a patient review here — collect them under Reviews, then star your favorites to showcase them
+                on your site.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ── Location — "Come meet us at…" with map + directions ─────────── */}
       {/* Connective-tissue band between social proof (testimonials) and
