@@ -211,8 +211,12 @@ These shape every decision. Re-read before any module design.
 - Tap targets ≥44×44px on mobile
 
 ### Mobile-first patterns
-- Sticky bottom CTA bar: **Book** (brand color) + **Call** (tel: link),
-  visible after first scroll, on every public-facing page
+- Persistent mobile CTAs: **Book** (brand color) + **Call** (tel: link),
+  visible after first scroll, on every public-facing page. **Implemented as
+  corner FLOATING CTAs** (`site-mobile-actions.tsx`, PR #193) rather than the
+  originally-specified full-width sticky bottom bar — a deliberate change
+  (floating corners free vertical space + read as less aggressive). The intent
+  (Book + Call always one tap away after scroll) is unchanged.
 - Hamburger drawer nav with grouped services, Book pinned to drawer top
 - One-handed reach: primary CTAs in lower third of viewport
 - Single-column forms, 56px input height, native input types
@@ -319,7 +323,10 @@ Phased by what unlocks the most platform value with the least dependent work.
    patient.
 **5. Intake forms** — builder, e-signature, attach-to-appointment, prefill
    on next visit, portal surfacing.
-**6. Reviews & reputation** — post-visit Google/Yelp/Facebook review prompts.
+**6. Reviews & reputation** — post-visit review prompts. (Shipped v2: the
+   patient writes the review text INSIDE DreamCRM so we own it; plus synced
+   Google + Facebook reviews via the Zernio connection in Phase 5. See
+   `CLAUDE.md`.)
 
 ### Phase 3 — The differentiator
 **7. Shop / discounts / birthday benefits** — selling dental products via the
@@ -337,6 +344,30 @@ Phased by what unlocks the most platform value with the least dependent work.
     captured across modules: source attribution, lifetime engagement, last
     contact, balance, lifecycle stage. Naturally rich because earlier
     modules feed it.
+
+### Phase 5 — Online presence: Google Business + social (SHIPPED) → integration bundles (next)
+**11. Google Business + social — via Zernio (SHIPPED, Phases 1–3).** A clinic's
+    Google Business Profile + social channels plug in through Zernio's hosted
+    OAuth: real Google reviews (reply + a legit `AggregateRating` on the public
+    site), verified hours/address/photos synced into the site, local-search
+    metrics into SEO + Analytics, GBP posting, a unified multi-platform composer
+    + content calendar, per-platform social analytics, and Facebook reviews. The
+    billing model: per-plan social-connection caps + a flat per-tier paid add-on;
+    **Google Business is free on every tier.** Full design +
+    REST shapes in [`docs/zernio-google-integration.md`](./docs/zernio-google-integration.md);
+    `CLAUDE.md` tracks the shipped detail.
+**12. Integrations as feature BUNDLES (DIRECTION — plan approved, not built).**
+    `/integrations` shipped as a catalog-driven app-library marketplace
+    (`lib/integrations/catalog.ts` + `resolve.ts`); the durable direction is to
+    reframe it as a menu of **feature bundles** a clinic activates to "build its
+    own feature set" — **Practice Management** + **Google Business** (included),
+    **Social Media** (paid add-on), **Patient Communications** (Gmail/SMS),
+    **Ecommerce & Payments** (Stripe/Shop), and future dental-specific bundles
+    (e.g. **Imaging**). Some bundles are included in the platform fee, some are
+    paid add-ons; individual accounts (an IG handle, a mailbox, a Stripe account)
+    live INSIDE their bundle's setup. **Activating a bundle adds its features to
+    the sidebar** so they read as built-in alongside the core surfaces
+    (website / appointments / patients). `CLAUDE.md` carries the build spec.
 
 ---
 

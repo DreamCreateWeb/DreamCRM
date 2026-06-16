@@ -26,8 +26,9 @@ aesthetic — keep it; wire logic to it rather than replacing components.
   Resend's `{ data, error }` return and throws (the SDK doesn't throw on a bad
   key — a prior silent-failure bug). **Ops note:** the prod `RESEND_API_KEY` in
   Secrets Manager was an invalid/dead key (`re_T8fyc…`); it was swapped to the
-  working account's key. **Both that Resend key and the AWS access key were
-  shared in chat and still need rotating** (see priority list).
+  working account's key. **Several keys shared in chat still need rotating /
+  revoking** (Resend key, multiple AWS access keys, a Stripe restricted key) —
+  see the priority/rotation list at the bottom.
 - **Storage: AWS S3** (`STORAGE_DRIVER=s3`, bucket `dreamcrm-uploads-prod`).
   Vercel Blob kept as a fallback driver.
 - **AI: Anthropic API (direct)**. A Bedrock driver exists (`AI_DRIVER=bedrock`,
@@ -109,6 +110,15 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   and the 3 `STRIPE_PRICE_*_ANNUAL` envs in `dreamcrm/app-secrets` point at
   them. Marketing /pricing advertises it; onboarding + Settings → Plan
   charge it.
+- **Social-connection add-on is LIVE (2026-06-16):** the 4 add-on Stripe Prices
+  exist in live Stripe — **Social — Pro $30/mo + $300/yr** and **Social —
+  Premium $20/mo + $200/yr** — and the 4 envs
+  `STRIPE_PRICE_SOCIAL_ADDON_{PRO,PRO_ANNUAL,PREMIUM,PREMIUM_ANNUAL}` in
+  `dreamcrm/app-secrets` point at them (mapped into App Runner's
+  `RuntimeEnvironmentSecrets`). So `socialAddonConfigured()` is now true and the
+  Settings → Billing "Social connections" card + the `/integrations` social
+  add-on CTA actually charge (no longer the disabled "coming soon" fallback).
+  See the Zernio Phase 3 PR1 bullet under What's wired.
 - Webhook endpoint `we_…` registered at
   `https://dreamcrm-dreamcreatewebs-projects.vercel.app/api/webhooks/stripe`
   (legacy URL — fine, Vercel routes both). Subscribed events:
@@ -118,6 +128,59 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Integrations redesigned as a catalog-driven app marketplace + `/channels`
+  folded in (2026-06-16, PRs #365–#368)** — `/integrations` is no longer just the
+  PMS dashboard; it's a premium **app-library marketplace** that scales to
+  hundreds/thousands of integrations and is the SINGLE place a clinic connects
+  everything (PMS · Google Business · social · email · payments). **`/channels`
+  is GONE** — its connect surface (Google Business + the social shortlist) was
+  consolidated INTO `/integrations`; `app/(default)/channels/page.tsx` is now a
+  permanent `redirect('/integrations')` (old bookmarks keep working) and the
+  sidebar "Channels" entry was removed. **Architecture — adding an integration is
+  a DATA change, not JSX:** `lib/integrations/catalog.ts` (`IntegrationDef` +
+  `INTEGRATIONS_CATALOG` — PURE client-safe metadata: id, `category` from a
+  `CATEGORY_META` taxonomy [pms/google/social/communication/payments/marketing/
+  analytics/scheduling/forms/other], `logo` id, tagline, keywords, `availability`
+  [`live`/`beta`/`request_access`/`coming_soon`], `connectKind` [`zernio`/`pms`/
+  `oauth`/`external_link`/`none`], optional `minPlan`/`countsTowardSocialCap`/
+  `valueLinks`/`detailHref`) + `lib/integrations/resolve.ts` (a PURE runtime
+  resolver `resolveCatalog(liveState, planTier)` → per-def `IntegrationRuntime`
+  status [`connected`/`needs_attention`/`available`/`at_cap`/`premium_locked`/
+  `request_access`/`coming_soon`/`unavailable`] — connected state always wins;
+  the page assembles a minimal serializable `LiveIntegrationState` from what it
+  already loads [PMS dashboard, `getZernioConnection`, `canConnectSocialPlatform`,
+  Gmail mailbox rows, Stripe Connect status] so the catalog stays free of live
+  state). **Real brand logos** in `components/integrations/brand-logos.tsx`
+  (trademark-accurate inline-SVG marks in brand colors + `BRAND_ACCENTS` tint
+  map — Instagram/Facebook/TikTok/YouTube/LinkedIn, Google four-color G, Gmail,
+  Stripe, SMS, Open Dental monogram + roadmap-PMS monogram tiles; purely
+  decorative/`aria-hidden`, text label always alongside) — the single biggest
+  visual upgrade (no more emoji/plug wireframe cards). **UI**
+  (`integrations-library.tsx`, DESIGN-SYSTEM v2): a connected-first overview
+  ("Your integrations" section at the top) + a Browse split, fast client SEARCH
+  over name+keywords+category, a scrollable category-nav pill row with per-cat
+  counts, a categorized grid with section headers + a live total + no-results
+  state, rich cards (logo well + name + tagline + StatusPill + one action +
+  hover-lift + connected handle chip + value quick-links). **Catalog content
+  today** (honest — every entry is real or a clearly-labelled roadmap tile): PMS
+  (Open Dental `live`/Premium + Dentrix Ascend `request_access` + Dentrix
+  desktop/Eaglesoft/Curve `coming_soon`), Google Business (`live`, free, never
+  counts toward the social cap), the 5 social shortlist platforms (`live`,
+  `countsTowardSocialCap`), Gmail (`live`, links to `/inbox`), SMS
+  (`coming_soon`), Stripe (`live`, links to `/shop`). **Detail pages:**
+  `/integrations/open-dental` (the full PMS connect/sync dashboard) +
+  `/integrations/google-business` (a light GBP detail). Gmail + Stripe Connect
+  surface their REAL status and link OUT to their existing flows (`/inbox`,
+  `/shop`) — we don't rebuild those. The social cap meter + at-cap upgrade/add-on
+  CTA + the add-on management + the Zernio connect-in-new-tab / re-sync-on-focus /
+  Refresh behavior all moved here intact. Server actions in
+  `app/(default)/integrations/actions.ts` (`refreshChannelsAction` ≡
+  `syncZernioAccountsAction`; `disconnectChannelAction`; `disconnectZernioGoogleAction`;
+  `buySocialAddonAction`/`cancelSocialAddonAction` — the old Channels actions
+  kept as aliases). **NO migration** (pure UI/architecture refactor over the
+  existing Zernio/PMS/Gmail/Stripe state). **NOTE — the NEXT major Integrations
+  work is the "feature-bundle" reframe (plan approved, NOT built); see "What's
+  NOT yet wired".**
 - **Zernio foundation — Google Business connection (2026-06-15)** — the
   connection architecture for the Zernio × Google Business integration (full
   plan in `docs/zernio-google-integration.md`). FOUNDATION ONLY (connect /
@@ -186,8 +249,9 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   first-party "patient writes the review inside DreamCRM" flow is untouched.
   Cron `app/api/cron/sync-google-reviews/route.ts` (CRON_SECRET-gated, hourly;
   `/api/cron` is already in the middleware allowlist) — **the EventBridge rule
-  still needs out-of-band provisioning via `scripts/setup-cron-schedules.sh`**.
-  Demo seeds ~6 synthetic `google_review` rows (varied ratings incl. a 4★ + a
+  `dreamcrm-sync-google-reviews` (hourly) is now LIVE in prod (PR #364),
+  provisioned via `scripts/setup-cron-schedules.sh`** (which now manages 7 rules
+  total). Demo seeds ~6 synthetic `google_review` rows (varied ratings incl. a 4★ + a
   rating-only null-comment + replied/unreplied) so `/reviews/received`, the
   dashboard, and the public AggregateRating all showcase populated (never
   networks; behind the real-patient guard like `seedDemoZernio`). **Confirmed
@@ -238,8 +302,9 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   gallery (curated set untouched), and a disconnected connect-prompt to
   `/integrations`. Cron `app/api/cron/sync-gbp/route.ts` (CRON_SECRET-gated,
   non-force so it respects manual flags; `/api/cron` already in the middleware
-  allowlist — **the EventBridge rule still needs provisioning via
-  `scripts/setup-cron-schedules.sh`**). Demo seeds the synced state +
+  allowlist — **the EventBridge rule `dreamcrm-sync-gbp` (hourly) is now LIVE in
+  prod (PR #364), provisioned via `scripts/setup-cron-schedules.sh`**). Demo
+  seeds the synced state +
   `google_photos` (one URL overlapping the curated gallery so the "Added" state
   shows; behind the real-patient guard, non-destructive on a hand-edited demo,
   never networks). **Confirmed REST shapes:** `GET /v1/google-business/
@@ -361,9 +426,12 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   Stripe webhook for real clinics, seeded directly for the demo. **Stripe add-on**
   (`lib/stripe-config.ts` — 4 env-referenced prices
   `STRIPE_PRICE_SOCIAL_ADDON_{PRO,PRO_ANNUAL,PREMIUM,PREMIUM_ANNUAL}` +
-  `getSocialAddonPriceId`/`isSocialAddonPriceId`/`socialAddonConfigured`; **these
-  Stripe Prices DON'T EXIST yet** — referenced lazily, every consumer degrades to
-  a disabled "coming soon" when the env is absent so build/tests run keyless).
+  `getSocialAddonPriceId`/`isSocialAddonPriceId`/`socialAddonConfigured`;
+  **these 4 Stripe Prices are now LIVE (2026-06-16) — Social — Pro $30/$300 +
+  Social — Premium $20/$200 — with their ids in `dreamcrm/app-secrets` →
+  App Runner, so `socialAddonConfigured()` is true and the add-on charges.**
+  They're still referenced lazily, so every consumer degrades to a disabled
+  "coming soon" when the env is absent — build/tests run keyless).
   `lib/services/social-billing.ts`: `addSocialAddon`/`removeSocialAddon` (add/del
   a Stripe **subscription ITEM** at the tier+interval price w/ proration; Basic →
   "Upgrade to Pro" throw, comped/no-sub → "managed billing" throw; idempotent),
@@ -390,13 +458,21 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   actions). The `google_posts` + `integrations` sidebar entries lost their
   `minPlan` (visible on every tier). **Demo**: the Premium demo clinic is seeded
   `social_addon=1` (5 social slots) so PR2's UI showcases the full allotment.
-  **Out-of-band Stripe setup** (do once, redeploy): create 2 Products × monthly+
-  annual prices (Social — Pro $30/$300, Social — Premium $20/$200) and set the 4
-  env price ids in `dreamcrm/app-secrets`. ~80 new tests (`tests/billing/social-*`
-  + `tests/zernio/gbp-gate-relax`). See `docs/zernio-google-integration.md`.
+  **Out-of-band Stripe setup — DONE (2026-06-16):** the 2 Products × monthly+
+  annual prices (Social — Pro $30/$300, Social — Premium $20/$200) now exist in
+  live Stripe and the 4 env price ids are set in `dreamcrm/app-secrets` (mapped
+  into App Runner), so the add-on charges in prod. ~80 new tests
+  (`tests/billing/social-*` + `tests/zernio/gbp-gate-relax`). See
+  `docs/zernio-google-integration.md`.
 - **Zernio social module — Phase 3 PR2: cap-aware multi-platform "Channels"
-  connect (2026-06-15)** — a new **`/channels`** page (clinic sidebar, Growth
-  group, **NO minPlan**) is the canonical place a clinic connects its Google +
+  connect (2026-06-15)** — **SUPERSEDED (2026-06-16, PR #365): the `/channels`
+  page described below was folded INTO `/integrations` (the catalog marketplace)
+  and `app/(default)/channels/page.tsx` is now a redirect; the underlying
+  service/route/actions all live on inside the Integrations marketplace. Read the
+  "Integrations redesigned as a catalog-driven app marketplace" bullet at the top
+  for the current shape; the rest of this bullet is the original PR2 record.** —
+  a new **`/channels`** page (clinic sidebar, Growth
+  group, **NO minPlan**) was the canonical place a clinic connects its Google +
   social presence through Zernio's hosted OAuth, enforcing the PR1 plan-tier
   social-connection caps. **The dentist shortlist** — `SOCIAL_CHANNEL_SHORTLIST`
   in `lib/types/zernio.ts` = `instagram`/`facebook`/`tiktok`/`youtube`/`linkedin`
@@ -474,7 +550,8 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (`calendar-view.tsx`) is a dependency-free CSS-grid month view placing each post
   on its scheduled/published (→ created fallback) day w/ channel icons + a status
   dot + a click-to-open detail popover + month nav. Disconnected → a connect-prompt
-  to `/channels`. Server actions `createSocialPostAction`/`deleteSocialPostAction`
+  to `/channels` (now `/integrations` — Channels folded in). Server actions
+  `createSocialPostAction`/`deleteSocialPostAction`
   (`{ok|error}`, owner/admin + clinic, no plan gate). **HONEST:** still no
   fabricated per-post metrics (per-post insights deprecated on Google + not yet
   pulled for the socials) — points to `/seo`; **per-platform social analytics are
@@ -506,7 +583,8 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   API failure → that tile reads zeros + an `error`, the OTHERS still render; never
   throws), 30/90 window threaded. Surfaced as a **"Social performance" band on
   `/analytics`** (per-platform followers/reach/impressions/engagement tiles + a
-  connect-prompt to `/channels` when nothing social is connected + an honest
+  connect-prompt to `/channels` [now `/integrations`] when nothing social is
+  connected + an honest
   "couldn't load — analytics add-on required" note on a 402, never fake
   zeros-as-data). **(2) Facebook reviews into the Reviews module.** The
   `google_review` table was GENERALIZED → **`platform_review`** (added a `platform`
@@ -1514,15 +1592,15 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Daily | Intake Forms | `/intake-forms` | **Live (v1)** | Builder + public fill at `{slug}.dreamcreatestudio.com/intake/[formSlug]` |
 | Growth | Recall & Outreach | `/marketing` | **Live (v1 + UX overhaul)** | Morning-huddle dashboard, Outreach Queue at `/marketing/outreach`, patient-segment audience editor, Sent→Opened→Clicked→Booked funnel attribution |
 | Growth | Reviews | `/reviews` + `/reviews/received` | **Live (v2)** | Post-visit review collection — **patient writes the review text inside DreamCRM** (`review_request.review_text`, migration 0035), staff just toggles featured/unfeatured on the public site. Morning-huddle dashboard: 4-stat funnel (Sent · Opened · Reviewed · Ready-to-ask) + platform mix breakdown + Ready-to-ask list + recent activity with ✓ Featured pills + Browse received CTA + inline config. `/reviews/received` shows the patient's actual quote in a read-only italic blockquote + star rating + one-click Feature/Unfeature (staff CANNOT edit). Public landing at `/r/<token>` is text-first: rating + textarea + Submit, then "Also share on Google/Healthgrades/Facebook/Yelp?" as a secondary action (SEO play preserved). `featureReviewAsTestimonial({orgId, patientId})` sources quote from `review_request.reviewText` — throws "has not submitted a review" when null. `clinic_profile.testimonials` gains `patientId` link; display label denormalized to "First L." + city. Featured testimonials surface on the public site (static 3-card grid ≤3, looping marquee >3). FTC-clean (2024 Fake Reviews Rule), no NPS gating, 365-day rate limit. Auto-trigger on appointment completion = v1.1 scaffolded (handler exists, needs EventBridge rule). **`/reviews/received` ALSO has a "From Google" section** (real synced Google reviews + reply/edit/delete + Refresh, driving the public AggregateRating) **and a "From Facebook" section** (Zernio Phase 3 PR4 — synced FB recommend/don't-recommend, READ-ONLY + a "reply on Facebook" link-out since Zernio has no FB reply endpoint; excluded from the AggregateRating). Both ride the generalized `platform_review` table (migration 0069 renamed `google_review` → `platform_review` + a `platform` column; the hourly `/api/cron/sync-google-reviews` sweeps both). |
-| Growth | Social Posts | `/social-posts` | **Live (v1 — Zernio Phase 3 PR3)** | NO minPlan (owner/admin). **Unified multi-platform composer + content calendar** — compose once → publish/schedule to **Google Business + the connected socials** (Instagram / Facebook / TikTok / YouTube / LinkedIn) at once (generalizes the Phase-2 GBP-only Google Posts; `/google-posts` now REDIRECTS here — one composer, no dead page). Composer (`app/(default)/social-posts/`, DESIGN-SYSTEM v2): a **channel-picker** (checkboxes over connected accounts w/ platform icons), shared text + image (shared XHR → S3), a live counter at the tightest cap across picked channels (GBP=1,500 else generous social ceiling), and **GBP-specific options shown ONLY when a GBP channel is picked** (post type / CTA — Book defaults to the clinic `/book` — / event / offer); Post-now / Schedule (**Zernio publishes scheduled posts itself — NO cron**). Right panel is a **List ⇄ Calendar** toggle: history cards carry per-channel target chips (icon + status dot + permalink + per-target error) + confirm-delete; the **content calendar** is a dependency-free CSS-grid month view (each post on its scheduled/published-or-created day + channel icons + status dot + detail popover + month nav). Posting is gated by what's CONNECTED (cap enforced at connect-time on `/channels`), so no plan gate. **Schema:** `gbp_post` RENAMED → `social_post` (parent) + new `social_post_target` child (per-channel `{platform,accountId,zernioPostId,status,googleUrl,lastError,publishedAt}`) — **migration 0068** (rename + create child + backfill 1 GBP target per existing post so Phase-2 posts are preserved + drop the moved columns from the parent; parent keeps a `status` rollup). Service `lib/services/social-posts.ts` (`createSocialPost` persist-parent+targets-first, call Zernio PER TARGET — GBP→`createGbpPost`, social→the new generic `createSocialPost` wrapper — per-target status ISOLATED, best-effort/never-throws, demo-safe; `validateSocialPostInput` GBP-fields only when GBP targeted; `getComposerChannels`; `listSocialPosts` parent+targets; `deleteSocialPost` best-effort + always drop local; `seedDemoSocialPosts`). Server actions `createSocialPostAction`/`deleteSocialPostAction` (`{ok\|error}`). Disconnected → connect-prompt to `/channels`. **HONEST: no per-post metrics** (deprecated on Google + not pulled for socials yet — points to `/seo`; per-platform analytics = PR4). Demo seeds a published GBP+IG+FB cross-post (image+Book), a GBP Offer (coupon), a scheduled IG+FB cross-post, a scheduled GBP Event. +75 tests. **PR4 = per-platform social analytics + Facebook reviews** |
-| Growth | Channels | `/channels` | **Live (v1 — Zernio Phase 3 PR2)** | NO minPlan (owner/admin). The canonical place a clinic connects its Google + social presence through Zernio's hosted OAuth, enforcing the PR1 plan-tier social-connection caps. **Dentist shortlist** `SOCIAL_CHANNEL_SHORTLIST` (`lib/types/zernio.ts`): Instagram / Facebook / TikTok / YouTube / LinkedIn — the ONLY social platforms surfaced (bounds Zernio's ~$6/account cost; the other 9 slugs are hidden; widening = one edit) + Google Business (free, separate, never counts). Page (`app/(default)/channels/`, DESIGN-SYSTEM v2): a Google Business row (connect/disconnect/refresh) + a Social section (5 platforms with connect / connected handle + Disconnect) + a **"{current} of {limit} social connections used"** meter (`font-mono-num`) + an upgrade/add-on CTA → Settings → Billing at the cap (Pro/Premium "Add more", Basic "Upgrade to Pro"). Connect opens hosted OAuth in a NEW TAB + re-syncs on window focus + Refresh. **Generalized service**: `getPlatformConnectUrl` (generic; `getGoogleBusinessConnectUrl` is now its GBP wrapper) + `getZernioConnection` returns ALL accounts in a new `accounts` field (+ back-compat `googleBusinessAccounts` slice so reviews/sync/metrics via `resolveGbpAccount` are untouched). **Connect route** (`/api/integrations/zernio/connect`) opened to the shortlist (400 otherwise); social → `canConnectSocialPlatform` FIRST, at-cap redirects to `/channels?atLimit={platform}` **instead of OAuth**; GBP uncapped. Server actions `refreshChannelsAction`/`disconnectChannelAction` (`{ok\|error}`). **/integrations** GBP card is now a STATUS + "Manage channels →" link (no competing connect button). Demo: `seedDemoZernio` seeds 2 synthetic connected social accounts (IG `@dreamdental` + FB "Dream Dental") → "2 of 5 used". **NO migration** (`zernio_account` already platform-generic). ~98 tests. **PR3 = multi-platform composer + content calendar; PR4 = social analytics + Facebook reviews** |
-| Growth | Analytics | `/analytics` | **Live (v1)** | Premium-tier. The honest CRM-vs-PMS split: read-only aggregation (no new schema) over data other modules already capture. 5 bands — Acquisition (new patients via firstSeenAt + source mix + a real GSC-clicks→leads→contacted→converted website funnel + a **Google Business "local actions" tile** — impressions/calls/directions/bookings via the Zernio connection, `getGbpLocalMetrics`, 30/90-aware, connect-prompt when unlinked), Schedule health (volume trend + no-show/cancellation/confirmation rates vs an industry benchmark, with a low-volume guard that shows counts instead of a misleading % on small samples), Recall & outreach (recall-due reuses listPatients + sent→opened→clicked→booked), Reputation (review funnel + platform mix, reuses getReviewStats), and an honest "Lives in your PMS" deferral block (production $, procedure mix, hygiene reappt %, AR aging) that arrives with Integrations rather than being faked. 30/90-day toggle. Aggregates existing demo data — no seeder change. **PLUS a "Social performance" band (Zernio Phase 3 PR4)** — per-connected-social-platform followers/reach/impressions/engagement tiles via `getSocialMetrics` (`lib/services/social-metrics.ts`, demo-safe + best-effort, 30/90-aware), with a connect-prompt to `/channels` when no social channel is linked |
+| Growth | Social Posts | `/social-posts` | **Live (v1 — Zernio Phase 3 PR3)** | NO minPlan (owner/admin). **Unified multi-platform composer + content calendar** — compose once → publish/schedule to **Google Business + the connected socials** (Instagram / Facebook / TikTok / YouTube / LinkedIn) at once (generalizes the Phase-2 GBP-only Google Posts; `/google-posts` now REDIRECTS here — one composer, no dead page). Composer (`app/(default)/social-posts/`, DESIGN-SYSTEM v2): a **channel-picker** (checkboxes over connected accounts w/ platform icons), shared text + image (shared XHR → S3), a live counter at the tightest cap across picked channels (GBP=1,500 else generous social ceiling), and **GBP-specific options shown ONLY when a GBP channel is picked** (post type / CTA — Book defaults to the clinic `/book` — / event / offer); Post-now / Schedule (**Zernio publishes scheduled posts itself — NO cron**). Right panel is a **List ⇄ Calendar** toggle: history cards carry per-channel target chips (icon + status dot + permalink + per-target error) + confirm-delete; the **content calendar** is a dependency-free CSS-grid month view (each post on its scheduled/published-or-created day + channel icons + status dot + detail popover + month nav). Posting is gated by what's CONNECTED (cap enforced at connect-time on `/integrations`), so no plan gate. **Schema:** `gbp_post` RENAMED → `social_post` (parent) + new `social_post_target` child (per-channel `{platform,accountId,zernioPostId,status,googleUrl,lastError,publishedAt}`) — **migration 0068** (rename + create child + backfill 1 GBP target per existing post so Phase-2 posts are preserved + drop the moved columns from the parent; parent keeps a `status` rollup). Service `lib/services/social-posts.ts` (`createSocialPost` persist-parent+targets-first, call Zernio PER TARGET — GBP→`createGbpPost`, social→the new generic `createSocialPost` wrapper — per-target status ISOLATED, best-effort/never-throws, demo-safe; `validateSocialPostInput` GBP-fields only when GBP targeted; `getComposerChannels`; `listSocialPosts` parent+targets; `deleteSocialPost` best-effort + always drop local; `seedDemoSocialPosts`). Server actions `createSocialPostAction`/`deleteSocialPostAction` (`{ok\|error}`). Disconnected → connect-prompt to `/integrations` (the `/channels` page folded into Integrations). **HONEST: no per-post metrics** (deprecated on Google + not pulled for socials yet — points to `/seo`; per-platform analytics = PR4). Demo seeds a published GBP+IG+FB cross-post (image+Book), a GBP Offer (coupon), a scheduled IG+FB cross-post, a scheduled GBP Event. +75 tests. **PR4 = per-platform social analytics + Facebook reviews** |
+| Growth | ~~Channels~~ | ~~`/channels`~~ | **FOLDED into Integrations (PR #365)** | The standalone Channels connect surface (Zernio Phase 3 PR2) was **consolidated INTO `/integrations`** — the app-library there is now the single place to connect Google Business + the social shortlist (Instagram / Facebook / TikTok / YouTube / LinkedIn), enforcing the PR1 plan-tier caps at connect-time (GBP free/uncapped). `app/(default)/channels/page.tsx` is now a permanent `redirect('/integrations')` (old links keep working) and the sidebar entry was removed. The `SOCIAL_CHANNEL_SHORTLIST` (`lib/types/zernio.ts`) + the generalized `getPlatformConnectUrl` / `getZernioConnection().accounts` / the `/api/integrations/zernio/connect` route (at-cap → `/integrations?atLimit={platform}`) + the `refreshChannelsAction`/`disconnectChannelAction` server actions all still exist and power the Integrations marketplace. See the Integrations row + the Integrations-marketplace "What's wired" bullet |
+| Growth | Analytics | `/analytics` | **Live (v1)** | Premium-tier. The honest CRM-vs-PMS split: read-only aggregation (no new schema) over data other modules already capture. 5 bands — Acquisition (new patients via firstSeenAt + source mix + a real GSC-clicks→leads→contacted→converted website funnel + a **Google Business "local actions" tile** — impressions/calls/directions/bookings via the Zernio connection, `getGbpLocalMetrics`, 30/90-aware, connect-prompt when unlinked), Schedule health (volume trend + no-show/cancellation/confirmation rates vs an industry benchmark, with a low-volume guard that shows counts instead of a misleading % on small samples), Recall & outreach (recall-due reuses listPatients + sent→opened→clicked→booked), Reputation (review funnel + platform mix, reuses getReviewStats), and an honest "Lives in your PMS" deferral block (production $, procedure mix, hygiene reappt %, AR aging) that arrives with Integrations rather than being faked. 30/90-day toggle. Aggregates existing demo data — no seeder change. **PLUS a "Social performance" band (Zernio Phase 3 PR4)** — per-connected-social-platform followers/reach/impressions/engagement tiles via `getSocialMetrics` (`lib/services/social-metrics.ts`, demo-safe + best-effort, 30/90-aware), with a connect-prompt to `/integrations` when no social channel is linked |
 | Website | Website Studio | `/website` | **Live (v3 — in-place)** | Full-screen **in-place "navigate-the-canvas" editor** (PRs #199→#212): `/website` hosts an `<iframe>` of the clinic's REAL site (`/site/[slug]?edit=1`); the public site mounts an **EditBridge** (gated owner/admin + `?edit=1` via `EditBridgeGate` in the shared `/site/[slug]/layout.tsx`) so every `data-edit-*` region is hover-to-edit. Inline text (tagline, name) edits in place; images click-to-replace ("📷 Replace"); sections hover → "✎ Edit" → modal reusing the existing editor + **scoped** `website-actions.ts` save → canvas reloads the current page. **Navigate-the-canvas** keeps `?edit=1` across internal links. Coverage: Home (tagline · name · hero image · intro video upload/URL · stats · testimonials · services picker) · About (about · team · office photos) · FAQ · Insurance · Payment & Financing · footer Office Hours (every page). Editors in `app/(default)/website/` (faq/hours) + reused `settings/clinic/*-editor.tsx`. Stale-tab "refresh to edit" fallback. **Loose end:** the Phase-2 per-section "✨ Rewrite with AI" buttons (tier allowance Basic 15 / Pro 50 / Premium 200, `ai_usage_counter` 0042, `ai-website.ts`) were on the old three-pane panels and aren't yet re-wired into the Studio modals (infra intact). `/settings/clinic` is the deep-edit fallback. Next: conversational AI onboarding interview (Phase 3) |
 | Website | Blog | `/blog` | Soon | Phase 1 placeholder — Tiptap editor + SEO + AI-assisted drafts |
 | Website | SEO | `/seo` | **Live (v1)** | Base SEO (sitemap / robots / JSON-LD / OG images / canonicals) is live. Dashboard surfaces site-health checks, an organic→leads→bookings funnel, real Search Console clicks + top queries, and reviews as a ranking signal. **Search Console is a single shared platform connection, zero-config for clinics**: the platform admin connects ONCE with the `sc-domain:dreamcreatestudio.com` Domain property (covers apex + www + every clinic subdomain); each clinic's SEO tab reads that connection scoped to its own pages via a `page contains '/site/<slug>'` (or `<slug>.` in subdomain mode) filter — clinics connect nothing. OAuth routes a platform-admin's connect to the platform org even from demo mode (`getPlatformOrgId`); `getClinicSeoPerformance` does the scoped read (also feeds the Analytics website funnel). Platform context (`tenantType==='platform'`) shows the manage view (connect / pick property / whole-domain perf); clinic/demo shows the scoped read. Custom-domain clinics aren't covered by the shared property (future: their own connection). **GBP listing data (hours/address/phone/photos) syncs into `clinic_profile` via the Zernio connection** (see the Zernio hours/location bullet); **GBP *local metrics* (impressions/calls/directions/website-clicks/bookings + top search keywords) are now LIVE on `/seo`** — the static "claim your GBP" checklist is replaced by a real connected-metrics card (connect-prompt when no GBP is linked), and the same numbers feed the Analytics Acquisition band (`lib/services/gbp-metrics.ts`, demo-safe + best-effort, no migration). Rank tracking + page-speed still roadmap |
 | Website | Careers | `/careers` | **Live (v1)** | Premium-tier. Job postings on the clinic's own site + a built-in ATS — replaces the $400/mo DentalPost board. **The "Indeed integration" is structured-data, not a partner API**: each open role renders at `{slug}.../careers/[jobSlug]` with `JobPosting` JSON-LD so **Google for Jobs + Indeed index it for free** (Indeed's Job Sync API is ATS-partner-only; the direct-employer path is the `/site/[slug]/jobs.xml` feed we also generate). Schema (migration 0031): `job_posting` (role/employment/comp/status/apply-method) + `job_application`. Admin `/careers`: Roles tab (create/edit via `/careers/new` + `/careers/[id]`, publish/close/delete) + Applicants tab (triage pipeline new→reviewing→interview→offer→hired/passed, aging-color rot border on un-reviewed, drawer with résumé download + rating + notes). Public apply form uploads résumé to S3 via a public server action (auth-gated upload route can't serve unauthenticated applicants). Client-safe types/labels/JSON-LD in `lib/types/careers.ts`; DB functions in `lib/services/careers.ts`. Demo seeder: 2 open roles + 1 draft + 7 applicants across every pipeline state (aging spread). Scope = permanent/part-time hires for one practice, NOT a temp/gig marketplace (Cloud Dentistry's lane). Full one-click *Indeed Apply* is a future partner track |
 | Business | Shop | `/shop` | **Live (v1 — complete)** | Premium-tier. Phase 3 differentiator (no orbital-layer competitor ships a storefront — confirmed Weave/NexHealth/RevenueWell have none). Built in slices: **(1 shipped)** migration 0032 = 8 purpose-built `shop_*`/`membership*` tables (separate from the generic Mosaic products/orders), Connect *Standard* designed so payouts land in the clinic's own bank. **(2 shipped)** `/shop` admin: product/variant catalog CRUD (`/shop/products/new` + `/shop/products/[id]`, image upload to S3, multi-variant pricing + inventory, FSA-with-Rx flag, draft/active/archived), fulfillment + tax config toggles, Stripe Connect status card. **(3a shipped)** Stripe Connect *Standard* OAuth onboarding — per-clinic (each clinic connects its OWN account so payouts hit their bank; `lib/services/shop-connect.ts` + `/api/connect/shop/start`+`/callback`, mirrors the GSC code-exchange), status auto-refresh on `/shop` load (pending→active), disconnect/deauthorize. `STRIPE_CONNECT_CLIENT_ID` is set in `dreamcrm/app-secrets` + mapped on App Runner; Connect config = Standard accounts · hosted onboarding · Stripe Dashboard. Client-safe types/labels in `lib/types/shop.ts`; DB in `lib/services/shop.ts`. **(3b shipped)** public storefront `/site/[slug]/shop` (+ `[productSlug]` detail, localStorage cart namespaced per slug, `/cart` review+checkout) → Stripe Connect **direct-charge** Checkout Session on the clinic's account (`lib/services/shop-checkout.ts`; pickup or ship + flat-rate shipping + Stripe Tax on ship only; optional platform application fee via `platformFeeBps`), idempotent order finalize via the `/shop/success` page **and** a `/api/webhooks/stripe-connect` backstop (needs `STRIPE_CONNECT_WEBHOOK_SECRET` + a Connect webhook endpoint for `checkout.session.completed`) — inventory decrement + patient linkage by email/phone on payment. Orders admin at `/shop/orders` (fulfillment pipeline unfulfilled→ready/shipped→picked-up/delivered + tracking). `storefrontEnabled` gates the public pages. Demo seeder: 6 products (7 variants) + config + 3 orders (paid pickup / paid shipped+tracking / pending). **(5 shipped)** membership plans — `lib/services/membership.ts` + `lib/types/membership.ts`: plan CRUD at `/shop/memberships` (+ `/new`+`/[id]` builder: name/interval/price/benefits/discount), **lazy Stripe price sync** (product+recurring price created on the connected account on first join, so no Stripe call until an account exists), public `/site/[slug]/membership` (plan cards + join) → **subscription** Checkout Session on the clinic's connected account, members tab with benefit-redemption tracking (`benefitsUsed`), subscription lifecycle (`customer.subscription.updated/deleted`) handled by the same `/api/webhooks/stripe-connect` (branches on `session.mode`). `membershipEnabled` gates the public page. Dashboard shows active-member count + MRR. Demo seeder: 2 plans (Smile Club annual $399 + monthly $39) + 3 members (active/active/past-due). `membership.patientId` is required, so a join matches/creates a patient (`source='membership'`). Self-heal seeds plans (+ members for existing patients) on legacy demos. **(4 shipped)** coupons — `lib/services/coupons.ts`: manual promo codes (% or $ off, optional min-subtotal / expiry / single-use) + one-click **birthday codes** (single-use, auto-generated off `patient.dateOfBirth` month, idempotent per month). Admin `/shop/coupons` (create + list + deactivate + generate-birthday). Applied at checkout via a one-time Stripe coupon on the connected account (`discounts:[{coupon}]`, exact computed cents so %/$ behave the same); cart has a promo field with live validate; single-use burns on order finalize. Demo seeder: WELCOME10 + SUMMER25 + a birthday code. **Shop module is feature-complete for v1** (catalog · Connect · storefront+checkout · orders · memberships · coupons). **Research-grounded:** FSA/HSA is mostly a myth (cosmetic whitening + plain brushes ineligible; electric brushes only with an Rx) so it's an optional per-product flag, not a headline. **Stripe Connect can't be fully sandbox-tested** (no connected accounts/cards) — logic is unit-tested; money flow verified in Stripe test mode. Connect onboarding uses **OAuth** (`/oauth/authorize`, `scope=read_write`) and works — verified the live authorize link resolves. **Resolved bug (2026-05-27):** "Connect Stripe" briefly returned *"No application matches the supplied client identifier"* because the stored `STRIPE_CONNECT_CLIENT_ID` had a 1-char transcription typo (`ca_UavHzM`**`S`**`I2…` instead of the correct `ca_UavHzM`**`5`**`I2…` — an `S`/`5` misread); corrected in `dreamcrm/app-secrets` + redeployed. OAuth flow, redirect URI, and code are all correct — **no code change needed** |
-| Business | Integrations | `/integrations` | **Live (v1)** | Premium-tier. PMS bridge — **Open Dental wired, two-way**, through its official REST API (`ODFHIR {dev}/{customer}` auth; platform Developer Key in env `PMS_OPEN_DENTAL_DEVELOPER_KEY` (currently OD's *public sandbox* Developer Key while real vendor approval is in flight — application sent 2026-05-28), per-clinic Customer Key AES-encrypted). Imports patients/appointments/providers/balances; pushes DreamCRM-originated bookings back via the API (best-effort `pms_write_op` queue on booking → flushed on sync). **Sanctioned + audit-clean positioning** — official API only, every write in the clinic's Audit Trail (the opposite of the DB-scrapers Open Dental warns against, incl. NexHealth by name). Morning-huddle UI: trust banner · status + Sync-now/direction/auto-sync/disconnect · KPIs · transparent fixed field map · what-we-sync/never-touch scope card · inbound sync log + outbound write-back log; unconnected = OD connect form + honest catalog (Dentrix Ascend request-access, Dentrix desktop/Eaglesoft/Curve roadmap — need a signed local agent per office). Migrations 0033 (`pms_connection`/`pms_entity_map`/`pms_sync_run`/`pms_write_op` + `patient.pms_balance_cents`) + 0034 (`patient.pms_recall_due_at`/`pms_recall_interval`). Service in `lib/services/pms/`, client-safe types in `lib/types/pms.ts`. Validated against OD's hosted developer sandbox; also unit-tested w/ mocked fetch; demo provider exercises the engine end-to-end. **Phase 0 hardening:** DateTStamp delta + Offset/Limit pagination, write-back default operatory, clinic-timezone datetimes, role defaults to dentist, balance via `/patients/Simple`. **Phase 1 (4/5 shipped, #5 blocked on OD vendor approval — sent 2026-05-28):** (1) cancellation/reschedule write-back (PUT AptStatus=Broken; supersede pending-create on book-then-cancel); (2) recall sync (PMS recall due dates feed `derivePatientRecallStatus` shared helper used by patients list + Recall & Outreach audience); (3) sync-health alerts (`deriveIntegrationsHealth` snapshot, Overview + Integrations warn/error banners, staleness 36h / repeated-failure 3+); (4) CommLog mirroring (5 send sites pipe outbound comms into the OD chart); (5) **blocked** — schedule-driven availability awaits a real-office Customer Key to validate `/schedules` against per-office provider blocks. Webhook Subscriptions are Phase 2 (needs office-side service). Demo seeds a sandbox connection covering every state |
+| Business | Integrations | `/integrations` | **Live (v2 — catalog marketplace)** | **NO minPlan on the PAGE** (owner/admin to mutate) — it renders for every clinic; only the OD/PMS body is Premium-gated. **Redesigned as a catalog-driven app-library marketplace (PRs #365–#368)** that's the SINGLE place a clinic connects everything — PMS · Google Business · social · email · payments — and the former **`/channels` surface folded in** (`/channels` now redirects here, sidebar entry removed). Architecture: `lib/integrations/catalog.ts` (`IntegrationDef` + `INTEGRATIONS_CATALOG` pure metadata; "adding one = a data entry") + `lib/integrations/resolve.ts` (pure runtime status resolver over a minimal `LiveIntegrationState`) + real brand logos (`components/integrations/brand-logos.tsx`). UI (`integrations-library.tsx`, DESIGN-SYSTEM v2): connected-first "Your integrations" overview + Browse split, search over name+keywords+category, scrollable category-nav with counts, categorized grid, rich cards (logo well + StatusPill + one action + connected handle + value links). Catalog: Open Dental (`live`/Premium) + Dentrix Ascend (`request_access`) + Dentrix desktop/Eaglesoft/Curve (`coming_soon`) + Google Business (`live`, free) + the 5 social shortlist (`live`, count toward the cap) + Gmail (`live`, → `/inbox`) + SMS (`coming_soon`) + Stripe (`live`, → `/shop`). Detail pages: `/integrations/open-dental` (full PMS dashboard) + `/integrations/google-business` (light GBP detail); Gmail + Stripe link OUT to their existing flows. Social cap meter + at-cap upgrade/add-on CTA live here. **PMS bridge (the Open Dental detail page) — unchanged:** **Open Dental wired, two-way** via the official REST API (`ODFHIR {dev}/{customer}`; platform Developer Key `PMS_OPEN_DENTAL_DEVELOPER_KEY` — currently OD's *public sandbox* key, real vendor approval in flight; per-clinic Customer Key AES-encrypted). Imports patients/appointments/providers/balances; pushes DreamCRM-originated bookings back (best-effort `pms_write_op` queue → flushed on sync). Sanctioned + audit-clean (official API only). Migrations 0033 (`pms_connection`/`pms_entity_map`/`pms_sync_run`/`pms_write_op` + `patient.pms_balance_cents`) + 0034 (`patient.pms_recall_due_at`/`pms_recall_interval`). **Phase 0 hardening** (DateTStamp delta + Offset/Limit pagination, default operatory, clinic-tz datetimes, role→dentist, balance via `/patients/Simple`). **Phase 1 (4/5 shipped, #5 blocked on OD vendor approval):** (1) cancel/reschedule write-back (PUT AptStatus=Broken); (2) recall sync (feeds `derivePatientRecallStatus`); (3) sync-health alerts (`deriveIntegrationsHealth`, Overview + Integrations banners); (4) CommLog mirroring (5 send sites → OD chart); (5) **blocked** — schedule-driven availability awaits a real-office Customer Key to validate `/schedules`. Webhook Subscriptions = Phase 2. Demo seeds a sandbox connection + a connected GBP/IG/FB so the marketplace shows connected state. **The marketplace redesign added NO migration. Next major Integrations work = the feature-bundle reframe (plan approved, NOT built — see "What's NOT yet wired").** |
 | Settings | Settings | `/settings/account` | Live | + `/settings/clinic` for site editor, `/settings/locations` for multi-location |
 
 **Dropped from clinic sidebar** (route files may still exist for
@@ -1908,10 +1986,22 @@ day — or a Date → clinic-local; open/close resolved via the DST-aware
 booking slots + emails are now timezone-correct (no longer UTC).
 
 **Still open (priority order):**
-1. **ROTATE TWO SECRETS shared in chat (compromised):** the Resend key
-   `re_BZDw…` (now the live prod key — create a fresh one in Resend, swap it into
-   `dreamcrm/app-secrets`, redeploy; also delete the dead `re_T8fyc…`) and the
-   AWS access key `AKIA53LCNZ3Y66OJGLOI`. **This is the user's action item.**
+1. **ROTATE / REVOKE SECRETS shared in chat (compromised) — user's action
+   item.** Running list (newest first; all were pasted into a transcript):
+   - **Stripe restricted key `rk_live_…`** — created the 4 social add-on prices
+     this session. **REVOKE it now** (Stripe Dashboard → Developers → API keys);
+     it's no longer needed (the add-on prices are created + their ids are in
+     Secrets Manager).
+   - **AWS access key `AKIA53LCNZ3YTC3H5M55`** — ACTIVE; used this session for
+     the Secrets Manager + App Runner + EventBridge ops (add-on price ids + the
+     two Zernio cron rules). **Rotate it** now that it's in a transcript.
+   - **AWS access key `AKIA53LCNZ3Y2IP4CWFS`** — a dead/stray key (confirmed
+     `InvalidClientTokenId`); **delete it** in IAM (no rotation needed).
+   - **AWS access key `AKIA53LCNZ3Y66OJGLOI`** — pre-existing standing item;
+     rotate.
+   - **Resend key `re_BZDw…`** — now the live prod key; pre-existing standing
+     item: create a fresh one in Resend, swap it into `dreamcrm/app-secrets`,
+     redeploy; also delete the dead `re_T8fyc…`.
 2. **Lower-severity audit findings — mostly CLOSED by PR #324 (2026-06-11):**
    Connect OAuth state cookie delete-path ✓; orphan `pending` membership sweep ✓;
    real `db.transaction()` restored in reschedule/convert-lead/reorder-task ✓.
@@ -2003,15 +2093,55 @@ S3 + SES, canonical at https://www.dreamcreatestudio.com. Remaining loose ends
 (SES production access, optional Bedrock, moving the domain off Replit, the
 eventual App Runner → ECS move) are tracked in that section.
 
+### ⭐ NEXT MAJOR WORK — Integrations as a "feature-bundle" menu (PLAN APPROVED, NOT BUILT)
+
+**This is the headline item for the next session.** The owner approved the PLAN
+(not the build) to reframe `/integrations` from a flat catalog of individual
+third-party accounts into a **menu of FEATURE BUNDLES** — the clinic "builds its
+own feature set" by activating bundles, some included in the platform fee and
+some paid add-ons. The catalog/registry architecture shipped in PRs #365–#368
+(`lib/integrations/catalog.ts` + `resolve.ts` + the marketplace UI) is the
+FOUNDATION to build the bundle UI + sidebar-link wiring on. Build nothing yet —
+this is the spec to pick up:
+
+- **Bundles (not individual accounts):**
+  - **Practice Management** — *included* (the Open Dental / PMS bridge).
+  - **Google Business** — *included* (reviews / hours / metrics / posting).
+  - **Social Media** — *paid add-on* (the $30 Pro / $20 Premium add-on already
+    built in Phase 3 PR1 + now LIVE in Stripe). **The per-plan social-connection
+    cap lives INSIDE this bundle.**
+  - **Patient Communications** — Gmail (live) + SMS (roadmap).
+  - **Ecommerce & Payments** — Stripe Connect + the Shop.
+  - **future dental-specific bundles** — e.g. **Imaging**.
+- **Pricing model:** some bundles included in the platform/plan fee, some paid
+  add-ons (the social add-on is the first paid one; its Stripe wiring is the
+  template).
+- **Individual accounts live INSIDE a bundle's setup page** — connecting
+  Instagram/Facebook, a Gmail mailbox, or a Stripe account happens within its
+  bundle, not as a top-level catalog tile. The existing per-integration
+  `IntegrationDef` rows map naturally to a bundle via `category`.
+- **CRUCIAL — sidebar wiring:** when a clinic ACTIVATES a bundle, it should add a
+  link to a CATEGORY in the SIDEBAR so the activated integration's features
+  appear as if they're built-in features (alongside the core services —
+  website / appointments / patients). I.e. the sidebar becomes "core services +
+  the clinic's chosen integration-features." This sidebar-link wiring (on top of
+  `lib/modules/clinic.ts` + the catalog) is the main new build.
+- **Honesty rule still applies** — only surface bundles that are real or
+  clearly-labelled roadmap; don't fabricate.
+
 ### Feature work, post-migration
 
-0. **Zernio × Google Business integration — PHASE 1 (Google Business core)
-   COMPLETE + PHASE 2 (GBP posting) COMPLETE (2026-06-15), spec in
+0. **Zernio × Google Business + social integration — COMPLETE (Phases 1–3,
+   PRs #354–#362; 2026-06-15), spec in
    [`docs/zernio-google-integration.md`](./docs/zernio-google-integration.md).**
-   `ZERNIO_API_KEY` is live in Secrets Manager + App Runner env. Shipped (see
-   the five "Zernio" bullets under What's wired): the connection architecture
+   `ZERNIO_API_KEY` is live in Secrets Manager + App Runner env. The two hourly
+   sync crons (`dreamcrm-sync-google-reviews` + `dreamcrm-sync-gbp`) were
+   provisioned in PR #364 and the social add-on Stripe prices went LIVE
+   (2026-06-16) — both formerly-pending items are now DONE. Shipped (see the
+   Zernio bullets under What's wired): the connection architecture
    (lazy client, `zernio_connection`/`zernio_account` migration 0063,
-   hosted-OAuth connect/disconnect, `/integrations` GBP card); GBP reviews pull +
+   hosted-OAuth connect/disconnect, the `/integrations` GBP card — now part of
+   the Integrations marketplace); GBP reviews pull +
    reply + legit `AggregateRating` (`google_review` migration 0064);
    hours/address/phone/photos sync into `clinic_profile` with per-field
    `*_source` flags (migration 0065, `lib/services/gbp-sync.ts`, the "Sync from
@@ -2028,7 +2158,8 @@ eventual App Runner → ECS move) are tracked in that section.
    wrappers in `lib/zernio.ts`; Zernio publishes scheduled posts itself so NO
    cron; honest — no fabricated per-post metrics, points to `/seo`).
    **Phase 3 — the full social module — IS COMPLETE: PR1 (billing/entitlements),
-   PR2 (cap-aware Channels connect), PR3 (unified multi-platform composer +
+   PR2 (cap-aware Channels connect — the `/channels` page later folded into the
+   `/integrations` marketplace, PR #365), PR3 (unified multi-platform composer +
    content calendar), and PR4 (per-platform social analytics + Facebook reviews)
    are ALL SHIPPED** (see the four "Zernio social module" bullets under What's
    wired). The billing/metering question is DECIDED (PR1): per-plan
@@ -2070,11 +2201,17 @@ eventual App Runner → ECS move) are tracked in that section.
 2. ~~**Reviews auto-trigger (v1.1)**~~ — **DONE (2026-06-11).** The
    EventBridge rule `dreamcrm-auto-send-reviews` (hourly) is live and
    POSTs `/api/cron/auto-send-reviews` with the Bearer secret —
-   provisioned alongside `dreamcrm-pms-sync` (hourly),
-   `dreamcrm-send-reminders` (30 min), and
-   `dreamcrm-send-scheduled-campaigns` (15 min) via the idempotent
-   `scripts/setup-cron-schedules.sh` (reuses the `dreamcrm-cron`
-   connection + `DreamCRMEventBridgeCron` role). Per-org sends still
+   provisioned via the idempotent `scripts/setup-cron-schedules.sh`
+   (reuses the `dreamcrm-cron` connection + `DreamCRMEventBridgeCron`
+   role). **As of PR #364 that script manages 7 EventBridge rules, all
+   live in prod:** `dreamcrm-pms-sync` (hourly), `dreamcrm-send-reminders`
+   (30 min), `dreamcrm-send-scheduled-campaigns` (15 min),
+   `dreamcrm-auto-send-reviews` (hourly), `dreamcrm-customize-services`
+   (hourly), and the two Zernio syncs `dreamcrm-sync-google-reviews`
+   (hourly — pulls Google + Facebook reviews) +
+   `dreamcrm-sync-gbp` (hourly — pulls GBP hours/address/phone/photos,
+   non-force). (`publish-scheduled-posts` + `gmail-watch-renew` are the
+   two pre-existing rules created out-of-band.) Per-org review sends still
    gate on `clinic_review_config.autoSendEnabled` (default off).
 3. ~~**Subdomain DNS**~~ — **DONE (2026-05-28).** `*.dreamcreatestudio.com`
    is wired and serving: clinic sites are live at
@@ -2300,7 +2437,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0051): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0069): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its
@@ -2344,7 +2481,18 @@ To-do in the AWS migration session (rough order):
   deletion protection on, storage autoscaling → 100GB, Performance Insights on)
 - ECR repo `dreamcrm` (scan-on-push; lifecycle: expire untagged 3d / keep last 10)
 - S3 `dreamcrm-uploads-prod` (public-read website assets) + `dreamcrm-codebuild-952078552817` (build source)
-- Secrets Manager `dreamcrm/app-secrets`; SNS topic `dreamcrm-alerts`
+- Secrets Manager `dreamcrm/app-secrets`; SNS topic `dreamcrm-alerts`. Secrets
+  now include the 4 social add-on price ids
+  (`STRIPE_PRICE_SOCIAL_ADDON_{PRO,PRO_ANNUAL,PREMIUM,PREMIUM_ANNUAL}`, live as of
+  2026-06-16, mapped into App Runner `RuntimeEnvironmentSecrets`).
+- EventBridge: a shared connection `dreamcrm-cron` (carries the
+  `Authorization: Bearer $CRON_SECRET` header) + the invoke role
+  `DreamCRMEventBridgeCron` + **7 schedule rules managed by
+  `scripts/setup-cron-schedules.sh`** (`dreamcrm-pms-sync`,
+  `dreamcrm-send-reminders`, `dreamcrm-send-scheduled-campaigns`,
+  `dreamcrm-auto-send-reviews`, `dreamcrm-customize-services`,
+  `dreamcrm-sync-google-reviews`, `dreamcrm-sync-gbp`) + the 2 pre-existing
+  out-of-band rules (`publish-scheduled-posts`, `gmail-watch-renew`).
 - VPC `vpc-066acff3800b34067`, connector `dreamcrm-vpc-priv`, NAT gateway, S3 gateway endpoint
 - CodeBuild `dreamcrm-image-build`; IAM roles `DreamCRMAppRunnerInstanceRole` /
   `DreamCRMAppRunnerECRAccessRole` / `DreamCRMCodeBuildRole`
