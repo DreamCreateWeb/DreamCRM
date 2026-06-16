@@ -7,6 +7,7 @@ import {
   type OnboardingInterviewDraft,
 } from '@/lib/types/onboarding-interview'
 import { runOnboardingDraft, saveInterviewDraftAction, skipInterviewAction } from './actions'
+import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 
 /** Client-safe service-library row for the checkbox step. */
 export interface ServicePick {
@@ -78,14 +79,17 @@ export default function WelcomeInterview({
     window.open(siteUrl, '_blank', 'noopener,noreferrer')
   }
 
-  // Debounced server save on step advance. Best-effort; never blocks the UI.
+  // Debounced server save on step advance. Best-effort; never blocks the UI and
+  // never surfaces as an uncaught rejection (e.g. a stale-deploy action id) —
+  // the final draft call is what matters; a missed background save just means
+  // the resume point is a step older.
   const persist = useCallback(
     (nextAnswers: Record<string, string>, nextSlugs: Set<string>, step: number) => {
       void saveInterviewDraftAction({
         answers: nextAnswers,
         serviceSlugs: Array.from(nextSlugs),
         step,
-      })
+      }).catch(() => {})
     },
     [],
   )
@@ -93,12 +97,28 @@ export default function WelcomeInterview({
   async function runDraft(finalAnswers: Record<string, string>, finalSlugs: Set<string>) {
     setPhase('drafting')
     setError(null)
-    const res = await runOnboardingDraft(finalAnswers, Array.from(finalSlugs))
-    if (res.ok) {
-      setSkipped(res.skippedFields)
-      setPhase('reveal')
-    } else {
-      setError(res.error)
+    try {
+      const res = await runOnboardingDraft(finalAnswers, Array.from(finalSlugs))
+      if (res.ok) {
+        setSkipped(res.skippedFields)
+        setPhase('reveal')
+      } else {
+        setError(res.error)
+        setPhase('error')
+      }
+    } catch (err) {
+      // Deployment skew (the client bundle is from an older/newer build than the
+      // server, so the Server Action id 404s) — reload to fetch fresh action ids;
+      // the interview resumes from the server-persisted draft. This was the
+      // "spins on the last step forever" bug: the throw used to be unhandled, so
+      // the phase stayed 'drafting' indefinitely.
+      if (isDeploymentSkewError(err)) {
+        window.location.reload()
+        return
+      }
+      // Any other failure: NEVER hang on the spinner. The site already has the
+      // day-0 floor, so fall through to the honest "starter copy + retry" screen.
+      setError(err instanceof Error ? err.message : 'The draft didn’t come through.')
       setPhase('error')
     }
   }
@@ -139,8 +159,14 @@ export default function WelcomeInterview({
 
   async function skipEntireInterview() {
     // Mark complete so siteNeedsPersonalization flips off (the day-0 floor is a
-    // finished site), then land in the Studio.
-    await skipInterviewAction()
+    // finished site), then land in the Studio. Best-effort — even if the
+    // mark-complete fails (e.g. deploy skew), still head to the editor rather
+    // than throw an uncaught rejection.
+    try {
+      await skipInterviewAction()
+    } catch {
+      /* swallow — the floor site stands; the editor is the next stop regardless */
+    }
     goToStudio()
   }
 
