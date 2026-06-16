@@ -140,7 +140,7 @@ describe('createManagedClinic', () => {
     )
   })
 
-  it('managed + percent off forever: creates the coupon, stays on basic with the plan reserved', async () => {
+  it('managed + percent off forever: creates the coupon, starts a Premium trial with the plan reserved', async () => {
     selectReturning([[]])
     mockCouponsCreate.mockResolvedValue({ id: 'coup_1' })
 
@@ -155,7 +155,12 @@ describe('createManagedClinic', () => {
     expect(result.couponId).toBe('coup_1')
 
     const profile = inserted.find((v) => 'planTier' in v)!
-    expect(profile.planTier).toBe('basic') // webhook grants it after payment
+    // Managed clinics start the no-card 7-day trial (full Premium) so the owner
+    // can use everything from the moment they accept the invite; the reserved
+    // plan + coupon stay pending for their activation checkout.
+    expect(profile.planTier).toBe('premium')
+    expect(profile.subscriptionStatus).toBe('trialing')
+    expect(profile.trialEndsAt).toBeInstanceOf(Date)
     expect(profile.billingMode).toBe('managed')
     expect(profile.pendingPlanId).toBe('pro')
     expect(profile.pendingBillingInterval).toBe('monthly')
@@ -289,11 +294,27 @@ describe('getActivationDetails', () => {
     expect(details!.discountLabel).toMatch(/30% off/)
   })
 
-  it('returns null once the subscription is active', async () => {
+  it('returns null once the subscription is actually paid', async () => {
     selectReturning([
-      [{ billingMode: 'managed', pendingPlanId: 'pro', subscriptionStatus: 'active' }],
+      [{ billingMode: 'managed', pendingPlanId: 'pro', subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1' }],
     ])
     expect(await getActivationDetails('org1')).toBeNull()
+  })
+
+  it('still offers activation DURING the no-card trial (trialing, no Stripe sub)', async () => {
+    selectReturning([
+      [
+        {
+          billingMode: 'managed',
+          pendingPlanId: 'pro',
+          pendingBillingInterval: 'monthly',
+          subscriptionStatus: 'trialing',
+          stripeSubscriptionId: null,
+        },
+      ],
+    ])
+    const details = await getActivationDetails('org1')
+    expect(details).toMatchObject({ planId: 'pro', planName: 'Pro' })
   })
 })
 

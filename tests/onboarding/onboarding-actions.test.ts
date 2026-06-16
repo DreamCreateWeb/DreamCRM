@@ -1,24 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockCustomersCreate, mockCheckoutCreate ,
-  mockSeedIntake, mockSeedDay0, mockStarterFloor,
-} = vi.hoisted(() => {
-  // stripe-config reads these at module load — set before imports evaluate.
-  process.env.STRIPE_PRICE_STARTER_MONTHLY = 'price_basic_m'
-  process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY = 'price_pro_m'
-  process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY = 'price_premium_m'
-  return {
-    mockSeedIntake: vi.fn(async () => undefined),
-    mockSeedDay0: vi.fn(async () => undefined),
-    mockStarterFloor: vi.fn(async () => ({ applied: true, fields: [] })),
-    mockGetSession: vi.fn(),
-    mockSelect: vi.fn(),
-    mockInsert: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockCustomersCreate: vi.fn(),
-    mockCheckoutCreate: vi.fn(),
-  }
-})
+const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockTransaction, mockSeedIntake, mockSeedDay0, mockStarterFloor } =
+  vi.hoisted(() => {
+    return {
+      mockSeedIntake: vi.fn(async () => undefined),
+      mockSeedDay0: vi.fn(async () => undefined),
+      mockStarterFloor: vi.fn(async () => ({ applied: true, fields: [] })),
+      mockGetSession: vi.fn(),
+      mockSelect: vi.fn(),
+      mockInsert: vi.fn(),
+      mockUpdate: vi.fn(),
+      mockTransaction: vi.fn(),
+    }
+  })
 
 vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
@@ -26,12 +20,6 @@ vi.mock('@/lib/auth/server', () => ({ auth: { api: { getSession: mockGetSession 
 vi.mock('@/lib/services/forms', () => ({ seedDefaultIntakeForm: mockSeedIntake }))
 vi.mock('@/lib/onboarding/defaults', () => ({ seedClinicDay0Defaults: mockSeedDay0 }))
 vi.mock('@/lib/services/starter-pack', () => ({ applyStarterFloor: mockStarterFloor }))
-vi.mock('@/lib/stripe', () => ({
-  stripe: {
-    customers: { create: mockCustomersCreate },
-    checkout: { sessions: { create: mockCheckoutCreate } },
-  },
-}))
 vi.mock('@/lib/db', () => {
   const schema = {
     organization: { id: 'org.id', slug: 'org.slug' },
@@ -44,6 +32,7 @@ vi.mock('@/lib/db', () => {
       select: mockSelect,
       insert: mockInsert,
       update: mockUpdate,
+      transaction: mockTransaction,
     },
     schema,
   }
@@ -63,19 +52,30 @@ function selectReturning(rowsSequence: unknown[][]) {
   }))
 }
 
-function insertOk() {
+/** Captures every inserted row (tx org/member + db clinic_profile) into `sink`. */
+function captureInserts(sink: Record<string, unknown>[]) {
+  // db.insert → clinic_profile upsert
   mockInsert.mockImplementation(() => ({
-    values: (v: unknown) => ({
-      onConflictDoUpdate: async () => undefined,
-      then: (resolve: (v: unknown) => void) => resolve(undefined),
-    }),
+    values: (v: Record<string, unknown>) => {
+      sink.push(v)
+      return { onConflictDoUpdate: async () => undefined }
+    },
   }))
-}
-
-function updateOk() {
-  mockUpdate.mockImplementation(() => ({
-    set: () => ({ where: async () => undefined }),
-  }))
+  mockUpdate.mockImplementation(() => ({ set: () => ({ where: async () => undefined }) }))
+  // db.transaction(cb) → runs cb with a tx exposing insert/update (org + member +
+  // session pointer), atomically in the real code.
+  mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+    const tx = {
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          sink.push(v)
+          return Promise.resolve()
+        },
+      }),
+      update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
+    }
+    await cb(tx)
+  })
 }
 
 const userSession = {
@@ -86,8 +86,6 @@ const userSession = {
 beforeEach(() => {
   vi.clearAllMocks()
   mockGetSession.mockResolvedValue(userSession)
-  insertOk()
-  updateOk()
 })
 
 describe('checkClinicSlug', () => {
@@ -113,7 +111,6 @@ describe('checkClinicSlug', () => {
   })
 
   it('reports a taken slug with the first free suffix', async () => {
-    // 'acme' taken → suggestion skips the base and lands on 'acme-dental'
     selectReturning([[{ id: 'org1' }], []])
     const result = await checkClinicSlug('acme')
     expect(result).toEqual({ available: false, reason: 'taken', suggestion: 'acme-dental' })
@@ -125,23 +122,23 @@ describe('checkClinicSlug', () => {
   })
 })
 
-describe('submitOnboarding', () => {
+describe('submitOnboarding — starts a no-card trial (no Stripe)', () => {
   it('blocks platform admins from clinic onboarding', async () => {
     mockGetSession.mockResolvedValueOnce({
       ...userSession,
       user: { ...userSession.user, platformAdmin: true },
     })
-    await expect(
-      submitOnboarding({ planId: 'pro', interval: 'monthly' }),
-    ).rejects.toThrow(/platform admins/i)
+    await expect(submitOnboarding({})).rejects.toThrow(/platform admins/i)
   })
 
-  it('creates the org with the chosen slug and opens promo-enabled checkout', async () => {
-    // select order: member lookup (none) → slug free → clinic_profile (has customer)
-    selectReturning([[], [], [{ stripeCustomerId: 'cus_123' }]])
-    mockCheckoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.test/cs_1' })
+  it('creates the org + grants a full-Premium 7-day trial, no checkout', async () => {
+    // selects: member lookup (none) → slug free
+    selectReturning([[], []])
+    const inserts: Record<string, unknown>[] = []
+    captureInserts(inserts)
 
-    const { url } = await submitOnboarding({
+    const before = Date.now()
+    const result = await submitOnboarding({
       practiceName: 'Bright Smile Dental',
       phone: '(555) 123-4567',
       street: '123 Main St',
@@ -151,26 +148,32 @@ describe('submitOnboarding', () => {
       country: 'United States',
       slug: 'bright-smile',
       brandColor: '#9CAF9F',
-      planId: 'pro',
-      interval: 'monthly',
     })
 
-    expect(url).toBe('https://checkout.stripe.test/cs_1')
+    expect(result).toEqual({ ok: true })
 
-    // Org row used the picked slug + practice name.
-    const orgInsert = mockInsert.mock.calls.length > 0
-    expect(orgInsert).toBe(true)
+    // Org row used the picked slug + practice name (inserted inside the tx).
+    const org = inserts.find((v) => v.type === 'clinic') as { slug: string; name: string }
+    expect(org.slug).toBe('bright-smile')
+    expect(org.name).toBe('Bright Smile Dental')
 
-    const checkoutArgs = mockCheckoutCreate.mock.calls[0][0]
-    expect(checkoutArgs.allow_promotion_codes).toBe(true)
-    expect(checkoutArgs.mode).toBe('subscription')
-    expect(checkoutArgs.metadata.planId).toBe('pro')
+    // clinic_profile starts the trial: full Premium, trialing, trial_ends_at ~7d out.
+    const profile = inserts.find((v) => v.planTier !== undefined) as {
+      planTier: string
+      subscriptionStatus: string
+      billingMode: string
+      trialEndsAt: Date
+    }
+    expect(profile.planTier).toBe('premium')
+    expect(profile.subscriptionStatus).toBe('trialing')
+    expect(profile.billingMode).toBe('self_serve')
+    expect(profile.trialEndsAt).toBeInstanceOf(Date)
+    const days = (profile.trialEndsAt.getTime() - before) / (24 * 60 * 60 * 1000)
+    expect(days).toBeGreaterThan(6.9)
+    expect(days).toBeLessThan(7.1)
 
-    // Every new clinic starts with the standard intake form.
+    // Day-0 seeding still runs.
     expect(mockSeedIntake).toHaveBeenCalledTimes(1)
-
-    // Day-0 COMPLETE FLOOR: starter copy + canonical services are applied, with
-    // the practice name + city threaded through for {city} substitution.
     expect(mockStarterFloor).toHaveBeenCalledTimes(1)
     expect(mockStarterFloor).toHaveBeenCalledWith(
       expect.any(String),
@@ -179,14 +182,10 @@ describe('submitOnboarding', () => {
   })
 
   it('applies the floor even with no address (city left null)', async () => {
-    selectReturning([[], [], [{ stripeCustomerId: 'cus_123' }]])
-    mockCheckoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.test/cs_3' })
+    selectReturning([[], []])
+    captureInserts([])
 
-    await submitOnboarding({
-      practiceName: 'No Address Dental',
-      planId: 'basic',
-      interval: 'monthly',
-    })
+    await submitOnboarding({ practiceName: 'No Address Dental' })
 
     expect(mockStarterFloor).toHaveBeenCalledTimes(1)
     expect(mockStarterFloor).toHaveBeenCalledWith(
@@ -196,31 +195,20 @@ describe('submitOnboarding', () => {
   })
 
   it('falls back to a suffixed slug when the picked one was taken meanwhile', async () => {
-    // member lookup (none) → slug taken → slug-1 free → profile lookup
-    selectReturning([[], [{ id: 'orgX' }], [], [{ stripeCustomerId: 'cus_123' }]])
-    mockCheckoutCreate.mockResolvedValue({ url: 'https://checkout.stripe.test/cs_2' })
+    // member lookup (none) → slug 'acme' taken → 'acme-1' free
+    selectReturning([[], [{ id: 'orgX' }], []])
+    const inserts: Record<string, unknown>[] = []
+    captureInserts(inserts)
 
-    const valuesSpy: unknown[] = []
-    mockInsert.mockImplementation(() => ({
-      values: (v: Record<string, unknown>) => {
-        valuesSpy.push(v)
-        return {
-          onConflictDoUpdate: async () => undefined,
-          then: (resolve: (v: unknown) => void) => resolve(undefined),
-        }
-      },
-    }))
+    await submitOnboarding({ practiceName: 'Acme', slug: 'acme' })
 
-    await submitOnboarding({ practiceName: 'Acme', slug: 'acme', planId: 'basic', interval: 'monthly' })
-
-    const orgValues = valuesSpy.find((v) => (v as { type?: string }).type === 'clinic') as { slug: string }
-    expect(orgValues.slug).toBe('acme-1')
+    const org = inserts.find((v) => v.type === 'clinic') as { slug: string }
+    expect(org.slug).toBe('acme-1')
   })
 
   it('rejects a bad brand color before any writes', async () => {
-    await expect(
-      submitOnboarding({ planId: 'pro', interval: 'monthly', brandColor: 'tomato' as never }),
-    ).rejects.toThrow()
+    await expect(submitOnboarding({ brandColor: 'tomato' as never })).rejects.toThrow()
     expect(mockInsert).not.toHaveBeenCalled()
+    expect(mockTransaction).not.toHaveBeenCalled()
   })
 })

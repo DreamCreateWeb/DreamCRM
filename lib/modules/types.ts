@@ -3,6 +3,10 @@
  * wired into the sidebar nav for a given tenant type.
  */
 
+// Type-only import (erased at runtime) so this stays a one-way dependency
+// (lib/modules → lib/integrations) with no import cycle.
+import type { BundleId } from '@/lib/integrations/bundles'
+
 // 'partner' = an external referral partner (lib/services/referrals.ts). They
 // have no org membership; getTenantContext derives this from a
 // referral_partner.user_id linkage when no platform/clinic membership wins.
@@ -36,6 +40,18 @@ export interface ModuleDef {
 
   /** Whether this module is currently implemented or coming soon. */
   status?: 'live' | 'soon'
+
+  /**
+   * Integration FEATURE-GATE (clinic tenants). When set, this module surfaces in
+   * the sidebar only if at least ONE of the listed feature bundles is ACTIVE for
+   * the clinic — i.e. the clinic has connected something inside it (see
+   * `BundleSignals` / `activeBundleIds` in lib/integrations/bundles + the cheap
+   * derive in lib/services/integration-bundles). OR semantics: any active bundle
+   * reveals the module. This is what makes an activated integration's features
+   * appear as built-in sidebar entries. Plan + role gates still apply on top.
+   * Omit = always visible (subject to plan/role).
+   */
+  requiresBundle?: BundleId[]
 
   /**
    * Pin this module into the sidebar's label-less "cockpit" zone (the

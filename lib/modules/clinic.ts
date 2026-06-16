@@ -64,9 +64,11 @@ export const clinicModules: ModuleRegistry = {
     { id: 'reviews',           path: '/reviews',           label: 'Reviews',          section: 'Growth',   icon: 'star',     status: 'live', minPlan: 'pro' },
     // Social Posts is the unified multi-platform composer + content calendar —
     // compose once → publish/schedule to Google Business + the connected socials.
-    // Posting is gated by what's CONNECTED (cap enforced at connect-time on
-    // Integrations), so NO minPlan. See lib/types/social-entitlements.ts.
-    { id: 'social_posts',      path: '/social-posts',      label: 'Social Posts',     section: 'Growth',   icon: 'megaphone',status: 'live' },
+    // Auto-derived sidebar presence (no plan gate): it appears once the clinic
+    // has a postable channel — the Social bundle (a connected social account) OR
+    // the Google bundle (a connected GBP, which supports Google posting). Hidden
+    // when nothing's connected (no dead-end link). See lib/integrations/bundles.
+    { id: 'social_posts',      path: '/social-posts',      label: 'Social Posts',     section: 'Growth',   icon: 'megaphone',status: 'live', requiresBundle: ['social', 'google'] },
     // (The "Channels" connect surface folded into Integrations — the app-library
     //  there is now the single place to connect Google Business + social, so
     //  there's no separate sidebar entry. Connecting is owner/admin on any plan;
@@ -80,7 +82,13 @@ export const clinicModules: ModuleRegistry = {
     { id: 'careers',           path: '/careers',           label: 'Careers',          section: 'Website',  icon: 'briefcase',status: 'live', minPlan: 'premium' },
 
     // ── Business ───────────────────────────────────────────────────────
-    { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', minPlan: 'premium' },
+    // Shop is the Ecommerce & Payments bundle's feature surface. Premium-tier
+    // (minPlan) AND auto-derived: it appears once the bundle is active — Stripe
+    // Connect engaged, or a storefront/membership already set up (the safety net
+    // so a clinic with a live shop never loses it). Hidden for a Premium clinic
+    // that hasn't started commerce; reachable via the Ecommerce bundle on
+    // /integrations. See lib/integrations/bundles.
+    { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', minPlan: 'premium', requiresBundle: ['payments'] },
     // The /integrations page hosts BOTH the Premium PMS sync AND the free
     // Google Business card (free on every tier). The page renders the GBP card
     // for everyone + a Premium upsell for the PMS, so the sidebar entry is

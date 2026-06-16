@@ -9,6 +9,7 @@ import { referralPartner } from '@/lib/db/schema/referrals'
 import { eq, and } from 'drizzle-orm'
 import type { TenantType, PlanTier, Role } from '@/lib/modules/types'
 import { planAllows } from '@/lib/modules'
+import { resolveTrialState } from '@/lib/trial'
 
 export interface TenantContext {
   userId: string
@@ -39,6 +40,23 @@ export interface TenantContext {
    * (so existing test fixtures don't need to set it).
    */
   subscriptionStatus?: string | null
+  /**
+   * No-card free-trial state derived from the clinic_profile billing fields
+   * (see lib/trial.ts). `onTrial` drives the countdown banner; `trialExpired`
+   * drives the "set up billing" LOCK wall (DashboardShell renders it instead of
+   * the page). Both false for paid + comped clinics, platform, patients,
+   * partners, and demo contexts; `trialEndsAt` is null unless a trial is set.
+   */
+  onTrial?: boolean
+  trialExpired?: boolean
+  trialEndsAt?: Date | null
+  /**
+   * True for a managed clinic that still has a RESERVED plan to activate
+   * (pendingPlanId set — cleared by the webhook once they pay). Routes the trial
+   * banner + lock wall to the coupon-pre-applied `/billing/activate` flow instead
+   * of the self-serve plan picker.
+   */
+  hasReservedPlan?: boolean
 }
 
 interface DemoContext {
@@ -209,6 +227,10 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   let planTier: PlanTier = 'basic'
   let billingActivationPending = false
   let subscriptionStatus: string | null = null
+  let onTrial = false
+  let trialExpired = false
+  let trialEndsAt: Date | null = null
+  let hasReservedPlan = false
   if (org.type === 'clinic') {
     const [profile] = await db
       .select()
@@ -222,6 +244,15 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       Boolean(profile?.pendingPlanId) &&
       profile?.subscriptionStatus !== 'active' &&
       profile?.subscriptionStatus !== 'trialing'
+    const trial = resolveTrialState({
+      trialEndsAt: profile?.trialEndsAt ?? null,
+      subscriptionStatus: profile?.subscriptionStatus ?? null,
+      stripeSubscriptionId: profile?.stripeSubscriptionId ?? null,
+    })
+    onTrial = trial.onTrial
+    trialExpired = trial.expired
+    trialEndsAt = trial.trialEndsAt
+    hasReservedPlan = profile?.billingMode === 'managed' && Boolean(profile?.pendingPlanId)
   }
 
   const tenantType: TenantType =
@@ -256,6 +287,10 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     isDemo: false,
     billingActivationPending,
     subscriptionStatus,
+    onTrial,
+    trialExpired,
+    trialEndsAt,
+    hasReservedPlan,
   }
 }
 

@@ -6,13 +6,17 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { auth } from '@/lib/auth/server'
 import { db, schema } from '@/lib/db'
-import { stripe } from '@/lib/stripe'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { seedClinicDay0Defaults } from '@/lib/onboarding/defaults'
 import { applyStarterFloor } from '@/lib/services/starter-pack'
-import { PLANS, type BillingInterval } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
+import { trialEndDate } from '@/lib/trial'
+
+/** Postgres unique-violation SQLSTATE — a slug claimed between check + insert. */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505'
+}
 
 const Step1 = z.object({
   practiceName: z.string().trim().min(1, 'Tell us your practice name').max(200),
@@ -115,22 +119,27 @@ const SubmitInput = z.object({
   country: z.string().trim().max(100).optional(),
   slug: z.string().trim().toLowerCase().max(40).optional(),
   brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-  planId: z.enum(['basic', 'pro', 'premium']),
-  interval: z.enum(['monthly', 'annual']),
+  // Plan choice moved OUT of onboarding — every clinic starts a full-Premium,
+  // no-card 7-day trial and picks a plan when they set up billing. Kept optional
+  // for back-compat with any in-flight client; ignored by the trial start.
+  planId: z.enum(['basic', 'pro', 'premium']).optional(),
+  interval: z.enum(['monthly', 'annual']).optional(),
 })
 
 /**
  * Final onboarding submit. Creates the clinic organization (or reuses the
- * caller's existing one), seeds clinic_profile from the wizard draft,
- * creates a Stripe customer + subscription Checkout session, returns the
- * URL. Checkout allows promotion codes, so clinics with a custom-pricing
- * code from us can apply it right there.
+ * caller's existing one) + the owner membership TRANSACTIONALLY, seeds
+ * clinic_profile from the wizard draft, and STARTS A NO-CARD 7-DAY TRIAL —
+ * full Premium access, no Stripe, no card. The clinic sets up billing within
+ * the 7 days (the trial banner → /billing/setup); on expiry without a paid
+ * subscription they're locked to the billing wall.
  *
- * Client should redirect to the returned URL. If Stripe isn't configured
- * for the chosen plan, returns { url: null } and the caller routes straight
- * to the dashboard (the clinic stays on basic until billing succeeds).
+ * No Stripe call happens here — that removed three signup failure zones at once
+ * (abandoned-checkout limbo, a missing price env silently leaving them on basic,
+ * and the webhook-latency tier race). The Stripe customer + subscription are
+ * created later, only when they convert.
  */
-export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Promise<{ url: string | null }> {
+export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Promise<{ ok: true }> {
   const data = SubmitInput.parse(input)
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect('/signin')
@@ -156,34 +165,41 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
   if (!orgId) {
     const orgName = data.practiceName?.trim() || `${session.user.name || 'My'} Clinic`
     // Prefer the slug they picked in step 3 (validated + availability-checked
-    // there); fall back to a name-derived slug. Either way, suffix on
-    // collision — the picker check can race a concurrent signup.
+    // there); fall back to a name-derived slug. The picker check is TOCTOU, so a
+    // concurrent signup can claim the slug between check and insert — create the
+    // org + owner membership + the session pointer ATOMICALLY (so a mid-failure
+    // never orphans the org), retrying the whole transaction on a unique
+    // violation with the next free suffix.
     const requested = data.slug && SLUG_PATTERN.test(data.slug) && !RESERVED_SLUGS.has(data.slug) ? data.slug : null
     const baseSlug = requested || slugify(orgName) || 'clinic'
-    let slug = baseSlug
-    let attempt = 0
-    while (await slugTaken(slug)) {
-      attempt++
-      slug = `${baseSlug}-${attempt}`
-    }
-
     const newOrgId = crypto.randomUUID()
-    await db.insert(schema.organization).values({
-      id: newOrgId,
-      name: orgName,
-      slug,
-      type: 'clinic',
-    })
-    await db.insert(schema.member).values({
-      id: crypto.randomUUID(),
-      organizationId: newOrgId,
-      userId: session.user.id,
-      role: 'owner',
-    })
-    await db
-      .update(schema.session)
-      .set({ activeOrganizationId: newOrgId })
-      .where(eq(schema.session.id, session.session.id))
+    const memberId = crypto.randomUUID()
+    let created = false
+    for (let attempt = 0; attempt < 25 && !created; attempt++) {
+      const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt}`
+      if (await slugTaken(slug)) continue
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(schema.organization).values({ id: newOrgId, name: orgName, slug, type: 'clinic' })
+          await tx.insert(schema.member).values({
+            id: memberId,
+            organizationId: newOrgId,
+            userId: session.user.id,
+            role: 'owner',
+          })
+          await tx
+            .update(schema.session)
+            .set({ activeOrganizationId: newOrgId })
+            .where(eq(schema.session.id, session.session.id))
+        })
+        created = true
+      } catch (err) {
+        // Lost the slug race — try the next suffix. Anything else is real.
+        if (isUniqueViolation(err) && attempt < 24) continue
+        throw err
+      }
+    }
+    if (!created) throw new Error('Could not reserve your web address — please pick a different one.')
     orgId = newOrgId
   }
 
@@ -202,12 +218,15 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
       postalCode: data.postalCode?.trim() || null,
       country: data.country?.trim() || 'US',
       brandColor: data.brandColor || null,
-      // Start on 'basic'. The paid tier is granted by the Stripe webhook only
-      // AFTER payment confirms (syncSubscriptionFromStripe). Setting the selected
-      // tier here meant an abandoned checkout — or a missing/misconfigured Stripe
-      // price (the { url: null } path below) — left the clinic on a paid tier it
-      // never paid for.
-      planTier: 'basic',
+      // Start the no-card 7-day trial: full Premium access, no Stripe. The paid
+      // tier + subscription are set later by the webhook on conversion, and a
+      // real paid sub then overrides these (see lib/trial.ts). On CONFLICT we
+      // DON'T touch any billing/trial field, so re-running onboarding never
+      // re-arms the trial clock or downgrades a clinic that already paid.
+      planTier: 'premium',
+      billingMode: 'self_serve',
+      subscriptionStatus: 'trialing',
+      trialEndsAt: trialEndDate(),
     })
     .onConflictDoUpdate({
       target: schema.clinicProfile.organizationId,
@@ -221,8 +240,9 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
         postalCode: data.postalCode?.trim() || null,
         country: data.country?.trim() || 'US',
         ...(data.brandColor ? { brandColor: data.brandColor } : {}),
-        // Intentionally NOT touching planTier on conflict — the webhook owns it,
-        // so re-running onboarding never downgrades a clinic that already paid.
+        // planTier / billingMode / subscriptionStatus / trialEndsAt are
+        // intentionally NOT updated on conflict — set once at creation, then
+        // owned by the trial + the Stripe webhook.
         updatedAt: new Date(),
       },
     })
@@ -261,46 +281,7 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     console.warn('[onboarding] could not apply starter floor', err)
   }
 
-  const [profile] = await db
-    .select()
-    .from(schema.clinicProfile)
-    .where(eq(schema.clinicProfile.organizationId, orgId))
-    .limit(1)
-
-  let customerId = profile?.stripeCustomerId
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: session.user.email,
-      name: displayName,
-      metadata: { organizationId: orgId },
-    })
-    customerId = customer.id
-    await db
-      .update(schema.clinicProfile)
-      .set({ stripeCustomerId: customerId, updatedAt: new Date() })
-      .where(eq(schema.clinicProfile.organizationId, orgId))
-  }
-
-  const plan = PLANS.find((p) => p.id === data.planId)
-  const priceId = plan?.priceIds[data.interval as BillingInterval]
-  if (!priceId) {
-    return { url: null }
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const checkout = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    // Lets clinics apply a promo / custom-pricing code we hand them.
-    allow_promotion_codes: true,
-    success_url: `${appUrl}/onboarding-complete?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/onboarding-04`,
-    subscription_data: {
-      metadata: { organizationId: orgId, planId: data.planId, interval: data.interval, userId: session.user.id },
-    },
-    metadata: { organizationId: orgId, planId: data.planId, interval: data.interval, userId: session.user.id },
-  })
-
-  return { url: checkout.url }
+  // No Stripe here — the trial is live the moment the profile is written. The
+  // client routes to the onboarding success screen → the AI website interview.
+  return { ok: true }
 }

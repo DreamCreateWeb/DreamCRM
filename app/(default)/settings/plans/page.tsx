@@ -39,6 +39,7 @@ export default async function PlansSettings({ searchParams }: Props) {
             currentPlanId={ctx.planTier}
             subscriptionStatus={ctx.subscriptionStatus ?? null}
             currentInterval={summary?.interval ?? null}
+            onTrial={ctx.onTrial ?? false}
             upgradeModuleLabel={upgrade ? getModuleLabel('clinic', upgrade) ?? null : null}
           />
         </div>

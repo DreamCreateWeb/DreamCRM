@@ -8,13 +8,15 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ZERNIO_PLATFORM_LABELS, type ZernioPlatform } from '@/lib/types/zernio'
 import type { Tone } from '@/lib/ui/encodings'
 import { BrandLogo, BrandLogoWell, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
+import { searchableText, type IntegrationDef } from '@/lib/integrations/catalog'
+import type { ResolvedIntegration } from '@/lib/integrations/resolve'
 import {
-  CATEGORY_META,
-  searchableText,
-  type IntegrationCategory,
-  type IntegrationDef,
-} from '@/lib/integrations/catalog'
-import { connectedCount, type ResolvedIntegration } from '@/lib/integrations/resolve'
+  bundleLogos,
+  bundlePlanLabel,
+  type BundleDef,
+  type BundleStatus,
+  type BundleView,
+} from '@/lib/integrations/bundles'
 import {
   syncZernioAccountsAction,
   disconnectChannelAction,
@@ -23,40 +25,31 @@ import {
 } from './actions'
 
 /**
- * Integrations MARKETPLACE — a catalog-driven, browse-at-scale app directory.
+ * Integrations — a menu of FEATURE BUNDLES (DESIGN-SYSTEM v2).
  *
- * The cards/sections are NO LONGER hardcoded in JSX. The whole grid renders from
- * `INTEGRATIONS_CATALOG` (lib/integrations/catalog.ts) resolved against the
- * org's live connection state (lib/integrations/resolve.ts). Adding the 500th
- * integration is appending one `IntegrationDef` — no JSX edit here. See the
- * contract at the top of catalog.ts.
+ * The clinic builds its feature set by activating bundles — Practice Management,
+ * Google Business, Social Media, Patient Communications, Ecommerce & Payments.
+ * Each bundle groups its individual accounts (the catalog integrations) under one
+ * capability with a clear pricing frame (included / plan / paid add-on), and —
+ * the point of the reframe — when a bundle is ACTIVE its features surface in the
+ * sidebar as if built-in (auto-derived; see lib/integrations/bundles +
+ * lib/services/integration-bundles).
  *
- * Built to stay clean at HUNDREDS — eventually thousands — of entries:
- *   1. CONNECTED-FIRST — a prominent "Your integrations" section at the top (the
- *      ones this clinic actually connected), separate from browsing.
- *   2. SEARCH as a primary affordance — fast client filter over name + keywords
- *      + category label.
- *   3. CATEGORY NAV that scales — a horizontally-scrollable pill row with
- *      per-category counts ("All" + each category), staying clean past ~20
- *      categories.
- *   4. CATEGORIZED GRID — section headers per category (or a flat filtered grid
- *      when a search/category is active), a live total count, and a no-results
- *      state. O(n) filtering, no per-card heavy work.
+ * Connecting an individual account (Instagram, a Gmail mailbox, Stripe) happens
+ * INSIDE its bundle's section here — not as a top-level catalog tile. The bundle
+ * grid renders from `resolveBundles(...)` over the pure catalog resolved against
+ * the org's live state; adding an integration is still a catalog data change.
  *
- * The approved card aesthetic is preserved + extended to render from a def +
- * runtime status: real brand logo in a tinted well, name, tagline, StatusPill,
- * one action, hover-lift, connected-card handle chip + value quick links.
- *
- * PRESERVED behavior: GBP/social connect via Zernio hosted OAuth in a NEW TAB +
- * re-sync on window focus + Refresh; disconnect; the social cap meter + at-cap
- * upgrade/add-on CTA; the add-on management; the route ?connected / ?atLimit /
+ * PRESERVED connect plumbing: GBP/social connect via Zernio hosted OAuth in a
+ * NEW TAB + re-sync on window focus + Refresh; disconnect; the social cap meter +
+ * at-cap upgrade/add-on CTA; the add-on management; the ?connected / ?atLimit /
  * error flashes; the Open Dental + GBP detail-page links; the Gmail + Stripe
  * Connect link-outs to their existing flows. Demo connections never network.
  */
 
 export interface IntegrationsLibraryProps {
-  /** The whole catalog, resolved against this clinic's live state (server). */
-  resolved: ResolvedIntegration[]
+  /** Every feature bundle, resolved against this clinic's live state (server). */
+  bundles: BundleView[]
   /** Whether Zernio is enabled on this DreamCRM instance. */
   zernioConfigured: boolean
   /** The clinic's plan name (for the add-on copy). */
@@ -89,11 +82,8 @@ export interface IntegrationsLibraryProps {
   routeError: string | null
 }
 
-/** A category filter value: 'all' or a real category id. */
-type CategoryFilter = 'all' | IntegrationCategory
-
 export default function IntegrationsLibrary({
-  resolved,
+  bundles,
   zernioConfigured,
   planName,
   cap,
@@ -109,9 +99,8 @@ export default function IntegrationsLibrary({
   // After opening any connect tab, poll on focus until accounts refresh.
   const awaitingConnect = useRef(false)
 
-  // ── Marketplace search + category filter ────────────────────────────────
+  // ── Cross-bundle search ───────────────────────────────────────────────────
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<CategoryFilter>('all')
   const q = query.trim().toLowerCase()
 
   function refresh() {
@@ -179,59 +168,23 @@ export default function IntegrationsLibrary({
     addonActive: entitlement.addonActive,
   }
 
-  // ── Connected-first: the clinic's actually-connected integrations ─────────
-  // Connected integrations live ONLY in the "Your integrations" section — they're
-  // lifted OUT of the browse grid so browsing is "what can I still add?" (the
-  // connected-first / separate-from-browsing model that stays clean at scale).
-  const connected = useMemo(() => resolved.filter((r) => r.runtime.connected), [resolved])
-  const totalConnected = connectedCount(resolved)
-  const browseable = useMemo(() => resolved.filter((r) => !r.runtime.connected), [resolved])
+  // The connected accounts across every bundle (for the overview logo stack).
+  const allConnected = useMemo(() => bundles.flatMap((b) => b.connectedMembers), [bundles])
 
-  // ── Search + category filter (applied to the BROWSE catalog) ──────────────
-  const filtered = useMemo(() => {
-    return browseable.filter((r) => {
-      if (category !== 'all' && r.def.category !== category) return false
-      if (!q) return true
-      return searchableText(r.def).includes(q)
-    })
-  }, [browseable, category, q])
+  // ── Search filters MEMBER cards across bundles ────────────────────────────
+  const visibleBundles = useMemo(() => {
+    if (!q) return bundles
+    return bundles
+      .map((b) => ({ ...b, members: b.members.filter((m) => searchableText(m.def).includes(q)) }))
+      .filter((b) => b.members.length > 0)
+  }, [bundles, q])
 
-  // Per-category counts for the category nav (over the BROWSEable catalog,
-  // ignoring the active search so a clinic can see what each category still
-  // holds to add).
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<IntegrationCategory, number>()
-    for (const r of browseable) counts.set(r.def.category, (counts.get(r.def.category) ?? 0) + 1)
-    return counts
-  }, [browseable])
-
-  // Categories present in the catalog, in display order — for the nav + sections.
-  const presentCategories = useMemo(() => {
-    return (Object.values(CATEGORY_META) as { id: IntegrationCategory; order: number }[])
-      .sort((a, b) => a.order - b.order)
-      .map((c) => c.id)
-      .filter((c) => (categoryCounts.get(c) ?? 0) > 0)
-  }, [categoryCounts])
-
-  // Group the FILTERED defs by category (only categories with matches render).
-  const grouped = useMemo(() => {
-    const byCat = new Map<IntegrationCategory, ResolvedIntegration[]>()
-    for (const r of filtered) {
-      const arr = byCat.get(r.def.category)
-      if (arr) arr.push(r)
-      else byCat.set(r.def.category, [r])
-    }
-    return presentCategories
-      .filter((c) => byCat.has(c))
-      .map((c) => ({ category: c, items: byCat.get(c)! }))
-  }, [filtered, presentCategories])
-
-  const filtering = q.length > 0 || category !== 'all'
+  const searching = q.length > 0
 
   return (
     <div className="space-y-8">
-      {/* ── Overview header — the control center ──────────────────────────── */}
-      <ConnectedStackHeader connected={connected} count={totalConnected} cap={cap} zernioConfigured={zernioConfigured} />
+      {/* ── Overview header — connected stack + cap meter ─────────────────── */}
+      <ConnectedStackHeader connected={allConnected} cap={cap} zernioConfigured={zernioConfigured} />
 
       {/* ── Flashes ─────────────────────────────────────────────────────── */}
       {justConnected && (
@@ -255,93 +208,30 @@ export default function IntegrationsLibrary({
         </p>
       )}
 
-      {/* ── Connected-first: "Your integrations" ─────────────────────────── */}
-      {connected.length > 0 && (
-        <ConnectedSection>
-          <CardGrid>
-            {connected.map((r) => (
-              <IntegrationCard key={r.def.id} resolved={r} handlers={handlers} />
-            ))}
-          </CardGrid>
-        </ConnectedSection>
-      )}
+      {/* ── Search ───────────────────────────────────────────────────────── */}
+      <SearchBox query={query} onQuery={setQuery} />
 
-      {/* ── Browse zone — a visibly distinct area from "Your integrations" ── */}
-      <div className="pt-7 border-t border-[color:var(--color-hairline)]">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Browse integrations</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Connect more tools to DreamCRM — more added all the time.
-          </p>
+      {/* ── Bundle sections ──────────────────────────────────────────────── */}
+      {visibleBundles.length > 0 ? (
+        <div className="space-y-8">
+          {visibleBundles.map((view) => (
+            <BundleSection
+              key={view.def.id}
+              view={view}
+              handlers={handlers}
+              searching={searching}
+              cap={cap}
+              planName={planName}
+              entitlement={entitlement}
+              onBuyAddon={buyAddon}
+              onCancelAddon={cancelAddon}
+              pending={pending}
+            />
+          ))}
         </div>
-        <MarketplaceToolbar
-          query={query}
-          onQuery={setQuery}
-          category={category}
-          onCategory={setCategory}
-          categories={presentCategories}
-          counts={categoryCounts}
-          total={browseable.length}
-        />
-
-        {/* Total count line. */}
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          <strong className="font-mono-num font-semibold text-gray-700 dark:text-gray-300">{filtered.length}</strong>{' '}
-          {filtered.length === 1 ? 'integration' : 'integrations'}
-          {filtering ? ' match' : ' available'}
-          {filtered.length === 1 && filtering ? 'es' : ''}
-          {!filtering && (
-            <>
-              {' '}
-              <span className="text-gray-400">· more added all the time</span>
-            </>
-          )}
-        </p>
-
-        {/* ── The catalog grid ──────────────────────────────────────────── */}
-        {grouped.length > 0 ? (
-          <div className="mt-5 space-y-8">
-            {grouped.map(({ category: cat, items }) => (
-              <Section
-                key={cat}
-                title={CATEGORY_META[cat].label}
-                blurb={CATEGORY_META[cat].blurb}
-                count={items.length}
-                right={
-                  cat === 'social' && cap.limit > 0 ? (
-                    <span className="text-xs text-gray-600 dark:text-gray-300 shrink-0">
-                      <strong className="font-mono-num font-semibold">{cap.current}</strong>
-                      <span className="text-gray-400"> of </span>
-                      <strong className="font-mono-num font-semibold">{cap.limit}</strong> social connections used
-                    </span>
-                  ) : undefined
-                }
-              >
-                <CardGrid>
-                  {items.map((r) => (
-                    <IntegrationCard key={r.def.id} resolved={r} handlers={handlers} />
-                  ))}
-                </CardGrid>
-
-                {/* Add-on management — consolidated under Social (the canonical
-                    surface). Hidden while a search narrows the cards. */}
-                {cat === 'social' && !q && (
-                  <SocialAddonCard
-                    planName={planName}
-                    entitlement={entitlement}
-                    cap={cap}
-                    pending={pending}
-                    onBuy={buyAddon}
-                    onCancel={cancelAddon}
-                  />
-                )}
-              </Section>
-            ))}
-          </div>
-        ) : (
-          <NoResults query={query} onClear={() => { setQuery(''); setCategory('all') }} />
-        )}
-      </div>
+      ) : (
+        <NoResults query={query} onClear={() => setQuery('')} />
+      )}
 
       {!zernioConfigured && (
         <p className="text-sm text-gray-500 dark:text-gray-400 italic">
@@ -360,15 +250,14 @@ export default function IntegrationsLibrary({
 
 function ConnectedStackHeader({
   connected,
-  count,
   cap,
   zernioConfigured,
 }: {
   connected: ResolvedIntegration[]
-  count: number
   cap: { allowed: boolean; limit: number; current: number }
   zernioConfigured: boolean
 }) {
+  const count = connected.length
   const capPct = cap.limit > 0 ? Math.min(100, Math.round((cap.current / cap.limit) * 100)) : 0
 
   return (
@@ -399,8 +288,8 @@ function ConnectedStackHeader({
             </div>
           ) : (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 max-w-md">
-              Nothing connected yet. Plug in your practice-management system, Google Business, and the social channels you
-              post to — pick one below to get started.
+              Nothing connected yet. Activate the bundles your practice needs — plug in your practice-management system,
+              Google Business, social, email, and payments below.
             </p>
           )}
         </div>
@@ -434,143 +323,170 @@ function ConnectedStackHeader({
   )
 }
 
-// ── Search + category filter toolbar ────────────────────────────────────────
+// ── Search box ──────────────────────────────────────────────────────────────
 
-function MarketplaceToolbar({
-  query,
-  onQuery,
-  category,
-  onCategory,
-  categories,
-  counts,
-  total,
-}: {
-  query: string
-  onQuery: (v: string) => void
-  category: CategoryFilter
-  onCategory: (c: CategoryFilter) => void
-  categories: IntegrationCategory[]
-  counts: Map<IntegrationCategory, number>
-  total: number
-}) {
+function SearchBox({ query, onQuery }: { query: string; onQuery: (v: string) => void }) {
   return (
-    <div className="flex flex-col gap-3">
-      {/* Search box */}
-      <div className="relative sm:w-80">
-        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400" aria-hidden="true">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-        </span>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          placeholder="Search integrations…"
-          aria-label="Search integrations"
-          className="form-input w-full text-sm pl-9"
-        />
-      </div>
-
-      {/* Category pills — horizontally scrollable so they stay clean at 20+ */}
-      <div
-        className="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1 scrollbar-thin"
-        role="tablist"
-        aria-label="Filter by category"
-      >
-        <CategoryPill active={category === 'all'} onClick={() => onCategory('all')} label="All" count={total} />
-        {categories.map((c) => (
-          <CategoryPill
-            key={c}
-            active={category === c}
-            onClick={() => onCategory(c)}
-            label={CATEGORY_META[c].label}
-            count={counts.get(c) ?? 0}
-          />
-        ))}
-      </div>
+    <div className="relative sm:w-80">
+      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400" aria-hidden="true">
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+      </span>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+        placeholder="Search integrations…"
+        aria-label="Search integrations"
+        className="form-input w-full text-sm pl-9"
+      />
     </div>
   )
 }
 
-function CategoryPill({
-  active,
-  onClick,
-  label,
-  count,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-  count: number
-}) {
+// ── Bundle section — header (capability framing) + member connect cards ──────
+
+const BUNDLE_STATUS_PILL: Record<BundleStatus, { tone: Tone; label: string }> = {
+  active: { tone: 'ok', label: 'Active' },
+  available: { tone: 'neutral', label: 'Available' },
+  plan_locked: { tone: 'special', label: 'Plan upgrade' },
+  request_access: { tone: 'info', label: 'Request access' },
+  coming_soon: { tone: 'neutral', label: 'On the roadmap' },
+  unavailable: { tone: 'neutral', label: 'Not enabled' },
+}
+
+/** The pricing chip — Included (free) / Pro & up / Premium, plus an add-on tag. */
+function PricingBadge({ def }: { def: BundleDef }) {
+  const label = bundlePlanLabel(def)
+  const cls =
+    def.minPlan === 'premium'
+      ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300'
+      : def.minPlan === 'pro'
+        ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={[
-        'shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
-        active
-          ? 'bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
-          : 'bg-[color:var(--color-surface-2)] ring-1 ring-inset ring-[color:var(--color-hairline)] text-gray-600 dark:text-gray-300 hover:ring-[color:var(--color-hairline-strong)]',
-      ].join(' ')}
-    >
-      {label}
-      <span
-        className={`font-mono-num text-[0.65rem] tabular-nums ${
-          active ? 'text-white/80 dark:text-gray-900/70' : 'text-gray-400 dark:text-gray-500'
-        }`}
-      >
-        {count}
-      </span>
-    </button>
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${cls}`}>{label}</span>
+      {def.hasPaidAddon && (
+        <span className="rounded-full px-2 py-0.5 text-[0.7rem] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300">
+          Add-on
+        </span>
+      )}
+    </span>
   )
 }
 
-// ── Section + grid wrappers ─────────────────────────────────────────────────
-
-function ConnectedSection({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="section-enter">
-      <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Your integrations</h2>
-        <span className="text-sm text-gray-400 dark:text-gray-500">connected &amp; active</span>
-      </div>
-      {children}
-    </section>
-  )
+interface BundleSectionProps {
+  view: BundleView
+  handlers: CardHandlers
+  searching: boolean
+  cap: { allowed: boolean; limit: number; current: number; reason?: string }
+  planName: string
+  entitlement: IntegrationsLibraryProps['entitlement']
+  onBuyAddon: () => void
+  onCancelAddon: () => void
+  pending: boolean
 }
 
-function Section({
-  title,
-  blurb,
-  count,
-  right,
-  children,
-}: {
-  title: string
-  blurb: string
-  count?: number
-  right?: React.ReactNode
-  children: React.ReactNode
-}) {
+function BundleSection({
+  view,
+  handlers,
+  searching,
+  cap,
+  planName,
+  entitlement,
+  onBuyAddon,
+  onCancelAddon,
+  pending,
+}: BundleSectionProps) {
+  const { def, members, status, connectedMembers, needsAttention } = view
+  const logos = bundleLogos(def, 5)
+  const pill = needsAttention ? { tone: 'urgent' as Tone, label: 'Needs attention' } : BUNDLE_STATUS_PILL[status]
+  const isActive = status === 'active'
+
   return (
-    <section className="section-enter">
-      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
-            {typeof count === 'number' && (
-              <span className="font-mono-num text-xs text-gray-400 dark:text-gray-500 tabular-nums">{count}</span>
+    <section className="section-enter v2-panel p-5 sm:p-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+        <div className="flex items-start gap-3 min-w-0">
+          {/* Member logo cluster — the "what's inside" at a glance. */}
+          <div className="flex items-center -space-x-1.5 shrink-0 pt-0.5">
+            {logos.map((id) => (
+              <span
+                key={id}
+                className="inline-flex w-8 h-8 items-center justify-center rounded-lg bg-[color:var(--color-surface-2)] ring-1 ring-inset ring-[color:var(--color-hairline)]"
+              >
+                <BrandLogo id={id} size={18} />
+              </span>
+            ))}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{def.name}</h2>
+              <PricingBadge def={def} />
+              <StatusPill tone={pill.tone} label={pill.label} />
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-prose mt-0.5">{def.tagline}</p>
+            {/* When active — "feels built-in": where its features live. */}
+            {isActive && def.valueLinks && def.valueLinks.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-xs text-gray-400 dark:text-gray-500">In your dashboard:</span>
+                {def.valueLinks.map((l) => (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
+                  >
+                    {l.label}
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-prose">{blurb}</p>
         </div>
-        {right}
       </div>
-      {children}
+
+      {status === 'plan_locked' ? (
+        /* One clean upgrade prompt — the bundle needs a higher plan, so we don't
+           clutter with per-account connect cards that can't be used yet. */
+        <div className="v2-well px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {def.name} comes with the <strong className="font-medium">{bundlePlanLabel(def)}</strong> plan.
+          </p>
+          <ActionButton variant="primary" size="sm" href="/settings/plans?upgrade=integrations">
+            Upgrade to {def.minPlan === 'premium' ? 'Premium' : 'Pro'}
+          </ActionButton>
+        </div>
+      ) : (
+        <>
+          {/* Member connect cards — the individual accounts inside the bundle. */}
+          {members.length > 0 ? (
+            <CardGrid>
+              {members.map((r) => (
+                <IntegrationCard key={r.def.id} resolved={r} handlers={handlers} />
+              ))}
+            </CardGrid>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400 italic">No matching tools in this bundle.</p>
+          )}
+
+          {/* Social bundle — the cap meter + add-on management. */}
+          {def.id === 'social' && !searching && (
+            <SocialAddonCard
+              planName={planName}
+              entitlement={entitlement}
+              cap={cap}
+              pending={pending}
+              onBuy={onBuyAddon}
+              onCancel={onCancelAddon}
+            />
+          )}
+        </>
+      )}
     </section>
   )
 }
@@ -581,7 +497,7 @@ function CardGrid({ children }: { children: React.ReactNode }) {
 
 function NoResults({ query, onClear }: { query: string; onClear: () => void }) {
   return (
-    <div className="v2-well px-6 py-12 text-center mt-5">
+    <div className="v2-well px-6 py-12 text-center">
       <div className="text-3xl mb-2" aria-hidden="true">
         🔍
       </div>
@@ -591,7 +507,7 @@ function NoResults({ query, onClear }: { query: string; onClear: () => void }) {
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
         Try a different search, or{' '}
         <button type="button" className="font-medium text-teal-700 dark:text-teal-400 underline" onClick={onClear}>
-          clear the filters
+          clear it
         </button>
         .
       </p>
@@ -642,27 +558,6 @@ function AppCard({
       </div>
       {/* Footer pinned to the bottom so a grid of cards has aligned actions. */}
       {children && <div className="mt-auto pt-1">{children}</div>}
-    </div>
-  )
-}
-
-/** A connected-card "value links" row — where this integration shows up. */
-function QuickLinks({ links }: { links: { href: string; label: string }[] }) {
-  if (links.length === 0) return null
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
-      {links.map((l) => (
-        <Link
-          key={l.href}
-          href={l.href}
-          className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
-        >
-          {l.label}
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-          </svg>
-        </Link>
-      ))}
     </div>
   )
 }
@@ -729,13 +624,13 @@ function IntegrationCard({ resolved, handlers }: { resolved: ResolvedIntegration
       description={def.tagline}
       pill={<StatusPill tone={pillMeta.tone} label={pillMeta.label} />}
     >
-      {/* CONNECTED — handle + value links + manage/refresh/disconnect. */}
+      {/* CONNECTED — handle + manage/refresh/disconnect. (Where the bundle's
+          features live is shown once, in the bundle header — not per card.) */}
       {runtime.connected ? (
         <>
           {(runtime.title || runtime.handle) && (
             <HandleWell title={runtime.title || def.name} handle={runtime.handle} />
           )}
-          <QuickLinks links={def.valueLinks ?? []} />
           <ConnectedActions def={def} runtime={runtime} handlers={handlers} />
         </>
       ) : (

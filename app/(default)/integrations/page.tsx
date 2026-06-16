@@ -14,6 +14,7 @@ import type { PlanTier } from '@/lib/modules/types'
 import { PROVIDER_LABELS } from '@/lib/types/pms'
 import { isConnectablePlatform, type ZernioPlatform } from '@/lib/types/zernio'
 import { resolveCatalog, type LiveIntegrationState, type IntegrationConnectionFact } from '@/lib/integrations/resolve'
+import { resolveBundles } from '@/lib/integrations/bundles'
 import IntegrationsLibrary from './integrations-library'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
@@ -156,6 +157,8 @@ export default async function IntegrationsPage({
   }
 
   const resolved = resolveCatalog(liveState, planTier)
+  // Group the resolved catalog into the feature bundles the UI renders from.
+  const bundles = resolveBundles(resolved, planTier)
 
   // ── Social entitlement props (cap + add-on) ───────────────────────────────
   const addonActive = profileRow?.socialAddon === 1
@@ -180,7 +183,7 @@ export default async function IntegrationsPage({
       />
 
       <IntegrationsLibrary
-        resolved={resolved}
+        bundles={bundles}
         zernioConfigured={zernioConfigured()}
         planName={getPlanById(planTier)?.name ?? planTier}
         cap={{ allowed: cap.allowed, limit: cap.limit, current: cap.current, reason: cap.reason }}
