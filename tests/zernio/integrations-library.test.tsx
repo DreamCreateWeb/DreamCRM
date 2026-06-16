@@ -2,19 +2,20 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
 
 /**
- * The Integrations MARKETPLACE — the catalog-driven, browse-at-scale rebuild of
- * /integrations. The grid renders entirely from `INTEGRATIONS_CATALOG` resolved
- * against the org's live state, so these tests assert the new structure:
- *   - the overview "control center" header (connected count + cap meter + the
- *     connected apps' real logos),
- *   - CONNECTED-FIRST "Your integrations" section,
- *   - search + category nav (with per-category counts),
- *   - each card state with the REAL brand logo present (Open Dental / Google /
- *     the 5 social platforms / Gmail / Stripe / the roadmap PMSs),
+ * The Integrations marketplace — reframed as a menu of FEATURE BUNDLES (Practice
+ * Management / Google Business / Social Media / Patient Communications /
+ * Ecommerce & Payments). Each bundle groups its catalog integrations under one
+ * capability + pricing frame; connecting an individual account happens inside its
+ * bundle section. These tests assert the bundle structure:
+ *   - the overview "control center" header (connected count + cap meter + logos),
+ *   - the five bundle sections with names + pricing badges + status pills,
+ *   - member connect cards inside each bundle (with REAL brand logos),
+ *   - connected members stay in-bundle with the "Active" framing + "In your
+ *     dashboard" value links,
  *   - the Open Dental + GBP cards linking to their detail pages,
- *   - connected-card quick links (GBP → /reviews + /seo; social → /social-posts),
+ *   - plan-locked bundles showing a single upgrade prompt (not per-card CTAs),
  *   - the social cap meter + consolidated add-on states,
- *   - flashes + not-configured.
+ *   - search across member cards, flashes, not-configured.
  */
 
 vi.mock('next/navigation', () => ({
@@ -29,6 +30,7 @@ vi.mock('@/app/(default)/integrations/actions', () => ({
 
 import IntegrationsLibrary, { type IntegrationsLibraryProps } from '@/app/(default)/integrations/integrations-library'
 import { resolveCatalog, type LiveIntegrationState, type IntegrationConnectionFact } from '@/lib/integrations/resolve'
+import { resolveBundles } from '@/lib/integrations/bundles'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +54,7 @@ function props(
   planTier = 'premium',
 ): IntegrationsLibraryProps {
   return {
-    resolved: resolveCatalog(state, planTier),
+    bundles: resolveBundles(resolveCatalog(state, planTier), planTier),
     zernioConfigured: state.zernioConfigured,
     planName: 'Premium',
     cap: { ...state.socialCap },
@@ -72,20 +74,38 @@ function props(
   }
 }
 
-describe('IntegrationsLibrary — catalog-driven sections', () => {
-  it('renders the category sections present in the catalog', () => {
+const BUNDLE_HEADINGS = [
+  'Practice Management',
+  'Google Business',
+  'Social Media',
+  'Patient Communications',
+  'Ecommerce & Payments',
+]
+
+describe('IntegrationsLibrary — bundle sections', () => {
+  it('renders all five feature-bundle sections', () => {
     render(<IntegrationsLibrary {...props()} />)
-    expect(screen.getByRole('heading', { name: 'Practice management' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Google' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Social' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Communication' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Payments' })).toBeTruthy()
+    for (const name of BUNDLE_HEADINGS) {
+      expect(screen.getByRole('heading', { name })).toBeTruthy()
+    }
   })
 
-  it('renders a card for each of the 5 shortlisted social platforms', () => {
+  it('carries the pricing frame per bundle (Included / Pro & up / Premium + Add-on)', () => {
     render(<IntegrationsLibrary {...props()} />)
+    const google = screen.getByRole('heading', { name: 'Google Business' }).closest('section')!
+    expect(within(google).getByText('Included')).toBeTruthy()
+    const social = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
+    expect(within(social).getByText('Pro & up')).toBeTruthy()
+    expect(within(social).getByText('Add-on')).toBeTruthy()
+    const pms = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
+    expect(within(pms).getByText('Premium')).toBeTruthy()
+  })
+
+  it('renders a card for each of the 5 shortlisted social platforms, inside Social Media', () => {
+    render(<IntegrationsLibrary {...props()} />)
+    const social = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
     for (const name of ['Instagram', 'Facebook', 'TikTok', 'YouTube', 'LinkedIn']) {
-      expect(screen.getByText(name)).toBeTruthy()
+      expect(within(social).getByText(name)).toBeTruthy()
     }
   })
 
@@ -96,11 +116,13 @@ describe('IntegrationsLibrary — catalog-driven sections', () => {
     }
   })
 
-  it('surfaces the real Gmail + Stripe + SMS integrations', () => {
+  it('surfaces the real Gmail + SMS (Communications) and Stripe (Ecommerce)', () => {
     render(<IntegrationsLibrary {...props()} />)
-    expect(screen.getByText('Gmail')).toBeTruthy()
-    expect(screen.getByText('Stripe')).toBeTruthy()
-    expect(screen.getByText('Text messaging (SMS)')).toBeTruthy()
+    const comms = screen.getByRole('heading', { name: 'Patient Communications' }).closest('section')!
+    expect(within(comms).getByText('Gmail')).toBeTruthy()
+    expect(within(comms).getByText('Text messaging (SMS)')).toBeTruthy()
+    const pay = screen.getByRole('heading', { name: 'Ecommerce & Payments' }).closest('section')!
+    expect(within(pay).getByText('Stripe')).toBeTruthy()
   })
 })
 
@@ -126,8 +148,8 @@ describe('IntegrationsLibrary — REAL brand logos', () => {
   })
 })
 
-describe('IntegrationsLibrary — overview header + connected-first', () => {
-  it('shows the connected count + a "Your integrations" section when tools are connected', () => {
+describe('IntegrationsLibrary — overview header', () => {
+  it('shows the connected count when tools are connected (in their bundles)', () => {
     const state = liveState({
       connections: {
         open_dental: fact(true, { isDemo: true, title: 'Open Dental (Sandbox)' }),
@@ -140,15 +162,12 @@ describe('IntegrationsLibrary — overview header + connected-first', () => {
     const header = screen.getByText('Your connected tools').closest('section')!
     expect(within(header).getByText('3')).toBeTruthy()
     expect(within(header).getByText(/tools connected/i)).toBeTruthy()
-    // The connected-first section exists.
-    expect(screen.getByRole('heading', { name: 'Your integrations' })).toBeTruthy()
   })
 
-  it('shows a "nothing connected yet" prompt + no connected-first section when nothing is connected', () => {
+  it('shows a "nothing connected yet" prompt when nothing is connected', () => {
     render(<IntegrationsLibrary {...props()} />)
     const header = screen.getByText('Your connected tools').closest('section')!
     expect(within(header).getByText(/Nothing connected yet/i)).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'Your integrations' })).toBeNull()
   })
 
   it('renders the social cap meter in the overview header', () => {
@@ -160,14 +179,15 @@ describe('IntegrationsLibrary — overview header + connected-first', () => {
   })
 })
 
-describe('IntegrationsLibrary — search + category nav', () => {
-  it('filters cards by name via the search box', () => {
+describe('IntegrationsLibrary — search across member cards', () => {
+  it('filters cards by name (and hides non-matching bundles)', () => {
     render(<IntegrationsLibrary {...props()} />)
     const search = screen.getByLabelText('Search integrations')
     fireEvent.change(search, { target: { value: 'instagram' } })
     expect(screen.getByText('Instagram')).toBeTruthy()
     expect(screen.queryByText('Open Dental')).toBeNull()
     expect(screen.queryByText('Facebook')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Practice Management' })).toBeNull()
   })
 
   it('filters by keyword (not just name) — "maps" matches Google Business', () => {
@@ -178,90 +198,69 @@ describe('IntegrationsLibrary — search + category nav', () => {
     expect(screen.queryByText('Instagram')).toBeNull()
   })
 
-  it('category pills narrow to a single section', () => {
-    render(<IntegrationsLibrary {...props()} />)
-    fireEvent.click(screen.getByRole('tab', { name: /Google/ }))
-    expect(screen.getByRole('heading', { name: 'Google' })).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'Social' })).toBeNull()
-    expect(screen.queryByRole('heading', { name: 'Practice management' })).toBeNull()
-  })
-
-  it('the "All" pill and each category pill carry a count', () => {
-    render(<IntegrationsLibrary {...props()} />)
-    // The All pill count equals the full catalog size; the Social pill = 5.
-    const allTab = screen.getByRole('tab', { name: /^All/ })
-    expect(allTab.textContent).toMatch(/1[0-9]/) // catalog has >= 10 entries
-    const socialTab = screen.getByRole('tab', { name: /Social/ })
-    expect(socialTab.textContent).toMatch(/5/)
-  })
-
   it('shows a no-results state for a query that matches nothing', () => {
     render(<IntegrationsLibrary {...props()} />)
     const search = screen.getByLabelText('Search integrations')
     fireEvent.change(search, { target: { value: 'zzznotathing' } })
     expect(screen.getByText(/No integrations match/i)).toBeTruthy()
   })
-
-  it('shows a total integrations count line', () => {
-    render(<IntegrationsLibrary {...props()} />)
-    // "{n} integrations available"
-    expect(screen.getByText(/integrations available/i)).toBeTruthy()
-  })
 })
 
-describe('IntegrationsLibrary — Open Dental card', () => {
+describe('IntegrationsLibrary — Practice Management bundle', () => {
   it('Premium + not connected → a Connect button linking to the detail page', () => {
     render(<IntegrationsLibrary {...props()} />)
-    const section = screen.getByRole('heading', { name: 'Practice management' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
     const connect = within(section).getByRole('link', { name: /^Connect$/i }) as HTMLAnchorElement
     expect(connect.getAttribute('href')).toBe('/integrations/open-dental')
   })
 
-  it('Premium + connected → a Manage button linking to the detail page', () => {
+  it('Premium + connected → the bundle is Active; the OD card shows Manage + Connected', () => {
     const state = liveState({
       connections: { open_dental: fact(true, { isDemo: true, title: 'Open Dental (Sandbox)' }) },
     })
     render(<IntegrationsLibrary {...props({}, state)} />)
-    // Connected → moves into "Your integrations" + the PMS section shows roadmap only.
-    const connectedSection = screen.getByRole('heading', { name: 'Your integrations' }).closest('section')!
-    const manage = within(connectedSection).getByRole('link', { name: /^Manage$/i }) as HTMLAnchorElement
+    const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
+    expect(within(section).getByText('Active')).toBeTruthy()
+    const manage = within(section).getByRole('link', { name: /^Manage$/i }) as HTMLAnchorElement
     expect(manage.getAttribute('href')).toBe('/integrations/open-dental')
-    expect(within(connectedSection).getByText('Connected')).toBeTruthy()
+    expect(within(section).getByText('Connected')).toBeTruthy()
+    // "Feels built-in" — the bundle header points at where its data lives.
+    expect((within(section).getByRole('link', { name: /Patients/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
+      '/patients',
+    )
   })
 
   it('connected + last run errored → a "Needs attention" pill', () => {
     const state = liveState({ connections: { open_dental: fact(true, { errored: true, title: 'Open Dental' }) } })
     render(<IntegrationsLibrary {...props({}, state)} />)
-    const connectedSection = screen.getByRole('heading', { name: 'Your integrations' }).closest('section')!
-    expect(within(connectedSection).getByText('Needs attention')).toBeTruthy()
+    const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
+    expect(within(section).getAllByText('Needs attention').length).toBeGreaterThan(0)
   })
 
-  it('below Premium → a Premium pill + an Upgrade-to-Premium CTA (no Connect/Manage)', () => {
+  it('below Premium → a single Upgrade-to-Premium prompt, no per-account Connect cards', () => {
     const state = liveState({ pmsEligible: false })
     render(<IntegrationsLibrary {...props({}, state, 'basic')} />)
-    const section = screen.getByRole('heading', { name: 'Practice management' }).closest('section')!
-    expect(within(section).getByText('Premium')).toBeTruthy()
+    const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
     const upgrade = within(section).getByRole('link', { name: /Upgrade to Premium/i }) as HTMLAnchorElement
     expect(upgrade.getAttribute('href')).toContain('/settings/plans')
+    // The plan-locked bundle hides its member cards (no Open Dental / roadmap tiles).
+    expect(within(section).queryByText('Open Dental')).toBeNull()
     expect(within(section).queryByRole('link', { name: /^Connect$/i })).toBeNull()
-    expect(within(section).queryByRole('link', { name: /^Manage$/i })).toBeNull()
   })
 
-  it('renders the roadmap PMSs as request-access / coming-soon tiles', () => {
+  it('Premium → the roadmap PMSs render as request-access / coming-soon tiles', () => {
     render(<IntegrationsLibrary {...props()} />)
-    const section = screen.getByRole('heading', { name: 'Practice management' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
     expect(within(section).getByText('Dentrix (desktop)')).toBeTruthy()
     expect(within(section).getByText('Eaglesoft')).toBeTruthy()
     expect(within(section).getByText('Curve Dental')).toBeTruthy()
     expect(within(section).getAllByText(/Coming soon/i).length).toBeGreaterThan(0)
     expect(within(section).getByText('Dentrix Ascend')).toBeTruthy()
-    // The Request-access pill (Dentrix Ascend) — match it specifically (the note
-    // text also contains "request access").
     expect(within(section).getAllByText(/Request access/i).length).toBeGreaterThan(0)
   })
 })
 
-describe('IntegrationsLibrary — Google Business card', () => {
+describe('IntegrationsLibrary — Google Business bundle', () => {
   it('disconnected (configured) → a Connect Google Business link in a new tab', () => {
     render(<IntegrationsLibrary {...props()} />)
     const link = screen.getByRole('link', { name: /Connect Google Business/i }) as HTMLAnchorElement
@@ -269,36 +268,39 @@ describe('IntegrationsLibrary — Google Business card', () => {
     expect(link.getAttribute('target')).toBe('_blank')
   })
 
-  it('connected → handle + Manage (detail link) + Refresh + Disconnect + value quick links', () => {
+  it('connected → handle + Manage (detail link) + Refresh + Disconnect + value links in the header', () => {
     const state = liveState({
       connections: { googlebusiness: fact(true, { title: 'Dream Dental', handle: 'dream-dental' }) },
     })
     render(<IntegrationsLibrary {...props({}, state)} />)
-    const section = screen.getByRole('heading', { name: 'Your integrations' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Google Business' }).closest('section')!
     expect(within(section).getByText('dream-dental')).toBeTruthy()
     const manage = within(section).getByRole('link', { name: /^Manage$/i }) as HTMLAnchorElement
     expect(manage.getAttribute('href')).toBe('/integrations/google-business')
     expect(within(section).getByRole('button', { name: /^Refresh$/i })).toBeTruthy()
     expect(within(section).getByRole('button', { name: /^Disconnect$/i })).toBeTruthy()
     expect(within(section).queryByRole('link', { name: /Connect Google Business/i })).toBeNull()
-    const reviews = within(section).getByRole('link', { name: /Reviews/i }) as HTMLAnchorElement
-    expect(reviews.getAttribute('href')).toBe('/reviews/received')
-    const search = within(section).getByRole('link', { name: /Local search/i }) as HTMLAnchorElement
-    expect(search.getAttribute('href')).toBe('/seo')
+    // The bundle header carries the "where it shows up" links once (not per card).
+    expect((within(section).getByRole('link', { name: /Reviews/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
+      '/reviews/received',
+    )
+    expect((within(section).getByRole('link', { name: /Local search/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
+      '/seo',
+    )
   })
 
   it('errored connection → a "Needs attention" pill', () => {
     const state = liveState({ connections: { googlebusiness: fact(false, { errored: true }) } })
     render(<IntegrationsLibrary {...props({}, state)} />)
-    const section = screen.getByRole('heading', { name: 'Google' }).closest('section')!
-    expect(within(section).getByText('Needs attention')).toBeTruthy()
+    const section = screen.getByRole('heading', { name: 'Google Business' }).closest('section')!
+    expect(within(section).getAllByText('Needs attention').length).toBeGreaterThan(0)
   })
 })
 
 describe('IntegrationsLibrary — Gmail + Stripe (first-party OAuth link-out)', () => {
   it('Gmail disconnected → a Connect link to the inbox setup flow', () => {
     render(<IntegrationsLibrary {...props()} />)
-    const section = screen.getByRole('heading', { name: 'Communication' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Patient Communications' }).closest('section')!
     const gmailCard = within(section).getByText('Gmail').closest('.v2-card-interactive')!
     const connect = within(gmailCard as HTMLElement).getByRole('link', { name: /^Connect$/i }) as HTMLAnchorElement
     expect(connect.getAttribute('href')).toBe('/inbox')
@@ -307,7 +309,7 @@ describe('IntegrationsLibrary — Gmail + Stripe (first-party OAuth link-out)', 
   it('Gmail connected → handle + a Manage link to the inbox', () => {
     const state = liveState({ connections: { gmail: fact(true, { title: 'hello@clinic.com' }) } })
     render(<IntegrationsLibrary {...props({}, state)} />)
-    const section = screen.getByRole('heading', { name: 'Your integrations' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Patient Communications' }).closest('section')!
     expect(within(section).getByText('hello@clinic.com')).toBeTruthy()
     const manage = within(section).getByRole('link', { name: /^Manage$/i }) as HTMLAnchorElement
     expect(manage.getAttribute('href')).toBe('/inbox')
@@ -315,7 +317,7 @@ describe('IntegrationsLibrary — Gmail + Stripe (first-party OAuth link-out)', 
 
   it('Stripe disconnected → a Connect link to the shop setup flow', () => {
     render(<IntegrationsLibrary {...props()} />)
-    const section = screen.getByRole('heading', { name: 'Payments' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Ecommerce & Payments' }).closest('section')!
     const connect = within(section).getByRole('link', { name: /^Connect$/i }) as HTMLAnchorElement
     expect(connect.getAttribute('href')).toBe('/shop')
   })
@@ -324,7 +326,7 @@ describe('IntegrationsLibrary — Gmail + Stripe (first-party OAuth link-out)', 
 describe('IntegrationsLibrary — SMS coming-soon', () => {
   it('SMS renders a coming-soon tile (no connect affordance)', () => {
     render(<IntegrationsLibrary {...props()} />)
-    const section = screen.getByRole('heading', { name: 'Communication' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Patient Communications' }).closest('section')!
     const smsCard = within(section).getByText('Text messaging (SMS)').closest('.v2-card-interactive')!
     expect(within(smsCard as HTMLElement).getByText(/Coming soon/i)).toBeTruthy()
     expect(within(smsCard as HTMLElement).queryByRole('link', { name: /^Connect$/i })).toBeNull()
@@ -332,22 +334,19 @@ describe('IntegrationsLibrary — SMS coming-soon', () => {
 })
 
 describe('IntegrationsLibrary — Social cards + cap', () => {
-  it('shows the cap meter "{current} of {limit} social connections used"', () => {
-    render(<IntegrationsLibrary {...props()} />)
-    const meter = screen.getByText(/social connections used/i)
-    expect(meter.textContent).toMatch(/2\s*of\s*5/)
-  })
-
-  it('a connected social card shows handle + Disconnect + a compose quick link (no Connect)', () => {
+  it('a connected social card shows handle + Disconnect (no Connect)', () => {
     const state = liveState({
       connections: { instagram: fact(true, { title: 'Dream Dental', handle: '@dreamdental' }) },
       socialCap: { allowed: true, limit: 5, current: 1 },
     })
     render(<IntegrationsLibrary {...props({}, state)} />)
-    expect(screen.getByText('@dreamdental')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: /Disconnect/i }).length).toBeGreaterThan(0)
-    const compose = screen.getByRole('link', { name: /Compose a post/i }) as HTMLAnchorElement
-    expect(compose.getAttribute('href')).toBe('/social-posts')
+    const section = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
+    expect(within(section).getByText('@dreamdental')).toBeTruthy()
+    expect(within(section).getAllByRole('button', { name: /Disconnect/i }).length).toBeGreaterThan(0)
+    // Active bundle → the composer link lives in the bundle header.
+    expect((within(section).getByRole('link', { name: /Social Posts/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
+      '/social-posts',
+    )
   })
 
   it('disconnected social rows under the cap render Connect links (new tab, correct platform)', () => {
@@ -361,17 +360,8 @@ describe('IntegrationsLibrary — Social cards + cap', () => {
 
   it('at the cap → no social Connect links, the add-on CTA shows instead', () => {
     const state = liveState({ socialCap: { allowed: false, limit: 5, current: 5 } })
-    render(
-      <IntegrationsLibrary
-        {...props(
-          {
-            cap: { allowed: false, limit: 5, current: 5, reason: 'used all 5' },
-          },
-          state,
-        )}
-      />,
-    )
-    const section = screen.getByRole('heading', { name: 'Social' }).closest('section')!
+    render(<IntegrationsLibrary {...props({ cap: { allowed: false, limit: 5, current: 5, reason: 'used all 5' } }, state)} />)
+    const section = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
     const socialConnect = within(section)
       .queryAllByRole('link', { name: /^Connect$/i })
       .filter((a) => a.getAttribute('href')?.includes('/api/integrations/zernio/connect'))
@@ -404,7 +394,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
     expect(screen.getByRole('button', { name: /Add more — \$30\/mo/i })).toBeTruthy()
   })
 
-  it('Basic → Upgrade-to-Pro (no add-on buy)', () => {
+  it('Basic → the Social bundle is plan-locked (Upgrade to Pro prompt, no add-on buy)', () => {
     const state = liveState({ pmsEligible: false, socialCap: { allowed: false, limit: 0, current: 0 } })
     render(
       <IntegrationsLibrary
@@ -419,12 +409,12 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
         )}
       />,
     )
-    const section = screen.getByRole('heading', { name: 'Social' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
     expect(within(section).getByRole('link', { name: /Upgrade to Pro/i })).toBeTruthy()
     expect(within(section).queryByRole('button', { name: /Add more/i })).toBeNull()
   })
 
-  it('add-on not configured (env unset) → a disabled "coming soon" button in the Social section', () => {
+  it('add-on not configured (env unset) → a disabled "coming soon" button in the Social bundle', () => {
     const state = liveState({ socialCap: { allowed: true, limit: 1, current: 0 } })
     render(
       <IntegrationsLibrary
@@ -439,7 +429,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
         )}
       />,
     )
-    const section = screen.getByRole('heading', { name: 'Social' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
     const btn = within(section).getByRole('button', { name: /Add-on coming soon/i }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
   })
@@ -453,7 +443,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
         })}
       />,
     )
-    const section = screen.getByRole('heading', { name: 'Social' }).closest('section')!
+    const section = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
     expect(within(section).getByText(/Managed billing/i)).toBeTruthy()
     expect(within(section).queryByRole('button', { name: /Add more/i })).toBeNull()
   })

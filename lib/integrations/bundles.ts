@@ -31,6 +31,7 @@
  */
 
 import { INTEGRATIONS_CATALOG, type IntegrationCategory, type IntegrationDef } from './catalog'
+import type { ResolvedIntegration } from './resolve'
 import type { BrandLogoId } from '@/components/integrations/brand-logos'
 
 /** Stable bundle ids. Referenced by `ModuleDef.requiresBundle` for sidebar wiring. */
@@ -243,4 +244,76 @@ export function isBundleActive(id: BundleId, s: BundleSignals): boolean {
 /** The set of bundle ids active for a clinic — drives the sidebar feature gate. */
 export function activeBundleIds(s: BundleSignals): Set<BundleId> {
   return new Set(BUNDLE_ORDER.filter((id) => isBundleActive(id, s)))
+}
+
+// ── Page-side bundle resolution (bundle card status over the resolved catalog) ─
+
+const PLAN_RANK: Record<string, number> = { basic: 0, pro: 1, premium: 2 }
+function planMeets(plan: string, min: string): boolean {
+  return (PLAN_RANK[plan] ?? 0) >= (PLAN_RANK[min] ?? 0)
+}
+
+/**
+ * A bundle's status for the `/integrations` cards — richer than the sidebar's
+ * boolean active flag:
+ *   - `active`        — at least one member integration is connected.
+ *   - `available`     — connectable now (a member can be connected).
+ *   - `plan_locked`   — the bundle needs a higher plan (see `def.minPlan`).
+ *   - `request_access`— only reachable via vendor/partner approval today.
+ *   - `coming_soon`   — genuinely roadmap (all members are coming-soon).
+ *   - `unavailable`   — connectable kind but the instance isn't configured.
+ */
+export type BundleStatus = 'active' | 'available' | 'plan_locked' | 'request_access' | 'coming_soon' | 'unavailable'
+
+export interface BundleView {
+  def: BundleDef
+  /** Resolved member integrations (in catalog order). */
+  members: ResolvedIntegration[]
+  /** The connected members (drives the logo stack + "active" framing). */
+  connectedMembers: ResolvedIntegration[]
+  status: BundleStatus
+  /** True when a connected member is in an error/needs-attention state. */
+  needsAttention: boolean
+}
+
+/** Human label for the plan a bundle needs (for the "Upgrade to …" CTA copy). */
+export function bundlePlanLabel(def: BundleDef): string {
+  if (!def.minPlan) return 'Included'
+  return def.minPlan === 'premium' ? 'Premium' : def.minPlan === 'pro' ? 'Pro & up' : 'Included'
+}
+
+/**
+ * Resolve a bundle over the already-resolved catalog + the clinic's plan. Pure.
+ * Connected wins; then the bundle plan gate; then member connectability.
+ */
+export function resolveBundleView(
+  def: BundleDef,
+  resolved: readonly ResolvedIntegration[],
+  planTier: string,
+): BundleView {
+  const members = resolved.filter((r) => def.categories.includes(r.def.category))
+  const connectedMembers = members.filter((r) => r.runtime.connected)
+  const needsAttention = members.some((r) => r.runtime.status === 'needs_attention')
+
+  let status: BundleStatus
+  if (connectedMembers.length > 0) {
+    status = 'active'
+  } else if (def.minPlan && !planMeets(planTier, def.minPlan)) {
+    status = 'plan_locked'
+  } else if (members.some((r) => r.runtime.status === 'available' || r.runtime.status === 'at_cap')) {
+    status = 'available'
+  } else if (members.some((r) => r.runtime.status === 'request_access')) {
+    status = 'request_access'
+  } else if (members.some((r) => r.runtime.status === 'unavailable')) {
+    status = 'unavailable'
+  } else {
+    status = 'coming_soon'
+  }
+
+  return { def, members, connectedMembers, status, needsAttention }
+}
+
+/** Resolve every bundle (in display order) over the resolved catalog. */
+export function resolveBundles(resolved: readonly ResolvedIntegration[], planTier: string): BundleView[] {
+  return BUNDLES.map((def) => resolveBundleView(def, resolved, planTier))
 }
