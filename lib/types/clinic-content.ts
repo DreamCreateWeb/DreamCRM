@@ -60,6 +60,49 @@ export interface ClinicServiceCustomization {
 }
 
 /**
+ * The four editable content sections of a service's detail page — the subset of
+ * `ClinicServiceCustomization` a clinic edits by hand (or fills with AI) in the
+ * service builder. `generatedAt` / `modelId` are stamped server-side. Exposing
+ * ALL four (not just `body`) is what lets the builder edit the whole page:
+ * Highlights (heroBullets) · Description (body) · What to expect (processSteps)
+ * · Common questions (faq).
+ */
+export interface EditableServiceContent {
+  heroBullets: string[]
+  body: string
+  processSteps: ServiceProcessStep[]
+  faq: ServiceFaqItem[]
+}
+
+const clampStr = (v: unknown, max: number): string =>
+  (typeof v === 'string' ? v : '').trim().slice(0, max)
+
+/**
+ * Normalize raw service-builder content: trim every field, drop empty entries,
+ * and cap per-field lengths + per-section counts. Pure + client-safe so the
+ * server action (`updateServiceContent`) and the editor UI share ONE contract
+ * — the editor can preview exactly what will persist. Mirrors the bounds the AI
+ * customizer (`service-library-ai.ts`) emits so hand-edits and AI drafts agree.
+ */
+export function sanitizeServiceContent(
+  raw: Partial<EditableServiceContent> | null | undefined,
+): EditableServiceContent {
+  const heroBullets = (Array.isArray(raw?.heroBullets) ? raw!.heroBullets : [])
+    .map((b) => clampStr(b, 120))
+    .filter(Boolean)
+    .slice(0, 6)
+  const processSteps = (Array.isArray(raw?.processSteps) ? raw!.processSteps : [])
+    .map((s) => ({ title: clampStr(s?.title, 120), body: clampStr(s?.body, 800) }))
+    .filter((s) => s.title || s.body)
+    .slice(0, 8)
+  const faq = (Array.isArray(raw?.faq) ? raw!.faq : [])
+    .map((f) => ({ question: clampStr(f?.question, 240), answer: clampStr(f?.answer, 1200) }))
+    .filter((f) => f.question || f.answer)
+    .slice(0, 10)
+  return { heroBullets, body: clampStr(raw?.body, 2000), processSteps, faq }
+}
+
+/**
  * A clinic's chosen service, stored in `clinic_profile.services` jsonb.
  *
  * Legacy rows carry only `{ id, name, description?, icon? }` (free-text,

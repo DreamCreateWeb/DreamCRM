@@ -356,6 +356,8 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
             initialServices={initialServices ?? []}
             library={library}
             orgId={orgId}
+            clinicName={profile?.displayName ?? orgName}
+            city={profile?.city ?? null}
           />
         </section>
 

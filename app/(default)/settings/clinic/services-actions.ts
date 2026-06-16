@@ -10,7 +10,12 @@ import {
   submitNewLibraryEntry,
 } from '@/lib/services/service-library'
 import { customizeServiceForClinic } from '@/lib/services/service-library-ai'
-import type { ClinicService } from '@/lib/types/clinic-content'
+import type {
+  ClinicService,
+  ClinicServiceCustomization,
+  EditableServiceContent,
+} from '@/lib/types/clinic-content'
+import { sanitizeServiceContent } from '@/lib/types/clinic-content'
 import { newId } from '@/lib/utils'
 
 /**
@@ -192,7 +197,7 @@ export async function updateServiceOverrides(
 
 export async function regenerateCustomization(
   serviceId: string,
-): Promise<ActionResult<{ generatedAt: string }>> {
+): Promise<ActionResult<{ generatedAt: string; customization: ClinicServiceCustomization }>> {
   const loaded = await loadOwnerCtxAndProfile()
   if (!loaded.ok) return loaded
   const { ctx, profile, services } = loaded
@@ -214,42 +219,52 @@ export async function regenerateCustomization(
     i === idx ? { ...s, customized: customize.customization } : s,
   )
   await writeServices(ctx, next)
-  return { ok: true, data: { generatedAt: customize.customization.generatedAt } }
+  // Return the full customization so the editor can re-seed every section
+  // field after a generate (the user keeps editing in place).
+  return {
+    ok: true,
+    data: {
+      generatedAt: customize.customization.generatedAt,
+      customization: customize.customization,
+    },
+  }
 }
 
 /**
- * Advanced fallback for clinics who want to hand-edit the AI output. Only
- * the body paragraph is editable from the UI today — hero bullets, process
- * steps, and FAQ stay AI-managed (avoids the "regenerate clobbers my edits"
- * footgun across structured shapes).
+ * Persist hand-edited service content — the WHOLE detail page now, not just the
+ * body: Highlights (hero bullets) · Description (body) · What to expect (process
+ * steps) · Common questions (FAQ). The editor seeds from the AI draft (or the
+ * library default) so a clinic always starts from real content; saving creates
+ * or overwrites the per-clinic `customized` blob. `Regenerate with AI` remains
+ * the deliberate "redraft everything" escape hatch.
  */
-export async function updateManualCustomization(
+export async function updateServiceContent(
   serviceId: string,
-  body: string,
+  content: EditableServiceContent,
 ): Promise<ActionResult> {
   const loaded = await loadOwnerCtxAndProfile()
   if (!loaded.ok) return loaded
   const { ctx, services } = loaded
 
-  const trimmed = body.trim()
-  if (!trimmed) return { ok: false, error: 'Body cannot be empty' }
-  if (trimmed.length > 2000) return { ok: false, error: 'Body is too long (max 2000 chars)' }
-
   const idx = services.findIndex((s) => s.id === serviceId)
   if (idx < 0) return { ok: false, error: 'Service not found' }
   const service = services[idx]
-  const prior = service.customized
-  if (!prior) {
-    return {
-      ok: false,
-      error:
-        'No AI rewrite yet — click "Regenerate with AI" first, then edit the result.',
-    }
+  if (!service.librarySlug) {
+    return { ok: false, error: 'Only library-linked services have an editable detail page' }
   }
-  const updated = { ...prior, body: trimmed, generatedAt: new Date().toISOString() }
-  const next = services.map((s, i) =>
-    i === idx ? { ...s, customized: updated } : s,
-  )
+
+  const clean = sanitizeServiceContent(content)
+  if (!clean.body) return { ok: false, error: 'The description can’t be empty' }
+
+  // Hand-edit overwrites the prior blob (AI or manual). `modelId: 'manual'`
+  // records that the latest copy was human-authored; a later Regenerate flips
+  // it back to the model id.
+  const updated: ClinicServiceCustomization = {
+    ...clean,
+    generatedAt: new Date().toISOString(),
+    modelId: 'manual',
+  }
+  const next = services.map((s, i) => (i === idx ? { ...s, customized: updated } : s))
   await writeServices(ctx, next)
   return { ok: true }
 }
