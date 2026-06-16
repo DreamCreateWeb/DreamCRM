@@ -628,7 +628,10 @@ export const analyticsEvents = pgTable(
   'analytics_events',
   {
     id: serial('id').primaryKey(),
-    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'set null' }),
+    // Cascade so a deleted clinic's analytics events go with it (the column stays
+    // nullable for internal Dream Create events, which have no org). Was set-null,
+    // which left orphaned rows behind on clinic deletion.
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
     properties: jsonb('properties').notNull().default(sql`'{}'::jsonb`),

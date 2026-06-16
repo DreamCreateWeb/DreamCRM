@@ -171,7 +171,17 @@ export async function deleteClinicAction(input: unknown): Promise<DeleteClinicRe
     }
   }
 
-  await db.delete(organization).where(and(eq(organization.id, org.id), eq(organization.type, 'clinic')))
+  // Delete in a transaction, clearing memberships first as belt-and-suspenders:
+  // membership.plan_id used to be a 'restrict' FK that aborted the WHOLE org
+  // cascade when a membership plan had members — leaving the org row (and its
+  // slug) stranded, which read as "deleted clinics aren't being cleaned up".
+  // The FK is now 'cascade' (migration 0071); clearing memberships up front keeps
+  // the delete robust regardless of the live constraint state. Everything else
+  // org-scoped is cascade, so dropping the org removes the full clinic.
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.membership).where(eq(schema.membership.organizationId, org.id))
+    await tx.delete(organization).where(and(eq(organization.id, org.id), eq(organization.type, 'clinic')))
+  })
 
   revalidatePath('/ecommerce/customers')
   return { ok: true, name: org.name, subscriptionCanceled }
