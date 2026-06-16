@@ -73,7 +73,9 @@ export default async function DashboardShell({
       {/* TrailProvider records the per-tab journey-trail so the header's
           back chip can offer effortless, filter-preserving, multi-step return
           navigation. It only feeds the chip; it never auto-navigates. */}
-      <TrailProvider modules={modules.map((m) => ({ path: m.path, label: m.label }))}>
+      {/* scope keys the journey trail to THIS user+org — trail labels can be a
+          patient name (PHI), so it must never carry across clinics/users in a tab. */}
+      <TrailProvider scope={`${ctx.userId}:${ctx.organizationId}`} modules={modules.map((m) => ({ path: m.path, label: m.label }))}>
         <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
           {/* Demo mode: amber 3px top hairline on the canvas (replaces the strip). */}
           {ctx.isDemo && (
