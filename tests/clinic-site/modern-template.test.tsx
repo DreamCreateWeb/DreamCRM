@@ -1273,8 +1273,8 @@ describe('new-clinic baseline (no phantom content)', () => {
     expect(media?.getAttribute('src')).not.toBe(rightOval?.getAttribute('src'))
   })
 
-  it('hides empty trust-stats / team / testimonials sections publicly but offers Studio add-prompts', () => {
-    const { container } = render(
+  it('renders empty team + reviews as editor-only in-place placeholders (never "missing"), hidden publicly', () => {
+    render(
       <ModernTemplate
         data={makeData({
           stats: null as never,
@@ -1285,19 +1285,25 @@ describe('new-clinic baseline (no phantom content)', () => {
         basePath="/site/test"
       />,
     )
-    // No public stat / testimonial section headings leak on a fresh clinic.
-    expect(screen.queryByText(/Why people love/i)).not.toBeInTheDocument()
-    // The three add-prompts exist and are all gated to the Studio.
+    // The "Meet the team" section RENDERS (so the Studio shows it, not a gap),
+    // but the whole section is dc-edit-only → hidden on the live site, and it
+    // shows placeholder portraits inviting the clinic to add their team.
+    const teamSection = screen.getByText(/The faces behind/i).closest('section')!
+    expect(teamSection.classList.contains('dc-edit-only')).toBe(true)
+    expect(teamSection.textContent).toMatch(/Add a team member/i)
+    expect(teamSection.querySelector('[data-edit-field="staff"]')).not.toBeNull()
+
+    // Same for the reviews section: present (editor-only) with a "feature a
+    // review" placeholder card, hidden publicly — never a fabricated testimonial.
+    const reviewsSection = screen.getByText(/Why people love/i).closest('section')!
+    expect(reviewsSection.classList.contains('dc-edit-only')).toBe(true)
+    expect(reviewsSection.textContent).toMatch(/Feature a patient review/i)
+
+    // Stats ships with the starter set; the lone Studio prompt only appears in
+    // the rare emptied-stats case (stats=null here), still Studio-gated.
     const statPrompt = screen.getByText(/\+ Add trust stats/i)
-    const teamPrompt = screen.getByText(/\+ Add your team/i)
-    const reviewPrompt = screen.getByText(/\+ Feature patient reviews/i)
     expect(statPrompt.closest('.dc-edit-only')).not.toBeNull()
-    expect(teamPrompt.closest('.dc-edit-only')).not.toBeNull()
-    expect(reviewPrompt.closest('.dc-edit-only')).not.toBeNull()
-    // Each prompt is a real edit target wired to its section's modal field.
     expect(statPrompt.closest('[data-edit-field="stats"]')).not.toBeNull()
-    expect(teamPrompt.closest('[data-edit-field="staff"]')).not.toBeNull()
-    expect(reviewPrompt.closest('[data-edit-field="testimonials"]')).not.toBeNull()
   })
 
   it('drops the finish-your-homepage prompts once those sections have content', () => {
