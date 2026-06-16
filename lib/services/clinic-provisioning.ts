@@ -10,6 +10,7 @@ import { applyStarterFloor } from '@/lib/services/starter-pack'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN, isValidClinicSlug } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
+import { hasPaidSubscription, trialEndDate } from '@/lib/trial'
 
 /**
  * Platform-side ("managed") clinic provisioning: the platform admin creates
@@ -136,10 +137,15 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     organizationId,
     legalName: name,
     displayName: name,
-    // Comped clinics get the tier immediately (there will be no webhook).
-    // Managed clinics stay on basic until their subscription activates.
-    planTier: comped ? input.planId : 'basic',
+    // Comped clinics get their tier immediately + NO trial (there's no webhook).
+    // Managed clinics start the no-card 7-day trial (full Premium) so the owner
+    // can use everything from the moment they accept the invite, then activate
+    // their RESERVED plan within the 7 days — the pending plan + coupon stay set
+    // for that activation checkout.
+    planTier: comped ? input.planId : 'premium',
     billingMode: comped ? 'comped' : 'managed',
+    subscriptionStatus: comped ? null : 'trialing',
+    trialEndsAt: comped ? null : trialEndDate(),
     pendingPlanId: comped ? null : input.planId,
     pendingBillingInterval: comped ? null : input.interval,
     stripeCouponId: couponId,
@@ -268,7 +274,11 @@ export async function getActivationDetails(organizationId: string): Promise<Acti
     .where(eq(schema.clinicProfile.organizationId, organizationId))
     .limit(1)
   if (!profile || profile.billingMode !== 'managed' || !profile.pendingPlanId) return null
-  if (profile.subscriptionStatus === 'active' || profile.subscriptionStatus === 'trialing') return null
+  // Only hide activation once they've actually PAID — the local no-card trial
+  // sets subscriptionStatus='trialing', and they must still be able to activate
+  // their reserved plan during it (and after it expires).
+  if (hasPaidSubscription({ subscriptionStatus: profile.subscriptionStatus, stripeSubscriptionId: profile.stripeSubscriptionId }))
+    return null
 
   const planId = profile.pendingPlanId as PlanId
   const interval = (profile.pendingBillingInterval as BillingInterval) || 'monthly'

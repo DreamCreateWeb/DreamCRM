@@ -31,29 +31,30 @@ describe('SignUpForm (dental, not Mosaic template)', () => {
     expect(screen.queryByText(/newsletter|product news/i)).toBeNull()
   })
 
-  it('shows the picked plan from /pricing (?plan=pro)', () => {
+  it('reflects the plan picked on /pricing (?plan=pro) as a trial interest, not a charge', () => {
     mockSearchParams.value = new URLSearchParams('plan=pro')
     render(<SignUpForm />)
-    expect(screen.getByText(/pro plan/i)).toBeInTheDocument()
-    expect(screen.getByText(/\$149\/mo/)).toBeInTheDocument()
-    expect(screen.getByText(/checkout comes after a quick setup/i)).toBeInTheDocument()
-  })
-
-  it('shows annual pricing when the interval is annual', () => {
-    mockSearchParams.value = new URLSearchParams('plan=premium&interval=annual')
-    render(<SignUpForm />)
-    expect(screen.getByText(/premium plan/i)).toBeInTheDocument()
-    expect(screen.getByText(/\$1,990\/yr/)).toBeInTheDocument()
-  })
-
-  it('ignores junk plan params', () => {
-    mockSearchParams.value = new URLSearchParams('plan=enterprise-mega')
-    render(<SignUpForm />)
+    expect(screen.getByText(/interested in pro/i)).toBeInTheDocument()
+    expect(screen.getByText(/pick your plan when you set up billing/i)).toBeInTheDocument()
+    // No price / no "checkout" at signup — it's a no-card trial now.
+    expect(screen.queryByText(/\$149\/mo/)).toBeNull()
     expect(screen.queryByText(/checkout comes after/i)).toBeNull()
   })
 
-  it('keeps the honest no-charge-yet promise', () => {
+  it('reflects the picked plan name (premium)', () => {
+    mockSearchParams.value = new URLSearchParams('plan=premium&interval=annual')
     render(<SignUpForm />)
-    expect(screen.getByText(/card isn.t charged until you pick a plan/i)).toBeInTheDocument()
+    expect(screen.getByText(/interested in premium/i)).toBeInTheDocument()
+  })
+
+  it('ignores junk plan params (no plan banner)', () => {
+    mockSearchParams.value = new URLSearchParams('plan=enterprise-mega')
+    render(<SignUpForm />)
+    expect(screen.queryByText(/interested in/i)).toBeNull()
+  })
+
+  it('makes the no-card free-trial promise (no checkout at signup)', () => {
+    render(<SignUpForm />)
+    expect(screen.getByText(/no credit card required/i)).toBeInTheDocument()
   })
 })

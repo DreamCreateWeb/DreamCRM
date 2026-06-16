@@ -3,6 +3,8 @@ import Header from './header'
 import TenantSidebar from './tenant-sidebar'
 import BillingActivationBanner from './billing-activation-banner'
 import BillingDunningBanner from './billing-dunning-banner'
+import TrialBanner from './trial-banner'
+import TrialEndedWall from './trial-ended-wall'
 import KeyboardShortcuts from './keyboard-shortcuts'
 import { TrailProvider } from '@/app/trail-context'
 import { getTenantContext } from '@/lib/auth/context'
@@ -81,7 +83,20 @@ export default async function DashboardShell({
           {/* Slim billing chip-row (compact skins of the same banners/logic). */}
           <BillingActivationBanner ctx={ctx} />
           <BillingDunningBanner ctx={ctx} />
-          <main className="grow [&>*:first-child]:scroll-mt-16">{children}</main>
+          <TrialBanner ctx={ctx} />
+          <main className="grow [&>*:first-child]:scroll-mt-16">
+            {/* No-card trial expired without billing → lock the dashboard behind
+                the "set up billing" wall (chrome stays so sign-out works). */}
+            {ctx.trialExpired && ctx.tenantType === 'clinic' ? (
+              <TrialEndedWall
+                orgName={ctx.organizationName}
+                managed={!!ctx.hasReservedPlan}
+                canManageBilling={ctx.role === 'owner' || ctx.role === 'admin'}
+              />
+            ) : (
+              children
+            )}
+          </main>
         </div>
       </TrailProvider>
       {/* Global keyboard map ( [ · ⌘1/2/3 · C · G→P/A/L ). */}

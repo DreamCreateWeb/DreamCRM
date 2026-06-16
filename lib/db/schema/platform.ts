@@ -213,6 +213,15 @@ export const clinicProfile = pgTable('clinic_profile', {
   stripeSubscriptionId: text('stripe_subscription_id'),
   subscriptionStatus: text('subscription_status'),
 
+  // ── No-card free trial (migration 0070) ──────────────────────────────────
+  // When the clinic's 7-day free trial ends. Set at signup / managed
+  // provisioning; null = never on a trial (comped clinics, demo, legacy rows).
+  // During the trial the clinic gets full Premium access with NO card on file;
+  // on expiry WITHOUT a paid subscription they're locked to the "set up billing"
+  // wall. A real paid subscription (stripeSubscriptionId + an active/past_due
+  // status) always overrides the trial — see lib/trial.ts + getTenantContext.
+  trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+
   // ── Social-connection add-on (Zernio social module, Phase 3, migration 0067)
   // 1 = the clinic has purchased the flat per-tier "extra social connections"
   // add-on (a Stripe subscription ITEM on top of the plan), which RAISES the

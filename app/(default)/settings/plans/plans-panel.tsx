@@ -14,6 +14,9 @@ interface Props {
   subscriptionStatus: string | null
   /** The interval the live subscription bills on, if known. */
   currentInterval: BillingInterval | null
+  /** On the no-card free trial — full access but no PAID plan yet, so every plan
+   *  is choosable (none reads as the locked-in "current" plan). */
+  onTrial?: boolean
   /** When arriving via requirePlan's redirect, the gated module's label. */
   upgradeModuleLabel: string | null
 }
@@ -22,6 +25,7 @@ export default function PlansPanel({
   currentPlanId,
   subscriptionStatus,
   currentInterval,
+  onTrial = false,
   upgradeModuleLabel,
 }: Props) {
   const [interval, setInterval] = useState<BillingInterval>(currentInterval ?? 'monthly')
@@ -36,7 +40,8 @@ export default function PlansPanel({
   const billingBroken = status.severity === 'urgent' || status.severity === 'warn'
 
   function handleSelect(planId: PlanId) {
-    if (planId === currentPlanId || pending) return
+    // During the trial no plan is "current" yet, so every plan is selectable.
+    if ((!onTrial && planId === currentPlanId) || pending) return
     setPendingPlan(planId)
     setFeedback(null)
     startTransition(async () => {
@@ -79,13 +84,20 @@ export default function PlansPanel({
           <div>
             <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-3">Plans</h2>
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <span>
-                You&apos;re currently on the{' '}
-                <strong className="font-medium capitalize text-gray-800 dark:text-gray-100">
-                  {currentPlan?.name ?? currentPlanId}
-                </strong>{' '}
-                plan.
-              </span>
+              {onTrial ? (
+                <span>
+                  You&apos;re on a <strong className="font-medium text-gray-800 dark:text-gray-100">free trial</strong>{' '}
+                  with full access — choose a plan to keep going. No card on file yet.
+                </span>
+              ) : (
+                <span>
+                  You&apos;re currently on the{' '}
+                  <strong className="font-medium capitalize text-gray-800 dark:text-gray-100">
+                    {currentPlan?.name ?? currentPlanId}
+                  </strong>{' '}
+                  plan.
+                </span>
+              )}
               {status.label && <StatusPill tone={status.tone} label={status.label} title={status.description} />}
             </div>
             {billingBroken && (
@@ -128,7 +140,9 @@ export default function PlansPanel({
 
         <div className="grid grid-cols-12 gap-6">
           {PLANS.map((p) => {
-            const isCurrent = p.id === currentPlanId
+            // On the trial, no plan is the locked-in "current" one — every card
+            // is a choosable subscribe button (incl. the trial's Premium tier).
+            const isCurrent = !onTrial && p.id === currentPlanId
             const isPending = pendingPlan === p.id
             const displayed = priceFor(p)
             const monthlyEquivalent = interval === 'annual' ? Math.round(p.annualPrice / 12) : p.price
@@ -186,7 +200,7 @@ export default function PlansPanel({
                       disabled={pending}
                       className="w-full mt-3 justify-center"
                     >
-                      {isPending ? 'Redirecting…' : `Switch to ${p.name}`}
+                      {isPending ? 'Redirecting…' : onTrial ? `Choose ${p.name}` : `Switch to ${p.name}`}
                     </ActionButton>
                   )}
                 </div>

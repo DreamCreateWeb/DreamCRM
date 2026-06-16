@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { signUp } from '@/lib/auth-client'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
@@ -85,11 +86,8 @@ export default function SignUpForm() {
     <form onSubmit={onSubmit}>
       {pickedPlan && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-teal-50 dark:bg-teal-500/10 px-3 py-2 text-sm text-teal-700 dark:text-teal-300">
-          <span className="font-semibold">{pickedPlan.name} plan</span>
-          <span>
-            — ${pickedInterval === 'annual' ? `${pickedPlan.annualPrice.toLocaleString('en-US')}/yr` : `${pickedPlan.price}/mo`}.
-            Checkout comes after a quick setup.
-          </span>
+          <span className="font-semibold">Interested in {pickedPlan.name}</span>
+          <span>— start with a free trial; no card required. Pick your plan when you set up billing.</span>
         </div>
       )}
       <div className="space-y-4">
@@ -156,14 +154,22 @@ export default function SignUpForm() {
       {error && (
         <div className="mt-4 text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">
           {error}
+          {/^.*(exist|already|registered|taken).*$/i.test(error) && (
+            <>
+              {' '}
+              <Link href="/signin" className="font-semibold underline">
+                Sign in instead →
+              </Link>
+            </>
+          )}
         </div>
       )}
       <div className="mt-6">
         <ActionButton type="submit" variant="primary" disabled={loading} className="w-full">
-          {loading ? 'Creating your account…' : 'Create account'}
+          {loading ? 'Creating your account…' : 'Start free trial'}
         </ActionButton>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          No contract, cancel anytime. Your card isn&apos;t charged until you pick a plan at checkout.
+          7-day free trial — no credit card required. Set up billing anytime in Settings.
         </p>
       </div>
     </form>

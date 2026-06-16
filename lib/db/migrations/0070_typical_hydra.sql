@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "trial_ends_at" timestamp with time zone;
