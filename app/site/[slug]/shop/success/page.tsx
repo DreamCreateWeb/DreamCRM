@@ -6,8 +6,7 @@ import BlogChrome from '@/components/clinic-site/blog-chrome'
 import { readableInk } from '@/lib/clinic-site-theme'
 import ClearCart from '../clear-cart'
 
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
 
 interface Props {
   params: Promise<{ slug: string }>

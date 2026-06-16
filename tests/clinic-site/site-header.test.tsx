@@ -4,6 +4,8 @@
  * a cream rounded-bottom drawer container.
  */
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
@@ -115,7 +117,7 @@ describe('SiteHeader', () => {
     expect(screen.getAllByText(/Care that feels like care/i).length).toBeGreaterThan(0)
   })
 
-  it('hardcodes the chartreuse #E7FB7E strip background regardless of brand color', () => {
+  it('paints the bright announcement strip from the brand-DERIVED --c-strip var', () => {
     const { container } = render(
       <SiteHeader
         data={makeData({ brandColor: '#9CAF9F' })}
@@ -126,13 +128,17 @@ describe('SiteHeader', () => {
         signInUrl="https://app.example.com/signin"
       />,
     )
-    // Strip is the FIRST child div of the header. Its inline style must
-    // carry the hardcoded chartreuse background, NOT the brand color.
-    const strip = container.querySelector('header > div')
-    const style = strip?.getAttribute('style') ?? ''
-    expect(style).toMatch(/#E7FB7E/i)
-    // Brand color must NOT bleed into the strip.
-    expect(style).not.toMatch(/#9CAF9F/i)
+    // The strip is still the FIRST child div of the header (structure intact).
+    expect(container.querySelector('header > div')).not.toBeNull()
+    // Its background now derives from the brand (a bright brand-tinted band) via
+    // the --c-strip palette var rather than a fixed chartreuse. happy-dom drops
+    // var() from inline styles, so we assert the source wiring.
+    const src = readFileSync(
+      resolve(__dirname, '../../components/clinic-site/site-header.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/var\(--c-strip/)
+    expect(src).not.toMatch(/STRIP_BG = '#E7FB7E'/)
   })
 
   it('renders a marquee track that loops the chips for a seamless scroll', () => {
@@ -160,15 +166,18 @@ describe('SiteHeader', () => {
         signInUrl="https://app.example.com/signin"
       />,
     )
-    // The cream container carries `lg:rounded-b-[32px]` + the cream bg.
+    // The nav container carries `lg:rounded-b-[32px]`. Its background is now a
+    // brand-tinted near-white from the --c-bg var (happy-dom strips var() from
+    // inline styles, so we assert the structural class here + source wiring).
     const navWrappers = Array.from(container.querySelectorAll('div'))
     expect(
-      navWrappers.some(
-        (d) =>
-          d.className.includes('lg:rounded-b-[32px]') &&
-          (d.getAttribute('style') ?? '').toUpperCase().includes('#FEF7F1'),
-      ),
+      navWrappers.some((d) => d.className.includes('lg:rounded-b-[32px]')),
     ).toBe(true)
+    const src = readFileSync(
+      resolve(__dirname, '../../components/clinic-site/site-header.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/NAV_CONTAINER_BG = 'var\(--c-bg/)
   })
 
   it('omits the tagline chip when the tagline is too long for a chip', () => {

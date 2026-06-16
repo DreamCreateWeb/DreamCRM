@@ -1,12 +1,15 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { pickPlatformAction, submitReviewAction } from './actions'
 
-const { INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 type ReviewSite = 'google' | 'healthgrades' | 'facebook' | 'yelp'
 

@@ -40,11 +40,11 @@ export function buildVisitTypeOptions(
   return [...opts, OTHER_OPTION]
 }
 
-const BG = '#FAF7F2'
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const SURFACE = '#FFFFFF'
-const BORDER = '#E8E2D9'
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 const DAY_WINDOW = 14 // show two weeks of days
 const DAY_NAME_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -476,7 +476,7 @@ export default function BookForm({
             type="button"
             onClick={() => scrollDays(-1)}
             aria-label="Previous days"
-            className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white shadow-sm transition hover:shadow-md"
+            className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--c-surface,#FFFFFF)] shadow-sm transition hover:shadow-md"
             style={{ border: `1px solid ${BORDER}`, color: brand }}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
@@ -520,7 +520,7 @@ export default function BookForm({
             type="button"
             onClick={() => scrollDays(1)}
             aria-label="More days"
-            className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white shadow-sm transition hover:shadow-md"
+            className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--c-surface,#FFFFFF)] shadow-sm transition hover:shadow-md"
             style={{ border: `1px solid ${BORDER}`, color: brand }}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">

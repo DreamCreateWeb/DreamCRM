@@ -12,10 +12,10 @@ interface Props {
 
 type Mode = 'signup' | 'signin'
 
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const SURFACE = '#FFFFFF'
-const BORDER = '#E8E2D9'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 /**
  * Sign-in / sign-up form for the public "Save your intake to your account"
@@ -101,7 +101,7 @@ export default function IntakeStartForm({ orgId, clinicName, brand }: Props) {
       {/* Mode toggle */}
       <div
         className="inline-flex items-center p-1 rounded-full mb-6"
-        style={{ backgroundColor: '#F1ECE3' }}
+        style={{ backgroundColor: 'var(--c-surface-alt, #F1ECE3)' }}
       >
         <button
           type="button"

@@ -9,10 +9,10 @@ import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { blogIndexJsonLd } from '@/lib/clinic-site-jsonld'
 
-const BG = '#FAF7F2'
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -227,7 +227,7 @@ function CategoryChip({
       style={
         active
           ? { backgroundColor: brand, color: '#fff', borderColor: brand }
-          : { color: INK_MUTED, borderColor: BORDER, backgroundColor: '#fff' }
+          : { color: INK_MUTED, borderColor: BORDER, backgroundColor: 'var(--c-surface, #FFFFFF)' }
       }
     >
       {label}
@@ -252,7 +252,7 @@ function FeaturedPostCard({
     <a
       href={`${basePath}/blog/${post.slug}`}
       className="group block rounded-3xl overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
-      style={{ backgroundColor: '#fff', border: `1px solid ${BORDER}` }}
+      style={{ backgroundColor: 'var(--c-surface, #FFFFFF)', border: `1px solid ${BORDER}` }}
     >
       <div className="grid md:grid-cols-2 gap-0 items-stretch">
         <div

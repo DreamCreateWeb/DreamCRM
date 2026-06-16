@@ -11,7 +11,7 @@ import { getOpenJobBySlug, getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp, jobPostingJsonLd } from '@/lib/types/careers'
 import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -23,7 +23,11 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import ApplyForm from '../apply-form'
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string; jobSlug: string }>

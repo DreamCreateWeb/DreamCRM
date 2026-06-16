@@ -48,11 +48,11 @@ export default async function IntakeFormPage({ params }: Props) {
   const basePath = await resolveSiteBasePath(slug)
   const schema = template.schema as FormTemplateSchema
 
-  const BG = '#FAF7F2'
-  const INK = '#1C1A17'
-  const INK_MUTED = '#6B635A'
-  const SURFACE = '#FFFFFF'
-  const BORDER = '#E8E2D9'
+  const BG = 'var(--c-bg, #FAF7F2)'
+  const INK = 'var(--c-ink, #1C1A17)'
+  const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+  const SURFACE = 'var(--c-surface, #FFFFFF)'
+  const BORDER = 'var(--c-border, #E8E2D9)'
 
   return (
     <div
@@ -62,7 +62,7 @@ export default async function IntakeFormPage({ params }: Props) {
       {/* Header */}
       <header
         className="sticky top-0 z-40 backdrop-blur-md border-b"
-        style={{ backgroundColor: `${BG}EE`, borderColor: BORDER }}
+        style={{ backgroundColor: 'var(--c-bg, #FAF7F2)', borderColor: BORDER }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between gap-4">
           <a href={basePath} className="flex items-center gap-3 min-w-0">

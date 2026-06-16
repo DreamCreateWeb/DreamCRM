@@ -9,7 +9,7 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicService, ClinicStaff, ClinicFaqItem } from '@/lib/types/clinic-content'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import { faqPageJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   buildClinicNavLinks,
@@ -27,7 +27,11 @@ import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -315,7 +319,7 @@ export default async function InsurancePage({ params }: Props) {
               </a>
               <a
                 href="#verify"
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-white transition hover:shadow-sm"
+                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-[var(--c-surface,#FFFFFF)] transition hover:shadow-sm"
                 style={{ color: INK, borderColor: BORDER }}
               >
                 Check your insurance
@@ -406,7 +410,7 @@ export default async function InsurancePage({ params }: Props) {
         {/* ── Carriers + verifier — forest-teal band (matches homepage) ──── */}
         <section
           className="py-14 sm:py-24"
-          style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
+          style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
         >
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="text-center max-w-[700px] mx-auto mb-12">
@@ -422,7 +426,7 @@ export default async function InsurancePage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
                 style={{
-                  color: '#FAF7F2',
+                  color: 'var(--c-deep-ink, #FAF7F2)',
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:insurance.carriersHeading"
@@ -450,7 +454,7 @@ export default async function InsurancePage({ params }: Props) {
                 <h3
                   className="text-xl sm:text-2xl font-semibold mb-3"
                   style={{
-                    color: '#FAF7F2',
+                    color: 'var(--c-deep-ink, #FAF7F2)',
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
                   data-edit-field="copy:insurance.carriersListHeading"
@@ -473,7 +477,7 @@ export default async function InsurancePage({ params }: Props) {
                         <li
                           key={carrier}
                           className="flex items-start gap-2.5 text-[15px] leading-snug"
-                          style={{ color: '#FAF7F2' }}
+                          style={{ color: 'var(--c-deep-ink, #FAF7F2)' }}
                         >
                           <svg
                             className="w-5 h-5 shrink-0 mt-0.5"
@@ -511,7 +515,7 @@ export default async function InsurancePage({ params }: Props) {
                 <h3
                   className="text-xl sm:text-2xl font-semibold mb-3"
                   style={{
-                    color: '#FAF7F2',
+                    color: 'var(--c-deep-ink, #FAF7F2)',
                     fontFamily: 'var(--font-display, Georgia, serif)',
                   }}
                   data-edit-field="copy:insurance.verifierHeading"
@@ -549,14 +553,14 @@ export default async function InsurancePage({ params }: Props) {
                   {[...insuranceCarriers, ...insuranceCarriers].map((carrier, i) => (
                     <div
                       key={`${carrier}-${i}`}
-                      className="shrink-0 bg-white rounded-2xl px-7 py-5 flex items-center justify-center w-[220px] h-[88px]"
+                      className="shrink-0 bg-[var(--c-surface,#FFFFFF)] rounded-2xl px-7 py-5 flex items-center justify-center w-[220px] h-[88px]"
                       style={{ borderTop: `3px solid ${brand}` }}
                       aria-hidden={i >= insuranceCarriers.length ? 'true' : undefined}
                     >
                       <span
                         className="text-[15px] font-semibold tracking-tight text-center leading-tight"
                         style={{
-                          color: '#1C1A17',
+                          color: 'var(--c-ink, #1C1A17)',
                           fontFamily: 'var(--font-display, Georgia, serif)',
                         }}
                       >
@@ -662,7 +666,7 @@ export default async function InsurancePage({ params }: Props) {
         {hasDentalPlans && (
           <section
             className="py-16 sm:py-20"
-            style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
+            style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
           >
             <div className="max-w-[900px] mx-auto px-5 sm:px-8 text-center">
               <p
@@ -677,7 +681,7 @@ export default async function InsurancePage({ params }: Props) {
               <h2
                 className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
                 style={{
-                  color: '#FAF7F2',
+                  color: 'var(--c-deep-ink, #FAF7F2)',
                   fontFamily: 'var(--font-display, Georgia, serif)',
                 }}
                 data-edit-field="copy:insurance.noInsHeading"
@@ -702,7 +706,7 @@ export default async function InsurancePage({ params }: Props) {
               <a
                 href={`${basePath}/dental-plans`}
                 className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: '#FFFFFF', color: INK }}
+                style={{ backgroundColor: 'var(--c-surface, #FFFFFF)', color: INK }}
               >
                 See our dental plans
                 <span aria-hidden="true" className="ml-2">→</span>

@@ -56,7 +56,7 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.18)' }}
         >
           <svg
-            className="w-7 h-7 text-white"
+            className="w-7 h-7 text-[var(--c-deep-ink,#FFFFFF)]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -65,8 +65,8 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-base font-semibold text-white mb-1">Thanks!</p>
-        <p className="text-sm text-white/80">
+        <p className="text-base font-semibold text-[var(--c-deep-ink,#FFFFFF)] mb-1">Thanks!</p>
+        <p className="text-sm text-[var(--c-deep-ink,#FFFFFF)]/80">
           We&apos;ll be in touch within one business day.
         </p>
       </div>
@@ -89,7 +89,7 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
   }
 
   const inputClass =
-    'w-full px-5 py-3 rounded-full bg-white text-[#1C1A17] placeholder-gray-400 text-sm border-none focus:outline-none focus:ring-2 focus:ring-white/40 transition'
+    'w-full px-5 py-3 rounded-full bg-[var(--c-surface,#FFFFFF)] text-[var(--c-ink,#1C1A17)] placeholder-gray-400 text-sm border-none focus:outline-none focus:ring-2 focus:ring-white/40 transition'
 
   function renderField(f: LeadFormField) {
     const optionalSuffix = f.required ? '' : ' (optional)'
@@ -195,7 +195,7 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
       >
         {status === 'pending' ? 'Sending…' : 'Check insurance'}
       </button>
-      <p className="text-xs text-center text-white/70">
+      <p className="text-xs text-center text-[var(--c-deep-ink,#FFFFFF)]/70">
         We only use this to reach you about your visit — never spam.
       </p>
     </form>

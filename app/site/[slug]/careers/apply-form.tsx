@@ -9,11 +9,11 @@ import {
   RESUME_ACCEPT,
 } from '@/lib/types/careers'
 
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 const FIELD =
-  'w-full text-[15px] px-3.5 py-3 rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-offset-0'
+  'w-full text-[15px] px-3.5 py-3 rounded-xl border bg-[var(--c-surface,#FFFFFF)] focus:outline-none focus:ring-2 focus:ring-offset-0'
 
 export default function ApplyForm({ orgId, jobPostingId, brand }: { orgId: string; jobPostingId: string; brand: string }) {
   const [done, setDone] = useState(false)

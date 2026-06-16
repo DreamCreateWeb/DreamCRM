@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import ModernTemplate, { formatReviewCount } from '@/components/clinic-site/modern-template'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
@@ -349,19 +351,27 @@ describe('ModernTemplate', () => {
     expect(heroPhoneCta!.className).toMatch(/bg-white/)
   })
 
-  it('renders the hero photo backdrops as the hardcoded neutral pastels (not brand color)', () => {
-    const { container } = render(
-      <ModernTemplate
-        data={makeData({ brandColor: '#9CAF9F' })}
-        basePath="/site/test"
-      />,
+  it('derives the hero photo backdrops from the brand (a soft wash + cream), not fixed pastels', () => {
+    // The two hero-oval backdrops used to be a fixed blue/peach pair that
+    // clashed on a cool brand. They now derive from the clinic's brand via the
+    // layout palette vars (a soft brand wash + a warm cream). happy-dom drops
+    // var() from inline styles, so we assert the SOURCE wiring (the rendered
+    // contrast story is covered by tests/clinic-site/palette.test.ts), and that
+    // the hero still renders for any brand.
+    const src = readFileSync(
+      resolve(__dirname, '../../components/clinic-site/modern-template.tsx'),
+      'utf8',
     )
-    const heroSection = container.querySelector('section.relative.overflow-hidden')!
-    // Walk the hero's hidden lg:block photo wrappers; their inner oval div
-    // carries the inline backgroundColor we hardcode (blue + peach).
-    const html = heroSection.innerHTML
-    expect(html).toMatch(/#B8D4E8/i) // light blue (left photo backdrop)
-    expect(html).toMatch(/#F0D9BD/i) // warm peach (right photo backdrop)
+    expect(src).toMatch(/leftPortraitBg = 'var\(--c-brand-soft/)
+    expect(src).toMatch(/rightPortraitBg = 'var\(--c-surface-alt/)
+    // No fixed pastel survives except as the var() fallback.
+    expect(src).not.toMatch(/leftPortraitBg = '#B8D4E8'/)
+    expect(src).not.toMatch(/rightPortraitBg = '#F0D9BD'/)
+
+    const { container } = render(
+      <ModernTemplate data={makeData({ brandColor: '#7C3AED' })} basePath="/site/test" />,
+    )
+    expect(container.querySelector('section.relative.overflow-hidden')).not.toBeNull()
   })
 
   it('renders the secondary hero H2 with bold (not italic) emphasis on "all your needs"', () => {

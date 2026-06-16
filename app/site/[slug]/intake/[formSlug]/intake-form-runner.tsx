@@ -17,11 +17,11 @@ export interface IntakeSubmitPayload {
   submitterPhone: string | null
 }
 
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const SURFACE = '#FFFFFF'
-const BG = '#FAF7F2'
-const BORDER = '#E8E2D9'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BG = 'var(--c-bg, #FAF7F2)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   orgId: string

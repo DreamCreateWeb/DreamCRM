@@ -5,9 +5,9 @@ import { formatCents, type CartLine } from '@/lib/types/shop'
 import { getCart, setQty, removeLine } from './cart-store'
 import { startCheckout, applyCoupon } from './actions'
 
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 export default function CartView({
   slug,
@@ -78,7 +78,7 @@ export default function CartView({
       })
   }
 
-  const FIELD = 'w-full text-[15px] px-3.5 py-3 rounded-xl border bg-white'
+  const FIELD = 'w-full text-[15px] px-3.5 py-3 rounded-xl border bg-[var(--c-surface,#FFFFFF)]'
 
   return (
     <div>
@@ -144,7 +144,7 @@ export default function CartView({
           value={code}
           onChange={(e) => { setCode(e.target.value); setCouponMsg(null) }}
           placeholder="Promo code"
-          className="flex-1 text-[14px] px-3 py-2 rounded-lg border bg-white uppercase"
+          className="flex-1 text-[14px] px-3 py-2 rounded-lg border bg-[var(--c-surface,#FFFFFF)] uppercase"
           style={{ borderColor: BORDER }}
         />
         <button

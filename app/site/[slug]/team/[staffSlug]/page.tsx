@@ -12,7 +12,7 @@ import type {
   ClinicService,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import { personJsonLd as buildPersonJsonLd, breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   staffInitials,
@@ -26,7 +26,11 @@ import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string; staffSlug: string }>
@@ -288,7 +292,7 @@ export default async function StaffDetailPage({ params }: Props) {
                   {profile.phone && (
                     <a
                       href={`tel:${profile.phone}`}
-                      className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-white transition hover:shadow-sm"
+                      className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-[var(--c-surface,#FFFFFF)] transition hover:shadow-sm"
                       style={{ color: INK, borderColor: BORDER }}
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} style={{ color: brand }}>
@@ -326,7 +330,7 @@ export default async function StaffDetailPage({ params }: Props) {
                     delay={i * 60}
                     className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold transition hover:shadow-sm"
                     style={{
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: 'var(--c-surface, #FFFFFF)',
                       color: INK,
                       border: `1px solid ${BORDER}`,
                       listStyle: 'none',

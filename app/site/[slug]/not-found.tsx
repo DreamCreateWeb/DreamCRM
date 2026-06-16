@@ -1,7 +1,7 @@
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 
-const { INK, INK_MUTED } = CLINIC_THEME
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
 
 /**
  * Clinic-site 404 — shown when a slug doesn't resolve to a clinic. We have no

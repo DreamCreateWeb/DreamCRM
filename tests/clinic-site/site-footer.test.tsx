@@ -6,6 +6,8 @@
  * that scrolls within a page that has no `#hours` section.
  */
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
@@ -97,34 +99,32 @@ describe('SiteFooter', () => {
     expect(screen.getByText('Closed')).toBeInTheDocument()
   })
 
-  it('uses the hardcoded forest-teal background (NOT theme-driven) regardless of brand color', () => {
-    // Whether the clinic picks sage or hot pink, the footer always anchors
-    // the page in forest-teal — that's the Tend-verbatim look.
-    const { container: a } = render(
-      <SiteFooter
-        data={makeData({ brandColor: '#9CAF9F' })}
-        basePath=""
-        navLinks={navLinks}
-        bookHref="/book"
-        bookLabel="Book a Visit"
-        signInUrl="https://app.example.com/signin"
-      />,
+  it('anchors the footer in the brand-DERIVED deep band (theme-driven via --c-deep)', () => {
+    // The footer's deep band is no longer a fixed forest-teal — it derives from
+    // the clinic's brand through the layout palette var (--c-deep). happy-dom
+    // strips var() from inline styles so we can't read the rendered color; we
+    // assert the SOURCE wires --c-deep (contrast is covered by palette.test.ts)
+    // and that the footer still renders for any brand.
+    const src = readFileSync(
+      resolve(__dirname, '../../components/clinic-site/site-footer.tsx'),
+      'utf8',
     )
-    const footerA = a.querySelector('footer') as HTMLElement
-    expect(footerA.style.backgroundColor).toMatch(/rgb\(54, ?81, ?76\)|#36514c/i)
+    expect(src).toMatch(/var\(--c-deep/)
+    expect(src).not.toMatch(/const FOOTER_BG = '#36514c'/)
 
-    const { container: b } = render(
-      <SiteFooter
-        data={makeData({ brandColor: '#FF1493' })}
-        basePath=""
-        navLinks={navLinks}
-        bookHref="/book"
-        bookLabel="Book a Visit"
-        signInUrl="https://app.example.com/signin"
-      />,
-    )
-    const footerB = b.querySelector('footer') as HTMLElement
-    expect(footerB.style.backgroundColor).toMatch(/rgb\(54, ?81, ?76\)|#36514c/i)
+    for (const brandColor of ['#9CAF9F', '#FF1493']) {
+      const { container } = render(
+        <SiteFooter
+          data={makeData({ brandColor })}
+          basePath=""
+          navLinks={navLinks}
+          bookHref="/book"
+          bookLabel="Book a Visit"
+          signInUrl="https://app.example.com/signin"
+        />,
+      )
+      expect(container.querySelector('footer')).not.toBeNull()
+    }
   })
 
   it('renders 4-column layout with About / Visit / (Services if any) / Questions headers', () => {
