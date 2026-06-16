@@ -498,6 +498,13 @@
       "when": 1781620486794,
       "tag": "0070_typical_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1781624695564,
+      "tag": "0071_groovy_violations",
+      "breakpoints": true
     }
   ]
 }

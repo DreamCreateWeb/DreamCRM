@@ -914,7 +914,13 @@ export const membership = pgTable(
   {
     id: text('id').primaryKey(),
     organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
-    planId: text('plan_id').notNull().references(() => membershipPlan.id, { onDelete: 'restrict' }),
+    // Cascade so deleting a clinic (org → membership_plan) doesn't get blocked
+    // by a member still referencing the plan — the whole org-delete cascade was
+    // aborting on a 'restrict' here, leaving the org row + its slug stranded.
+    // Accidental single-plan deletion is already guarded at the app level
+    // (membership.ts deletePlan archives a plan that has members instead of
+    // deleting it), so this is a safe backstop.
+    planId: text('plan_id').notNull().references(() => membershipPlan.id, { onDelete: 'cascade' }),
     patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
     // 'pending' | 'active' | 'past_due' | 'cancelled'
     status: text('status').notNull().default('pending'),

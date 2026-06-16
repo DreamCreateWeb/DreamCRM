@@ -43,6 +43,8 @@ vi.mock('@/lib/services/stripe-admin', () => ({ cancelSubscriptionNow: mockCance
 
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
+  const tableName = (table: unknown) =>
+    table === schema.organization ? 'organization' : table === schema.membership ? 'membership' : 'unknown'
   const chain = () => {
     const obj: any = {}
     obj.from = () => obj
@@ -50,15 +52,17 @@ vi.mock('@/lib/db', async () => {
     obj.limit = async () => dbState.selectQueue.shift() ?? []
     return obj
   }
+  const deleteBuilder = (table: unknown) => ({
+    where: async () => {
+      dbState.deletes.push({ table: tableName(table) })
+    },
+  })
   return {
     db: {
       select: () => chain(),
-      delete: (table: unknown) => {
-        const name =
-          table === schema.organization ? 'organization' : 'unknown'
-        return {
-          where: async () => { dbState.deletes.push({ table: name }) },
-        }
+      delete: (table: unknown) => deleteBuilder(table),
+      transaction: async (cb: (tx: unknown) => Promise<void>) => {
+        await cb({ delete: (table: unknown) => deleteBuilder(table) })
       },
     },
     schema,
@@ -93,8 +97,9 @@ describe('deleteClinicAction', () => {
     const out = await deleteClinicAction({ orgId: 'org_acme', confirmSlug: 'acme-dental-demo' })
 
     expect(out).toEqual({ ok: true, name: 'Acme Dental Demo', subscriptionCanceled: false })
-    expect(dbState.deletes).toHaveLength(1)
-    expect(dbState.deletes[0].table).toBe('organization')
+    // Memberships are cleared first (the historical restrict-FK blocker), then
+    // the org is dropped (cascade handles the rest).
+    expect(dbState.deletes.map((d) => d.table)).toEqual(['membership', 'organization'])
     expect(mockCancel).not.toHaveBeenCalled()
   })
 
@@ -108,7 +113,7 @@ describe('deleteClinicAction', () => {
 
     expect(mockCancel).toHaveBeenCalledWith('sub_123')
     expect(out.subscriptionCanceled).toBe(true)
-    expect(dbState.deletes).toHaveLength(1)
+    expect(dbState.deletes.map((d) => d.table)).toContain('organization')
   })
 
   it('still deletes the org if the Stripe cancel call fails', async () => {
@@ -121,7 +126,7 @@ describe('deleteClinicAction', () => {
     const out = await deleteClinicAction({ orgId: 'org_real', confirmSlug: 'real-clinic' })
 
     expect(out.subscriptionCanceled).toBe(false)
-    expect(dbState.deletes).toHaveLength(1)
+    expect(dbState.deletes.map((d) => d.table)).toContain('organization')
   })
 
   it('refuses when the confirm slug does not match', async () => {
