@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { runAiWebsiteEdit, undoAiWebsiteEdit } from './ai-edit-action'
 import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 
@@ -15,6 +15,25 @@ type EditDetail = { label: string; preview: string; anchor: string | null; page:
 export type UndoData = { before: Record<string, unknown>; page: string; anchor: string | null }
 
 const FOLLOW_KEY = 'dc-studio-follow'
+
+/**
+ * Plain-language starters so a non-technical front-desk person knows what they
+ * can ask — they don't think in "Hero" / "section" terms, they think "my hours"
+ * and "my phone number". Clicking one drops an editable example into the box
+ * (we focus + place the cursor at the end), teaching the vocabulary by example
+ * rather than making them guess. Each maps to something the edit engine
+ * (lib/services/ai-website-edit.ts) actually understands. Order = likely use.
+ */
+const SUGGESTIONS: { label: string; fill: string }[] = [
+  { label: 'Change my hours', fill: 'Change my hours to ' },
+  { label: 'Update my phone number', fill: 'Change my phone number to ' },
+  { label: 'Make my intro warmer', fill: 'Make my homepage intro warmer and more welcoming' },
+  { label: 'Reword my headline', fill: 'Reword my homepage headline to feel more inviting' },
+  { label: 'Add a service', fill: 'Add a service for ' },
+  { label: 'List insurance I accept', fill: 'We accept ' },
+  { label: 'Add a common question', fill: 'Add a question and answer: ' },
+  { label: 'Change my brand color', fill: 'Change my brand color to ' },
+]
 
 export default function StudioAiBar({
   onApplied,
@@ -44,6 +63,7 @@ export default function StudioAiBar({
   hidden?: boolean
 }) {
   const [value, setValue] = useState('')
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
   const [summary, setSummary] = useState('')
   const [details, setDetails] = useState<EditDetail[]>([])
@@ -73,6 +93,23 @@ export default function StudioAiBar({
         /* ignore */
       }
       return next
+    })
+  }
+
+  /** Drop a starter into the box + focus it (cursor at the end) so they can
+   *  finish the thought and send — never auto-sends, so they always review. */
+  function applySuggestion(fill: string) {
+    setValue(fill)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      const end = el.value.length
+      try {
+        el.setSelectionRange(end, end)
+      } catch {
+        /* some input types reject setSelectionRange — focus is enough */
+      }
     })
   }
 
@@ -136,9 +173,11 @@ export default function StudioAiBar({
       className={`pointer-events-none fixed inset-x-0 bottom-0 z-[65] flex justify-center px-4 pb-6 ${hidden ? 'invisible' : ''}`}
       aria-hidden={hidden ? true : undefined}
     >
-      {/* Stacked panels (done-summary + status + bar) cap at the viewport so a
-          long edit list never runs off-screen — the list itself scrolls. */}
-      <div className="pointer-events-auto w-full max-w-xl relative max-h-[80vh] overflow-y-auto">
+      {/* Stacked panels (done-summary + status + bar). No overflow clip here —
+          the only long part (the edit list) self-caps + scrolls on its own
+          (max-h-48 below). Clipping HERE would fight the glow's -inset-3 bleed
+          and leave two stuck scrollbars that don't actually scroll. */}
+      <div className="pointer-events-auto w-full max-w-xl relative">
         {/* Glow behind the bar */}
         <div
           aria-hidden="true"
@@ -242,6 +281,32 @@ export default function StudioAiBar({
           </div>
         </div>
 
+        {/* Plain-language starters — only while the box is empty + idle, so they
+            read as "here's what you can ask" and get out of the way the moment
+            they start typing. Hidden scrollbar (intentional horizontal scroll,
+            no visible track — unlike the stuck-scrollbar bug above). */}
+        {!working && !value.trim() && !outOfEdits && (
+          <div className="relative mb-2.5 flex items-center gap-2">
+            <span className="shrink-0 pl-1 text-xs font-medium text-gray-400 select-none">Try</span>
+            <div
+              className="dc-ai-suggest flex min-w-0 flex-1 gap-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => applySuggestion(s.fill)}
+                  className="shrink-0 whitespace-nowrap rounded-full bg-gray-900/85 backdrop-blur-xl border border-white/10 px-3 py-1 text-xs font-medium text-gray-200 transition hover:border-teal-400/50 hover:text-white"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <style>{`.dc-ai-suggest::-webkit-scrollbar{display:none}`}</style>
+          </div>
+        )}
+
         {/* The bar */}
         <form
           onSubmit={(e) => {
@@ -252,6 +317,7 @@ export default function StudioAiBar({
         >
           <Sparkle className={`w-5 h-5 shrink-0 ${working ? "text-teal-300 animate-pulse" : "text-teal-200"}`} />
           <input
+            ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             disabled={working || outOfEdits}
