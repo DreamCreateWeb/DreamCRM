@@ -266,9 +266,14 @@ export default function IntegrationsLibrary({
         </ConnectedSection>
       )}
 
-      {/* ── Browse: search + category nav ────────────────────────────────── */}
-      <div>
-        <h2 className="sr-only">Browse integrations</h2>
+      {/* ── Browse zone — a visibly distinct area from "Your integrations" ── */}
+      <div className="pt-7 border-t border-[color:var(--color-hairline)]">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Browse integrations</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Connect more tools to DreamCRM — more added all the time.
+          </p>
+        </div>
         <MarketplaceToolbar
           query={query}
           onQuery={setQuery}
@@ -529,8 +534,9 @@ function CategoryPill({
 function ConnectedSection({ children }: { children: React.ReactNode }) {
   return (
     <section className="section-enter">
-      <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Your integrations</h2>
+      <div className="flex items-baseline gap-2 mb-3">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Your integrations</h2>
+        <span className="text-sm text-gray-400 dark:text-gray-500">connected &amp; active</span>
       </div>
       {children}
     </section>
@@ -661,15 +667,19 @@ function QuickLinks({ links }: { links: { href: string; label: string }[] }) {
   )
 }
 
-/** A small connected-handle chip (display name + handle + check). */
+/** A light connected-handle line (check + display name + muted handle) — an
+ *  elegant inline cue, not a heavy sunken box. */
 function HandleWell({ title, handle }: { title: string; handle?: string | null }) {
   return (
-    <div className="rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-3 py-2 mb-2">
-      <div className="flex items-center gap-1.5">
-        <CheckIcon />
-        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{title}</p>
-      </div>
-      {handle && <p className="text-xs text-gray-500 dark:text-gray-400 font-mono-num truncate pl-5">{handle}</p>}
+    <div className="flex items-center gap-1.5 mb-2.5 min-w-0">
+      <CheckIcon />
+      <span className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{title}</span>
+      {handle && (
+        <>
+          <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500 font-mono-num truncate">{handle}</span>
+        </>
+      )}
     </div>
   )
 }
@@ -735,8 +745,41 @@ function IntegrationCard({ resolved, handlers }: { resolved: ResolvedIntegration
   )
 }
 
+/** A quiet, low-emphasis text action (Refresh / Disconnect) — keeps a CONNECTED
+ *  card calm. `danger` turns it red on hover only, so a destructive action is
+ *  reachable without a loud red-filled button on every card. */
+function QuietAction({
+  children,
+  onClick,
+  disabled,
+  danger,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        'rounded-[var(--r-sm)] px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50',
+        danger
+          ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-500/10 dark:text-gray-500 dark:hover:text-rose-400'
+          : 'text-gray-500 hover:text-gray-800 hover:bg-[color:var(--color-surface-2)] dark:text-gray-400 dark:hover:text-gray-100',
+      ].join(' ')}
+    >
+      {children}
+    </button>
+  )
+}
+
 /** The action row for a CONNECTED card — manage (detail) + refresh + disconnect,
- *  varying by connectKind. */
+ *  varying by connectKind. The card face stays calm: Manage is the only solid
+ *  button; Refresh + Disconnect are quiet text actions (Disconnect red-on-hover
+ *  only — no "wall of red"). */
 function ConnectedActions({
   def,
   runtime,
@@ -757,18 +800,20 @@ function ConnectedActions({
 
   if (def.connectKind === 'zernio') {
     return (
-      <div className="flex flex-wrap gap-2">
-        {def.detailHref && (
-          <ActionButton variant="secondary" size="sm" href={def.detailHref}>
-            Manage
-          </ActionButton>
-        )}
-        <ActionButton variant="ghost" size="sm" onClick={handlers.onRefresh} disabled={handlers.pending}>
-          {handlers.pending ? 'Refreshing…' : 'Refresh'}
-        </ActionButton>
-        <ActionButton variant="danger" size="sm" onClick={() => handlers.onDisconnect(def.id)} disabled={handlers.pending}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          {def.detailHref && (
+            <ActionButton variant="secondary" size="sm" href={def.detailHref}>
+              Manage
+            </ActionButton>
+          )}
+          <QuietAction onClick={handlers.onRefresh} disabled={handlers.pending}>
+            {handlers.pending ? 'Refreshing…' : 'Refresh'}
+          </QuietAction>
+        </div>
+        <QuietAction onClick={() => handlers.onDisconnect(def.id)} disabled={handlers.pending} danger>
           Disconnect
-        </ActionButton>
+        </QuietAction>
       </div>
     )
   }
