@@ -32,6 +32,10 @@ export type BrandLogoId =
   | 'tiktok'
   | 'youtube'
   | 'linkedin'
+  // Communication + payments
+  | 'gmail'
+  | 'sms'
+  | 'stripe'
   // PMS
   | 'open_dental'
   | 'demo' // demo sandbox presents as Open Dental
@@ -51,6 +55,9 @@ export const BRAND_ACCENTS: Record<BrandLogoId, string> = {
   tiktok: '#111111',
   youtube: '#FF0000',
   linkedin: '#0A66C2',
+  gmail: '#EA4335',
+  sms: '#28b3ad',
+  stripe: '#635BFF',
   open_dental: '#1B75BC',
   demo: '#1B75BC',
   dentrix_ascend: '#0072CE',
@@ -66,6 +73,9 @@ const TITLES: Record<BrandLogoId, string> = {
   tiktok: 'TikTok',
   youtube: 'YouTube',
   linkedin: 'LinkedIn',
+  gmail: 'Gmail',
+  sms: 'Text messaging',
+  stripe: 'Stripe',
   open_dental: 'Open Dental',
   demo: 'Open Dental',
   dentrix_ascend: 'Dentrix Ascend',
@@ -247,6 +257,87 @@ function LinkedInLogo({ size = 28, className = '' }: LogoProps) {
   )
 }
 
+// ── Gmail — the four-color envelope ─────────────────────────────────────────
+
+function GmailLogo({ size = 28, className = '' }: LogoProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      className={className}
+      aria-hidden="true"
+      data-brand-logo="gmail"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* white card */}
+      <rect x="6" y="11" width="36" height="26" rx="3" fill="#fff" />
+      {/* red top swoop */}
+      <path fill="#EA4335" d="M6 14a3 3 0 013-3h1l14 10.5L38 11h1a3 3 0 013 3v2L24 29.5 6 16z" />
+      {/* blue right side */}
+      <path fill="#4285F4" d="M42 14v20a3 3 0 01-3 3h-5V19.5l8-6z" />
+      {/* green left side */}
+      <path fill="#34A853" d="M6 14l8 5.5V37H9a3 3 0 01-3-3z" />
+      {/* yellow inner fold */}
+      <path fill="#FBBC05" d="M14 19.5L6 14v2l8 6z" opacity="0.0" />
+      <path fill="#C5221F" d="M42 16v-2a3 3 0 00-3-3h-1l-4 3 5 3.5z" opacity="0.0" />
+    </svg>
+  )
+}
+
+// ── SMS — a teal speech bubble with dots (generic, on-brand) ────────────────
+
+function SmsLogo({ size = 28, className = '' }: LogoProps) {
+  const gid = useId()
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      className={className}
+      aria-hidden="true"
+      data-brand-logo="sms"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#4DCDC4" />
+          <stop offset="1" stopColor="#2A7F8C" />
+        </linearGradient>
+      </defs>
+      <path
+        fill={`url(#${gid})`}
+        d="M10 8h28a6 6 0 016 6v14a6 6 0 01-6 6H22l-9 7v-7h-3a6 6 0 01-6-6V14a6 6 0 016-6z"
+      />
+      <circle cx="17" cy="21" r="2.6" fill="#fff" />
+      <circle cx="24" cy="21" r="2.6" fill="#fff" />
+      <circle cx="31" cy="21" r="2.6" fill="#fff" />
+    </svg>
+  )
+}
+
+// ── Stripe — the indigo tile with the white "S" ─────────────────────────────
+
+function StripeLogo({ size = 28, className = '' }: LogoProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      className={className}
+      aria-hidden="true"
+      data-brand-logo="stripe"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="48" height="48" rx="12" fill="#635BFF" />
+      <path
+        fill="#fff"
+        d="M23.4 19.3c0-1 .82-1.38 2.16-1.38 1.93 0 4.36.58 6.29 1.62v-5.6C29.74 13.07 27.62 12.7 25.56 12.7c-5.04 0-8.39 2.63-8.39 7.02 0 6.85 9.43 5.75 9.43 8.71 0 1.18-1.03 1.56-2.45 1.56-2.1 0-4.79-.86-6.92-2.02v5.67c2.36 1.01 4.74 1.44 6.92 1.44 5.16 0 8.71-2.55 8.71-7 0-7.39-9.47-6.07-9.47-8.78z"
+      />
+    </svg>
+  )
+}
+
 // ── Open Dental — clean wordmark monogram in its blue ───────────────────────
 
 function OpenDentalLogo({ size = 28, className = '' }: LogoProps) {
@@ -351,6 +442,12 @@ export function BrandLogo({ id, size = 28, className = '' }: { id: BrandLogoId; 
       return <YouTubeLogo size={size} className={className} />
     case 'linkedin':
       return <LinkedInLogo size={size} className={className} />
+    case 'gmail':
+      return <GmailLogo size={size} className={className} />
+    case 'sms':
+      return <SmsLogo size={size} className={className} />
+    case 'stripe':
+      return <StripeLogo size={size} className={className} />
     case 'open_dental':
     case 'demo':
       return <OpenDentalLogo size={size} className={className} />

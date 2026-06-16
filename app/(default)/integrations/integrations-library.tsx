@@ -5,15 +5,16 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
-import {
-  ZERNIO_PLATFORM_LABELS,
-  type SocialChannelView,
-  type ZernioAccount,
-  type ZernioPlatform,
-} from '@/lib/types/zernio'
-import { PMS_PROVIDERS, type PmsAvailability, type PmsProviderInfo } from '@/lib/types/pms'
+import { ZERNIO_PLATFORM_LABELS, type ZernioPlatform } from '@/lib/types/zernio'
 import type { Tone } from '@/lib/ui/encodings'
-import { BrandLogo, BrandLogoWell, type BrandLogoId } from '@/components/integrations/brand-logos'
+import { BrandLogo, BrandLogoWell, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
+import {
+  CATEGORY_META,
+  searchableText,
+  type IntegrationCategory,
+  type IntegrationDef,
+} from '@/lib/integrations/catalog'
+import { connectedCount, type ResolvedIntegration } from '@/lib/integrations/resolve'
 import {
   syncZernioAccountsAction,
   disconnectChannelAction,
@@ -22,66 +23,48 @@ import {
 } from './actions'
 
 /**
- * Integrations marketplace — a premium, brand-rich app directory (Vercel
- * Integrations / Notion connections / Linear integrations). The old flat grid of
- * generic-icon cards is gone. What's here:
+ * Integrations MARKETPLACE — a catalog-driven, browse-at-scale app directory.
  *
- *   1. OVERVIEW header ("control center") — the connected stack at a glance: the
- *      connected apps' real logos in a row, a "{n} connected" count, and a slim
- *      "{used} of {limit} social used" cap meter.
- *   2. SEARCH + category filter — a search box (filter by name) + category pills
- *      (All · Practice management · Google · Social · Coming soon). A real
- *      marketplace affordance.
- *   3. Rich, brand-tinted CARDS with hover lift — each carries the brand-accurate
- *      logo in a tinted well, name, a crisp one-liner, a StatusPill, and one
- *      clear action. Connected cards reward: the connected handle, a check, and
- *      quick links to where that integration's value shows up (GBP → /reviews +
- *      /seo; social → /social-posts).
+ * The cards/sections are NO LONGER hardcoded in JSX. The whole grid renders from
+ * `INTEGRATIONS_CATALOG` (lib/integrations/catalog.ts) resolved against the
+ * org's live connection state (lib/integrations/resolve.ts). Adding the 500th
+ * integration is appending one `IntegrationDef` — no JSX edit here. See the
+ * contract at the top of catalog.ts.
  *
- * Deep management lives on detail routes (the marketplace stays a directory):
- *   - Open Dental card → /integrations/open-dental (the full PMS dashboard).
- *   - Google Business card → /integrations/google-business (connected listing +
- *     value links); connect/refresh/disconnect still happen on the card.
- *   - Social cards stay inline (connect/disconnect on the card).
+ * Built to stay clean at HUNDREDS — eventually thousands — of entries:
+ *   1. CONNECTED-FIRST — a prominent "Your integrations" section at the top (the
+ *      ones this clinic actually connected), separate from browsing.
+ *   2. SEARCH as a primary affordance — fast client filter over name + keywords
+ *      + category label.
+ *   3. CATEGORY NAV that scales — a horizontally-scrollable pill row with
+ *      per-category counts ("All" + each category), staying clean past ~20
+ *      categories.
+ *   4. CATEGORIZED GRID — section headers per category (or a flat filtered grid
+ *      when a search/category is active), a live total count, and a no-results
+ *      state. O(n) filtering, no per-card heavy work.
+ *
+ * The approved card aesthetic is preserved + extended to render from a def +
+ * runtime status: real brand logo in a tinted well, name, tagline, StatusPill,
+ * one action, hover-lift, connected-card handle chip + value quick links.
  *
  * PRESERVED behavior: GBP/social connect via Zernio hosted OAuth in a NEW TAB +
  * re-sync on window focus + Refresh; disconnect; the social cap meter + at-cap
- * upgrade/add-on CTA; the add-on management (Active w/ Cancel · "Add more $X/mo"
- * · "Upgrade to Pro" for Basic · "coming soon" if env unset · "managed billing"
- * for comped); the route ?connected / ?atLimit / error flashes. GBP + social on
- * all plans (social capped); Open Dental Premium; owner/admin for mutations.
- * Demo connections never hit the network.
+ * upgrade/add-on CTA; the add-on management; the route ?connected / ?atLimit /
+ * error flashes; the Open Dental + GBP detail-page links; the Gmail + Stripe
+ * Connect link-outs to their existing flows. Demo connections never network.
  */
 
 export interface IntegrationsLibraryProps {
+  /** The whole catalog, resolved against this clinic's live state (server). */
+  resolved: ResolvedIntegration[]
   /** Whether Zernio is enabled on this DreamCRM instance. */
   zernioConfigured: boolean
-  /** Whether the clinic's plan includes the Premium PMS integration. */
-  pmsEligible: boolean
-  /** Open Dental connection summary for the card. */
-  pms: {
-    /** True when a PMS connection exists + is connected. */
-    connected: boolean
-    /** True when the last sync errored (drives the card pill). */
-    errored: boolean
-    /** Display name (Open Dental / Open Dental (Sandbox)). */
-    providerLabel: string
-    /** True when the connection is the demo sandbox. */
-    isDemo: boolean
-  }
-  /** Google Business connection state. */
-  gbp: {
-    connected: boolean
-    error: boolean
-    account: ZernioAccount | null
-  }
-  /** Social rows (shortlist × connected status). */
-  socialChannels: SocialChannelView[]
+  /** The clinic's plan name (for the add-on copy). */
+  planName: string
   /** Social-connection cap state from `canConnectSocialPlatform`. */
   cap: { allowed: boolean; limit: number; current: number; reason?: string }
   /** Entitlement context for the cap + add-on CTAs. */
   entitlement: {
-    planName: string
     /** Whether the add-on can be purchased on this plan (false on Basic). */
     addonAvailable: boolean
     /** Whether the add-on is currently active. */
@@ -95,6 +78,9 @@ export interface IntegrationsLibraryProps {
     /** True when the clinic has no Stripe subscription (comped/managed). */
     managedBilling: boolean
   }
+  /** Connect URLs for first-party OAuth integrations (Gmail / Stripe Connect),
+   *  keyed by def id — so the card links to the existing flow, not a rebuild. */
+  oauthConnectHrefs?: Record<string, string>
   /** A just-connected platform slug (flash success), or null. */
   justConnected: ZernioPlatform | null
   /** A platform the connect route bounced off the cap, or null. */
@@ -103,24 +89,16 @@ export interface IntegrationsLibraryProps {
   routeError: string | null
 }
 
-type Category = 'all' | 'pms' | 'google' | 'social' | 'soon'
-
-const CATEGORIES: { id: Category; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'pms', label: 'Practice management' },
-  { id: 'google', label: 'Google' },
-  { id: 'social', label: 'Social' },
-  { id: 'soon', label: 'Coming soon' },
-]
+/** A category filter value: 'all' or a real category id. */
+type CategoryFilter = 'all' | IntegrationCategory
 
 export default function IntegrationsLibrary({
+  resolved,
   zernioConfigured,
-  pmsEligible,
-  pms,
-  gbp,
-  socialChannels,
+  planName,
   cap,
   entitlement,
+  oauthConnectHrefs = {},
   justConnected,
   atLimit,
   routeError,
@@ -133,7 +111,7 @@ export default function IntegrationsLibrary({
 
   // ── Marketplace search + category filter ────────────────────────────────
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<Category>('all')
+  const [category, setCategory] = useState<CategoryFilter>('all')
   const q = query.trim().toLowerCase()
 
   function refresh() {
@@ -145,7 +123,7 @@ export default function IntegrationsLibrary({
     })
   }
 
-  function disconnect(platform: ZernioPlatform) {
+  function disconnect(platform: string) {
     setError(null)
     start(async () => {
       const r = await disconnectChannelAction(platform)
@@ -189,44 +167,71 @@ export default function IntegrationsLibrary({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending])
 
-  const roadmapPms = PMS_PROVIDERS.filter((p) => p.id !== 'open_dental')
-
-  // ── The connected stack (for the overview header) ───────────────────────
-  const connectedSummary = useMemo(() => {
-    const logos: { id: BrandLogoId; label: string }[] = []
-    if (pms.connected) logos.push({ id: 'open_dental', label: pms.providerLabel })
-    if (gbp.connected) logos.push({ id: 'googlebusiness', label: 'Google Business Profile' })
-    for (const ch of socialChannels) {
-      if (ch.account) logos.push({ id: ch.platform as BrandLogoId, label: ch.label })
-    }
-    return logos
-  }, [pms.connected, pms.providerLabel, gbp.connected, socialChannels])
-
-  // Per-category match for the search/filter (name + a few keywords).
-  const matches = (cat: Category, names: string[]) => {
-    if (category !== 'all' && category !== cat) return false
-    if (!q) return true
-    return names.some((n) => n.toLowerCase().includes(q))
+  const handlers: CardHandlers = {
+    pending,
+    onConnectClick,
+    onRefresh: refresh,
+    onDisconnect: disconnect,
+    onBuyAddon: buyAddon,
+    oauthConnectHrefs,
+    capAllowed: cap.allowed,
+    addonAvailable: entitlement.addonAvailable,
+    addonActive: entitlement.addonActive,
   }
 
-  const showOpenDental = matches('pms', ['Open Dental', 'PMS', 'practice management', 'sandbox'])
-  const roadmapToShow = roadmapPms.filter((p) =>
-    matches('soon', [p.name, p.blurb, 'PMS', 'practice management']),
-  )
-  const showGoogle = matches('google', ['Google Business Profile', 'Google', 'reviews', 'maps', 'GBP'])
-  const socialToShow = socialChannels.filter((ch) =>
-    matches('social', [ch.label, ch.account?.username ?? '', ch.account?.displayName ?? '', 'social']),
-  )
+  // ── Connected-first: the clinic's actually-connected integrations ─────────
+  // Connected integrations live ONLY in the "Your integrations" section — they're
+  // lifted OUT of the browse grid so browsing is "what can I still add?" (the
+  // connected-first / separate-from-browsing model that stays clean at scale).
+  const connected = useMemo(() => resolved.filter((r) => r.runtime.connected), [resolved])
+  const totalConnected = connectedCount(resolved)
+  const browseable = useMemo(() => resolved.filter((r) => !r.runtime.connected), [resolved])
 
-  const pmsSectionVisible = showOpenDental || roadmapToShow.length > 0
-  const googleSectionVisible = showGoogle
-  const socialSectionVisible = socialToShow.length > 0
-  const anyVisible = pmsSectionVisible || googleSectionVisible || socialSectionVisible
+  // ── Search + category filter (applied to the BROWSE catalog) ──────────────
+  const filtered = useMemo(() => {
+    return browseable.filter((r) => {
+      if (category !== 'all' && r.def.category !== category) return false
+      if (!q) return true
+      return searchableText(r.def).includes(q)
+    })
+  }, [browseable, category, q])
+
+  // Per-category counts for the category nav (over the BROWSEable catalog,
+  // ignoring the active search so a clinic can see what each category still
+  // holds to add).
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<IntegrationCategory, number>()
+    for (const r of browseable) counts.set(r.def.category, (counts.get(r.def.category) ?? 0) + 1)
+    return counts
+  }, [browseable])
+
+  // Categories present in the catalog, in display order — for the nav + sections.
+  const presentCategories = useMemo(() => {
+    return (Object.values(CATEGORY_META) as { id: IntegrationCategory; order: number }[])
+      .sort((a, b) => a.order - b.order)
+      .map((c) => c.id)
+      .filter((c) => (categoryCounts.get(c) ?? 0) > 0)
+  }, [categoryCounts])
+
+  // Group the FILTERED defs by category (only categories with matches render).
+  const grouped = useMemo(() => {
+    const byCat = new Map<IntegrationCategory, ResolvedIntegration[]>()
+    for (const r of filtered) {
+      const arr = byCat.get(r.def.category)
+      if (arr) arr.push(r)
+      else byCat.set(r.def.category, [r])
+    }
+    return presentCategories
+      .filter((c) => byCat.has(c))
+      .map((c) => ({ category: c, items: byCat.get(c)! }))
+  }, [filtered, presentCategories])
+
+  const filtering = q.length > 0 || category !== 'all'
 
   return (
     <div className="space-y-8">
       {/* ── Overview header — the control center ──────────────────────────── */}
-      <ConnectedStackHeader connected={connectedSummary} cap={cap} zernioConfigured={zernioConfigured} />
+      <ConnectedStackHeader connected={connected} count={totalConnected} cap={cap} zernioConfigured={zernioConfigured} />
 
       {/* ── Flashes ─────────────────────────────────────────────────────── */}
       {justConnected && (
@@ -250,109 +255,88 @@ export default function IntegrationsLibrary({
         </p>
       )}
 
-      {/* ── Search + category filter ──────────────────────────────────────── */}
-      <MarketplaceToolbar query={query} onQuery={setQuery} category={category} onCategory={setCategory} />
-
-      {/* ── Practice management ──────────────────────────────────────────── */}
-      {pmsSectionVisible && (
-        <Section
-          title="Practice management"
-          blurb="Sync the relationship layer — patients, appointments, providers, balances — both directions, through your PMS's official API. We never touch your database directly."
-        >
+      {/* ── Connected-first: "Your integrations" ─────────────────────────── */}
+      {connected.length > 0 && (
+        <ConnectedSection>
           <CardGrid>
-            {showOpenDental && <OpenDentalCard pmsEligible={pmsEligible} pms={pms} />}
-            {roadmapToShow.map((p) => (
-              <ComingSoonPmsCard key={p.id} provider={p} />
+            {connected.map((r) => (
+              <IntegrationCard key={r.def.id} resolved={r} handlers={handlers} />
             ))}
           </CardGrid>
-        </Section>
+        </ConnectedSection>
       )}
 
-      {/* ── Google ───────────────────────────────────────────────────────── */}
-      {googleSectionVisible && (
-        <Section
-          title="Google"
-          blurb="Your reviews, verified hours, photos, and local search stats — through Zernio’s secure sign-in (no Google verification paperwork on your end)."
-        >
-          <CardGrid>
-            <GoogleBusinessCard
-              configured={zernioConfigured}
-              gbp={gbp}
-              pending={pending}
-              onConnectClick={onConnectClick}
-              onRefresh={refresh}
-              onDisconnect={() => disconnect('googlebusiness')}
-            />
-          </CardGrid>
-        </Section>
-      )}
+      {/* ── Browse: search + category nav ────────────────────────────────── */}
+      <div>
+        <h2 className="sr-only">Browse integrations</h2>
+        <MarketplaceToolbar
+          query={query}
+          onQuery={setQuery}
+          category={category}
+          onCategory={setCategory}
+          categories={presentCategories}
+          counts={categoryCounts}
+          total={browseable.length}
+        />
 
-      {/* ── Social ───────────────────────────────────────────────────────── */}
-      {socialSectionVisible && (
-        <Section
-          title="Social"
-          blurb="Connect the social accounts you post to. Your plan sets how many — Google Business is always free and never counts."
-          right={
-            <span className="text-xs text-gray-600 dark:text-gray-300 shrink-0">
-              <strong className="font-mono-num font-semibold">{cap.current}</strong>
-              <span className="text-gray-400"> of </span>
-              <strong className="font-mono-num font-semibold">{cap.limit}</strong> social connections used
-            </span>
-          }
-        >
-          <CardGrid>
-            {socialToShow.map((ch) => (
-              <SocialCard
-                key={ch.platform}
-                channel={ch}
-                configured={zernioConfigured}
-                capAllowed={cap.allowed}
-                entitlement={entitlement}
-                pending={pending}
-                onConnectClick={onConnectClick}
-                onDisconnect={() => disconnect(ch.platform)}
-                onBuyAddon={buyAddon}
-              />
-            ))}
-          </CardGrid>
-
-          {/* Add-on management — consolidated here (the canonical surface).
-              Hidden while a search is narrowing the social cards. */}
-          {!q && (
-            <SocialAddonCard
-              entitlement={entitlement}
-              cap={cap}
-              pending={pending}
-              onBuy={buyAddon}
-              onCancel={cancelAddon}
-            />
+        {/* Total count line. */}
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <strong className="font-mono-num font-semibold text-gray-700 dark:text-gray-300">{filtered.length}</strong>{' '}
+          {filtered.length === 1 ? 'integration' : 'integrations'}
+          {filtering ? ' match' : ' available'}
+          {filtered.length === 1 && filtering ? 'es' : ''}
+          {!filtering && (
+            <>
+              {' '}
+              <span className="text-gray-400">· more added all the time</span>
+            </>
           )}
-        </Section>
-      )}
+        </p>
 
-      {/* ── No-results state ─────────────────────────────────────────────── */}
-      {!anyVisible && (
-        <div className="v2-well px-6 py-12 text-center">
-          <div className="text-3xl mb-2" aria-hidden="true">
-            🔍
+        {/* ── The catalog grid ──────────────────────────────────────────── */}
+        {grouped.length > 0 ? (
+          <div className="mt-5 space-y-8">
+            {grouped.map(({ category: cat, items }) => (
+              <Section
+                key={cat}
+                title={CATEGORY_META[cat].label}
+                blurb={CATEGORY_META[cat].blurb}
+                count={items.length}
+                right={
+                  cat === 'social' && cap.limit > 0 ? (
+                    <span className="text-xs text-gray-600 dark:text-gray-300 shrink-0">
+                      <strong className="font-mono-num font-semibold">{cap.current}</strong>
+                      <span className="text-gray-400"> of </span>
+                      <strong className="font-mono-num font-semibold">{cap.limit}</strong> social connections used
+                    </span>
+                  ) : undefined
+                }
+              >
+                <CardGrid>
+                  {items.map((r) => (
+                    <IntegrationCard key={r.def.id} resolved={r} handlers={handlers} />
+                  ))}
+                </CardGrid>
+
+                {/* Add-on management — consolidated under Social (the canonical
+                    surface). Hidden while a search narrows the cards. */}
+                {cat === 'social' && !q && (
+                  <SocialAddonCard
+                    planName={planName}
+                    entitlement={entitlement}
+                    cap={cap}
+                    pending={pending}
+                    onBuy={buyAddon}
+                    onCancel={cancelAddon}
+                  />
+                )}
+              </Section>
+            ))}
           </div>
-          <p className="text-base font-semibold text-gray-900 dark:text-gray-100">No integrations match “{query}”.</p>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Try a different search, or{' '}
-            <button
-              type="button"
-              className="font-medium text-teal-700 dark:text-teal-400 underline"
-              onClick={() => {
-                setQuery('')
-                setCategory('all')
-              }}
-            >
-              clear the filters
-            </button>
-            .
-          </p>
-        </div>
-      )}
+        ) : (
+          <NoResults query={query} onClear={() => { setQuery(''); setCategory('all') }} />
+        )}
+      </div>
 
       {!zernioConfigured && (
         <p className="text-sm text-gray-500 dark:text-gray-400 italic">
@@ -371,14 +355,15 @@ export default function IntegrationsLibrary({
 
 function ConnectedStackHeader({
   connected,
+  count,
   cap,
   zernioConfigured,
 }: {
-  connected: { id: BrandLogoId; label: string }[]
+  connected: ResolvedIntegration[]
+  count: number
   cap: { allowed: boolean; limit: number; current: number }
   zernioConfigured: boolean
 }) {
-  const count = connected.length
   const capPct = cap.limit > 0 ? Math.min(100, Math.round((cap.current / cap.limit) * 100)) : 0
 
   return (
@@ -392,13 +377,13 @@ function ConnectedStackHeader({
           {count > 0 ? (
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               <div className="flex items-center -space-x-2.5">
-                {connected.slice(0, 8).map((c, i) => (
+                {connected.slice(0, 8).map((r, i) => (
                   <span
-                    key={`${c.id}-${i}`}
-                    title={c.label}
+                    key={`${r.def.id}-${i}`}
+                    title={r.def.name}
                     className="inline-flex w-10 h-10 items-center justify-center rounded-full bg-[color:var(--color-surface-2)] ring-2 ring-[color:var(--color-surface-1)] shadow-[var(--shadow-xs)]"
                   >
-                    <BrandLogo id={c.id} size={24} />
+                    <BrandLogo id={r.def.logo} size={24} />
                   </span>
                 ))}
               </div>
@@ -451,16 +436,22 @@ function MarketplaceToolbar({
   onQuery,
   category,
   onCategory,
+  categories,
+  counts,
+  total,
 }: {
   query: string
   onQuery: (v: string) => void
-  category: Category
-  onCategory: (c: Category) => void
+  category: CategoryFilter
+  onCategory: (c: CategoryFilter) => void
+  categories: IntegrationCategory[]
+  counts: Map<IntegrationCategory, number>
+  total: number
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+    <div className="flex flex-col gap-3">
       {/* Search box */}
-      <div className="relative sm:w-72">
+      <div className="relative sm:w-80">
         <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400" aria-hidden="true">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -476,43 +467,86 @@ function MarketplaceToolbar({
         />
       </div>
 
-      {/* Category pills */}
-      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filter by category">
-        {CATEGORIES.map((c) => {
-          const active = category === c.id
-          return (
-            <button
-              key={c.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onCategory(c.id)}
-              className={[
-                'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                active
-                  ? 'bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
-                  : 'bg-[color:var(--color-surface-2)] ring-1 ring-inset ring-[color:var(--color-hairline)] text-gray-600 dark:text-gray-300 hover:ring-[color:var(--color-hairline-strong)]',
-              ].join(' ')}
-            >
-              {c.label}
-            </button>
-          )
-        })}
+      {/* Category pills — horizontally scrollable so they stay clean at 20+ */}
+      <div
+        className="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1 scrollbar-thin"
+        role="tablist"
+        aria-label="Filter by category"
+      >
+        <CategoryPill active={category === 'all'} onClick={() => onCategory('all')} label="All" count={total} />
+        {categories.map((c) => (
+          <CategoryPill
+            key={c}
+            active={category === c}
+            onClick={() => onCategory(c)}
+            label={CATEGORY_META[c].label}
+            count={counts.get(c) ?? 0}
+          />
+        ))}
       </div>
     </div>
   )
 }
 
+function CategoryPill({
+  active,
+  onClick,
+  label,
+  count,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  count: number
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={[
+        'shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
+        active
+          ? 'bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
+          : 'bg-[color:var(--color-surface-2)] ring-1 ring-inset ring-[color:var(--color-hairline)] text-gray-600 dark:text-gray-300 hover:ring-[color:var(--color-hairline-strong)]',
+      ].join(' ')}
+    >
+      {label}
+      <span
+        className={`font-mono-num text-[0.65rem] tabular-nums ${
+          active ? 'text-white/80 dark:text-gray-900/70' : 'text-gray-400 dark:text-gray-500'
+        }`}
+      >
+        {count}
+      </span>
+    </button>
+  )
+}
+
 // ── Section + grid wrappers ─────────────────────────────────────────────────
+
+function ConnectedSection({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="section-enter">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Your integrations</h2>
+      </div>
+      {children}
+    </section>
+  )
+}
 
 function Section({
   title,
   blurb,
+  count,
   right,
   children,
 }: {
   title: string
   blurb: string
+  count?: number
   right?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -520,7 +554,12 @@ function Section({
     <section className="section-enter">
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <div>
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
+            {typeof count === 'number' && (
+              <span className="font-mono-num text-xs text-gray-400 dark:text-gray-500 tabular-nums">{count}</span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 max-w-prose">{blurb}</p>
         </div>
         {right}
@@ -532,6 +571,26 @@ function Section({
 
 function CardGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{children}</div>
+}
+
+function NoResults({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="v2-well px-6 py-12 text-center mt-5">
+      <div className="text-3xl mb-2" aria-hidden="true">
+        🔍
+      </div>
+      <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        No integrations match{query ? ` “${query}”` : ' that filter'}.
+      </p>
+      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        Try a different search, or{' '}
+        <button type="button" className="font-medium text-teal-700 dark:text-teal-400 underline" onClick={onClear}>
+          clear the filters
+        </button>
+        .
+      </p>
+    </div>
+  )
 }
 
 // ── Rich app card frame — brand-tinted, hover-lift ──────────────────────────
@@ -583,6 +642,7 @@ function AppCard({
 
 /** A connected-card "value links" row — where this integration shows up. */
 function QuickLinks({ links }: { links: { href: string; label: string }[] }) {
+  if (links.length === 0) return null
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
       {links.map((l) => (
@@ -614,240 +674,214 @@ function HandleWell({ title, handle }: { title: string; handle?: string | null }
   )
 }
 
-// ── Practice management cards ───────────────────────────────────────────────
+// ── THE catalog-driven card — renders any def from its runtime status ────────
 
-function OpenDentalCard({
-  pmsEligible,
-  pms,
-}: {
-  pmsEligible: boolean
-  pms: IntegrationsLibraryProps['pms']
-}) {
-  const pill = !pmsEligible ? (
-    <StatusPill tone="special" label="Premium" />
-  ) : pms.connected ? (
-    <StatusPill tone={pms.errored ? 'urgent' : 'ok'} label={pms.errored ? 'Needs attention' : 'Connected'} />
-  ) : (
-    <StatusPill tone="neutral" label="Not connected" />
-  )
-
-  return (
-    <AppCard
-      logoId="open_dental"
-      connected={pms.connected}
-      accentTop="#1B75BC"
-      name="Open Dental"
-      description="The most open PMS API in dentistry — two-way sync in minutes with a Customer Key. Audit-clean."
-      pill={pill}
-    >
-      {pms.connected && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-          Patients, appointments, providers &amp; balances — synced both directions.
-        </p>
-      )}
-      {!pmsEligible ? (
-        <ActionButton variant="primary" size="sm" href="/settings/plans?upgrade=integrations">
-          Upgrade to Premium
-        </ActionButton>
-      ) : pms.connected ? (
-        <ActionButton variant="secondary" size="sm" href="/integrations/open-dental">
-          Manage
-        </ActionButton>
-      ) : (
-        <ActionButton variant="primary" size="sm" href="/integrations/open-dental">
-          Connect
-        </ActionButton>
-      )}
-    </AppCard>
-  )
-}
-
-const PMS_AVAILABILITY_PILL: Record<PmsAvailability, { label: string; tone: Tone }> = {
-  live: { label: 'Available', tone: 'ok' },
-  request_access: { label: 'Request access', tone: 'info' },
-  roadmap: { label: 'Coming soon', tone: 'neutral' },
-}
-
-function ComingSoonPmsCard({ provider }: { provider: PmsProviderInfo }) {
-  const m = PMS_AVAILABILITY_PILL[provider.availability]
-  return (
-    <AppCard
-      logoId={provider.id as BrandLogoId}
-      name={provider.name}
-      description={provider.blurb}
-      pill={<StatusPill tone={m.tone} label={m.label} />}
-    >
-      <p className="text-xs text-gray-400 dark:text-gray-500">{provider.connection}</p>
-    </AppCard>
-  )
-}
-
-// ── Google Business card ────────────────────────────────────────────────────
-
-function GoogleBusinessCard({
-  configured,
-  gbp,
-  pending,
-  onConnectClick,
-  onRefresh,
-  onDisconnect,
-}: {
-  configured: boolean
-  gbp: IntegrationsLibraryProps['gbp']
+interface CardHandlers {
   pending: boolean
   onConnectClick: () => void
   onRefresh: () => void
-  onDisconnect: () => void
-}) {
-  const pill = gbp.connected ? (
-    <StatusPill tone="ok" label="Connected" />
-  ) : gbp.error ? (
-    <StatusPill tone="urgent" label="Needs attention" />
-  ) : (
-    <StatusPill tone="neutral" label="Not connected" />
-  )
+  onDisconnect: (platform: string) => void
+  onBuyAddon: () => void
+  /** First-party OAuth connect URLs (Gmail / Stripe Connect) keyed by def id. */
+  oauthConnectHrefs: Record<string, string>
+  capAllowed: boolean
+  addonAvailable: boolean
+  addonActive: boolean
+}
+
+const STATUS_PILL: Record<string, { tone: Tone; label: string }> = {
+  connected: { tone: 'ok', label: 'Connected' },
+  needs_attention: { tone: 'urgent', label: 'Needs attention' },
+  available: { tone: 'neutral', label: 'Not connected' },
+  at_cap: { tone: 'neutral', label: 'Not connected' },
+  premium_locked: { tone: 'special', label: 'Premium' },
+  request_access: { tone: 'info', label: 'Request access' },
+  coming_soon: { tone: 'neutral', label: 'Coming soon' },
+  unavailable: { tone: 'neutral', label: 'Not connected' },
+}
+
+/**
+ * Renders ONE integration from `{ def, runtime }`. The same component for every
+ * card; the connect affordance branches on `connectKind` + `runtime.status`.
+ * This is what makes the catalog scale — no per-integration card component.
+ */
+function IntegrationCard({ resolved, handlers }: { resolved: ResolvedIntegration; handlers: CardHandlers }) {
+  const { def, runtime } = resolved
+  const accent = BRAND_ACCENTS[def.logo]
+  const pillMeta = STATUS_PILL[runtime.status] ?? STATUS_PILL.available
 
   return (
     <AppCard
-      logoId="googlebusiness"
-      connected={gbp.connected}
-      accentTop="#4285F4"
-      name="Google Business Profile"
-      description="Reviews, hours, photos, and local search performance. Free on every plan."
-      pill={pill}
+      logoId={def.logo}
+      connected={runtime.connected}
+      accentTop={accent}
+      name={def.name}
+      description={def.tagline}
+      pill={<StatusPill tone={pillMeta.tone} label={pillMeta.label} />}
     >
-      {gbp.connected ? (
+      {/* CONNECTED — handle + value links + manage/refresh/disconnect. */}
+      {runtime.connected ? (
         <>
-          <HandleWell
-            title={gbp.account?.displayName || gbp.account?.username || 'Your Google Business listing'}
-            handle={gbp.account?.username && gbp.account?.displayName ? gbp.account.username : null}
-          />
-          <QuickLinks
-            links={[
-              { href: '/reviews/received', label: 'Reviews' },
-              { href: '/seo', label: 'Local search' },
-            ]}
-          />
-          <div className="flex flex-wrap gap-2">
-            <ActionButton variant="secondary" size="sm" href="/integrations/google-business">
-              Manage
-            </ActionButton>
-            <ActionButton variant="ghost" size="sm" onClick={onRefresh} disabled={pending}>
-              {pending ? 'Refreshing…' : 'Refresh'}
-            </ActionButton>
-            <ActionButton variant="danger" size="sm" onClick={onDisconnect} disabled={pending}>
-              Disconnect
-            </ActionButton>
-          </div>
+          {(runtime.title || runtime.handle) && (
+            <HandleWell title={runtime.title || def.name} handle={runtime.handle} />
+          )}
+          <QuickLinks links={def.valueLinks ?? []} />
+          <ConnectedActions def={def} runtime={runtime} handlers={handlers} />
         </>
-      ) : configured ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <ActionButton
-            variant="primary"
-            size="sm"
-            href="/api/integrations/zernio/connect?platform=googlebusiness"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={onConnectClick}
-          >
-            Connect Google Business
-          </ActionButton>
-          <ActionButton variant="ghost" size="sm" onClick={onRefresh} disabled={pending}>
-            {pending ? 'Checking…' : 'I just connected — refresh'}
-          </ActionButton>
-        </div>
       ) : (
-        <p className="text-xs text-gray-500 dark:text-gray-400 italic">Not enabled on this instance yet.</p>
+        <DisconnectedActions def={def} runtime={runtime} handlers={handlers} />
       )}
     </AppCard>
   )
 }
 
-// ── Social card ──────────────────────────────────────────────────────────────
+/** The action row for a CONNECTED card — manage (detail) + refresh + disconnect,
+ *  varying by connectKind. */
+function ConnectedActions({
+  def,
+  runtime,
+  handlers,
+}: {
+  def: IntegrationDef
+  runtime: ResolvedIntegration['runtime']
+  handlers: CardHandlers
+}) {
+  if (def.connectKind === 'pms') {
+    // Open Dental — connected management lives on the detail page.
+    return def.detailHref ? (
+      <ActionButton variant="secondary" size="sm" href={def.detailHref}>
+        Manage
+      </ActionButton>
+    ) : null
+  }
 
-const SOCIAL_ACCENT: Record<string, string> = {
-  instagram: '#E1306C',
-  facebook: '#1877F2',
-  tiktok: '#111111',
-  youtube: '#FF0000',
-  linkedin: '#0A66C2',
+  if (def.connectKind === 'zernio') {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {def.detailHref && (
+          <ActionButton variant="secondary" size="sm" href={def.detailHref}>
+            Manage
+          </ActionButton>
+        )}
+        <ActionButton variant="ghost" size="sm" onClick={handlers.onRefresh} disabled={handlers.pending}>
+          {handlers.pending ? 'Refreshing…' : 'Refresh'}
+        </ActionButton>
+        <ActionButton variant="danger" size="sm" onClick={() => handlers.onDisconnect(def.id)} disabled={handlers.pending}>
+          Disconnect
+        </ActionButton>
+      </div>
+    )
+  }
+
+  // oauth (Gmail / Stripe Connect) — link to the existing flow to manage there.
+  const manageHref = def.valueLinks?.[0]?.href ?? handlers.oauthConnectHrefs[def.id]
+  return manageHref ? (
+    <ActionButton variant="secondary" size="sm" href={manageHref}>
+      Manage
+    </ActionButton>
+  ) : null
 }
 
-function SocialCard({
-  channel,
-  configured,
-  capAllowed,
-  entitlement,
-  pending,
-  onConnectClick,
-  onDisconnect,
-  onBuyAddon,
+/** The action row for a NOT-connected card — varying by status + connectKind. */
+function DisconnectedActions({
+  def,
+  runtime,
+  handlers,
 }: {
-  channel: SocialChannelView
-  configured: boolean
-  capAllowed: boolean
-  entitlement: IntegrationsLibraryProps['entitlement']
-  pending: boolean
-  onConnectClick: () => void
-  onDisconnect: () => void
-  onBuyAddon: () => void
+  def: IntegrationDef
+  runtime: ResolvedIntegration['runtime']
+  handlers: CardHandlers
 }) {
-  const isConnected = channel.account !== null
-  const pill = isConnected ? <StatusPill tone="ok" label="Connected" /> : <StatusPill tone="neutral" label="Not connected" />
-  const handle = channel.account?.username || channel.account?.displayName
-  const logoId = channel.platform as BrandLogoId
-  const accent = SOCIAL_ACCENT[channel.platform] ?? '#28b3ad'
+  // Roadmap / partner tiles — an honest note, no connect.
+  if (runtime.status === 'coming_soon' || runtime.status === 'request_access') {
+    return def.note ? <p className="text-xs text-gray-400 dark:text-gray-500">{def.note}</p> : null
+  }
 
-  return (
-    <AppCard
-      logoId={logoId}
-      connected={isConnected}
-      accentTop={accent}
-      name={channel.label}
-      description="Publish and schedule posts from one place."
-      pill={pill}
-    >
-      {isConnected ? (
-        <>
-          <HandleWell title={channel.account?.displayName || channel.label} handle={handle} />
-          <QuickLinks links={[{ href: '/social-posts', label: 'Compose a post' }]} />
-          <ActionButton variant="danger" size="sm" onClick={onDisconnect} disabled={pending}>
-            Disconnect
+  // Premium-locked — upgrade CTA.
+  if (runtime.status === 'premium_locked') {
+    return (
+      <ActionButton variant="primary" size="sm" href="/settings/plans?upgrade=integrations">
+        Upgrade to Premium
+      </ActionButton>
+    )
+  }
+
+  // PMS (available) — the detail page hosts the connect form.
+  if (def.connectKind === 'pms') {
+    return def.detailHref ? (
+      <ActionButton variant="primary" size="sm" href={def.detailHref}>
+        Connect
+      </ActionButton>
+    ) : null
+  }
+
+  // Zernio (GBP + social).
+  if (def.connectKind === 'zernio') {
+    // Instance not configured — calm note.
+    if (runtime.status === 'unavailable') {
+      return <p className="text-xs text-gray-500 dark:text-gray-400 italic">Not enabled on this instance yet.</p>
+    }
+    // Social cap full — show the add-on / upgrade affordance instead of connect.
+    if (runtime.status === 'at_cap') {
+      if (handlers.addonAvailable) {
+        return (
+          <ActionButton variant="ghost" size="sm" onClick={handlers.onBuyAddon} disabled={handlers.pending}>
+            {handlers.addonActive ? 'At limit' : 'Add a slot'}
           </ActionButton>
-        </>
-      ) : capAllowed && configured ? (
-        <ActionButton
-          variant="secondary"
-          size="sm"
-          href={`/api/integrations/zernio/connect?platform=${channel.platform}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={onConnectClick}
-        >
-          Connect
-        </ActionButton>
-      ) : entitlement.addonAvailable ? (
-        <ActionButton variant="ghost" size="sm" onClick={onBuyAddon} disabled={pending}>
-          {entitlement.addonActive ? 'At limit' : 'Add a slot'}
-        </ActionButton>
-      ) : (
+        )
+      }
+      return (
         <ActionButton variant="ghost" size="sm" href="/settings/plans">
           Upgrade
         </ActionButton>
-      )}
-    </AppCard>
+      )
+    }
+    // Available — connect via hosted OAuth in a new tab. GBP gets the louder
+    // primary; social channels get a secondary (cap-bounded).
+    const isGbp = def.id === 'googlebusiness'
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <ActionButton
+          variant={isGbp ? 'primary' : 'secondary'}
+          size="sm"
+          href={`/api/integrations/zernio/connect?platform=${def.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={handlers.onConnectClick}
+        >
+          {isGbp ? 'Connect Google Business' : 'Connect'}
+        </ActionButton>
+        {isGbp && (
+          <ActionButton variant="ghost" size="sm" onClick={handlers.onRefresh} disabled={handlers.pending}>
+            {handlers.pending ? 'Checking…' : 'I just connected — refresh'}
+          </ActionButton>
+        )}
+      </div>
+    )
+  }
+
+  // oauth (Gmail / Stripe Connect) — link to the existing first-party flow.
+  const href = handlers.oauthConnectHrefs[def.id]
+  return href ? (
+    <ActionButton variant="primary" size="sm" href={href}>
+      Connect
+    </ActionButton>
+  ) : (
+    <p className="text-xs text-gray-500 dark:text-gray-400 italic">Connect from its setup page.</p>
   )
 }
 
 // ── Social add-on management (consolidated from Settings → Billing) ─────────
 
 function SocialAddonCard({
+  planName,
   entitlement,
   cap,
   pending,
   onBuy,
   onCancel,
 }: {
+  planName: string
   entitlement: IntegrationsLibraryProps['entitlement']
   cap: { allowed: boolean; limit: number; current: number; reason?: string }
   pending: boolean
@@ -862,7 +896,7 @@ function SocialAddonCard({
           {entitlement.addonActive && <StatusPill tone="ok" label="Add-on active" />}
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">
-          Your <strong className="font-medium">{entitlement.planName}</strong> plan includes{' '}
+          Your <strong className="font-medium">{planName}</strong> plan includes{' '}
           <strong className="font-medium font-mono-num">{cap.limit}</strong>{' '}
           {cap.limit === 1 ? 'social connection' : 'social connections'}{' '}
           <span className="text-gray-500 dark:text-gray-400">({cap.limit + 1} total including Google Business)</span>.
