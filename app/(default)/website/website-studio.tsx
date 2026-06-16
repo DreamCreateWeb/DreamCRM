@@ -999,6 +999,8 @@ function StudioModal({
                 initialServices={(profile.services as ClinicService[] | null) ?? []}
                 library={library}
                 orgId={orgId}
+                clinicName={profile.displayName ?? ''}
+                city={profile.city ?? null}
               />
             </div>
           )}
