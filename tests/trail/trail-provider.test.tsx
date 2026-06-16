@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import type { TrailModule } from '@/lib/trail'
+import { trailStorageKey, type TrailModule } from '@/lib/trail'
 
 /**
  * TrailProvider integration — drives the provider through real pathname/search
@@ -34,6 +34,9 @@ const MODULES: TrailModule[] = [
   { path: '/appointments', label: 'Appointments' },
 ]
 
+// The user+org scope that namespaces the persisted trail (PHI isolation).
+const SCOPE = 'user1:orgA'
+
 // A probe that exposes the trail state + lets a test trigger back()/goTo().
 function Probe({ overrideLabel }: { overrideLabel?: string }) {
   const { trail, previous, back, goTo } = useTrail()
@@ -54,7 +57,7 @@ function Probe({ overrideLabel }: { overrideLabel?: string }) {
 function renderAt(pathname: string, search = '', probe?: React.ReactNode) {
   nav.pathname = pathname
   nav.search = search
-  return render(<TrailProvider modules={MODULES}>{probe ?? <Probe />}</TrailProvider>)
+  return render(<TrailProvider scope={SCOPE} modules={MODULES}>{probe ?? <Probe />}</TrailProvider>)
 }
 
 beforeEach(() => {
@@ -82,7 +85,7 @@ describe('TrailProvider — recording', () => {
       nav.pathname = '/appointments'
       nav.search = ''
     })
-    rerender(<TrailProvider modules={MODULES}><Probe /></TrailProvider>)
+    rerender(<TrailProvider scope={SCOPE} modules={MODULES}><Probe /></TrailProvider>)
     expect(screen.getByTestId('paths').textContent).toBe('/patients>/appointments')
     expect(screen.getByTestId('previous').textContent).toBe('Patients')
   })
@@ -94,7 +97,7 @@ describe('TrailProvider — recording', () => {
         nav.pathname = pathname
         nav.search = search
       })
-      rerender(<TrailProvider modules={MODULES}><Probe /></TrailProvider>)
+      rerender(<TrailProvider scope={SCOPE} modules={MODULES}><Probe /></TrailProvider>)
     }
     go('/appointments')
     go('/patients') // loop back
@@ -108,7 +111,7 @@ describe('TrailProvider — recording', () => {
       nav.pathname = '/patients'
       nav.search = 'filter=lapsed'
     })
-    rerender(<TrailProvider modules={MODULES}><Probe /></TrailProvider>)
+    rerender(<TrailProvider scope={SCOPE} modules={MODULES}><Probe /></TrailProvider>)
     expect(screen.getByTestId('len').textContent).toBe('1')
     expect(screen.getByTestId('top-url').textContent).toBe('/patients?filter=lapsed')
   })
@@ -119,27 +122,71 @@ describe('TrailProvider — recording', () => {
       nav.pathname = '/appointments'
       nav.search = ''
     })
-    rerender(<TrailProvider modules={MODULES}><Probe /></TrailProvider>)
+    rerender(<TrailProvider scope={SCOPE} modules={MODULES}><Probe /></TrailProvider>)
     // Now on /appointments with previous = Patients (its filtered url stored).
     fireEvent.click(screen.getByText('back'))
     expect(push).toHaveBeenCalledWith('/patients?filter=lapsed')
     // The mocked push moved the location; reconcile by re-rendering.
-    rerender(<TrailProvider modules={MODULES}><Probe /></TrailProvider>)
+    rerender(<TrailProvider scope={SCOPE} modules={MODULES}><Probe /></TrailProvider>)
     expect(screen.getByTestId('paths').textContent).toBe('/patients')
   })
 
-  it('persists the trail to sessionStorage under dc.trail', () => {
+  it('persists the trail to sessionStorage under the SCOPED key', () => {
     const { rerender } = renderAt('/patients')
     act(() => {
       nav.pathname = '/appointments'
     })
-    rerender(<TrailProvider modules={MODULES}><Probe /></TrailProvider>)
-    const raw = window.sessionStorage.getItem('dc.trail')
+    rerender(<TrailProvider scope={SCOPE} modules={MODULES}><Probe /></TrailProvider>)
+    // Namespaced by user+org — never the bare global key.
+    expect(window.sessionStorage.getItem('dc.trail')).toBeNull()
+    const raw = window.sessionStorage.getItem(trailStorageKey(SCOPE))
     expect(raw).toBeTruthy()
     expect(JSON.parse(raw!).map((s: { pathname: string }) => s.pathname)).toEqual([
       '/patients',
       '/appointments',
     ])
+  })
+})
+
+describe('TrailProvider — PHI isolation across user/org scopes', () => {
+  it('does NOT surface a trail left by a different user/org (the demo→real-clinic leak)', () => {
+    // A prior demo session left a patient name in its OWN scope's trail.
+    window.sessionStorage.setItem(
+      trailStorageKey('admin:demoOrg'),
+      JSON.stringify([
+        { pathname: '/patients/p1', url: '/patients/p1', label: 'Olivia Anderson' },
+        { pathname: '/appointments', url: '/appointments', label: 'Appointments' },
+      ]),
+    )
+    // Mount under a DIFFERENT scope (a real clinic, different user + org).
+    nav.pathname = '/'
+    nav.search = ''
+    render(
+      <TrailProvider scope="owner:realOrg" modules={MODULES}>
+        <Probe />
+      </TrailProvider>,
+    )
+    // The real clinic's trail is only its own page — never the demo's PHI.
+    expect(screen.getByTestId('labels').textContent).toBe('Overview')
+    expect(screen.queryByText(/Olivia Anderson/)).toBeNull()
+    // And the foreign-scope trail is swept from the tab entirely.
+    expect(window.sessionStorage.getItem(trailStorageKey('admin:demoOrg'))).toBeNull()
+  })
+
+  it('sweeps a legacy un-scoped dc.trail key on mount', () => {
+    window.sessionStorage.setItem(
+      'dc.trail',
+      JSON.stringify([{ pathname: '/patients/p1', url: '/patients/p1', label: 'Olivia Anderson' }]),
+    )
+    nav.pathname = '/'
+    nav.search = ''
+    render(
+      <TrailProvider scope="owner:realOrg" modules={MODULES}>
+        <Probe />
+      </TrailProvider>,
+    )
+    expect(window.sessionStorage.getItem('dc.trail')).toBeNull()
+    expect(screen.queryByText(/Olivia Anderson/)).toBeNull()
   })
 })
 
@@ -158,7 +205,7 @@ describe('useTrailLabel — override the current stop', () => {
       nav.search = ''
     })
     // After leaving, no override applies on the new page.
-    rerender(<TrailProvider modules={MODULES}><Probe /></TrailProvider>)
+    rerender(<TrailProvider scope={SCOPE} modules={MODULES}><Probe /></TrailProvider>)
     expect(screen.getByTestId('previous').textContent).toBe('Olivia Lopez')
   })
 })

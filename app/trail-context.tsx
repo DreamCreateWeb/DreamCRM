@@ -15,7 +15,8 @@ import {
   pathnameOf,
   recordStop,
   resolveTrailLabel,
-  TRAIL_STORAGE_KEY,
+  trailStorageKey,
+  isTrailStorageKey,
   type TrailModule,
   type TrailStop,
 } from '@/lib/trail'
@@ -50,15 +51,26 @@ const TrailContext = createContext<TrailContextValue | undefined>(undefined)
 
 export function TrailProvider({
   modules,
+  scope,
   children,
 }: {
   /** `{ path, label }` for the tenant's visible modules — drives auto-labels. */
   modules: TrailModule[]
+  /**
+   * The tenant+user scope (e.g. `${userId}:${organizationId}`) that namespaces
+   * the persisted trail. Trail labels can be PHI (a patient name), so the trail
+   * MUST be isolated per user + org — otherwise a tab that spanned two clinics
+   * (a platform admin in a demo clinic, then a real clinic) leaks one clinic's
+   * patient names into the other.
+   */
+  scope: string
   children: React.ReactNode
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
+
+  const storageKey = trailStorageKey(scope)
 
   // Hydrate from sessionStorage once on mount (per-tab persistence). SSR has no
   // storage, so the first client render starts empty and reconciles here — the
@@ -67,12 +79,18 @@ export function TrailProvider({
   const hydrated = useRef(false)
   useEffect(() => {
     try {
-      setTrail(parseTrail(window.sessionStorage.getItem(TRAIL_STORAGE_KEY)))
+      // PHI hygiene: sweep any trail from a DIFFERENT user/org (or the legacy
+      // un-scoped key) lingering in this tab — it must never resurface here.
+      for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
+        const k = window.sessionStorage.key(i)
+        if (k && isTrailStorageKey(k) && k !== storageKey) window.sessionStorage.removeItem(k)
+      }
+      setTrail(parseTrail(window.sessionStorage.getItem(storageKey)))
     } catch {
       /* storage unavailable — trail just stays in-memory for this session */
     }
     hydrated.current = true
-  }, [])
+  }, [storageKey])
 
   // The full current url (pathname + search). `useSearchParams` returns a
   // stable-enough snapshot per navigation; we serialize so the effect below
@@ -92,7 +110,7 @@ export function TrailProvider({
         label: resolveTrailLabel(url, modules),
       }
       const next = recordStop(prev, stop)
-      if (next !== prev) persist(next)
+      if (next !== prev) persist(storageKey, next)
       return next
     })
     // `modules` is stable per render group; depend on the url + pathname only.
@@ -109,11 +127,11 @@ export function TrailProvider({
         if (!top || top.pathname !== pathname || top.label === clean) return prev
         const next = prev.slice()
         next[next.length - 1] = { ...top, label: clean }
-        persist(next)
+        persist(storageKey, next)
         return next
       })
     },
-    [pathname],
+    [pathname, storageKey],
   )
 
   const goTo = useCallback(
@@ -141,9 +159,9 @@ export function TrailProvider({
   return <TrailContext.Provider value={value}>{children}</TrailContext.Provider>
 }
 
-function persist(trail: TrailStop[]) {
+function persist(key: string, trail: TrailStop[]) {
   try {
-    window.sessionStorage.setItem(TRAIL_STORAGE_KEY, JSON.stringify(trail))
+    window.sessionStorage.setItem(key, JSON.stringify(trail))
   } catch {
     /* ignore — persistence is a nicety, the in-memory trail still works */
   }

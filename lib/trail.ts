@@ -33,8 +33,27 @@ export interface TrailStop {
 /** Max stops kept in the trail; the oldest is dropped past this. */
 export const TRAIL_CAP = 10
 
-/** sessionStorage key the trail persists under (per-tab; resets on new tab). */
+/** sessionStorage key PREFIX the trail persists under (per-tab; resets on new tab). */
 export const TRAIL_STORAGE_KEY = 'dc.trail'
+
+/**
+ * The per-(user+org) sessionStorage key. Trail LABELS can be PHI — a patient's
+ * name on a detail page rides the stop — so the trail MUST NOT cross a tenant or
+ * user boundary, even within one browser tab (e.g. a platform admin who viewed a
+ * demo clinic's patients then signs into a real clinic; two staff sharing a
+ * machine). Namespacing the key by user + org isolates each scope's trail;
+ * `app/trail-context.tsx` also sweeps any other-scope (or legacy un-scoped)
+ * entries from the tab on mount so stale PHI can never resurface.
+ */
+export function trailStorageKey(scope: string): string {
+  return `${TRAIL_STORAGE_KEY}:${scope}`
+}
+
+/** True for a sessionStorage key that belongs to the trail system (any scope,
+ *  incl. the legacy un-scoped key). Used to sweep foreign-scope trails. */
+export function isTrailStorageKey(key: string): boolean {
+  return key === TRAIL_STORAGE_KEY || key.startsWith(`${TRAIL_STORAGE_KEY}:`)
+}
 
 /**
  * Minimal shape of a module needed for label resolution — the shell passes
