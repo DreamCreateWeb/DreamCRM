@@ -166,3 +166,48 @@ describe('WelcomeInterview — reveal moment', () => {
     expect(screen.getByRole('button', { name: /edit it myself/i })).toBeInTheDocument()
   })
 })
+
+describe('WelcomeInterview — a failing draft never spins forever', () => {
+  function renderOnLastStep() {
+    render(
+      <WelcomeInterview
+        services={SERVICES}
+        siteUrl={SITE_URL}
+        resumeDraft={{
+          answers: { positioning: 'x', audience: 'y', difference: 'z', feeling: 'a', trust: 'b' },
+          serviceSlugs: ['family-dental-care'],
+          step: 6,
+          updatedAt: new Date().toISOString(),
+        }}
+      />,
+    )
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'last answer' } })
+    fireEvent.click(screen.getByRole('button', { name: /draft my website/i }))
+  }
+
+  it('a THROWN draft error drops to the floor screen, not the infinite "Building…" spinner', async () => {
+    // The bug: the throw was unhandled, so the phase stayed on 'drafting' forever.
+    actions.runOnboardingDraft.mockRejectedValue(new Error('network exploded'))
+    renderOnLastStep()
+    await waitFor(() => expect(screen.getByText(/set up with our standard copy/i)).toBeInTheDocument())
+    expect(screen.queryByText(/building your website/i)).not.toBeInTheDocument()
+  })
+
+  it('reloads on a deployment-skew error (stale Server Action id across a deploy)', async () => {
+    const reload = vi.fn()
+    const original = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...original, assign: vi.fn(), reload },
+    })
+    actions.runOnboardingDraft.mockRejectedValue(
+      new Error('Failed to find Server Action "abc". This request might be from an older or newer deployment.'),
+    )
+    try {
+      renderOnLastStep()
+      await waitFor(() => expect(reload).toHaveBeenCalled())
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original })
+    }
+  })
+})

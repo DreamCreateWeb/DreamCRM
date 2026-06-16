@@ -64,7 +64,7 @@ export default async function WelcomePage() {
   return (
     <main className="bg-white dark:bg-stone-900 min-h-[100dvh]">
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        <OnboardingHeader />
+        <OnboardingHeader showSignIn={false} />
         <div className="py-6 sm:py-10">
           <div className="text-center mb-6">
             <h1 className="text-2xl sm:text-3xl font-bold text-stone-800 dark:text-stone-100 mb-2">
