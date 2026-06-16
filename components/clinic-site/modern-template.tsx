@@ -1220,7 +1220,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </a>
             </div>
             <div
-              className="grid gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3"
+              className={`grid gap-6 lg:gap-8 ${
+                recentPosts.length === 1
+                  ? 'max-w-md mx-auto'
+                  : recentPosts.length === 2
+                    ? 'sm:grid-cols-2 max-w-3xl mx-auto'
+                    : 'sm:grid-cols-2 lg:grid-cols-3'
+              }`}
               data-edit-field="blog"
               data-edit-kind="modal"
               data-edit-label="blog posts"
