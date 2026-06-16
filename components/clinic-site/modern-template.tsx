@@ -608,25 +608,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       {/* Left: feature media — video when `differenceVideoUrl` is set
           (ambient autoplay loop, no controls), else an office photo that
           isn't already in the hero oval (never the hero image — see
-          `differenceMediaUrl`). With no media at all the media column hides
-          publicly and the layout collapses to a single column. Right: H2 +
-          leadin + Book CTA + 2-col chip checklist. Mirrors Tend's "Tend
-          Dental difference" block. */}
+          `differenceMediaUrl`). With NO media we render a designed brand-gradient
+          bloom (like the empty hero ovals) so the section keeps its polished
+          2-column layout instead of collapsing — the "add a video/photo" prompt
+          is editor-only. Right: H2 + leadin + Book CTA + 2-col chip checklist.
+          Mirrors Tend's "Tend Dental difference" block. */}
       <section className="py-14 sm:py-24" style={{ backgroundColor: SURFACE }}>
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-          <div
-            className={
-              differenceMediaUrl || profile.differenceVideoUrl
-                ? 'grid lg:grid-cols-2 gap-10 lg:gap-16 items-center'
-                : 'max-w-[680px]'
-            }
-          >
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
             {/* Media slot: the intro video, else an office photo — never the
                 hero image (mirroring the hero here made every new upload look
-                like it had "also set the video field"). With no media at all
-                the column hides publicly and shows an add-prompt in the
-                Studio. */}
-            <div className={differenceMediaUrl || profile.differenceVideoUrl ? '' : 'dc-edit-only mb-8'}>
+                like it had "also set the video field"). With no media the box
+                shows a designed bloom publicly + an add-prompt in the Studio. */}
+            <div>
               <div
                 className="overflow-hidden"
                 style={{
@@ -659,12 +653,17 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     loading="lazy"
                   />
                 ) : (
-                  <div
-                    className="w-full h-full flex items-center justify-center text-center text-sm font-medium px-8"
-                    style={{ color: INK_MUTED }}
-                  >
-                    🎬 Add a short intro video — or add office photos and we&rsquo;ll
-                    feature one here.
+                  // No media yet → a designed brand-gradient bloom so the section
+                  // stays a polished 2-column layout (public); the prompt to add a
+                  // video/photo only shows in the Studio (dc-edit-only).
+                  <div className="relative w-full h-full" style={heroPlaceholderStyle(brand, `${brand}1A`)}>
+                    <HeroPlaceholderMotif brand={brand} />
+                    <div
+                      className="dc-edit-only absolute inset-0 flex items-center justify-center text-center text-sm font-medium px-8"
+                      style={{ color: INK_MUTED }}
+                    >
+                      🎬 Add a short intro video — or office photos — and we&rsquo;ll feature one here.
+                    </div>
                   </div>
                 )}
               </div>
