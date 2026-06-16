@@ -4,6 +4,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import Theme from './theme-provider'
 import AppProvider from './app-provider'
+import ChunkReloadGuard from '@/components/chunk-reload-guard'
 
 export const metadata = {
   // Absolute base for OG/twitter image URLs (Next falls back to localhost
@@ -26,6 +27,9 @@ export default function RootLayout({
     // suppressHydrationWarning: https://github.com/vercel/next.js/issues/44343
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className="font-inter antialiased bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400">
+        {/* Auto-recovers from stale-chunk 404s after a deploy (one guarded
+            reload) so a subscriber never hits the fatal client-side error. */}
+        <ChunkReloadGuard />
         <Theme>
           <AppProvider>
             {children}
