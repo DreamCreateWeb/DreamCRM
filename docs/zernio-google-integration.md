@@ -4,6 +4,28 @@
 PHASE 2 (GBP posting) + PHASE 3 (full social module: PR1 billing/entitlements,
 PR2 cap-aware "Channels" connect, PR3 unified composer + content calendar, PR4
 per-platform social analytics + Facebook reviews) all shipped (2026-06-15).**
+
+> **Post-build infra updates (2026-06-16):**
+> - The two hourly EventBridge sync rules (`dreamcrm-sync-google-reviews` +
+>   `dreamcrm-sync-gbp`) are **PROVISIONED + LIVE in prod** (PR #364, via
+>   `scripts/setup-cron-schedules.sh` — now 7 rules). The "still needs
+>   provisioning" notes further down are STALE — both rules are live.
+> - The 4 social add-on Stripe Prices (Social — Pro $30/$300, Social —
+>   Premium $20/$200) are **LIVE** and their ids are in `dreamcrm/app-secrets`
+>   → App Runner, so `socialAddonConfigured()` is true and the add-on charges.
+>   The "out-of-band Stripe setup (do once)" note is STALE — it's done.
+> - The **`/channels` page was folded INTO `/integrations`** (PR #365): the
+>   Integrations page became a catalog-driven app-library marketplace
+>   (`lib/integrations/catalog.ts` + `resolve.ts` + real brand logos) and is now
+>   the single place a clinic connects everything. `app/(default)/channels/page.tsx`
+>   is a permanent redirect to `/integrations`; the underlying service / connect
+>   route / server actions all live on. Where this doc says `/channels` below,
+>   read `/integrations`.
+> - **Next major Integrations work (plan approved, NOT built):** reframe
+>   Integrations as a menu of FEATURE BUNDLES (Practice Management + Google
+>   Business included; Social Media a paid add-on; Patient Communications;
+>   Ecommerce & Payments; future Imaging) where activating a bundle adds its
+>   features to the SIDEBAR. See CLAUDE.md "⭐ NEXT MAJOR WORK".
 Foundation + reviews/AggregateRating + hours/address/phone/photos sync + GBP
 local metrics into SEO + Analytics + **GBP posting (Updates / Offers / Events
 composer + CTA + image + history)** are all live; the **social-module billing
@@ -49,13 +71,15 @@ entirely defensively + is best-effort).**
   reconciles on plan change). Purchase/cancel + the cap helper
   `canConnectSocialPlatform` live in `lib/services/social-billing.ts`. Self-serve
   buy/cancel on Settings → Billing ("Social connections" card).
-- **Out-of-band Stripe setup (do once, then redeploy):** create two Products
-  with monthly + annual recurring prices — "Social connections — Pro" ($30/mo +
-  $300/yr) and "Social connections — Premium" ($20/mo + $200/yr) — and set the 4
-  price ids in `dreamcrm/app-secrets`: `STRIPE_PRICE_SOCIAL_ADDON_PRO`,
+- **Out-of-band Stripe setup — DONE (2026-06-16):** the two Products with
+  monthly + annual recurring prices — Social — Pro ($30/mo + $300/yr) and
+  Social — Premium ($20/mo + $200/yr) — exist in live Stripe, and the 4 price ids
+  are set in `dreamcrm/app-secrets` (`STRIPE_PRICE_SOCIAL_ADDON_PRO`,
   `STRIPE_PRICE_SOCIAL_ADDON_PRO_ANNUAL`, `STRIPE_PRICE_SOCIAL_ADDON_PREMIUM`,
-  `STRIPE_PRICE_SOCIAL_ADDON_PREMIUM_ANNUAL`. Until they're set, the add-on CTA
-  degrades to a disabled "coming soon" (everything else still works keyless).
+  `STRIPE_PRICE_SOCIAL_ADDON_PREMIUM_ANNUAL`) and mapped into App Runner. So
+  `socialAddonConfigured()` is true and the add-on charges in prod. (Before they
+  were set, the CTA degraded to a disabled "coming soon" — that path still works
+  keyless for build/tests.)
 
 - **GBP posting (Phase 2 — this PR):** ✅ **DONE.** A polished **Google Posts**
   surface (`/google-posts`, premium + owner/admin, Growth sidebar group) lets a
