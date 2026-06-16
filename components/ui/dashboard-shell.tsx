@@ -7,7 +7,9 @@ import KeyboardShortcuts from './keyboard-shortcuts'
 import { TrailProvider } from '@/app/trail-context'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
-import { getVisibleModules } from '@/lib/modules'
+import { applyBundleGate, getVisibleModules } from '@/lib/modules'
+import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
+import type { BundleId } from '@/lib/integrations/bundles'
 
 /**
  * Shared dashboard chrome used by every authenticated route group
@@ -37,7 +39,13 @@ export default async function DashboardShell({
   const ctx = await getTenantContext()
   if (!ctx) redirect('/onboarding-01')
 
-  const modules = getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role)
+  // Plan/role visibility, then the integration-bundle feature gate: a clinic's
+  // bundle-tagged modules (Social Posts, Shop) surface only once the bundle is
+  // active (auto-derived from what's connected). Other tenant types carry no
+  // bundle-gated modules, so they skip the (clinic-scoped) lookup entirely.
+  const activeBundles =
+    ctx.tenantType === 'clinic' ? await getActiveBundlesForSidebar(ctx.organizationId) : new Set<BundleId>()
+  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role), activeBundles)
   const moduleIds = modules.map((m) => m.id)
   // ⌘1/⌘2/⌘3 targets — the resolved hrefs of the pinned cockpit modules.
   const cockpitPaths = modules.filter((m) => m.pinned).map((m) => m.path)

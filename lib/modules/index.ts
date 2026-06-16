@@ -2,7 +2,8 @@ import { platformModules } from './platform'
 import { clinicModules } from './clinic'
 import { patientModules } from './patient'
 import { partnerModules } from './partner'
-import type { ModuleRegistry, TenantType, PlanTier, Role } from './types'
+import type { ModuleRegistry, ModuleDef, TenantType, PlanTier, Role } from './types'
+import type { BundleId } from '@/lib/integrations/bundles'
 
 const REGISTRIES: Record<TenantType, ModuleRegistry> = {
   platform: platformModules,
@@ -59,6 +60,29 @@ export function getVisibleModules(
     if (m.minPlan && !planAllows(planTier, m.minPlan)) return false
     if (m.roles && !m.roles.includes(role)) return false
     return true
+  })
+}
+
+/**
+ * Apply the integration-bundle FEATURE GATE on top of plan/role visibility.
+ * A module tagged with `requiresBundle` shows only if at least one of those
+ * bundles is ACTIVE for the clinic (auto-derived from live connection state —
+ * see lib/integrations/bundles + lib/services/integration-bundles). Modules
+ * without `requiresBundle` always pass. Kept SEPARATE + composable from
+ * `getVisibleModules` so plan/role gating (and its callers/tests) are untouched;
+ * the sidebar (DashboardShell) + the ⌘K page index (global-search) apply this
+ * extra step with the clinic's active-bundle set.
+ *
+ * Non-clinic tenants have no `requiresBundle` modules, so passing an empty set
+ * is a safe no-op for them.
+ */
+export function applyBundleGate(
+  modules: ModuleDef[],
+  activeBundles: ReadonlySet<BundleId>,
+): ModuleDef[] {
+  return modules.filter((m) => {
+    if (!m.requiresBundle || m.requiresBundle.length === 0) return true
+    return m.requiresBundle.some((b) => activeBundles.has(b))
   })
 }
 

@@ -1,7 +1,9 @@
 import 'server-only'
 import { and, desc, eq, gte, ilike, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { getVisibleModules } from '@/lib/modules'
+import { applyBundleGate, getVisibleModules } from '@/lib/modules'
+import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
+import type { BundleId } from '@/lib/integrations/bundles'
 import type { TenantContext } from '@/lib/auth/context'
 import type { SearchGroup, SearchResult } from '@/lib/types/global-search'
 
@@ -21,10 +23,11 @@ export function likePattern(q: string): string {
   return `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`
 }
 
-/** Static page index per tenant — sidebar modules (already plan/role
- *  filtered) plus the settings subpages the sidebar doesn't list. */
-function pageIndex(ctx: TenantContext): SearchResult[] {
-  const modules = getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role).map((m) => ({
+/** Static page index per tenant — sidebar modules (plan/role + integration-
+ *  bundle gated, so ⌘K mirrors the sidebar) plus the settings subpages the
+ *  sidebar doesn't list. */
+function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): SearchResult[] {
+  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role), activeBundles).map((m) => ({
     id: `page-${m.id}`,
     label: m.label,
     sublabel: m.section ?? null,
@@ -44,7 +47,7 @@ function pageIndex(ctx: TenantContext): SearchResult[] {
 }
 
 /** Quick actions surfaced when the palette is empty (and matched by text). */
-function quickActions(ctx: TenantContext): SearchResult[] {
+function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): SearchResult[] {
   if (ctx.tenantType !== 'clinic') return []
   const actions: SearchResult[] = [
     { id: 'act-add-patient', label: 'Add a patient', sublabel: 'Quick action', href: '/patients?new=1', kind: 'action' },
@@ -52,8 +55,10 @@ function quickActions(ctx: TenantContext): SearchResult[] {
     { id: 'act-edit-site', label: 'Edit my website', sublabel: 'Quick action', href: '/website', kind: 'action' },
     { id: 'act-preview-portal', label: 'Preview the patient portal', sublabel: 'Quick action', href: '/settings/portal/preview', kind: 'action' },
   ]
-  // Quick actions follow the same plan gates as their pages.
-  const visible = new Set(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role).map((m) => m.path))
+  // Quick actions follow the same plan + bundle gates as their pages.
+  const visible = new Set(
+    applyBundleGate(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role), activeBundles).map((m) => m.path),
+  )
   return actions.filter((a) => {
     if (a.href.startsWith('/patients')) return visible.has('/patients')
     if (a.href.startsWith('/appointments')) return visible.has('/appointments')
@@ -268,18 +273,23 @@ async function searchPlatformEntities(q: string): Promise<SearchGroup[]> {
 export async function globalSearch(ctx: TenantContext, rawQuery: string): Promise<SearchGroup[]> {
   const q = rawQuery.trim()
 
+  // The active integration bundles gate which feature pages exist (Social Posts,
+  // Shop) so ⌘K never offers a page the sidebar is hiding. Clinic-only; cheap.
+  const activeBundles: ReadonlySet<BundleId> =
+    ctx.tenantType === 'clinic' ? await getActiveBundlesForSidebar(ctx.organizationId) : new Set<BundleId>()
+
   // Empty query → the launcher view: quick actions + the page index.
   if (q.length === 0) {
     const groups: SearchGroup[] = []
-    const actions = quickActions(ctx)
+    const actions = quickActions(ctx, activeBundles)
     if (actions.length > 0) groups.push({ label: 'Quick actions', results: actions })
-    groups.push({ label: 'Go to', results: pageIndex(ctx).slice(0, 8) })
+    groups.push({ label: 'Go to', results: pageIndex(ctx, activeBundles).slice(0, 8) })
     return groups
   }
   if (q.length < 2) return []
 
   const lower = q.toLowerCase()
-  const pageMatches = [...quickActions(ctx), ...pageIndex(ctx)].filter((p) =>
+  const pageMatches = [...quickActions(ctx, activeBundles), ...pageIndex(ctx, activeBundles)].filter((p) =>
     p.label.toLowerCase().includes(lower),
   )
 
