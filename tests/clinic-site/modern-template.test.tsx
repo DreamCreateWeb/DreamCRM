@@ -1196,8 +1196,11 @@ describe('new-clinic baseline (no phantom content)', () => {
     const mediaBox = container.querySelector('[data-edit-field="differenceVideoUrl"]')
     expect(mediaBox).not.toBeNull()
     expect(mediaBox!.querySelector('img')).toBeNull()
-    // Publicly hidden when there is no media at all (Studio-only prompt).
-    expect(mediaBox!.closest('.dc-edit-only')).not.toBeNull()
+    // With no media the box renders a designed brand bloom PUBLICLY so the
+    // 2-column layout stays polished — the box itself is NOT hidden; only the
+    // "add a video/photo" prompt inside it is Studio-only.
+    expect(mediaBox!.closest('.dc-edit-only')).toBeNull()
+    expect(mediaBox!.querySelector('.dc-edit-only')).not.toBeNull()
   })
 
   it('uses an office photo for the "Why us" media when available', () => {
@@ -1238,11 +1241,13 @@ describe('new-clinic baseline (no phantom content)', () => {
     // Right hero oval falls back to the single office photo.
     const rightOval = container.querySelector('[data-edit-field="heroImageUrl2"] img')
     expect(rightOval?.getAttribute('src')).toBe('https://img.test/only-office.jpg')
-    // The difference media must NOT reuse it — with no other photo, it stays
-    // empty (Studio-only prompt) rather than duplicating.
+    // The difference media must NOT reuse it — with no other photo it shows the
+    // designed bloom (public, no <img>) rather than duplicating; only the prompt
+    // inside is Studio-only.
     const mediaBox = container.querySelector('[data-edit-field="differenceVideoUrl"]')
     expect(mediaBox!.querySelector('img')).toBeNull()
-    expect(mediaBox!.closest('.dc-edit-only')).not.toBeNull()
+    expect(mediaBox!.closest('.dc-edit-only')).toBeNull()
+    expect(mediaBox!.querySelector('.dc-edit-only')).not.toBeNull()
   })
 
   it('picks a distinct office photo for the "Why us" media when the first feeds the hero oval', () => {
