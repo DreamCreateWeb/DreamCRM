@@ -17,7 +17,26 @@ import { activeBundleIds, type BundleId, type BundleSignals } from '@/lib/integr
  * Only computed for CLINIC tenants (the caller skips it otherwise); the other
  * registries carry no `requiresBundle` modules, so they need no bundle state.
  */
+const NO_SIGNALS: BundleSignals = {
+  pmsConnected: false,
+  googleConnected: false,
+  socialConnected: false,
+  communicationConnected: false,
+  paymentsActive: false,
+}
+
 export async function getSidebarBundleSignals(organizationId: string): Promise<BundleSignals> {
+  try {
+    return await readSidebarBundleSignals(organizationId)
+  } catch {
+    // This runs on every authenticated page render — a transient read failure
+    // must NOT blank the dashboard. Fail closed (no active bundles → the derived
+    // feature links hide, no dead ends) and self-heal on the next load.
+    return NO_SIGNALS
+  }
+}
+
+async function readSidebarBundleSignals(organizationId: string): Promise<BundleSignals> {
   const [zernioRows, shopRows, pmsRows, gmailRows] = await Promise.all([
     // Connected Zernio accounts → google (GBP) + social. One small read; we only
     // need to know which platforms exist, so a tight LIMIT is plenty.
