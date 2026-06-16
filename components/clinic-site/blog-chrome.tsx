@@ -8,12 +8,12 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
 } from '@/lib/clinic-site-helpers'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import SiteHeader from './site-header'
 import SiteFooter from './site-footer'
 import SiteMobileActions from './site-mobile-actions'
 
-const { BG, INK } = CLINIC_THEME
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
 
 /**
  * Shared chrome for blog index + blog post + membership pages. Wraps

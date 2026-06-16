@@ -1,6 +1,12 @@
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, clinicPaletteCss } from '@/lib/clinic-site-theme'
 
-const { BG, INK, INK_MUTED, BORDER } = CLINIC_THEME
+// Brand-derived neutral roles (set on :root — by the /site/[slug] layout when
+// this chrome is used there, and by this component itself for surfaces OUTSIDE
+// that layout like /r/[token], which injects clinicPaletteCss below).
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 export interface MinimalSiteChromeProps {
   /** Clinic display name. When absent (e.g. a not-found host with no clinic),
@@ -78,9 +84,13 @@ export default function MinimalSiteChrome({
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
+      {/* Inject the brand-derived palette here too: pages using this chrome
+          OUTSIDE the /site/[slug] layout (notably /r/[token]) wouldn't otherwise
+          get the :root vars. Harmless double-set when nested under the layout. */}
+      <style>{clinicPaletteCss(accent)}</style>
       <header
         className="sticky top-0 z-30 backdrop-blur-md border-b"
-        style={{ backgroundColor: `${BG}EE`, borderColor: BORDER }}
+        style={{ backgroundColor: BG, borderColor: BORDER }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[var(--site-header-h,64px)] flex items-center justify-between gap-4">
           {homeHref ? (

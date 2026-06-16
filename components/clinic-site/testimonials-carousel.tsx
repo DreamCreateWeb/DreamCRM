@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 
-// Only INK + BORDER survive — the prev/next button uses them.
-// Card surface + text colors are fixed to the dark forest-teal palette
-// (see TestimonialCard below).
-const { INK, BORDER } = CLINIC_THEME
+// Prev/next buttons sit on the page ground → derived neutral vars. The card
+// surface itself is the brand-derived deep band (see TestimonialCard below).
+const BTN_BG = 'var(--c-surface, #FFFFFF)'
+const BTN_BORDER = 'var(--c-border, #E8E2D9)'
+const BTN_INK = 'var(--c-ink, #1C1A17)'
 
 // Match the CSS `transition-duration` on the track. Slightly-padded
 // timeout matches the visible animation length so the snap-back fires
@@ -112,7 +112,7 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
           onClick={goPrev}
           aria-label="Previous testimonial"
           className="w-12 h-12 rounded-full flex items-center justify-center transition hover:shadow-sm"
-          style={{ backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }}
+          style={{ backgroundColor: BTN_BG, border: `1px solid ${BTN_BORDER}`, color: BTN_INK }}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -123,7 +123,7 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
           onClick={goNext}
           aria-label="Next testimonial"
           className="h-12 px-5 rounded-full inline-flex items-center gap-2 transition hover:shadow-sm text-sm font-semibold tracking-wide"
-          style={{ backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }}
+          style={{ backgroundColor: BTN_BG, border: `1px solid ${BTN_BORDER}`, color: BTN_INK }}
         >
           <span>NEXT</span>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -180,17 +180,17 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
 }
 
 /**
- * Single testimonial card — Tend-verbatim composition. Dark forest-teal
- * card (`#36514c`, same hex as the footer) with white quote text + gold
- * 5-star row bottom-left and author bottom-right. Quote is unbounded
- * vertically; the flex-end footer pins stars/author to the bottom even
- * on short reviews.
+ * Single testimonial card — Tend-verbatim composition. Dark card (the brand-
+ * DERIVED deep band, same `var(--c-deep)` as the footer) with white quote text
+ * + gold 5-star row and author. Quote is unbounded vertically; the flex-end
+ * footer pins stars/author to the bottom even on short reviews.
  *
- * `brand` is intentionally unused on the card — the dark surface is fixed
- * to the forest-teal regardless of clinic brand color so the carousel
- * reads as a deliberate visual break, not as another brand-color tint.
+ * `brand` is intentionally unused on the card — the deep surface comes from the
+ * layout palette vars (derived from the brand once), so the carousel reads as a
+ * deliberate dark rhythm-break grounded in the clinic's OWN color. Gold stars
+ * stay gold (universal review signal).
  */
-const TESTIMONIAL_CARD_BG = '#36514c'
+const TESTIMONIAL_CARD_BG = 'var(--c-deep, #36514c)'
 const TESTIMONIAL_CARD_STAR = '#FFCC00'
 
 export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string }) {
@@ -201,7 +201,7 @@ export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string })
     >
       <blockquote
         className="text-base sm:text-lg lg:text-xl leading-[1.5] flex-1 mb-10 text-center"
-        style={{ color: '#FFFFFF' }}
+        style={{ color: 'var(--c-deep-ink, #FFFFFF)' }}
       >
         {t.quote}
       </blockquote>
@@ -214,7 +214,7 @@ export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string })
           ★★★★★
         </p>
         <figcaption className="text-sm lg:text-[15px]" style={{ color: 'rgba(255,255,255,0.85)' }}>
-          <strong className="font-semibold" style={{ color: '#FFFFFF' }}>
+          <strong className="font-semibold" style={{ color: 'var(--c-deep-ink, #FFFFFF)' }}>
             {t.authorName}
           </strong>
           {t.authorLocation && (

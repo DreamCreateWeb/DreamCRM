@@ -8,7 +8,6 @@ import {
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import {
   buildClinicNavLinks,
@@ -27,7 +26,11 @@ import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import BookForm from './book-form'
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string }>

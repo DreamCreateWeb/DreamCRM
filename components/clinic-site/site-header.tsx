@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { SiteNavLink } from '@/lib/clinic-site-helpers'
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 
-const { INK, INK_MUTED, BORDER } = CLINIC_THEME
+// Nav text + hairlines read the brand-derived neutral vars (set on :root by the
+// site layout). Literal fallbacks keep parity if rendered outside the layout.
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   data: ClinicSiteData
@@ -19,14 +22,14 @@ interface Props {
 /**
  * Tend-style two-bar site header with hide-on-scroll-down behavior.
  *
- * (1) Top announcement strip — hardcoded chartreuse `#E7FB7E` (Tend's
- *     signature accent regardless of brand color). Marquee of value-prop
- *     chips on the left, Login pill on the right.
+ * (1) Top announcement strip — a bright brand-DERIVED band (var --c-strip,
+ *     set on :root by the site layout). Marquee of value-prop chips on the
+ *     left, Login pill on the right.
  *
- * (2) Main nav — sits inside a cream/peach rounded-bottom drawer container
- *     (`#FEF7F1`, `border-radius: 0 0 32px 32px`) at desktop widths; goes
- *     edge-to-edge below `lg` so it looks right on mobile. Carries the
- *     logo, page-path nav, phone CTA, and Book Now.
+ * (2) Main nav — sits inside a rounded-bottom drawer container (a
+ *     temperature-matched near-white, var --c-bg, `border-radius: 0 0 32px
+ *     32px`) at desktop widths; goes edge-to-edge below `lg` so it looks right
+ *     on mobile. Carries the logo, page-path nav, phone CTA, and Book Now.
  *
  * Mobile layout: the desktop horizontal nav is replaced by a hamburger
  * button that opens a slide-in drawer with the full nav as an accordion
@@ -147,9 +150,12 @@ export default function SiteHeader({
   ]
   const marqueeChips = [...chips, ...chips]
 
-  const STRIP_BG = '#E7FB7E'
-  const STRIP_INK = '#1C1A17'
-  const NAV_CONTAINER_BG = '#FEF7F1'
+  // Strip + floating-nav surface now derive from the brand (layout palette
+  // vars): a bright brand-tinted announcement band + a temperature-matched
+  // near-white nav pill. Literal fallbacks keep parity outside the layout.
+  const STRIP_BG = 'var(--c-strip, #E7FB7E)'
+  const STRIP_INK = 'var(--c-strip-ink, #1C1A17)'
+  const NAV_CONTAINER_BG = 'var(--c-bg, #FEF7F1)'
 
   return (
     <>
@@ -285,7 +291,7 @@ export default function SiteHeader({
                       onMouseEnter={() => openDropdown(l.label)}
                       onMouseLeave={() => scheduleClose(l.label)}
                     >
-                      <span className="inline-flex items-center rounded-md transition hover:bg-[#F4EBDD]">
+                      <span className="inline-flex items-center rounded-md transition hover:bg-[var(--c-surface-alt,#F4EBDD)]">
                         <a
                           href={l.href}
                           className="text-[15px] font-medium pl-4 pr-1 py-2"
@@ -328,7 +334,7 @@ export default function SiteHeader({
                             aria-label={l.label}
                             className="min-w-[240px] max-h-[70vh] overflow-y-auto rounded-2xl py-2"
                             style={{
-                              backgroundColor: '#FFFFFF',
+                              backgroundColor: 'var(--c-surface, #FFFFFF)',
                               border: `1px solid ${BORDER}`,
                               boxShadow: '0 12px 32px -8px rgba(28, 26, 23, 0.18)',
                             }}
@@ -338,7 +344,7 @@ export default function SiteHeader({
                                 <a
                                   role="menuitem"
                                   href={c.href}
-                                  className="block px-5 py-2.5 text-[14px] font-medium transition hover:bg-[#F4EBDD]"
+                                  className="block px-5 py-2.5 text-[14px] font-medium transition hover:bg-[var(--c-surface-alt,#F4EBDD)]"
                                   style={{ color: INK }}
                                 >
                                   {c.label}
@@ -353,7 +359,7 @@ export default function SiteHeader({
                     <a
                       key={l.label}
                       href={l.href}
-                      className="text-[15px] font-medium px-4 py-2 rounded-md transition hover:bg-[#F4EBDD]"
+                      className="text-[15px] font-medium px-4 py-2 rounded-md transition hover:bg-[var(--c-surface-alt,#F4EBDD)]"
                       style={{ color: INK }}
                     >
                       {l.label}
@@ -367,7 +373,7 @@ export default function SiteHeader({
                 {profile.phone && (
                   <a
                     href={`tel:${profile.phone}`}
-                    className="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-full transition hover:bg-[#F4EBDD]"
+                    className="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-full transition hover:bg-[var(--c-surface-alt,#F4EBDD)]"
                     style={{ color: INK }}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} style={{ color: brand }}>
@@ -391,7 +397,7 @@ export default function SiteHeader({
                   aria-label="Open menu"
                   aria-expanded={mobileOpen}
                   aria-controls="mobile-nav-drawer"
-                  className="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-full transition hover:bg-[#F4EBDD]"
+                  className="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-full transition hover:bg-[var(--c-surface-alt,#F4EBDD)]"
                   style={{ color: INK }}
                 >
                   <svg
@@ -432,7 +438,7 @@ export default function SiteHeader({
           {/* Drawer panel — right-aligned, ~85vw with a max */}
           <div
             className="drawer-panel absolute right-0 top-0 h-full w-[min(86vw,360px)] flex flex-col shadow-2xl"
-            style={{ backgroundColor: '#FFFFFF' }}
+            style={{ backgroundColor: 'var(--c-surface, #FFFFFF)' }}
           >
             {/* Drawer header */}
             <div
@@ -449,7 +455,7 @@ export default function SiteHeader({
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close menu"
-                className="inline-flex items-center justify-center w-10 h-10 rounded-full transition hover:bg-[#F4EBDD]"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-full transition hover:bg-[var(--c-surface-alt,#F4EBDD)]"
                 style={{ color: INK }}
               >
                 <svg
@@ -482,7 +488,7 @@ export default function SiteHeader({
                       <a
                         href={l.href}
                         onClick={() => setMobileOpen(false)}
-                        className="block px-4 py-3 text-[16px] font-semibold rounded-xl transition hover:bg-[#F8F3EA]"
+                        className="block px-4 py-3 text-[16px] font-semibold rounded-xl transition hover:bg-[var(--c-surface-alt,#F8F3EA)]"
                         style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
                       >
                         {l.label}
@@ -497,7 +503,7 @@ export default function SiteHeader({
                               <a
                                 href={c.href}
                                 onClick={() => setMobileOpen(false)}
-                                className="block px-4 py-2.5 text-[14.5px] rounded-xl transition hover:bg-[#F4EBDD]"
+                                className="block px-4 py-2.5 text-[14.5px] rounded-xl transition hover:bg-[var(--c-surface-alt,#F4EBDD)]"
                                 style={{ color: INK_MUTED }}
                               >
                                 {c.label}

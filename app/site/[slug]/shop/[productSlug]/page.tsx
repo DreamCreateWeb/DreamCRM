@@ -7,9 +7,9 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import { productJsonLd } from '@/lib/clinic-site-jsonld'
 import AddToCart from '../add-to-cart'
 
-const INK = '#1C1A17'
-const INK_MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string; productSlug: string }>

@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
+import { buildClinicPalette } from '@/lib/clinic-site-theme'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,6 +26,10 @@ export default async function Image({ params }: { params: Promise<Params> }) {
     data?.profile.tagline ?? 'No judgment, ever. Just better dental care.'
   const brand = data?.profile.brandColor ?? '#9CAF9F'
   const heroImageUrl = data?.profile.heroImageUrl ?? null
+  // OG images render through Satori (no CSS custom properties) — so we derive
+  // the SAME palette as the live site but use the real hex values, keeping the
+  // share card on-brand instead of a fixed warm panel.
+  const p = buildClinicPalette(brand)
 
   return new ImageResponse(
     (
@@ -34,8 +39,8 @@ export default async function Image({ params }: { params: Promise<Params> }) {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: '#FAF7F2',
-          color: '#1C1A17',
+          backgroundColor: p.bg,
+          color: p.ink,
           position: 'relative',
           fontFamily: 'system-ui, -apple-system, sans-serif',
         }}
@@ -57,8 +62,7 @@ export default async function Image({ params }: { params: Promise<Params> }) {
               style={{
                 position: 'absolute',
                 inset: 0,
-                background:
-                  'linear-gradient(105deg, #FAF7F2 0%, rgba(250,247,242,0.95) 40%, rgba(250,247,242,0.55) 70%, transparent 100%)',
+                background: `linear-gradient(105deg, ${p.bg} 0%, ${p.bg}F2 40%, ${p.bg}8C 70%, transparent 100%)`,
                 display: 'flex',
               }}
             />
@@ -82,7 +86,7 @@ export default async function Image({ params }: { params: Promise<Params> }) {
                 height: 56,
                 borderRadius: 14,
                 backgroundColor: brand,
-                color: 'white',
+                color: p.brandInk,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -98,7 +102,7 @@ export default async function Image({ params }: { params: Promise<Params> }) {
               style={{
                 fontSize: 24,
                 fontWeight: 600,
-                color: brand,
+                color: p.heading,
                 textTransform: 'uppercase',
                 letterSpacing: 4,
                 marginBottom: 16,
@@ -125,7 +129,7 @@ export default async function Image({ params }: { params: Promise<Params> }) {
               style={{
                 fontSize: 32,
                 lineHeight: 1.4,
-                color: '#6B635A',
+                color: p.inkMuted,
                 display: 'flex',
               }}
             >

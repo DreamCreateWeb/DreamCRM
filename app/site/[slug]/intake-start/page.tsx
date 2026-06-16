@@ -7,7 +7,7 @@ import {
 } from '@/lib/services/clinic-site'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { auth } from '@/lib/auth/server'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import IntakeStartForm from './intake-start-form'
 
@@ -22,7 +22,10 @@ export const metadata = {
   robots: { index: false, follow: false },
 }
 
-const { INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 export default async function IntakeStartPage({ params }: Props) {
   const { slug } = await params

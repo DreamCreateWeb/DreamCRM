@@ -18,10 +18,10 @@ interface Props {
 }
 
 /**
- * Forest-teal 4-column footer — matches hellotend.com's verbatim footer
- * composition. Dark `#36514c` background (hard-coded, NOT theme-driven —
- * the forest-teal pairs cleanly with any clinic brand color, and Tend's
- * own design holds it constant across regions); white text throughout.
+ * Deep-band 4-column footer — matches hellotend.com's verbatim footer
+ * composition. The dark background is the brand-DERIVED deep band
+ * (`var(--c-deep)`, set on :root by the site layout from the clinic's one
+ * brand color); white text throughout.
  *
  * Columns (per Tend): About · Visit (was "Locations") · Services · Questions.
  * "Visit" replaces Tend's metro-list with single-location address + hours
@@ -44,13 +44,15 @@ export default function SiteFooter({
   const hours = profile.hours as Record<string, { open?: string; close?: string; closed?: boolean }> | null
   const homeHref = basePath || '/'
 
-  // Forest-teal hard-coded. Not theme-driven because it's visually neutral
-  // against essentially every brand color, mirrors Tend's verbatim, and
-  // keeps the footer as a constant grounding point across all clinics.
-  const FOOTER_BG = '#36514c'
-  const FOOTER_INK = '#FFFFFF'
-  const FOOTER_MUTED = '#C5CFCC'
-  const FOOTER_BORDER = '#476461'
+  // The deep "rhythm-break" band — now DERIVED from the clinic's brand (a rich,
+  // dark, contrast-checked version of their hue) via the site-layout palette
+  // vars, so the footer grounds the page in the clinic's OWN color instead of a
+  // fixed forest-teal. Literal fallbacks keep it painting if rendered outside
+  // the site layout. The border is a translucent white so it reads on any deep.
+  const FOOTER_BG = 'var(--c-deep, #36514c)'
+  const FOOTER_INK = 'var(--c-deep-ink, #FFFFFF)'
+  const FOOTER_MUTED = 'var(--c-deep-muted, #C5CFCC)'
+  const FOOTER_BORDER = 'rgba(255,255,255,0.16)'
 
   // About column links — page paths first, blog/careers appended only if
   // we know they exist (deduplicated against the nav). The nav links

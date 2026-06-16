@@ -122,6 +122,31 @@ export const getClinicOrgIdBySlug = cache(async (slug: string): Promise<string |
   return org && org.type === 'clinic' ? org.id : null
 })
 
+/**
+ * Minimal, request-cached slug → `{ orgId, brand }` resolver for the site
+ * layout, which derives the whole CSS-variable palette from the brand color on
+ * every public page hit. Kept separate (+ tiny) from the full profile load so
+ * the layout doesn't pull locations/services just to read one color; `cache()`
+ * dedupes it within a request. Returns `{ orgId: null, brand: null }` for a
+ * non-clinic / unknown slug so the layout can fall back to the neutral default.
+ */
+export const getClinicThemeBySlug = cache(
+  async (slug: string): Promise<{ orgId: string | null; brand: string | null }> => {
+    const [row] = await db
+      .select({
+        id: organization.id,
+        type: organization.type,
+        brand: clinicProfile.brandColor,
+      })
+      .from(organization)
+      .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
+      .where(eq(organization.slug, slug))
+      .limit(1)
+    if (!row || row.type !== 'clinic') return { orgId: null, brand: null }
+    return { orgId: row.id, brand: row.brand ?? null }
+  },
+)
+
 export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData | null> {
   const [org] = await db
     .select()

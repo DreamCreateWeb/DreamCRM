@@ -8,7 +8,7 @@ import type {
   ClinicOfficePhoto,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import {
   firstSentence,
   copyOverride,
@@ -43,7 +43,16 @@ import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
  * See CLAUDE.md for the full breakdown.
  */
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+// The neutral roles now read the brand-derived palette vars (set on :root by
+// the site layout from the clinic's one brand color). Literal fallbacks match
+// the original warm-neutral scheme so a surface rendered outside the layout
+// (e.g. a unit test) still paints. These are style values only — never passed
+// into readableInk's color math (that takes the raw brand + a real hex).
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   data: ClinicSiteData
@@ -215,8 +224,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // Studio add-prompt) rather than duplicating the image.
   const differenceMediaUrl =
     officePhotos.find((p) => p.url && p.url !== rightPortraitImage)?.url ?? null
-  const leftPortraitBg = '#B8D4E8'
-  const rightPortraitBg = '#F0D9BD'
+  const leftPortraitBg = 'var(--c-brand-soft, #B8D4E8)'
+  const rightPortraitBg = 'var(--c-surface-alt, #F0D9BD)'
 
   // Service pills under the hero — Tend's qualifier strip.
   const heroServicePills = services.slice(0, 6)
@@ -380,7 +389,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 {profile.phone && (
                   <a
                     href={`tel:${profile.phone}`}
-                    className="inline-flex items-center px-6 py-3.5 rounded-full text-base font-semibold bg-white transition hover:bg-[#FAF7F2]"
+                    className="inline-flex items-center px-6 py-3.5 rounded-full text-base font-semibold bg-white transition hover:bg-[var(--c-bg,#FAF7F2)]"
                     style={{
                       color: headingInk,
                       border: `1.5px solid ${brand}`,
@@ -843,7 +852,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                cards — invites the clinic to feature a collected patient review. */
             <div
               className="rounded-[28px] px-8 py-12 sm:px-12 sm:py-16 max-w-[760px]"
-              style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
+              style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
             >
               <div className="text-5xl leading-none mb-2" style={{ color: 'rgba(250,247,242,0.5)' }} aria-hidden="true">
                 &ldquo;
@@ -933,7 +942,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
 
       {/* ── Insurance — forest-teal band with carrier list + verifier ───── */}
       {/* Full-width band using the same forest-teal palette as the footer
-          + testimonial cards (#36514c) so the section feels visually
+          + testimonial cards so the section feels visually
           grouped with the trust signals. Left column lists accepted PPO
           carriers from the new clinic_profile.acceptedInsuranceCarriers
           jsonb column (or a calm "call to verify" copy when empty); right
@@ -943,7 +952,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           we're explicit about that in the success message). */}
       <section
         className="py-14 sm:py-24"
-        style={{ backgroundColor: '#36514c', color: '#FAF7F2' }}
+        style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <div className="text-center max-w-[700px] mx-auto mb-12">
@@ -955,7 +964,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             </p>
             <h2
               className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-5"
-              style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: 'var(--c-deep-ink, #FAF7F2)', fontFamily: 'var(--font-display, Georgia, serif)' }}
               data-edit-field="copy:home.insuranceTitle"
               data-edit-kind="text"
               data-edit-label="headline"
@@ -986,7 +995,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             >
               <h3
                 className="text-xl sm:text-2xl font-semibold mb-3"
-                style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: 'var(--c-deep-ink, #FAF7F2)', fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Our insurance carriers
               </h3>
@@ -1004,7 +1013,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                       <li
                         key={carrier}
                         className="flex items-start gap-2.5 text-[15px] leading-snug"
-                        style={{ color: '#FAF7F2' }}
+                        style={{ color: 'var(--c-deep-ink, #FAF7F2)' }}
                       >
                         <svg
                           className="w-5 h-5 shrink-0 mt-0.5"
@@ -1037,7 +1046,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             <div>
               <h3
                 className="text-xl sm:text-2xl font-semibold mb-3"
-                style={{ color: '#FAF7F2', fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: 'var(--c-deep-ink, #FAF7F2)', fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
                 Check your insurance
               </h3>
@@ -1089,7 +1098,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   >
                     <span
                       className="text-[15px] font-semibold tracking-tight text-center leading-tight"
-                      style={{ color: '#1C1A17', fontFamily: 'var(--font-display, Georgia, serif)' }}
+                      style={{ color: 'var(--c-ink, #1C1A17)', fontFamily: 'var(--font-display, Georgia, serif)' }}
                     >
                       {carrier}
                     </span>
@@ -1312,7 +1321,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           Tend uses between the closer line and the dark footer. */}
       <section
         className="relative overflow-hidden"
-        style={{ backgroundColor: '#36514c' }}
+        style={{ backgroundColor: 'var(--c-deep, #36514c)' }}
       >
         {/* Soft watercolor-ish texture: layered radial gradients in subtle
             white-on-teal create the same painted-pattern feel Tend uses
@@ -1371,7 +1380,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       </section>
 
       {/* ── Closer chartreuse chip strip ──────────────────────────────── */}
-      {/* Same chartreuse #E7FB7E + ink palette as the top announcement
+      {/* Same brand-derived strip (var --c-strip) + ink palette as the top
           strip. Tend repeats this strip between the closer card and the
           dark footer; the visual rhyme closes the page composition the
           same way it opened it. Pure CSS marquee — no client component
@@ -1379,7 +1388,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           above overlaps onto it via its -mb-16 pull-down. */}
       <div
         className="relative z-10 overflow-hidden"
-        style={{ backgroundColor: '#E7FB7E', color: '#1C1A17' }}
+        style={{ backgroundColor: 'var(--c-strip, #E7FB7E)', color: 'var(--c-strip-ink, #1C1A17)' }}
       >
         <div
           className="tend-marquee max-w-[1400px] mx-auto px-5 sm:px-8 h-11 sm:h-12 flex items-center"
@@ -1393,12 +1402,12 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <li
                 key={i}
                 className="inline-flex items-center gap-2 shrink-0"
-                style={{ color: '#1C1A17' }}
+                style={{ color: 'var(--c-strip-ink, #1C1A17)' }}
               >
                 <span
                   aria-hidden="true"
                   className="inline-block w-1 h-1 rounded-full"
-                  style={{ backgroundColor: '#1C1A17' }}
+                  style={{ backgroundColor: 'var(--c-strip-ink, #1C1A17)' }}
                 />
                 {chip}
               </li>

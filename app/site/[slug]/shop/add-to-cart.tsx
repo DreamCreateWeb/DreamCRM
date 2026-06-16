@@ -33,12 +33,12 @@ export default function AddToCart({
     <div>
       {product.variants.length > 1 && (
         <div className="mb-4">
-          <label className="block text-[12px] font-medium mb-1.5" style={{ color: '#6B635A' }}>Option</label>
+          <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--c-ink-muted, #6B635A)' }}>Option</label>
           <select
             value={variantId}
             onChange={(e) => { setVariantId(e.target.value); setAdded(false) }}
-            className="w-full text-[15px] px-3.5 py-2.5 rounded-xl border bg-white"
-            style={{ borderColor: '#E8E2D9' }}
+            className="w-full text-[15px] px-3.5 py-2.5 rounded-xl border bg-[var(--c-surface,#FFFFFF)]"
+            style={{ borderColor: 'var(--c-border, #E8E2D9)' }}
           >
             {product.variants.map((v) => (
               <option key={v.id} value={v.id} disabled={!v.inStock}>
@@ -50,15 +50,15 @@ export default function AddToCart({
       )}
 
       <div className="flex items-center gap-3">
-        <div className="text-2xl font-bold" style={{ color: '#1C1A17' }}>{variant ? formatCents(variant.priceCents) : ''}</div>
+        <div className="text-2xl font-bold" style={{ color: 'var(--c-ink, #1C1A17)' }}>{variant ? formatCents(variant.priceCents) : ''}</div>
         <input
           type="number"
           min={1}
           max={99}
           value={qty}
           onChange={(e) => setQty(Math.max(1, Math.min(parseInt(e.target.value) || 1, 99)))}
-          className="w-16 text-[15px] px-3 py-2.5 rounded-xl border bg-white"
-          style={{ borderColor: '#E8E2D9' }}
+          className="w-16 text-[15px] px-3 py-2.5 rounded-xl border bg-[var(--c-surface,#FFFFFF)]"
+          style={{ borderColor: 'var(--c-border, #E8E2D9)' }}
         />
       </div>
 

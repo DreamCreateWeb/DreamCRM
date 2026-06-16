@@ -3,11 +3,14 @@
 import { useState, useEffect } from 'react'
 import { formatCents } from '@/lib/types/shop'
 import { intervalSuffix, type PlanRow } from '@/lib/types/membership'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import { startMembershipCheckout } from './actions'
 
-const { INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 /** Inline checkmark — the site language uses real SVG checks, not a "✓" glyph. */
 function Check({ color }: { color: string }) {
@@ -75,7 +78,7 @@ export default function MembershipJoin({ slug, brand, plans }: { slug: string; b
       })
   }
 
-  const FIELD = 'w-full text-[15px] px-4 py-3 rounded-xl border bg-white focus:outline-none focus:ring-2'
+  const FIELD = 'w-full text-[15px] px-4 py-3 rounded-xl border bg-[var(--c-surface,#FFFFFF)] focus:outline-none focus:ring-2'
   const fieldStyle = { borderColor: BORDER, ['--tw-ring-color' as string]: `${brand}55` }
 
   return (

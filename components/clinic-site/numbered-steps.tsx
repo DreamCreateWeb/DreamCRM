@@ -1,7 +1,9 @@
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
 
-const { INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 export interface NumberedStep {
   title: string
@@ -43,7 +45,7 @@ export default function NumberedSteps({
   editKeyPrefix,
 }: Props) {
   if (steps.length === 0) return null
-  const cardBg = surface === 'white' ? SURFACE : '#FAF7F2'
+  const cardBg = surface === 'white' ? SURFACE : 'var(--c-bg, #FAF7F2)'
   const gridCols =
     columns === 1
       ? ''

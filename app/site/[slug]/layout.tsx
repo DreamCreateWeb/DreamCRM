@@ -1,5 +1,6 @@
-import { getClinicOrgIdBySlug } from '@/lib/services/clinic-site'
+import { getClinicThemeBySlug } from '@/lib/services/clinic-site'
 import { canEditClinic } from '@/lib/clinic-site-edit'
+import { clinicPaletteCss } from '@/lib/clinic-site-theme'
 import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
 import SiteViewBeacon from '@/components/clinic-site/site-view-beacon'
 
@@ -43,7 +44,7 @@ export default async function ClinicSiteLayout({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const orgId = await getClinicOrgIdBySlug(slug)
+  const { orgId, brand } = await getClinicThemeBySlug(slug)
   const canEdit = orgId ? await canEditClinic(orgId) : false
   return (
     <>
@@ -64,6 +65,15 @@ export default async function ClinicSiteLayout({
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link rel="stylesheet" href={FRAUNCES_HREF} />
       </noscript>
+      {/* Derived theme — the clinic picks ONE brand color and the whole site
+          palette (ground, surface, borders, the deep rhythm-break band, the
+          bright strip, every readable ink) is derived from it here, once, as
+          CSS custom properties on :root. Every page + subpage + shared chrome
+          reads `var(--c-*)` so the site harmonizes around the brand instead of
+          a fixed teal/beige scheme. Pure + contrast-checked (lib/clinic-site-
+          theme.ts). Components keep literal fallbacks in their var() refs, so a
+          surface rendered outside this layout still paints. */}
+      <style>{clinicPaletteCss(brand)}</style>
       <style>{`
         :root {
           --font-display: 'Fraunces', Georgia, serif;

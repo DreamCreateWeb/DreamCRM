@@ -1,7 +1,4 @@
-import { CLINIC_THEME } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
-
-const { INK, TEAL } = CLINIC_THEME
 
 interface CTA {
   label: string
@@ -37,7 +34,9 @@ export default function ClosingCTA({
   variant = 'brand',
   editKeyPrefix,
 }: Props) {
-  const bgColor = variant === 'teal' ? TEAL : brand
+  // 'teal' now means the brand-DERIVED deep band (var --c-deep); 'brand' is the
+  // raw brand. Both carry white text. (Prop name kept for call-site stability.)
+  const bgColor = variant === 'teal' ? 'var(--c-deep, #36514c)' : brand
 
   return (
     <section className="py-14 sm:py-24" style={{ backgroundColor: bgColor }}>
@@ -70,7 +69,7 @@ export default function ClosingCTA({
             <a
               href={primary.href}
               className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition hover:shadow-lg hover:scale-[1.02]"
-              style={{ backgroundColor: '#FFFFFF', color: INK }}
+              style={{ backgroundColor: '#FFFFFF', color: 'var(--c-ink, #1C1A17)' }}
             >
               {primary.label}
             </a>

@@ -13,7 +13,7 @@ import {
   resolveClinicServices,
   type EnrichedService,
 } from '@/lib/services/service-library'
-import { CLINIC_THEME, readableInk } from '@/lib/clinic-site-theme'
+import { readableInk } from '@/lib/clinic-site-theme'
 import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
@@ -24,7 +24,11 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 
-const { BG, INK, INK_MUTED, SURFACE, BORDER } = CLINIC_THEME
+const BG = 'var(--c-bg, #FAF7F2)'
+const INK = 'var(--c-ink, #1C1A17)'
+const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
+const SURFACE = 'var(--c-surface, #FFFFFF)'
+const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string; serviceSlug: string }>
@@ -264,7 +268,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                 {profile.phone && (
                   <a
                     href={`tel:${profile.phone}`}
-                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-white transition hover:shadow-sm"
+                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-[var(--c-surface,#FFFFFF)] transition hover:shadow-sm"
                     style={{ color: INK, borderColor: BORDER }}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} style={{ color: brand }}>
