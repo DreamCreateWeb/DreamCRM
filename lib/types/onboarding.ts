@@ -166,8 +166,8 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
     body: 'Sell whitening kits, electric brushes, and membership plans from your website. Payments go through your own Stripe account — payouts land in your bank.',
   },
   integrations: {
-    title: 'Wraps your PMS — never replaces it',
-    body: 'Connect Open Dental and patients, visits, recall, and balances sync two-way through the official API. Every write shows up in your PMS audit trail.',
+    title: 'Your app library — connect everything here',
+    body: 'Plug in the tools that power your practice: Open Dental (patients, visits, recall, and balances sync two-way through the official API), your Google Business Profile, and the social channels you post to — all from one place.',
   },
   social_posts: {
     title: 'Post once, everywhere',

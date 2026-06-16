@@ -1,18 +1,18 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-}))
-vi.mock('@/app/(default)/settings/actions', () => ({
-  buySocialAddonAction: vi.fn(async () => ({ ok: true })),
-  cancelSocialAddonAction: vi.fn(async () => ({ ok: true })),
-}))
 
 import SocialConnectionsCard, {
   type SocialConnectionsCardProps,
 } from '@/app/(default)/settings/billing/social-connections-card'
 
+/**
+ * The Settings → Billing "Social connections" card is now a SLIM summary that
+ * links to the Integrations app-library (the canonical place to buy/cancel the
+ * add-on + manage channels — no competing full add-on widget here). These tests
+ * assert the entitlement summary + the state-aware nudge + the cross-link. The
+ * buy/cancel BEHAVIOR is covered on the Integrations surface
+ * (tests/zernio/integrations-library.test.tsx).
+ */
 function props(overrides: Partial<SocialConnectionsCardProps> = {}): SocialConnectionsCardProps {
   return {
     planName: 'Pro',
@@ -27,43 +27,49 @@ function props(overrides: Partial<SocialConnectionsCardProps> = {}): SocialConne
   }
 }
 
-describe('SocialConnectionsCard', () => {
+describe('SocialConnectionsCard (Billing summary)', () => {
   it('shows the current entitlement incl. Google Business + the total', () => {
     render(<SocialConnectionsCard {...props()} />)
     expect(screen.getByRole('heading', { name: /Social connections/i })).toBeTruthy()
     expect(screen.getByText(/2 total including Google Business/i)).toBeTruthy()
   })
 
-  it('Pro without add-on shows a Buy CTA at $30/mo', () => {
+  it('links to Integrations to manage the add-on (no competing buy/cancel buttons here)', () => {
     render(<SocialConnectionsCard {...props()} />)
-    expect(screen.getByRole('button', { name: /Add for \$30\/mo/i })).toBeTruthy()
+    const link = screen.getByRole('link', { name: /Manage channels .* in Integrations/i }) as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('/integrations')
+    // No competing add-on widget on the billing card anymore.
+    expect(screen.queryByRole('button', { name: /Add for/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Cancel add-on/i })).toBeNull()
   })
 
-  it('active add-on shows the active pill + a Cancel button', () => {
+  it('Pro without add-on nudges with the add-on price', () => {
+    render(<SocialConnectionsCard {...props()} />)
+    expect(screen.getByText(/Add more for \$30\/mo/i)).toBeTruthy()
+  })
+
+  it('active add-on shows the active pill', () => {
     render(<SocialConnectionsCard {...props({ addonActive: true, socialLimit: 3 })} />)
     expect(screen.getByText(/Add-on active/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Cancel add-on/i })).toBeTruthy()
+    expect(screen.getByText(/add-on is active/i)).toBeTruthy()
   })
 
-  it('Basic shows the Upgrade-to-Pro path and no buy button', () => {
+  it('Basic surfaces the Pro-plan path', () => {
     render(
       <SocialConnectionsCard
         {...props({ planName: 'Basic', socialLimit: 0, addonAvailable: false, addonPriceDollars: null })}
       />,
     )
-    expect(screen.getByRole('link', { name: /Upgrade to Pro/i })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Add for/i })).toBeNull()
+    expect(screen.getByText(/start on the Pro plan/i)).toBeTruthy()
   })
 
-  it('shows "coming soon" (disabled) when the Stripe prices are not configured', () => {
+  it('shows "coming soon" copy when the Stripe prices are not configured', () => {
     render(<SocialConnectionsCard {...props({ addonConfigured: false })} />)
-    const btn = screen.getByRole('button', { name: /coming soon/i }) as HTMLButtonElement
-    expect(btn.disabled).toBe(true)
+    expect(screen.getByText(/coming soon/i)).toBeTruthy()
   })
 
   it('shows the managed-billing message for a comped clinic', () => {
     render(<SocialConnectionsCard {...props({ managedBilling: true })} />)
     expect(screen.getByText(/managed billing/i)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Add for/i })).toBeNull()
   })
 })

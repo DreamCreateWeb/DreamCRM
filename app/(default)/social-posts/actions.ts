@@ -10,7 +10,7 @@ import type { CreateSocialPostFormInput } from '@/lib/types/zernio'
  * owner/admin — on ANY plan (the page is gated the same, but actions must
  * self-gate against a deep-link). Posting to a channel requires it to be
  * connected (the social-connection cap is enforced at connect-time on
- * /channels), so there is NO plan gate here beyond clinic + owner/admin.
+ * /integrations), so there is NO plan gate here beyond clinic + owner/admin.
  * Returns the `{ ok | error }` convention so the composer can surface inline.
  */
 function ensureSocialPostAdmin(ctx: { tenantType: string; role: string }) {

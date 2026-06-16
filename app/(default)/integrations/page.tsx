@@ -1,31 +1,46 @@
 import { redirect } from 'next/navigation'
+import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { planAllows } from '@/lib/modules'
+import { db, schema } from '@/lib/db'
 import { getIntegrationsDashboard, openDentalConfigured } from '@/lib/services/pms'
 import { getIntegrationsHealth } from '@/lib/services/pms/health'
 import { getZernioConnection } from '@/lib/services/zernio'
+import { canConnectSocialPlatform } from '@/lib/services/social-billing'
 import { zernioConfigured } from '@/lib/zernio'
-import GoogleBusinessCard from './google-business-card'
+import { getPlanById, socialAddonConfigured } from '@/lib/stripe-config'
+import {
+  socialAddonAvailable,
+  socialAddonPriceCents,
+  socialConnectionLimit,
+} from '@/lib/types/social-entitlements'
+import type { PlanTier } from '@/lib/modules/types'
 import {
   NEVER_TOUCHED,
   OPEN_DENTAL_FIELD_MAP,
-  PMS_PROVIDERS,
   PROVIDER_LABELS,
   SYNCED_ENTITIES,
   SYNC_STATUS_LABELS,
   WRITE_OP_ENTITY_LABELS,
   WRITE_OP_STATUS_LABELS,
-  type PmsAvailability,
   type SyncedEntity,
   type SyncRunStatus,
   type WriteOpStatus,
 } from '@/lib/types/pms'
 import type { PmsSyncRun } from '@/lib/db/schema/clinic'
+import {
+  SOCIAL_CHANNEL_SHORTLIST,
+  ZERNIO_PLATFORM_LABELS,
+  ZERNIO_PLATFORM_ICONS,
+  isConnectablePlatform,
+  type SocialChannelView,
+  type ZernioPlatform,
+} from '@/lib/types/zernio'
 import ConnectPanel from './connect-panel'
 import SyncControls, { SyncNowButton } from './sync-controls'
+import IntegrationsLibrary from './integrations-library'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
-import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -34,16 +49,25 @@ import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
 
 export const metadata = {
   title: 'Integrations - DreamCRM',
-  description: 'Sync your PMS — Open Dental — through its official API. Audit-clean, never the database.',
+  description:
+    'Connect the tools that power your practice — your PMS (Open Dental), Google Business, and your social channels.',
 }
 
 export const dynamic = 'force-dynamic'
 
 /**
- * PMS Integrations v1 — morning-huddle layout. DreamCRM wraps the clinic's PMS
- * (Open Dental first), syncing the relationship layer two-way through the
- * OFFICIAL API only, so every write lands in the clinic's Audit Trail. The
- * opposite of the direct-DB scrapers Open Dental publicly warns against.
+ * Integrations — an app-library / integrations-directory. A calm grid of
+ * integration cards grouped into sections (Practice management · Google ·
+ * Social), like an app marketplace, NOT a dense single-connector dashboard.
+ * The former /channels surface (social + GBP connect) folds in here so this is
+ * the single place a clinic plugs things in.
+ *
+ * The grid is the new FRAME (IntegrationsLibrary); the rich Open Dental PMS
+ * management (status hero, KPIs, scope, field map, sync/write-back logs, trust
+ * banner) lives BELOW the grid, server-rendered, when Open Dental is connected
+ * — the Open Dental card's "Manage" anchors to it. When unconnected (Premium),
+ * the card's "Connect" anchors to the connect form below. PMS is Premium-gated;
+ * GBP + social are free/cap-bounded on every tier (owner/admin required).
  */
 
 // Sync-run state → tone. running is in flight (info); success done-good (ok);
@@ -64,7 +88,7 @@ const WRITE_TONE: Record<WriteOpStatus, Tone> = {
 }
 
 // One legend covers both pill families + the health-banner severities (they all
-// share the tone vocabulary), so a clinic can decode the page at a glance.
+// share the tone vocabulary), so a clinic can decode the PMS detail at a glance.
 const PILL_LEGEND: PillLegendRow[] = [
   { tone: 'ok', label: 'Synced', meaning: 'A sync run finished cleanly — everything came across' },
   { tone: 'info', label: 'Syncing', meaning: 'A run is in progress' },
@@ -110,24 +134,43 @@ function summarizeRun(counts: PmsSyncRun['counts']): string {
   return parts.length ? parts.join(' · ') : 'no changes'
 }
 
-export default async function IntegrationsPage() {
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
-  // The PMS integration (Open Dental) is Premium-tier. Google Business (Zernio),
-  // however, is FREE on every plan tier (Basic included) — so we no longer
-  // redirect below-Premium clinics away from this page; we render the GBP card
-  // for them and gate ONLY the PMS body behind the Premium plan.
+  // The PMS integration (Open Dental) is Premium-tier. Google Business + the
+  // social shortlist, however, are usable on every plan (Basic included; social
+  // bounded by the per-plan cap) — so we never redirect below-Premium clinics
+  // away; we render the GBP + social cards for them and gate ONLY the PMS detail
+  // behind the Premium plan.
   const pmsEligible = planAllows(ctx.planTier, 'premium')
 
-  // GBP loads for everyone; the PMS dashboard + health only for Premium (skip
-  // the work + the demo-PMS gating for Basic/Pro).
-  const [dashboard, configured, health, zernio] = await Promise.all([
+  const sp = await searchParams
+  const one = (v: string | string[] | undefined): string | null =>
+    typeof v === 'string' ? v : Array.isArray(v) ? (v[0] ?? null) : null
+
+  // GBP + social load for everyone; the PMS dashboard + health only for Premium.
+  const [dashboard, configured, health, zernio, cap, profileRow] = await Promise.all([
     pmsEligible ? getIntegrationsDashboard(ctx.organizationId) : Promise.resolve(null),
     Promise.resolve(openDentalConfigured()),
     pmsEligible ? getIntegrationsHealth(ctx.organizationId) : Promise.resolve(null),
     getZernioConnection(ctx.organizationId),
+    canConnectSocialPlatform(ctx.organizationId),
+    db
+      .select({
+        socialAddon: schema.clinicProfile.socialAddon,
+        stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+      })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, ctx.organizationId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
   ])
+
   const { connection, counts, totals, pendingWrites, recentRuns, recentWrites } = dashboard ?? {
     connection: null,
     counts: { patients: 0, appointments: 0, providers: 0 },
@@ -140,11 +183,29 @@ export default async function IntegrationsPage() {
   const isDemo = connection?.provider === 'demo'
   const meta = (connection?.meta as Record<string, unknown> | undefined) ?? {}
   const practiceTitle = meta.practiceTitle as string | undefined
-  // A parked patient-import cursor means a big first import is still catching up
-  // (it hit its per-run time budget and will resume on the next sync / hourly
-  // cron). Surface durable progress so the clinic knows it's working, not stuck.
+  // A parked patient-import cursor means a big first import is still catching up.
   const importCursor = typeof meta.patientImportCursor === 'number' ? meta.patientImportCursor : 0
   const importInProgress = connected && importCursor > 0
+
+  // ── Social entitlement props ──────────────────────────────────────────────
+  const planTier = ctx.planTier as PlanTier
+  const addonActive = profileRow?.socialAddon === 1
+  const addonCents = socialAddonPriceCents(planTier)
+  const socialChannels: SocialChannelView[] = SOCIAL_CHANNEL_SHORTLIST.map((platform) => ({
+    platform,
+    label: ZERNIO_PLATFORM_LABELS[platform],
+    icon: ZERNIO_PLATFORM_ICONS[platform],
+    account: zernio.accounts.find((a) => a.platform === platform) ?? null,
+  }))
+  const gbpAccount = zernio.googleBusinessAccounts[0] ?? null
+
+  // Success / at-limit / error params (validated against the shortlist).
+  const connectedParam = one(sp.connected)
+  const atLimitParam = one(sp.atLimit)
+  const justConnected: ZernioPlatform | null =
+    connectedParam && isConnectablePlatform(connectedParam) ? connectedParam : null
+  const atLimit: ZernioPlatform | null =
+    atLimitParam && isConnectablePlatform(atLimitParam) ? atLimitParam : null
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -153,300 +214,290 @@ export default async function IntegrationsPage() {
       <PageHeader
         eyebrow={`Business · ${ctx.organizationName}`}
         title="Integrations"
-        subtitle="DreamCRM wraps the practice-management system you already run — it doesn't replace it. We sync the relationship layer (patients, appointments, providers, balances) through your PMS's official API, both directions, and never touch your database directly."
-        legend={<EncodingLegend pills={PILL_LEGEND} />}
-        actions={
-          pmsEligible ? (
-            connected ? (
-              <SyncNowButton />
-            ) : (
-              <ActionButton variant="primary" breath size="sm" href="#connect-open-dental">
-                Connect Open Dental
-              </ActionButton>
-            )
-          ) : null
-        }
+        subtitle="Connect the tools that power your practice — your practice-management system, Google Business, and the social channels you post to. DreamCRM wraps what you already run; it doesn't replace it."
+        actions={pmsEligible && connected ? <SyncNowButton /> : null}
       />
 
-      {/* ── Google Business Profile (Zernio) — free on every plan tier ── */}
-      <GoogleBusinessCard connection={zernio} configured={zernioConfigured()} />
+      {/* ── The app-library grid (the new frame) ────────────────────────── */}
+      <IntegrationsLibrary
+        zernioConfigured={zernioConfigured()}
+        pmsEligible={pmsEligible}
+        pms={{
+          connected,
+          errored: connection?.lastSyncStatus === 'error',
+          providerLabel: connection
+            ? PROVIDER_LABELS[connection.provider as keyof typeof PROVIDER_LABELS] ?? connection.provider
+            : 'Open Dental',
+          isDemo: !!isDemo,
+        }}
+        gbp={{
+          connected: zernio.status === 'connected' && zernio.googleBusinessAccounts.length > 0,
+          error: zernio.status === 'error',
+          account: gbpAccount,
+        }}
+        socialChannels={socialChannels}
+        cap={{ allowed: cap.allowed, limit: cap.limit, current: cap.current, reason: cap.reason }}
+        entitlement={{
+          planName: getPlanById(planTier)?.name ?? planTier,
+          addonAvailable: socialAddonAvailable(planTier),
+          addonActive,
+          addonRaisesTo: socialConnectionLimit(planTier, true),
+          addonPriceDollars: addonCents != null ? Math.round(addonCents / 100) : null,
+          addonConfigured: socialAddonConfigured(),
+          managedBilling: !profileRow?.stripeSubscriptionId,
+        }}
+        justConnected={justConnected}
+        atLimit={atLimit}
+        routeError={one(sp.zernioError)}
+      />
 
+      {/* ── Open Dental deep management — the "Manage" detail, server-rendered.
+          PMS is Premium; below-Premium clinics see only the grid card + its
+          upgrade affordance (handled inside IntegrationsLibrary). ─────────── */}
       {pmsEligible && (
-        /* ── Trust banner (PMS-specific) ─────────────────────────── */
-        <div className="mb-6 bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/30 rounded-[var(--r-lg)] p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-            <ShieldIcon />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Sanctioned &amp; audit-clean</p>
-            <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">
-              Every read and write goes through Open Dental&apos;s official API, so each change is recorded in your Open
-              Dental Audit Trail. We never write directly to your database — the practice Open Dental itself warns against.
-              You can see every record we created in your PMS in the write-back log below.
-            </p>
-          </div>
-        </div>
-      )}
+        <div className="mt-12 pt-8 border-t border-[color:var(--color-hairline)]">
+          {connected ? (
+            <section id="open-dental-detail" className="scroll-mt-20">
+              <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                  {PROVIDER_LABELS[connection!.provider as keyof typeof PROVIDER_LABELS] ?? connection!.provider} · Connection details
+                </h2>
+                <EncodingLegend pills={PILL_LEGEND} />
+              </div>
 
-      {!pmsEligible ? (
-        /* Below-Premium clinics see the GBP card above + a calm upgrade prompt
-           for the PMS integration (instead of being redirected off the page). */
-        <section className="mb-8">
-          <div className="v2-well p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Connect your practice-management system</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">
-                Two-way Open Dental sync — patients, appointments, providers, and balances — is on the Premium plan.
-              </p>
-            </div>
-            <ActionButton variant="primary" size="sm" href="/settings/plans?upgrade=integrations">
-              Upgrade to Premium
-            </ActionButton>
-          </div>
-        </section>
-      ) : connected ? (
-        <>
-          {/* ── First-import progress (renders only mid-import) ────── */}
-          {importInProgress && (
-            <div className="mb-6 rounded-[var(--r-lg)] ring-1 ring-inset ring-indigo-500/30 bg-indigo-500/10 p-4 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
-                <RefreshIcon />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Importing your patients…</p>
-                <p className="text-sm mt-0.5 text-indigo-800/80 dark:text-indigo-300/80">
-                  Imported <span className="font-mono-num">{importCursor.toLocaleString()}</span> so far — large practices import in batches, and this continues
-                  automatically every hour. You can keep working; hit “Sync now” any time to push it along.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Sync-health alert (renders only when unhealthy) ───── */}
-          {health && health.severity !== 'info' && (
-            <div
-              className={[
-                'mb-6 rounded-[var(--r-lg)] ring-1 ring-inset p-4 flex items-start gap-3',
-                health.severity === 'error'
-                  ? 'bg-rose-500/10 ring-rose-500/30'
-                  : 'bg-amber-500/10 ring-amber-500/30',
-              ].join(' ')}
-            >
-              <div
-                className={[
-                  'w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center text-base font-semibold',
-                  health.severity === 'error'
-                    ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-                ].join(' ')}
-                aria-hidden="true"
-              >
-                !
-              </div>
-              <div className="flex-1 min-w-0">
-                <p
-                  className={[
-                    'text-sm font-semibold',
-                    health.severity === 'error' ? 'text-rose-800 dark:text-rose-200' : 'text-amber-800 dark:text-amber-200',
-                  ].join(' ')}
-                >
-                  Sync needs attention
-                </p>
-                <p
-                  className={[
-                    'text-sm mt-0.5',
-                    health.severity === 'error'
-                      ? 'text-rose-800/80 dark:text-rose-300/80'
-                      : 'text-amber-800/80 dark:text-amber-300/80',
-                  ].join(' ')}
-                >
-                  {health.message}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Status card (etched panel — status hero) ──────────── */}
-          <section className="v2-panel mb-6 p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                  <PlugIcon />
+              {/* ── Trust banner ──────────────────────────────────────────── */}
+              <div className="mb-6 bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/30 rounded-[var(--r-lg)] p-4 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                  <ShieldIcon />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-                      {PROVIDER_LABELS[connection!.provider as keyof typeof PROVIDER_LABELS] ?? connection!.provider}
-                    </h2>
-                    <StatusPill
-                      tone={connection!.lastSyncStatus === 'error' ? 'urgent' : 'ok'}
-                      label={connection!.lastSyncStatus === 'error' ? 'Last run failed' : 'Connected'}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {practiceTitle ? `${practiceTitle} · ` : ''}Last synced {fmtRelative(connection!.lastSyncAt)}
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Sanctioned &amp; audit-clean</p>
+                  <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">
+                    Every read and write goes through Open Dental&apos;s official API, so each change is recorded in your
+                    Open Dental Audit Trail. We never write directly to your database — the practice Open Dental itself
+                    warns against. You can see every record we created in your PMS in the write-back log below.
                   </p>
                 </div>
               </div>
-            </div>
-            <SyncControls
-              syncDirection={connection!.syncDirection as 'import' | 'two_way'}
-              autoSyncEnabled={connection!.autoSyncEnabled === 1}
-              isDemo={!!isDemo}
-            />
-            {connection!.lastError && (
-              <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">
-                Last sync error: {connection!.lastError}
-              </p>
-            )}
-          </section>
 
-          {/* ── KPIs ──────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-            <KpiStat label="Patients synced" value={counts.patients} sub={`${totals.patients} total in DreamCRM`} />
-            <KpiStat label="Appointments synced" value={counts.appointments} sub={`${totals.appointments} total`} />
-            <KpiStat label="Providers" value={counts.providers} sub="Linked to your agenda" />
-            <KpiStat
-              label="Awaiting write-back"
-              value={pendingWrites}
-              sub={pendingWrites > 0 ? 'Will push on next sync' : 'All bookings pushed'}
-              tone={pendingWrites > 0 ? 'warn' : 'ok'}
-            />
-          </div>
-
-          <ScopeSection />
-          <FieldMapSection />
-
-          {/* ── Inbound sync log ──────────────────────────────────── */}
-          <section className="mb-8">
-            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Sync history (PMS → DreamCRM)</h2>
-            {recentRuns.length === 0 ? (
-              <EmptyState
-                icon="🔄"
-                title="No syncs yet"
-                body="Hit “Sync now” to pull your patients and schedule into DreamCRM."
-              />
-            ) : (
-              <div className="v2-card overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
-                    <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
-                      <th className="px-3 py-2">When</th>
-                      <th className="px-3 py-2">Trigger</th>
-                      <th className="px-3 py-2">Result</th>
-                      <th className="px-3 py-2">Changes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentRuns.map((r) => (
-                      <tr key={r.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0">
-                        <td className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">
-                          {fmtRelative(r.startedAt)}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 capitalize">{r.trigger}</td>
-                        <td className="px-3 py-2.5">
-                          <StatusPill tone={RUN_TONE[r.status as SyncRunStatus]} label={SYNC_STATUS_LABELS[r.status as SyncRunStatus]} />
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{summarizeRun(r.counts)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          {/* ── Outbound write-back log ───────────────────────────── */}
-          <section className="mb-8">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Write-back log (DreamCRM → PMS)</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Every record we created in your PMS, via the API</p>
-            </div>
-            {recentWrites.length === 0 ? (
-              <EmptyState
-                icon="📤"
-                title="No write-backs yet"
-                body="New bookings from your website, portal, or front desk will appear here once they’re pushed to the PMS."
-              />
-            ) : (
-              <div className="v2-card overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
-                    <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
-                      <th className="px-3 py-2">Record</th>
-                      <th className="px-3 py-2">Type</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">PMS id</th>
-                      <th className="px-3 py-2">When</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentWrites.map((w) => (
-                      <tr key={w.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0">
-                        <td className="px-3 py-2.5">
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{w.label}</p>
-                          {w.error && <p className="text-xs text-rose-600 dark:text-rose-400">{w.error}</p>}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-                          {WRITE_OP_ENTITY_LABELS[w.entityType as keyof typeof WRITE_OP_ENTITY_LABELS] ?? w.entityType}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <StatusPill tone={WRITE_TONE[w.status]} label={WRITE_OP_STATUS_LABELS[w.status]} />
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 font-mono-num">{w.externalId ?? '—'}</td>
-                        <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">{fmtRelative(w.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
-      ) : (
-        <>
-          {/* ── Connect (Open Dental) ─────────────────────────────── */}
-          <section className="mb-8">
-            <ConnectPanel configured={configured} />
-          </section>
-
-          <ScopeSection />
-
-          {/* ── Other PMSes (honest roadmap) ──────────────────────── */}
-          <section className="mb-8">
-            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Other systems</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {PMS_PROVIDERS.filter((p) => p.id !== 'open_dental').map((p) => (
-                <div key={p.id} className="v2-card p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{p.name}</h3>
-                    <AvailabilityPill availability={p.availability} />
+              {/* ── First-import progress (renders only mid-import) ────── */}
+              {importInProgress && (
+                <div className="mb-6 rounded-[var(--r-lg)] ring-1 ring-inset ring-indigo-500/30 bg-indigo-500/10 p-4 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
+                    <RefreshIcon />
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">{p.blurb}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {p.connection}
-                    {p.note ? ` · ${p.note}` : ''}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Importing your patients…</p>
+                    <p className="text-sm mt-0.5 text-indigo-800/80 dark:text-indigo-300/80">
+                      Imported <span className="font-mono-num">{importCursor.toLocaleString()}</span> so far — large
+                      practices import in batches, and this continues automatically every hour. You can keep working; hit
+                      “Sync now” any time to push it along.
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        </>
-      )}
+              )}
 
-      {/* ── Coming next (PMS roadmap) ─────────────────────────────── */}
-      {pmsEligible && (
-        <section>
-          <div className="v2-well p-5">
-            <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
-            <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-              <li>· Near-real-time sync via Open Dental webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
-              <li>· Dentrix Ascend (cloud REST API — pending Henry Schein One partner approval)</li>
-              <li>· Eaglesoft / Dentrix desktop / Curve via a signed local connector per office</li>
-              <li>· Configurable field mapping (today the Open Dental mapping is fixed + shown in full above)</li>
-            </ul>
-          </div>
-        </section>
+              {/* ── Sync-health alert (renders only when unhealthy) ───── */}
+              {health && health.severity !== 'info' && (
+                <div
+                  className={[
+                    'mb-6 rounded-[var(--r-lg)] ring-1 ring-inset p-4 flex items-start gap-3',
+                    health.severity === 'error'
+                      ? 'bg-rose-500/10 ring-rose-500/30'
+                      : 'bg-amber-500/10 ring-amber-500/30',
+                  ].join(' ')}
+                >
+                  <div
+                    className={[
+                      'w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center text-base font-semibold',
+                      health.severity === 'error'
+                        ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+                    ].join(' ')}
+                    aria-hidden="true"
+                  >
+                    !
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={[
+                        'text-sm font-semibold',
+                        health.severity === 'error' ? 'text-rose-800 dark:text-rose-200' : 'text-amber-800 dark:text-amber-200',
+                      ].join(' ')}
+                    >
+                      Sync needs attention
+                    </p>
+                    <p
+                      className={[
+                        'text-sm mt-0.5',
+                        health.severity === 'error'
+                          ? 'text-rose-800/80 dark:text-rose-300/80'
+                          : 'text-amber-800/80 dark:text-amber-300/80',
+                      ].join(' ')}
+                    >
+                      {health.message}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Status card (etched panel — status hero) ──────────── */}
+              <section className="v2-panel mb-6 p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      <PlugIcon />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                          {PROVIDER_LABELS[connection!.provider as keyof typeof PROVIDER_LABELS] ?? connection!.provider}
+                        </h3>
+                        <StatusPill
+                          tone={connection!.lastSyncStatus === 'error' ? 'urgent' : 'ok'}
+                          label={connection!.lastSyncStatus === 'error' ? 'Last run failed' : 'Connected'}
+                        />
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {practiceTitle ? `${practiceTitle} · ` : ''}Last synced {fmtRelative(connection!.lastSyncAt)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <SyncControls
+                  syncDirection={connection!.syncDirection as 'import' | 'two_way'}
+                  autoSyncEnabled={connection!.autoSyncEnabled === 1}
+                  isDemo={!!isDemo}
+                />
+                {connection!.lastError && (
+                  <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">
+                    Last sync error: {connection!.lastError}
+                  </p>
+                )}
+              </section>
+
+              {/* ── KPIs ──────────────────────────────────────────────── */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+                <KpiStat label="Patients synced" value={counts.patients} sub={`${totals.patients} total in DreamCRM`} />
+                <KpiStat label="Appointments synced" value={counts.appointments} sub={`${totals.appointments} total`} />
+                <KpiStat label="Providers" value={counts.providers} sub="Linked to your agenda" />
+                <KpiStat
+                  label="Awaiting write-back"
+                  value={pendingWrites}
+                  sub={pendingWrites > 0 ? 'Will push on next sync' : 'All bookings pushed'}
+                  tone={pendingWrites > 0 ? 'warn' : 'ok'}
+                />
+              </div>
+
+              <ScopeSection />
+              <FieldMapSection />
+
+              {/* ── Inbound sync log ──────────────────────────────────── */}
+              <section className="mb-8">
+                <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Sync history (PMS → DreamCRM)</h2>
+                {recentRuns.length === 0 ? (
+                  <EmptyState
+                    icon="🔄"
+                    title="No syncs yet"
+                    body="Hit “Sync now” to pull your patients and schedule into DreamCRM."
+                  />
+                ) : (
+                  <div className="v2-card overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
+                        <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+                          <th className="px-3 py-2">When</th>
+                          <th className="px-3 py-2">Trigger</th>
+                          <th className="px-3 py-2">Result</th>
+                          <th className="px-3 py-2">Changes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentRuns.map((r) => (
+                          <tr key={r.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0">
+                            <td className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">
+                              {fmtRelative(r.startedAt)}
+                            </td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 capitalize">{r.trigger}</td>
+                            <td className="px-3 py-2.5">
+                              <StatusPill tone={RUN_TONE[r.status as SyncRunStatus]} label={SYNC_STATUS_LABELS[r.status as SyncRunStatus]} />
+                            </td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{summarizeRun(r.counts)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              {/* ── Outbound write-back log ───────────────────────────── */}
+              <section className="mb-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Write-back log (DreamCRM → PMS)</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Every record we created in your PMS, via the API</p>
+                </div>
+                {recentWrites.length === 0 ? (
+                  <EmptyState
+                    icon="📤"
+                    title="No write-backs yet"
+                    body="New bookings from your website, portal, or front desk will appear here once they’re pushed to the PMS."
+                  />
+                ) : (
+                  <div className="v2-card overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
+                        <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+                          <th className="px-3 py-2">Record</th>
+                          <th className="px-3 py-2">Type</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">PMS id</th>
+                          <th className="px-3 py-2">When</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentWrites.map((w) => (
+                          <tr key={w.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0">
+                            <td className="px-3 py-2.5">
+                              <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{w.label}</p>
+                              {w.error && <p className="text-xs text-rose-600 dark:text-rose-400">{w.error}</p>}
+                            </td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+                              {WRITE_OP_ENTITY_LABELS[w.entityType as keyof typeof WRITE_OP_ENTITY_LABELS] ?? w.entityType}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <StatusPill tone={WRITE_TONE[w.status]} label={WRITE_OP_STATUS_LABELS[w.status]} />
+                            </td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 font-mono-num">{w.externalId ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">{fmtRelative(w.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              {/* ── Coming next (PMS roadmap) ─────────────────────────── */}
+              <section className="mt-8">
+                <div className="v2-well p-5">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
+                  <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                    <li>· Near-real-time sync via Open Dental webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
+                    <li>· Configurable field mapping (today the Open Dental mapping is fixed + shown in full above)</li>
+                  </ul>
+                </div>
+              </section>
+            </section>
+          ) : (
+            /* Unconnected (Premium) — the connect form + scope, anchored from
+               the Open Dental card's "Connect" button. */
+            <section id="connect-open-dental" className="scroll-mt-20 space-y-8">
+              <ConnectPanel configured={configured} />
+              <ScopeSection />
+            </section>
+          )}
+        </div>
       )}
     </div>
   )
@@ -523,16 +574,6 @@ function FieldMapSection() {
       </div>
     </section>
   )
-}
-
-function AvailabilityPill({ availability }: { availability: PmsAvailability }) {
-  const map: Record<PmsAvailability, { label: string; tone: Tone }> = {
-    live: { label: 'Available', tone: 'ok' },
-    request_access: { label: 'Request access', tone: 'info' },
-    roadmap: { label: 'On the roadmap', tone: 'neutral' },
-  }
-  const m = map[availability]
-  return <StatusPill tone={m.tone} label={m.label} />
 }
 
 function ScopeIcon({ icon }: { icon: SyncedEntity['icon'] }) {

@@ -287,13 +287,13 @@ describe('Social-performance band (Phase 3 PR 4)', () => {
     expect(within(section).getByText('@dreamdental')).toBeTruthy()
   })
 
-  it('shows a connect-prompt to /channels when no social channel is connected (no dead zeros)', async () => {
+  it('shows a connect-prompt to /integrations when no social channel is connected (no dead zeros)', async () => {
     socialMetricsMock.mockResolvedValue({ connected: false, isDemo: false, platforms: [], windowDays: 30 })
     await renderPage('30', baseAnalytics())
     const section = screen.getByText('Social performance').closest('section')!
     expect(within(section).getByText(/Connect a social channel/i)).toBeTruthy()
-    const link = within(section).getByText('Channels').closest('a') as HTMLAnchorElement
-    expect(link.getAttribute('href')).toBe('/channels')
+    const link = within(section).getByText('Integrations').closest('a') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('/integrations')
   })
 
   it('a per-platform error tile shows an honest "couldn\'t load" note, not fake zeros-as-data', async () => {

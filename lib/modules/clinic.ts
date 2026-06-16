@@ -65,12 +65,12 @@ export const clinicModules: ModuleRegistry = {
     // Social Posts is the unified multi-platform composer + content calendar —
     // compose once → publish/schedule to Google Business + the connected socials.
     // Posting is gated by what's CONNECTED (cap enforced at connect-time on
-    // /channels), so NO minPlan. See lib/types/social-entitlements.ts.
+    // Integrations), so NO minPlan. See lib/types/social-entitlements.ts.
     { id: 'social_posts',      path: '/social-posts',      label: 'Social Posts',     section: 'Growth',   icon: 'megaphone',status: 'live' },
-    // Channels is the connect surface for Google Business (free, every tier) +
-    // the social platforms (self-gated by the plan's social-connection cap — Basic
-    // shows an upgrade CTA), so NO minPlan. See lib/types/social-entitlements.ts.
-    { id: 'channels',          path: '/channels',          label: 'Channels',         section: 'Growth',   icon: 'plug',     status: 'live' },
+    // (The "Channels" connect surface folded into Integrations — the app-library
+    //  there is now the single place to connect Google Business + social, so
+    //  there's no separate sidebar entry. Connecting is owner/admin on any plan;
+    //  social is bounded by the per-plan cap. See lib/types/social-entitlements.ts.)
     { id: 'analytics',         path: '/analytics',         label: 'Analytics',        section: 'Growth',   icon: 'chart',    status: 'live', minPlan: 'premium' },
 
     // ── Website (the trunk) ────────────────────────────────────────────

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * Channels surface server actions — refresh + disconnect per platform. Clinic +
- * owner/admin on ANY plan (GBP free; the social cap is enforced in the connect
- * ROUTE, so disconnect/refresh here are never cap-gated). Off-list platforms are
- * rejected defensively. `{ ok | error }` shape.
+ * Channel connect/disconnect server actions — now consolidated into the
+ * Integrations module (the /channels surface folded into /integrations). Clinic +
+ * owner/admin on ANY plan (GBP free; the per-platform social cap is enforced in
+ * the connect ROUTE, so refresh/disconnect here are never cap-gated). Off-list
+ * platforms are rejected defensively. `{ ok | error }` shape.
  */
 
 type Ctx = {
@@ -29,8 +30,21 @@ const zernioSvc = vi.hoisted(() => ({
   disconnectPlatform: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@/lib/services/zernio', () => zernioSvc)
+// The integrations actions also import the PMS service (other actions in the
+// file). Stub it so importing the module doesn't pull the real DB layer.
+vi.mock('@/lib/services/pms', () => ({
+  connectOpenDental: vi.fn(),
+  disconnectPms: vi.fn(),
+  runImport: vi.fn(),
+  setAutoSync: vi.fn(),
+  setSyncDirection: vi.fn(),
+}))
+vi.mock('@/lib/services/social-billing', () => ({
+  addSocialAddon: vi.fn(),
+  removeSocialAddon: vi.fn(),
+}))
 
-import { refreshChannelsAction, disconnectChannelAction } from '@/app/(default)/channels/actions'
+import { refreshChannelsAction, disconnectChannelAction } from '@/app/(default)/integrations/actions'
 
 beforeEach(() => {
   zernioSvc.syncConnectedAccounts.mockClear()
@@ -104,5 +118,42 @@ describe('disconnectChannelAction', () => {
     tenantCtx!.tenantType = 'platform'
     const r = await disconnectChannelAction('googlebusiness')
     expect(r.ok).toBe(false)
+  })
+})
+
+describe('disconnectZernioGoogleAction (GBP wrapper)', () => {
+  it('disconnects Google Business via the thin wrapper', async () => {
+    const { disconnectZernioGoogleAction } = await import('@/app/(default)/integrations/actions')
+    const r = await disconnectZernioGoogleAction()
+    expect(r.ok).toBe(true)
+    expect(zernioSvc.disconnectPlatform).toHaveBeenCalledWith('org_1', 'googlebusiness')
+  })
+})
+
+describe('social add-on actions (consolidated into Integrations)', () => {
+  it('buySocialAddonAction adds the add-on for a clinic owner', async () => {
+    const billing = await import('@/lib/services/social-billing')
+    const { buySocialAddonAction } = await import('@/app/(default)/integrations/actions')
+    const r = await buySocialAddonAction()
+    expect(r.ok).toBe(true)
+    expect(billing.addSocialAddon).toHaveBeenCalledWith('org_1')
+  })
+
+  it('cancelSocialAddonAction removes the add-on for a clinic admin', async () => {
+    tenantCtx!.role = 'admin'
+    const billing = await import('@/lib/services/social-billing')
+    const { cancelSocialAddonAction } = await import('@/app/(default)/integrations/actions')
+    const r = await cancelSocialAddonAction()
+    expect(r.ok).toBe(true)
+    expect(billing.removeSocialAddon).toHaveBeenCalledWith('org_1')
+  })
+
+  it('buySocialAddonAction rejects a member role', async () => {
+    tenantCtx!.role = 'member'
+    const billing = await import('@/lib/services/social-billing')
+    const { buySocialAddonAction } = await import('@/app/(default)/integrations/actions')
+    const r = await buySocialAddonAction()
+    expect(r.ok).toBe(false)
+    expect(billing.addSocialAddon).not.toHaveBeenCalled()
   })
 })
