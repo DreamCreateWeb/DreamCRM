@@ -59,6 +59,7 @@ const LIBRARY: ServiceLibraryEntryWithStatus[] = [
     status: 'active',
     submittedByOrgId: null,
     reviewNotes: null,
+    editedByAdmin: false,
     createdAt: null,
     updatedAt: null,
   },

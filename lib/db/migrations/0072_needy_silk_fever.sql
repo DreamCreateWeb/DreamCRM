@@ -1,0 +1,1 @@
+ALTER TABLE "service_library" ADD COLUMN "edited_by_admin" boolean DEFAULT false NOT NULL;

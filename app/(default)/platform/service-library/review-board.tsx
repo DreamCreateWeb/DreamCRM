@@ -7,6 +7,7 @@ import {
   archiveLibraryEntryAction,
   rejectLibraryEntryAction,
 } from './admin-actions'
+import LibraryEntryEditor from './library-entry-editor'
 import { type Tone } from '@/lib/ui/encodings'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -43,6 +44,7 @@ const TAB_LABELS: Record<Tab, string> = {
 export default function ReviewBoard({ entries, orgNames }: Props) {
   const [tab, setTab] = useState<Tab>('pending')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [editing, setEditing] = useState<ServiceLibraryEntryWithStatus | null>(null)
   const [toast, setToast] = useState<{ kind: 'ok' | 'urgent'; msg: string } | null>(null)
   const [, startTransition] = useTransition()
   const [busySlug, setBusySlug] = useState<string | null>(null)
@@ -126,6 +128,11 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
                       <span className="text-xs uppercase tracking-wide bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded px-1.5 py-0.5">
                         origin: {entry.origin}
                       </span>
+                      {entry.editedByAdmin && (
+                        <span className="text-xs uppercase tracking-wide bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 rounded px-1.5 py-0.5">
+                          Edited ✨
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
                       {entry.shortDescription}
@@ -146,6 +153,11 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
 
                 {isExpanded && (
                   <div className="border-t border-gray-200 dark:border-gray-700/60 p-4 space-y-4">
+                    <div className="flex justify-end">
+                      <ActionButton variant="secondary" size="sm" onClick={() => setEditing(entry)}>
+                        ✏️ Edit content
+                      </ActionButton>
+                    </div>
                     <EntryPreview entry={entry} />
                     <ActionRow
                       entry={entry}
@@ -190,6 +202,18 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
             )
           })}
         </div>
+      )}
+
+      {editing && (
+        <LibraryEntryEditor
+          key={editing.slug}
+          entry={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            setToast({ kind: 'ok', msg: 'Default updated — every clinic starts from this now.' })
+          }}
+        />
       )}
 
       {toast && (

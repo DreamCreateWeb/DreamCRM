@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, jsonb, index, uniqueIndex, boolean } from 'drizzle-orm/pg-core'
 import { organization } from './auth'
 
 // Clinic-specific profile data that extends an organization where type='clinic'.
@@ -403,6 +403,11 @@ export const serviceLibrary = pgTable(
     // and reject so the audit trail is honest about why an entry landed
     // where it did.
     reviewNotes: text('review_notes'),
+    // True once a platform admin hand-edits this entry's canonical content in
+    // the dashboard. The deploy-time seedServiceLibrary() then STOPS refreshing
+    // this row from the in-code SERVICE_LIBRARY_SEED, so the dashboard edit
+    // becomes the durable default every clinic starts from.
+    editedByAdmin: boolean('edited_by_admin').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
