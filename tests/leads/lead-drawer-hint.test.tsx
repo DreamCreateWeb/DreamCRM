@@ -51,9 +51,10 @@ describe('LeadDrawer — existing-patient hint on open', () => {
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalledWith('lead_1'))
     const hint = await screen.findByText(/Looks like an existing patient/)
     expect(hint).toBeInTheDocument()
-    // v2: info tone moved sky → indigo (teal is the brand; sky/teal collide).
-    expect(hint.closest('div')?.className).toContain('text-indigo-700')
-    expect(hint.closest('div')?.className).not.toContain('sky')
+    // The chip carries the INFO tone — "ball is theirs / just useful context",
+    // never warn (we don't owe action). Asserting the semantic tone instead of
+    // the color class keeps it pinned through a restyle.
+    expect(hint.closest('[data-tone]')?.getAttribute('data-tone')).toBe('info')
   })
 
   it('shows no chip when there is no match', async () => {

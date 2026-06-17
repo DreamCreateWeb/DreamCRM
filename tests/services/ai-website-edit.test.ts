@@ -117,6 +117,7 @@ describe('applyAiWebsiteEdit', () => {
   it('writes a known copy key into copy_overrides + anchors to it', async () => {
     state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'copy', key: 'home.contactTitle', value: 'Come see us' }] }
     const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(r.ok).toBe(true)
     expect((capturedPatch?.copyOverrides as Record<string, string>)['home.contactTitle']).toBe('Come see us')
     if (r.ok) expect(r.anchor).toBe('copy:home.contactTitle')
   })
@@ -161,6 +162,7 @@ describe('applyAiWebsiteEdit', () => {
   it('derives the page from a subpage copy key (model page ignored)', async () => {
     state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'copy', key: 'insurance.heading', value: 'Insurance, simplified.' }] }
     const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.page).toBe('/insurance')
       expect(r.anchor).toBe('copy:insurance.heading')
@@ -170,6 +172,7 @@ describe('applyAiWebsiteEdit', () => {
   it('sets payment methods + routes to the payment page', async () => {
     state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'paymentMethods', items: ['Cash', 'All major credit cards'] }] }
     const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(r.ok).toBe(true)
     expect(capturedPatch?.paymentMethods).toEqual(['Cash', 'All major credit cards'])
     if (r.ok) expect(r.page).toBe('/payment-financing')
   })
@@ -212,6 +215,7 @@ describe('applyAiWebsiteEdit', () => {
   it('returns the previous values (before) for undo', async () => {
     state.toolInput = { summary: 'x', page: '/', edits: [{ type: 'field', field: 'tagline', value: 'New headline' }] }
     const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(r.ok).toBe(true)
     if (r.ok) expect(r.before.tagline).toBe('Old headline')
   })
 
@@ -229,9 +233,11 @@ describe('applyAiWebsiteEdit', () => {
       edits: [{ type: 'faq', faq: [{ category: 'Booking', question: 'Do you take walk-ins?', answer: 'Same-week appointments are usually available.' }] }],
     }
     const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(r.ok).toBe(true)
     const faq = capturedPatch?.faq as Array<{ id: string; question: string }>
     expect(faq).toHaveLength(1)
-    expect(faq[0].id).toBeTruthy()
+    expect(typeof faq[0].id).toBe('string')
+    expect(faq[0].id.length).toBeGreaterThan(0)
     expect(faq[0].question).toBe('Do you take walk-ins?')
     if (r.ok) expect(r.page).toBe('/faq')
   })
@@ -246,6 +252,7 @@ describe('applyAiWebsiteEdit', () => {
       ],
     }
     const r = await applyAiWebsiteEdit('org_1', 'x')
+    expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.edits[0]).toMatchObject({ anchor: 'tagline', page: '/' })
       expect(r.edits[1]).toMatchObject({ anchor: 'copy:insurance.heading', page: '/insurance' })

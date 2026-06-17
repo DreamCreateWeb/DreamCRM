@@ -111,24 +111,27 @@ describe('LeadsView — list + filters + drawer trigger', () => {
     expect(badges).toHaveLength(1)
   })
 
-  it('tones the status pills per the contract — Contacted is info/indigo (ball is theirs), not amber', () => {
-    // Tone remap: new=violet (special), contacted=indigo (info — amber would
-    // imply WE still owe action; v2 moved info sky→indigo), converted=emerald
-    // (ok), archived=gray.
+  it('tones the status pills per the SEMANTIC contract (asserts data-tone, not colors)', () => {
+    // The meaning is the TONE, not the paint: new=special, contacted=info
+    // (ball is THEIRS — `warn` would wrongly imply WE still owe action),
+    // converted=ok, archived=neutral. Asserting data-tone keeps this pinned to
+    // the contract even if the palette is restyled (the v2 info sky→indigo move
+    // would have silently passed an old `text-sky-700` check).
     const rows = [
-      makeRow({ id: 'l1', name: 'New Person', status: 'new' }),
+      makeRow({ id: 'l1', name: 'New Person', status: 'new', ageHours: 6 }),
       makeRow({ id: 'l2', name: 'Contacted Person', status: 'contacted' }),
       makeRow({ id: 'l3', name: 'Converted Person', status: 'converted' }),
       makeRow({ id: 'l4', name: 'Archived Person', status: 'archived' }),
     ]
     render(<LeadsView rows={rows} counts={{ ...baseCounts, total: 4 }} status="all" search="" />)
-    const pillFor = (name: string) =>
-      // the row's status pill sits right after the patient name in the header row
-      screen.getByText(name).parentElement!.querySelector('span.rounded-full') as HTMLElement
-    expect(pillFor('Contacted Person').className).toContain('text-indigo-700')
-    expect(pillFor('Contacted Person').className).not.toContain('amber')
-    expect(pillFor('New Person').className).toContain('text-violet-700')
-    expect(pillFor('Converted Person').className).toContain('text-emerald-700')
+    // The row's STATUS pill is the first tone-bearing pill after the name.
+    const toneFor = (name: string) =>
+      screen.getByText(name).parentElement!.querySelector('[data-tone]')!.getAttribute('data-tone')
+    expect(toneFor('Contacted Person')).toBe('info')
+    expect(toneFor('Contacted Person')).not.toBe('warn') // never "we owe action"
+    expect(toneFor('New Person')).toBe('special')
+    expect(toneFor('Converted Person')).toBe('ok')
+    expect(toneFor('Archived Person')).toBe('neutral')
   })
 
   it('shows a link back to the converted patient on converted rows', () => {
