@@ -30,11 +30,24 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
   const flash = (m: string) => setToast(m)
 
   return (
-    <div className="flex-1 p-6 space-y-10">
-      <SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} />
-      <ProvidersSection providers={initial.providers} flash={flash} />
-      <VisitTypesSection initial={initial.visitTypes} flash={flash} />
-      <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} flash={flash} />
+    <div className="flex-1 p-6 space-y-8">
+      {!initial.canEdit && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          You can view these settings. Only clinic owners and admins can make changes.
+        </div>
+      )}
+      {/* fieldset[disabled] natively disables every input/select/button inside —
+          one gate for view-only (member) access; mutations are also re-checked
+          server-side. */}
+      <fieldset
+        disabled={!initial.canEdit}
+        className={`min-w-0 m-0 border-0 p-0 space-y-10 ${initial.canEdit ? '' : 'opacity-75'}`}
+      >
+        <SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} />
+        <ProvidersSection providers={initial.providers} flash={flash} />
+        <VisitTypesSection initial={initial.visitTypes} flash={flash} />
+        <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} flash={flash} />
+      </fieldset>
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
   )

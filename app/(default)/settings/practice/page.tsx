@@ -15,7 +15,9 @@ import PracticePanel from './practice-panel'
 export default async function PracticeSettings() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
-  if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/settings/account')
+  // Any clinic staff can VIEW practice setup (it's a clinic-wide surface);
+  // mutations stay owner/admin-gated in the actions. The panel shows a
+  // read-only notice + disables controls for non-editors (data.canEdit).
 
   const data = await getPracticeSettings()
 

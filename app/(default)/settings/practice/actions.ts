@@ -14,13 +14,22 @@ import {
 import { normalizeChairCount } from '@/lib/services/booking'
 import { resolveVisitTypes, type VisitType } from '@/lib/types/visit-types'
 
-/** owner/admin gate, clinic tenant only — mirrors updateClinicProfile. */
+/** owner/admin gate, clinic tenant only — mirrors updateClinicProfile.
+ *  Every MUTATION goes through this. */
 async function requirePracticeAdmin() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') throw new Error('Only clinic tenants can edit practice settings')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
     throw new Error('Only owners and admins can edit practice settings')
   }
+  return ctx
+}
+
+/** VIEW gate — any staff member of the clinic may VIEW practice settings (it's
+ *  a clinic-wide surface); only owners/admins can change them (above). */
+async function requirePracticeView() {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') throw new Error('Only clinic tenants can view practice settings')
   return ctx
 }
 
@@ -156,10 +165,12 @@ export interface PracticeSettingsData {
   recallDefaultMonths: number
   /** Public-website online self-scheduling (the live slot picker on /book). */
   selfBookingEnabled: boolean
+  /** Whether the current user can change these (owner/admin). Members can view. */
+  canEdit: boolean
 }
 
 export async function getPracticeSettings(): Promise<PracticeSettingsData> {
-  const ctx = await requirePracticeAdmin()
+  const ctx = await requirePracticeView()
   const [providers, [profile]] = await Promise.all([
     listProviders(ctx.organizationId),
     db
@@ -180,5 +191,6 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
     recallDefaultMonths: profile?.recallDefaultMonths ?? 6,
     // null/undefined → enabled, matching the not-null default(true) column.
     selfBookingEnabled: profile?.selfBookingEnabled !== false,
+    canEdit: ctx.role === 'owner' || ctx.role === 'admin',
   }
 }
