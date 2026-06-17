@@ -7,6 +7,7 @@ import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { getInvitationDetails, type InvitationDetails } from './invite-details'
 import { linkPatientRecord } from './link-patient'
 import { acceptPatientPortalInvite } from './patient-invite'
+import { acceptTeamInvite } from './team-invite'
 import AuthHeader from '../auth-header'
 import AuthImage from '../auth-image'
 
@@ -135,12 +136,13 @@ function AcceptInviteInner() {
         setStep({ type: 'success', orgName, isClinic: clinic, toWelcome: false })
         return
       }
-      const result = await authClient.organization.acceptInvitation({ invitationId: token })
-      if (result.error) {
-        setStep({
-          type: 'error',
-          message: result.error.message ?? 'Could not accept the invitation.',
-        })
+      // Our own server-side accept (NOT better-auth's acceptInvitation, which
+      // could error after the account was already created + signed in, orphaning
+      // the user with no org → duplicate clinic in onboarding). This inserts the
+      // membership + points the session at the org directly.
+      const result = await acceptTeamInvite(token)
+      if (!result.ok) {
+        setStep({ type: 'error', message: result.error })
         return
       }
       // Link the patient record (org resolved from the invite token) BEFORE
