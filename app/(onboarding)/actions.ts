@@ -162,6 +162,14 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     orgId = existing?.organizationId ?? null
   }
 
+  // Defense in depth behind dashboard-shell: if this org-less user was INVITED
+  // to an existing clinic, accept that instead of minting a duplicate.
+  if (!orgId) {
+    const { findPendingInviteForEmail } = await import('@/lib/auth/pending-invite')
+    const pending = await findPendingInviteForEmail(session.user.email)
+    if (pending) redirect(`/accept-invite?token=${pending.id}`)
+  }
+
   if (!orgId) {
     const orgName = data.practiceName?.trim() || `${session.user.name || 'My'} Clinic`
     // Prefer the slug they picked in step 3 (validated + availability-checked

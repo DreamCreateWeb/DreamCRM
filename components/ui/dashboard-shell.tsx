@@ -9,6 +9,7 @@ import KeyboardShortcuts from './keyboard-shortcuts'
 import { TrailProvider } from '@/app/trail-context'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
+import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
 import { applyBundleGate, getVisibleModules } from '@/lib/modules'
 import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
 import type { BundleId } from '@/lib/integrations/bundles'
@@ -39,7 +40,14 @@ export default async function DashboardShell({
   if (!session?.user) redirect('/signin')
 
   const ctx = await getTenantContext()
-  if (!ctx) redirect('/onboarding-01')
+  if (!ctx) {
+    // Org-less, but were they INVITED to an existing clinic? If so, send them to
+    // accept it — NOT into onboarding, which would create a duplicate clinic
+    // (the first-real-clinic bug). Only fall through to onboarding when there's
+    // genuinely no pending invite.
+    const pending = await findPendingInviteForEmail(session.user.email)
+    redirect(pending ? `/accept-invite?token=${pending.id}` : '/onboarding-01')
+  }
 
   // Plan/role visibility, then the integration-bundle feature gate: a clinic's
   // bundle-tagged modules (Social Posts, Shop) surface only once the bundle is

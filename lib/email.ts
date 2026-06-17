@@ -26,6 +26,71 @@ function htmlToText(html: string): string {
     .trim()
 }
 
+/**
+ * A bulletproof, Outlook-safe auth email (invite / magic-link / password reset).
+ *
+ * Old Outlook (desktop) renders with Word's engine: it ignores `max-width`,
+ * `border-radius`, and the `inline-block` padding on an `<a>` — so a styled
+ * link-button collapses to broken, often UN-CLICKABLE text and the whole layout
+ * loses formatting (exactly what the first real clinic saw). This shell uses:
+ *   - a FIXED-width `<table>` container (Outlook honors table widths, not
+ *     `max-width` on a div),
+ *   - a VML "roundrect" button for Outlook + a normal `<a>` for every other
+ *     client, so the call-to-action is a real clickable button everywhere, and
+ *   - a VISIBLE, copy-pasteable plain-text URL fallback — the link is always
+ *     reachable even if the button doesn't render (the manual copy-paste is
+ *     literally what rescued the first onboarding).
+ * Inline styles only; user content is escaped.
+ */
+function authEmailShell(opts: {
+  heading: string
+  introHtml: string
+  buttonUrl: string
+  buttonLabel: string
+  accent?: string | null
+  footnoteHtml?: string
+}): string {
+  const bg = opts.accent && /^#[0-9a-fA-F]{6}$/.test(opts.accent) ? opts.accent : '#1c1a17'
+  const url = opts.buttonUrl
+  const label = escapeHtml(opts.buttonLabel)
+  return `<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--[if mso]><style>body,table,td,a{font-family:Arial,Helvetica,sans-serif !important}</style><![endif]-->
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f5;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:480px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
+<tr><td style="padding:32px 28px;font-family:Arial,Helvetica,sans-serif;color:#1c1a17;">
+<h1 style="margin:0 0 14px;font-size:20px;font-weight:700;color:#111111;">${escapeHtml(opts.heading)}</h1>
+<div style="margin:0 0 26px;font-size:15px;line-height:1.55;color:#444444;">${opts.introHtml}</div>
+<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url}" style="height:46px;v-text-anchor:middle;width:260px;" arcsize="13%" stroke="f" fillcolor="${bg}">
+<w:anchorlock/>
+<center style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">${label}</center>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<a href="${url}" style="background:${bg};border-radius:8px;color:#ffffff;display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;line-height:46px;height:46px;text-align:center;text-decoration:none;width:260px;">${label}</a>
+<!--<![endif]-->
+<p style="margin:26px 0 0;font-size:13px;line-height:1.5;color:#666666;">
+Button not working? Copy and paste this link into your browser:<br>
+<a href="${url}" style="color:#2A7F8C;word-break:break-all;">${escapeHtml(url)}</a>
+</p>
+${opts.footnoteHtml ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#999999;">${opts.footnoteHtml}</p>` : ''}
+</td></tr>
+</table>
+<p style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#aaaaaa;">Dream Create</p>
+</td></tr>
+</table>
+</body>
+</html>`
+}
+
 // Single delivery path for all transactional email. Defaults to Resend;
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
 // AWS SDK never loads on the Resend path). `from` overrides the default
@@ -126,23 +191,15 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   await deliver({
     to,
     subject: 'Reset your DreamCRM password',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Reset your password</h2>
-        <p style="margin:0 0 24px;color:#444;line-height:1.5">
-          You requested a password reset for your DreamCRM account.
-          Click the button below to choose a new password.
-          This link expires in 1 hour.
-        </p>
-        <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
-          Reset password
-        </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#888">
-          If you didn't request this, you can safely ignore this email.
-          Your password won't change until you click the link above.
-        </p>
-      </div>
-    `,
+    html: authEmailShell({
+      heading: 'Reset your password',
+      introHtml:
+        'You requested a password reset for your DreamCRM account. Click below to choose a new password. This link expires in 1 hour.',
+      buttonUrl: resetUrl,
+      buttonLabel: 'Reset password',
+      footnoteHtml:
+        "If you didn't request this, you can safely ignore this email — your password won't change until you click the link above.",
+    }),
   })
 }
 
@@ -162,44 +219,27 @@ export async function sendMagicLinkEmail(to: string, url: string, sender?: Clini
       replyTo: sender.replyTo,
       gmail: sender.gmail,
       subject: `Sign in to ${sender.name}`,
-      html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
-        <h2 style="margin:0 0 16px;font-size:20px">Your sign-in link</h2>
-        <p style="margin:0 0 24px;line-height:1.55">
-          Tap below to sign in to your ${escapeHtml(sender.name)} patient portal —
-          no password needed. It works once and expires in 15 minutes.
-        </p>
-        <a href="${url}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
-          Sign me in
-        </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">
-          If you didn't ask for this, you can safely ignore it — nobody can
-          sign in without this exact link.
-        </p>
-      </div>
-    `,
+      html: authEmailShell({
+        heading: 'Your sign-in link',
+        introHtml: `Click below to sign in to your ${escapeHtml(sender.name)} patient portal — no password needed. It works once and expires in 15 minutes.`,
+        buttonUrl: url,
+        buttonLabel: 'Sign me in',
+        footnoteHtml: "If you didn't ask for this, you can safely ignore it — nobody can sign in without this exact link.",
+      }),
     })
     return
   }
   await deliver({
     to,
     subject: 'Your sign-in link',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Sign in with one tap</h2>
-        <p style="margin:0 0 24px;color:#444;line-height:1.5">
-          Here's the sign-in link you asked for — no password needed.
-          It works once and expires in 15 minutes.
-        </p>
-        <a href="${url}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
-          Sign me in
-        </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#888">
-          If you didn't ask for this, you can safely ignore it — nobody can
-          sign in without this exact link.
-        </p>
-      </div>
-    `,
+    html: authEmailShell({
+      heading: 'Sign in with one tap',
+      introHtml:
+        "Here's the sign-in link you asked for — no password needed. It works once and expires in 15 minutes.",
+      buttonUrl: url,
+      buttonLabel: 'Sign me in',
+      footnoteHtml: "If you didn't ask for this, you can safely ignore it — nobody can sign in without this exact link.",
+    }),
   })
 }
 
@@ -243,23 +283,18 @@ export interface InvitationEmailData {
 
 export async function sendInvitationEmail(to: string, data: InvitationEmailData) {
   const roleLabel = data.role.charAt(0).toUpperCase() + data.role.slice(1)
+  const org = escapeHtml(data.orgName)
+  const inviter = escapeHtml(data.inviterName)
   await deliver({
     to,
     subject: `${data.inviterName} invited you to join ${data.orgName} on DreamCRM`,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <h2 style="margin:0 0 16px;font-size:20px;color:#111">You're invited to join ${data.orgName}</h2>
-        <p style="margin:0 0 24px;color:#444;line-height:1.5">
-          <strong>${data.inviterName}</strong> has invited you to join <strong>${data.orgName}</strong> on DreamCRM as a <strong>${roleLabel}</strong>.
-        </p>
-        <a href="${data.inviteUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
-          Accept invitation
-        </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#888">
-          This invitation will expire in 48 hours. If you weren't expecting this, you can safely ignore it.
-        </p>
-      </div>
-    `,
+    html: authEmailShell({
+      heading: `You're invited to join ${data.orgName}`,
+      introHtml: `<strong>${inviter}</strong> has invited you to join <strong>${org}</strong> on DreamCRM as a <strong>${escapeHtml(roleLabel)}</strong>. Click below to set up your account and get started.`,
+      buttonUrl: data.inviteUrl,
+      buttonLabel: 'Accept invitation',
+      footnoteHtml: `If you weren't expecting this, you can safely ignore this email.`,
+    }),
   })
 }
 
