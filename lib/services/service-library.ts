@@ -10,6 +10,7 @@ import type {
   ServiceLibraryEntry,
   ServiceProcessStep,
 } from '@/lib/types/clinic-content'
+import { sanitizeServiceContent } from '@/lib/types/clinic-content'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 import {
   vetAndCleanNewService,
@@ -135,6 +136,10 @@ export interface ServiceLibraryEntryWithStatus extends ServiceLibraryEntry {
   /** Set on `origin='clinic'` entries — the org id of the submitting clinic. */
   submittedByOrgId: string | null
   reviewNotes: string | null
+  /** True once a platform admin hand-edited this entry's canonical content in
+   *  the dashboard — surfaced as a badge + suppresses the deploy-time seed
+   *  refresh for this row. */
+  editedByAdmin: boolean
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -149,6 +154,7 @@ function rowToEntryWithStatus(
       row.status === 'pending' ? 'pending' : row.status === 'archived' ? 'archived' : 'active',
     submittedByOrgId: row.submittedByOrgId ?? null,
     reviewNotes: row.reviewNotes ?? null,
+    editedByAdmin: row.editedByAdmin ?? false,
     createdAt: row.createdAt ?? null,
     updatedAt: row.updatedAt ?? null,
   }
@@ -261,6 +267,7 @@ function seedToWithStatus(entry: ServiceLibraryEntry): ServiceLibraryEntryWithSt
     status: 'active',
     submittedByOrgId: null,
     reviewNotes: null,
+    editedByAdmin: false,
     createdAt: null,
     updatedAt: null,
   }
@@ -296,9 +303,17 @@ export async function listAllLibraryEntriesForAdmin(): Promise<
  */
 export async function seedServiceLibrary(): Promise<void> {
   let existingSlugs: Set<string>
+  // Slugs a platform admin has hand-edited in the dashboard — we must NOT
+  // overwrite their canonical content with the in-code seed, or every deploy
+  // would silently undo their edits (the source of truth is now the dashboard
+  // for those rows).
+  let adminEditedSlugs: Set<string>
   try {
-    const existing = await db.select({ slug: serviceLibrary.slug }).from(serviceLibrary)
+    const existing = await db
+      .select({ slug: serviceLibrary.slug, editedByAdmin: serviceLibrary.editedByAdmin })
+      .from(serviceLibrary)
     existingSlugs = new Set(existing.map((r) => r.slug))
+    adminEditedSlugs = new Set(existing.filter((r) => r.editedByAdmin).map((r) => r.slug))
   } catch (err) {
     console.warn('[seedServiceLibrary] read failed', err)
     return
@@ -321,6 +336,8 @@ export async function seedServiceLibrary(): Promise<void> {
         status: 'active' as const,
       }
       if (existingSlugs.has(entry.slug)) {
+        // A dashboard edit wins — leave this row untouched.
+        if (adminEditedSlugs.has(entry.slug)) continue
         // Refresh canonical content (keep id + created_at). Only platform-origin
         // rows are touched — clinic-authored rows (1B) keep their content.
         await db
@@ -615,5 +632,92 @@ export async function rejectLibraryEntry(
   } catch (err) {
     console.warn('[rejectLibraryEntry] failed:', (err as Error).message)
     return { ok: false, error: 'Could not reject — please try again' }
+  }
+}
+
+/** The canonical fields a platform admin can edit on a library entry. The slug
+ *  is intentionally NOT here — it's the stable identity every clinic links to
+ *  (`librarySlug`) + the public detail-page URL, so renaming the service keeps
+ *  the slug. */
+export interface LibraryEntryEdit {
+  name: string
+  category: ServiceCategory
+  icon: string | null
+  shortDescription: string
+  heroBullets: string[]
+  body: string
+  processSteps: ServiceProcessStep[]
+  faq: ServiceFaqItem[]
+  relatedSlugs: string[]
+}
+
+/**
+ * Platform admin: overwrite an entry's canonical content (the default state
+ * EVERY clinic starts from when they pick this service). Sets `editedByAdmin`
+ * so the deploy-time seed stops refreshing this row from the in-code seed. Does
+ * NOT touch a clinic's per-site `customized` blob — clinics that already edited
+ * their own copy keep it; clinics on the library-default path (1A) pick up the
+ * new canon on their next render. Reuses `sanitizeServiceContent` so the canon
+ * obeys the same bounds as a per-clinic edit. Never throws.
+ */
+export async function updateLibraryEntry(
+  slug: string,
+  edit: LibraryEntryEdit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const clamp = (v: unknown, max: number) => (typeof v === 'string' ? v : '').trim().slice(0, max)
+
+  const name = clamp(edit.name, 120)
+  if (!name) return { ok: false, error: 'A service name is required' }
+  const shortDescription = clamp(edit.shortDescription, 280)
+  if (!shortDescription) return { ok: false, error: 'A short description is required' }
+  const category: ServiceCategory = edit.category === 'special' ? 'special' : 'core'
+  const icon = clamp(edit.icon, 8) || null
+
+  const content = sanitizeServiceContent({
+    heroBullets: edit.heroBullets,
+    body: edit.body,
+    processSteps: edit.processSteps,
+    faq: edit.faq,
+  })
+  if (!content.body) return { ok: false, error: 'The description can’t be empty' }
+  if (content.heroBullets.length === 0) return { ok: false, error: 'Add at least one highlight' }
+  if (content.processSteps.length === 0) return { ok: false, error: 'Add at least one “what to expect” step' }
+  if (content.faq.length === 0) return { ok: false, error: 'Add at least one question' }
+
+  // Related slugs — normalize to kebab, dedupe, drop self, cap. Unknown slugs
+  // simply don't render in the related-services carousel, so we don't hard-fail.
+  const relatedSlugs = Array.from(
+    new Set(
+      (Array.isArray(edit.relatedSlugs) ? edit.relatedSlugs : [])
+        .map((s) => slugify(s))
+        .filter(Boolean),
+    ),
+  )
+    .filter((s) => s !== slug)
+    .slice(0, 6)
+
+  try {
+    const result = await db
+      .update(serviceLibrary)
+      .set({
+        name,
+        category,
+        icon,
+        shortDescription,
+        heroBullets: content.heroBullets,
+        body: content.body,
+        processSteps: content.processSteps,
+        faq: content.faq,
+        relatedSlugs,
+        editedByAdmin: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(serviceLibrary.slug, slug))
+      .returning({ slug: serviceLibrary.slug })
+    if (result.length === 0) return { ok: false, error: 'Entry not found' }
+    return { ok: true }
+  } catch (err) {
+    console.warn('[updateLibraryEntry] failed:', (err as Error).message)
+    return { ok: false, error: 'Could not save — please try again' }
   }
 }

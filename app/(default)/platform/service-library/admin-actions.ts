@@ -5,6 +5,8 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   approveLibraryEntry,
   rejectLibraryEntry,
+  updateLibraryEntry,
+  type LibraryEntryEdit,
 } from '@/lib/services/service-library'
 
 /**
@@ -58,6 +60,22 @@ export async function archiveLibraryEntryAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await requirePlatformAdmin()
   const result = await rejectLibraryEntry(slug, reviewNote)
+  if (result.ok) revalidate()
+  return result
+}
+
+/**
+ * Platform admin: overwrite a library entry's canonical content — the default
+ * state every clinic starts from. Public clinic detail pages read the library
+ * live (SSR), so they pick up the change on next load; the settings picker is
+ * revalidated for the same reason.
+ */
+export async function updateLibraryEntryAction(
+  slug: string,
+  edit: LibraryEntryEdit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const result = await updateLibraryEntry(slug, edit)
   if (result.ok) revalidate()
   return result
 }
