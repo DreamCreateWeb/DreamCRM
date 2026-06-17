@@ -95,6 +95,7 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: 'Manual',
   lead_form: 'Contact form',
   invite: 'Invite',
+  website_request: 'Appointment request',
 }
 
 export default function PatientsList({

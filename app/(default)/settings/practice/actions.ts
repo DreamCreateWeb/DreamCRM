@@ -105,6 +105,27 @@ export async function saveVisitTypesAction(visitTypes: VisitType[]): Promise<Res
 
 // ----- Chairs + recall default ------------------------------------------
 
+/**
+ * Toggle public-website online self-scheduling. When off, the clinic's
+ * "Book a Visit" button shows a request-only form (lands as an inbox message)
+ * instead of the live slot picker. Revalidates the practice settings page; the
+ * public /book page is server-rendered fresh on each request so it picks up the
+ * change immediately.
+ */
+export async function saveSelfBookingAction(enabled: boolean): Promise<Result> {
+  const ctx = await requirePracticeAdmin()
+  try {
+    await db
+      .update(clinicProfile)
+      .set({ selfBookingEnabled: Boolean(enabled), updatedAt: new Date() })
+      .where(eq(clinicProfile.organizationId, ctx.organizationId))
+    revalidatePath('/settings/practice')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save booking setting' }
+  }
+}
+
 export async function savePracticeOpsAction(input: {
   chairCount: number
   recallDefaultMonths: number
@@ -133,6 +154,8 @@ export interface PracticeSettingsData {
   visitTypes: VisitType[]
   chairCount: number
   recallDefaultMonths: number
+  /** Public-website online self-scheduling (the live slot picker on /book). */
+  selfBookingEnabled: boolean
 }
 
 export async function getPracticeSettings(): Promise<PracticeSettingsData> {
@@ -144,6 +167,7 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
         chairCount: clinicProfile.chairCount,
         recallDefaultMonths: clinicProfile.recallDefaultMonths,
         visitTypeSettings: clinicProfile.visitTypeSettings,
+        selfBookingEnabled: clinicProfile.selfBookingEnabled,
       })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
@@ -154,5 +178,7 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
     visitTypes: resolveVisitTypes(profile?.visitTypeSettings ?? null),
     chairCount: normalizeChairCount(profile?.chairCount),
     recallDefaultMonths: profile?.recallDefaultMonths ?? 6,
+    // null/undefined → enabled, matching the not-null default(true) column.
+    selfBookingEnabled: profile?.selfBookingEnabled !== false,
   }
 }

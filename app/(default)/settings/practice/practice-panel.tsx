@@ -12,6 +12,7 @@ import {
   deactivateProviderAction,
   saveVisitTypesAction,
   savePracticeOpsAction,
+  saveSelfBookingAction,
 } from './actions'
 
 // Client-safe copy of the provider roles (the service module is server-only).
@@ -30,11 +31,84 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
 
   return (
     <div className="flex-1 p-6 space-y-10">
+      <SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} />
       <ProvidersSection providers={initial.providers} flash={flash} />
       <VisitTypesSection initial={initial.visitTypes} flash={flash} />
       <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} flash={flash} />
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
+  )
+}
+
+// ───────────────────────── Patient self-scheduling ─────────────────────────
+
+function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: string) => void }) {
+  const router = useRouter()
+  const [on, setOn] = useState(enabled)
+  const [pending, start] = useTransition()
+
+  function toggle(next: boolean) {
+    // Optimistic: flip immediately, revert on error so the switch never lies.
+    setOn(next)
+    start(async () => {
+      const r = await saveSelfBookingAction(next)
+      if (r.ok) {
+        flash(next ? 'Online booking turned on.' : 'Online booking turned off — requests now go to Messages.')
+        router.refresh()
+      } else {
+        setOn(!next)
+        flash(r.error)
+      }
+    })
+  }
+
+  return (
+    <section>
+      <SectionHeading
+        title="Patient self-scheduling"
+        hint="Controls what your website’s “Book a Visit” button does. Turn it off if you’d rather patients ask first and your front desk picks the time."
+      />
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label="Let patients book their own appointment time online"
+            disabled={pending}
+            onClick={() => toggle(!on)}
+            className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
+              on ? 'bg-teal-500' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                on ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+          <span className="text-sm">
+            <span className="font-medium text-gray-800 dark:text-gray-100">
+              Let patients book their own appointment time online
+            </span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+              {on ? (
+                <>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">On.</span>{' '}
+                  Your website shows a live calendar and patients pick an open time — it books straight into your schedule.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Off.</span>{' '}
+                  Your website shows a short request form (email required, phone optional) instead of a calendar. Each request lands in{' '}
+                  <span className="font-medium">Messages</span> and you reach out — by email, text, or in-app — to set the time.
+                </>
+              )}
+            </span>
+          </span>
+        </label>
+      </div>
+    </section>
   )
 }
 

@@ -174,6 +174,17 @@ export const clinicProfile = pgTable('clinic_profile', {
   // engine still wins when an Open Dental due date is synced.
   recallDefaultMonths: integer('recall_default_months'),
 
+  // Public-website online self-scheduling switch. true (the default) = the
+  // /book page shows the live slot picker and patients pick their own time.
+  // false = the website's "Book a Visit" button leads to a request-only contact
+  // form (email REQUIRED, phone optional) and the submission lands as an inbound
+  // message in /messages instead of creating an appointment — the front desk
+  // reaches out (email / SMS / in-app) to schedule. Plenty of practices never
+  // want patients self-booking (PMS owns the chair); this is their switch.
+  // NOT NULL default true so every existing clinic keeps self-booking on with
+  // no backfill. Settings → Practice → "Patient self-scheduling".
+  selfBookingEnabled: boolean('self_booking_enabled').notNull().default(true),
+
   // Operating hours stored as JSON: { mon: { open: '09:00', close: '17:00' }, ... }
   hours: jsonb('hours'),
   // IANA timezone the clinic's hours + appointment times are expressed in

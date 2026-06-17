@@ -80,6 +80,7 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: 'manual entry',
   lead_form: 'contact form',
   invite: 'patient invite',
+  website_request: 'appointment request',
 }
 
 // Timeline filter tabs. "Billing" is a GROUP — it matches every money-shaped
