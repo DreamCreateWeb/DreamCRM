@@ -293,28 +293,33 @@ describe('createDemoClinic', () => {
     // Capture the update call by hooking the mock — we already track via state.updates
     state.updates.length = 0
     await createDemoClinic()
-    // Self-heal triggers 4 updates (identified by content, not order):
-    //   1. organization.isDemo = true (flag legacy demos out of platform metrics)
-    //   2. clinicProfile patch (stats / officePhotos / logo / hero / chairs / …)
-    //   3. patient.recallIntervalMonths = 3 backfill for Charlotte Diaz (0054)
-    //   4. appointment.source backfill ("set source='manual' where source is null")
-    //   5. scheduled-campaign scheduledAt push far-future (so the new
-    //      send-scheduled-campaigns cron never blasts demo email on resync)
+    // Each documented self-heal is asserted by CONTENT — robust to the order
+    // they run in AND to a future 6th self-heal being added (we want a FLOOR,
+    // not an exact count that false-fails on a benign addition):
+    //   • organization.isDemo = true        (flag legacy demos out of metrics)
+    //   • clinicProfile patch               (stats / officePhotos / logo / hero…)
+    //   • patient.recallIntervalMonths = 3  (0054 backfill for Charlotte Diaz)
+    //   • appointment.source = 'manual'     (backfill where source was null)
+    //   • scheduled-campaign scheduledAt    (push far-future so the
+    //                                         send-scheduled-campaigns cron can't
+    //                                         blast demo email on resync)
     //
-    // Note: testimonials are handled by a separate self-heal block lower
-    // down (topUpLinkedDemoTestimonials) that needs patientIds to link the
-    // seeded testimonials to real CRM patients — it doesn't fire here
-    // because the mocked patient query returns no rows.
-    expect(state.updates).toHaveLength(5)
+    // Note: testimonials are handled by a separate self-heal block lower down
+    // (topUpLinkedDemoTestimonials) that needs patientIds to link the seeded
+    // testimonials to real CRM patients — it doesn't fire here because the
+    // mocked patient query returns no rows.
+    expect(state.updates.length, 'at least the 5 documented self-heals ran').toBeGreaterThanOrEqual(5)
 
-    const isDemoUpdate = state.updates.find((u) => (u.set as { isDemo?: boolean }).isDemo === true)
-    expect(isDemoUpdate, 'expected an organization.isDemo backfill update').toBeTruthy()
+    const findSet = (pred: (set: Record<string, unknown>) => boolean) =>
+      state.updates.find((u) => pred(u.set as Record<string, unknown>))
 
-    // The scheduled-campaign self-heal pushes scheduledAt > 1yr out.
-    const scheduledPush = state.updates.find(
-      (u) => (u.set as { scheduledAt?: Date }).scheduledAt instanceof Date,
-    )
-    expect(scheduledPush, 'expected a scheduled-campaign scheduledAt push').toBeTruthy()
+    expect(findSet((s) => s.isDemo === true), 'organization.isDemo backfill').toBeTruthy()
+    expect(findSet((s) => s.recallIntervalMonths === 3), 'recall-interval backfill (0054)').toBeTruthy()
+    expect(findSet((s) => s.source === 'manual'), 'appointment.source backfill').toBeTruthy()
+
+    const scheduledPush = findSet((s) => s.scheduledAt instanceof Date)
+    expect(scheduledPush, 'scheduled-campaign scheduledAt far-future push').toBeTruthy()
+    // …and it's pushed > 1 year out (so the cron never blasts demo email on resync).
     expect((scheduledPush!.set as { scheduledAt: Date }).scheduledAt.getTime()).toBeGreaterThan(
       Date.now() + 365 * 24 * 60 * 60 * 1000,
     )

@@ -26,6 +26,10 @@ export function StatusPill({
 }) {
   return (
     <span
+      // Semantic hook: the TONE is the meaning (the Tailwind classes are just
+      // how it's painted). Exposing it lets tests + debugging assert the tone
+      // contract without coupling to color-class strings that change on a restyle.
+      data-tone={tone}
       title={title}
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${TONE_PILL[tone]} ${className}`}
     >
