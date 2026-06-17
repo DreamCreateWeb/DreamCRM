@@ -28,6 +28,12 @@ export async function findPendingInviteForEmail(
         expiresAt: schema.invitation.expiresAt,
       })
       .from(schema.invitation)
+      // INNER JOIN the org so a pending invite whose org was deleted is IGNORED.
+      // Today org-delete cascades the invitation (FK), so this can't happen — but
+      // this guard now ROUTES people, and a dangling invite would soft-lock them
+      // (dashboard → accept → "clinic no longer exists" → dashboard …). Belt and
+      // suspenders: only ever rescue toward an org that still exists.
+      .innerJoin(schema.organization, eq(schema.organization.id, schema.invitation.organizationId))
       .where(and(sql`lower(${schema.invitation.email}) = ${norm}`, eq(schema.invitation.status, 'pending')))
       .orderBy(desc(schema.invitation.expiresAt))
       .limit(1)

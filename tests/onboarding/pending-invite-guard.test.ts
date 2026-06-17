@@ -16,18 +16,23 @@ const state = {
 vi.mock('@/lib/db', () => {
   const db = {
     select: () => {
+      // `joined` enforces that the helper INNER JOINs the organization (so a
+      // dangling invite whose org was deleted can't route + soft-lock a user).
+      // If a refactor drops the join, limit() returns nothing → tests fail.
+      let joined = false
       const obj: Record<string, unknown> = {}
       obj.from = () => obj
+      obj.innerJoin = () => { joined = true; return obj }
       obj.where = () => obj
       obj.orderBy = () => obj
       obj.limit = async () => {
         if (state.throwOnSelect) throw new Error('db down')
-        return state.rows
+        return joined ? state.rows : []
       }
       return obj
     },
   }
-  return { db, schema: { invitation: { t: 'invitation' } } }
+  return { db, schema: { invitation: { t: 'invitation' }, organization: { t: 'organization' } } }
 })
 
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
@@ -58,6 +63,15 @@ describe('findPendingInviteForEmail', () => {
     expect(await findPendingInviteForEmail('')).toBeNull()
     expect(await findPendingInviteForEmail(null)).toBeNull()
     expect(await findPendingInviteForEmail(undefined)).toBeNull()
+  })
+
+  it('only rescues toward an org that still exists (INNER JOIN guard — no soft-lock on a deleted clinic)', async () => {
+    // The mock returns rows ONLY when innerJoin(organization) ran. A pending
+    // invite whose org was deleted (the inner join drops it) yields null, so the
+    // user falls through to normal onboarding instead of being routed to an
+    // accept page that errors "clinic no longer exists" on every dashboard hit.
+    state.rows = [{ id: 'inv_1', organizationId: 'org_real', expiresAt: new Date(Date.now() + 100000) }]
+    expect(await findPendingInviteForEmail('owner@clinic.com')).toEqual({ id: 'inv_1', organizationId: 'org_real' })
   })
 
   it('never throws — a DB error yields null (fall through to normal onboarding)', async () => {
