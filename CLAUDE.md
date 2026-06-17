@@ -128,6 +128,106 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   (gated to `tenantType==='platform' && role in {owner,admin}`)
 
 ## What's wired and working
+- **Beta-launch session — first real clinic onboarded (2026-06-17, PRs #369–#385).**
+  A sweep of feature work + a live onboarding-incident fix. Highlights (newest
+  systems first):
+  - **Integrations feature-bundle reframe — BUILT** (supersedes the "NEXT MAJOR
+    WORK … NOT BUILT" section below). `/integrations` is now a menu of FEATURE
+    BUNDLES a clinic activates; activating one surfaces that bundle's modules in
+    the SIDEBAR as if built-in. `lib/integrations/bundles.ts` (`BundleDef` /
+    `BUNDLES` / `resolveBundles` / `activeBundleIds` / `BundleSignals`) +
+    `lib/services/integration-bundles.ts` (`getActiveBundlesForSidebar`) +
+    `applyBundleGate` in `lib/modules` — bundle-tagged modules (Social Posts,
+    Shop) appear only once the bundle is active (auto-derived from what's
+    connected). Wired into `dashboard-shell`.
+  - **No-card 7-day trial** (`lib/trial.ts`). EVERY new clinic — self-serve AND
+    managed — starts a full-Premium, no-card 7-day trial (`subscriptionStatus=
+    'trialing'`, `trialEndsAt`) so the owner can use everything from the moment
+    they sign up / accept, then activate their reserved/chosen plan within the
+    window. `resolveTrialState` / `hasPaidSubscription` / `trialEndDate` /
+    `trialDaysLeftLabel`; a real paid sub overrides. `TrialBanner` +
+    `TrialEndedWall` in dashboard-shell.
+  - **Brand-derived public-site palette (PR #379).** The clinic picks ONE brand
+    color and the WHOLE site palette derives from it. `lib/clinic-site-theme.ts`
+    `buildClinicPalette(brand)` → a full role-based palette (bg / surface /
+    border / ink / inkMuted / heading + the deep "rhythm-break" band + the bright
+    announcement strip + every on-color ink) in HSL, **contrast-checked to WCAG
+    AA**, with neutrals temperature-matched to the brand. The `/site/[slug]`
+    layout injects it as `:root` CSS vars (`--c-bg`, `--c-deep`, `--c-strip`, …
+    via `clinicPaletteCss`); every clinic-site surface reads
+    `var(--c-*, <literal-fallback>)` instead of hardcoded hex. `MinimalSiteChrome`
+    injects it for `/r/[token]` (outside the layout). OG image derives REAL hexes
+    (Satori can't read CSS vars). NO migration. Tests `tests/clinic-site/palette*`.
+  - **Service builder — full-page editor + AI + photo upload + platform default
+    editing (PRs #380 / #381 / #382).** The service builder (Settings → Clinic +
+    Website Studio) now edits EVERY section of a service's detail page —
+    Highlights / Description / What-to-expect / FAQ, not just the body —
+    (`ContentEditDrawer` in `services-library-picker.tsx`) with a "✨ Generate"
+    button (calls `regenerateCustomization`, re-seeds fields in place), seeding
+    from the saved AI/manual blob OR the library default (token-filled).
+    `updateServiceContent(id, content)` persists the whole `customized` blob;
+    `sanitizeServiceContent` (in `lib/types/clinic-content.ts`) is the shared
+    bounds contract. Per-service HERO PHOTO is a real **image upload** (shared
+    `ImageUploader` → S3 `service-photos`), not a URL field. PLATFORM admins can
+    edit the CANONICAL library default at `/platform/service-library`
+    (`updateLibraryEntry` + the `LibraryEntryEditor` drawer) — sets
+    `service_library.edited_by_admin` (**migration 0072**) so the deploy-time
+    `seedServiceLibrary` STOPS refreshing that row from the in-code seed (the
+    dashboard edit becomes the durable default every clinic starts from). Clinics
+    on the library-default (1A) path pick it up live; clinics that customized keep
+    theirs.
+  - **Onboarding incident — the first real clinic (PRs #384 / #385).** Three bugs
+    from one chain. (1) The managed-provisioning invite is a manually-inserted
+    `invitation` row, but accept used better-auth's `organization.acceptInvitation`,
+    which ERRORED on it AFTER `signUp.email` had already created + auto-signed-in
+    the account → an ORPHANED user (signed in, no membership). **Fix:** robust
+    server-side `acceptTeamInvite(token)` (`app/(auth)/accept-invite/team-invite.ts`
+    — mirrors `acceptPatientPortalInvite`: validate + bind to recipient, insert the
+    `member` row directly, point the session at the org, mark accepted; idempotent;
+    RECOVERS an already-orphaned user who revisits the link). (2) An org-less
+    signed-in user is routed to onboarding (`dashboard-shell` → `/onboarding-01`),
+    which mints a new clinic → she created a DUPLICATE. **Fix:**
+    `findPendingInviteForEmail` (`lib/auth/pending-invite.ts`, **INNER JOINs the
+    organization** so a dangling/deleted-org invite is ignored — no soft-lock)
+    redirects an org-less user WITH a pending invite to `/accept-invite` instead;
+    wired into `dashboard-shell` + `submitOnboarding` (defense in depth). (3) The
+    invite email was unreadable in old Outlook (Word engine drops `<div max-width>`
+    + `inline-block` buttons; the button wasn't even clickable). **Fix:**
+    `authEmailShell` in `lib/email.ts` — fixed-width table + a VML roundrect button
+    for Outlook + a normal `<a>` for everyone else + a VISIBLE copy-paste URL
+    fallback (the manual copy is literally what rescued the first onboarding);
+    applied to invite + magic-link + password-reset; user content HTML-escaped.
+    Tests: `tests/onboarding/accept-team-invite` + `pending-invite-guard` +
+    `tests/email/auth-email-bulletproof`.
+  - **Clinic deletion completeness (migration 0071).** `membership.plan_id` FK was
+    `restrict` → aborted the WHOLE org cascade when a plan had members, stranding
+    the org + its slug ("deleted clinics aren't cleaned up; the slug stays taken").
+    Now `cascade`; `deleteClinicAction` clears memberships up front + drops the org
+    in a txn. ALL 63 org FKs verified cascade/set-null (none restrict) → a clinic
+    delete is always complete (profile / members / INVITATIONS / patients / … all
+    cascade). `tests/migrations/clinic-delete-cascade` + `tests/demo-mode/delete-clinic`.
+  - **PHI leak fixed.** The journey/breadcrumb trail was a single global key →
+    leaked demo patient names across clinics. Now scoped per user+org
+    (`trailStorageKey(scope)` = `dc.trail:{userId}:{orgId}`, foreign-scope + legacy
+    `dc.trail` swept on mount). `app/trail-context.tsx` + `lib/trail.ts`,
+    `tests/trail/trail-provider`.
+  - **Deploy-skew recovery.** A stale-chunk crash on "Open editor" + the welcome
+    interview hanging on a mid-deploy skew → `ChunkReloadGuard`
+    (`components/chunk-reload-guard.tsx`, mounted in `app/layout.tsx`) +
+    `isChunkLoadFailure` / `isDeploymentSkewError` self-reload paths (never crash;
+    reload to the fresh bundle).
+  - **Website template polish + Studio AI bar (PR #378).** Every homepage section
+    that used to collapse/vanish on an empty field now always-renders (brand-bloom
+    placeholders or `dc-edit-only` editor prompts) so a brand-new clinic's site
+    reads as finished. The Studio AI command bar lost its stuck scrollbars and
+    gained plain-language starter chips ("Change my hours", "Make my intro warmer",
+    …) so non-technical staff know what to ask.
+  - **Test-suite audit + hardening (PR #383).** Audited the 3,300+ test suite: 0
+    `.only`, 0 skips, ~0 assertion-free, all async assertions awaited, no
+    tautologies — genuinely high quality. Closed 3 silent-pass `if(r.ok)`-only
+    gaps; added a semantic `data-tone` attribute to `StatusPill` (restyle-proof)
+    replacing brittle color-class assertions; made the demo-seeder self-heal test
+    content-based instead of an exact-count. Suite at **3,354 tests**.
 - **Integrations redesigned as a catalog-driven app marketplace + `/channels`
   folded in (2026-06-16, PRs #365–#368)** — `/integrations` is no longer just the
   PMS dashboard; it's a premium **app-library marketplace** that scales to
@@ -178,9 +278,10 @@ with `dustin@dreamcreateweb.com` as the only `member(role: owner)` and
   `syncZernioAccountsAction`; `disconnectChannelAction`; `disconnectZernioGoogleAction`;
   `buySocialAddonAction`/`cancelSocialAddonAction` — the old Channels actions
   kept as aliases). **NO migration** (pure UI/architecture refactor over the
-  existing Zernio/PMS/Gmail/Stripe state). **NOTE — the NEXT major Integrations
-  work is the "feature-bundle" reframe (plan approved, NOT built); see "What's
-  NOT yet wired".**
+  existing Zernio/PMS/Gmail/Stripe state). **NOTE — the "feature-bundle" reframe
+  on top of this is now BUILT (2026-06-17) — see the beta-launch session bullet
+  at the top of "What's wired" (`lib/integrations/bundles.ts` +
+  `lib/services/integration-bundles.ts` + `applyBundleGate`).**
 - **Zernio foundation — Google Business connection (2026-06-15)** — the
   connection architecture for the Zernio × Google Business integration (full
   plan in `docs/zernio-google-integration.md`). FOUNDATION ONLY (connect /
@@ -1600,7 +1701,7 @@ sidebar = the route may still exist but isn't surfaced to clinic users.
 | Website | SEO | `/seo` | **Live (v1)** | Base SEO (sitemap / robots / JSON-LD / OG images / canonicals) is live. Dashboard surfaces site-health checks, an organic→leads→bookings funnel, real Search Console clicks + top queries, and reviews as a ranking signal. **Search Console is a single shared platform connection, zero-config for clinics**: the platform admin connects ONCE with the `sc-domain:dreamcreatestudio.com` Domain property (covers apex + www + every clinic subdomain); each clinic's SEO tab reads that connection scoped to its own pages via a `page contains '/site/<slug>'` (or `<slug>.` in subdomain mode) filter — clinics connect nothing. OAuth routes a platform-admin's connect to the platform org even from demo mode (`getPlatformOrgId`); `getClinicSeoPerformance` does the scoped read (also feeds the Analytics website funnel). Platform context (`tenantType==='platform'`) shows the manage view (connect / pick property / whole-domain perf); clinic/demo shows the scoped read. Custom-domain clinics aren't covered by the shared property (future: their own connection). **GBP listing data (hours/address/phone/photos) syncs into `clinic_profile` via the Zernio connection** (see the Zernio hours/location bullet); **GBP *local metrics* (impressions/calls/directions/website-clicks/bookings + top search keywords) are now LIVE on `/seo`** — the static "claim your GBP" checklist is replaced by a real connected-metrics card (connect-prompt when no GBP is linked), and the same numbers feed the Analytics Acquisition band (`lib/services/gbp-metrics.ts`, demo-safe + best-effort, no migration). Rank tracking + page-speed still roadmap |
 | Website | Careers | `/careers` | **Live (v1)** | Premium-tier. Job postings on the clinic's own site + a built-in ATS — replaces the $400/mo DentalPost board. **The "Indeed integration" is structured-data, not a partner API**: each open role renders at `{slug}.../careers/[jobSlug]` with `JobPosting` JSON-LD so **Google for Jobs + Indeed index it for free** (Indeed's Job Sync API is ATS-partner-only; the direct-employer path is the `/site/[slug]/jobs.xml` feed we also generate). Schema (migration 0031): `job_posting` (role/employment/comp/status/apply-method) + `job_application`. Admin `/careers`: Roles tab (create/edit via `/careers/new` + `/careers/[id]`, publish/close/delete) + Applicants tab (triage pipeline new→reviewing→interview→offer→hired/passed, aging-color rot border on un-reviewed, drawer with résumé download + rating + notes). Public apply form uploads résumé to S3 via a public server action (auth-gated upload route can't serve unauthenticated applicants). Client-safe types/labels/JSON-LD in `lib/types/careers.ts`; DB functions in `lib/services/careers.ts`. Demo seeder: 2 open roles + 1 draft + 7 applicants across every pipeline state (aging spread). Scope = permanent/part-time hires for one practice, NOT a temp/gig marketplace (Cloud Dentistry's lane). Full one-click *Indeed Apply* is a future partner track |
 | Business | Shop | `/shop` | **Live (v1 — complete)** | Premium-tier. Phase 3 differentiator (no orbital-layer competitor ships a storefront — confirmed Weave/NexHealth/RevenueWell have none). Built in slices: **(1 shipped)** migration 0032 = 8 purpose-built `shop_*`/`membership*` tables (separate from the generic Mosaic products/orders), Connect *Standard* designed so payouts land in the clinic's own bank. **(2 shipped)** `/shop` admin: product/variant catalog CRUD (`/shop/products/new` + `/shop/products/[id]`, image upload to S3, multi-variant pricing + inventory, FSA-with-Rx flag, draft/active/archived), fulfillment + tax config toggles, Stripe Connect status card. **(3a shipped)** Stripe Connect *Standard* OAuth onboarding — per-clinic (each clinic connects its OWN account so payouts hit their bank; `lib/services/shop-connect.ts` + `/api/connect/shop/start`+`/callback`, mirrors the GSC code-exchange), status auto-refresh on `/shop` load (pending→active), disconnect/deauthorize. `STRIPE_CONNECT_CLIENT_ID` is set in `dreamcrm/app-secrets` + mapped on App Runner; Connect config = Standard accounts · hosted onboarding · Stripe Dashboard. Client-safe types/labels in `lib/types/shop.ts`; DB in `lib/services/shop.ts`. **(3b shipped)** public storefront `/site/[slug]/shop` (+ `[productSlug]` detail, localStorage cart namespaced per slug, `/cart` review+checkout) → Stripe Connect **direct-charge** Checkout Session on the clinic's account (`lib/services/shop-checkout.ts`; pickup or ship + flat-rate shipping + Stripe Tax on ship only; optional platform application fee via `platformFeeBps`), idempotent order finalize via the `/shop/success` page **and** a `/api/webhooks/stripe-connect` backstop (needs `STRIPE_CONNECT_WEBHOOK_SECRET` + a Connect webhook endpoint for `checkout.session.completed`) — inventory decrement + patient linkage by email/phone on payment. Orders admin at `/shop/orders` (fulfillment pipeline unfulfilled→ready/shipped→picked-up/delivered + tracking). `storefrontEnabled` gates the public pages. Demo seeder: 6 products (7 variants) + config + 3 orders (paid pickup / paid shipped+tracking / pending). **(5 shipped)** membership plans — `lib/services/membership.ts` + `lib/types/membership.ts`: plan CRUD at `/shop/memberships` (+ `/new`+`/[id]` builder: name/interval/price/benefits/discount), **lazy Stripe price sync** (product+recurring price created on the connected account on first join, so no Stripe call until an account exists), public `/site/[slug]/membership` (plan cards + join) → **subscription** Checkout Session on the clinic's connected account, members tab with benefit-redemption tracking (`benefitsUsed`), subscription lifecycle (`customer.subscription.updated/deleted`) handled by the same `/api/webhooks/stripe-connect` (branches on `session.mode`). `membershipEnabled` gates the public page. Dashboard shows active-member count + MRR. Demo seeder: 2 plans (Smile Club annual $399 + monthly $39) + 3 members (active/active/past-due). `membership.patientId` is required, so a join matches/creates a patient (`source='membership'`). Self-heal seeds plans (+ members for existing patients) on legacy demos. **(4 shipped)** coupons — `lib/services/coupons.ts`: manual promo codes (% or $ off, optional min-subtotal / expiry / single-use) + one-click **birthday codes** (single-use, auto-generated off `patient.dateOfBirth` month, idempotent per month). Admin `/shop/coupons` (create + list + deactivate + generate-birthday). Applied at checkout via a one-time Stripe coupon on the connected account (`discounts:[{coupon}]`, exact computed cents so %/$ behave the same); cart has a promo field with live validate; single-use burns on order finalize. Demo seeder: WELCOME10 + SUMMER25 + a birthday code. **Shop module is feature-complete for v1** (catalog · Connect · storefront+checkout · orders · memberships · coupons). **Research-grounded:** FSA/HSA is mostly a myth (cosmetic whitening + plain brushes ineligible; electric brushes only with an Rx) so it's an optional per-product flag, not a headline. **Stripe Connect can't be fully sandbox-tested** (no connected accounts/cards) — logic is unit-tested; money flow verified in Stripe test mode. Connect onboarding uses **OAuth** (`/oauth/authorize`, `scope=read_write`) and works — verified the live authorize link resolves. **Resolved bug (2026-05-27):** "Connect Stripe" briefly returned *"No application matches the supplied client identifier"* because the stored `STRIPE_CONNECT_CLIENT_ID` had a 1-char transcription typo (`ca_UavHzM`**`S`**`I2…` instead of the correct `ca_UavHzM`**`5`**`I2…` — an `S`/`5` misread); corrected in `dreamcrm/app-secrets` + redeployed. OAuth flow, redirect URI, and code are all correct — **no code change needed** |
-| Business | Integrations | `/integrations` | **Live (v2 — catalog marketplace)** | **NO minPlan on the PAGE** (owner/admin to mutate) — it renders for every clinic; only the OD/PMS body is Premium-gated. **Redesigned as a catalog-driven app-library marketplace (PRs #365–#368)** that's the SINGLE place a clinic connects everything — PMS · Google Business · social · email · payments — and the former **`/channels` surface folded in** (`/channels` now redirects here, sidebar entry removed). Architecture: `lib/integrations/catalog.ts` (`IntegrationDef` + `INTEGRATIONS_CATALOG` pure metadata; "adding one = a data entry") + `lib/integrations/resolve.ts` (pure runtime status resolver over a minimal `LiveIntegrationState`) + real brand logos (`components/integrations/brand-logos.tsx`). UI (`integrations-library.tsx`, DESIGN-SYSTEM v2): connected-first "Your integrations" overview + Browse split, search over name+keywords+category, scrollable category-nav with counts, categorized grid, rich cards (logo well + StatusPill + one action + connected handle + value links). Catalog: Open Dental (`live`/Premium) + Dentrix Ascend (`request_access`) + Dentrix desktop/Eaglesoft/Curve (`coming_soon`) + Google Business (`live`, free) + the 5 social shortlist (`live`, count toward the cap) + Gmail (`live`, → `/inbox`) + SMS (`coming_soon`) + Stripe (`live`, → `/shop`). Detail pages: `/integrations/open-dental` (full PMS dashboard) + `/integrations/google-business` (light GBP detail); Gmail + Stripe link OUT to their existing flows. Social cap meter + at-cap upgrade/add-on CTA live here. **PMS bridge (the Open Dental detail page) — unchanged:** **Open Dental wired, two-way** via the official REST API (`ODFHIR {dev}/{customer}`; platform Developer Key `PMS_OPEN_DENTAL_DEVELOPER_KEY` — currently OD's *public sandbox* key, real vendor approval in flight; per-clinic Customer Key AES-encrypted). Imports patients/appointments/providers/balances; pushes DreamCRM-originated bookings back (best-effort `pms_write_op` queue → flushed on sync). Sanctioned + audit-clean (official API only). Migrations 0033 (`pms_connection`/`pms_entity_map`/`pms_sync_run`/`pms_write_op` + `patient.pms_balance_cents`) + 0034 (`patient.pms_recall_due_at`/`pms_recall_interval`). **Phase 0 hardening** (DateTStamp delta + Offset/Limit pagination, default operatory, clinic-tz datetimes, role→dentist, balance via `/patients/Simple`). **Phase 1 (4/5 shipped, #5 blocked on OD vendor approval):** (1) cancel/reschedule write-back (PUT AptStatus=Broken); (2) recall sync (feeds `derivePatientRecallStatus`); (3) sync-health alerts (`deriveIntegrationsHealth`, Overview + Integrations banners); (4) CommLog mirroring (5 send sites → OD chart); (5) **blocked** — schedule-driven availability awaits a real-office Customer Key to validate `/schedules`. Webhook Subscriptions = Phase 2. Demo seeds a sandbox connection + a connected GBP/IG/FB so the marketplace shows connected state. **The marketplace redesign added NO migration. Next major Integrations work = the feature-bundle reframe (plan approved, NOT built — see "What's NOT yet wired").** |
+| Business | Integrations | `/integrations` | **Live (v2 — catalog marketplace)** | **NO minPlan on the PAGE** (owner/admin to mutate) — it renders for every clinic; only the OD/PMS body is Premium-gated. **Redesigned as a catalog-driven app-library marketplace (PRs #365–#368)** that's the SINGLE place a clinic connects everything — PMS · Google Business · social · email · payments — and the former **`/channels` surface folded in** (`/channels` now redirects here, sidebar entry removed). Architecture: `lib/integrations/catalog.ts` (`IntegrationDef` + `INTEGRATIONS_CATALOG` pure metadata; "adding one = a data entry") + `lib/integrations/resolve.ts` (pure runtime status resolver over a minimal `LiveIntegrationState`) + real brand logos (`components/integrations/brand-logos.tsx`). UI (`integrations-library.tsx`, DESIGN-SYSTEM v2): connected-first "Your integrations" overview + Browse split, search over name+keywords+category, scrollable category-nav with counts, categorized grid, rich cards (logo well + StatusPill + one action + connected handle + value links). Catalog: Open Dental (`live`/Premium) + Dentrix Ascend (`request_access`) + Dentrix desktop/Eaglesoft/Curve (`coming_soon`) + Google Business (`live`, free) + the 5 social shortlist (`live`, count toward the cap) + Gmail (`live`, → `/inbox`) + SMS (`coming_soon`) + Stripe (`live`, → `/shop`). Detail pages: `/integrations/open-dental` (full PMS dashboard) + `/integrations/google-business` (light GBP detail); Gmail + Stripe link OUT to their existing flows. Social cap meter + at-cap upgrade/add-on CTA live here. **PMS bridge (the Open Dental detail page) — unchanged:** **Open Dental wired, two-way** via the official REST API (`ODFHIR {dev}/{customer}`; platform Developer Key `PMS_OPEN_DENTAL_DEVELOPER_KEY` — currently OD's *public sandbox* key, real vendor approval in flight; per-clinic Customer Key AES-encrypted). Imports patients/appointments/providers/balances; pushes DreamCRM-originated bookings back (best-effort `pms_write_op` queue → flushed on sync). Sanctioned + audit-clean (official API only). Migrations 0033 (`pms_connection`/`pms_entity_map`/`pms_sync_run`/`pms_write_op` + `patient.pms_balance_cents`) + 0034 (`patient.pms_recall_due_at`/`pms_recall_interval`). **Phase 0 hardening** (DateTStamp delta + Offset/Limit pagination, default operatory, clinic-tz datetimes, role→dentist, balance via `/patients/Simple`). **Phase 1 (4/5 shipped, #5 blocked on OD vendor approval):** (1) cancel/reschedule write-back (PUT AptStatus=Broken); (2) recall sync (feeds `derivePatientRecallStatus`); (3) sync-health alerts (`deriveIntegrationsHealth`, Overview + Integrations banners); (4) CommLog mirroring (5 send sites → OD chart); (5) **blocked** — schedule-driven availability awaits a real-office Customer Key to validate `/schedules`. Webhook Subscriptions = Phase 2. Demo seeds a sandbox connection + a connected GBP/IG/FB so the marketplace shows connected state. **The marketplace redesign added NO migration. The feature-bundle reframe on top of it is now BUILT (2026-06-17) — `lib/integrations/bundles.ts` + `getActiveBundlesForSidebar` + `applyBundleGate`; activating a bundle surfaces its modules in the sidebar.** |
 | Settings | Settings | `/settings/account` | Live | + `/settings/clinic` for site editor, `/settings/locations` for multi-location |
 
 **Dropped from clinic sidebar** (route files may still exist for
@@ -2093,16 +2194,18 @@ S3 + SES, canonical at https://www.dreamcreatestudio.com. Remaining loose ends
 (SES production access, optional Bedrock, moving the domain off Replit, the
 eventual App Runner → ECS move) are tracked in that section.
 
-### ⭐ NEXT MAJOR WORK — Integrations as a "feature-bundle" menu (PLAN APPROVED, NOT BUILT)
+### Integrations as a "feature-bundle" menu — BUILT (2026-06-17)
 
-**This is the headline item for the next session.** The owner approved the PLAN
-(not the build) to reframe `/integrations` from a flat catalog of individual
-third-party accounts into a **menu of FEATURE BUNDLES** — the clinic "builds its
-own feature set" by activating bundles, some included in the platform fee and
-some paid add-ons. The catalog/registry architecture shipped in PRs #365–#368
-(`lib/integrations/catalog.ts` + `resolve.ts` + the marketplace UI) is the
-FOUNDATION to build the bundle UI + sidebar-link wiring on. Build nothing yet —
-this is the spec to pick up:
+**DONE this session.** `/integrations` was reframed from a flat catalog of
+individual third-party accounts into a **menu of FEATURE BUNDLES** — the clinic
+"builds its own feature set" by activating bundles, and activating one surfaces
+that bundle's modules in the SIDEBAR as if built-in. Built on the PR #365–#368
+catalog/registry foundation (`lib/integrations/catalog.ts` + `resolve.ts`):
+`lib/integrations/bundles.ts` (`BundleDef` / `BUNDLES` / `resolveBundles` /
+`activeBundleIds` / `BundleSignals`) + `lib/services/integration-bundles.ts`
+(`getActiveBundlesForSidebar`) + `applyBundleGate` in `lib/modules`, wired into
+`dashboard-shell`. The original spec (kept for reference on the bundle taxonomy +
+the paid-add-on / sidebar-wiring model):
 
 - **Bundles (not individual accounts):**
   - **Practice Management** — *included* (the Open Dental / PMS bridge).
@@ -2437,7 +2540,7 @@ To-do in the AWS migration session (rough order):
   secret config (`STORAGE_DRIVER`, `EMAIL_DRIVER`, `AI_DRIVER`, `S3_BUCKET`, …)
   are `RuntimeEnvironmentVariables`. Updating a secret needs a redeploy to take
   effect (instances read them at startup).
-- **DB migrations** (latest: 0069): **auto-applied on deploy.** The
+- **DB migrations** (latest: 0072): **auto-applied on deploy.** The
   container runs `scripts/db-migrate.mjs` (drizzle migrate, idempotent) before
   the server boots, so each deploy applies its own pending migrations from
   inside the VPC. A migration failure exits non-zero → the container fails its
