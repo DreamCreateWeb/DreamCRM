@@ -19,6 +19,7 @@ import type {
 } from '@/lib/types/clinic-content'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
+import ImageUploader from '@/components/ui/image-uploader'
 
 /**
  * The Checkpoint 1B services editor — the picker drawer + selected-services
@@ -258,6 +259,7 @@ export default function ServicesLibraryPicker({
             )}
             {drawer.kind === 'overrides' && (
               <OverridesDrawer
+                key={drawer.serviceId}
                 service={services.find((s) => s.id === drawer.serviceId)}
                 onClose={() => setDrawer({ kind: 'closed' })}
                 onSave={(photoUrl, offer) =>
@@ -728,18 +730,15 @@ function OverridesDrawer({
         </button>
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">Hero photo URL</label>
-        <input
-          type="url"
-          value={photoUrl}
-          onChange={(e) => setPhotoUrl(e.target.value)}
-          placeholder="https://…"
-          className={inputCls}
+        <ImageUploader
+          name="service-hero-photo"
+          defaultValue={service.photoUrl ?? null}
+          folder="service-photos"
+          label="Hero photo"
+          hint="Shown at the top of this service’s page. Leave empty to use your site’s default hero image."
+          previewClass="aspect-[3/2]"
+          onChange={(u) => setPhotoUrl(u ?? '')}
         />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Shown as the hero photo on the service detail page. Leave blank to use
-          the default hero image.
-        </p>
       </div>
       <div>
         <label className="block text-sm font-medium mb-1">Promo ribbon text</label>

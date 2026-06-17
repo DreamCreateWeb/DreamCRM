@@ -168,4 +168,16 @@ describe('ServicesLibraryPicker — full content editor', () => {
     expect(screen.getByDisplayValue('Library highlight for Acme Dental')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Library body about Acme Dental in Austin.')).toBeInTheDocument()
   })
+
+  it('Photo & offer offers a real image upload (not just a URL field)', () => {
+    renderPicker([CUSTOMIZED_SERVICE])
+    fireEvent.click(screen.getByText('Photo / offer'))
+    // The uploader is present (Upload button + Hero photo label), and the old
+    // free-text "Hero photo URL" input is gone.
+    expect(screen.getByText('Upload')).toBeInTheDocument()
+    expect(screen.getByText('Hero photo')).toBeInTheDocument()
+    expect(screen.queryByText('Hero photo URL')).toBeNull()
+    // The promo-ribbon field still lives here.
+    expect(screen.getByPlaceholderText('New patient special')).toBeInTheDocument()
+  })
 })
