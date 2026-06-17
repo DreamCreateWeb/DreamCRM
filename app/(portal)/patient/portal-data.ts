@@ -24,6 +24,10 @@ export interface PortalPageContext {
   settings: PortalSettings
   clinic: PortalClinicInfo | null
   brand: string
+  /** When false, the portal offers an appointment-REQUEST form (→ inbox
+   *  message) instead of the live slot picker — the master self-scheduling
+   *  switch (Settings → Practice), mirroring the public website. */
+  selfBookingEnabled: boolean
   timeZone: string
   dependents: PortalDependent[]
   /** [self, ...dependents] when family access is on; [self] otherwise. */
@@ -53,6 +57,8 @@ export async function getPortalPageContext(): Promise<PortalPageContext> {
     settings,
     clinic,
     brand: clinic?.brandColor ?? '#9CAF9F',
+    // Default to enabled when clinic info is missing (matches the column default).
+    selfBookingEnabled: clinic?.selfBookingEnabled ?? true,
     timeZone: clinic?.timezone?.trim() || CLINIC_DEFAULT_TZ,
     dependents,
     allowedPatientIds,

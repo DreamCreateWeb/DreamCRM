@@ -12,11 +12,12 @@ import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import { PortalHeading, PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { portalVisitTypes } from '@/lib/types/visit-types'
 import PortalBookForm from './book-form'
+import PortalRequestForm from './request-form'
 
 export default async function PortalBookPage() {
   const pc = await getPortalPageContext()
   requirePortalFeature(pc, 'booking')
-  const { ctx, settings, clinic, brand } = pc
+  const { ctx, settings, clinic, brand, selfBookingEnabled } = pc
 
   const [me, profileRows] = await Promise.all([
     getMyPatientRecord(ctx.patientId, ctx.organizationId),
@@ -39,23 +40,39 @@ export default async function PortalBookPage() {
   const typeLabels: Record<string, string> = {}
   for (const t of catalog) typeLabels[t.id] = t.label
 
+  const self = { id: ctx.patientId, firstName: me?.firstName ?? 'Me' }
+  const dependents = pc.dependents.map((d) => ({ id: d.id, firstName: d.firstName }))
+
   return (
     <div className="mx-auto max-w-2xl">
-      <PortalHeading color={brand}>Book a visit</PortalHeading>
+      <PortalHeading color={brand}>{selfBookingEnabled ? 'Book a visit' : 'Request a visit'}</PortalHeading>
       <p className="mt-1.5 text-[0.95rem]" style={{ color: PORTAL_MUTED }}>
-        Real openings, straight from our calendar. Pick what works — no phone call needed.
+        {selfBookingEnabled
+          ? 'Real openings, straight from our calendar. Pick what works — no phone call needed.'
+          : 'Tell us what you need and we’ll reach out to find a time that works — usually within one business day.'}
       </p>
 
       <div className="mt-6">
-        <PortalBookForm
-          brand={brand}
-          allowedTypes={allowedTypes}
-          typeLabels={typeLabels}
-          minNoticeHours={settings.booking.minNoticeHours}
-          self={{ id: ctx.patientId, firstName: me?.firstName ?? 'Me' }}
-          dependents={pc.dependents.map((d) => ({ id: d.id, firstName: d.firstName }))}
-          clinicPhone={clinic?.phone ?? null}
-        />
+        {selfBookingEnabled ? (
+          <PortalBookForm
+            brand={brand}
+            allowedTypes={allowedTypes}
+            typeLabels={typeLabels}
+            minNoticeHours={settings.booking.minNoticeHours}
+            self={self}
+            dependents={dependents}
+            clinicPhone={clinic?.phone ?? null}
+          />
+        ) : (
+          <PortalRequestForm
+            brand={brand}
+            allowedTypes={allowedTypes}
+            typeLabels={typeLabels}
+            self={self}
+            dependents={dependents}
+            clinicPhone={clinic?.phone ?? null}
+          />
+        )}
       </div>
     </div>
   )

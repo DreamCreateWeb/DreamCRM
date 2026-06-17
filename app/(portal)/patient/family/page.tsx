@@ -26,7 +26,7 @@ function ageFrom(dob: string | null): number | null {
 export default async function PortalFamilyPage() {
   const pc = await getPortalPageContext()
   requirePortalFeature(pc, 'family')
-  const { ctx, settings, clinic, brand, timeZone, dependents } = pc
+  const { ctx, settings, clinic, brand, timeZone, dependents, selfBookingEnabled } = pc
 
   if (dependents.length === 0) {
     return (
@@ -87,7 +87,7 @@ export default async function PortalFamilyPage() {
                       className="rounded-full px-4 py-2 text-[0.82rem] font-semibold text-white"
                       style={{ backgroundColor: brand }}
                     >
-                      Book for {dep.firstName}
+                      {selfBookingEnabled ? `Book for ${dep.firstName}` : `Request for ${dep.firstName}`}
                     </Link>
                   )}
                 </div>

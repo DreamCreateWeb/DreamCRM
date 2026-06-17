@@ -32,7 +32,10 @@ const WEEK_MS = 7 * 86_400_000
 
 export default async function PortalHome() {
   const pc = await getPortalPageContext()
-  const { ctx, settings, clinic, brand, timeZone } = pc
+  const { ctx, settings, clinic, brand, timeZone, selfBookingEnabled } = pc
+  // When self-scheduling is off, every "book" affordance becomes "request".
+  const bookLabel = selfBookingEnabled ? 'Book a visit' : 'Request a visit'
+  const bookSub = selfBookingEnabled ? 'See real openings' : 'We’ll find you a time'
 
   const [me, upcoming, past, recall, pendingForms] = await Promise.all([
     getMyPatientRecord(ctx.patientId, ctx.organizationId),
@@ -66,7 +69,7 @@ export default async function PortalHome() {
   const showAftercare = Boolean(settings.copy.aftercareNote && recentCompleted)
 
   const verbs: Array<{ href: string; label: string; sub: string; icon: PortalIconName; show: boolean }> = [
-    { href: '/patient/book', label: 'Book a visit', sub: 'See real openings', icon: 'calendar', show: settings.features.booking },
+    { href: '/patient/book', label: bookLabel, sub: bookSub, icon: 'calendar', show: settings.features.booking },
     { href: '/patient/messages', label: 'Message us', sub: 'Reach the front desk', icon: 'chat', show: settings.features.messages },
     { href: '/patient/invoices', label: 'Billing', sub: 'Balance & history', icon: 'card', show: settings.features.billing },
   ]
@@ -114,23 +117,25 @@ export default async function PortalHome() {
               {recall === 'overdue' ? 'It’s been a while — time for your next cleaning' : 'Time for your next cleaning'}
             </p>
             <p className="mt-1 text-[0.9rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
-              However long it’s been, you’re welcome here. Pick a time that works — most weeks have openings.
+              {selfBookingEnabled
+                ? 'However long it’s been, you’re welcome here. Pick a time that works — most weeks have openings.'
+                : 'However long it’s been, you’re welcome here. Send us a request and we’ll find you a time.'}
             </p>
             <Link
               href="/patient/book"
               className="mt-4 inline-block rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white"
               style={{ backgroundColor: brand }}
             >
-              Book a visit
+              {bookLabel}
             </Link>
           </PortalCard>
         ) : (
           <PortalCard>
             <PortalEmptyState
               title="No upcoming visits"
-              body="When you book, your visit will live here with everything you need."
+              body="When you have a visit booked, it’ll live here with everything you need."
               ctaHref={settings.features.booking ? '/patient/book' : undefined}
-              ctaLabel={settings.features.booking ? 'Book a visit' : undefined}
+              ctaLabel={settings.features.booking ? bookLabel : undefined}
               brand={brand}
             />
           </PortalCard>

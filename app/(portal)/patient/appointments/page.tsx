@@ -22,7 +22,8 @@ import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
 
 export default async function PortalVisitsPage() {
   const pc = await getPortalPageContext()
-  const { ctx, settings, clinic, brand, timeZone } = pc
+  const { ctx, settings, clinic, brand, timeZone, selfBookingEnabled } = pc
+  const bookLabel = selfBookingEnabled ? 'Book a visit' : 'Request a visit'
 
   const [upcoming, past] = await Promise.all([
     getUpcomingVisits(pc.allowedPatientIds, ctx.organizationId),
@@ -43,9 +44,9 @@ export default async function PortalVisitsPage() {
           <PortalCard>
             <PortalEmptyState
               title="Nothing on the books"
-              body="Whenever you’re ready — most weeks have openings."
+              body={selfBookingEnabled ? 'Whenever you’re ready — most weeks have openings.' : 'Whenever you’re ready — send us a request and we’ll find a time.'}
               ctaHref={settings.features.booking ? '/patient/book' : undefined}
-              ctaLabel={settings.features.booking ? 'Book a visit' : undefined}
+              ctaLabel={settings.features.booking ? bookLabel : undefined}
               brand={brand}
             />
           </PortalCard>

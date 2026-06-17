@@ -83,13 +83,16 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-import { bookMyVisitAction } from '@/app/(portal)/patient/actions'
+import { bookMyVisitAction, requestMyVisitAction } from '@/app/(portal)/patient/actions'
+import { sendMessageFromPatient } from '@/lib/services/patient-portal'
 
 beforeEach(() => {
   inserts.length = 0
   slotAvailableMock.mockReset()
   slotAvailableMock.mockResolvedValue(true)
   sendBookingConfirmation.mockClear()
+  vi.mocked(sendMessageFromPatient).mockClear()
+  settings.features.family = true
   settings.features.booking = true
   settings.booking.allowedTypes = ['cleaning', 'checkup', 'consultation']
   settings.booking.minNoticeHours = 2
@@ -205,5 +208,67 @@ describe('bookMyVisitAction', () => {
     expect(sendBookingConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({ patientId: 'pat_kid' }),
     )
+  })
+})
+
+/**
+ * requestMyVisitAction — the request-only counterpart (self-scheduling OFF).
+ * Books NO appointment; instead it lands an in-app message on the patient's
+ * own thread (so the clinic's reply reaches them in portal Messages), gated by
+ * the same booking feature flag + family scope.
+ */
+describe('requestMyVisitAction', () => {
+  it('throws when not a patient tenant', async () => {
+    tenantCtx = { tenantType: 'clinic', organizationId: 'org_1', patientId: null, userName: 'X', userEmail: 'x@x.com' }
+    await expect(requestMyVisitAction(form({ reason: 'Cleaning' }))).rejects.toThrow(/patient/i)
+    expect(sendMessageFromPatient).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the clinic turned the booking surface off (no message)', async () => {
+    settings.features.booking = false
+    const r = await requestMyVisitAction(form({ reason: 'Cleaning' }))
+    expect(r.ok).toBe(false)
+    expect(sendMessageFromPatient).not.toHaveBeenCalled()
+  })
+
+  it('rejects requesting for a patient outside the family scope', async () => {
+    const r = await requestMyVisitAction(form({ reason: 'Cleaning', forPatientId: 'pat_stranger' }))
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { error: string }).error).toMatch(/family/i)
+    expect(sendMessageFromPatient).not.toHaveBeenCalled()
+  })
+
+  it('sends an in-app message to the clinic on the happy path (self) — books nothing', async () => {
+    const r = await requestMyVisitAction(
+      form({ reason: 'Cleaning & exam', preferredTimes: 'Weekday mornings', notes: 'Some sensitivity up top.' }),
+    )
+    expect(r).toEqual({ ok: true })
+    expect(inserts).toHaveLength(0) // NOT an appointment
+    expect(sendMessageFromPatient).toHaveBeenCalledTimes(1)
+    const [orgId, patientId, body] = vi.mocked(sendMessageFromPatient).mock.calls[0]
+    expect(orgId).toBe('org_1')
+    expect(patientId).toBe('pat_1')
+    expect(body).toMatch(/New appointment request via the patient portal/i)
+    expect(body).toContain('Looking for: Cleaning & exam')
+    expect(body).toContain('Preferred times: Weekday mornings')
+    expect(body).toContain('Some sensitivity up top.')
+  })
+
+  it('for a linked dependent, threads to the GUARDIAN but names the dependent', async () => {
+    // The db select mock returns firstName 'Jane' for the dependent lookup.
+    const r = await requestMyVisitAction(form({ reason: 'Checkup', forPatientId: 'pat_kid' }))
+    expect(r).toEqual({ ok: true })
+    const [, patientId, body] = vi.mocked(sendMessageFromPatient).mock.calls[0]
+    expect(patientId).toBe('pat_1') // reply must reach the guardian, not the child
+    expect(body).toContain('For: Jane')
+  })
+
+  it('omits optional lines when nothing extra was provided', async () => {
+    await requestMyVisitAction(form({}))
+    const [, , body] = vi.mocked(sendMessageFromPatient).mock.calls[0]
+    expect(body).toMatch(/New appointment request via the patient portal/i)
+    expect(body).not.toContain('Looking for:')
+    expect(body).not.toContain('Preferred times:')
+    expect(body).not.toContain('For:')
   })
 })

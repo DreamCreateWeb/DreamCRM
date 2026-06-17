@@ -90,6 +90,10 @@ export default async function PortalLayout({ children }: { children: React.React
     hasDependents: dependents.length > 0,
   })
 
+  // Master self-scheduling switch (Settings → Practice): off → the booking CTA
+  // becomes a request CTA (the /patient/book page renders the request form).
+  const portalBookLabel = clinic?.selfBookingEnabled === false ? 'Request a visit' : 'Book a visit'
+
   const todayHours = clinic?.hours
     ? todaysHoursLabel(clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>)
     : null
@@ -160,7 +164,7 @@ export default async function PortalLayout({ children }: { children: React.React
                   className="rounded-full px-4 py-2 text-[0.85rem] font-semibold text-white"
                   style={{ backgroundColor: brand }}
                 >
-                  Book a visit
+                  {portalBookLabel}
                 </Link>
               )}
             </div>

@@ -66,7 +66,7 @@ function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: s
     <section>
       <SectionHeading
         title="Patient self-scheduling"
-        hint="Controls what your website’s “Book a Visit” button does. Turn it off if you’d rather patients ask first and your front desk picks the time."
+        hint="Controls the “Book” button on both your website and the patient portal. Turn it off if you’d rather patients ask first and your front desk picks the time."
       />
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <label className="flex items-start gap-3 cursor-pointer">
@@ -95,12 +95,12 @@ function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: s
               {on ? (
                 <>
                   <span className="font-medium text-gray-700 dark:text-gray-300">On.</span>{' '}
-                  Your website shows a live calendar and patients pick an open time — it books straight into your schedule.
+                  Your website and patient portal show a live calendar — patients pick an open time and it books straight into your schedule.
                 </>
               ) : (
                 <>
                   <span className="font-medium text-gray-700 dark:text-gray-300">Off.</span>{' '}
-                  Your website shows a short request form (email required, phone optional) instead of a calendar. Each request lands in{' '}
+                  Patients get a short request form instead of a calendar (email required on the website; portal patients are already known). Each request lands in{' '}
                   <span className="font-medium">Messages</span> and you reach out — by email, text, or in-app — to set the time.
                 </>
               )}
