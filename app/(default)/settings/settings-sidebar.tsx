@@ -60,6 +60,9 @@ const searchIcon = (
 const calendarIcon = (
   <path d="M4 0a1 1 0 0 1 1 1v1h6V1a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h1V1a1 1 0 0 1 1-1Zm10 6H2v8h12V6Z" />
 )
+const chatIcon = (
+  <path d="M2 2a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2v2.5a.5.5 0 0 0 .8.4L8.7 13H14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2Zm2 4h8a1 1 0 1 1 0 2H4a1 1 0 0 1 0-2Zm0 3h5a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2Z" />
+)
 
 // ── The two settings SURFACES ───────────────────────────────────────────
 //
@@ -105,6 +108,7 @@ function clinicSections(): NavSection[] {
         { href: '/settings/practice', label: 'Practice setup', icon: calendarIcon },
         { href: '/settings/portal', label: 'Patient portal', icon: heartIcon },
         { href: '/settings/reminders', label: 'Reminders', icon: bellIcon },
+        { href: '/settings/message-templates', label: 'Message templates', icon: chatIcon },
       ],
     },
     {

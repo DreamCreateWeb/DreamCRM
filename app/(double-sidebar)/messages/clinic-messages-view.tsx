@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { TenantContext } from '@/lib/auth/context'
 import {
-  CANNED_TEMPLATES,
   getInboxStats,
   getPatientThreadById,
   getThreadPatientContext,
@@ -15,6 +14,7 @@ import {
   type ThreadPatientContext,
   type ThreadRow,
 } from '@/lib/services/patient-messaging'
+import { listMessageTemplates } from '@/lib/services/message-templates'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
@@ -102,9 +102,10 @@ export default async function ClinicMessagesView({
     hasUnread: searchParams.unread === '1',
   }
 
-  const [threads, stats] = await Promise.all([
+  const [threads, stats, messageTemplates] = await Promise.all([
     listPatientThreads(ctx.organizationId, ctx.userId, filters),
     getInboxStats(ctx.organizationId, ctx.userId),
+    listMessageTemplates(ctx.organizationId),
   ])
 
   const activeThread = searchParams.thread
@@ -333,9 +334,9 @@ export default async function ClinicMessagesView({
                 sentAt: m.sentAt.toISOString(),
               }))}
               currentUserName={ctx.userName ?? null}
-              templates={CANNED_TEMPLATES.map((t) => ({
-                key: t.key,
-                label: t.label,
+              templates={messageTemplates.map((t) => ({
+                key: t.id,
+                label: t.name,
                 rendered: renderTemplate(t.body, {
                   firstName: activeThread.patientFirstName,
                   lastName: activeThread.patientLastName,

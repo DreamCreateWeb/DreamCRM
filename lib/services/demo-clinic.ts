@@ -24,6 +24,7 @@ import {
 } from '@/lib/types/clinic-content'
 import { DEFAULT_VISIT_TYPES, OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
 import type { PatientTagColor } from '@/lib/types/patient-tags'
+import { DEFAULT_MESSAGE_TEMPLATES } from '@/lib/services/message-templates'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 
@@ -1284,6 +1285,46 @@ async function seedDemoPatientTags(orgId: string): Promise<void> {
 }
 
 /**
+ * Seed the demo's editable /messages reply templates: the 3 starters + one
+ * custom example so the demo showcases the "add your own" state. Name-keyed
+ * idempotent; bails on a demo with no patients (the exhausted-queue path) so it
+ * never inserts on the seeder-test no-data run.
+ */
+async function seedDemoMessageTemplates(orgId: string): Promise<void> {
+  const patients = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+    .limit(1)
+  if (patients.length === 0) return
+
+  const existing = await db
+    .select({ name: schema.emailSnippet.name })
+    .from(schema.emailSnippet)
+    .where(eq(schema.emailSnippet.organizationId, orgId))
+  const have = new Set(existing.map((r) => r.name))
+  const want: Array<{ name: string; body: string }> = [
+    ...DEFAULT_MESSAGE_TEMPLATES,
+    {
+      name: 'Post-op check-in',
+      body: `Hi {{firstName}}, just checking in after your visit — how are you feeling? A little soreness is normal for a day or two. If anything's worrying you, reply here or give us a call and we'll take care of it. — The team`,
+    },
+  ]
+  const missing = want.filter((t) => !have.has(t.name))
+  if (missing.length === 0) return
+  let order = existing.length
+  await db.insert(schema.emailSnippet).values(
+    missing.map((t) => ({
+      id: newId('snip'),
+      organizationId: orgId,
+      name: t.name,
+      body: t.body,
+      sortOrder: order++,
+    })),
+  )
+}
+
+/**
  * A SECOND (non-default) intake form so the demo exercises the "pick which
  * form" dropdown on the patient detail "Send intake" control — which only
  * appears when a clinic has more than one form. Idempotent by slug.
@@ -2069,6 +2110,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // persona name so it back-fills legacy demos whose patient ids differ.
     await seedDemoPatientTags(existing.id)
 
+    // Message templates self-heal: seed the 3 starters + 1 custom reply so the
+    // /messages composer + Settings showcase populated state. Name-keyed
+    // idempotent; bails on no patients.
+    await seedDemoMessageTemplates(existing.id)
+
     // Referral partner self-heal: seed the demo MSP partner + attribution +
     // commission ledger so /partners populates on legacy demos. Idempotent;
     // never overwrites a real referral assignment. Runs LAST so its reads sit
@@ -2616,6 +2662,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Patient tags: a small curated catalog + assignments across the personas.
   await seedDemoPatientTags(orgId)
+
+  // Editable /messages reply templates: 3 starters + 1 custom.
+  await seedDemoMessageTemplates(orgId)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to

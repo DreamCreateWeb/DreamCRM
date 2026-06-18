@@ -147,6 +147,11 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['reminders', 'automatic', 'text reminder', 'email reminder', 'remind patients'],
   },
   {
+    surface: 'clinic', href: '/settings/message-templates', page: 'Message templates',
+    label: 'Saved replies / canned responses',
+    keywords: ['message templates', 'canned responses', 'saved replies', 'quick replies', 'snippets', 'messages composer', 'reply templates'],
+  },
+  {
     surface: 'clinic', href: '/settings/locations', page: 'Locations',
     label: 'Practice locations',
     keywords: ['locations', 'address', 'multi-location', 'branches', 'offices'],
