@@ -30,9 +30,16 @@ export default async function ShopPaymentsPage() {
         title="Online payments"
         subtitle="Balance payments patients made online through the portal. Post each one to your PMS ledger to keep the books square — DreamCRM never edits the PMS balance for you."
         actions={
-          <ActionButton variant="secondary" size="sm" href="/shop">
-            ← Back to Shop
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            {(ctx.role === 'owner' || ctx.role === 'admin') && (
+              <ActionButton variant="ghost" size="sm" href="/shop/payments/export" target="_blank">
+                Export CSV
+              </ActionButton>
+            )}
+            <ActionButton variant="secondary" size="sm" href="/shop">
+              ← Back to Shop
+            </ActionButton>
+          </div>
         }
       />
 
