@@ -82,7 +82,7 @@ describe('ClinicProfilePanel — tabs', () => {
   it('renders the four section tabs', () => {
     render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
     for (const label of ['Profile & contact', 'Branding', 'Website content', 'Insurance & payments']) {
-      expect(screen.getByRole('button', { name: label })).toBeTruthy()
+      expect(screen.getByRole('tab', { name: label })).toBeTruthy()
     }
   })
 
@@ -90,16 +90,25 @@ describe('ClinicProfilePanel — tabs', () => {
     render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
     // Default tab is "Profile & contact", yet fields from other tabs are still
     // in the DOM (hidden, not unmounted) — the whole point, so Save persists all.
-    expect(document.querySelector('textarea[name="paymentMethods"]')).not.toBeNull() // billing tab
-    expect(document.querySelector('textarea[name="acceptedInsuranceCarriers"]')).not.toBeNull() // billing tab
+    expect(document.querySelector('textarea[name="paymentMethods"]')).not.toBeNull() // payments tab
+    expect(document.querySelector('textarea[name="acceptedInsuranceCarriers"]')).not.toBeNull() // payments tab
     expect(document.querySelector('input[name="faq"]')).not.toBeNull() // branding tab
   })
 
   it('activates a tab on click', () => {
     render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
-    const btn = screen.getByRole('button', { name: 'Insurance & payments' })
+    const btn = screen.getByRole('tab', { name: 'Insurance & payments' })
     expect(btn.className).not.toContain('border-teal-500')
     fireEvent.click(btn)
     expect(btn.className).toContain('border-teal-500')
+  })
+
+  it('Services and Staff are their own subtabs', () => {
+    render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
+    // Switch to the Website content tab, then its subtabs appear.
+    fireEvent.click(screen.getByRole('tab', { name: 'Website content' }))
+    expect(screen.getByRole('tab', { name: 'Services' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Staff' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Testimonials' })).toBeTruthy()
   })
 })
