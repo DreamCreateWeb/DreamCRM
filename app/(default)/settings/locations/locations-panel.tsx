@@ -7,6 +7,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SettingsSection } from '../settings-kit'
+import { SettingsTabs } from '../settings-tabs'
 
 interface Props {
   locations: ClinicLocation[]
@@ -33,10 +34,19 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
 
   return (
     <div className="p-6">
-      <SettingsSection
-        title="Locations"
-        description="Most clinics have one — multi-location practices can add more. Your primary location powers your website's address block."
-        action={
+      <SettingsTabs
+        tabs={[
+          {
+            id: 'locations',
+            label: 'Locations',
+            subtabs: [
+              {
+                id: 'all',
+                label: 'All locations',
+                content: (
+                  <SettingsSection
+                    description="Most clinics have one — multi-location practices can add more. Your primary location powers your website's address block."
+                    action={
           canEdit && !showForm && locations.length > 0 ? (
             <ActionButton variant="primary" size="sm" onClick={() => setShowForm(true)}>
               + Add location
@@ -151,7 +161,13 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
             ))}
           </div>
         )}
-      </SettingsSection>
+                  </SettingsSection>
+                ),
+              },
+            ],
+          },
+        ]}
+      />
     </div>
   )
 }
