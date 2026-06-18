@@ -336,15 +336,19 @@ describe('syncGoogleBusinessProfile', () => {
     expect(p.hoursSource).toBe('manual')
   })
 
-  it('a media failure does not fail the whole sync (photos best-effort)', async () => {
-    store.profiles = [fullProfile({ hoursSource: 'google' })]
+  it('a media failure does not fail the sync AND preserves the stored Google photos (no wipe)', async () => {
+    // The profile already has Google photos. A transient media-pull failure must
+    // NOT null them — the old code emptied the clinic's "import from Google"
+    // gallery on a flaky media call.
+    store.profiles = [fullProfile({ hoursSource: 'google', googlePhotos: [{ url: 'https://g/keep.jpg' }] })]
     setConnected()
     client.listGoogleBusinessMedia.mockRejectedValue(new Error('media down'))
     const r = await syncGoogleBusinessProfile(ORG, { force: false })
     expect(r.ok).toBe(true)
     expect(r.applied).toContain('hours')
     expect(r.photoCount).toBe(0)
-    expect(store.profiles[0].googlePhotos).toBeNull()
+    // Existing photos preserved (not overwritten with null).
+    expect(store.profiles[0].googlePhotos).toEqual([{ url: 'https://g/keep.jpg' }])
   })
 
   it('does not write hours when Google supplied no usable hours', async () => {

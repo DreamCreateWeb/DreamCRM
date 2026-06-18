@@ -294,9 +294,14 @@ export async function syncGoogleBusinessProfile(
     }
   }
 
-  // Photos always refresh the separate google_photos store (never officePhotos).
+  // Photos refresh the separate google_photos store (never officePhotos). Only
+  // OVERWRITE when the media pull actually returned photos — `listGoogleBusinessMedia`
+  // failures are swallowed to [] above, and nulling the store on that flicker
+  // would empty the clinic's "import from Google" gallery until the next good
+  // sync. (A clinic that truly removed all GBP photos keeps stale ones until a
+  // pull returns data — a safe trade vs. wiping on a transient failure.)
   const photoViews = toPhotoViews(photos)
-  patch.googlePhotos = photoViews.length > 0 ? photoViews : null
+  if (photoViews.length > 0) patch.googlePhotos = photoViews
   patch.googleSyncedAt = new Date()
   patch.updatedAt = new Date()
 

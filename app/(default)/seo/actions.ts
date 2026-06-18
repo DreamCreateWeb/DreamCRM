@@ -6,7 +6,10 @@ import { setGscSite, disconnectGsc } from '@/lib/services/gsc'
 
 function ensureClinicAdmin(ctx: { tenantType: string; role: string }) {
   if (ctx.tenantType !== 'clinic') throw new Error('SEO is only available for clinic tenants.')
-  if (ctx.role === 'patient') throw new Error('Patients cannot manage SEO settings.')
+  // Owner/admin only, for consistency with every other settings mutation.
+  if (ctx.role === 'patient' || ctx.role === 'member') {
+    throw new Error('Only an owner or admin can manage SEO settings.')
+  }
 }
 
 export async function setGscSiteAction(formData: FormData) {
