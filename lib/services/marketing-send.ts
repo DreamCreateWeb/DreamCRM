@@ -65,6 +65,12 @@ export interface SendOptions {
   gmailAccountId?: string
   /** Display name used in footer + Gmail From header. */
   fromName?: string
+  /** When the CALLER already atomically claimed the campaign off its prior
+   *  status (the scheduled-send cron flips scheduled → active itself), skip the
+   *  internal duplicate-send claim — otherwise the campaign is already 'active'
+   *  and the internal claim (which only matches draft/scheduled/paused) fails,
+   *  making every scheduled send a no-op. */
+  alreadyClaimed?: boolean
 }
 
 export interface SendResult {
@@ -221,8 +227,9 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
   // 'active' ONLY if it isn't already active/completed. A double-click or a
   // retry that races the first send claims nothing → we bail with a structured
   // 'already_sending' result instead of blasting the whole list twice. Test
-  // sends don't claim (they don't mutate campaign state).
-  if (!opts.test) {
+  // sends don't claim (they don't mutate campaign state); `alreadyClaimed`
+  // callers (the scheduled-send cron) already won the claim themselves.
+  if (!opts.test && !opts.alreadyClaimed) {
     const claimed = await db
       .update(schema.campaigns)
       .set({ status: 'active', updatedAt: new Date() })

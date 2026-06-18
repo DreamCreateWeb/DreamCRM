@@ -272,4 +272,17 @@ describe('sendCampaign — duplicate-send guard', () => {
     await sendCampaign({ organizationId: 'org_1', campaignId: 99, test: true })
     expect(h.claimReturningMock).not.toHaveBeenCalled()
   })
+
+  it('alreadyClaimed bypasses the internal claim and still sends (scheduled-send path)', async () => {
+    // The scheduled-send cron flips the campaign scheduled→active ITSELF, then
+    // calls sendCampaign. Before the fix, the internal claim (which only matches
+    // draft/scheduled/paused) saw 'active', returned no rows, and the send
+    // no-op'd as 'already_sending' — so every scheduled campaign sent to nobody.
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ status: 'active' }))
+    h.claimReturningMock.mockResolvedValue([]) // an 'active' campaign claims nothing
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99, alreadyClaimed: true })
+    expect(h.claimReturningMock).not.toHaveBeenCalled()
+    expect(r.skipped).toBeUndefined()
+    expect(r.sent).toBe(1)
+  })
 })
