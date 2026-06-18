@@ -48,11 +48,20 @@ vi.mock('@/lib/services/appointments', () => ({
 
 // Slot availability gates the insert (race-condition guard). Default: available.
 const slotAvailableMock = vi.fn(async () => true)
-vi.mock('@/lib/services/booking', () => ({
-  isSlotAvailable: (...a: unknown[]) => slotAvailableMock(...(a as [])),
-  getSlotsForDay: vi.fn(async () => ({ slots: [], closedReason: null })),
-  SLOT_MINUTES: 30,
-}))
+vi.mock('@/lib/services/booking', async () => {
+  const { db } = await import('@/lib/db')
+  const { appointment } = await import('@/lib/db/schema/clinic')
+  return {
+    isSlotAvailable: (...a: unknown[]) => slotAvailableMock(...(a as [])),
+    getSlotsForDay: vi.fn(async () => ({ slots: [], closedReason: null })),
+    // Route the atomic-book insert through the db mock so the inserts capture works.
+    insertAppointmentIfSlotFree: async (_o: string, _s: Date, _d: unknown, values: unknown) => {
+      await db.insert(appointment).values(values as never)
+      return true
+    },
+    SLOT_MINUTES: 30,
+  }
+})
 
 vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn(async () => {}) }))
 const sendBookingConfirmation = vi.fn(async () => {})

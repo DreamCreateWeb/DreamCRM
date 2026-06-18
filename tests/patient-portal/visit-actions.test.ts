@@ -60,14 +60,24 @@ let openSlotIso: string | null = null
 // Capture the duration the booking flow passes to the slot race-guard so we can
 // assert the visit-type duration is threaded through (wave 2).
 const isSlotAvailableMock = vi.fn(async () => true)
-vi.mock('@/lib/services/booking', () => ({
-  getSlotsForDay: vi.fn(async () => ({
-    slots: openSlotIso ? [{ startIso: openSlotIso, label: '9:00 AM', available: true }] : [],
-    closedReason: null,
-  })),
-  isSlotAvailable: (...a: unknown[]) => isSlotAvailableMock(...(a as [])),
-  SLOT_MINUTES: 30,
-}))
+vi.mock('@/lib/services/booking', async () => {
+  const { db } = await import('@/lib/db')
+  const { appointment } = await import('@/lib/db/schema/clinic')
+  return {
+    getSlotsForDay: vi.fn(async () => ({
+      slots: openSlotIso ? [{ startIso: openSlotIso, label: '9:00 AM', available: true }] : [],
+      closedReason: null,
+    })),
+    isSlotAvailable: (...a: unknown[]) => isSlotAvailableMock(...(a as [])),
+    // Route the atomic-book insert through the same db mock so the existing
+    // appointment-insert assertions keep working.
+    insertAppointmentIfSlotFree: async (_o: string, _s: Date, _d: unknown, values: unknown) => {
+      await db.insert(appointment).values(values as never)
+      return true
+    },
+    SLOT_MINUTES: 30,
+  }
+})
 
 vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn(async () => {}) }))
 const sendBookingConfirmation = vi.fn(async () => {})

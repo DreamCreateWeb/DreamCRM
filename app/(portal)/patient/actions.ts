@@ -19,7 +19,7 @@ import {
   cancelAppointment,
   rescheduleAppointment,
 } from '@/lib/services/appointments'
-import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
+import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 import { notifyOrgMembers } from '@/lib/services/notifications'
@@ -260,7 +260,8 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   // End time = start + the visit-type duration (never shorter than one slot).
   const endTime = new Date(startTime.getTime() + Math.max(SLOT_MINUTES, durationMinutes) * 60_000)
   const apptId = randomUUID()
-  await db.insert(appointment).values({
+  // Atomic book — re-check under an advisory lock before insert (no double-book).
+  const booked = await insertAppointmentIfSlotFree(ctx.organizationId, startTime, durationMinutes, {
     id: apptId,
     organizationId: ctx.organizationId,
     patientId: forPatientId,
@@ -272,6 +273,7 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
     notes: combinedNotes,
     source: 'portal',
   })
+  if (!booked) return { ok: false, error: 'That time was just taken — pick another one.' }
 
   await queueAppointmentWriteBack(ctx.organizationId, apptId)
   await sendBookingConfirmation({
