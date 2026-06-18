@@ -285,7 +285,8 @@ export default function PatientsList({
           tagIds: filters.tagIds,
           search: filters.search,
         }}
-        tagNames={Object.fromEntries(meta.tags.map((t) => [t.id, t.name]))}
+        tags={meta.tags}
+        matchCount={rows.length}
         canMarket={canMarket}
       />
 

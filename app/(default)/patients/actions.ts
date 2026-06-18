@@ -29,8 +29,10 @@ import {
   completeFollowup,
   reopenFollowup,
   deleteFollowup,
+  bulkCreateFollowups,
   type PatientFollowupView,
 } from '@/lib/services/patient-followups'
+import { listPatients } from '@/lib/services/patients'
 import {
   createPatientView,
   deletePatientView,
@@ -242,6 +244,60 @@ export async function deletePatientDocumentAction(
   await deletePatientDocument(ctx.organizationId, documentId)
   revalidatePath(`/patients/${patientId}`)
   return { ok: true }
+}
+
+// ---------- Bulk actions over a filtered view ----------
+
+/** Resolve every patient id matching a saved-view filter (server-side, so it's
+ *  the whole segment, not just a page). */
+async function resolveFilteredPatientIds(organizationId: string, filters: SavedViewFilters): Promise<string[]> {
+  const f = normalizeViewFilters(filters as Record<string, unknown>)
+  const rows = await listPatients(organizationId, {
+    status: f.status,
+    hasBalance: f.hasBalance,
+    missingIntake: f.missingIntake,
+    birthdayThisMonth: f.birthdayThisMonth,
+    sources: f.sources,
+    tagIds: f.tagIds,
+    search: f.search,
+  })
+  return rows.map((r) => r.id)
+}
+
+/** Add the same follow-up to every patient matching the current view. */
+export async function bulkFollowupForFilteredAction(
+  filters: SavedViewFilters,
+  input: { title: string; dueDate?: string | null },
+): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can add follow-ups' }
+  if (!input.title.trim()) return { ok: false, error: 'Give the follow-up a title.' }
+  try {
+    const ids = await resolveFilteredPatientIds(ctx.organizationId, filters)
+    const { created } = await bulkCreateFollowups(ctx.organizationId, ids, input, ctx.userId)
+    revalidatePath('/followups')
+    revalidatePath('/dashboard')
+    return { ok: true, created }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not add follow-ups' }
+  }
+}
+
+/** Apply a tag to every patient matching the current view. */
+export async function bulkTagForFilteredAction(
+  filters: SavedViewFilters,
+  tagId: string,
+): Promise<{ ok: true; assigned: number } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can tag patients' }
+  try {
+    const ids = await resolveFilteredPatientIds(ctx.organizationId, filters)
+    const { assigned } = await assignTagToPatients(ctx.organizationId, ids, tagId, ctx.userId)
+    revalidatePath('/patients')
+    return { ok: true, assigned }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not apply the tag' }
+  }
 }
 
 // ---------- Smart follow-up rules ----------
