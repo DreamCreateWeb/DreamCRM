@@ -767,6 +767,22 @@ export async function updatePatient({ organizationId, patientId, patch }: Update
     if (guardian.guardianPatientId) {
       throw new Error('That patient is a dependent themselves — pick the family’s account holder')
     }
+    // The patient being modified must not ALREADY be a guardian (one-level tree).
+    // Otherwise X→B with an existing D→X makes a 2-level tree (D→X→B), and the
+    // one-hop getAccessiblePatientIds would silently drop D from B's access.
+    const [ownDependent] = await db
+      .select({ id: schema.patient.id })
+      .from(schema.patient)
+      .where(
+        and(
+          eq(schema.patient.organizationId, organizationId),
+          eq(schema.patient.guardianPatientId, patientId),
+        ),
+      )
+      .limit(1)
+    if (ownDependent) {
+      throw new Error('This patient is a family’s account holder — unlink their dependents before giving them a guardian')
+    }
   }
 
   const update: Record<string, unknown> = { updatedAt: new Date() }
