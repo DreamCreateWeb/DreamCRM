@@ -118,6 +118,33 @@ describe('submitReviewText notifications', () => {
     )
   })
 
+  it('escalates a 1–2★ submission with an urgent, force-emailed service-recovery alert', async () => {
+    reqWithStatus('sent')
+    const res = await submitReviewText({ token: 'tok', text: 'Long wait, felt rushed.', rating: 2 })
+    expect(res.ok).toBe(true)
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({
+        type: 'review_low_rating',
+        forceEmail: true,
+        title: expect.stringContaining('before it goes public'),
+        linkPath: '/reviews/received',
+      }),
+      { roles: ['owner', 'admin'] },
+    )
+  })
+
+  it('keeps a 3★+ submission on the normal (non-urgent) alert', async () => {
+    reqWithStatus('sent')
+    await submitReviewText({ token: 'tok', text: 'It was fine.', rating: 3 })
+    // The normal 'review_submitted' type fired (not the urgent low-rating one).
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({ type: 'review_submitted' }),
+      { roles: ['owner', 'admin'] },
+    )
+  })
+
   it('does NOT notify when the submission is rejected (e.g. skipped request)', async () => {
     reqWithStatus('skipped')
     const res = await submitReviewText({ token: 'tok', text: 'Trying to slip through.' })

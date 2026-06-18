@@ -714,18 +714,35 @@ export async function submitReviewText(input: {
       .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
       .limit(1)
     const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
-    const stars = input.rating != null ? `${input.rating}★ ` : ''
+    const rating = input.rating ?? null
+    // A 1–2★ submission is a SERVICE-RECOVERY moment: the patient is unhappy and
+    // hasn't posted publicly yet. Escalate it (urgent title + force-email even if
+    // push is muted) so an owner can reach out personally before they leave a
+    // public 1★. We do NOT change the patient-facing "share publicly" CTA — that
+    // stays the same for everyone (FTC-clean, no review gating).
+    const lowRating = rating != null && rating <= 2
+    const stars = rating != null ? `${rating}★ ` : ''
     const { notifyOrgMembers } = await import('@/lib/services/notifications')
     await notifyOrgMembers(
       row.organizationId,
-      {
-        bucket: 'comments',
-        type: 'review_submitted',
-        title: `New review — ${stars}from ${who}`.replace('  ', ' '),
-        body: text.slice(0, 140),
-        linkPath: '/reviews/received',
-        meta: { reviewRequestId: row.id, patientId: row.patientId, rating: input.rating ?? null },
-      },
+      lowRating
+        ? {
+            bucket: 'comments',
+            type: 'review_low_rating',
+            title: `⚠️ ${rating}★ review from ${who} — reach out before it goes public`,
+            body: `“${text.slice(0, 120)}” — a quick personal follow-up now is the best save.`,
+            linkPath: '/reviews/received',
+            forceEmail: true,
+            meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
+          }
+        : {
+            bucket: 'comments',
+            type: 'review_submitted',
+            title: `New review — ${stars}from ${who}`.replace('  ', ' '),
+            body: text.slice(0, 140),
+            linkPath: '/reviews/received',
+            meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
+          },
       { roles: ['owner', 'admin'] },
     )
   } catch (err) {
