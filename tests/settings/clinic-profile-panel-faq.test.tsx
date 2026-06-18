@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 /**
  * Regression: the clinic profile panel has NO FAQ editor (FAQ is authored in the
@@ -75,5 +75,31 @@ describe('ClinicProfilePanel — FAQ preservation', () => {
     const input = document.querySelector('input[name="faq"]') as HTMLInputElement | null
     expect(input).not.toBeNull()
     expect(input!.value).toBe('')
+  })
+})
+
+describe('ClinicProfilePanel — tabs', () => {
+  it('renders the four section tabs', () => {
+    render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
+    for (const label of ['Profile & contact', 'Branding', 'Website content', 'Insurance & payments']) {
+      expect(screen.getByRole('button', { name: label })).toBeTruthy()
+    }
+  })
+
+  it('keeps EVERY tab\'s inputs mounted so the single Save still submits all fields', () => {
+    render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
+    // Default tab is "Profile & contact", yet fields from other tabs are still
+    // in the DOM (hidden, not unmounted) — the whole point, so Save persists all.
+    expect(document.querySelector('textarea[name="paymentMethods"]')).not.toBeNull() // billing tab
+    expect(document.querySelector('textarea[name="acceptedInsuranceCarriers"]')).not.toBeNull() // billing tab
+    expect(document.querySelector('input[name="faq"]')).not.toBeNull() // branding tab
+  })
+
+  it('activates a tab on click', () => {
+    render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
+    const btn = screen.getByRole('button', { name: 'Insurance & payments' })
+    expect(btn.className).not.toContain('border-teal-500')
+    fireEvent.click(btn)
+    expect(btn.className).toContain('border-teal-500')
   })
 })
