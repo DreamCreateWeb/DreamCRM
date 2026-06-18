@@ -148,6 +148,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   // FK (cross-schema-file); validated on read, falls back to Tier 1 if missing.
   emailSendingAccountId: text('email_sending_account_id'),
 
+  // Opaque token for the subscribable read-only .ics calendar feed
+  // (/api/calendar/<token>). The token IS the auth (calendar apps can't carry a
+  // session), so it's a long random secret; regenerating it revokes old
+  // subscriptions. Null = the feed is off / not yet generated.
+  calendarFeedToken: text('calendar_feed_token'),
+
   // Address
   addressLine1: text('address_line1'),
   addressLine2: text('address_line2'),

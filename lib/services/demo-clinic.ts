@@ -1109,6 +1109,11 @@ const DEMO_HERO_IMAGE_2_URL =
 const DEMO_DIFFERENCE_VIDEO_URL =
   'https://dreamcrm-uploads-prod.s3.us-east-1.amazonaws.com/demo-assets/dental-difference.mp4'
 
+// Fixed demo calendar-feed token so the Settings → Clinic "Calendar feed" card
+// showcases the live "On" state (a working /api/calendar/<token>.ics over the
+// demo's seeded appointments). Deterministic so the demo URL never churns.
+const DEMO_CALENDAR_FEED_TOKEN = 'demo-dream-dental-calendar-feed-7c3f9a2e1b'
+
 const DEMO_OFFICE_PHOTOS = [
   {
     id: 'op1',
@@ -1322,6 +1327,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         stats: schema.clinicProfile.stats,
         testimonials: schema.clinicProfile.testimonials,
         officePhotos: schema.clinicProfile.officePhotos,
+        calendarFeedToken: schema.clinicProfile.calendarFeedToken,
         logoUrl: schema.clinicProfile.logoUrl,
         heroImageUrl: schema.clinicProfile.heroImageUrl,
         heroImageUrl2: schema.clinicProfile.heroImageUrl2,
@@ -1452,6 +1458,13 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       profile.differenceVideoUrl.includes('videos.pexels.com')
     ) {
       patch.differenceVideoUrl = DEMO_DIFFERENCE_VIDEO_URL
+    }
+    // Calendar-feed token backfill: legacy demos seeded before the feed shipped
+    // have null here, so the "Calendar feed" card shows Off. Seed the fixed
+    // demo token so it showcases the live On state (idempotent; never clobbers a
+    // real token).
+    if (!profile?.calendarFeedToken) {
+      patch.calendarFeedToken = DEMO_CALENDAR_FEED_TOKEN
     }
     // FAQ backfill: legacy demos seeded before migration 0036 added the
     // faq column have null here, so the public /faq page falls back to the
@@ -2039,6 +2052,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     heroImageUrl: DEMO_HERO_IMAGE_URL,
     heroImageUrl2: DEMO_HERO_IMAGE_2_URL,
     differenceVideoUrl: DEMO_DIFFERENCE_VIDEO_URL,
+    calendarFeedToken: DEMO_CALENDAR_FEED_TOKEN,
     addressLine1: '500 Main St',
     city: 'Austin',
     state: 'TX',

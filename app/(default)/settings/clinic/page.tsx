@@ -16,6 +16,7 @@ import { getGbpSyncState } from '@/lib/services/gbp-sync'
 import ClinicProfilePanel from './clinic-profile-panel'
 import CustomDomainCard from './custom-domain-card'
 import GbpSyncCard from './gbp-sync-card'
+import CalendarFeedCard from './calendar-feed-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
@@ -52,6 +53,9 @@ export default async function ClinicSettings() {
   // address (not the custom domain, which may not be live yet).
   const subdomainUrl = `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
   const customDomainStatus = (profile?.customDomainStatus as CustomDomainStatus | null) ?? null
+  // Canonical app origin for the calendar-feed subscribe URL.
+  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || `https://www.${SITE_DOMAIN}`
+  const canManageClinic = ctx.role === 'owner' || ctx.role === 'admin'
 
   return (
     <>
@@ -75,6 +79,11 @@ export default async function ClinicSettings() {
             gmailAccounts={gmailAccounts}
           />
           {gbpState && <GbpSyncCard state={gbpState} />}
+          <CalendarFeedCard
+            initialToken={profile?.calendarFeedToken ?? null}
+            baseUrl={appBaseUrl}
+            canManage={canManageClinic}
+          />
           <div className="border-t border-gray-200 dark:border-gray-700/60">
             <CustomDomainCard
               initialStatus={customDomainStatus}
