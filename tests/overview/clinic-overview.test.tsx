@@ -67,6 +67,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     },
     recentActivity: [],
     integrationsHealth: null,
+    followups: { openTotal: 0, overdue: 0, dueToday: 0, preview: [] },
     ...overrides,
   }
 }

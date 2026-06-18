@@ -125,6 +125,10 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
     title: 'Your patient relationships, not a clinical chart',
     body: 'Charts and procedures stay in your PMS. This is the relationship view — who’s due, who has a balance, who’s slipping away. The colored glyphs on each row tell you who needs what at a glance.',
   },
+  followups: {
+    title: 'The little reminders that fall through the cracks',
+    body: 'Add a follow-up from any patient — “call about the crown estimate”, “rebook after the no-show” — give it a due date and a teammate, and it waits here (and on your dashboard) until it’s ticked off. No-shows even add a rebook reminder for you automatically.',
+  },
   appointments: {
     title: 'The schedule, sorted by what needs you',
     body: 'Today is pinned on top, and unconfirmed visits grow an amber-to-red edge as they get close. Click any row to confirm, remind, reschedule, or cancel without leaving the page.',

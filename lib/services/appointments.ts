@@ -984,6 +984,17 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
   })
   await queueAppointmentStatusWriteBack(organizationId, appointmentId, 'no_show')
 
+  // Auto-create a "rebook" follow-up so the no-show doesn't quietly vanish —
+  // best-effort, idempotent per appointment, never blocks the status change.
+  if (notifyCtx) {
+    try {
+      const { autoCreateRebookFollowup } = await import('./patient-followups')
+      await autoCreateRebookFollowup(organizationId, notifyCtx.patientId, notifyCtx.patientName, appointmentId)
+    } catch (err) {
+      console.warn('[appointments.markNoShow] follow-up create failed', err)
+    }
+  }
+
   // Staff ping only — deliberately NO patient email on a no-show.
   if (notifyCtx) {
     try {

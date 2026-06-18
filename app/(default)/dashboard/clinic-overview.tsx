@@ -279,6 +279,38 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             />
           )}
 
+          {/* Follow-ups your team owes a patient — overdue + due today (pro+). */}
+          {planAtLeast(ctx.planTier, 'pro') && (
+            <AttentionCard
+              title="Follow-ups due"
+              count={data.followups.overdue + data.followups.dueToday}
+              countSuffix={
+                data.followups.overdue > 0
+                  ? `${data.followups.overdue} overdue · ${data.followups.dueToday} today`
+                  : data.followups.dueToday === 1
+                    ? 'follow-up due today'
+                    : 'follow-ups due today'
+              }
+              cta={
+                data.followups.overdue + data.followups.dueToday > 0
+                  ? { label: 'Work the list', href: data.followups.overdue > 0 ? '/followups?due=overdue' : '/followups?due=today' }
+                  : data.followups.openTotal > 0
+                    ? { label: 'View all', href: '/followups' }
+                    : null
+              }
+              emptyCopy="Nothing due today. Add a follow-up from any patient to never drop a callback again."
+            >
+              {data.followups.preview.map((f) => (
+                <li key={f.id} className="flex items-center justify-between text-sm py-1.5">
+                  <span className="truncate text-gray-700 dark:text-gray-200">{f.title}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 truncate max-w-[40%]">
+                    {f.patientName}
+                  </span>
+                </li>
+              ))}
+            </AttentionCard>
+          )}
+
           {/* Paid shop orders still to fulfill — your move (premium). */}
           {planAtLeast(ctx.planTier, 'premium') && (
             <AttentionCard

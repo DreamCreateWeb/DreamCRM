@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { getIntegrationsHealth, type IntegrationsHealth } from '@/lib/services/pms/health'
 import { getReviewStats } from '@/lib/services/reviews'
 import { getInboxStats } from '@/lib/services/patient-messaging'
+import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient-followups'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -67,6 +68,8 @@ export interface ClinicOverviewData {
   }
   recentActivity: ActivityRow[]
   integrationsHealth: IntegrationsHealth | null
+  /** Open patient follow-ups + how many are overdue / due today (morning huddle). */
+  followups: FollowupSummary
 }
 
 export interface TodayAppointmentRow {
@@ -574,7 +577,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats] = await Promise.all([
+  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups] = await Promise.all([
     getIntegrationsHealth(organizationId, now),
     // Paid shop orders still awaiting fulfillment (our move).
     db
@@ -590,6 +593,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     getReviewStats(organizationId),
     // currentUserId isn't used for the unread count (the service `void`s it).
     getInboxStats(organizationId, ''),
+    getFollowupSummary(organizationId, now),
   ])
 
   return {
@@ -605,5 +609,6 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     trends,
     recentActivity,
     integrationsHealth,
+    followups,
   }
 }

@@ -150,6 +150,40 @@ export const patientDocument = pgTable(
   (t) => [index('patient_document_patient_created_idx').on(t.patientId, t.createdAt)],
 )
 
+// Staff follow-up tasks attached to a patient ("call about treatment plan",
+// "rebook after no-show"). The dental-research pattern is patient-attached
+// followups, not a generic kanban — these surface on the Overview morning
+// huddle, the patient detail, and a dedicated /followups cockpit list. A
+// follow-up can be assigned to a teammate (or left for anyone) and carries an
+// optional due date (date-only, clinic-local, so "due today" is a calendar
+// concept free of timezone drift).
+export const patientFollowup = pgTable(
+  'patient_followup',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    // 'YYYY-MM-DD' date-only (clinic-local). Null = no due date ("someday").
+    dueDate: text('due_date'),
+    // Who's responsible. Null = unassigned (anyone on the team can pick it up).
+    assignedUserId: text('assigned_user_id').references(() => user.id, { onDelete: 'set null' }),
+    status: text('status').notNull().default('open'), // 'open' | 'done'
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    completedAt: timestamp('completed_at'),
+    completedBy: text('completed_by').references(() => user.id, { onDelete: 'set null' }),
+    // Soft pointer to the appointment that spawned this (e.g. auto-created on a
+    // no-show). No FK so deleting the appointment doesn't cascade the task.
+    sourceAppointmentId: text('source_appointment_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('patient_followup_org_status_due_idx').on(t.organizationId, t.status, t.dueDate),
+    index('patient_followup_patient_status_idx').on(t.patientId, t.status),
+  ],
+)
+
 // Org-scoped tag catalog — reusable labels a clinic puts on patients
 // ("VIP", "Anxious", "Needs follow-up", "Pediatric"). CRM-side organization,
 // NOT clinical coding. `color` is one of a fixed tone palette

@@ -18,8 +18,10 @@ import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import TagsPanel from './tags-panel'
 import DocumentsPanel from './documents-panel'
+import FollowupsPanel from './followups-panel'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import type { PatientDocumentRow } from '@/lib/types/patient-documents'
+import type { PatientFollowupView } from '@/lib/types/followups'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
 import SendIntakeInline, { type IntakeFormOption } from '../send-intake-inline'
 import {
@@ -121,6 +123,8 @@ export default function PatientDetail({
   tags = [],
   tagCatalog = [],
   documents = [],
+  followups = [],
+  staff = [],
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -133,6 +137,8 @@ export default function PatientDetail({
   tags?: PatientTagView[]
   tagCatalog?: PatientTagView[]
   documents?: PatientDocumentRow[]
+  followups?: PatientFollowupView[]
+  staff?: Array<{ userId: string; name: string }>
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
   const [editOpen, setEditOpen] = useState(false)
@@ -284,6 +290,7 @@ export default function PatientDetail({
         {/* ── Identity rail ──────────────────────────────────────────── */}
         <aside className="lg:col-span-3 space-y-4">
           <NeedsAttention header={header} forms={intakeForms} />
+          <FollowupsPanel patientId={header.id} initial={followups} staff={staff} />
           <TagsPanel patientId={header.id} initialTags={tags} catalog={tagCatalog} />
           <IdentityCard header={header} />
         </aside>
