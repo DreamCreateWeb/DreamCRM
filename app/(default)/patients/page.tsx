@@ -49,6 +49,7 @@ export default async function PatientsPage({ searchParams }: PageProps) {
     birthdayThisMonth: params.birthday === '1',
     sources: typeof params.source === 'string' ? params.source.split(',').filter(Boolean) : undefined,
     search: typeof params.q === 'string' ? params.q : undefined,
+    tagIds: typeof params.tags === 'string' ? params.tags.split(',').filter(Boolean) : undefined,
   }
   const sort = parseSort(params.sort)
 

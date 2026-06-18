@@ -17,6 +17,15 @@ import {
 } from '@/lib/services/patients'
 import { sendBulkPatientEmail, type BulkEmailResult } from '@/lib/services/patient-bulk-comms'
 import { addPatientNote, deletePatientNote } from '@/lib/services/patient-notes'
+import {
+  createPatientTag,
+  updatePatientTag,
+  deletePatientTag,
+  assignPatientTag,
+  unassignPatientTag,
+  assignTagToPatients,
+} from '@/lib/services/patient-tags'
+import type { PatientTagColor, PatientTagView } from '@/lib/types/patient-tags'
 import { getOrCreatePatientThread } from '@/lib/services/patient-messaging'
 import { sendIntakeRequestToPatient } from '@/lib/services/patient-intake-send'
 import { createAndSendReviewRequest } from '@/lib/services/reviews'
@@ -138,6 +147,104 @@ export async function deletePatientNoteAction(
   if (ctx.tenantType !== 'clinic') return
   await deletePatientNote(ctx.organizationId, noteId)
   revalidatePath(`/patients/${patientId}`)
+}
+
+// ---------- Tags ----------
+
+/** Create a new tag in the org catalog (idempotent on name) + return it. Any
+ *  clinic staff can create + apply tags; deleting from the catalog is gated. */
+export async function createPatientTagAction(
+  name: string,
+  color?: PatientTagColor,
+): Promise<{ ok: true; tag: PatientTagView } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can create tags' }
+  try {
+    const tag = await createPatientTag(ctx.organizationId, { name, color }, ctx.userId)
+    revalidatePath('/patients')
+    return { ok: true, tag }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not create the tag' }
+  }
+}
+
+/** Assign a tag to one patient (idempotent). */
+export async function assignPatientTagAction(
+  patientId: string,
+  tagId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can tag patients' }
+  try {
+    await assignPatientTag(ctx.organizationId, patientId, tagId, ctx.userId)
+    revalidatePath(`/patients/${patientId}`)
+    revalidatePath('/patients')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not apply the tag' }
+  }
+}
+
+/** Remove a tag from one patient. */
+export async function unassignPatientTagAction(
+  patientId: string,
+  tagId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can edit tags' }
+  await unassignPatientTag(ctx.organizationId, patientId, tagId)
+  revalidatePath(`/patients/${patientId}`)
+  revalidatePath('/patients')
+  return { ok: true }
+}
+
+/** Bulk-assign one tag to many selected patients (patients-list bulk action). */
+export async function bulkAssignPatientTagAction(
+  patientIds: string[],
+  tagId: string,
+): Promise<{ ok: true; assigned: number } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can tag patients' }
+  try {
+    const { assigned } = await assignTagToPatients(ctx.organizationId, patientIds, tagId, ctx.userId)
+    revalidatePath('/patients')
+    return { ok: true, assigned }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not apply the tag' }
+  }
+}
+
+/** Rename / recolor a catalog tag (owner/admin — affects every patient). */
+export async function updatePatientTagAction(
+  tagId: string,
+  patch: { name?: string; color?: PatientTagColor },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can edit tags' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can edit the tag catalog.' }
+  }
+  try {
+    await updatePatientTag(ctx.organizationId, tagId, patch)
+    revalidatePath('/patients')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not update the tag' }
+  }
+}
+
+/** Delete a tag from the catalog (owner/admin — unassigns it everywhere). */
+export async function deletePatientTagAction(
+  tagId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can delete tags' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can delete a tag.' }
+  }
+  await deletePatientTag(ctx.organizationId, tagId)
+  revalidatePath('/patients')
+  return { ok: true }
 }
 
 /**

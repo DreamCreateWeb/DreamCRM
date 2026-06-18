@@ -7,6 +7,7 @@ import {
   type AudienceFilterT,
   type PatientAudienceFilterT,
 } from '@/lib/services/marketing'
+import { listPatientTags } from '@/lib/services/patient-tags'
 import AudiencesClient from './audiences-client'
 
 export const metadata = {
@@ -22,6 +23,7 @@ export default async function AudiencesPage() {
   const t = marketingTerminology(ctx.tenantType)
 
   const audiences = await listAudiences(ctx.organizationId)
+  const tags = ctx.tenantType === 'clinic' ? await listPatientTags(ctx.organizationId) : []
   const counts = await Promise.all(
     audiences.map(async (a) => {
       const rows = await resolveAudience(ctx.organizationId, {
@@ -48,6 +50,7 @@ export default async function AudiencesPage() {
         tenantType={ctx.tenantType === 'platform' ? 'platform' : 'clinic'}
         stages={t.stages}
         sources={t.sources}
+        tags={tags}
         orgName={ctx.organizationName}
         leadsLabel={t.leads}
       />

@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, or
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import { getTagsForPatients } from '@/lib/services/patient-tags'
 
 /**
  * Marketing service: lead pipeline (customers table extended with stage/source),
@@ -253,6 +254,8 @@ export const PatientAudienceFilter = z.object({
   birthdayToday: z.boolean().optional(),
   /** Has a scheduled (unconfirmed) appointment in the next N hours */
   hasUnconfirmedNextHours: z.number().int().min(0).optional(),
+  /** Keep only patients carrying ANY of these CRM tag ids (OR semantics). */
+  tagIds: z.array(z.string()).optional(),
   /** Require marketing_email_opt_in=1 (default true — always for email sends) */
   requireEmailOptIn: z.boolean().default(true),
   /** Require marketing_sms_opt_in=1 (set true for SMS campaign sends) */
@@ -464,6 +467,14 @@ export async function resolvePatientAudience(
   const ids = patients.map((p) => p.id)
   const emails = patients.map((p) => p.email).filter((e): e is string => !!e)
 
+  // Tag targeting — only resolve when the filter asks for it. Build a per-patient
+  // tag-id set so the post-query predicate is O(1).
+  const tagSetByPatient = new Map<string, Set<string>>()
+  if (parsed.tagIds?.length) {
+    const tagMap = await getTagsForPatients(organizationId, ids)
+    tagMap.forEach((tags, pid) => tagSetByPatient.set(pid, new Set(tags.map((t) => t.id))))
+  }
+
   const [lastVisitRows, upcomingRows, unconfirmedRows, invoiceRows] = await Promise.all([
     needLastVisit
       ? db
@@ -608,6 +619,10 @@ export async function resolvePatientAudience(
         if (parseInt(m[3], 10) !== now.getDate()) return false
       }
       if (parsed.hasUnconfirmedNextHours != null && !unconfirmedSet.has(r.p.id)) return false
+      if (parsed.tagIds?.length) {
+        const have = tagSetByPatient.get(r.p.id)
+        if (!have || !parsed.tagIds.some((id) => have.has(id))) return false
+      }
       return true
     })
     .map((r) => ({
