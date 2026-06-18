@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { notifyOrgMembers } from './notifications'
 import { sendNotificationEmail } from '@/lib/email'
+import { toCsv, csvDollars } from '@/lib/csv'
 
 /**
  * Online balance payments from the patient portal. Money moves through the
@@ -279,4 +280,20 @@ export async function listRecentBalancePayments(
     createdAt: r.createdAt,
     balanceCentsAtPayment: r.balanceCentsAtPayment,
   }))
+}
+
+/** All collected online balance payments as a CSV for clinic bookkeeping. */
+export async function exportBalancePaymentsCsv(organizationId: string): Promise<string> {
+  const rows = await listRecentBalancePayments(organizationId, 100_000)
+  const headers = ['Payment ID', 'Date', 'Patient', 'Amount', 'Balance at payment', 'Status', 'Paid at']
+  const csvRows = rows.map((r) => [
+    r.id,
+    r.createdAt.toISOString(),
+    r.patientName,
+    csvDollars(r.amountCents),
+    csvDollars(r.balanceCentsAtPayment),
+    r.status,
+    r.paidAt ? r.paidAt.toISOString() : '',
+  ])
+  return toCsv(headers, csvRows)
 }

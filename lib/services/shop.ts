@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { slugify } from '@/lib/utils'
+import { toCsv, csvDollars } from '@/lib/csv'
 import type {
   ProductRow,
   ProductVariantRow,
@@ -456,6 +457,35 @@ export async function listOrders(
       r.firstName ? `${r.firstName} ${r.lastName ?? ''}`.trim() : null,
     ),
   )
+}
+
+/** All orders as a CSV for the clinic's bookkeeping (month-end reconciliation). */
+export async function exportShopOrdersCsv(organizationId: string): Promise<string> {
+  const orders = await listOrders(organizationId)
+  const headers = [
+    'Order ID', 'Date', 'Status', 'Fulfillment', 'Fulfillment status',
+    'Customer', 'Email', 'Phone', 'Items',
+    'Subtotal', 'Shipping', 'Tax', 'Discount', 'Total', 'Tracking #', 'Paid at',
+  ]
+  const rows = orders.map((o) => [
+    o.id,
+    o.createdAt.toISOString(),
+    o.status,
+    o.fulfillmentType,
+    o.fulfillmentStatus,
+    o.patientName ?? o.name ?? '',
+    o.email,
+    o.phone ?? '',
+    o.items.map((it) => `${it.quantity}× ${it.productName}`).join('; '),
+    csvDollars(o.subtotalCents),
+    csvDollars(o.shippingCents),
+    csvDollars(o.taxCents),
+    csvDollars(o.discountCents),
+    csvDollars(o.totalCents),
+    o.trackingNumber ?? '',
+    o.paidAt ? o.paidAt.toISOString() : '',
+  ])
+  return toCsv(headers, rows)
 }
 
 export async function getOrder(organizationId: string, id: string): Promise<OrderRow | null> {

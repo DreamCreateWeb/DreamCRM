@@ -67,11 +67,14 @@ export default function OrdersClient({
   orders,
   orgName = 'Your clinic',
   initialFilter = 'all',
+  canExport = false,
 }: {
   orders: OrderRow[]
   orgName?: string
   /** Pre-selected status chip (the Overview "Fulfill orders" card passes 'paid'). */
   initialFilter?: OrdersFilter
+  /** Owner/admin: show the CSV export. */
+  canExport?: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -111,9 +114,16 @@ export default function OrdersClient({
         subtitle="Storefront orders and where each one is in fulfillment. Unfulfilled paid orders are waiting on you."
         legend={<EncodingLegend pills={PILL_LEGEND} />}
         actions={
-          <ActionButton variant="secondary" size="sm" href="/shop">
-            ← Back to Shop
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            {canExport && (
+              <ActionButton variant="ghost" size="sm" href="/shop/orders/export" target="_blank">
+                Export CSV
+              </ActionButton>
+            )}
+            <ActionButton variant="secondary" size="sm" href="/shop">
+              ← Back to Shop
+            </ActionButton>
+          </div>
         }
       />
 

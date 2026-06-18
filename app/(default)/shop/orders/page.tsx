@@ -29,6 +29,7 @@ export default async function ShopOrdersPage({
       orders={orders}
       orgName={ctx.organizationName}
       initialFilter={parseFilter(params.status)}
+      canExport={ctx.role === 'owner' || ctx.role === 'admin'}
     />
   )
 }
