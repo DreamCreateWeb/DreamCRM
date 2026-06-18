@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { saveNotificationPrefs } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
+import { Toggle } from '@/components/ui/toggle'
+import { SettingsSection, SettingsRow } from '../settings-kit'
 
 interface Prefs {
   comments: boolean
@@ -81,6 +83,7 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
   const [prefs, setPrefs] = useState<Prefs>(initial)
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
+  const dirty = JSON.stringify(prefs) !== JSON.stringify(initial)
 
   function toggle<K extends keyof Prefs>(key: K) {
     setPrefs((p) => ({ ...p, [key]: !p[key] }))
@@ -92,87 +95,51 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
     startTransition(async () => {
       try {
         await saveNotificationPrefs(prefs)
-        setFeedback({ ok: 'Preferences saved' })
+        setFeedback({ ok: 'Preferences saved.' })
       } catch (err) {
         setFeedback({ error: (err as Error).message })
       }
     })
   }
 
-  function ToggleRow({ id, title, description, prefKey }: { id: string; title: string; description: string; prefKey: keyof Prefs }) {
-    const value = prefs[prefKey]
+  function prefRow(prefKey: keyof Prefs, title: string, description: string) {
     return (
-      <li className="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-700/60">
-        <div>
-          <div className="text-gray-800 dark:text-gray-100 font-semibold">{title}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">{description}</div>
-        </div>
-        <div className="flex items-center ml-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400 italic mr-2">{value ? 'On' : 'Off'}</div>
-          <div className="form-switch">
-            <input type="checkbox" id={id} className="sr-only" checked={value} onChange={() => toggle(prefKey)} />
-            <label htmlFor={id}>
-              <span className="bg-white shadow-sm" aria-hidden="true"></span>
-              <span className="sr-only">Toggle {title}</span>
-            </label>
-          </div>
-        </div>
-      </li>
+      <SettingsRow
+        label={title}
+        description={description}
+        control={<Toggle checked={prefs[prefKey]} onChange={() => toggle(prefKey)} srLabel={title} />}
+      />
     )
   }
 
   return (
-    <div className="grow">
-      <form onSubmit={onSubmit}>
-        <div className="p-6 space-y-6">
-          <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-5">My Notifications</h2>
+    <form onSubmit={onSubmit} className="p-6 space-y-6">
+      <SettingsSection title="In-app alerts" description="Pick which activity shows up in your notification bell.">
+        {prefRow('comments', labels.comments.title, labels.comments.description)}
+        {prefRow('candidates', labels.candidates.title, labels.candidates.description)}
+        {prefRow('offers', labels.offers.title, labels.offers.description)}
+      </SettingsSection>
 
-          <section>
-            <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">In-app alerts</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              Pick which activity shows up in your notification bell.
-            </p>
-            <ul>
-              <ToggleRow id="np-comments" prefKey="comments" title={labels.comments.title} description={labels.comments.description} />
-              <ToggleRow id="np-candidates" prefKey="candidates" title={labels.candidates.title} description={labels.candidates.description} />
-              <ToggleRow id="np-offers" prefKey="offers" title={labels.offers.title} description={labels.offers.description} />
-            </ul>
-          </section>
+      <SettingsSection title="Delivery" description="How these alerts reach you, on top of the bell.">
+        {/* NOTE: no "mobile/desktop push" toggle — we don't ship push (no service
+            worker / FCM / APNs), so a toggle promising it would be write-only.
+            Email digest + Pause all are the two delivery controls that act. */}
+        {prefRow('pushEmail', 'Email digest', 'Email a copy of these alerts to your inbox.')}
+        {prefRow('pushNothing', 'Pause all', 'Temporarily silence every alert (overrides the rest).')}
+      </SettingsSection>
 
-          <section>
-            <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Delivery</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              How these alerts reach you, on top of the bell.
-            </p>
-            <ul>
-              {/* NOTE: there is no "Everything / mobile + desktop push" toggle.
-                  We don't ship push notifications (no service worker / FCM / APNs),
-                  so a toggle promising them was write-only — `notify()` never read
-                  `pushEverything`. Email digest + Pause all are the two delivery
-                  controls that actually do something. */}
-              <ToggleRow id="np-push-email" prefKey="pushEmail" title="Email digest" description="Email a copy of these alerts to your inbox." />
-              <ToggleRow id="np-push-nothing" prefKey="pushNothing" title="Pause all" description="Temporarily silence every alert (overrides others)." />
-            </ul>
-          </section>
-        </div>
-
-        <footer>
-          <div className="flex flex-col px-6 py-5 border-t border-gray-200 dark:border-gray-700/60">
-            {feedback?.error && (
-              <div className="mb-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
-            )}
-            {feedback?.ok && (
-              <div className="mb-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
-            )}
-            <div className="flex self-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setPrefs(initial)}>Cancel</ActionButton>
-              <ActionButton variant="primary" type="submit" disabled={pending}>
-                {pending ? 'Saving…' : 'Save Changes'}
-              </ActionButton>
-            </div>
-          </div>
-        </footer>
-      </form>
-    </div>
+      <div className="flex items-center justify-end gap-3">
+        {feedback?.error && <span className="mr-auto text-sm text-rose-600 dark:text-rose-400">{feedback.error}</span>}
+        {feedback?.ok && <span className="mr-auto text-sm text-emerald-600 dark:text-emerald-400">{feedback.ok}</span>}
+        {dirty && (
+          <ActionButton variant="secondary" onClick={() => setPrefs(initial)}>
+            Reset
+          </ActionButton>
+        )}
+        <ActionButton variant="primary" type="submit" disabled={pending || !dirty}>
+          {pending ? 'Saving…' : 'Save changes'}
+        </ActionButton>
+      </div>
+    </form>
   )
 }

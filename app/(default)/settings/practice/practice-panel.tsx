@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { Toggle } from '@/components/ui/toggle'
 import { OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
 import type { PracticeSettingsData } from './actions'
 import {
@@ -83,23 +84,14 @@ function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: s
       />
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <label className="flex items-start gap-3 cursor-pointer">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label="Let patients book their own appointment time online"
-            disabled={pending}
-            onClick={() => toggle(!on)}
-            className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
-              on ? 'bg-teal-500' : 'bg-gray-300 dark:bg-gray-600'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                on ? 'translate-x-5' : 'translate-x-0.5'
-              }`}
+          <span className="mt-0.5">
+            <Toggle
+              checked={on}
+              onChange={toggle}
+              disabled={pending}
+              srLabel="Let patients book their own appointment time online"
             />
-          </button>
+          </span>
           <span className="text-sm">
             <span className="font-medium text-gray-800 dark:text-gray-100">
               Let patients book their own appointment time online
