@@ -74,7 +74,10 @@ export async function sendDueScheduledCampaigns(opts?: { now?: Date }): Promise<
     }
 
     try {
-      const send = await sendCampaign({ organizationId: c.organizationId, campaignId: c.id })
+      // We already won the atomic claim above (scheduled → active), so tell
+      // sendCampaign to skip its OWN claim — otherwise it sees 'active', fails
+      // its draft/scheduled/paused claim, and every scheduled send no-ops.
+      const send = await sendCampaign({ organizationId: c.organizationId, campaignId: c.id, alreadyClaimed: true })
       result.results.push({ campaignId: c.id, organizationId: c.organizationId, sent: send.sent, failed: send.failed })
       // sendCampaign returns early (without touching status) when the audience
       // resolved to zero recipients — but our atomic claim already set the row

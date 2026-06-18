@@ -12,7 +12,7 @@ const state = {
   due: [] as DueRow[],
   // Per-campaign-id claim outcome: true = this runner wins the UPDATE.
   claimWins: new Map<number, boolean>(),
-  sendCalls: [] as Array<{ organizationId: string; campaignId: number }>,
+  sendCalls: [] as Array<{ organizationId: string; campaignId: number; alreadyClaimed?: boolean }>,
   sendThrowsFor: new Set<number>(),
   // Campaigns whose audience resolves to 0 recipients (sendCampaign returns
   // attempted:0 without touching status → engine must reset to draft).
@@ -59,8 +59,8 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 vi.mock('@/lib/services/marketing-send', () => ({
-  sendCampaign: vi.fn(async ({ organizationId, campaignId }: { organizationId: string; campaignId: number }) => {
-    state.sendCalls.push({ organizationId, campaignId })
+  sendCampaign: vi.fn(async ({ organizationId, campaignId, alreadyClaimed }: { organizationId: string; campaignId: number; alreadyClaimed?: boolean }) => {
+    state.sendCalls.push({ organizationId, campaignId, alreadyClaimed })
     if (state.sendThrowsFor.has(campaignId)) throw new Error('send blew up')
     if (state.emptyAudienceFor.has(campaignId)) {
       return { channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [] }
@@ -96,6 +96,10 @@ describe('sendDueScheduledCampaigns', () => {
     expect(r.claimed).toBe(2)
     expect(r.skipped).toBe(0)
     expect(state.sendCalls.map((c) => c.campaignId)).toEqual([1, 2])
+    // CRITICAL: the cron already won the claim, so it MUST tell sendCampaign to
+    // skip its own claim — otherwise the (now 'active') campaign claims nothing
+    // and sends to nobody. Pin the contract.
+    expect(state.sendCalls.every((c) => c.alreadyClaimed === true)).toBe(true)
   })
 
   it('a claim LOSER skips and never calls sendCampaign (no double-send)', async () => {
