@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const state: { selectQueue: unknown[][] } = { selectQueue: [] }
+const state: { selectQueue: unknown[][]; updateReturning: unknown[] } = { selectQueue: [], updateReturning: [] }
 
 vi.mock('@/lib/db', () => {
   const chain = () => {
@@ -13,10 +13,16 @@ vi.mock('@/lib/db', () => {
     obj.then = (resolve: (v: unknown) => void) => resolve(state.selectQueue.shift() ?? [])
     return obj
   }
-  return { db: { select: () => chain() }, schema: new Proxy({}, { get: () => ({}) }) }
+  return {
+    db: {
+      select: () => chain(),
+      update: () => ({ set: () => ({ where: () => ({ returning: async () => state.updateReturning }) }) }),
+    },
+    schema: new Proxy({}, { get: () => ({}) }),
+  }
 })
 
-import { validateCoupon } from '@/lib/services/coupons'
+import { validateCoupon, claimSingleUseCoupon } from '@/lib/services/coupons'
 
 function coupon(over: Record<string, unknown> = {}) {
   return {
@@ -35,6 +41,7 @@ function coupon(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   state.selectQueue.length = 0
+  state.updateReturning = []
 })
 
 describe('validateCoupon', () => {
@@ -71,5 +78,24 @@ describe('validateCoupon', () => {
     const v = await validateCoupon('org_1', 'SAVE', 5000)
     expect(v.ok).toBe(false)
     expect(v.error).toMatch(/Minimum/)
+  })
+
+  it('reports whether the code is single-use (so checkout knows to reserve it)', async () => {
+    state.selectQueue.push([coupon({ singleUse: 1 })])
+    expect((await validateCoupon('org_1', 'SAVE', 10000)).singleUse).toBe(true)
+    state.selectQueue.push([coupon({ singleUse: 0 })])
+    expect((await validateCoupon('org_1', 'SAVE', 10000)).singleUse).toBe(false)
+  })
+})
+
+describe('claimSingleUseCoupon — reservation at checkout', () => {
+  it('returns true when the atomic claim updates a row (reserved)', async () => {
+    state.updateReturning = [{ id: 'coupon_1' }]
+    expect(await claimSingleUseCoupon('org_1', 'coupon_1', 'order_1')).toBe(true)
+  })
+
+  it('returns false when nothing was claimed (already used / live-reserved by another order)', async () => {
+    state.updateReturning = []
+    expect(await claimSingleUseCoupon('org_1', 'coupon_1', 'order_1')).toBe(false)
   })
 })

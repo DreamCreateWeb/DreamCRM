@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // selectQueue drives each db.select(): connectedAccount shifts the config row,
 // then priceCart shifts the variant rows. The oversell guard throws right after
 // priceCart, before any Stripe call, so we never need a real Stripe mock.
-const state: { selectQueue: unknown[][] } = { selectQueue: [] }
+const state: { selectQueue: unknown[][]; claimResult: unknown[] } = { selectQueue: [], claimResult: [] }
 
 vi.mock('@/lib/db', () => {
   const chain = () => {
@@ -17,7 +17,17 @@ vi.mock('@/lib/db', () => {
     db: {
       select: () => chain(),
       insert: () => ({ values: async () => {} }),
-      update: () => ({ set: () => ({ where: async () => {} }) }),
+      // .where() is awaitable (plain updates) AND exposes .returning() (the
+      // single-use coupon claim) → claimResult drives whether the claim "wins".
+      update: () => ({
+        set: () => ({
+          where: () => {
+            const p: any = Promise.resolve(undefined)
+            p.returning = async () => state.claimResult
+            return p
+          },
+        }),
+      }),
     },
     schema: new Proxy({}, { get: () => ({}) }),
   }
@@ -55,7 +65,15 @@ function variantRow(over: Partial<Record<string, unknown>> = {}) {
 
 beforeEach(() => {
   state.selectQueue.length = 0
+  state.claimResult = []
 })
+
+function singleUseCoupon(over: Record<string, unknown> = {}) {
+  return {
+    id: 'coupon_1', code: 'WELCOME', discountType: 'amount', discountValue: 500,
+    active: 1, singleUse: 1, minSubtotalCents: null, expiresAt: null, usedAt: null, ...over,
+  }
+}
 
 describe('createShopCheckoutSession oversell guard', () => {
   it('rejects when the requested quantity exceeds tracked stock', async () => {
@@ -92,5 +110,36 @@ describe('createShopCheckoutSession oversell guard', () => {
         email: 'a@x.com',
       }),
     ).rejects.not.toThrow(/stock|left/i)
+  })
+})
+
+describe('createShopCheckoutSession — single-use coupon reservation', () => {
+  it('refuses checkout when a single-use code can no longer be reserved (already used/reserved)', async () => {
+    // config, variant, then the coupon lookup → a valid single-use code.
+    state.selectQueue.push([ACTIVE_CONFIG], [variantRow({ inventoryQty: 5 })], [singleUseCoupon()])
+    state.claimResult = [] // the atomic claim wins nothing → already taken
+    await expect(
+      createShopCheckoutSession('org_1', 'https://x', {
+        items: [{ variantId: 'v1', qty: 1 }],
+        fulfillmentType: 'pickup',
+        email: 'a@x.com',
+        couponCode: 'WELCOME',
+      }),
+    ).rejects.toThrow(/just been used/i)
+  })
+
+  it('proceeds past the reservation when the single-use code is successfully claimed', async () => {
+    state.selectQueue.push([ACTIVE_CONFIG], [variantRow({ inventoryQty: 5 })], [singleUseCoupon()])
+    state.claimResult = [{ id: 'coupon_1' }] // claim wins → reserved to this order
+    // It gets PAST the reservation and fails later on the empty Stripe mock —
+    // proving the reservation itself didn't reject a freshly-claimed code.
+    await expect(
+      createShopCheckoutSession('org_1', 'https://x', {
+        items: [{ variantId: 'v1', qty: 1 }],
+        fulfillmentType: 'pickup',
+        email: 'a@x.com',
+        couponCode: 'WELCOME',
+      }),
+    ).rejects.not.toThrow(/just been used/i)
   })
 })

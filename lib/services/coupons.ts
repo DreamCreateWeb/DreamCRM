@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import type { CouponRow, DiscountType, CouponSource } from '@/lib/types/shop'
@@ -87,6 +87,44 @@ export interface CouponValidation {
   discountType?: DiscountType
   discountValue?: number
   discountCents?: number
+  /** Whether this code is single-use (the caller must reserve it at checkout). */
+  singleUse?: boolean
+}
+
+/** A single-use reservation older than this (an abandoned checkout) is treated
+ *  as free + reclaimable — matches Stripe Checkout's ~24h session lifetime, so
+ *  an unpaid cart never locks a code forever. */
+const COUPON_RESERVATION_TTL_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Atomically reserve a single-use coupon to an order at CHECKOUT, before the
+ * Stripe session is created — so two concurrent checkouts can't both apply the
+ * same one-time discount (the old code only burned it at finalize, by which
+ * point both sessions already carried the discount). Returns true if claimed.
+ * The permanent burn still happens on payment via markCouponUsed.
+ */
+export async function claimSingleUseCoupon(
+  organizationId: string,
+  couponId: string,
+  orderId: string,
+): Promise<boolean> {
+  const staleBefore = new Date(Date.now() - COUPON_RESERVATION_TTL_MS)
+  const claimed = await db
+    .update(schema.shopCoupon)
+    .set({ usedOrderId: orderId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.shopCoupon.organizationId, organizationId),
+        eq(schema.shopCoupon.id, couponId),
+        eq(schema.shopCoupon.singleUse, 1),
+        eq(schema.shopCoupon.active, 1),
+        isNull(schema.shopCoupon.usedAt), // not yet burned by a paid order
+        // Free to claim: unreserved, OR a stale (abandoned) prior reservation.
+        or(isNull(schema.shopCoupon.usedOrderId), lt(schema.shopCoupon.updatedAt, staleBefore)),
+      ),
+    )
+    .returning({ id: schema.shopCoupon.id })
+  return claimed.length > 0
 }
 
 /** Validate a code against a cart subtotal + compute the discount in cents. */
@@ -111,7 +149,14 @@ export async function validateCoupon(
     c.discountType === 'percent'
       ? Math.round((subtotalCents * c.discountValue) / 100)
       : Math.min(c.discountValue, subtotalCents)
-  return { ok: true, couponId: c.id, discountType: c.discountType as DiscountType, discountValue: c.discountValue, discountCents }
+  return {
+    ok: true,
+    couponId: c.id,
+    discountType: c.discountType as DiscountType,
+    discountValue: c.discountValue,
+    discountCents,
+    singleUse: c.singleUse === 1,
+  }
 }
 
 export async function markCouponUsed(organizationId: string, couponId: string, orderId: string): Promise<void> {
