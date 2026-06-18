@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -145,6 +146,13 @@ function platformSections(): NavSection[] {
   ]
 }
 
+// Resizable width: a draggable divider lets users widen the nav (long labels)
+// or reclaim space for the content. Persisted so it's consistent across pages.
+const MIN_W = 200
+const MAX_W = 380
+const DEFAULT_W = 256
+const WIDTH_KEY = 'dc.settingsSidebarWidth'
+
 export default function SettingsSidebar({ tenantType }: Props = {}) {
   const pathname = usePathname()
   const isPlatform = tenantType === 'platform'
@@ -174,10 +182,69 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
     ? { label: orgLabel, href: orgHome }
     : { label: 'Your account', href: '/settings/account' }
 
+  // ── Search / filter ──────────────────────────────────────────────────
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? sections
+        .map((s) => ({ ...s, items: s.items.filter((i) => i.label.toLowerCase().includes(q)) }))
+        .filter((s) => s.items.length > 0)
+    : sections
+  const noResults = q.length > 0 && filtered.length === 0
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  // ── Resize ───────────────────────────────────────────────────────────
+  const [width, setWidth] = useState(DEFAULT_W)
+  const dragRef = useRef<{ x: number; w: number } | null>(null)
+
+  useEffect(() => {
+    const saved = Number(localStorage.getItem(WIDTH_KEY))
+    if (Number.isFinite(saved) && saved >= MIN_W && saved <= MAX_W) setWidth(saved)
+  }, [])
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragRef.current = { x: e.clientX, w: width }
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return
+      const next = Math.min(MAX_W, Math.max(MIN_W, dragRef.current.w + (ev.clientX - dragRef.current.x)))
+      setWidth(next)
+    }
+    const onUp = () => {
+      dragRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      setWidth((w) => {
+        try { localStorage.setItem(WIDTH_KEY, String(w)) } catch { /* ignore */ }
+        return w
+      })
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [width])
+
+  const resetWidth = () => {
+    setWidth(DEFAULT_W)
+    try { localStorage.setItem(WIDTH_KEY, String(DEFAULT_W)) } catch { /* ignore */ }
+  }
+
+  // ── Active item: scroll it into view in the (scrollable) nav ──────────
+  const activeRef = useRef<HTMLAnchorElement>(null)
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [pathname])
+
   return (
-    <div className="flex flex-col md:min-h-full md:w-[16rem] md:shrink-0 px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60">
+    <div
+      className="relative flex flex-col w-full md:w-[var(--sb-w)] md:shrink-0 md:sticky md:top-16 md:self-start md:max-h-[calc(100dvh-5rem)] px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60"
+      style={{ ['--sb-w' as string]: `${width}px` }}
+    >
       {/* Surface header — names which settings you're in (user vs clinic). */}
-      <div className="px-1.5 mb-5 hidden md:block">
+      <div className="px-1.5 mb-4 hidden md:block">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300">
             <svg className="fill-current" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
@@ -189,9 +256,46 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
         <p className="mt-1.5 text-xs leading-snug text-gray-500 dark:text-gray-400">{surfaceHint}</p>
       </div>
 
-      {/* Sections — horizontally scrollable chips on mobile, stacked on desktop. */}
-      <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-visible md:space-y-4 grow">
-        {sections.map((section) => (
+      {/* Search — filter this surface's settings. Desktop only (mobile uses the
+          horizontal chip rail below). */}
+      <div className="px-0.5 mb-3 hidden md:block">
+        <div className="relative">
+          <svg
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 fill-current text-gray-400 dark:text-gray-500"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            {searchIcon}
+          </svg>
+          <input
+            ref={searchRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+            placeholder="Search settings…"
+            aria-label="Search settings"
+            className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 pl-8 pr-7 py-1.5 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => { setQuery(''); searchRef.current?.focus() }}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              <svg className="h-3 w-3 fill-current" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M9.4 8l4.3-4.3a1 1 0 1 0-1.4-1.4L8 6.6 3.7 2.3a1 1 0 0 0-1.4 1.4L6.6 8l-4.3 4.3a1 1 0 1 0 1.4 1.4L8 9.4l4.3 4.3a1 1 0 0 0 1.4-1.4L9.4 8Z" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sections — horizontal chip rail on mobile, vertical scrollable list on
+          desktop (so a tall nav scrolls inside the pinned sidebar). */}
+      <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-y-auto md:overflow-x-hidden md:space-y-4 grow md:min-h-0 md:-mr-1.5 md:pr-1.5">
+        {filtered.map((section) => (
           <div key={section.title} className="md:mb-0">
             <div className="hidden md:block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               {section.title}
@@ -206,6 +310,7 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
                         is identity (selection), never a status. */}
                     <Link
                       href={item.href}
+                      ref={active ? activeRef : undefined}
                       aria-current={active ? 'page' : undefined}
                       className={`relative flex items-center px-2.5 py-2 rounded-[var(--r-sm)] whitespace-nowrap transition-colors ${
                         active
@@ -239,6 +344,11 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
             </ul>
           </div>
         ))}
+        {noResults && (
+          <p className="hidden md:block px-2.5 text-sm text-gray-500 dark:text-gray-400">
+            No settings match “{query}”.
+          </p>
+        )}
       </div>
 
       {/* Footer — jump to the OTHER settings surface. */}
@@ -253,6 +363,16 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
           {otherSurface.label}
         </Link>
       </div>
+
+      {/* Resize handle — drag to widen/narrow; double-click to reset. Desktop only. */}
+      <button
+        type="button"
+        onMouseDown={startResize}
+        onDoubleClick={resetWidth}
+        aria-label="Resize settings sidebar"
+        title="Drag to resize · double-click to reset"
+        className="hidden md:block absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize bg-transparent hover:bg-teal-500/20 active:bg-teal-500/30 transition-colors"
+      />
     </div>
   )
 }
