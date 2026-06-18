@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, cleanup } from '@testing-library/react'
+import { render, screen, within, fireEvent, cleanup } from '@testing-library/react'
 import React from 'react'
 
 /**
@@ -75,5 +75,45 @@ describe('SettingsSidebar — user vs org surfaces', () => {
     render(<SettingsSidebar tenantType="platform" />)
     expect(screen.getByText('Your account')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Platform settings' }).getAttribute('href')).toBe('/settings/team')
+  })
+})
+
+describe('SettingsSidebar — search', () => {
+  it('filters the nav to settings matching the query', () => {
+    mockPath = '/settings/clinic'
+    render(<SettingsSidebar tenantType="clinic" />)
+    const input = screen.getByRole('textbox', { name: /search settings/i })
+    fireEvent.change(input, { target: { value: 'billing' } })
+    expect(screen.getByRole('link', { name: 'Billing' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Clinic profile' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Patient portal' })).toBeNull()
+  })
+
+  it('shows a no-results message when nothing matches', () => {
+    mockPath = '/settings/clinic'
+    render(<SettingsSidebar tenantType="clinic" />)
+    fireEvent.change(screen.getByRole('textbox', { name: /search settings/i }), {
+      target: { value: 'zzzznomatch' },
+    })
+    expect(screen.getByText(/no settings match/i)).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Billing' })).toBeNull()
+  })
+
+  it('clears the query with the clear button', () => {
+    mockPath = '/settings/clinic'
+    render(<SettingsSidebar tenantType="clinic" />)
+    const input = screen.getByRole('textbox', { name: /search settings/i }) as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'billing' } })
+    fireEvent.click(screen.getByRole('button', { name: /clear search/i }))
+    expect(input.value).toBe('')
+    expect(screen.getByRole('link', { name: 'Clinic profile' })).toBeTruthy()
+  })
+})
+
+describe('SettingsSidebar — resize', () => {
+  it('renders a resize handle', () => {
+    mockPath = '/settings/clinic'
+    render(<SettingsSidebar tenantType="clinic" />)
+    expect(screen.getByRole('button', { name: /resize settings sidebar/i })).toBeTruthy()
   })
 })
