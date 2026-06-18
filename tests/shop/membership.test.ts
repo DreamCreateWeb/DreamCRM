@@ -32,7 +32,13 @@ vi.mock('@/lib/db', () => {
 })
 vi.mock('@/lib/stripe', () => ({ stripe: {} }))
 
-import { savePlan, getMembershipStats, handleSubscriptionEvent } from '@/lib/services/membership'
+import {
+  savePlan,
+  getMembershipStats,
+  handleSubscriptionEvent,
+  createMembershipCheckout,
+  markBenefitUsed,
+} from '@/lib/services/membership'
 
 beforeEach(() => {
   state.selectQueue.length = 0
@@ -108,5 +114,67 @@ describe('handleSubscriptionEvent', () => {
     // currentPeriodEnd is omitted (not nulled) when the event doesn't carry one.
     await handleSubscriptionEvent('org_1', 'sub_1', 'past_due', null)
     expect('currentPeriodEnd' in (state.updates[2] as object)).toBe(false)
+  })
+})
+
+describe('createMembershipCheckout — duplicate-subscription guard', () => {
+  const input = { planSlug: 'p', email: 'a@b.com', firstName: 'A', lastName: 'B', phone: null }
+  // The fixed select order before the guard: connect account, plan, email match.
+  function queueUpToGuard() {
+    state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1 }]) // connectedAccountId
+    state.selectQueue.push([{ id: 'plan_1', stripePriceId: 'price_1' }]) // plan (priceId set → no stripe)
+    state.selectQueue.push([{ id: 'pat_1' }]) // patient email match
+  }
+
+  it('refuses a second subscription when an active membership exists', async () => {
+    queueUpToGuard()
+    state.selectQueue.push([{ status: 'active', createdAt: new Date() }]) // existing memberships
+    await expect(createMembershipCheckout('org_1', 'http://x', input)).rejects.toThrow(/already a member/i)
+    expect(state.inserts.find((i) => i.table === 'membership')).toBeUndefined()
+  })
+
+  it('refuses when a recent pending checkout is in flight (double-submit)', async () => {
+    queueUpToGuard()
+    state.selectQueue.push([{ status: 'pending', createdAt: new Date() }])
+    await expect(createMembershipCheckout('org_1', 'http://x', input)).rejects.toThrow(/in progress/i)
+    expect(state.inserts.find((i) => i.table === 'membership')).toBeUndefined()
+  })
+
+  it('allows a re-join when the only prior membership is an OLD (abandoned) pending', async () => {
+    queueUpToGuard()
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+    state.selectQueue.push([{ status: 'pending', createdAt: twoHoursAgo }])
+    // Not blocked → it gets PAST the guard and inserts the membership (then the
+    // stub Stripe client throws on session creation — which is fine, we only
+    // assert the guard let it through).
+    await expect(createMembershipCheckout('org_1', 'http://x', input)).rejects.toThrow()
+    expect(state.inserts.find((i) => i.table === 'membership')).toBeDefined()
+  })
+
+  it('allows a re-join when the prior membership was cancelled', async () => {
+    queueUpToGuard()
+    state.selectQueue.push([{ status: 'cancelled', createdAt: new Date() }])
+    await expect(createMembershipCheckout('org_1', 'http://x', input)).rejects.toThrow()
+    expect(state.inserts.find((i) => i.table === 'membership')).toBeDefined()
+  })
+})
+
+describe('markBenefitUsed — allotment cap', () => {
+  it('increments usage below the cap', async () => {
+    state.selectQueue.push([{ benefitsUsed: {}, benefits: [{ label: 'Cleaning', qty: 2 }] }])
+    await markBenefitUsed('org_1', 'mem_1', 'Cleaning')
+    expect((state.updates[0] as { benefitsUsed: Record<string, number> }).benefitsUsed.Cleaning).toBe(1)
+  })
+
+  it('refuses to redeem past the plan allotment', async () => {
+    state.selectQueue.push([{ benefitsUsed: { Cleaning: 2 }, benefits: [{ label: 'Cleaning', qty: 2 }] }])
+    await expect(markBenefitUsed('org_1', 'mem_1', 'Cleaning')).rejects.toThrow(/fully used/i)
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('treats a benefit with no qty as unlimited', async () => {
+    state.selectQueue.push([{ benefitsUsed: { Whitening: 9 }, benefits: [{ label: 'Whitening' }] }])
+    await markBenefitUsed('org_1', 'mem_1', 'Whitening')
+    expect((state.updates[0] as { benefitsUsed: Record<string, number> }).benefitsUsed.Whitening).toBe(10)
   })
 })

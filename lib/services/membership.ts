@@ -26,6 +26,11 @@ import type {
 
 export type { PlanRow, PlanInput, MemberRow, Benefit } from '@/lib/types/membership'
 
+/** How long a 'pending' membership (a checkout in flight) blocks a re-join.
+ *  After this, an un-completed checkout is treated as abandoned so the patient
+ *  can try again. Comfortably covers a Stripe Checkout session's life. */
+const PENDING_REJOIN_WINDOW_MS = 60 * 60 * 1000
+
 export function newPlanId(): string {
   return `mplan_${randomBytes(10).toString('hex')}`
 }
@@ -271,6 +276,36 @@ export async function createMembershipCheckout(
     })
   }
 
+  // Block a duplicate subscription for the same plan. A patient who is already
+  // a member (active / past_due) must not get a SECOND recurring subscription
+  // from a re-join, and a checkout already in flight (a recent 'pending') blocks
+  // a rapid double-submit. An OLD pending (an abandoned checkout) is ignored so
+  // the patient can retry — otherwise an abandoned cart would lock them out.
+  const existingMemberships = await db
+    .select({ status: schema.membership.status, createdAt: schema.membership.createdAt })
+    .from(schema.membership)
+    .where(
+      and(
+        eq(schema.membership.organizationId, organizationId),
+        eq(schema.membership.planId, plan.id),
+        eq(schema.membership.patientId, patientId),
+      ),
+    )
+  const nowMs = Date.now()
+  const blocking = existingMemberships.find(
+    (m) =>
+      m.status === 'active' ||
+      m.status === 'past_due' ||
+      (m.status === 'pending' && nowMs - m.createdAt.getTime() < PENDING_REJOIN_WINDOW_MS),
+  )
+  if (blocking) {
+    throw new Error(
+      blocking.status === 'pending'
+        ? 'You already have a join in progress — check your email for the checkout link, or try again shortly.'
+        : 'You’re already a member of this plan.',
+    )
+  }
+
   const membershipId = newMembershipId()
   await db.insert(schema.membership).values({
     id: membershipId,
@@ -505,13 +540,21 @@ export async function listMembers(organizationId: string): Promise<MemberRow[]> 
 
 export async function markBenefitUsed(organizationId: string, membershipId: string, benefitLabel: string): Promise<void> {
   const [m] = await db
-    .select({ benefitsUsed: schema.membership.benefitsUsed })
+    .select({ benefitsUsed: schema.membership.benefitsUsed, benefits: schema.membershipPlan.benefits })
     .from(schema.membership)
+    .innerJoin(schema.membershipPlan, eq(schema.membership.planId, schema.membershipPlan.id))
     .where(and(eq(schema.membership.organizationId, organizationId), eq(schema.membership.id, membershipId)))
     .limit(1)
   if (!m) return
+  // Don't redeem past the plan's included allotment. A benefit with no `qty`
+  // is unlimited; one with a `qty` caps redemptions per period.
+  const benefit = m.benefits.find((b) => b.label === benefitLabel)
+  const current = m.benefitsUsed[benefitLabel] ?? 0
+  if (benefit?.qty != null && current >= benefit.qty) {
+    throw new Error(`“${benefitLabel}” is already fully used this period (${benefit.qty} of ${benefit.qty}).`)
+  }
   const used = { ...m.benefitsUsed }
-  used[benefitLabel] = (used[benefitLabel] ?? 0) + 1
+  used[benefitLabel] = current + 1
   await db
     .update(schema.membership)
     .set({ benefitsUsed: used, updatedAt: new Date() })
