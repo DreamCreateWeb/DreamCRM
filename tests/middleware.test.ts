@@ -48,6 +48,18 @@ describe('middleware subdomain rewrite', () => {
     expect(res.headers.get('location')).toBeNull()
   })
 
+  it('does NOT rewrite a reserved subdomain (api/portal/admin) to a clinic site', async () => {
+    // Reserved names share the onboarding RESERVED_SLUGS list (no clinic can
+    // register them), so the subdomain rewrite must skip them — otherwise a host
+    // like portal.<domain> would be shadowed as /site/portal.
+    for (const sub of ['api', 'portal', 'admin', 'blog']) {
+      const req = makeRequest(`https://${sub}.dreamcreatestudio.com/`, `${sub}.dreamcreatestudio.com`)
+      const res = (await middleware(req)) as NextResponse
+      const rewrite = res.headers.get('x-middleware-rewrite')
+      expect(rewrite == null || !rewrite.includes('/site/')).toBe(true)
+    }
+  })
+
   it('redirects app subdomain → canonical www host (preserving path)', async () => {
     const req = makeRequest(
       'https://app.dreamcreatestudio.com/dashboard',

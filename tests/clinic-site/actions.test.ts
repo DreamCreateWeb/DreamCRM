@@ -15,6 +15,7 @@ const selectStubs = {
         state?: string | null
         postalCode?: string | null
         visitTypeSettings?: unknown
+        selfBookingEnabled?: boolean
       }
     | null,
 }
@@ -323,6 +324,13 @@ describe('submitBookingRequest', () => {
   it('rejects when slot is no longer available (race condition)', async () => {
     slotAvailableMock.mockResolvedValueOnce(false)
     await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/no longer available/i)
+  })
+
+  it('refuses to create an appointment when the clinic disabled self-scheduling (stale tab)', async () => {
+    selectStubs.profile = { email: null, displayName: 'Acme', selfBookingEnabled: false }
+    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/online booking isn/i)
+    // No appointment written — the patient is steered to the request flow.
+    expect(insertedRows.find((r) => r.table === 'appointment')).toBeUndefined()
   })
 
   it('creates a new patient when none exists with that email', async () => {
