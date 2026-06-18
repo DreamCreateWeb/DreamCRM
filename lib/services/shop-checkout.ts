@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { priceCart, newOrderId } from './shop'
-import { validateCoupon, markCouponUsed } from './coupons'
+import { validateCoupon, markCouponUsed, claimSingleUseCoupon } from './coupons'
 import { notifyOrgMembers } from './notifications'
 import { sendNotificationEmail } from '@/lib/email'
 import { normalizePhone, samePhone } from '@/lib/contact-normalize'
@@ -91,15 +91,29 @@ export async function createShopCheckoutSession(
   // Validate any promo code against the cart subtotal.
   let discountCents = 0
   let couponId: string | null = null
+  let couponSingleUse = false
   if (input.couponCode?.trim()) {
     const v = await validateCoupon(organizationId, input.couponCode, subtotalCents)
     if (!v.ok) throw new Error(v.error ?? 'That code isn’t valid.')
     discountCents = v.discountCents ?? 0
     couponId = v.couponId ?? null
+    couponSingleUse = v.singleUse ?? false
   }
 
   // Persist the order BEFORE redirecting to Stripe; finalize on payment.
   const orderId = newOrderId()
+
+  // Reserve a single-use code to THIS order BEFORE creating the Stripe session.
+  // Without this, two concurrent checkouts both validate the same one-time code
+  // (it isn't burned until finalize) and each gets its own discounted session —
+  // the clinic eats the discount twice. An abandoned reservation frees itself
+  // after the Stripe-session TTL so a code is never locked by an unpaid cart.
+  if (couponId && couponSingleUse) {
+    const reserved = await claimSingleUseCoupon(organizationId, couponId, orderId)
+    if (!reserved) {
+      throw new Error('That promo code has just been used — remove it to continue.')
+    }
+  }
   await db.insert(schema.shopOrder).values({
     id: orderId,
     organizationId,
