@@ -6,6 +6,7 @@ import { saveAccount } from '../actions'
 import { changeEmail } from '@/lib/auth/client'
 import { ActionButton } from '@/components/ui/action-button'
 import { SettingsSection, SettingsRow } from '../settings-kit'
+import { SettingsTabs } from '../settings-tabs'
 
 interface InitialUser {
   id: string
@@ -93,8 +94,14 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <SettingsSection title="Profile" description="Your name, photo, and a short bio.">
+    <div className="p-6">
+      <SettingsTabs
+        tabs={[
+          {
+            id: 'profile',
+            label: 'Profile',
+            content: (
+              <SettingsSection description="Your name, photo, and a short bio.">
         {/* Avatar */}
         <div className="flex items-center gap-4 border-b border-gray-100 dark:border-gray-700/50 pb-4 mb-1">
           {image ? (
@@ -150,11 +157,15 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
             {pending ? 'Saving…' : 'Save profile'}
           </ActionButton>
         </div>
-      </SettingsSection>
-
-      <SettingsSection
-        title="Email"
-        description={
+              </SettingsSection>
+            ),
+          },
+          {
+            id: 'email',
+            label: 'Email',
+            content: (
+              <SettingsSection
+                description={
           <>
             Used for sign-in and account notifications. Changing it sends a confirmation link — your sign-in email
             stays <span className="font-medium text-gray-700 dark:text-gray-300">{currentEmail}</span> until you confirm.
@@ -206,12 +217,16 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
         {emailFeedback?.error && (
           <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{emailFeedback.error}</p>
         )}
-      </SettingsSection>
-
-      <SettingsSection
-        title="Password & sessions"
-        description="Manage your password and review the devices you're signed in on."
-        action={
+              </SettingsSection>
+            ),
+          },
+          {
+            id: 'password',
+            label: 'Password',
+            content: (
+              <SettingsSection
+                description="Manage your password and review the devices you're signed in on."
+                action={
           <ActionButton href="/settings/security" variant="secondary">
             Go to Security
           </ActionButton>
@@ -220,7 +235,11 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Your password and signed-in devices live on the Security page.
         </p>
-      </SettingsSection>
+              </SettingsSection>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }
