@@ -499,6 +499,12 @@ export default function ThreadDetailPanel({
                           {t.label}
                         </button>
                       ))}
+                      <a
+                        href="/settings/message-templates"
+                        className="mt-1 block border-t border-[color:var(--color-hairline)] px-3 pt-1.5 pb-0.5 text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400"
+                      >
+                        Manage replies →
+                      </a>
                     </div>
                   )}
                 </div>

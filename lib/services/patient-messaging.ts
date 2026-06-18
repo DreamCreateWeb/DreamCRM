@@ -863,25 +863,10 @@ export async function markThreadRead(
     )
 }
 
-// ── Canned-response templates (v1 hard-coded; v2 will move to DB) ────
-
-export const CANNED_TEMPLATES = [
-  {
-    key: 'confirm_visit',
-    label: 'Confirming your visit',
-    body: `Hi {{firstName}}, just confirming your visit. Reply YES to confirm, or let us know if you need to reschedule. — The team`,
-  },
-  {
-    key: 'treatment_followup',
-    label: 'Following up on your treatment plan',
-    body: `Hi {{firstName}}, wanted to follow up on the treatment plan we talked about at your last visit. No pressure — just let us know if you have any questions or want to schedule the next step. — The team`,
-  },
-  {
-    key: 'scheduling_question',
-    label: 'Quick scheduling question',
-    body: `Hi {{firstName}}, a quick question on scheduling — when works best for you over the next couple of weeks? Reply with a day or two and we'll send a time. — The team`,
-  },
-]
+// ── Canned-response template rendering ───────────────────────────────
+// The templates themselves now live in the editable per-clinic catalog
+// (`lib/services/message-templates.ts`, backed by `email_snippet`). This
+// renderer stays here next to the messaging surface that consumes it.
 
 /**
  * Substitute {{firstName}} etc. in a template against a patient record.

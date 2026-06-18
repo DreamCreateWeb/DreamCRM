@@ -18,7 +18,6 @@ const { listThreads, inboxStats, threadById, listMessages, patientContext, markR
 }))
 
 vi.mock('@/lib/services/patient-messaging', () => ({
-  CANNED_TEMPLATES: [],
   getInboxStats: inboxStats,
   getPatientThreadById: threadById,
   getThreadPatientContext: patientContext,
@@ -27,6 +26,7 @@ vi.mock('@/lib/services/patient-messaging', () => ({
   markThreadRead: markRead,
   renderTemplate: (s: string) => s,
 }))
+vi.mock('@/lib/services/message-templates', () => ({ listMessageTemplates: async () => [] }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/app/(double-sidebar)/messages/clinic-thread-detail-panel', () => ({
   default: () => <div data-testid="detail-panel">panel</div>,

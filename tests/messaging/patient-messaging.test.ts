@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  CANNED_TEMPLATES,
-  renderTemplate,
-} from '@/lib/services/patient-messaging'
+import { renderTemplate } from '@/lib/services/patient-messaging'
+import { DEFAULT_MESSAGE_TEMPLATES } from '@/lib/services/message-templates'
 
 /**
  * Schema-level + helper-level tests for Patient Communications v1. The
@@ -10,34 +8,31 @@ import {
  * exercised via the demo seeder + manual demo verification — these
  * focus on the pure logic helpers so they stay honest as the surface
  * grows.
+ *
+ * The canned templates moved to the editable per-clinic catalog
+ * (message-templates.ts) — DEFAULT_MESSAGE_TEMPLATES is the seeded starter set.
  */
 
-describe('CANNED_TEMPLATES', () => {
+describe('DEFAULT_MESSAGE_TEMPLATES', () => {
   it('ships exactly 3 starter templates', () => {
-    expect(CANNED_TEMPLATES).toHaveLength(3)
+    expect(DEFAULT_MESSAGE_TEMPLATES).toHaveLength(3)
   })
 
   it('every template body uses the {{firstName}} variable', () => {
-    for (const t of CANNED_TEMPLATES) {
+    for (const t of DEFAULT_MESSAGE_TEMPLATES) {
       expect(t.body).toContain('{{firstName}}')
     }
   })
 
-  it('templates cover the three primary use cases', () => {
-    const keys = CANNED_TEMPLATES.map((t) => t.key)
-    expect(keys).toContain('confirm_visit')
-    expect(keys).toContain('treatment_followup')
-    expect(keys).toContain('scheduling_question')
-  })
-
-  it('every template body is at least 50 characters of real copy', () => {
-    for (const t of CANNED_TEMPLATES) {
+  it('every template has a name + at least 50 characters of real copy', () => {
+    for (const t of DEFAULT_MESSAGE_TEMPLATES) {
+      expect(t.name.length).toBeGreaterThan(0)
       expect(t.body.length).toBeGreaterThan(50)
     }
   })
 
   it('no template body contains marketing-bro language', () => {
-    for (const t of CANNED_TEMPLATES) {
+    for (const t of DEFAULT_MESSAGE_TEMPLATES) {
       const lower = t.body.toLowerCase()
       expect(lower).not.toContain('!!!')
       expect(lower).not.toContain('leverage')
@@ -83,8 +78,8 @@ describe('renderTemplate', () => {
     expect(out).toBe('No vars here')
   })
 
-  it('renders the actual canned templates without leaving placeholders', () => {
-    for (const t of CANNED_TEMPLATES) {
+  it('renders the actual starter templates without leaving placeholders', () => {
+    for (const t of DEFAULT_MESSAGE_TEMPLATES) {
       const rendered = renderTemplate(t.body, { firstName: 'Sophia', lastName: 'Iverson' })
       expect(rendered).toContain('Sophia')
       // {{firstName}} should be gone after rendering
