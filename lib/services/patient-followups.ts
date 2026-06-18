@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
-import { and, asc, desc, eq, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   MAX_FOLLOWUP_TITLE_LEN,
@@ -265,6 +265,46 @@ export async function createFollowup(
     completedAt: null,
     createdAt,
   }
+}
+
+/**
+ * Create the same follow-up for many patients at once (the patients-list bulk
+ * action / "follow-up everyone in this view"). Filters the ids to ones actually
+ * in the org, caps the batch, and inserts in one statement. Returns how many
+ * were created.
+ */
+export async function bulkCreateFollowups(
+  organizationId: string,
+  patientIds: string[],
+  input: { title: string; dueDate?: string | null; assignedUserId?: string | null },
+  userId: string | null,
+): Promise<{ created: number }> {
+  const title = cleanTitle(input.title)
+  if (!title) throw new Error('Give the follow-up a title.')
+  if (patientIds.length === 0) return { created: 0 }
+
+  const owned = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), inArray(schema.patient.id, patientIds)))
+  const ownedIds = owned.map((r) => r.id).slice(0, 1000)
+  if (ownedIds.length === 0) return { created: 0 }
+
+  const dueDate = cleanDueDate(input.dueDate)
+  const assignedUserId = input.assignedUserId || null
+  await db.insert(schema.patientFollowup).values(
+    ownedIds.map((patientId) => ({
+      id: newId(),
+      organizationId,
+      patientId,
+      title,
+      dueDate,
+      assignedUserId,
+      status: 'open',
+      createdBy: userId,
+    })),
+  )
+  return { created: ownedIds.length }
 }
 
 export async function updateFollowup(
