@@ -3,7 +3,6 @@ export const metadata = {
   description: 'Send feedback and (for platform admins) read what others have sent',
 }
 
-import SettingsSidebar from '../settings-sidebar'
 import FeedbackPanel from './feedback-panel'
 import FeedbackAdmin from './feedback-admin'
 import { getTenantContext } from '@/lib/auth/context'
@@ -19,13 +18,11 @@ export default async function FeedbackSettings() {
   const recent = isPlatformAdmin ? await listRecentFeedback(50) : []
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+    <>
       <PageHeader eyebrow="Clinic settings" title="Send feedback" subtitle="Tell us what's working and what's not." />
 
       <div className="v2-panel mb-8">
-        <div className="flex flex-col md:flex-row md:-mr-px">
-          <SettingsSidebar tenantType={ctx?.tenantType} />
-          <div className="grow">
+        <div className="grow">
             <FeedbackPanel />
             {isPlatformAdmin && (
               <FeedbackAdmin
@@ -42,9 +39,8 @@ export default async function FeedbackSettings() {
                 }))}
               />
             )}
-          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

@@ -232,15 +232,20 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
     try { localStorage.setItem(WIDTH_KEY, String(DEFAULT_W)) } catch { /* ignore */ }
   }
 
-  // ── Active item: scroll it into view in the (scrollable) nav ──────────
+  // ── On navigation: clear any search (so clicking a result doesn't leave
+  //    the nav filtered) and scroll the now-active item into view. The rail
+  //    is in the settings layout, so it persists across pages — without this,
+  //    a stale query would keep filtering the next page's nav. ─────────────
   const activeRef = useRef<HTMLAnchorElement>(null)
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' })
+    setQuery('')
+    const id = requestAnimationFrame(() => activeRef.current?.scrollIntoView({ block: 'nearest' }))
+    return () => cancelAnimationFrame(id)
   }, [pathname])
 
   return (
     <div
-      className="relative flex flex-col w-full md:w-[var(--sb-w)] md:shrink-0 md:sticky md:top-16 md:self-start md:max-h-[calc(100dvh-5rem)] px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60"
+      className="relative flex flex-col w-full md:w-[var(--sb-w)] md:shrink-0 md:sticky md:top-16 md:self-start md:max-h-[calc(100dvh-5rem)] pb-5 md:pb-0 md:pr-1 md:pt-1 border-b md:border-b-0 border-gray-200 dark:border-gray-700/60"
       style={{ ['--sb-w' as string]: `${width}px` }}
     >
       {/* Surface header — names which settings you're in (user vs clinic). */}

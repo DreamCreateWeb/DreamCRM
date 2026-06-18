@@ -13,7 +13,6 @@ import { requireTenant } from '@/lib/auth/context'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { listClinicGmailAccounts } from '@/lib/services/clinic-sender'
 import { getGbpSyncState } from '@/lib/services/gbp-sync'
-import SettingsSidebar from '../settings-sidebar'
 import ClinicProfilePanel from './clinic-profile-panel'
 import CustomDomainCard from './custom-domain-card'
 import GbpSyncCard from './gbp-sync-card'
@@ -55,7 +54,7 @@ export default async function ClinicSettings() {
   const customDomainStatus = (profile?.customDomainStatus as CustomDomainStatus | null) ?? null
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+    <>
       <PageHeader
         eyebrow="Clinic settings"
         title="Clinic profile"
@@ -67,26 +66,23 @@ export default async function ClinicSettings() {
         }
       />
       <div className="v2-panel mb-8">
-        <div className="flex flex-col md:flex-row md:-mr-px">
-          <SettingsSidebar tenantType={ctx.tenantType} />
-          <div className="grow">
-            <ClinicProfilePanel
-              profile={profile ?? null}
-              orgName={ctx.organizationName}
-              orgId={ctx.organizationId}
-              library={library}
-              gmailAccounts={gmailAccounts}
+        <div className="grow">
+          <ClinicProfilePanel
+            profile={profile ?? null}
+            orgName={ctx.organizationName}
+            orgId={ctx.organizationId}
+            library={library}
+            gmailAccounts={gmailAccounts}
+          />
+          {gbpState && <GbpSyncCard state={gbpState} />}
+          <div className="border-t border-gray-200 dark:border-gray-700/60">
+            <CustomDomainCard
+              initialStatus={customDomainStatus}
+              subdomainUrl={subdomainUrl}
             />
-            {gbpState && <GbpSyncCard state={gbpState} />}
-            <div className="border-t border-gray-200 dark:border-gray-700/60">
-              <CustomDomainCard
-                initialStatus={customDomainStatus}
-                subdomainUrl={subdomainUrl}
-              />
-            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
