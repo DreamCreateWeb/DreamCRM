@@ -9,6 +9,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listOpenFollowups, type OpenFollowupFilters } from '@/lib/services/patient-followups'
 import { getFollowupRuleConfig } from '@/lib/services/followup-rules'
+import { getDigestEnabled } from '@/lib/services/daily-digest'
 import ModuleHint from '@/components/onboarding/module-hint'
 import FollowupsBoard from './followups-board'
 
@@ -35,9 +36,10 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
     includeDone,
   }
 
-  const [rows, ruleConfig] = await Promise.all([
+  const [rows, ruleConfig, digestEnabled] = await Promise.all([
     listOpenFollowups(ctx.organizationId, filters),
     getFollowupRuleConfig(ctx.organizationId),
+    getDigestEnabled(ctx.organizationId),
   ])
 
   return (
@@ -50,6 +52,7 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
         orgName={ctx.organizationName ?? 'Your clinic'}
         filters={{ mine, due, includeDone }}
         ruleConfig={ruleConfig}
+        digestEnabled={digestEnabled}
         canManageRules={ctx.role === 'owner' || ctx.role === 'admin'}
       />
     </>

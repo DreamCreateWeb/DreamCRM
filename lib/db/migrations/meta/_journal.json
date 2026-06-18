@@ -575,6 +575,13 @@
       "when": 1781823672633,
       "tag": "0081_great_wallow",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1781825681778,
+      "tag": "0082_abandoned_zuras",
+      "breakpoints": true
     }
   ]
 }

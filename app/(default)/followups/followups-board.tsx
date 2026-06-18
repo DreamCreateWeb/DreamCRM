@@ -38,12 +38,14 @@ export default function FollowupsBoard({
   orgName,
   filters,
   ruleConfig,
+  digestEnabled,
   canManageRules,
 }: {
   rows: PatientFollowupView[]
   orgName: string
   filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean }
   ruleConfig: FollowupRuleConfig
+  digestEnabled: boolean
   canManageRules: boolean
 }) {
   const router = useRouter()
@@ -111,7 +113,7 @@ export default function FollowupsBoard({
       </div>
 
       <div className="mb-6">
-        <FollowupRulesCard initial={ruleConfig} canManage={canManageRules} />
+        <FollowupRulesCard initial={ruleConfig} digestEnabled={digestEnabled} canManage={canManageRules} />
       </div>
 
       {openCount === 0 && doneItems.length === 0 ? (

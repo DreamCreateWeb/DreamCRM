@@ -1573,6 +1573,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         birthdayAutoSendEnabled: schema.clinicProfile.birthdayAutoSendEnabled,
         lapsedReactivationEnabled: schema.clinicProfile.lapsedReactivationEnabled,
         followupAutomation: schema.clinicProfile.followupAutomation,
+        dailyDigestEnabled: schema.clinicProfile.dailyDigestEnabled,
         logoUrl: schema.clinicProfile.logoUrl,
         heroImageUrl: schema.clinicProfile.heroImageUrl,
         heroImageUrl2: schema.clinicProfile.heroImageUrl2,
@@ -1725,6 +1726,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // card showcases the live state on legacy demos. Idempotent; cron skips demo.
     if (!profile?.followupAutomation) {
       patch.followupAutomation = { balance: true, recall: true, unconfirmed: false }
+    }
+    // Morning digest: flip on so the /followups card showcases it. Cron skips demo.
+    if (profile?.dailyDigestEnabled !== 1) {
+      patch.dailyDigestEnabled = 1
     }
     // FAQ backfill: legacy demos seeded before migration 0036 added the
     // faq column have null here, so the public /faq page falls back to the
@@ -2342,6 +2347,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Smart follow-up rules on (balance + recall) so the /followups rules card
     // showcases the "on" state. The cron skips demo → no rule-created follow-ups.
     followupAutomation: { balance: true, recall: true, unconfirmed: false },
+    // Morning digest on for showcase (cron skips demo → no real email sent).
+    dailyDigestEnabled: 1,
     addressLine1: '500 Main St',
     city: 'Austin',
     state: 'TX',

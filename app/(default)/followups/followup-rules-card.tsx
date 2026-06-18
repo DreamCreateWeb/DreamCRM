@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Toggle } from '@/components/ui/toggle'
 import { FOLLOWUP_RULE_META, type FollowupRuleConfig, type FollowupRuleId } from '@/lib/types/followup-rules'
-import { setFollowupRuleAction } from '../patients/actions'
+import { setFollowupRuleAction, setDigestEnabledAction } from '../patients/actions'
 
 /**
  * Smart-rules card on the /followups page. Each toggle opts the clinic into an
@@ -12,12 +12,15 @@ import { setFollowupRuleAction } from '../patients/actions'
  */
 export default function FollowupRulesCard({
   initial,
+  digestEnabled,
   canManage,
 }: {
   initial: FollowupRuleConfig
+  digestEnabled: boolean
   canManage: boolean
 }) {
   const [config, setConfig] = useState<FollowupRuleConfig>(initial)
+  const [digest, setDigest] = useState(digestEnabled)
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
@@ -33,6 +36,16 @@ export default function FollowupRulesCard({
       } else {
         setConfig(res.config)
       }
+    })
+  }
+
+  function toggleDigest(next: boolean) {
+    if (!canManage) return
+    setError(null)
+    setDigest(next)
+    startTransition(async () => {
+      const res = await setDigestEnabledAction(next)
+      if ('error' in res) { setDigest(!next); setError(res.error) }
     })
   }
 
@@ -65,6 +78,20 @@ export default function FollowupRulesCard({
           </div>
         ))}
       </div>
+
+      {/* Morning digest — proactive delivery of everyone's My Day */}
+      <div className="mt-3 pt-3 border-t border-[color:var(--color-hairline)] flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Morning digest email</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Each morning, email every staff member their follow-ups due, visits to confirm, and new leads.
+          </p>
+        </div>
+        <div className="shrink-0 pt-0.5">
+          <Toggle checked={digest} onChange={toggleDigest} disabled={!canManage} srLabel="Morning digest email" />
+        </div>
+      </div>
+
       {error && <p className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">{error}</p>}
       {!canManage && (
         <p className="mt-3 pt-3 border-t border-[color:var(--color-hairline)] text-xs text-gray-500 dark:text-gray-400">

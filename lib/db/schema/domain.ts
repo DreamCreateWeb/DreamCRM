@@ -300,6 +300,21 @@ export const audiences = pgTable('audiences', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// One row per staff member per day a morning digest went out — the idempotency
+// guard so the daily-digest cron never double-sends (a retry finds the row and
+// skips). `sentOn` is a date-only 'YYYY-MM-DD' string in the org's local sense.
+export const dailyDigestLog = pgTable(
+  'daily_digest_log',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    sentOn: text('sent_on').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('daily_digest_log_user_day_idx').on(t.userId, t.sentOn)],
+)
+
 // Reusable starter copy for new campaigns. System templates ship with the
 // product (organizationId = null, kind = 'system') and every tenant can use
 // them. Custom templates (organizationId set, kind = 'custom') are
