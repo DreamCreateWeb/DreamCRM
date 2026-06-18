@@ -808,7 +808,7 @@ async function setAppointmentState(
  */
 const TERMINAL_APPOINTMENT_STATUSES = new Set(['cancelled', 'completed'])
 
-async function assertAppointmentMutable(organizationId: string, appointmentId: string): Promise<void> {
+async function assertAppointmentMutable(organizationId: string, appointmentId: string): Promise<string> {
   const [row] = await db
     .select({ status: schema.appointment.status })
     .from(schema.appointment)
@@ -823,6 +823,7 @@ async function assertAppointmentMutable(organizationId: string, appointmentId: s
   if (TERMINAL_APPOINTMENT_STATUSES.has(row.status)) {
     throw new Error(`This appointment is already ${row.status} and can't be changed.`)
   }
+  return row.status
 }
 
 export async function confirmAppointment(
@@ -830,7 +831,13 @@ export async function confirmAppointment(
   appointmentId: string,
   via: 'sms' | 'email' | 'manual' | 'auto_sms_keyword' | 'portal' = 'manual',
 ) {
-  await assertAppointmentMutable(organizationId, appointmentId)
+  // `no_show` isn't a terminal state (a no-showed patient can rebook via
+  // reschedule), but you can't CONFIRM a missed visit back to active — that
+  // would corrupt no-show metrics and re-arm reminders for a passed visit.
+  const status = await assertAppointmentMutable(organizationId, appointmentId)
+  if (status === 'no_show') {
+    throw new Error("This visit was marked a no-show — reschedule it instead of confirming.")
+  }
   await setAppointmentState(organizationId, appointmentId, {
     status: 'confirmed',
     confirmedAt: new Date(),

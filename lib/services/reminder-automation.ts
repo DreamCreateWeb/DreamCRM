@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, lte, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
@@ -180,7 +180,10 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       .where(
         and(
           eq(schema.appointment.organizationId, profile.organizationId),
-          inArray(schema.appointment.status, ['scheduled', 'confirmed']),
+          // Only nudge UNconfirmed visits — the reminder asks the patient to
+          // confirm, so sending it to an already-confirmed appointment is
+          // contradictory (matches the manual reminder path's guard).
+          eq(schema.appointment.status, 'scheduled'),
           gte(schema.appointment.startTime, now),
           lte(schema.appointment.startTime, windowEnd),
           eq(schema.patient.isActive, 1),
