@@ -18,6 +18,10 @@ const runRetentionAutomations = vi.fn(async () => ({
 vi.mock('@/lib/services/retention-automation', () => ({
   runRetentionAutomations: () => runRetentionAutomations(),
 }))
+const runFollowupRules = vi.fn(async () => ({ scanned: 0, created: 0, errors: [] }))
+vi.mock('@/lib/services/followup-rules', () => ({
+  runFollowupRules: () => runFollowupRules(),
+}))
 
 const ROUTES = [
   '@/app/api/cron/pms-sync/route',
@@ -25,6 +29,7 @@ const ROUTES = [
   '@/app/api/cron/send-scheduled-campaigns/route',
   '@/app/api/cron/customize-services/route',
   '@/app/api/cron/retention-automations/route',
+  '@/app/api/cron/followup-rules/route',
 ] as const
 
 beforeEach(() => {

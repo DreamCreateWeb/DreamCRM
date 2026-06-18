@@ -38,6 +38,8 @@ import {
   type PatientViewRow,
 } from '@/lib/services/patient-views'
 import { normalizeViewFilters, type SavedViewFilters } from '@/lib/types/patient-views'
+import { setFollowupRule } from '@/lib/services/followup-rules'
+import type { FollowupRuleId, FollowupRuleConfig } from '@/lib/types/followup-rules'
 import { createAudience } from '@/lib/services/marketing'
 import { planAllows } from '@/lib/modules'
 import { MAX_DOCUMENT_BYTES } from '@/lib/types/patient-documents'
@@ -240,6 +242,25 @@ export async function deletePatientDocumentAction(
   await deletePatientDocument(ctx.organizationId, documentId)
   revalidatePath(`/patients/${patientId}`)
   return { ok: true }
+}
+
+// ---------- Smart follow-up rules ----------
+
+export async function setFollowupRuleAction(
+  rule: FollowupRuleId,
+  enabled: boolean,
+): Promise<{ ok: true; config: FollowupRuleConfig } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Automations are a clinic feature.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can change automations.' }
+  }
+  if (rule !== 'balance' && rule !== 'recall' && rule !== 'unconfirmed') {
+    return { ok: false, error: 'Unknown rule.' }
+  }
+  const config = await setFollowupRule(ctx.organizationId, rule, enabled)
+  revalidatePath('/followups')
+  return { ok: true, config }
 }
 
 // ---------- Saved views ----------
