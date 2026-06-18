@@ -20,6 +20,10 @@ const state = {
   membership: [] as Array<Record<string, unknown>>,
   patientBalancePayment: [] as Array<Record<string, unknown>>,
   reviewRequest: [] as Array<Record<string, unknown>>,
+  patientDocument: [] as Array<Record<string, unknown>>,
+  patientFollowup: [] as Array<Record<string, unknown>>,
+  campaignEvents: [] as Array<Record<string, unknown>>,
+  patientTagAssignment: [] as Array<Record<string, unknown>>,
 }
 
 vi.mock('@/lib/db', async () => {
@@ -39,6 +43,10 @@ vi.mock('@/lib/db', async () => {
     if (table === schema.membership) return state.membership
     if (table === schema.patientBalancePayment) return state.patientBalancePayment
     if (table === schema.reviewRequest) return state.reviewRequest
+    if (table === schema.patientDocument) return state.patientDocument
+    if (table === schema.patientFollowup) return state.patientFollowup
+    if (table === schema.campaignEvents) return state.campaignEvents
+    if (table === schema.patientTagAssignment) return state.patientTagAssignment
     return []
   }
 
@@ -112,6 +120,51 @@ describe('getPatientTimeline — commerce + review events', () => {
     expect(review.title).toBe('Left a 5★ review')
     expect(review.body).toBe('Loved it')
     expect(review.href).toBe('/reviews/received')
+  })
+})
+
+describe('getPatientTimeline — unified relationship events', () => {
+  it('includes an uploaded document linking to the file (new tab via http href)', async () => {
+    state.patientDocument = [
+      { id: 'd1', fileName: 'card.jpg', fileUrl: 'https://s3/card.jpg', contentType: 'image/jpeg', label: 'Insurance card', createdAt: new Date('2026-05-01'), uploadedByName: 'Reception' },
+    ]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    const doc = events.find((e) => e.kind === 'document')!
+    expect(doc.title).toBe('Uploaded Insurance card')
+    expect(doc.href).toBe('https://s3/card.jpg')
+  })
+
+  it('includes an open follow-up (and a completed one positioned at completion)', async () => {
+    state.patientFollowup = [
+      { id: 'f1', title: 'Call about crown', status: 'open', dueDate: '2026-06-20', createdAt: new Date('2026-06-01'), completedAt: null, assigneeName: 'Dr. Reyes' },
+      { id: 'f2', title: 'Send pricing', status: 'done', dueDate: null, createdAt: new Date('2026-05-01'), completedAt: new Date('2026-05-03'), assigneeName: null },
+    ]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    const open = events.find((e) => e.id === 'fu_f1')!
+    expect(open.title).toBe('Follow-up: Call about crown')
+    expect(open.status).toBe('open')
+    const done = events.find((e) => e.id === 'fu_f2')!
+    expect(done.title).toBe('Completed follow-up: Send pricing')
+    expect(done.occurredAt).toEqual(new Date('2026-05-03')) // positioned at completion
+  })
+
+  it('includes a received campaign linking to the campaign', async () => {
+    state.campaignEvents = [
+      { id: 7, occurredAt: new Date('2026-06-10'), campaignId: 42, campaignName: 'Birthday greetings' },
+    ]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    const camp = events.find((e) => e.kind === 'campaign')!
+    expect(camp.title).toBe('Received “Birthday greetings”')
+    expect(camp.href).toBe('/marketing/campaigns/42')
+  })
+
+  it('includes a tag-applied event', async () => {
+    state.patientTagAssignment = [
+      { tagId: 'tag_1', name: 'VIP', assignedAt: new Date('2026-03-01') },
+    ]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    const tag = events.find((e) => e.kind === 'tag')!
+    expect(tag.title).toBe('Tagged “VIP”')
   })
 })
 

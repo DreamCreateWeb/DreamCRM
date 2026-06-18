@@ -650,6 +650,10 @@ const KIND_ICON: Record<TimelineKind, string> = {
   membership: '🦷',
   balance_payment: '💳',
   review: '⭐',
+  document: '📎',
+  followup: '☑️',
+  campaign: '📣',
+  tag: '🏷️',
 }
 
 // Commerce/payment status → tone (ball-in-court: pending = info, paid = ok,
@@ -721,9 +725,20 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
       </span>
     </div>
   )
+  // External (http) hrefs — e.g. a document's S3 URL — open in a new tab so the
+  // patient page stays put; internal routes use the SPA Link.
+  const external = !!event.href && /^https?:\/\//i.test(event.href)
   return (
     <li className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30">
-      {event.href ? <Link href={event.href} className="block">{inner}</Link> : inner}
+      {event.href ? (
+        external ? (
+          <a href={event.href} target="_blank" rel="noopener noreferrer" className="block">{inner}</a>
+        ) : (
+          <Link href={event.href} className="block">{inner}</Link>
+        )
+      ) : (
+        inner
+      )}
     </li>
   )
 }
