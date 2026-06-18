@@ -7,6 +7,7 @@ import { openBillingPortal } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { SettingsTabs } from '../settings-tabs'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
 
@@ -56,7 +57,14 @@ export default function BillingPanel({
 
   return (
     <div className="grow">
-      <div className="p-6 space-y-8">
+      <div className="p-6">
+        <SettingsTabs
+          tabs={[
+            {
+              id: 'overview',
+              label: 'Overview',
+              content: (
+                <div className="v2-card p-5">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -89,11 +97,17 @@ export default function BillingPanel({
           </div>
         </header>
 
-        <p className="text-sm text-gray-500 dark:text-gray-400 -mt-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
           Update your card, download receipts, or cancel anytime in the secure Stripe billing portal.
         </p>
-
-        <section>
+                </div>
+              ),
+            },
+            {
+              id: 'invoices',
+              label: 'Invoices',
+              content: (
+                <section className="v2-card p-5">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">Recent invoices</h3>
           {invoices.length === 0 ? (
             <EmptyState
@@ -152,7 +166,11 @@ export default function BillingPanel({
               </tbody>
             </table>
           )}
-        </section>
+                </section>
+              ),
+            },
+          ]}
+        />
       </div>
     </div>
   )

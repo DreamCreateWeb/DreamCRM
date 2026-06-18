@@ -6,6 +6,7 @@ import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { Toggle } from '@/components/ui/toggle'
+import { SettingsTabs } from '../settings-tabs'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
 
 interface Props {
@@ -73,7 +74,18 @@ export default function PlansPanel({
 
   return (
     <div className="grow">
-      <div className="p-6 space-y-6">
+      <div className="p-6">
+        <SettingsTabs
+          tabs={[
+            {
+              id: 'plan',
+              label: 'Plan',
+              subtabs: [
+                {
+                  id: 'your-plan',
+                  label: 'Your plan',
+                  content: (
+                    <div className="space-y-6">
         {upgradeModuleLabel && (
           <div className="rounded-[var(--r-sm)] bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/30 px-4 py-3 text-sm text-indigo-900 dark:text-indigo-200">
             <span className="font-semibold">{upgradeModuleLabel} is on a higher plan.</span>{' '}
@@ -213,6 +225,13 @@ export default function PlansPanel({
             )
           })}
         </div>
+                    </div>
+                  ),
+                },
+              ],
+            },
+          ]}
+        />
       </div>
     </div>
   )
