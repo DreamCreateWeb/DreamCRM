@@ -11,6 +11,8 @@ import { render, screen } from '@testing-library/react'
  */
 
 vi.mock('@/app/(default)/settings/actions', () => ({ saveNotificationPrefs: vi.fn() }))
+// SettingsTabs reads ?tab=&sub= via useSearchParams.
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
 import NotificationsPanel from '@/app/(default)/settings/notifications/notifications-panel'
 

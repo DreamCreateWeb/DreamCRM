@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { searchSettings, settingsEntryHref, type SettingsSurface } from './search-index'
 
 interface NavItem {
   href: string
@@ -182,15 +183,15 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
     ? { label: orgLabel, href: orgHome }
     : { label: 'Your account', href: '/settings/account' }
 
-  // ── Search / filter ──────────────────────────────────────────────────
+  // ── Smart search — a deep index that jumps straight to the SETTING ────
+  // (e.g. "hours" → Clinic profile › Hours), not just the page. Empty query
+  // shows the normal nav; a query swaps in deep results (desktop only — the
+  // mobile chip rail has no search box, so `searching` is false there).
   const [query, setQuery] = useState('')
-  const q = query.trim().toLowerCase()
-  const filtered = q
-    ? sections
-        .map((s) => ({ ...s, items: s.items.filter((i) => i.label.toLowerCase().includes(q)) }))
-        .filter((s) => s.items.length > 0)
-    : sections
-  const noResults = q.length > 0 && filtered.length === 0
+  const searching = query.trim().length > 0
+  const surface: SettingsSurface = onUserSurface ? 'user' : isPlatform ? 'platform' : 'clinic'
+  const results = searching ? searchSettings(query, surface) : []
+  const noResults = searching && results.length === 0
   const searchRef = useRef<HTMLInputElement>(null)
 
   // ── Resize ───────────────────────────────────────────────────────────
@@ -298,61 +299,88 @@ export default function SettingsSidebar({ tenantType }: Props = {}) {
       </div>
 
       {/* Sections — horizontal chip rail on mobile, vertical scrollable list on
-          desktop (so a tall nav scrolls inside the pinned sidebar). */}
+          desktop (so a tall nav scrolls inside the pinned sidebar). When the
+          desktop search box has a query, this swaps to deep results. */}
       <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-y-auto md:overflow-x-hidden md:space-y-4 grow md:min-h-0 md:-mr-1.5 md:pr-1.5">
-        {filtered.map((section) => (
-          <div key={section.title} className="md:mb-0">
-            <div className="hidden md:block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              {section.title}
-            </div>
-            <ul className="flex flex-nowrap md:block mr-3 md:mr-0">
-              {section.items.map((item) => {
-                const active = pathname.startsWith(item.href)
-                return (
-                  <li key={item.href} className="mr-0.5 md:mr-0 md:mb-0.5">
-                    {/* Active = main-sidebar v2 language: 2px teal left bar +
-                        teal-500/10 tint + teal icon + ink-bold label. Teal here
-                        is identity (selection), never a status. */}
-                    <Link
-                      href={item.href}
-                      ref={active ? activeRef : undefined}
-                      aria-current={active ? 'page' : undefined}
-                      className={`relative flex items-center px-2.5 py-2 rounded-[var(--r-sm)] whitespace-nowrap transition-colors ${
-                        active
-                          ? 'bg-teal-500/10 before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-r before:bg-teal-500'
-                          : 'hover:bg-gray-500/[0.06]'
-                      }`}
-                    >
-                      <svg
-                        className={`shrink-0 fill-current mr-2 ${
-                          active ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-500'
-                        }`}
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                      >
-                        {item.icon}
+        {searching ? (
+          // Deep search results — each jumps to a specific setting (tab/subtab).
+          <ul className="space-y-0.5">
+            {results.map((e) => {
+              const href = settingsEntryHref(e)
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    onClick={() => setQuery('')}
+                    className="block px-2.5 py-1.5 rounded-[var(--r-sm)] hover:bg-gray-500/[0.06] transition-colors"
+                  >
+                    <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">{e.label}</span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+                      <svg className="h-2.5 w-2.5 shrink-0 fill-current opacity-60" viewBox="0 0 16 16" aria-hidden="true">
+                        {buildingIcon}
                       </svg>
-                      <span
-                        className={`text-sm font-medium ${
+                      {e.page}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+            {noResults && (
+              <li className="px-2.5 py-1.5 text-sm text-gray-500 dark:text-gray-400">
+                No settings match “{query}”.
+              </li>
+            )}
+          </ul>
+        ) : (
+          sections.map((section) => (
+            <div key={section.title} className="md:mb-0">
+              <div className="hidden md:block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                {section.title}
+              </div>
+              <ul className="flex flex-nowrap md:block mr-3 md:mr-0">
+                {section.items.map((item) => {
+                  const active = pathname.startsWith(item.href)
+                  return (
+                    <li key={item.href} className="mr-0.5 md:mr-0 md:mb-0.5">
+                      {/* Active = main-sidebar v2 language: 2px teal left bar +
+                          teal-500/10 tint + teal icon + ink-bold label. Teal here
+                          is identity (selection), never a status. */}
+                      <Link
+                        href={item.href}
+                        ref={active ? activeRef : undefined}
+                        aria-current={active ? 'page' : undefined}
+                        className={`relative flex items-center px-2.5 py-2 rounded-[var(--r-sm)] whitespace-nowrap transition-colors ${
                           active
-                            ? 'text-teal-700 dark:text-teal-300'
-                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'
+                            ? 'bg-teal-500/10 before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-r before:bg-teal-500'
+                            : 'hover:bg-gray-500/[0.06]'
                         }`}
                       >
-                        {item.label}
-                      </span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        ))}
-        {noResults && (
-          <p className="hidden md:block px-2.5 text-sm text-gray-500 dark:text-gray-400">
-            No settings match “{query}”.
-          </p>
+                        <svg
+                          className={`shrink-0 fill-current mr-2 ${
+                            active ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-500'
+                          }`}
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                        >
+                          {item.icon}
+                        </svg>
+                        <span
+                          className={`text-sm font-medium ${
+                            active
+                              ? 'text-teal-700 dark:text-teal-300'
+                              : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))
         )}
       </div>
 

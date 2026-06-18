@@ -11,6 +11,8 @@ vi.mock('../../app/(default)/settings/team/actions', () => ({
   removeTeamMember: vi.fn().mockResolvedValue({ ok: true }),
   changeTeamMemberRole,
 }))
+// TeamPanel uses SettingsTabs, which reads ?tab=&sub= via useSearchParams.
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
 import TeamPanel, { type InvitationView, type TeamMemberView } from '@/app/(default)/settings/team/team-panel'
 

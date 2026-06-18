@@ -25,6 +25,9 @@ vi.mock('@/app/(default)/settings/clinic/services-library-picker', () => ({
   default: ({ name }: { name: string }) => <input type="hidden" name={name} defaultValue="[]" />,
 }))
 
+// SettingsTabs reads ?tab=&sub= via useSearchParams.
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
+
 import ClinicProfilePanel from '@/app/(default)/settings/clinic/clinic-profile-panel'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
 

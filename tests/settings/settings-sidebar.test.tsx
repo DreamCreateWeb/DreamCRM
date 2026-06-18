@@ -78,15 +78,37 @@ describe('SettingsSidebar — user vs org surfaces', () => {
   })
 })
 
-describe('SettingsSidebar — search', () => {
-  it('filters the nav to settings matching the query', () => {
+describe('SettingsSidebar — smart search', () => {
+  it('deep-links to a specific setting (hours → Clinic profile › Hours)', () => {
     mockPath = '/settings/clinic'
     render(<SettingsSidebar tenantType="clinic" />)
-    const input = screen.getByRole('textbox', { name: /search settings/i })
-    fireEvent.change(input, { target: { value: 'billing' } })
-    expect(screen.getByRole('link', { name: 'Billing' })).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Clinic profile' })).toBeNull()
+    fireEvent.change(screen.getByRole('textbox', { name: /search settings/i }), {
+      target: { value: 'hours' },
+    })
+    const link = screen.getByRole('link', { name: /opening hours/i })
+    expect(link.getAttribute('href')).toBe('/settings/clinic?tab=profile&sub=hours')
+    // While searching, the plain nav is replaced by results.
     expect(screen.queryByRole('link', { name: 'Patient portal' })).toBeNull()
+  })
+
+  it('matches synonyms that are not in the visible label (logo → Branding)', () => {
+    mockPath = '/settings/clinic'
+    render(<SettingsSidebar tenantType="clinic" />)
+    fireEvent.change(screen.getByRole('textbox', { name: /search settings/i }), {
+      target: { value: 'logo' },
+    })
+    expect(screen.getByRole('link', { name: /branding/i }).getAttribute('href')).toBe(
+      '/settings/clinic?tab=branding',
+    )
+  })
+
+  it('scopes results to the current surface (no clinic settings on the user surface)', () => {
+    mockPath = '/settings/account'
+    render(<SettingsSidebar tenantType="clinic" />)
+    fireEvent.change(screen.getByRole('textbox', { name: /search settings/i }), {
+      target: { value: 'hours' },
+    })
+    expect(screen.getByText(/no settings match/i)).toBeTruthy()
   })
 
   it('shows a no-results message when nothing matches', () => {
@@ -96,14 +118,13 @@ describe('SettingsSidebar — search', () => {
       target: { value: 'zzzznomatch' },
     })
     expect(screen.getByText(/no settings match/i)).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Billing' })).toBeNull()
   })
 
-  it('clears the query with the clear button', () => {
+  it('clears the query with the clear button (restores the nav)', () => {
     mockPath = '/settings/clinic'
     render(<SettingsSidebar tenantType="clinic" />)
     const input = screen.getByRole('textbox', { name: /search settings/i }) as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'billing' } })
+    fireEvent.change(input, { target: { value: 'hours' } })
     fireEvent.click(screen.getByRole('button', { name: /clear search/i }))
     expect(input.value).toBe('')
     expect(screen.getByRole('link', { name: 'Clinic profile' })).toBeTruthy()
