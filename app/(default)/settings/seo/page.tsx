@@ -36,7 +36,7 @@ export default async function SearchAppearanceSettingsPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
-        eyebrow="Settings"
+        eyebrow="Clinic settings"
         title="Search appearance"
         subtitle="Control the title + description that show in Google results for each page of your site. Leave a field blank to use the smart default we generate from your content."
       />

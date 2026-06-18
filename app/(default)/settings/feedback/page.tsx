@@ -20,7 +20,7 @@ export default async function FeedbackSettings() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader eyebrow="Settings" title="Send feedback" subtitle="Tell us what's working and what's not." />
+      <PageHeader eyebrow="Clinic settings" title="Send feedback" subtitle="Tell us what's working and what's not." />
 
       <div className="v2-panel mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">

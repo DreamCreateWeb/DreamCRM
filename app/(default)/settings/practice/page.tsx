@@ -24,7 +24,7 @@ export default async function PracticeSettings() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
-        eyebrow="Settings"
+        eyebrow="Clinic settings"
         title="Practice setup"
         subtitle="Your providers, visit types, chairs, and recall cadence — the settings that drive booking + recall."
       />

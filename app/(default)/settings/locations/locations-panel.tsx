@@ -6,6 +6,7 @@ import type { ClinicLocation } from '@/lib/db/schema/platform'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { SettingsSection } from '../settings-kit'
 
 interface Props {
   locations: ClinicLocation[]
@@ -31,20 +32,18 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
   }
 
   return (
-    <div className="grow">
-      <div className="p-6 space-y-6">
-
-        <div className="flex items-start justify-between gap-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Most clinics have one — multi-location practices can add more.
-          </p>
-          {canEdit && !showForm && (
-            <ActionButton variant="primary" onClick={() => setShowForm(true)}>
-              + Add Location
+    <div className="p-6">
+      <SettingsSection
+        title="Locations"
+        description="Most clinics have one — multi-location practices can add more. Your primary location powers your website's address block."
+        action={
+          canEdit && !showForm && locations.length > 0 ? (
+            <ActionButton variant="primary" size="sm" onClick={() => setShowForm(true)}>
+              + Add location
             </ActionButton>
-          )}
-        </div>
-
+          ) : undefined
+        }
+      >
         {showForm && (
           <form onSubmit={handleAdd} className="p-5 bg-gray-50 dark:bg-gray-900/30 rounded-lg space-y-4">
             <div className="flex space-x-4">
@@ -109,9 +108,9 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
             }
           />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 mt-1">
             {locations.map((loc) => (
-              <div key={loc.id} className="flex items-start justify-between p-4 border border-gray-100 dark:border-gray-700/60 rounded-lg">
+              <div key={loc.id} className="v2-card p-4 flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-semibold text-gray-800 dark:text-gray-100">{loc.name}</span>
@@ -152,8 +151,7 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
             ))}
           </div>
         )}
-
-      </div>
+      </SettingsSection>
     </div>
   )
 }
