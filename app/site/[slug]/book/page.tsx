@@ -13,6 +13,7 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
   copyOverride,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
 import { hasBookableSlotsInWindow } from '@/lib/services/booking'
@@ -25,6 +26,7 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import BookForm from './book-form'
+import RequestForm from './request-form'
 
 const BG = 'var(--c-bg, #FAF7F2)'
 const INK = 'var(--c-ink, #1C1A17)'
@@ -42,9 +44,12 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/book`
+  const selfBooking = isSelfBookingEnabled(data.profile)
   const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).book, {
-    title: `Book a Visit — ${name}`,
-    description: `Book your appointment online with ${name} — pick a time that works for you.`,
+    title: selfBooking ? `Book a Visit — ${name}` : `Request an Appointment — ${name}`,
+    description: selfBooking
+      ? `Book your appointment online with ${name} — pick a time that works for you.`
+      : `Request an appointment with ${name} — tell us what you need and we’ll reach out to find a time.`,
   })
   // Mirror the home page's metadata completeness: siteName, OG/Twitter images
   // (hero photo when present), and the favicon.
@@ -134,12 +139,20 @@ export default async function BookPage({ params }: Props) {
   // otherwise only in a side card, below the fold on mobile).
   const tz = data.profile.timezone?.trim() || CLINIC_DEFAULT_TZ
   const todayKey = formatOdDate(new Date(), tz)
+  // When self-scheduling is OFF the page shows a request form (no slot grid), so
+  // skip the 14-day availability scan entirely.
+  const selfBooking = isSelfBookingEnabled(data.profile)
   const [publishedPosts, membershipPlans, openJobs, windowHasAvailability] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
     getOpenJobs(data.orgId),
-    hasBookableSlotsInWindow(data.orgId, todayKey, 14),
+    selfBooking ? hasBookableSlotsInWindow(data.orgId, todayKey, 14) : Promise.resolve(true),
   ])
+  const publicTypes = publicVisitTypes(data.profile.visitTypeSettings).map((t) => ({
+    id: t.id,
+    label: t.label,
+    durationMinutes: t.durationMinutes,
+  }))
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
   const hasCareers = openJobs.length > 0
@@ -201,7 +214,11 @@ export default async function BookPage({ params }: Props) {
                 data-edit-kind="text"
                 data-edit-label="headline"
               >
-                {copyOverride(copyOverrides, 'book.heroTitle', 'Let’s get you on the schedule.')}
+                {copyOverride(
+                  copyOverrides,
+                  'book.heroTitle',
+                  selfBooking ? 'Let’s get you on the schedule.' : 'Request an appointment.',
+                )}
               </h1>
             </ScrollReveal>
             <ScrollReveal delay={120}>
@@ -209,8 +226,17 @@ export default async function BookPage({ params }: Props) {
                 className="text-lg sm:text-xl leading-[1.55] mx-auto max-w-[600px]"
                 style={{ color: INK_MUTED }}
               >
-                Pick a time that works. Most patients are seen the same week — and
-                it&rsquo;s a calm, welcoming visit from the moment you arrive.
+                {selfBooking ? (
+                  <>
+                    Pick a time that works. Most patients are seen the same week — and
+                    it&rsquo;s a calm, welcoming visit from the moment you arrive.
+                  </>
+                ) : (
+                  <>
+                    Tell us a bit about what you need and we&rsquo;ll reach out — usually
+                    within one business day — to find a time that works for you.
+                  </>
+                )}
               </p>
             </ScrollReveal>
           </div>
@@ -298,24 +324,32 @@ export default async function BookPage({ params }: Props) {
                   className="rounded-2xl sm:rounded-3xl p-5 sm:p-9 shadow-sm"
                   style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
                 >
-                  <BookForm
-                    orgId={data.orgId}
-                    slug={data.slug}
-                    brand={brand}
-                    clinicName={name}
-                    clinicPhone={data.profile.phone ?? null}
-                    windowHasAvailability={windowHasAvailability}
-                    visitTypes={publicVisitTypes(data.profile.visitTypeSettings).map((t) => ({
-                      id: t.id,
-                      label: t.label,
-                      durationMinutes: t.durationMinutes,
-                    }))}
-                  />
+                  {selfBooking ? (
+                    <BookForm
+                      orgId={data.orgId}
+                      slug={data.slug}
+                      brand={brand}
+                      clinicName={name}
+                      clinicPhone={data.profile.phone ?? null}
+                      windowHasAvailability={windowHasAvailability}
+                      visitTypes={publicTypes}
+                    />
+                  ) : (
+                    <RequestForm
+                      slug={data.slug}
+                      brand={brand}
+                      clinicName={name}
+                      clinicPhone={data.profile.phone ?? null}
+                      visitTypes={publicTypes}
+                    />
+                  )}
                 </div>
-                <p className="text-center mt-5 text-xs" style={{ color: INK_MUTED }}>
-                  By booking, you agree to a reminder email. We&rsquo;ll never share
-                  your details.
-                </p>
+                {selfBooking && (
+                  <p className="text-center mt-5 text-xs" style={{ color: INK_MUTED }}>
+                    By booking, you agree to a reminder email. We&rsquo;ll never share
+                    your details.
+                  </p>
+                )}
               </ScrollReveal>
             </div>
           </div>

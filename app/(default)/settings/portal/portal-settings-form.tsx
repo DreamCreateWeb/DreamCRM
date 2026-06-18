@@ -9,6 +9,7 @@ import {
 } from '@/lib/types/portal'
 import { savePortalSettingsAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
+import { Toggle } from '@/components/ui/toggle'
 
 /**
  * Settings → Patient portal. Everything the clinic can shape about the
@@ -16,34 +17,6 @@ import { ActionButton } from '@/components/ui/action-button'
  * booking/notice behavior, and the portal's voice. Office-manager UX:
  * one page, plain labels, one Save.
  */
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-teal-500' : 'bg-gray-300 dark:bg-gray-600'
-      }`}
-    >
-      <span
-        className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all"
-        style={{ left: checked ? 'calc(100% - 1.375rem)' : '0.125rem' }}
-      />
-    </button>
-  )
-}
 
 function Section({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (

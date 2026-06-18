@@ -136,7 +136,7 @@ export default async function AppsSettings() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader eyebrow="Settings" title="Connected accounts" subtitle="External services connected to your workspace." />
+      <PageHeader eyebrow="Clinic settings" title="Connected accounts" subtitle="External services connected to your workspace." />
       <div className="v2-panel mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
           <SettingsSidebar tenantType={ctx?.tenantType} />

@@ -437,6 +437,7 @@ const PATIENT_SOURCES = [
   { key: 'referral', label: 'Referral' },
   { key: 'booking', label: 'Booking widget' },
   { key: 'lead_form', label: 'Lead form' },
+  { key: 'website_request', label: 'Appointment request' },
   { key: 'invite', label: 'Invite' },
   { key: 'manual', label: 'Front-desk added' },
 ]

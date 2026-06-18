@@ -431,6 +431,10 @@ export interface PortalClinicInfo {
   hours: Record<string, { open?: string | null; close?: string | null; closed?: boolean } | undefined> | null
   timezone: string | null
   cancellationPolicy: string | null
+  /** Public/portal online self-scheduling. false = the portal offers a
+   *  request-an-appointment form (→ inbox message) instead of the live slot
+   *  picker, mirroring the public website. */
+  selfBookingEnabled: boolean
 }
 
 /** Clinic identity + practical info for the portal chrome (header / footer / contact cards). */
@@ -451,6 +455,7 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
       hours: clinicProfile.hours,
       timezone: clinicProfile.timezone,
       cancellationPolicy: clinicProfile.cancellationPolicy,
+      selfBookingEnabled: clinicProfile.selfBookingEnabled,
     })
     .from(clinicProfile)
     .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
@@ -460,6 +465,8 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
   return {
     ...row,
     hours: (row.hours ?? null) as PortalClinicInfo['hours'],
+    // null/undefined → enabled, matching the not-null default(true) column.
+    selfBookingEnabled: row.selfBookingEnabled !== false,
   }
 }
 

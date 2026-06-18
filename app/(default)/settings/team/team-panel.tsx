@@ -5,6 +5,7 @@ import { formatShortDate } from '@/lib/utils'
 import { cancelTeamInvitation, changeTeamMemberRole, inviteTeamMember, removeTeamMember } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { SettingsSection } from '../settings-kit'
 
 export interface TeamMemberView {
   userId: string
@@ -87,19 +88,24 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
   }
 
   return (
-    <div className="grow">
-      <div className="p-6 space-y-8">
-        <header>
-          <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-1">Team</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Invite teammates to your workspace. They&apos;ll get an email with a link to set up their account and pick a password.
-          </p>
-        </header>
+    <div className="p-6 space-y-6">
+      {feedback?.error && (
+        <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded-[var(--r-sm)]">
+          {feedback.error}
+        </div>
+      )}
+      {feedback?.ok && (
+        <div className="text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded-[var(--r-sm)]">
+          {feedback.ok}
+        </div>
+      )}
 
-        {/* Invite form — owner/admin only */}
-        {canManage && (
-        <section>
-          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">Invite a teammate</h3>
+      {/* Invite form — owner/admin only */}
+      {canManage && (
+        <SettingsSection
+          title="Invite a teammate"
+          description="They'll get an email with a link to set up their account and pick a password."
+        >
           <form onSubmit={onInvite} className="flex flex-col sm:flex-row gap-2 max-w-2xl">
             <input
               type="email"
@@ -122,59 +128,57 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
               {pending ? 'Sending…' : 'Send invite'}
             </ActionButton>
           </form>
-          {feedback?.error && (
-            <div className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded max-w-2xl">
-              {feedback.error}
-            </div>
-          )}
-          {feedback?.ok && (
-            <div className="mt-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded max-w-2xl">
-              {feedback.ok}
-            </div>
-          )}
-        </section>
-        )}
+        </SettingsSection>
+      )}
 
-        {/* Pending invitations */}
-        <section>
-          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
-            Pending invitations <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({invitations.length})</span>
-          </h3>
-          {invitations.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No pending invitations.</p>
-          ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 border border-gray-100 dark:border-gray-700/60 rounded-lg overflow-hidden">
-              {invitations.map((inv) => (
-                <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                  <div>
-                    <div className="font-medium text-gray-800 dark:text-gray-100">{inv.email}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {inv.role ?? 'member'} · invited by {inv.inviterName ?? '—'} · expires{' '}
-                      {formatShortDate(inv.expiresAt as unknown as string)}
-                    </div>
+      {/* Pending invitations */}
+      <SettingsSection
+        title={
+          <>
+            Pending invitations{' '}
+            <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({invitations.length})</span>
+          </>
+        }
+      >
+        {invitations.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">No pending invitations.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 rounded-[var(--r-sm)] overflow-hidden border border-gray-100 dark:border-gray-700/60">
+            {invitations.map((inv) => (
+              <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <div>
+                  <div className="font-medium text-gray-800 dark:text-gray-100">{inv.email}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {inv.role ?? 'member'} · invited by {inv.inviterName ?? '—'} · expires{' '}
+                    {formatShortDate(inv.expiresAt as unknown as string)}
                   </div>
-                  <ActionButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCancel(inv.id, inv.email)}
-                    disabled={pending}
-                    className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
-                  >
-                    Cancel invite
-                  </ActionButton>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                </div>
+                <ActionButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleCancel(inv.id, inv.email)}
+                  disabled={pending}
+                  className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
+                >
+                  Cancel invite
+                </ActionButton>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
 
-        {/* Current members */}
-        <section>
-          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">
-            Team members <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({members.length})</span>
-          </h3>
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 border border-gray-100 dark:border-gray-700/60 rounded-lg overflow-hidden">
-            {members.map((m) => {
+      {/* Current members */}
+      <SettingsSection
+        title={
+          <>
+            Team members{' '}
+            <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({members.length})</span>
+          </>
+        }
+      >
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 rounded-[var(--r-sm)] overflow-hidden border border-gray-100 dark:border-gray-700/60">
+          {members.map((m) => {
               // The owner's role is immutable here; you can't change your own.
               const editable = canManage && m.role !== 'owner' && !m.isCurrent
               return (
@@ -219,8 +223,7 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
               )
             })}
           </ul>
-        </section>
-      </div>
+        </SettingsSection>
     </div>
   )
 }

@@ -27,14 +27,16 @@ describe('NotificationsPanel — delivery toggles are honest', () => {
   it('does NOT render a mobile/desktop push ("Everything") toggle', () => {
     render(<NotificationsPanel initial={initial} tenantType="clinic" />)
     expect(screen.queryByText(/Mobile \+ desktop pushes/i)).toBeNull()
-    expect(document.getElementById('np-push-all')).toBeNull()
+    expect(screen.queryByRole('switch', { name: /everything|push/i })).toBeNull()
+    // 5 honest switches (3 alert buckets + Email digest + Pause all), never 6.
+    expect(screen.getAllByRole('switch')).toHaveLength(5)
   })
 
   it('still renders the two delivery controls that actually work', () => {
     render(<NotificationsPanel initial={initial} tenantType="clinic" />)
-    expect(document.getElementById('np-push-email')).not.toBeNull()
-    expect(document.getElementById('np-push-nothing')).not.toBeNull()
-    expect(screen.getAllByText(/Email digest/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Pause all/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('switch', { name: 'Email digest' })).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Pause all' })).toBeTruthy()
+    expect(screen.getByText('Email digest')).toBeTruthy()
+    expect(screen.getByText('Pause all')).toBeTruthy()
   })
 })

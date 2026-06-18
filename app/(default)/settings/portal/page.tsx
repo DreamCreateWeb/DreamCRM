@@ -27,7 +27,7 @@ export default async function PortalSettingsPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
-        eyebrow="Settings"
+        eyebrow="Clinic settings"
         title="Patient portal"
         subtitle="Your patients' portal, your rules — features, booking windows, and voice."
       />

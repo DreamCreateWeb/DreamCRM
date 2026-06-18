@@ -18,7 +18,7 @@ import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
 // ----- Public types -----------------------------------------------------
 
 export type PatientLifecycle = 'lead' | 'new' | 'active' | 'at_risk' | 'lapsed' | 'archived'
-export type PatientSource = 'website' | 'booking' | 'referral' | 'walk_in' | 'manual' | 'lead_form' | 'invite'
+export type PatientSource = 'website' | 'booking' | 'referral' | 'walk_in' | 'manual' | 'lead_form' | 'invite' | 'website_request'
 
 export interface PatientRowFlags {
   newPatient: boolean

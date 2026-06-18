@@ -290,6 +290,64 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   return { ok: true }
 }
 
+/**
+ * Request-only booking from the portal — the counterpart of bookMyVisitAction
+ * for clinics that have turned OFF self-scheduling (Settings → Practice). No
+ * slot is taken; instead the request lands as an INBOUND in-app message on the
+ * patient's own thread (so the clinic's reply surfaces in their portal
+ * Messages), and the front desk reaches out to set the time. Mirrors the public
+ * website's submitAppointmentRequest, but the patient is already known (no
+ * contact fields). A guardian may request for a linked dependent — the message
+ * still threads to the GUARDIAN's record (the contact who'll read the reply),
+ * with the dependent named in the body.
+ */
+export async function requestMyVisitAction(formData: FormData): Promise<PortalActionResult> {
+  const ctx = await requirePatient()
+  const settings = await getPortalSettings(ctx.organizationId)
+  // The portal booking surface only exists when features.booking is on; its
+  // MODE (slot picker vs request) is the master self-scheduling switch.
+  if (!settings.features.booking) {
+    return { ok: false, error: 'Online requests aren’t available right now — give us a call and we’ll find you a time.' }
+  }
+
+  const allowed = await getAccessiblePatientIds(ctx.patientId, ctx.organizationId, settings.features.family)
+  const forPatientId = formData.get('forPatientId')?.toString() || ctx.patientId
+  if (!allowed.includes(forPatientId)) {
+    return { ok: false, error: 'You can only request for yourself or your linked family members.' }
+  }
+
+  // The visit-type picker submits the human LABEL (free text), like the website
+  // request form, so the message reads naturally with no catalog lookup.
+  const reason = formData.get('reason')?.toString().trim() || ''
+  const preferred = formData.get('preferredTimes')?.toString().trim() || ''
+  const note = formData.get('notes')?.toString().trim() || ''
+
+  // Name the dependent in the body when a guardian requests for someone else.
+  let forName = ''
+  if (forPatientId !== ctx.patientId) {
+    const [dep] = await db
+      .select({ firstName: patient.firstName })
+      .from(patient)
+      .where(and(eq(patient.id, forPatientId), eq(patient.organizationId, ctx.organizationId)))
+      .limit(1)
+    forName = dep?.firstName ?? ''
+  }
+
+  const lines = ['New appointment request via the patient portal.']
+  if (forName) lines.push(`For: ${forName}`)
+  if (reason) lines.push(`Looking for: ${reason}`)
+  if (preferred) lines.push(`Preferred times: ${preferred}`)
+  if (note) lines.push('', note)
+  const body = lines.join('\n')
+
+  // Thread to the LOGGED-IN patient so the clinic's reply reaches whoever can
+  // read it (a dependent typically has no own login). sendMessageFromPatient
+  // records the inbound in-app message + notifies owner/admin.
+  await sendMessageFromPatient(ctx.organizationId, ctx.patientId, body)
+  revalidatePath('/patient/messages')
+  return { ok: true }
+}
+
 /** Short "Mon, Jun 15 · 2:00 PM" date for staff notifications (server-local). */
 function fmtNotifyDate(d: Date): string {
   return d.toLocaleString('en-US', {

@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "self_booking_enabled" boolean DEFAULT true NOT NULL;

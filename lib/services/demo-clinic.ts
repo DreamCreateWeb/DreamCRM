@@ -3048,6 +3048,7 @@ async function seedPatientMessagesForOrg(
   //   [4] Sophia Iverson — confirmed appt in 22h, closed exchange
   //   [5] Aiden Kim      — lapsed-returning, snoozed thread
   //   [6] Emma Lopez     — fresh-booked, single inbound email (open)
+  //   [10] Mason Garza   — website appointment REQUEST (request-only booking)
   interface SeedThread {
     patientIdx: number
     status: 'open' | 'snoozed' | 'archived'
@@ -3111,6 +3112,17 @@ async function seedPatientMessagesForOrg(
       status: 'open',
       messages: [
         { direction: 'inbound', channel: 'email', body: 'Hi! Quick question — I booked through your website for next week but I forgot to mention I have a temporary crown on a back molar that\'s been bothering me. Could we look at that during the consult, or do I need a separate appointment?', hoursAgo: 16 },
+      ],
+    },
+    // Mason — a website APPOINTMENT REQUEST: exactly what request-only booking
+    // produces when a clinic turns self-scheduling off. A fresh inbound email
+    // the front desk hasn't answered yet — showcases the /messages payoff of the
+    // self-booking toggle (Settings → Practice).
+    {
+      patientIdx: 10,
+      status: 'open',
+      messages: [
+        { direction: 'inbound', channel: 'email', body: 'New appointment request via the website.\nLooking for: New patient cleaning & exam\nPreferred times: Weekday mornings\n\nIt\'s been a couple of years since my last visit — hoping to get established with a dentist close by.', hoursAgo: 5 },
       ],
     },
   ]

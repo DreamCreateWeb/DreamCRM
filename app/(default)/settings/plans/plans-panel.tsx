@@ -5,6 +5,7 @@ import { openBillingPortal, startStripeCheckout } from '../actions'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { Toggle } from '@/components/ui/toggle'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
 
 interface Props {
@@ -82,7 +83,6 @@ export default function PlansPanel({
 
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-3">Plans</h2>
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
               {onTrial ? (
                 <span>
@@ -111,24 +111,16 @@ export default function PlansPanel({
           </ActionButton>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">Monthly</div>
-          <div className="form-switch">
-            <input
-              type="checkbox"
-              id="plan-toggle"
-              className="sr-only"
-              checked={interval === 'annual'}
-              onChange={() => setInterval(interval === 'annual' ? 'monthly' : 'annual')}
-            />
-            <label htmlFor="plan-toggle">
-              <span className="bg-white shadow-sm" aria-hidden="true"></span>
-              <span className="sr-only">Pay annually</span>
-            </label>
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Monthly</span>
+          <Toggle
+            checked={interval === 'annual'}
+            onChange={(v) => setInterval(v ? 'annual' : 'monthly')}
+            srLabel="Pay annually"
+          />
+          <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
             Annually <span className="text-emerald-600 dark:text-emerald-400">(2 months free)</span>
-          </div>
+          </span>
         </div>
 
         {feedback?.error && (

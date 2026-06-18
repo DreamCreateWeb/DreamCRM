@@ -14,13 +14,22 @@ import {
 import { normalizeChairCount } from '@/lib/services/booking'
 import { resolveVisitTypes, type VisitType } from '@/lib/types/visit-types'
 
-/** owner/admin gate, clinic tenant only — mirrors updateClinicProfile. */
+/** owner/admin gate, clinic tenant only — mirrors updateClinicProfile.
+ *  Every MUTATION goes through this. */
 async function requirePracticeAdmin() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') throw new Error('Only clinic tenants can edit practice settings')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
     throw new Error('Only owners and admins can edit practice settings')
   }
+  return ctx
+}
+
+/** VIEW gate — any staff member of the clinic may VIEW practice settings (it's
+ *  a clinic-wide surface); only owners/admins can change them (above). */
+async function requirePracticeView() {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') throw new Error('Only clinic tenants can view practice settings')
   return ctx
 }
 
@@ -105,6 +114,27 @@ export async function saveVisitTypesAction(visitTypes: VisitType[]): Promise<Res
 
 // ----- Chairs + recall default ------------------------------------------
 
+/**
+ * Toggle public-website online self-scheduling. When off, the clinic's
+ * "Book a Visit" button shows a request-only form (lands as an inbox message)
+ * instead of the live slot picker. Revalidates the practice settings page; the
+ * public /book page is server-rendered fresh on each request so it picks up the
+ * change immediately.
+ */
+export async function saveSelfBookingAction(enabled: boolean): Promise<Result> {
+  const ctx = await requirePracticeAdmin()
+  try {
+    await db
+      .update(clinicProfile)
+      .set({ selfBookingEnabled: Boolean(enabled), updatedAt: new Date() })
+      .where(eq(clinicProfile.organizationId, ctx.organizationId))
+    revalidatePath('/settings/practice')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save booking setting' }
+  }
+}
+
 export async function savePracticeOpsAction(input: {
   chairCount: number
   recallDefaultMonths: number
@@ -133,10 +163,14 @@ export interface PracticeSettingsData {
   visitTypes: VisitType[]
   chairCount: number
   recallDefaultMonths: number
+  /** Public-website online self-scheduling (the live slot picker on /book). */
+  selfBookingEnabled: boolean
+  /** Whether the current user can change these (owner/admin). Members can view. */
+  canEdit: boolean
 }
 
 export async function getPracticeSettings(): Promise<PracticeSettingsData> {
-  const ctx = await requirePracticeAdmin()
+  const ctx = await requirePracticeView()
   const [providers, [profile]] = await Promise.all([
     listProviders(ctx.organizationId),
     db
@@ -144,6 +178,7 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
         chairCount: clinicProfile.chairCount,
         recallDefaultMonths: clinicProfile.recallDefaultMonths,
         visitTypeSettings: clinicProfile.visitTypeSettings,
+        selfBookingEnabled: clinicProfile.selfBookingEnabled,
       })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
@@ -154,5 +189,8 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
     visitTypes: resolveVisitTypes(profile?.visitTypeSettings ?? null),
     chairCount: normalizeChairCount(profile?.chairCount),
     recallDefaultMonths: profile?.recallDefaultMonths ?? 6,
+    // null/undefined → enabled, matching the not-null default(true) column.
+    selfBookingEnabled: profile?.selfBookingEnabled !== false,
+    canEdit: ctx.role === 'owner' || ctx.role === 'admin',
   }
 }

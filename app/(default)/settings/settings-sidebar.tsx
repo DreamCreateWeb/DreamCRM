@@ -15,8 +15,8 @@ interface NavSection {
 }
 
 interface Props {
-  /** Tenant type drives which sections appear. Patient tenants don't
-   * see the settings sidebar at all (different route group). */
+  /** Tenant type drives the org surface (clinic vs platform). Patient tenants
+   *  don't see the settings sidebar at all (different route group). */
   tenantType?: 'platform' | 'clinic' | 'patient' | 'partner'
 }
 
@@ -55,82 +55,91 @@ const heartIcon = (
 const searchIcon = (
   <path d="M7 14a7 7 0 1 1 4.94-2.06l3.56 3.56a1 1 0 0 1-1.42 1.42l-3.56-3.56A6.97 6.97 0 0 1 7 14Zm0-2a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" />
 )
+const calendarIcon = (
+  <path d="M4 0a1 1 0 0 1 1 1v1h6V1a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h1V1a1 1 0 0 1 1-1Zm10 6H2v8h12V6Z" />
+)
 
-/**
- * Sections shown to clinic-tenant users in Settings. Reorganized to match
- * how a clinic actually uses Settings (per dental product audit):
- *
- *   You        — personal account stuff (low touch frequency)
- *   Clinic     — practice-level config (multi-user impact)
- *   Billing    — subscription + invoices
- *   Help       — feedback / support
- */
-function clinicSections(): NavSection[] {
+// ── The two settings SURFACES ───────────────────────────────────────────
+//
+// Settings split into two distinct surfaces with two entry points:
+//   • USER settings   — personal account (avatar menu → "Account settings").
+//                       Account · Notifications · Security. Just you.
+//   • ORG settings    — everything that affects the whole clinic/platform
+//                       (org-switcher → "Clinic settings"). Visible to ANY
+//                       staff member; edits stay owner/admin-gated per page.
+//
+// The sidebar picks the surface from the current path so each entry point
+// lands on the right, focused list (no more one giant mixed menu).
+
+const USER_PATHS = ['/settings/account', '/settings/notifications', '/settings/security']
+
+function userSections(): NavSection[] {
   return [
     {
-      title: 'You',
+      title: 'Account',
       items: [
-        { href: '/settings/account',       label: 'Account',             icon: userIcon },
-        { href: '/settings/notifications', label: 'Notifications',       icon: bellIcon },
-        { href: '/settings/security',      label: 'Security',            icon: shieldIcon },
-      ],
-    },
-    {
-      title: 'Clinic',
-      items: [
-        { href: '/settings/clinic',        label: 'Clinic profile',      icon: buildingIcon },
-        { href: '/settings/practice',      label: 'Practice setup',      icon: teamIcon },
-        { href: '/settings/portal',        label: 'Patient portal',      icon: heartIcon },
-        { href: '/settings/seo',           label: 'Search appearance',   icon: searchIcon },
-        { href: '/settings/reminders',     label: 'Reminders',           icon: bellIcon },
-        { href: '/settings/locations',     label: 'Locations',           icon: pinIcon },
-        { href: '/settings/team',          label: 'Team',                icon: teamIcon },
-        { href: '/settings/apps',          label: 'Connected accounts',  icon: plugIcon },
-      ],
-    },
-    {
-      title: 'Billing',
-      items: [
-        { href: '/settings/plans',         label: 'Plan',                icon: stackIcon },
-        { href: '/settings/billing',       label: 'Billing',             icon: cardIcon },
-      ],
-    },
-    {
-      title: 'Help',
-      items: [
-        { href: '/settings/feedback',      label: 'Send feedback',       icon: heartIcon },
+        { href: '/settings/account', label: 'Profile', icon: userIcon },
+        { href: '/settings/notifications', label: 'Notifications', icon: bellIcon },
+        { href: '/settings/security', label: 'Security', icon: shieldIcon },
       ],
     },
   ]
 }
 
-/**
- * Sections shown to platform-tenant users (Dream Create admin). Lighter
- * — platform doesn't need plan/billing for itself, doesn't have clinic
- * profile, doesn't need feedback. Adds Team for managing Dream Create
- * employees.
- */
-function platformSections(): NavSection[] {
+function clinicSections(): NavSection[] {
   return [
     {
-      title: 'You',
+      title: 'Clinic',
       items: [
-        { href: '/settings/account',       label: 'Account',             icon: userIcon },
-        { href: '/settings/notifications', label: 'Notifications',       icon: bellIcon },
-        { href: '/settings/security',      label: 'Security',            icon: shieldIcon },
+        { href: '/settings/clinic', label: 'Clinic profile', icon: buildingIcon },
+        { href: '/settings/locations', label: 'Locations', icon: pinIcon },
+        { href: '/settings/team', label: 'Team', icon: teamIcon },
+        { href: '/settings/apps', label: 'Connected accounts', icon: plugIcon },
       ],
     },
     {
-      title: 'Platform',
+      title: 'Scheduling & patients',
       items: [
-        { href: '/settings/team',          label: 'Team',                icon: teamIcon },
-        { href: '/settings/apps',          label: 'Connected accounts',  icon: plugIcon },
+        { href: '/settings/practice', label: 'Practice setup', icon: calendarIcon },
+        { href: '/settings/portal', label: 'Patient portal', icon: heartIcon },
+        { href: '/settings/reminders', label: 'Reminders', icon: bellIcon },
+      ],
+    },
+    {
+      title: 'Website',
+      items: [
+        { href: '/settings/seo', label: 'Search appearance', icon: searchIcon },
+      ],
+    },
+    {
+      title: 'Billing',
+      items: [
+        { href: '/settings/plans', label: 'Plan & usage', icon: stackIcon },
+        { href: '/settings/billing', label: 'Billing', icon: cardIcon },
       ],
     },
     {
       title: 'Help',
       items: [
-        { href: '/settings/feedback',      label: 'Send feedback',       icon: heartIcon },
+        { href: '/settings/feedback', label: 'Send feedback', icon: heartIcon },
+      ],
+    },
+  ]
+}
+
+function platformSections(): NavSection[] {
+  return [
+    {
+      title: 'Platform',
+      items: [
+        { href: '/settings/team', label: 'Team', icon: teamIcon },
+        { href: '/settings/apps', label: 'Connected accounts', icon: plugIcon },
+      ],
+    },
+    {
+      title: 'Help',
+      items: [
+        { href: '/settings/feedback', label: 'Send feedback', icon: heartIcon },
       ],
     },
   ]
@@ -138,58 +147,112 @@ function platformSections(): NavSection[] {
 
 export default function SettingsSidebar({ tenantType }: Props = {}) {
   const pathname = usePathname()
-  const sections = tenantType === 'platform' ? platformSections() : clinicSections()
+  const isPlatform = tenantType === 'platform'
+  // Which surface are we on? The 3 personal pages → user surface; everything
+  // else under /settings → the org (clinic/platform) surface.
+  const onUserSurface = USER_PATHS.some((p) => pathname.startsWith(p))
+
+  const orgLabel = isPlatform ? 'Platform settings' : 'Clinic settings'
+  const orgHome = isPlatform ? '/settings/team' : '/settings/clinic'
+
+  const surfaceTitle = onUserSurface ? 'Your account' : orgLabel
+  const surfaceHint = onUserSurface
+    ? 'Just for you — sign-in, profile, alerts.'
+    : isPlatform
+      ? 'Settings for the whole platform.'
+      : 'Affects your whole clinic. Visible to all staff.'
+  const surfaceIcon = onUserSurface ? userIcon : buildingIcon
+
+  const sections = onUserSurface
+    ? userSections()
+    : isPlatform
+      ? platformSections()
+      : clinicSections()
+
+  // The cross-surface link in the footer (switch to the OTHER surface).
+  const otherSurface = onUserSurface
+    ? { label: orgLabel, href: orgHome }
+    : { label: 'Your account', href: '/settings/account' }
 
   return (
-    <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-auto px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60 min-w-[15rem] md:space-y-3">
-      {sections.map((section) => (
-        <div key={section.title}>
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            {section.title}
-          </div>
-          <ul className="flex flex-nowrap md:block mr-3 md:mr-0">
-            {section.items.map((item) => {
-              const active = pathname.includes(item.href)
-              return (
-                <li key={item.href} className="mr-0.5 md:mr-0 md:mb-0.5">
-                  {/* Active = the main sidebar's v2 language: a 2px teal left bar
-                      + teal-500/10 tint + teal icon + ink-bold label. Teal here
-                      is identity (selection), never a status. */}
-                  <Link
-                    href={item.href}
-                    aria-current={active ? 'page' : undefined}
-                    className={`relative flex items-center px-2.5 py-2 rounded-[var(--r-sm)] whitespace-nowrap transition-colors ${
-                      active
-                        ? 'bg-teal-500/10 before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-r before:bg-teal-500'
-                        : 'hover:bg-gray-500/[0.06]'
-                    }`}
-                  >
-                    <svg
-                      className={`shrink-0 fill-current mr-2 ${
-                        active ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-500'
-                      }`}
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                    >
-                      {item.icon}
-                    </svg>
-                    <span
-                      className={`text-sm font-medium ${
-                        active
-                          ? 'text-teal-700 dark:text-teal-300'
-                          : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      {item.label}
-                    </span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
+    <div className="flex flex-col md:min-h-full md:w-[16rem] md:shrink-0 px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60">
+      {/* Surface header — names which settings you're in (user vs clinic). */}
+      <div className="px-1.5 mb-5 hidden md:block">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300">
+            <svg className="fill-current" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+              {surfaceIcon}
+            </svg>
+          </span>
+          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{surfaceTitle}</span>
         </div>
-      ))}
+        <p className="mt-1.5 text-xs leading-snug text-gray-500 dark:text-gray-400">{surfaceHint}</p>
+      </div>
+
+      {/* Sections — horizontally scrollable chips on mobile, stacked on desktop. */}
+      <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-visible md:space-y-4 grow">
+        {sections.map((section) => (
+          <div key={section.title} className="md:mb-0">
+            <div className="hidden md:block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+              {section.title}
+            </div>
+            <ul className="flex flex-nowrap md:block mr-3 md:mr-0">
+              {section.items.map((item) => {
+                const active = pathname.startsWith(item.href)
+                return (
+                  <li key={item.href} className="mr-0.5 md:mr-0 md:mb-0.5">
+                    {/* Active = main-sidebar v2 language: 2px teal left bar +
+                        teal-500/10 tint + teal icon + ink-bold label. Teal here
+                        is identity (selection), never a status. */}
+                    <Link
+                      href={item.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={`relative flex items-center px-2.5 py-2 rounded-[var(--r-sm)] whitespace-nowrap transition-colors ${
+                        active
+                          ? 'bg-teal-500/10 before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-r before:bg-teal-500'
+                          : 'hover:bg-gray-500/[0.06]'
+                      }`}
+                    >
+                      <svg
+                        className={`shrink-0 fill-current mr-2 ${
+                          active ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-500'
+                        }`}
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                      >
+                        {item.icon}
+                      </svg>
+                      <span
+                        className={`text-sm font-medium ${
+                          active
+                            ? 'text-teal-700 dark:text-teal-300'
+                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer — jump to the OTHER settings surface. */}
+      <div className="hidden md:block mt-5 pt-4 border-t border-gray-200 dark:border-gray-700/60">
+        <Link
+          href={otherSurface.href}
+          className="group flex items-center gap-1.5 px-1.5 text-xs font-medium text-gray-500 hover:text-teal-700 dark:text-gray-400 dark:hover:text-teal-300 transition-colors"
+        >
+          <svg className="h-3 w-3 fill-current" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M6.7 2.3a1 1 0 0 1 0 1.4L4.4 6H14a1 1 0 1 1 0 2H4.4l2.3 2.3a1 1 0 1 1-1.4 1.4l-4-4a1 1 0 0 1 0-1.4l4-4a1 1 0 0 1 1.4 0Z" />
+          </svg>
+          {otherSurface.label}
+        </Link>
+      </div>
     </div>
   )
 }

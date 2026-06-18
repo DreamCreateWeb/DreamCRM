@@ -49,6 +49,10 @@ export default async function PortalPreviewPage() {
 
   const brand = clinic?.brandColor ?? '#9CAF9F'
   const clinicName = clinic?.displayName ?? ctx.organizationName
+  // Reflect the master self-scheduling switch so the preview matches what
+  // patients actually see (Settings → Practice).
+  const bookLabel = clinic?.selfBookingEnabled === false ? 'Request a visit' : 'Book a visit'
+  const bookSub = clinic?.selfBookingEnabled === false ? 'We’ll find you a time' : 'See real openings'
   const timeZone = clinic?.timezone?.trim() || CLINIC_DEFAULT_TZ
   const staff = (profileRow?.staff ?? []) as ClinicStaff[]
   const sampleProvider = staff[0] ?? null
@@ -61,7 +65,7 @@ export default async function PortalPreviewPage() {
     : greetingFor('Sam', timeZone)
 
   const verbs = [
-    { label: 'Book a visit', sub: 'See real openings', icon: 'calendar' as const, show: settings.features.booking },
+    { label: bookLabel, sub: bookSub, icon: 'calendar' as const, show: settings.features.booking },
     { label: 'Message us', sub: 'Reach the front desk', icon: 'chat' as const, show: settings.features.messages },
     { label: 'Billing', sub: 'Balance & history', icon: 'card' as const, show: settings.features.billing },
   ].filter((v) => v.show)
@@ -116,7 +120,7 @@ export default async function PortalPreviewPage() {
           </nav>
           {settings.features.booking && (
             <span className="rounded-full px-4 py-2 text-[0.85rem] font-semibold text-white" style={{ backgroundColor: brand }}>
-              Book a visit
+              {bookLabel}
             </span>
           )}
         </div>

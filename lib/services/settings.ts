@@ -14,6 +14,7 @@ import { db, schema } from '@/lib/db'
 // only for the other profile fields.
 export const AccountInput = z.object({
   name: z.string().min(1).max(200).optional(),
+  bio: z.string().max(1000).optional().nullable(),
   companyName: z.string().max(200).optional().nullable(),
   city: z.string().max(120).optional().nullable(),
   postalCode: z.string().max(20).optional().nullable(),

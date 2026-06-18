@@ -424,6 +424,15 @@ function OrgSwitcher({
           className="absolute left-0 right-0 top-full z-30 mt-1 rounded-lg bg-surface-2 p-1 shadow-[var(--shadow-pop)]"
         >
           <Link
+            href="/settings/clinic"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block rounded-md px-3 py-1.5 text-sm font-semibold text-ink-800 hover:bg-ink-900/[0.04]"
+          >
+            Clinic settings
+          </Link>
+          <div className="my-1 border-t border-hairline" />
+          <Link
             href="/settings/plans"
             role="menuitem"
             onClick={() => setOpen(false)}

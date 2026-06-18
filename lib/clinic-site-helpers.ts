@@ -55,6 +55,22 @@ export function copyOverride(
 }
 
 /**
+ * Whether the clinic offers public online self-scheduling — the live slot
+ * picker on /book where patients pick their own time. When false, the website's
+ * "Book a Visit" button leads to a request-only contact form whose submission
+ * lands as a message in the inbox (the clinic schedules manually).
+ *
+ * null/undefined → treated as ENABLED, matching the not-null `default(true)`
+ * column, so a partially-loaded or legacy profile never accidentally hides
+ * booking. Only an explicit `false` disables it.
+ */
+export function isSelfBookingEnabled(
+  profile: { selfBookingEnabled?: boolean | null } | null | undefined,
+): boolean {
+  return profile?.selfBookingEnabled !== false
+}
+
+/**
  * Resolve a list of `{ title, body }` cards through copy-overrides keyed by
  * `{prefix}.{i}.title` / `{prefix}.{i}.body`. Pairs with `NumberedSteps`'
  * `editKeyPrefix` (and any in-page card grid using the same keys) so each

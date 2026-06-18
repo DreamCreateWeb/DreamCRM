@@ -73,7 +73,7 @@ export default function DropdownProfile({
             className="font-medium text-sm flex items-center py-1.5 px-3 text-teal-700 dark:text-teal-400 data-[focus]:bg-teal-500/10"
             href="/settings/account"
           >
-            Settings
+            Account settings
           </Link>
         </MenuItem>
         <MenuItem>

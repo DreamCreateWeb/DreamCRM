@@ -13,6 +13,7 @@ import { visitTypeDuration } from '@/lib/types/visit-types'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
+import { recordInboundMessage } from '@/lib/services/patient-messaging'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { organization } from '@/lib/db/schema/auth'
@@ -140,6 +141,104 @@ export async function submitContactRequest(formData: FormData) {
       console.warn('[clinic-site] contact auto-ack email failed', err)
     }
   }
+}
+
+/**
+ * Request-only booking (when the clinic has turned OFF online self-scheduling
+ * in Settings → Practice). The public /book page renders a short request form
+ * instead of the slot picker; this persists the request as an INBOUND MESSAGE
+ * in the clinic's inbox (one thread per patient) rather than creating an
+ * appointment. The front desk then replies — by email, SMS (Phase B), or
+ * in-app — to set the actual time.
+ *
+ * Email is required (it's the reliable reach-back channel and the reply
+ * composer's default); phone is optional. The org is resolved from the PUBLIC
+ * slug, never a client-posted id.
+ */
+export async function submitAppointmentRequest(formData: FormData): Promise<void> {
+  // Silent spam drop — a filled honeypot / instant submit returns the normal
+  // success shape (no throw) without persisting anything, so bots get no signal.
+  if (looksLikeBot(formData)) return
+
+  const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
+  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+
+  const firstName = formData.get('firstName')?.toString().trim() || ''
+  const lastName = formData.get('lastName')?.toString().trim() || ''
+  const email = formData.get('email')?.toString().trim() || ''
+  const phone = formData.get('phone')?.toString().trim() || null
+  // The visit-type <select> submits the human LABEL (not an id) so the message
+  // reads naturally with no server-side catalog lookup. Empty = "not specified".
+  const reason = formData.get('reason')?.toString().trim() || ''
+  const preferred = formData.get('preferredTimes')?.toString().trim() || ''
+  const note = formData.get('notes')?.toString().trim() || ''
+
+  if (!firstName || !lastName) throw new Error('Please tell us your first and last name')
+  // Email is mandatory for request-only booking — it's how the front desk
+  // reaches back (in-app needs a portal login; SMS is Phase B), and it's the
+  // reply composer's default channel.
+  if (!email) throw new Error('Please add an email so we can reach you about your visit')
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    throw new Error('That email doesn’t look right — please double-check it')
+  }
+
+  // Find an existing patient by email OR phone (repeat requesters thread to the
+  // same record) — else create a lead-lifecycle patient. Mirrors the booking
+  // path's dedupe so a request doesn't fork a duplicate patient.
+  let patientId = ''
+  if (email || phone) {
+    const conditions = [eq(patient.email, email)] as ReturnType<typeof eq>[]
+    if (phone) conditions.push(eq(patient.phone, phone))
+    const [existing] = await db
+      .select({ id: patient.id })
+      .from(patient)
+      .where(
+        and(
+          eq(patient.organizationId, orgId),
+          conditions.length === 1 ? conditions[0] : or(...conditions)!,
+        ),
+      )
+      .limit(1)
+    patientId = existing?.id ?? ''
+  }
+  if (!patientId) {
+    patientId = randomUUID()
+    const now = new Date()
+    await db.insert(patient).values({
+      id: patientId,
+      organizationId: orgId,
+      firstName,
+      lastName,
+      email,
+      phone,
+      isActive: 1,
+      source: 'website_request',
+      lifecycle: 'lead',
+      firstSeenAt: now,
+      lastActivityAt: now,
+    })
+  } else {
+    await db.update(patient).set({ lastActivityAt: new Date() }).where(eq(patient.id, patientId))
+  }
+
+  // Build the inbound message body. Lead with a scannable first line so the
+  // inbox list preview reads "New appointment request …" at a glance, then the
+  // structured details, then the patient's own note (if any).
+  const lines = ['New appointment request via the website.']
+  if (reason) lines.push(`Looking for: ${reason}`)
+  if (preferred) lines.push(`Preferred times: ${preferred}`)
+  if (note) lines.push('', note)
+  const body = lines.join('\n')
+
+  // Record as an INBOUND message (channel=email → the reply composer defaults
+  // to the email the patient just gave us). This also fires the owner/admin
+  // notification + bumps the inbox unread badge (see recordInboundMessage).
+  await recordInboundMessage({
+    organizationId: orgId,
+    patientId,
+    body,
+    channel: 'email',
+  })
 }
 
 export async function listBookingSlots(

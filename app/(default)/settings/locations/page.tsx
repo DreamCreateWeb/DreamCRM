@@ -26,7 +26,7 @@ export default async function LocationsSettings() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader eyebrow="Settings" title="Locations" subtitle="Physical practice locations for your clinic." />
+      <PageHeader eyebrow="Clinic settings" title="Locations" subtitle="Physical practice locations for your clinic." />
       <div className="v2-panel mb-8">
         <div className="flex flex-col md:flex-row md:-mr-px">
           <SettingsSidebar tenantType={ctx.tenantType} />
