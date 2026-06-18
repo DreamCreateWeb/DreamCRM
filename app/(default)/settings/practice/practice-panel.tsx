@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { Toggle } from '@/components/ui/toggle'
+import { SettingsTabs } from '../settings-tabs'
 import { OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
 import type { PracticeSettingsData } from './actions'
 import {
@@ -42,12 +43,16 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
           server-side. */}
       <fieldset
         disabled={!initial.canEdit}
-        className={`min-w-0 m-0 border-0 p-0 space-y-10 ${initial.canEdit ? '' : 'opacity-75'}`}
+        className={`min-w-0 m-0 border-0 p-0 ${initial.canEdit ? '' : 'opacity-75'}`}
       >
-        <SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} />
-        <ProvidersSection providers={initial.providers} flash={flash} />
-        <VisitTypesSection initial={initial.visitTypes} flash={flash} />
-        <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} flash={flash} />
+        <SettingsTabs
+          tabs={[
+            { id: 'booking', label: 'Online booking', content: <SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} /> },
+            { id: 'providers', label: 'Providers', content: <ProvidersSection providers={initial.providers} flash={flash} /> },
+            { id: 'visit-types', label: 'Visit types', content: <VisitTypesSection initial={initial.visitTypes} flash={flash} /> },
+            { id: 'recall', label: 'Chairs & recall', content: <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} flash={flash} /> },
+          ]}
+        />
       </fieldset>
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
@@ -280,7 +285,7 @@ function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m
   }
 
   return (
-    <section className="border-t border-gray-100 dark:border-gray-700/60 pt-8">
+    <section>
       <SectionHeading
         title="Visit types"
         hint="The appointment types the front desk, your website booking widget, and the patient portal offer. Duration drives how long each visit blocks the schedule. Toggle where each type can be booked online."
@@ -349,7 +354,7 @@ function OpsSection({
   }
 
   return (
-    <section className="border-t border-gray-100 dark:border-gray-700/60 pt-8">
+    <section>
       <SectionHeading title="Booking & recall" hint="Two settings that shape how online booking and recall behave for your whole practice." />
       <div className="grid sm:grid-cols-2 gap-5 max-w-xl">
         <label className="block">
