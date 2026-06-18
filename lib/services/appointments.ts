@@ -3,6 +3,8 @@ import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'driz
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack } from '@/lib/services/pms'
+import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-tags'
+import type { PatientTagView } from '@/lib/types/patient-tags'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -62,6 +64,8 @@ export interface AppointmentRow {
   /** Recovery queue: a cancelled / no-show visit (in the last 60 days) whose
    *  patient has NO future appointment booked — a candidate to chase + rebook. */
   needsRebooking: boolean
+  /** CRM tags on the patient — surfaced on the agenda row + drawer. */
+  tags: PatientTagView[]
 }
 
 export interface AppointmentListFilters {
@@ -419,6 +423,9 @@ export async function listAppointments(
   const hasFutureByPatient = new Set<string>()
   for (const r of futureAppts) hasFutureByPatient.add(r.patientId)
 
+  // CRM tags per patient — so the schedule shows who's VIP / anxious at a glance.
+  const tagsByPatient = await getTagsForPatients(organizationId, patientIds)
+
   const result: AppointmentRow[] = rows.map((r) => {
     const status = r.status as AppointmentStatus
     const lastVisit = latestPriorByPatient.get(r.patientId) ?? null
@@ -473,6 +480,7 @@ export async function listAppointments(
       },
       agingLevel: computeAging(r.startTime, status, now),
       needsRebooking,
+      tags: tagsByPatient.get(r.patientId) ?? [],
     }
   })
 
@@ -717,6 +725,7 @@ export async function getAppointmentDetail(
     hasFutureAppt: futureApptRow.length > 0,
     now,
   })
+  const tags = await getTagsForPatient(organizationId, base.patientId)
 
   return {
     id: base.id,
@@ -751,6 +760,7 @@ export async function getAppointmentDetail(
     },
     agingLevel: computeAging(base.startTime, status, now),
     needsRebooking,
+    tags,
     patient: {
       id: base.patientId,
       fullName: `${base.firstName} ${base.lastName}`,

@@ -8,7 +8,10 @@ import { appointmentFlagGlyphs, type Tone } from '@/lib/ui/encodings'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { TagChip } from '@/components/ui/tag-chip'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { createFollowupAction } from '../patients/actions'
+import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
 import SendIntakeInline from '../patients/send-intake-inline'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import {
@@ -242,6 +245,13 @@ export default function AppointmentDrawer({
                   </StatusPill>
                   <GlyphCluster glyphs={appointmentFlagGlyphs(detail.flags)} cap={Infinity} />
                 </div>
+                {detail.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {detail.tags.map((t) => (
+                      <TagChip key={t.id} name={t.name} color={t.color} size="xs" />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* ── Appointment facts ────────────────────────────────── */}
@@ -262,6 +272,13 @@ export default function AppointmentDrawer({
                 <Stat label="Lifetime spend" value={money(detail.patient.lifetimeValueCents)} />
                 <Stat label="Total bookings" value={String(detail.patient.totalBookings)} />
               </div>
+
+              {/* ── Quick add a follow-up for this patient ───────────── */}
+              <FollowupQuickAdd
+                patientId={detail.patient.id}
+                patientFirstName={detail.patient.fullName.split(' ')[0] ?? 'this patient'}
+                onDone={(msg) => setToast(msg)}
+              />
 
               {/* ── Action group — exactly one primary ───────────────── */}
               <div className="flex flex-wrap gap-2">
@@ -398,6 +415,79 @@ export default function AppointmentDrawer({
         )}
 
         {toast && <FlashToast message={toast} onDone={() => setToast(null)} duration={3000} />}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * One-tap follow-up creation from the appointment drawer — the most natural
+ * place to jot "call them back" / "rebook" while you're looking at the visit.
+ * Collapsed to a link until clicked; defaults the due date 3 days out.
+ */
+function FollowupQuickAdd({
+  patientId,
+  patientFirstName,
+  onDone,
+}: {
+  patientId: string
+  patientFirstName: string
+  onDone: (msg: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [dueDate, setDueDate] = useState(addDaysYmd(todayYmd(), 3))
+  const [pending, startTransition] = useTransition()
+
+  function submit() {
+    if (!title.trim()) return
+    startTransition(async () => {
+      const res = await createFollowupAction({ patientId, title, dueDate: dueDate || null })
+      if (res.ok) {
+        setOpen(false)
+        setTitle('')
+        onDone(`Follow-up added for ${patientFirstName}`)
+      } else {
+        onDone(res.error)
+      }
+    })
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400"
+      >
+        + Add a follow-up
+      </button>
+    )
+  }
+  return (
+    <div className="rounded-lg border border-teal-500/40 bg-teal-500/[0.03] p-2 space-y-2">
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value.slice(0, MAX_FOLLOWUP_TITLE_LEN))}
+        onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setOpen(false) }}
+        placeholder={`Follow up with ${patientFirstName}…`}
+        className="form-input w-full text-xs py-1"
+      />
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="form-input text-xs py-1 flex-1"
+          aria-label="Due date"
+        />
+        <ActionButton variant="primary" size="sm" onClick={submit} disabled={pending}>
+          {pending ? 'Adding…' : 'Add'}
+        </ActionButton>
+        <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
+          Cancel
+        </ActionButton>
       </div>
     </div>
   )

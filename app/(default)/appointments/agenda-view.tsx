@@ -21,6 +21,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { TagChip } from '@/components/ui/tag-chip'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
@@ -474,6 +475,13 @@ function AppointmentRowCard({
             </Link>
             <GlyphCluster glyphs={appointmentFlagGlyphs(row.flags)} cap={4} />
           </div>
+          {row.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {row.tags.slice(0, 4).map((t) => (
+                <TagChip key={t.id} name={t.name} color={t.color} size="xs" />
+              ))}
+            </div>
+          )}
           {row.notes && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1 italic">&ldquo;{row.notes}&rdquo;</p>
           )}
