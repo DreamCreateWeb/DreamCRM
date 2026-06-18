@@ -13,6 +13,8 @@ import {
   type PatientListFilters,
   type PatientListSort,
 } from '@/lib/services/patients'
+import { listPatientViews } from '@/lib/services/patient-views'
+import { planAllows } from '@/lib/modules'
 import PatientsList from './patients-list'
 import ModuleHint from '@/components/onboarding/module-hint'
 
@@ -53,9 +55,10 @@ export default async function PatientsPage({ searchParams }: PageProps) {
   }
   const sort = parseSort(params.sort)
 
-  const [rows, meta] = await Promise.all([
+  const [rows, meta, views] = await Promise.all([
     listPatients(ctx.organizationId, filters, sort),
     getPatientListMeta(ctx.organizationId),
+    listPatientViews(ctx.organizationId),
   ])
 
     return (
@@ -70,6 +73,8 @@ export default async function PatientsPage({ searchParams }: PageProps) {
       sort={sort}
       orgName={ctx.organizationName}
       canManage={ctx.role === 'owner' || ctx.role === 'admin'}
+      views={views}
+      canMarket={planAllows(ctx.planTier, 'premium')}
     />
     </>
   )

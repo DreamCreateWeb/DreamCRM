@@ -23,6 +23,8 @@ import { TagChip } from '@/components/ui/tag-chip'
 import BulkMessageModal from './bulk-message-modal'
 import AddPatientModal from './add-patient-modal'
 import ImportPatientsModal from './import-patients-modal'
+import SavedViewsBar from './saved-views-bar'
+import type { PatientViewRow } from '@/lib/types/patient-views'
 import { bulkInvitePatientsToPortalAction, bulkAssignPatientTagAction } from './actions'
 
 function money(cents: number): string {
@@ -106,6 +108,8 @@ export default function PatientsList({
   sort,
   orgName,
   canManage = false,
+  views = [],
+  canMarket = false,
 }: {
   rows: PatientListRow[]
   meta: PatientFilterMeta
@@ -114,6 +118,8 @@ export default function PatientsList({
   orgName: string
   /** Owner/admin: shows Import/Export + the bulk portal-invite action. */
   canManage?: boolean
+  views?: PatientViewRow[]
+  canMarket?: boolean
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -265,6 +271,22 @@ export default function PatientsList({
             </ActionButton>
           </div>
         }
+      />
+
+      {/* ── Saved views ──────────────────────────────────────────────── */}
+      <SavedViewsBar
+        views={views}
+        current={{
+          status: filters.status,
+          hasBalance: filters.hasBalance,
+          missingIntake: filters.missingIntake,
+          birthdayThisMonth: filters.birthdayThisMonth,
+          sources: filters.sources,
+          tagIds: filters.tagIds,
+          search: filters.search,
+        }}
+        tagNames={Object.fromEntries(meta.tags.map((t) => [t.id, t.name]))}
+        canMarket={canMarket}
       />
 
       {/* ── Filter chips + search ────────────────────────────────────── */}
