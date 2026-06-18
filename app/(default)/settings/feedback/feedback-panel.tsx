@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { sendFeedback } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
+import { SettingsTabs } from '../settings-tabs'
 
 export default function FeedbackPanel() {
   const [rating, setRating] = useState<number | null>(3)
@@ -32,12 +33,18 @@ export default function FeedbackPanel() {
   return (
     <div className="grow">
       <form onSubmit={onSubmit}>
-        <div className="p-6 space-y-6">
-          <div>
-            <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-4">Give Feedback</h2>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Our product depends on customer feedback to improve.</div>
-          </div>
-
+        <div className="p-6">
+          <SettingsTabs
+            tabs={[
+              {
+                id: 'feedback',
+                label: 'Feedback',
+                subtabs: [
+                  {
+                    id: 'send',
+                    label: 'Send feedback',
+                    content: (
+                      <div className="space-y-6">
           <section>
             <h3 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-6">
               How likely would you recommend us to a friend or colleague?
@@ -82,6 +89,13 @@ export default function FeedbackPanel() {
               required
             />
           </section>
+                      </div>
+                    ),
+                  },
+                ],
+              },
+            ]}
+          />
         </div>
 
         <footer>
