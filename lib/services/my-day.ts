@@ -1,0 +1,65 @@
+import 'server-only'
+import { and, count, eq } from 'drizzle-orm'
+import { db, schema } from '@/lib/db'
+import { listOpenFollowups, type PatientFollowupView } from '@/lib/services/patient-followups'
+import { listPatientThreads, type ThreadRow } from '@/lib/services/patient-messaging'
+import { listAppointments, type AppointmentRow } from '@/lib/services/appointments'
+import { followupDueState, todayYmd } from '@/lib/types/followups'
+
+/**
+ * "My day" — a per-staff-member cockpit. Pulls the things actually assignable to
+ * a person (follow-ups, conversations) scoped to me OR unclaimed, plus today's
+ * shared schedule + the team's new-lead count for awareness. Leads + visits
+ * aren't user-assigned in the data model, so they're shown as shared context.
+ */
+
+export interface MyDayData {
+  followups: {
+    overdue: number
+    today: number
+    /** Open follow-ups assigned to me OR unassigned, soonest-due first. */
+    items: PatientFollowupView[]
+  }
+  /** Open conversations assigned to me, waiting. */
+  conversations: ThreadRow[]
+  /** Today's appointments (shared schedule context). */
+  todaysAppointments: AppointmentRow[]
+  /** New website leads waiting on the team (shared). */
+  newLeadsCount: number
+}
+
+export async function getMyDay(organizationId: string, userId: string): Promise<MyDayData> {
+  const today = todayYmd()
+
+  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow] = await Promise.all([
+    listOpenFollowups(organizationId, { assignedTo: userId }),
+    listOpenFollowups(organizationId, { assignedTo: 'unassigned' }),
+    listPatientThreads(organizationId, userId, { status: 'open', assignedTo: 'me' }),
+    listAppointments(organizationId, { window: 'today' }),
+    db
+      .select({ n: count() })
+      .from(schema.lead)
+      .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.status, 'new'))),
+  ])
+
+  // Merge my + unclaimed follow-ups (disjoint sets), soonest-due first.
+  const items = [...mine, ...unclaimed].sort((a, b) => {
+    const ad = a.dueDate ?? '9999-12-31'
+    const bd = b.dueDate ?? '9999-12-31'
+    return ad < bd ? -1 : ad > bd ? 1 : 0
+  })
+  let overdue = 0
+  let dueToday = 0
+  for (const f of items) {
+    const s = followupDueState(f.dueDate, today)
+    if (s === 'overdue') overdue++
+    else if (s === 'today') dueToday++
+  }
+
+  return {
+    followups: { overdue, today: dueToday, items: items.slice(0, 30) },
+    conversations: conversations.slice(0, 8),
+    todaysAppointments: todaysAppointments.slice(0, 30),
+    newLeadsCount: Number(leadCountRow[0]?.n ?? 0),
+  }
+}
