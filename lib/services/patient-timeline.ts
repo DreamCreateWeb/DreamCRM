@@ -16,6 +16,12 @@ export type TimelineKind =
   | 'membership'
   | 'balance_payment'
   | 'review'
+  // Relationship-record events the rest of the CRM generates for this patient —
+  // a unified story rather than scattered panels.
+  | 'document'
+  | 'followup'
+  | 'campaign'
+  | 'tag'
 
 export type MessageChannel = 'in_app' | 'email' | 'sms'
 
@@ -122,6 +128,35 @@ interface RawReview {
   completedAt: Date | null
   selectedSite: string | null
 }
+interface RawDocument {
+  id: string
+  fileName: string
+  fileUrl: string
+  contentType: string
+  label: string | null
+  createdAt: Date
+  uploadedByName: string | null
+}
+interface RawFollowup {
+  id: string
+  title: string
+  status: string
+  dueDate: string | null
+  createdAt: Date
+  completedAt: Date | null
+  assigneeName: string | null
+}
+interface RawCampaign {
+  id: number
+  occurredAt: Date
+  campaignId: number | null
+  campaignName: string | null
+}
+interface RawTagEvent {
+  tagId: string
+  name: string
+  assignedAt: Date
+}
 
 /** Compact dollar string from cents for commerce timeline titles. */
 function dollars(cents: number): string {
@@ -168,7 +203,7 @@ export async function getPatientTimeline(
   const threadId = threadRow?.id ?? null
   const messagesHref = threadId ? `/messages?thread=${threadId}` : '/messages'
 
-  const [appts, msgs, subs, invs, notes, pMessages, emailMessages, shopOrders, memberships, balancePayments, reviews] = await Promise.all([
+  const [appts, msgs, subs, invs, notes, pMessages, emailMessages, shopOrders, memberships, balancePayments, reviews, documents, followups, campaignsReceived, tagEvents] = await Promise.all([
     db
       .select({
         id: schema.appointment.id,
@@ -371,6 +406,81 @@ export async function getPatientTimeline(
         ),
       )
       .orderBy(desc(schema.reviewRequest.completedAt)) as Promise<RawReview[]>,
+    // Documents attached to this patient (non-deleted).
+    db
+      .select({
+        id: schema.patientDocument.id,
+        fileName: schema.patientDocument.fileName,
+        fileUrl: schema.patientDocument.fileUrl,
+        contentType: schema.patientDocument.contentType,
+        label: schema.patientDocument.label,
+        createdAt: schema.patientDocument.createdAt,
+        uploadedByName: schema.user.name,
+      })
+      .from(schema.patientDocument)
+      .leftJoin(schema.user, eq(schema.patientDocument.uploadedBy, schema.user.id))
+      .where(
+        and(
+          eq(schema.patientDocument.organizationId, organizationId),
+          eq(schema.patientDocument.patientId, patientId),
+          isNull(schema.patientDocument.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.patientDocument.createdAt)) as Promise<RawDocument[]>,
+    // Follow-ups on this patient (added / completed).
+    db
+      .select({
+        id: schema.patientFollowup.id,
+        title: schema.patientFollowup.title,
+        status: schema.patientFollowup.status,
+        dueDate: schema.patientFollowup.dueDate,
+        createdAt: schema.patientFollowup.createdAt,
+        completedAt: schema.patientFollowup.completedAt,
+        assigneeName: schema.user.name,
+      })
+      .from(schema.patientFollowup)
+      .leftJoin(schema.user, eq(schema.patientFollowup.assignedUserId, schema.user.id))
+      .where(
+        and(
+          eq(schema.patientFollowup.organizationId, organizationId),
+          eq(schema.patientFollowup.patientId, patientId),
+        ),
+      )
+      .orderBy(desc(schema.patientFollowup.createdAt)) as Promise<RawFollowup[]>,
+    // Marketing campaigns / automations this patient received (one per send).
+    db
+      .select({
+        id: schema.campaignEvents.id,
+        occurredAt: schema.campaignEvents.occurredAt,
+        campaignId: schema.campaignEvents.campaignId,
+        campaignName: schema.campaigns.name,
+      })
+      .from(schema.campaignEvents)
+      .leftJoin(schema.campaigns, eq(schema.campaignEvents.campaignId, schema.campaigns.id))
+      .where(
+        and(
+          eq(schema.campaignEvents.patientId, patientId),
+          eq(schema.campaignEvents.type, 'sent'),
+        ),
+      )
+      .orderBy(desc(schema.campaignEvents.occurredAt))
+      .limit(50) as Promise<RawCampaign[]>,
+    // CRM tags applied to this patient (when each was added).
+    db
+      .select({
+        tagId: schema.patientTag.id,
+        name: schema.patientTag.name,
+        assignedAt: schema.patientTagAssignment.assignedAt,
+      })
+      .from(schema.patientTagAssignment)
+      .innerJoin(schema.patientTag, eq(schema.patientTag.id, schema.patientTagAssignment.tagId))
+      .where(
+        and(
+          eq(schema.patientTagAssignment.organizationId, organizationId),
+          eq(schema.patientTagAssignment.patientId, patientId),
+        ),
+      )
+      .orderBy(desc(schema.patientTagAssignment.assignedAt)) as Promise<RawTagEvent[]>,
   ])
 
   // Items summary for shop orders ("2× Whitening Kit"), fetched once.
@@ -616,6 +726,74 @@ export async function getPatientTimeline(
       direction: null,
       href: '/reviews/received',
       body: r.reviewText,
+      agingDays: null,
+    })
+  }
+
+  // Documents — "Uploaded Insurance card". Links straight to the file.
+  for (const d of documents) {
+    events.push({
+      id: `doc_${d.id}`,
+      kind: 'document',
+      occurredAt: d.createdAt,
+      title: `Uploaded ${d.label || d.fileName}`,
+      subtitle: d.contentType === 'application/pdf' ? 'PDF' : 'Image',
+      status: null,
+      direction: null,
+      href: d.fileUrl,
+      body: null,
+      agingDays: null,
+      authorName: d.uploadedByName,
+    })
+  }
+
+  // Follow-ups — added (with due/assignee) or completed; positioned at the
+  // moment it mattered (completion time when done).
+  for (const f of followups) {
+    const done = f.status === 'done'
+    const bits = [f.assigneeName ? `for ${f.assigneeName}` : null, f.dueDate ? `due ${f.dueDate}` : null].filter(Boolean)
+    events.push({
+      id: `fu_${f.id}`,
+      kind: 'followup',
+      occurredAt: done && f.completedAt ? f.completedAt : f.createdAt,
+      title: `${done ? 'Completed follow-up' : 'Follow-up'}: ${f.title}`,
+      subtitle: done ? 'Done' : bits.length > 0 ? bits.join(' · ') : 'Open',
+      status: done ? 'done' : 'open',
+      direction: null,
+      href: '/followups',
+      body: null,
+      agingDays: null,
+    })
+  }
+
+  // Campaigns / automations received — "Received Birthday greetings".
+  for (const c of campaignsReceived) {
+    events.push({
+      id: `camp_${c.id}`,
+      kind: 'campaign',
+      occurredAt: c.occurredAt,
+      title: c.campaignName ? `Received “${c.campaignName}”` : 'Received a campaign email',
+      subtitle: 'Outreach',
+      status: null,
+      direction: 'out',
+      href: c.campaignId ? `/marketing/campaigns/${c.campaignId}` : '/marketing',
+      body: null,
+      agingDays: null,
+    })
+  }
+
+  // Tags applied — "Tagged VIP".
+  for (const t of tagEvents) {
+    events.push({
+      id: `tag_${t.tagId}`,
+      kind: 'tag',
+      occurredAt: t.assignedAt,
+      title: `Tagged “${t.name}”`,
+      subtitle: null,
+      status: null,
+      direction: null,
+      href: null,
+      body: null,
       agingDays: null,
     })
   }
