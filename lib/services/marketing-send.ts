@@ -2,7 +2,7 @@ import 'server-only'
 import { Resend } from 'resend'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { renderCampaignEmail, resolveMarketingFooterAddress } from '@/lib/marketing/render-email'
+import { renderCampaignEmail, resolveMarketingFooterAddress, applyMergeFields } from '@/lib/marketing/render-email'
 import { getAccessToken, sendMessage as sendGmailMessage } from './gmail'
 import { getClinicSenderIdentity } from './clinic-sender'
 import type { ClinicSender } from '@/lib/email-identity'
@@ -253,6 +253,11 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
     }
   }
 
+  // `{{bookingUrl}}` target — only clinic (patient) campaigns carry one.
+  const bookingUrl = recipientSource === 'patients'
+    ? await resolveClinicBookingUrl(opts.organizationId)
+    : null
+
   // Phase A: only email channels actually send. The 'twilio_sms' enum exists
   // so Phase B can layer the Twilio code path in without a migration, but
   // attempting an SMS send today no-ops with a clear error.
@@ -269,9 +274,9 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
       })),
     }
   } else if (campaign.sendChannel === 'gmail') {
-    result = await sendViaGmail({ ...opts, campaign, recipients, sender })
+    result = await sendViaGmail({ ...opts, campaign, recipients, sender, bookingUrl })
   } else {
-    result = await sendViaResend({ ...opts, campaign, recipients, sender })
+    result = await sendViaResend({ ...opts, campaign, recipients, sender, bookingUrl })
   }
 
   if (!opts.test) {
@@ -323,6 +328,49 @@ type InternalSendOpts = SendOptions & {
   campaign: NonNullable<Awaited<ReturnType<typeof getMarketingCampaign>>>
   recipients: ResolvedRecipient[]
   sender: CampaignSender
+  /** Clinic booking/site URL for the `{{bookingUrl}}` merge token. Null for
+   *  platform (customers) campaigns, which don't carry a booking link. */
+  bookingUrl: string | null
+}
+
+/**
+ * Resolve the clinic's `{{bookingUrl}}` target for a patient campaign: the live
+ * `/book` page on pro/premium (where self-scheduling is offered), else the
+ * public-site home (basic-tier routes "Book" to the contact form). Returns null
+ * when the org has no slug or isn't a clinic — the token then strips to empty.
+ */
+async function resolveClinicBookingUrl(organizationId: string): Promise<string | null> {
+  const [[org], [profile]] = await Promise.all([
+    db
+      .select({ slug: schema.organization.slug })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, organizationId))
+      .limit(1),
+    db
+      .select({
+        websiteDomain: schema.clinicProfile.websiteDomain,
+        planTier: schema.clinicProfile.planTier,
+      })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1),
+  ])
+  if (!org?.slug) return null
+  const { publicSiteUrl } = await import('./clinic-site')
+  const base = publicSiteUrl({
+    slug: org.slug,
+    profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+  })
+  const tier = profile?.planTier ?? 'basic'
+  return tier === 'pro' || tier === 'premium' ? `${base}/book` : base
+}
+
+/** Build the per-recipient merge map (firstName falls back to a warm default). */
+function recipientMergeFields(r: ResolvedRecipient, bookingUrl: string | null): Record<string, string> {
+  return {
+    firstName: r.firstName?.trim() || 'there',
+    bookingUrl: bookingUrl ?? '',
+  }
 }
 
 /**
@@ -351,12 +399,14 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
   for (let i = 0; i < cap; i++) {
     const r = opts.recipients[i]
     if (!r.email) continue
+    const mergeFields = recipientMergeFields(r, opts.bookingUrl)
+    const subject = applyMergeFields(opts.campaign.subject!, mergeFields)
     const { html, text, unsubUrl } = renderCampaignEmail({
       campaignId: opts.campaign.id,
       recipientEmail: r.email,
       recipientCustomerId: r.customerId ?? undefined,
       recipientPatientId: r.patientId ?? undefined,
-      subject: opts.campaign.subject!,
+      subject,
       previewText: opts.campaign.previewText,
       bodyHtml: opts.campaign.bodyHtml!,
       fromName: opts.fromName ?? opts.sender.name,
@@ -364,6 +414,7 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
       clinicLogoUrl: opts.sender.clinicLogoUrl,
       postalAddress: opts.sender.postalAddress,
       tracking: !opts.test,
+      mergeFields,
     })
 
     const tags = [
@@ -378,7 +429,7 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
       const res = await resend.emails.send({
         from: opts.sender.from,
         to: r.email,
-        subject: opts.campaign.subject!,
+        subject,
         html,
         text,
         ...(opts.sender.replyTo ? { replyTo: opts.sender.replyTo } : {}),
@@ -452,12 +503,14 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
   for (let i = 0; i < cap; i++) {
     const r = opts.recipients[i]
     if (!r.email) continue
+    const mergeFields = recipientMergeFields(r, opts.bookingUrl)
+    const subject = applyMergeFields(opts.campaign.subject!, mergeFields)
     const { html, text } = renderCampaignEmail({
       campaignId: opts.campaign.id,
       recipientEmail: r.email,
       recipientCustomerId: r.customerId ?? undefined,
       recipientPatientId: r.patientId ?? undefined,
-      subject: opts.campaign.subject!,
+      subject,
       previewText: opts.campaign.previewText,
       bodyHtml: opts.campaign.bodyHtml!,
       fromName: opts.fromName ?? account.displayName ?? opts.sender.name,
@@ -465,6 +518,7 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
       clinicLogoUrl: opts.sender.clinicLogoUrl,
       postalAddress: opts.sender.postalAddress,
       tracking: !opts.test,
+      mergeFields,
     })
 
     try {
@@ -475,7 +529,7 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
       await sendGmailMessage(accessToken, {
         from: fromHeader,
         to: [r.email],
-        subject: opts.campaign.subject!,
+        subject,
         bodyText: text,
         bodyHtml: html,
       })

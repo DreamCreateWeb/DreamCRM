@@ -21,6 +21,10 @@ vi.mock('@/lib/services/recall-stats', () => ({
 vi.mock('@/lib/services/marketing', () => ({
   listAudiences: mockListAudiences,
 }))
+vi.mock('@/lib/services/retention-automation', () => ({
+  getRetentionSettings: vi.fn(async () => ({ birthdayAutoSend: false, lapsedReactivation: false })),
+  previewRetentionAudiences: vi.fn(async () => ({ birthdaysThisMonth: 0, newlyLapsed: 0 })),
+}))
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: mockRequireTenant,
 }))

@@ -2,6 +2,8 @@ import Link from 'next/link'
 import type { TenantContext } from '@/lib/auth/context'
 import { getRecallStats, type RecallActivityKind } from '@/lib/services/recall-stats'
 import { listAudiences } from '@/lib/services/marketing'
+import { getRetentionSettings, previewRetentionAudiences } from '@/lib/services/retention-automation'
+import { RetentionAutomationsCard } from './retention-automations-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -59,13 +61,16 @@ const ACTIVITY_ICON: Record<RecallActivityKind, string> = {
 }
 
 export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContext }) {
-  const [stats, audiences] = await Promise.all([
+  const [stats, audiences, retentionSettings, retentionPreview] = await Promise.all([
     getRecallStats(ctx.organizationId),
     listAudiences(ctx.organizationId),
+    getRetentionSettings(ctx.organizationId),
+    previewRetentionAudiences(ctx.organizationId),
   ])
 
   const now = new Date()
   const orgName = ctx.organizationName ?? 'Your clinic'
+  const canManageAutomations = ctx.role === 'owner' || ctx.role === 'admin'
   const patientAudiences = audiences.filter((a) => (a.recipientSource ?? 'customers') === 'patients')
 
   return (
@@ -225,6 +230,15 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
             </ul>
           )}
         </div>
+      </section>
+
+      {/* ── Automations — set & forget recall sends ────────────────────── */}
+      <section className="mb-8">
+        <RetentionAutomationsCard
+          initial={retentionSettings}
+          preview={retentionPreview}
+          canManage={canManageAutomations}
+        />
       </section>
 
       {/* ── Row 3 — Audiences + Activity ───────────────────────────────── */}

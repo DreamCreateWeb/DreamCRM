@@ -249,6 +249,8 @@ export const PatientAudienceFilter = z.object({
   hasOutstandingBalance: z.boolean().optional(),
   /** Birthday falls in the current calendar month */
   birthdayThisMonth: z.boolean().optional(),
+  /** Birthday is today (month + day match) — drives the birthday auto-send */
+  birthdayToday: z.boolean().optional(),
   /** Has a scheduled (unconfirmed) appointment in the next N hours */
   hasUnconfirmedNextHours: z.number().int().min(0).optional(),
   /** Require marketing_email_opt_in=1 (default true — always for email sends) */
@@ -596,6 +598,14 @@ export async function resolvePatientAudience(
         const m = r.p.dateOfBirth?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
         if (!m) return false
         if (parseInt(m[2], 10) - 1 !== now.getMonth()) return false
+      }
+      if (parsed.birthdayToday) {
+        const m = r.p.dateOfBirth?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+        if (!m) return false
+        // Match month + day-of-month against "today". Feb-29 birthdays fall on
+        // Mar-1 in common years (no Feb-29 to match) — acceptable for a greeting.
+        if (parseInt(m[2], 10) - 1 !== now.getMonth()) return false
+        if (parseInt(m[3], 10) !== now.getDate()) return false
       }
       if (parsed.hasUnconfirmedNextHours != null && !unconfirmedSet.has(r.p.id)) return false
       return true

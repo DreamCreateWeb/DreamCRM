@@ -88,4 +88,11 @@ describe('PatientAudienceFilter', () => {
     expect(birthday.birthdayThisMonth).toBe(true)
     expect(birthday.requireEmailOptIn).toBe(true) // default
   })
+
+  it('accepts the birthdayToday toggle (drives the birthday auto-send)', () => {
+    const today = PatientAudienceFilter.parse({ birthdayToday: true })
+    expect(today.birthdayToday).toBe(true)
+    expect(today.birthdayThisMonth).toBeUndefined() // distinct toggles
+    expect(today.requireEmailOptIn).toBe(true) // default
+  })
 })

@@ -65,7 +65,10 @@ vi.mock('@/lib/db', () => {
         postalCode: 'postalCode',
         country: 'country',
         logoUrl: 'logoUrl',
+        websiteDomain: 'websiteDomain',
+        planTier: 'planTier',
       },
+      organization: { id: 'id', slug: 'slug' },
       emailAccount: {},
     },
   }

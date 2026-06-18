@@ -33,6 +33,7 @@ import {
 } from '@/lib/services/marketing-campaigns'
 import { sendCampaign } from '@/lib/services/marketing-send'
 import { draftCampaign, improveCopy } from '@/lib/services/ai-marketing'
+import { setRetentionAutomation, type RetentionKind } from '@/lib/services/retention-automation'
 
 /**
  * Recall & Outreach is a clinic-staff surface. The /marketing page redirects
@@ -212,6 +213,28 @@ export async function improveCopyAction(html: string, instruction: string) {
   if (!html.trim() || !instruction.trim()) return null
   if (html.length > 12_000 || instruction.length > 400) return null
   return improveCopy(html, instruction, ctx.tenantType)
+}
+
+// ---------- Retention automations (set & forget) ----------
+
+/**
+ * Flip the birthday or reactivation auto-send on/off. Owner/admin only — these
+ * automatically email patients clinic-wide, so a staff `member` can't enable
+ * them. Returns `{ ok }` or `{ error }`.
+ */
+export async function setRetentionAutomationAction(
+  kind: RetentionKind,
+  enabled: boolean,
+): Promise<{ ok: true } | { error: string }> {
+  const ctx = await requireClinicStaff()
+  if (ctx.tenantType !== 'clinic') return { error: 'Automations are a clinic feature.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { error: 'Only an owner or admin can change automations.' }
+  }
+  if (kind !== 'birthday' && kind !== 'reactivation') return { error: 'Unknown automation.' }
+  await setRetentionAutomation(ctx.organizationId, kind, enabled)
+  revalidatePath('/marketing')
+  return { ok: true }
 }
 
 export async function sendCampaignAction(

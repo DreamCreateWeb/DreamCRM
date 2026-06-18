@@ -87,9 +87,33 @@ export interface RenderOptions {
   postalAddress?: string | null
   /** Set false on test sends to skip recording opens/clicks. */
   tracking?: boolean
+  /** Per-recipient merge values substituted into the body (and applied to the
+   *  subject by the send path). Keys are bare token names — `{{firstName}}`,
+   *  `{{bookingUrl}}`, etc. Substituted BEFORE link-rewriting so a
+   *  `{{bookingUrl}}` inside an href becomes a real, trackable URL. */
+  mergeFields?: Record<string, string | null | undefined>
 }
 
 const ALLOWED_HTTP_URL = /^https?:\/\//i
+
+/** Matches our `{{ token }}` merge syntax (tolerant of inner whitespace). */
+const MERGE_TOKEN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g
+
+/**
+ * Substitute `{{token}}` merge fields. A token present in `fields` is replaced
+ * with its value; any *un*recognized token is stripped to empty — marketing
+ * bodies must never ship a raw `{{token}}` to a patient. Double-brace is our
+ * exclusive merge syntax so stripping leftovers is safe.
+ */
+export function applyMergeFields(
+  input: string,
+  fields: Record<string, string | null | undefined>,
+): string {
+  return input.replace(MERGE_TOKEN, (_match, key: string) => {
+    const v = fields[key]
+    return v == null ? '' : v
+  })
+}
 
 /**
  * Build the per-recipient unsubscribe URL. Exported so the send orchestrator
@@ -117,7 +141,10 @@ export function renderCampaignEmail(opts: RenderOptions): {
   unsubUrl: string
 } {
   const tracking = opts.tracking ?? true
-  const body = tracking ? rewriteLinks(opts.bodyHtml, opts) : opts.bodyHtml
+  // Substitute merge fields FIRST so a `{{bookingUrl}}` inside an href is a real
+  // URL by the time rewriteLinks wraps it in tracking.
+  const mergedBody = opts.mergeFields ? applyMergeFields(opts.bodyHtml, opts.mergeFields) : opts.bodyHtml
+  const body = tracking ? rewriteLinks(mergedBody, opts) : mergedBody
   const trackingPixel = tracking
     ? `<img src="${APP_URL}/api/track/open/${encodeToken({
         c: opts.campaignId,
@@ -189,8 +216,8 @@ export function renderCampaignEmail(opts: RenderOptions): {
 </body>
 </html>`
 
-  // crude text fallback: strip tags
-  const text = opts.bodyHtml
+  // crude text fallback: strip tags (from the merged body so tokens are filled)
+  const text = mergedBody
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
