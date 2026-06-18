@@ -2,6 +2,41 @@ import 'server-only'
 import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
+import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
+
+/**
+ * Find an ACTIVE patient in the org that matches the given contact info, using
+ * the SAME normalized + non-empty rules as createPatient/importPatients so the
+ * convert dedupe can't (a) merge two different people who both have an empty
+ * phone, (b) miss a case/format-different duplicate, or (c) link to an archived
+ * patient. Runs on `db` or a transaction `tx`. Returns the matched patient or
+ * null when nothing matches (or there's no usable email/phone to match on).
+ */
+async function findActivePatientByContact(
+  exec: Pick<typeof db, 'select'>,
+  organizationId: string,
+  email: string | null,
+  phone: string | null,
+): Promise<{ id: string; firstName: string; lastName: string } | null> {
+  const ne = normalizeEmail(email)
+  const np = normalizePhone(phone)
+  if (!ne && !np) return null
+  const candidates = await exec
+    .select({
+      id: schema.patient.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      email: schema.patient.email,
+      phone: schema.patient.phone,
+    })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.isActive, 1)))
+    .limit(2000)
+  const match = candidates.find(
+    (c) => (ne && normalizeEmail(c.email) === ne) || (np && normalizePhone(c.phone) === np),
+  )
+  return match ? { id: match.id, firstName: match.firstName, lastName: match.lastName } : null
+}
 
 /**
  * Leads service — public-website inbound prospects.
@@ -273,26 +308,14 @@ export async function convertLeadToPatient(
     // rather than creating a duplicate — UNLESS the caller explicitly
     // forces a new patient (the "not the same person" escape hatch, e.g.
     // a child lead sharing a parent's phone number — common in dental).
-    const dupes = options.forceNewPatient
-      ? []
-      : await tx
-          .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
-          .from(schema.patient)
-          .where(
-            and(
-              eq(schema.patient.organizationId, organizationId),
-              or(
-                existing.email ? eq(schema.patient.email, existing.email) : sql`false`,
-                eq(schema.patient.phone, existing.phone),
-              )!,
-            ),
-          )
-          .limit(1)
+    const dupe = options.forceNewPatient
+      ? null
+      : await findActivePatientByContact(tx, organizationId, existing.email, existing.phone)
 
-    const deduped = !!dupes[0]
-    const patientId = dupes[0]?.id ?? `pat_${randomBytes(10).toString('hex')}`
+    const deduped = !!dupe
+    const patientId = dupe?.id ?? `pat_${randomBytes(10).toString('hex')}`
     const patientName = deduped
-      ? `${dupes[0].firstName} ${dupes[0].lastName}`.trim()
+      ? `${dupe!.firstName} ${dupe!.lastName}`.trim()
       : `${firstName || 'Unknown'} ${lastName}`.trim()
     if (!deduped) {
       const now = new Date()
@@ -301,8 +324,11 @@ export async function convertLeadToPatient(
         organizationId,
         firstName: firstName || 'Unknown',
         lastName: lastName || '',
-        email: existing.email,
-        phone: existing.phone,
+        // Coerce empty contact strings to null — a lead from the email-only
+        // contact path carries phone='' (the column is notNull), and storing
+        // that '' would let a later empty-phone lead "match" this patient.
+        email: existing.email?.trim() || null,
+        phone: existing.phone?.trim() || null,
         isActive: 1,
         source: 'lead_form',
         lifecycle: 'new',
@@ -340,19 +366,7 @@ export async function findConvertDedupeMatch(
     .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, leadId)))
     .limit(1)
   if (!lead || lead.convertedToPatientId) return null
-  const [match] = await db
-    .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
-    .from(schema.patient)
-    .where(
-      and(
-        eq(schema.patient.organizationId, organizationId),
-        or(
-          lead.email ? eq(schema.patient.email, lead.email) : sql`false`,
-          eq(schema.patient.phone, lead.phone),
-        )!,
-      ),
-    )
-    .limit(1)
+  const match = await findActivePatientByContact(db, organizationId, lead.email, lead.phone)
   return match ? { id: match.id, name: `${match.firstName} ${match.lastName}`.trim() } : null
 }
 

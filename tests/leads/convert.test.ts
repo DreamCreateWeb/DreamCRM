@@ -182,7 +182,7 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
     expect(state.txCalls).toBe(0)
   })
 
-  it('reuses an existing patient when email or phone matches (no duplicate)', async () => {
+  it('reuses an existing patient when phone matches — even when formatted differently (normalized)', async () => {
     state.leadResult = [{
       id: 'lead_2',
       organizationId: 'org_1',
@@ -192,7 +192,9 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
       convertedToPatientId: null,
       createdAt: new Date(),
     }]
-    state.dupesResult = [{ id: 'pat_existing_dan', firstName: 'Daniel', lastName: 'Park' }]
+    // The existing patient's phone is stored digits-only. Raw `eq` would MISS
+    // this; the normalized match must still dedupe them.
+    state.dupesResult = [{ id: 'pat_existing_dan', firstName: 'Daniel', lastName: 'Park', email: null, phone: '4155550119' }]
 
     const out = await convertLeadToPatient('org_1', 'lead_2')
 
@@ -284,6 +286,34 @@ describe('convertLeadToPatient — lead → patient lifecycle bridge', () => {
     expect(patientInsert.values.firstName).toBe('Maria')
     expect(patientInsert.values.lastName).toBe('del Carmen Rodriguez')
   })
+
+  it('does NOT merge two different email-only leads via an empty phone', async () => {
+    // An email-only contact-form lead carries phone='' (the column is notNull).
+    // A DIFFERENT existing patient also has an empty phone. Raw `eq(phone,'')`
+    // matched them and merged two unrelated people; the normalized match must
+    // NOT (empty normalizes to null → no phone match; the emails differ).
+    state.leadResult = [{
+      id: 'lead_empty',
+      organizationId: 'org_1',
+      name: 'Aisha Khan',
+      phone: '',
+      email: 'aisha@example.com',
+      convertedToPatientId: null,
+      createdAt: new Date('2026-05-01T10:00:00Z'),
+    }]
+    state.dupesResult = [{ id: 'pat_other', firstName: 'Someone', lastName: 'Else', email: 'someone@example.com', phone: '' }]
+
+    const out = await convertLeadToPatient('org_1', 'lead_empty')
+
+    expect(out.deduped).toBe(false)
+    expect(out.patientId).not.toBe('pat_other')
+    const patientInsert = state.inserts.find((i) => i.table === 'patient')!
+    expect(patientInsert).toBeDefined()
+    // Empty contact strings are stored as null, not '' (so a future lead can't
+    // re-trigger the same empty-string collision).
+    expect(patientInsert.values.phone).toBeNull()
+    expect(patientInsert.values.email).toBe('aisha@example.com')
+  })
 })
 
 describe('findConvertDedupeMatch — pre-convert dry run', () => {
@@ -293,7 +323,7 @@ describe('findConvertDedupeMatch — pre-convert dry run', () => {
       phone: '(415) 555-0119',
       convertedToPatientId: null,
     }]
-    state.dupesResult = [{ id: 'pat_parent', firstName: 'Parent', lastName: 'Smith' }]
+    state.dupesResult = [{ id: 'pat_parent', firstName: 'Parent', lastName: 'Smith', email: 'shared@example.com', phone: null }]
 
     const match = await findConvertDedupeMatch('org_1', 'lead_x')
     expect(match).toEqual({ id: 'pat_parent', name: 'Parent Smith' })
