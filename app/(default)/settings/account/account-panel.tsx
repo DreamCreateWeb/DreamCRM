@@ -1,44 +1,39 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { saveAccount } from '../actions'
 import { changeEmail } from '@/lib/auth/client'
 import { ActionButton } from '@/components/ui/action-button'
+import { SettingsSection, SettingsRow } from '../settings-kit'
 
 interface InitialUser {
   id: string
   name: string
   email: string
   image: string | null
-  companyName: string | null
-  city: string | null
-  postalCode: string | null
-  streetAddress: string | null
-  country: string | null
+  bio: string | null
 }
 
 export default function AccountPanel({ initialUser }: { initialUser: InitialUser }) {
   const router = useRouter()
   const [name, setName] = useState(initialUser.name)
-  const [companyName, setCompanyName] = useState(initialUser.companyName ?? '')
-  const [location, setLocation] = useState(initialUser.city ?? '')
-  // Email is its own flow — it doesn't ride the profile Save. Changing it
-  // routes through better-auth's verified changeEmail (a confirmation link to
-  // the current mailbox); the new address only takes effect after that click,
-  // so `currentEmail` keeps showing what's actually on the account.
-  const currentEmail = initialUser.email
-  const [email, setEmail] = useState(initialUser.email)
+  const [bio, setBio] = useState(initialUser.bio ?? '')
   const [image, setImage] = useState(initialUser.image)
   const [uploading, setUploading] = useState(false)
   const [pending, startTransition] = useTransition()
-  const [emailPending, startEmailTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
-  // Set after a successful changeEmail request — surfaces the pending-confirm
-  // state inline ("verify the link we sent") until the user confirms.
+
+  // Email is its own verified flow — better-auth's changeEmail (a confirmation
+  // link to the current mailbox); the new address only takes effect after the
+  // click, so currentEmail keeps showing what's actually on the account.
+  const currentEmail = initialUser.email
+  const [email, setEmail] = useState(initialUser.email)
+  const [emailPending, startEmailTransition] = useTransition()
   const [pendingEmail, setPendingEmail] = useState<string | null>(null)
   const [emailFeedback, setEmailFeedback] = useState<{ ok?: string; error?: string } | null>(null)
+
+  const dirty = name !== initialUser.name || bio !== (initialUser.bio ?? '') || image !== initialUser.image
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -69,13 +64,8 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
     startTransition(async () => {
       try {
         // Email is intentionally NOT sent here — it has its own verified flow.
-        await saveAccount({
-          name,
-          companyName: companyName || null,
-          city: location || null,
-          image: image || null,
-        })
-        setFeedback({ ok: 'Saved' })
+        await saveAccount({ name, image: image || null, bio: bio.trim() || null })
+        setFeedback({ ok: 'Saved.' })
         router.refresh()
       } catch (err) {
         setFeedback({ error: (err as Error).message })
@@ -92,9 +82,6 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
       return
     }
     startEmailTransition(async () => {
-      // better-auth sends a confirmation link (to the current mailbox when the
-      // account is verified, otherwise a verification link to the new address).
-      // Nothing changes on the account until that link is clicked.
       const { error } = await changeEmail({ newEmail: next, callbackURL: '/settings/account' })
       if (error) {
         setEmailFeedback({ error: error.message ?? 'Could not start the email change. Please try again.' })
@@ -106,133 +93,134 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
   }
 
   return (
-    <div className="grow">
-      <div className="p-6 space-y-6">
-        <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-5">My Account</h2>
+    <div className="p-6 space-y-6">
+      <SettingsSection title="Profile" description="Your name, photo, and a short bio.">
+        {/* Avatar */}
+        <div className="flex items-center gap-4 border-b border-gray-100 dark:border-gray-700/50 pb-4 mb-1">
+          {image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="w-16 h-16 rounded-full object-cover" src={image} alt={name} />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-teal-100 dark:bg-teal-500/30 flex items-center justify-center text-xl font-semibold text-teal-700 dark:text-teal-200">
+              {(name?.[0] ?? 'U').toUpperCase()}
+            </div>
+          )}
+          <label className="btn-sm dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 cursor-pointer">
+            {uploading ? 'Uploading…' : 'Change photo'}
+            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+          </label>
+        </div>
 
-        <section>
-          <div className="flex items-center">
-            <div className="mr-4">
-              {image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="w-20 h-20 rounded-full object-cover" src={image} alt={name} />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-teal-100 dark:bg-teal-500/30 flex items-center justify-center text-2xl font-semibold text-teal-700 dark:text-teal-200">
-                  {(name?.[0] ?? 'U').toUpperCase()}
-                </div>
-              )}
-            </div>
-            <label className="btn-sm dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 cursor-pointer">
-              {uploading ? 'Uploading…' : 'Change'}
-              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-            </label>
-          </div>
-        </section>
-
-        <form id="account-form" onSubmit={handleSubmit} className="space-y-6">
-          <section>
-            <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Profile</h2>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Update your display name, company and address.</div>
-            <div className="sm:flex sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 mt-5">
-              <div className="sm:w-1/2">
-                <label className="block text-sm font-medium mb-1" htmlFor="acct-name">Full Name</label>
-                <input id="acct-name" className="form-input w-full" type="text" value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div className="sm:w-1/2">
-                <label className="block text-sm font-medium mb-1" htmlFor="acct-company">Business Name</label>
-                <input id="acct-company" className="form-input w-full" type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-              </div>
-            </div>
-            <div className="mt-4">
-              <label className="block text-sm font-medium mb-1" htmlFor="acct-location">Location</label>
-              <input id="acct-location" className="form-input w-full sm:w-1/2" type="text" value={location} onChange={(e) => setLocation(e.target.value)} />
-            </div>
-          </section>
+        <form id="account-form" onSubmit={handleSubmit}>
+          <SettingsRow
+            label="Full name"
+            htmlFor="acct-name"
+            control={
+              <input
+                id="acct-name"
+                className="form-input w-full sm:w-80"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            }
+          />
+          <SettingsRow
+            label="Bio"
+            htmlFor="acct-bio"
+            description="A sentence or two about you."
+            control={
+              <textarea
+                id="acct-bio"
+                className="form-textarea w-full sm:w-80"
+                rows={3}
+                maxLength={1000}
+                placeholder="Front-desk lead, here to make your visit easy."
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+              />
+            }
+          />
         </form>
 
-        {/* Email is its own verified flow — separate form, separate button, so it
-            never piggybacks on the profile Save. */}
-        <section>
-          <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Email</h2>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
+        <div className="mt-4 flex items-center justify-end gap-3">
+          {feedback?.error && <span className="mr-auto text-sm text-rose-600 dark:text-rose-400">{feedback.error}</span>}
+          {feedback?.ok && <span className="mr-auto text-sm text-emerald-600 dark:text-emerald-400">{feedback.ok}</span>}
+          <ActionButton variant="primary" type="submit" form="account-form" disabled={pending || !dirty}>
+            {pending ? 'Saving…' : 'Save profile'}
+          </ActionButton>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Email"
+        description={
+          <>
             Used for sign-in and account notifications. Changing it sends a confirmation link — your sign-in email
             stays <span className="font-medium text-gray-700 dark:text-gray-300">{currentEmail}</span> until you confirm.
+          </>
+        }
+      >
+        {pendingEmail ? (
+          <div className="text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 px-3 py-3 rounded-[var(--r-sm)]">
+            <p className="font-medium">Confirm your new email</p>
+            <p className="mt-1">
+              We sent a confirmation link to verify the change to{' '}
+              <span className="font-medium">{pendingEmail}</span>. Your sign-in email won&apos;t change until you click it.
+            </p>
+            <button
+              type="button"
+              className="mt-2 text-indigo-700 dark:text-indigo-300 underline hover:no-underline"
+              onClick={() => {
+                setPendingEmail(null)
+                setEmail(currentEmail)
+              }}
+            >
+              Cancel / use a different address
+            </button>
           </div>
-          {pendingEmail ? (
-            <div className="mt-5 text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 px-3 py-3 rounded-[var(--r-sm)]">
-              <p className="font-medium">Confirm your new email</p>
-              <p className="mt-1">
-                We sent a confirmation link to verify the change to{' '}
-                <span className="font-medium">{pendingEmail}</span>. Your sign-in email won't change until you click it.
-              </p>
-              <button
-                type="button"
-                className="mt-2 text-indigo-700 dark:text-indigo-300 underline hover:no-underline"
-                onClick={() => {
-                  setPendingEmail(null)
-                  setEmail(currentEmail)
-                }}
-              >
-                Cancel / use a different address
-              </button>
+        ) : (
+          <form id="email-form" onSubmit={handleEmailChange} className="flex flex-wrap items-end gap-2">
+            <div className="w-full sm:w-auto">
+              <label className="sr-only" htmlFor="acct-email">
+                Email address
+              </label>
+              <input
+                id="acct-email"
+                className="form-input w-full sm:w-80"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-          ) : (
-            <form id="email-form" onSubmit={handleEmailChange} className="flex flex-wrap items-end gap-2 mt-5">
-              <div className="w-full sm:w-auto">
-                <label className="sr-only" htmlFor="acct-email">Business email</label>
-                <input
-                  id="acct-email"
-                  className="form-input w-full sm:w-80"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <ActionButton
-                variant="secondary"
-                type="submit"
-                form="email-form"
-                disabled={emailPending || email.trim().toLowerCase() === currentEmail.toLowerCase()}
-              >
-                {emailPending ? 'Sending…' : 'Change email'}
-              </ActionButton>
-            </form>
-          )}
-          {emailFeedback?.error && (
-            <div className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{emailFeedback.error}</div>
-          )}
-        </section>
-
-        <section>
-          <h2 className="text-xl leading-snug text-gray-800 dark:text-gray-100 font-bold mb-1">Password & sessions</h2>
-          <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-            Manage your password and signed-in devices on the{' '}
-            <Link href="/settings/security" className="text-teal-600 dark:text-teal-400 hover:underline">
-              Security
-            </Link>{' '}
-            tab.
-          </div>
-        </section>
-      </div>
-
-      <footer>
-        <div className="flex flex-col px-6 py-5 border-t border-gray-200 dark:border-gray-700/60">
-          {feedback?.error && (
-            <div className="mb-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{feedback.error}</div>
-          )}
-          {feedback?.ok && (
-            <div className="mb-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
-          )}
-          <div className="flex self-end gap-3">
-            <ActionButton variant="secondary" onClick={() => router.refresh()}>
-              Cancel
+            <ActionButton
+              variant="secondary"
+              type="submit"
+              form="email-form"
+              disabled={emailPending || email.trim().toLowerCase() === currentEmail.toLowerCase()}
+            >
+              {emailPending ? 'Sending…' : 'Change email'}
             </ActionButton>
-            <ActionButton variant="primary" type="submit" form="account-form" disabled={pending}>
-              {pending ? 'Saving…' : 'Save Changes'}
-            </ActionButton>
-          </div>
-        </div>
-      </footer>
+          </form>
+        )}
+        {emailFeedback?.error && (
+          <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{emailFeedback.error}</p>
+        )}
+      </SettingsSection>
+
+      <SettingsSection
+        title="Password & sessions"
+        description="Manage your password and review the devices you're signed in on."
+        action={
+          <ActionButton href="/settings/security" variant="secondary">
+            Go to Security
+          </ActionButton>
+        }
+      >
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Your password and signed-in devices live on the Security page.
+        </p>
+      </SettingsSection>
     </div>
   )
 }

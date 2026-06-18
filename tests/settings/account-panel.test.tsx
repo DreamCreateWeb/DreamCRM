@@ -25,11 +25,7 @@ const initialUser = {
   name: 'Jane Doe',
   email: 'jane@old.com',
   image: null,
-  companyName: 'Acme Dental',
-  city: 'Austin',
-  postalCode: null,
-  streetAddress: null,
-  country: null,
+  bio: 'Front desk lead',
 }
 
 beforeEach(() => {
@@ -42,7 +38,7 @@ describe('AccountPanel — email change flow', () => {
   it('calls changeEmail (not saveAccount) and shows a pending-confirm notice on success', async () => {
     render(<AccountPanel initialUser={initialUser} />)
 
-    const emailInput = screen.getByLabelText(/Business email/i) as HTMLInputElement
+    const emailInput = screen.getByLabelText(/Email address/i) as HTMLInputElement
     fireEvent.change(emailInput, { target: { value: 'jane@new.com' } })
     fireEvent.submit(document.getElementById('email-form')!)
 
@@ -61,7 +57,7 @@ describe('AccountPanel — email change flow', () => {
   it('surfaces the error and stays out of pending state when changeEmail fails', async () => {
     changeEmail.mockResolvedValue({ data: null, error: { message: 'Email is the same' } })
     render(<AccountPanel initialUser={initialUser} />)
-    const emailInput = screen.getByLabelText(/Business email/i) as HTMLInputElement
+    const emailInput = screen.getByLabelText(/Email address/i) as HTMLInputElement
     fireEvent.change(emailInput, { target: { value: 'jane@new.com' } })
     fireEvent.submit(document.getElementById('email-form')!)
 

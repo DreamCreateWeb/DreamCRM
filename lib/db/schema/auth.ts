@@ -8,6 +8,8 @@ export const user = pgTable('user', {
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
+  // Short personal bio shown on the user's account. Free text, optional.
+  bio: text('bio'),
   // Custom field — true when the user is a Dream Create platform staff member
   // who can view across all organizations for support.
   platformAdmin: boolean('platform_admin').notNull().default(false),
