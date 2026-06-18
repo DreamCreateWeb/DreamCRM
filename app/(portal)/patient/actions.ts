@@ -222,10 +222,19 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   // checks the whole appointment window and endTime reflects the real length
   // (mirrors the public + front-desk booking paths; wave 1 left this at +30min).
   const [vtRow] = await db
-    .select({ visitTypeSettings: clinicProfile.visitTypeSettings })
+    .select({
+      visitTypeSettings: clinicProfile.visitTypeSettings,
+      selfBookingEnabled: clinicProfile.selfBookingEnabled,
+    })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
+  // Clinic-wide self-scheduling switch (separate from the portal feature
+  // toggle): when off, the portal surfaces "Request a visit" instead — so a
+  // booking write here means a stale tab. Don't create the appointment.
+  if (vtRow?.selfBookingEnabled === false) {
+    return { ok: false, error: 'Online booking is turned off — send a request and the office will reach out to schedule.' }
+  }
   const durationMinutes = visitTypeDuration(vtRow?.visitTypeSettings ?? null, type)
 
   const free = await isSlotAvailable(ctx.organizationId, startTime, durationMinutes)

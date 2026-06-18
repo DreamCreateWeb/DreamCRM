@@ -25,10 +25,6 @@ export const TIMETRAP_FIELD = 'form_loaded_at'
  *  Generous enough that even an autofill-then-click power user clears it. */
 export const MIN_ELAPSED_MS = 2500
 
-/** Absurd-future / very-old guards: a tampered or stale timestamp shouldn't
- *  pass. We accept anything from "now" back to 24h ago. */
-const MAX_AGE_MS = 24 * 60 * 60 * 1000
-
 /**
  * Decide whether a submission looks like a bot, given the raw FormData (or a
  * plain object) carrying the honeypot + time-trap fields.
@@ -58,10 +54,13 @@ export function looksLikeBot(
     const ts = Number(rawTs)
     if (Number.isFinite(ts) && ts > 0) {
       const elapsed = now - ts
-      // Submitted suspiciously fast, or with a timestamp in the future / older
-      // than a day (tampered / replayed) ⇒ bot.
+      // Submitted suspiciously fast ⇒ bot (a future/tampered timestamp lands
+      // here as NEGATIVE elapsed, so it's caught too). We deliberately do NOT
+      // treat a very OLD timestamp as a bot: a real patient who left the form
+      // tab open for a day and then submitted is a slow human — silently
+      // dropping them (with a fake "success") is far worse than letting the
+      // rare day-old bot through the honeypot.
       if (elapsed < MIN_ELAPSED_MS) return true
-      if (elapsed > MAX_AGE_MS) return true
     }
   }
 

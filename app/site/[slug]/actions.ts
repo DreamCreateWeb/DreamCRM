@@ -366,10 +366,21 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   // Resolve the visit-type duration from the clinic's catalog so the race-guard
   // checks the whole appointment window and endTime reflects the real length.
   const [vtRow] = await db
-    .select({ visitTypeSettings: clinicProfile.visitTypeSettings })
+    .select({
+      visitTypeSettings: clinicProfile.visitTypeSettings,
+      selfBookingEnabled: clinicProfile.selfBookingEnabled,
+    })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
+  // If the clinic turned OFF self-scheduling after this tab loaded, never create
+  // an appointment — the /book page already renders the request-a-visit form
+  // when disabled, so reaching here means a stale tab or a replayed submit.
+  if (vtRow?.selfBookingEnabled === false) {
+    throw new Error(
+      'Online booking isn’t available right now — please send your request and the office will reach out to schedule.',
+    )
+  }
   const durationMinutes = visitTypeDuration(vtRow?.visitTypeSettings ?? null, appointmentType)
 
   // Race-condition guard — between page load and submit, someone else

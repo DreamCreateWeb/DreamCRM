@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
+import { RESERVED_SLUGS } from '@/lib/onboarding/slug'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -12,10 +13,6 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
 const APP_ORIGIN =
   process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') ||
   `https://www.${SITE_DOMAIN}`
-
-// Subdomains that serve the platform app itself, never a clinic public site.
-// `app` is the authenticated dashboard host; `www` is the apex alias.
-const RESERVED_SUBDOMAINS = new Set(['www', 'app'])
 
 /**
  * Fetch the `customDomain → slug` map for clinics that wired their own domain.
@@ -150,7 +147,11 @@ export async function middleware(request: NextRequest) {
 
   if (hostname.endsWith(`.${SITE_DOMAIN}`)) {
     const slug = hostname.slice(0, hostname.length - SITE_DOMAIN.length - 1)
-    if (slug && !RESERVED_SUBDOMAINS.has(slug)) {
+    // Reserved names (www/app/api/portal/admin/blog/…) are never a clinic site,
+    // so they're not rewritten to /site/<slug> — they fall through to the app.
+    // Reuse the single onboarding RESERVED_SLUGS list so the two can't drift
+    // (a clinic can't register these, so none has a public site anyway).
+    if (slug && !RESERVED_SLUGS.has(slug)) {
       const url = request.nextUrl.clone()
       url.pathname = `/site/${slug}${pathname === '/' ? '' : pathname}`
       return NextResponse.rewrite(url)

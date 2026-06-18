@@ -49,9 +49,15 @@ describe('looksLikeBot', () => {
     expect(looksLikeBot(fd({ [TIMETRAP_FIELD]: future }), NOW)).toBe(true)
   })
 
-  it('flags a stale timestamp older than 24h', () => {
-    const old = String(NOW - 25 * 60 * 60 * 1000)
-    expect(looksLikeBot(fd({ [TIMETRAP_FIELD]: old }), NOW)).toBe(true)
+  it('does NOT flag a stale timestamp — a patient who left the tab open is a slow human, not a bot', () => {
+    // Regression: dropping a day-old submission as a "bot" silently lost real
+    // contact/booking/intake submissions while showing the patient a fake
+    // success. A slow human is a human — only the honeypot + fast-submit gates
+    // catch bots.
+    const dayOld = String(NOW - 25 * 60 * 60 * 1000)
+    expect(looksLikeBot(fd({ [TIMETRAP_FIELD]: dayOld }), NOW)).toBe(false)
+    const weekOld = String(NOW - 7 * 24 * 60 * 60 * 1000)
+    expect(looksLikeBot(fd({ [TIMETRAP_FIELD]: weekOld }), NOW)).toBe(false)
   })
 
   it('treats a MISSING time-trap as human (forms predating the field / JS off)', () => {
