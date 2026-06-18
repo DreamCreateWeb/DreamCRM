@@ -28,6 +28,8 @@ vi.mock('drizzle-orm', () => ({
   gte: vi.fn(() => ({})),
   lte: vi.fn(() => ({})),
   notInArray: vi.fn(() => ({})),
+  // schema modules evaluate `sql` at load time (jsonb column defaults).
+  sql: vi.fn(() => ({})),
 }))
 
 import {

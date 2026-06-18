@@ -184,6 +184,27 @@ export const patientFollowup = pgTable(
   ],
 )
 
+// Saved patient-list views — a named filter+tag+search combo a clinic re-opens
+// in one click ("VIP with a balance", "Lapsed in Austin"). Org-scoped + shared
+// across the team. `filters` is the serialized PatientListFilters subset; the
+// same shape can be promoted straight into a marketing audience.
+export const patientView = pgTable(
+  'patient_view',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    filters: jsonb('filters').notNull().default(sql`'{}'::jsonb`),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('patient_view_org_name_idx').on(t.organizationId, sql`lower(${t.name})`),
+  ],
+)
+
 // Org-scoped tag catalog — reusable labels a clinic puts on patients
 // ("VIP", "Anxious", "Needs follow-up", "Pediatric"). CRM-side organization,
 // NOT clinical coding. `color` is one of a fixed tone palette

@@ -1438,6 +1438,50 @@ async function seedDemoFollowups(orgId: string): Promise<void> {
 }
 
 /**
+ * Seed a few saved patient-list views so the "Views" bar showcases populated
+ * state. Idempotent (bails if any view exists / no patients); resolves the VIP
+ * tag id (seeded by seedDemoPatientTags) so a tag-based view is real.
+ */
+async function seedDemoPatientViews(orgId: string): Promise<void> {
+  const patients = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+    .limit(1)
+  if (patients.length === 0) return
+  const [existing] = await db
+    .select({ id: schema.patientView.id })
+    .from(schema.patientView)
+    .where(eq(schema.patientView.organizationId, orgId))
+    .limit(1)
+  if (existing) return
+
+  const [vipTag] = await db
+    .select({ id: schema.patientTag.id })
+    .from(schema.patientTag)
+    .where(and(eq(schema.patientTag.organizationId, orgId), eq(schema.patientTag.name, 'VIP')))
+    .limit(1)
+
+  const views: Array<{ name: string; filters: Record<string, unknown>; sortOrder: number }> = [
+    { name: 'Recall due', filters: { status: 'recall_due' }, sortOrder: 0 },
+    { name: 'Has a balance', filters: { hasBalance: true }, sortOrder: 1 },
+    { name: 'Birthdays this month', filters: { birthdayThisMonth: true }, sortOrder: 2 },
+  ]
+  if (vipTag) views.push({ name: 'VIP patients', filters: { tagIds: [vipTag.id] }, sortOrder: 3 })
+
+  await db.insert(schema.patientView).values(
+    views.map((v) => ({
+      id: newId('pview'),
+      organizationId: orgId,
+      name: v.name,
+      filters: v.filters,
+      createdBy: null,
+      sortOrder: v.sortOrder,
+    })),
+  )
+}
+
+/**
  * A SECOND (non-default) intake form so the demo exercises the "pick which
  * form" dropdown on the patient detail "Send intake" control — which only
  * appears when a clinic has more than one form. Idempotent by slug.
@@ -2236,6 +2280,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // so the Overview card + /followups + detail panel populate on legacy demos.
     await seedDemoFollowups(existing.id)
 
+    // Saved views self-heal: seed a few patient-list views (idempotent).
+    await seedDemoPatientViews(existing.id)
+
     // Referral partner self-heal: seed the demo MSP partner + attribution +
     // commission ledger so /partners populates on legacy demos. Idempotent;
     // never overwrites a real referral assignment. Runs LAST so its reads sit
@@ -2792,6 +2839,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Patient follow-ups across the personas (overdue / today / upcoming / done).
   await seedDemoFollowups(orgId)
+
+  // Saved patient-list views (Recall due / Has a balance / VIP …).
+  await seedDemoPatientViews(orgId)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to

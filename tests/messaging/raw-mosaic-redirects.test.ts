@@ -20,7 +20,7 @@ vi.mock('next/navigation', () => ({ redirect }))
 // Service + db stubs so the page modules import cleanly. The platform path
 // returns empty data; the clinic path never reaches these (redirect throws).
 vi.mock('@/lib/db', () => ({ db: {}, schema: {} }))
-vi.mock('drizzle-orm', () => ({ inArray: vi.fn() }))
+vi.mock('drizzle-orm', () => ({ inArray: vi.fn(), sql: vi.fn(() => ({})) }))
 vi.mock('@/lib/services/tasks', () => ({
   listTasks: vi.fn().mockResolvedValue([]),
   listTagsForOrg: vi.fn().mockResolvedValue([]),

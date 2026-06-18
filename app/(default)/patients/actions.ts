@@ -31,6 +31,15 @@ import {
   deleteFollowup,
   type PatientFollowupView,
 } from '@/lib/services/patient-followups'
+import {
+  createPatientView,
+  deletePatientView,
+  patientFiltersToAudienceFilter,
+  type PatientViewRow,
+} from '@/lib/services/patient-views'
+import { normalizeViewFilters, type SavedViewFilters } from '@/lib/types/patient-views'
+import { createAudience } from '@/lib/services/marketing'
+import { planAllows } from '@/lib/modules'
 import { MAX_DOCUMENT_BYTES } from '@/lib/types/patient-documents'
 import { uploadBlob } from '@/lib/blob'
 import {
@@ -231,6 +240,67 @@ export async function deletePatientDocumentAction(
   await deletePatientDocument(ctx.organizationId, documentId)
   revalidatePath(`/patients/${patientId}`)
   return { ok: true }
+}
+
+// ---------- Saved views ----------
+
+export async function createPatientViewAction(
+  name: string,
+  filters: SavedViewFilters,
+): Promise<{ ok: true; view: PatientViewRow } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can save views' }
+  try {
+    const view = await createPatientView(ctx.organizationId, name, filters as Record<string, unknown>, ctx.userId)
+    revalidatePath('/patients')
+    return { ok: true, view }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save the view' }
+  }
+}
+
+export async function deletePatientViewAction(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can delete views' }
+  await deletePatientView(ctx.organizationId, id)
+  revalidatePath('/patients')
+  return { ok: true }
+}
+
+/**
+ * Promote the current list filters into a reusable marketing audience, then
+ * hand back the audience id so the UI can open the campaign composer prefilled.
+ * Premium-gated (Recall & Outreach is Premium). Reports any filters that don't
+ * translate to an audience so the UI can be honest.
+ */
+export async function promoteFiltersToAudienceAction(
+  name: string,
+  filters: SavedViewFilters,
+): Promise<{ ok: true; audienceId: number; dropped: string[] } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can build audiences' }
+  if (!planAllows(ctx.planTier, 'premium')) {
+    return { ok: false, error: 'Audiences + campaigns are on the Premium plan.' }
+  }
+  const clean = name.trim().slice(0, 120)
+  if (!clean) return { ok: false, error: 'Give the audience a name.' }
+  try {
+    const { filter, dropped } = patientFiltersToAudienceFilter(normalizeViewFilters(filters as Record<string, unknown>))
+    const row = await createAudience(
+      ctx.organizationId,
+      {
+        name: clean,
+        description: 'Built from a patient-list view',
+        recipientSource: 'patients',
+        patientFilter: filter,
+      },
+      ctx.userId,
+    )
+    revalidatePath('/marketing/audiences')
+    return { ok: true, audienceId: row.id, dropped }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not build the audience' }
+  }
 }
 
 // ---------- Follow-ups ----------
