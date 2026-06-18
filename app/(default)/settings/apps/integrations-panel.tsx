@@ -7,6 +7,7 @@ import { type Tone } from '@/lib/ui/encodings'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { SettingsTabs } from '../settings-tabs'
 
 export interface IntegrationAccount {
   id: string
@@ -65,7 +66,17 @@ export default function IntegrationsPanel({ integrations, tenantType }: Props) {
   return (
     <div className="grow">
       <div className="p-6">
-        <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold mb-1">Integrations</h2>
+        <SettingsTabs
+          tabs={[
+            {
+              id: 'accounts',
+              label: 'Connected accounts',
+              subtabs: [
+                {
+                  id: 'all',
+                  label: 'Accounts',
+                  content: (
+                    <>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           {tenantType === 'platform'
             ? 'External services that power DreamCRM behind the scenes. Most are configured via environment variables in the Vercel project.'
@@ -87,6 +98,13 @@ export default function IntegrationsPanel({ integrations, tenantType }: Props) {
             ))}
           </div>
         )}
+                    </>
+                  ),
+                },
+              ],
+            },
+          ]}
+        />
       </div>
     </div>
   )

@@ -11,6 +11,7 @@ import {
 } from '@/lib/types/seo-meta'
 import { saveSeoMetaAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
+import { SettingsTabs } from '../settings-tabs'
 
 /**
  * Settings → Search appearance. Per-page title + description overrides for the
@@ -152,6 +153,16 @@ export default function SeoMetaForm({ initial, clinicName, tagline, about, domai
   }
 
   return (
+    <SettingsTabs
+      tabs={[
+        {
+          id: 'seo',
+          label: 'Search appearance',
+          subtabs: [
+            {
+              id: 'meta',
+              label: 'Page meta',
+              content: (
     <section className="space-y-4">
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Aim for titles around <strong>{SEO_TITLE_RECOMMENDED}</strong> characters and descriptions around{' '}
@@ -220,5 +231,11 @@ export default function SeoMetaForm({ initial, clinicName, tagline, about, domai
         {toast && <span className="text-xs text-emerald-600 dark:text-emerald-400">{toast}</span>}
       </div>
     </section>
+              ),
+            },
+          ],
+        },
+      ]}
+    />
   )
 }

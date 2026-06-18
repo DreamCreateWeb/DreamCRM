@@ -6,6 +6,7 @@ import { cancelTeamInvitation, changeTeamMemberRole, inviteTeamMember, removeTea
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { SettingsSection } from '../settings-kit'
+import { SettingsTabs } from '../settings-tabs'
 
 export interface TeamMemberView {
   userId: string
@@ -100,12 +101,18 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
         </div>
       )}
 
-      {/* Invite form — owner/admin only */}
-      {canManage && (
-        <SettingsSection
-          title="Invite a teammate"
-          description="They'll get an email with a link to set up their account and pick a password."
-        >
+      <SettingsTabs
+        tabs={[
+          ...(canManage
+            ? [
+                {
+                  id: 'invite',
+                  label: 'Invite',
+                  content: (
+                    <SettingsSection
+                      title="Invite a teammate"
+                      description="They'll get an email with a link to set up their account and pick a password."
+                    >
           <form onSubmit={onInvite} className="flex flex-col sm:flex-row gap-2 max-w-2xl">
             <input
               type="email"
@@ -128,14 +135,19 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
               {pending ? 'Sending…' : 'Send invite'}
             </ActionButton>
           </form>
-        </SettingsSection>
-      )}
-
-      {/* Pending invitations */}
-      <SettingsSection
-        title={
-          <>
-            Pending invitations{' '}
+                    </SettingsSection>
+                  ),
+                },
+              ]
+            : []),
+          {
+            id: 'pending',
+            label: 'Pending',
+            content: (
+              <SettingsSection
+                title={
+                  <>
+                    Pending invitations{' '}
             <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({invitations.length})</span>
           </>
         }
@@ -166,13 +178,17 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
             ))}
           </ul>
         )}
-      </SettingsSection>
-
-      {/* Current members */}
-      <SettingsSection
-        title={
-          <>
-            Team members{' '}
+              </SettingsSection>
+            ),
+          },
+          {
+            id: 'members',
+            label: 'Members',
+            content: (
+              <SettingsSection
+                title={
+                  <>
+                    Team members{' '}
             <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({members.length})</span>
           </>
         }
@@ -223,7 +239,11 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
               )
             })}
           </ul>
-        </SettingsSection>
+              </SettingsSection>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }
