@@ -75,3 +75,47 @@ export function buildIcs(event: IcsEvent): string {
 export function icsDataUrl(ics: string): string {
   return `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`
 }
+
+export interface IcsFeedEvent {
+  /** Stable per-appointment UID so a client UPDATES the event across refreshes
+   *  (and removes it when it drops out of the feed) instead of duplicating. */
+  uid: string
+  start: Date
+  end: Date
+  summary: string
+  location?: string | null
+  description?: string | null
+}
+
+/**
+ * Build ONE VCALENDAR carrying many events — the subscribable clinic-agenda
+ * feed a staff member adds to Google / Apple / Outlook. No per-event VALARM (a
+ * subscribed work calendar shouldn't fire a popup for every patient); the named
+ * calendar (`X-WR-CALNAME`) shows up as its own toggle in the calendar app.
+ */
+export function buildIcsFeed(opts: { calendarName: string; events: IcsFeedEvent[] }): string {
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//DreamCRM//Clinic Calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${icsEscape(opts.calendarName)}`,
+    'X-WR-TIMEZONE:UTC',
+  ]
+  for (const e of opts.events) {
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${e.uid}`,
+      `DTSTAMP:${icsUtcStamp(new Date())}`,
+      `DTSTART:${icsUtcStamp(e.start)}`,
+      `DTEND:${icsUtcStamp(e.end)}`,
+      `SUMMARY:${icsEscape(e.summary)}`,
+      e.location ? `LOCATION:${icsEscape(e.location)}` : '',
+      e.description ? `DESCRIPTION:${icsEscape(e.description)}` : '',
+      'END:VEVENT',
+    )
+  }
+  lines.push('END:VCALENDAR')
+  return lines.filter(Boolean).join('\r\n')
+}

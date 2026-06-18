@@ -5,7 +5,7 @@
  * omission, and the data-URL encoding.
  */
 import { describe, it, expect } from 'vitest'
-import { icsEscape, icsUtcStamp, buildIcs, icsDataUrl } from '@/lib/ics'
+import { icsEscape, icsUtcStamp, buildIcs, icsDataUrl, buildIcsFeed } from '@/lib/ics'
 
 describe('icsEscape', () => {
   it('escapes backslash, semicolon, comma, and newlines per RFC 5545', () => {
@@ -69,6 +69,56 @@ describe('buildIcs', () => {
     // DESCRIPTION must be omitted, so exactly one DESCRIPTION line remains.
     const descLines = ics.split('\r\n').filter((l) => l.startsWith('DESCRIPTION:'))
     expect(descLines).toHaveLength(1)
+  })
+})
+
+describe('buildIcsFeed', () => {
+  const ev = (uid: string, summary: string) => ({
+    uid,
+    start: new Date('2026-02-01T15:00:00.000Z'),
+    end: new Date('2026-02-01T15:30:00.000Z'),
+    summary,
+  })
+
+  it('wraps many VEVENTs in ONE named VCALENDAR', () => {
+    const ics = buildIcsFeed({
+      calendarName: 'Acme — Appointments',
+      events: [ev('a@x', 'Cleaning · Mia Hayes'), ev('b@x', 'Checkup · Liam Reyes')],
+    })
+    expect(ics.match(/BEGIN:VCALENDAR/g) ?? []).toHaveLength(1)
+    expect(ics.match(/END:VCALENDAR/g) ?? []).toHaveLength(1)
+    expect(ics.match(/BEGIN:VEVENT/g) ?? []).toHaveLength(2)
+    expect(ics).toContain('X-WR-CALNAME:Acme — Appointments')
+    expect(ics).toContain('UID:a@x')
+    expect(ics).toContain('UID:b@x')
+    expect(ics).toContain('SUMMARY:Cleaning · Mia Hayes')
+  })
+
+  it('does NOT add a per-event VALARM (subscribed work calendar)', () => {
+    const ics = buildIcsFeed({ calendarName: 'C', events: [ev('a@x', 'X')] })
+    expect(ics).not.toContain('BEGIN:VALARM')
+  })
+
+  it('omits LOCATION/DESCRIPTION when absent and escapes when present', () => {
+    const ics = buildIcsFeed({
+      calendarName: 'C',
+      events: [
+        { ...ev('a@x', 'X'), location: '5 A St, Austin, TX', description: 'Provider: Dr. Lee; note' },
+        ev('b@x', 'Y'),
+      ],
+    })
+    expect(ics).toContain('LOCATION:5 A St\\, Austin\\, TX')
+    expect(ics).toContain('DESCRIPTION:Provider: Dr. Lee\\; note')
+    // The second event carries no LOCATION/DESCRIPTION → only one of each total.
+    expect(ics.split('\r\n').filter((l) => l.startsWith('LOCATION:'))).toHaveLength(1)
+    expect(ics.split('\r\n').filter((l) => l.startsWith('DESCRIPTION:'))).toHaveLength(1)
+  })
+
+  it('handles an empty agenda (valid empty calendar)', () => {
+    const ics = buildIcsFeed({ calendarName: 'Empty', events: [] })
+    expect(ics).toContain('BEGIN:VCALENDAR')
+    expect(ics).toContain('END:VCALENDAR')
+    expect(ics).not.toContain('BEGIN:VEVENT')
   })
 })
 
