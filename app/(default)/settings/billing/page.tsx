@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
-import SettingsSidebar from '../settings-sidebar'
 import BillingPanel from './billing-panel'
 import SocialConnectionsCard from './social-connections-card'
 import { PageHeader } from '@/components/ui/page-header'
@@ -55,12 +54,10 @@ export default async function BillingSettings() {
   const managedBilling = !profileRow?.stripeSubscriptionId
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+    <>
       <PageHeader eyebrow="Clinic settings" title="Billing" subtitle="Your subscription, payment, and past invoices." />
       <div className="v2-panel mb-8">
-        <div className="flex flex-col md:flex-row md:-mr-px">
-          <SettingsSidebar tenantType={ctx.tenantType} />
-          <div className="grow">
+        <div className="grow">
             <BillingPanel
               planTier={ctx.planTier}
               subscriptionStatus={ctx.subscriptionStatus ?? summary?.status ?? null}
@@ -89,9 +86,8 @@ export default async function BillingSettings() {
                 managedBilling={managedBilling}
               />
             </div>
-          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
