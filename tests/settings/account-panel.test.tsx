@@ -16,7 +16,10 @@ const changeEmail = vi.fn<(input: { newEmail: string; callbackURL?: string }) =>
 )
 vi.mock('@/lib/auth/client', () => ({ changeEmail: (...a: unknown[]) => changeEmail(...(a as [{ newEmail: string; callbackURL?: string }])) }))
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}))
 
 import AccountPanel from '@/app/(default)/settings/account/account-panel'
 

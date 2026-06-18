@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 /**
  * The standard two-level navigation for a Settings page: top tabs, optional
@@ -10,6 +11,11 @@ import { useState, type ReactNode } from 'react'
  * IMPORTANT: every tab + subtab's content is RENDERED (inactive ones are
  * `hidden` via CSS, not unmounted). That keeps all inputs in the DOM, so a
  * single form Save still submits every field across every tab.
+ *
+ * Deep-linking: `?tab=<id>&sub=<id>` opens straight to that tab/subtab (used by
+ * the settings rail's smart search). Unknown ids are ignored — we fall back to
+ * the first tab. We only honor a `tab` param this instance actually owns, so
+ * multiple SettingsTabs on a page don't fight over it.
  */
 
 export interface SettingsSubtabDef {
@@ -32,7 +38,15 @@ function firstSubId(t: SettingsTabDef): string | undefined {
 }
 
 export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
-  const [activeTab, setActiveTab] = useState(tabs[0]?.id ?? '')
+  const searchParams = useSearchParams()
+  const urlTab = searchParams?.get('tab') ?? null
+  const urlSub = searchParams?.get('sub') ?? null
+  // Only adopt the URL tab if it's one of ours (avoids cross-instance fights).
+  const ownsUrlTab = !!urlTab && tabs.some((t) => t.id === urlTab)
+
+  const [activeTab, setActiveTab] = useState(() =>
+    ownsUrlTab ? (urlTab as string) : tabs[0]?.id ?? '',
+  )
   // Remember the active subtab per parent tab so switching tabs keeps your place.
   const [activeSub, setActiveSub] = useState<Record<string, string>>(() => {
     const m: Record<string, string> = {}
@@ -40,8 +54,27 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
       const f = firstSubId(t)
       if (f) m[t.id] = f
     }
+    // Honor a deep-linked subtab on first paint.
+    if (ownsUrlTab && urlSub) {
+      const t = tabs.find((x) => x.id === urlTab)
+      if (t?.subtabs?.some((s) => s.id === urlSub)) m[urlTab as string] = urlSub
+    }
     return m
   })
+
+  // React to deep-link changes that arrive after mount (clicking a search
+  // result while this page is already open — the rail navigates client-side).
+  useEffect(() => {
+    if (!urlTab || !tabs.some((t) => t.id === urlTab)) return
+    setActiveTab(urlTab)
+    if (urlSub) {
+      const t = tabs.find((x) => x.id === urlTab)
+      if (t?.subtabs?.some((s) => s.id === urlSub)) {
+        setActiveSub((p) => ({ ...p, [urlTab]: urlSub }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTab, urlSub])
 
   return (
     <div>
