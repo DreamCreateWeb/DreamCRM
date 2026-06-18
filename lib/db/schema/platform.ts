@@ -180,6 +180,18 @@ export const clinicProfile = pgTable('clinic_profile', {
   // engine still wins when an Open Dental due date is synced.
   recallDefaultMonths: integer('recall_default_months'),
 
+  // ── Retention automations (set & forget) ─────────────────────────────────
+  // When enabled, the retention-automation cron auto-creates a SCHEDULED
+  // campaign (delivered compliantly by the existing scheduled-send cron, so it
+  // carries the CAN-SPAM unsubscribe footer + tracking) so the clinic never has
+  // to remember to send these. Both default OFF — a clinic opts in.
+  //   birthdayAutoSendEnabled: a daily send to patients whose birthday is today
+  //     (email opt-in only).
+  //   lapsedReactivationEnabled: a monthly send to patients who lapsed ~9 months
+  //     ago (newly lapsed window), inviting them back.
+  birthdayAutoSendEnabled: integer('birthday_auto_send_enabled').notNull().default(0),
+  lapsedReactivationEnabled: integer('lapsed_reactivation_enabled').notNull().default(0),
+
   // Public-website online self-scheduling switch. true (the default) = the
   // /book page shows the live slot picker and patients pick their own time.
   // false = the website's "Book a Visit" button leads to a request-only contact

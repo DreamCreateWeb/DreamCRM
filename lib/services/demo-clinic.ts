@@ -1328,6 +1328,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         testimonials: schema.clinicProfile.testimonials,
         officePhotos: schema.clinicProfile.officePhotos,
         calendarFeedToken: schema.clinicProfile.calendarFeedToken,
+        birthdayAutoSendEnabled: schema.clinicProfile.birthdayAutoSendEnabled,
+        lapsedReactivationEnabled: schema.clinicProfile.lapsedReactivationEnabled,
         logoUrl: schema.clinicProfile.logoUrl,
         heroImageUrl: schema.clinicProfile.heroImageUrl,
         heroImageUrl2: schema.clinicProfile.heroImageUrl2,
@@ -1465,6 +1467,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // real token).
     if (!profile?.calendarFeedToken) {
       patch.calendarFeedToken = DEMO_CALENDAR_FEED_TOKEN
+    }
+    // Retention-automation toggles: legacy demos default to 0, so the
+    // Recall & Outreach "Automations" card shows Off. Flip them on (idempotent)
+    // so the demo showcases the live state. The cron skips demo clinics, so this
+    // never sends a real email.
+    if (profile?.birthdayAutoSendEnabled !== 1) {
+      patch.birthdayAutoSendEnabled = 1
+    }
+    if (profile?.lapsedReactivationEnabled !== 1) {
+      patch.lapsedReactivationEnabled = 1
     }
     // FAQ backfill: legacy demos seeded before migration 0036 added the
     // faq column have null here, so the public /faq page falls back to the
@@ -2053,6 +2065,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     heroImageUrl2: DEMO_HERO_IMAGE_2_URL,
     differenceVideoUrl: DEMO_DIFFERENCE_VIDEO_URL,
     calendarFeedToken: DEMO_CALENDAR_FEED_TOKEN,
+    // Set & forget retention automations on, so the Recall & Outreach card
+    // showcases the "on" state. The cron skips demo clinics (never sends), so
+    // the preview counts come from the seeded patients — no email goes out.
+    birthdayAutoSendEnabled: 1,
+    lapsedReactivationEnabled: 1,
     addressLine1: '500 Main St',
     city: 'Austin',
     state: 'TX',

@@ -3,6 +3,7 @@ import {
   renderCampaignEmail,
   resolveMarketingFooterAddress,
   buildUnsubscribeUrl,
+  applyMergeFields,
 } from '@/lib/marketing/render-email'
 import { decodeToken } from '@/lib/marketing/tokens'
 
@@ -101,6 +102,57 @@ describe('renderCampaignEmail', () => {
       clinicLogoUrl: 'https://cdn.example.com/logo.png',
     })
     expect(html).toContain('https://cdn.example.com/logo.png')
+  })
+
+  it('substitutes {{firstName}} merge fields in the body + text fallback', () => {
+    const { html, text } = renderCampaignEmail({
+      ...base,
+      bodyHtml: '<p>Hi {{firstName}}, welcome!</p>',
+      mergeFields: { firstName: 'Jane' },
+    })
+    expect(html).toContain('Hi Jane, welcome!')
+    expect(html).not.toContain('{{firstName}}')
+    expect(text).toContain('Hi Jane, welcome!')
+  })
+
+  it('substitutes {{bookingUrl}} BEFORE link rewriting so the merged URL is tracked', () => {
+    const { html } = renderCampaignEmail({
+      ...base,
+      bodyHtml: '<p><a href="{{bookingUrl}}">Book →</a></p>',
+      mergeFields: { bookingUrl: 'https://acme.example.com/book' },
+    })
+    // The merged URL is wrapped in a tracked click redirect, not left raw.
+    expect(html).not.toContain('href="{{bookingUrl}}"')
+    expect(html).not.toContain('href="https://acme.example.com/book"')
+    const click = html.match(/\/api\/track\/click\/([\w.-]+)/)
+    expect(click).toBeTruthy()
+    expect(decodeToken(click![1])?.u).toBe('https://acme.example.com/book')
+  })
+
+  it('strips an unrecognized {{token}} to empty (never ships a raw token)', () => {
+    const { html } = renderCampaignEmail({
+      ...base,
+      bodyHtml: '<p>Hi {{firstName}}{{nope}}!</p>',
+      mergeFields: { firstName: 'Jane' },
+    })
+    expect(html).toContain('Hi Jane!')
+    expect(html).not.toContain('{{nope}}')
+  })
+})
+
+describe('applyMergeFields', () => {
+  it('replaces known tokens and tolerates inner whitespace', () => {
+    expect(applyMergeFields('Hi {{firstName}} and {{ firstName }}', { firstName: 'Mia' })).toBe(
+      'Hi Mia and Mia',
+    )
+  })
+
+  it('strips unknown / null-valued tokens to empty', () => {
+    expect(applyMergeFields('a {{x}} b {{y}} c', { x: null, z: 'z' })).toBe('a  b  c')
+  })
+
+  it('leaves text with no tokens untouched', () => {
+    expect(applyMergeFields('no tokens here', { firstName: 'Mia' })).toBe('no tokens here')
   })
 })
 

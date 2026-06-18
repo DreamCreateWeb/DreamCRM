@@ -243,10 +243,23 @@ export const campaigns = pgTable('campaigns', {
   // Soft pointer to the template a campaign was created from (analytics +
   // "save changes as new template"). Null for ad-hoc campaigns.
   templateId: integer('template_id'),
+  // Idempotency key for retention automations (birthday / reactivation). When a
+  // cron auto-creates a campaign it stamps a deterministic key
+  // (e.g. 'birthday:org_x:2026-06-18') so a re-run in the same window finds the
+  // existing row and never double-creates. Null for all human-made campaigns.
+  automationKey: text('automation_key'),
   createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => [
+  // One automation campaign per org per window — the partial unique index makes
+  // a concurrent double-create from overlapping cron runs impossible (the loser
+  // hits a unique violation and skips). Only constrains automation rows; human
+  // campaigns leave automationKey null and are unaffected.
+  uniqueIndex('campaigns_org_automation_key_idx')
+    .on(t.organizationId, t.automationKey)
+    .where(sql`${t.automationKey} is not null`),
+])
 
 export const campaignMembers = pgTable(
   'campaign_members',

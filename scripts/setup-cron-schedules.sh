@@ -52,6 +52,10 @@ BASE_URL="https://www.dreamcreatestudio.com"
 #   sync-gbp                 hourly   — Zernio: pull GBP hours/address/phone/
 #                                       photos (NON-force, so it respects any
 #                                       manual *_source edits; demo never networks)
+#   retention-automations    daily    — birthday (keyed per-day) + reactivation
+#                                       (keyed per-month) auto-send campaigns;
+#                                       idempotent via campaigns.automation_key,
+#                                       so a daily cadence is safe for both
 JOBS=(
   "auto-send-reviews|auto-send-reviews|rate(1 hour)"
   "pms-sync|pms-sync|rate(1 hour)"
@@ -60,6 +64,7 @@ JOBS=(
   "customize-services|customize-services|rate(1 hour)"
   "sync-google-reviews|sync-google-reviews|rate(1 hour)"
   "sync-gbp|sync-gbp|rate(1 hour)"
+  "retention-automations|retention-automations|rate(1 day)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"
