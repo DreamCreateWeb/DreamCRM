@@ -23,6 +23,14 @@ import {
   deletePatientDocument,
   type PatientDocumentRow,
 } from '@/lib/services/patient-documents'
+import {
+  createFollowup,
+  updateFollowup,
+  completeFollowup,
+  reopenFollowup,
+  deleteFollowup,
+  type PatientFollowupView,
+} from '@/lib/services/patient-followups'
 import { MAX_DOCUMENT_BYTES } from '@/lib/types/patient-documents'
 import { uploadBlob } from '@/lib/blob'
 import {
@@ -222,6 +230,90 @@ export async function deletePatientDocumentAction(
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can remove documents' }
   await deletePatientDocument(ctx.organizationId, documentId)
   revalidatePath(`/patients/${patientId}`)
+  return { ok: true }
+}
+
+// ---------- Follow-ups ----------
+
+export async function createFollowupAction(input: {
+  patientId: string
+  title: string
+  dueDate?: string | null
+  assignedUserId?: string | null
+}): Promise<{ ok: true; followup: PatientFollowupView } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can add follow-ups' }
+  try {
+    const followup = await createFollowup(
+      {
+        organizationId: ctx.organizationId,
+        patientId: input.patientId,
+        title: input.title,
+        dueDate: input.dueDate ?? null,
+        assignedUserId: input.assignedUserId ?? null,
+      },
+      ctx.userId,
+    )
+    revalidatePath(`/patients/${input.patientId}`)
+    revalidatePath('/followups')
+    revalidatePath('/dashboard')
+    return { ok: true, followup }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not add the follow-up' }
+  }
+}
+
+export async function updateFollowupAction(
+  id: string,
+  patientId: string,
+  patch: { title?: string; dueDate?: string | null; assignedUserId?: string | null },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can edit follow-ups' }
+  try {
+    await updateFollowup(ctx.organizationId, id, patch)
+    revalidatePath(`/patients/${patientId}`)
+    revalidatePath('/followups')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save the follow-up' }
+  }
+}
+
+export async function completeFollowupAction(
+  id: string,
+  patientId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can complete follow-ups' }
+  await completeFollowup(ctx.organizationId, id, ctx.userId)
+  revalidatePath(`/patients/${patientId}`)
+  revalidatePath('/followups')
+  revalidatePath('/dashboard')
+  return { ok: true }
+}
+
+export async function reopenFollowupAction(
+  id: string,
+  patientId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can reopen follow-ups' }
+  await reopenFollowup(ctx.organizationId, id)
+  revalidatePath(`/patients/${patientId}`)
+  revalidatePath('/followups')
+  return { ok: true }
+}
+
+export async function deleteFollowupAction(
+  id: string,
+  patientId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can remove follow-ups' }
+  await deleteFollowup(ctx.organizationId, id)
+  revalidatePath(`/patients/${patientId}`)
+  revalidatePath('/followups')
   return { ok: true }
 }
 

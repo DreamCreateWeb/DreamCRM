@@ -24,6 +24,7 @@ import {
 } from '@/lib/types/clinic-content'
 import { DEFAULT_VISIT_TYPES, OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
 import type { PatientTagColor } from '@/lib/types/patient-tags'
+import { todayYmd } from '@/lib/types/followups'
 import { DEFAULT_MESSAGE_TEMPLATES } from '@/lib/services/message-templates'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
@@ -1380,6 +1381,63 @@ async function seedDemoPatientDocuments(orgId: string): Promise<void> {
 }
 
 /**
+ * Seed staff follow-ups across the personas so the Overview "Follow-ups due"
+ * card, the /followups list, and the patient detail panel all showcase
+ * populated state (overdue + today + upcoming + a done one). Name-keyed +
+ * idempotent (bails if any follow-up exists / no patients). Left unassigned so
+ * it never references a user that isn't a member of the demo org.
+ */
+async function seedDemoFollowups(orgId: string): Promise<void> {
+  const patients = await db
+    .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+  if (patients.length === 0) return
+  const [existing] = await db
+    .select({ id: schema.patientFollowup.id })
+    .from(schema.patientFollowup)
+    .where(eq(schema.patientFollowup.organizationId, orgId))
+    .limit(1)
+  if (existing) return
+
+  const byName = (first: string, last: string) =>
+    patients.find((p) => p.firstName === first && p.lastName === last)?.id ?? null
+  const now = new Date()
+  const seed: Array<{
+    first: string; last: string; title: string; dueOffsetDays: number | null; done?: boolean
+  }> = [
+    { first: 'Marcus', last: 'Johnson', title: 'Call about the crown estimate — he had questions', dueOffsetDays: -3 },
+    { first: 'Aiden', last: 'Kim', title: 'Rebook Aiden after no-show', dueOffsetDays: 0 },
+    { first: 'Charlotte', last: 'Diaz', title: 'Post-perio check-in (how are the gums feeling?)', dueOffsetDays: 5 },
+    { first: 'Sophia', last: 'Iverson', title: 'Send whitening pricing she asked about', dueOffsetDays: 2 },
+    { first: 'Mia', last: 'Hayes', title: 'Confirmed insurance — close out', dueOffsetDays: -6, done: true },
+  ]
+  const rows = seed
+    .map((s) => {
+      const patientId = byName(s.first, s.last)
+      if (!patientId) return null
+      const due =
+        s.dueOffsetDays == null
+          ? null
+          : todayYmd(new Date(now.getTime() + s.dueOffsetDays * 24 * 60 * 60 * 1000))
+      return {
+        id: newId('pfu'),
+        organizationId: orgId,
+        patientId,
+        title: s.title,
+        dueDate: due,
+        assignedUserId: null,
+        status: s.done ? 'done' : 'open',
+        createdBy: null,
+        completedAt: s.done ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : null,
+        createdAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      }
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+  if (rows.length > 0) await db.insert(schema.patientFollowup).values(rows)
+}
+
+/**
  * A SECOND (non-default) intake form so the demo exercises the "pick which
  * form" dropdown on the patient detail "Send intake" control — which only
  * appears when a clinic has more than one form. Idempotent by slug.
@@ -2174,6 +2232,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // detail Documents panel. Idempotent (bails if any doc exists / no patients).
     await seedDemoPatientDocuments(existing.id)
 
+    // Follow-ups self-heal: seed staff follow-ups (overdue/today/upcoming/done)
+    // so the Overview card + /followups + detail panel populate on legacy demos.
+    await seedDemoFollowups(existing.id)
+
     // Referral partner self-heal: seed the demo MSP partner + attribution +
     // commission ledger so /partners populates on legacy demos. Idempotent;
     // never overwrites a real referral assignment. Runs LAST so its reads sit
@@ -2727,6 +2789,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Patient documents: a couple of before/after photos on the detail panel.
   await seedDemoPatientDocuments(orgId)
+
+  // Patient follow-ups across the personas (overdue / today / upcoming / done).
+  await seedDemoFollowups(orgId)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to

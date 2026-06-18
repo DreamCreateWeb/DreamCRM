@@ -7,6 +7,7 @@ import { getPatientTimeline, countTimeline } from '@/lib/services/patient-timeli
 import { listPatientNotes } from '@/lib/services/patient-notes'
 import { getTagsForPatient, listPatientTags } from '@/lib/services/patient-tags'
 import { listPatientDocuments } from '@/lib/services/patient-documents'
+import { listFollowupsForPatient, listAssignableStaff } from '@/lib/services/patient-followups'
 import { listFormTemplates } from '@/lib/services/forms'
 import PatientDetail from './patient-detail'
 
@@ -25,16 +26,19 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents] = await Promise.all([
-    getPatientHeader(ctx.organizationId, id),
-    getPatientTimeline(ctx.organizationId, id),
-    listPatientNotes(ctx.organizationId, id),
-    listFormTemplates(ctx.organizationId),
-    listPatientOptions(ctx.organizationId),
-    getTagsForPatient(ctx.organizationId, id),
-    listPatientTags(ctx.organizationId),
-    listPatientDocuments(ctx.organizationId, id),
-  ])
+  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff] =
+    await Promise.all([
+      getPatientHeader(ctx.organizationId, id),
+      getPatientTimeline(ctx.organizationId, id),
+      listPatientNotes(ctx.organizationId, id),
+      listFormTemplates(ctx.organizationId),
+      listPatientOptions(ctx.organizationId),
+      getTagsForPatient(ctx.organizationId, id),
+      listPatientTags(ctx.organizationId),
+      listPatientDocuments(ctx.organizationId, id),
+      listFollowupsForPatient(ctx.organizationId, id),
+      listAssignableStaff(ctx.organizationId),
+    ])
   if (!header) notFound()
 
   const counts = countTimeline(timeline)
@@ -52,6 +56,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       tags={tags}
       tagCatalog={tagCatalog}
       documents={documents}
+      followups={followups}
+      staff={staff}
     />
   )
 }
