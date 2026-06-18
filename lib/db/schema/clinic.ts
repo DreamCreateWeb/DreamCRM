@@ -175,6 +175,11 @@ export const patientFollowup = pgTable(
     // Soft pointer to the appointment that spawned this (e.g. auto-created on a
     // no-show). No FK so deleting the appointment doesn't cascade the task.
     sourceAppointmentId: text('source_appointment_id'),
+    // Deterministic idempotency key for rule-created follow-ups
+    // (e.g. 'balance:<patientId>', 'recall:<patientId>:<YYYY-MM>'). Null for
+    // manual + no-show follow-ups. The smart-rules engine skips creating a
+    // follow-up whose ruleKey already exists for the org.
+    ruleKey: text('rule_key'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

@@ -65,6 +65,7 @@ JOBS=(
   "sync-google-reviews|sync-google-reviews|rate(1 hour)"
   "sync-gbp|sync-gbp|rate(1 hour)"
   "retention-automations|retention-automations|rate(1 day)"
+  "followup-rules|followup-rules|rate(1 hour)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

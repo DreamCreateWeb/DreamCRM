@@ -14,6 +14,8 @@ import {
   type PatientFollowupView,
 } from '@/lib/types/followups'
 import { completeFollowupAction, reopenFollowupAction } from '../patients/actions'
+import FollowupRulesCard from './followup-rules-card'
+import type { FollowupRuleConfig } from '@/lib/types/followup-rules'
 
 const GROUP_ORDER: FollowupDueState[] = ['overdue', 'today', 'soon', 'later', 'none']
 const GROUP_LABEL: Record<FollowupDueState, string> = {
@@ -35,10 +37,14 @@ export default function FollowupsBoard({
   rows,
   orgName,
   filters,
+  ruleConfig,
+  canManageRules,
 }: {
   rows: PatientFollowupView[]
   orgName: string
   filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean }
+  ruleConfig: FollowupRuleConfig
+  canManageRules: boolean
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -102,6 +108,10 @@ export default function FollowupsBoard({
         <FilterChip active={filters.due === 'upcoming'} onClick={() => setParam('due', filters.due === 'upcoming' ? null : 'upcoming')}>Upcoming</FilterChip>
         <span className="mx-1 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
         <FilterChip active={filters.includeDone} onClick={() => setParam('done', filters.includeDone ? null : '1')}>Show done</FilterChip>
+      </div>
+
+      <div className="mb-6">
+        <FollowupRulesCard initial={ruleConfig} canManage={canManageRules} />
       </div>
 
       {openCount === 0 && doneItems.length === 0 ? (

@@ -192,6 +192,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   birthdayAutoSendEnabled: integer('birthday_auto_send_enabled').notNull().default(0),
   lapsedReactivationEnabled: integer('lapsed_reactivation_enabled').notNull().default(0),
 
+  // Smart follow-up rules — which auto-create patient follow-ups the clinic has
+  // opted into. A jsonb config object `{ balance?, recall?, unconfirmed? }`;
+  // null/absent = all off. Resolved with defaults in lib/types/followup-rules.ts.
+  followupAutomation: jsonb('followup_automation'),
+
   // Public-website online self-scheduling switch. true (the default) = the
   // /book page shows the live slot picker and patients pick their own time.
   // false = the website's "Book a Visit" button leads to a request-only contact
