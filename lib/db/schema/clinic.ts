@@ -126,6 +126,30 @@ export const patientNote = pgTable(
   (t) => [index('patient_note_patient_created_idx').on(t.patientId, t.createdAt)],
 )
 
+// Files attached to a patient (referral letters, x-ray/photo exports, signed
+// PDFs, insurance cards). Stored in S3; the row keeps the public URL + metadata.
+// CRM-side document storage, NOT the clinical imaging system. Soft-deleted so a
+// removed file's audit trail survives (the S3 object is left in place).
+export const patientDocument = pgTable(
+  'patient_document',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    uploadedBy: text('uploaded_by').references(() => user.id, { onDelete: 'set null' }),
+    // Original filename (display only) + the stored S3 URL.
+    fileName: text('file_name').notNull(),
+    fileUrl: text('file_url').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull().default(0),
+    // Optional staff-set label/category ("Insurance card", "Referral letter").
+    label: text('label'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (t) => [index('patient_document_patient_created_idx').on(t.patientId, t.createdAt)],
+)
+
 // Org-scoped tag catalog — reusable labels a clinic puts on patients
 // ("VIP", "Anxious", "Needs follow-up", "Pediatric"). CRM-side organization,
 // NOT clinical coding. `color` is one of a fixed tone palette

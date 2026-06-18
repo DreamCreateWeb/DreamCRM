@@ -1325,6 +1325,61 @@ async function seedDemoMessageTemplates(orgId: string): Promise<void> {
 }
 
 /**
+ * Seed a couple of patient documents so the detail "Documents" panel showcases
+ * populated state. Uses the demo's own dental photos (real S3 images that
+ * resolve) as before/after photos on the cosmetic-interest persona. Idempotent
+ * (bails if any document exists); bails on a demo with no patients.
+ */
+async function seedDemoPatientDocuments(orgId: string): Promise<void> {
+  const patients = await db
+    .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+  if (patients.length === 0) return
+  const [existing] = await db
+    .select({ id: schema.patientDocument.id })
+    .from(schema.patientDocument)
+    .where(eq(schema.patientDocument.organizationId, orgId))
+    .limit(1)
+  if (existing) return
+
+  // Liam Brooks carries the "Cosmetic interest" tag — before/after photos fit.
+  const target =
+    patients.find((p) => p.firstName === 'Liam' && p.lastName === 'Brooks') ?? patients[0]
+  const now = Date.now()
+  const docs = [
+    {
+      label: 'Before photo — whitening consult',
+      fileName: 'before-consult.jpg',
+      fileUrl: DEMO_HERO_IMAGE_2_URL,
+      sizeBytes: 184_320,
+      createdAt: new Date(now - 40 * 24 * 60 * 60 * 1000),
+    },
+    {
+      label: 'After photo — 2-week follow-up',
+      fileName: 'after-followup.jpg',
+      fileUrl: DEMO_OFFICE_PHOTOS[0].url,
+      sizeBytes: 211_904,
+      createdAt: new Date(now - 12 * 24 * 60 * 60 * 1000),
+    },
+  ]
+  await db.insert(schema.patientDocument).values(
+    docs.map((d) => ({
+      id: newId('pdoc'),
+      organizationId: orgId,
+      patientId: target.id,
+      uploadedBy: null,
+      fileName: d.fileName,
+      fileUrl: d.fileUrl,
+      contentType: 'image/jpeg',
+      sizeBytes: d.sizeBytes,
+      label: d.label,
+      createdAt: d.createdAt,
+    })),
+  )
+}
+
+/**
  * A SECOND (non-default) intake form so the demo exercises the "pick which
  * form" dropdown on the patient detail "Send intake" control — which only
  * appears when a clinic has more than one form. Idempotent by slug.
@@ -2115,6 +2170,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // idempotent; bails on no patients.
     await seedDemoMessageTemplates(existing.id)
 
+    // Patient documents self-heal: seed a couple of before/after photos on the
+    // detail Documents panel. Idempotent (bails if any doc exists / no patients).
+    await seedDemoPatientDocuments(existing.id)
+
     // Referral partner self-heal: seed the demo MSP partner + attribution +
     // commission ledger so /partners populates on legacy demos. Idempotent;
     // never overwrites a real referral assignment. Runs LAST so its reads sit
@@ -2665,6 +2724,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Editable /messages reply templates: 3 starters + 1 custom.
   await seedDemoMessageTemplates(orgId)
+
+  // Patient documents: a couple of before/after photos on the detail panel.
+  await seedDemoPatientDocuments(orgId)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to
