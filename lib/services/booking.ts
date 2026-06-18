@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, gte, lte, ne } from 'drizzle-orm'
+import { and, eq, gte, lte, ne, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
@@ -287,4 +287,39 @@ export async function isSlotAvailable(
   const slots = await getAvailableSlots(organizationId, startTime, excludeAppointmentId, durationMinutes)
   const target = startTime.toISOString()
   return slots.some((s) => s.startIso === target && s.available)
+}
+
+/**
+ * Atomically book a slot, closing the check-then-insert race: `isSlotAvailable`
+ * (read) and the appointment INSERT (write) were separate statements, so two
+ * near-simultaneous submissions for the last open slot at a single-chair clinic
+ * could both pass the check and both insert (a double-book — the exact thing the
+ * chair logic exists to prevent).
+ *
+ * We take a transaction-scoped Postgres ADVISORY LOCK keyed on org+slot, so
+ * concurrent bookings for the SAME slot serialize, then RE-CHECK availability
+ * under the lock before inserting. The second booker now sees the first's
+ * committed appointment and is turned away. The lock key hashes org+slot — a
+ * hash collision only causes harmless extra serialization between two unrelated
+ * slots, never an incorrect result.
+ *
+ * Returns true when the appointment was inserted, false when the slot was taken
+ * under the lock (the caller surfaces "pick another time"). A multi-chair clinic
+ * still allows up to `chairCount` concurrent bookings — the re-check honors it.
+ */
+export async function insertAppointmentIfSlotFree(
+  organizationId: string,
+  startTime: Date,
+  durationMinutes: number | undefined,
+  values: typeof appointment.$inferInsert,
+  excludeAppointmentId?: string,
+): Promise<boolean> {
+  const lockText = `appt:${organizationId}:${startTime.toISOString()}`
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockText}))`)
+    const free = await isSlotAvailable(organizationId, startTime, durationMinutes, excludeAppointmentId)
+    if (!free) return false
+    await tx.insert(appointment).values(values)
+    return true
+  })
 }

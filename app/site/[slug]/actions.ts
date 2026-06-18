@@ -8,7 +8,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
-import { getSlotsForDay, isSlotAvailable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
+import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { visitTypeDuration } from '@/lib/types/visit-types'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
@@ -441,7 +441,9 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   const endTime = new Date(startTime.getTime() + Math.max(SLOT_MINUTES, durationMinutes) * 60_000)
 
   const apptId = randomUUID()
-  await db.insert(appointment).values({
+  // Atomic book: re-checks availability under an advisory lock before inserting,
+  // so two patients submitting the same last-open slot can't both get it.
+  const booked = await insertAppointmentIfSlotFree(orgId, startTime, durationMinutes, {
     id: apptId,
     organizationId: orgId,
     patientId,
@@ -458,6 +460,9 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
     utmMedium,
     utmCampaign,
   })
+  if (!booked) {
+    throw new Error('That slot is no longer available — please pick another time.')
+  }
 
   // Two-way PMS: queue this public booking to be written to the clinic's PMS on
   // the next sync (best-effort; never blocks the booking confirmation).

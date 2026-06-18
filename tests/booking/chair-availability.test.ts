@@ -15,7 +15,8 @@ const state: {
   timezone: string
   chairCount: number | null
   appointments: Array<{ startTime: Date; endTime?: Date | null; status: string }>
-} = { hours: null, timezone: 'UTC', chairCount: null, appointments: [] }
+  inserted: unknown[]
+} = { hours: null, timezone: 'UTC', chairCount: null, appointments: [], inserted: [] }
 
 vi.mock('@/lib/db', async () => {
   const { clinicProfile } = await import('@/lib/db/schema/platform')
@@ -43,11 +44,17 @@ vi.mock('@/lib/db', async () => {
           }),
         }
       },
+      // Atomic-book helper: advisory lock (execute, no-op) + tx.insert capture.
+      transaction: async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb({
+          execute: async () => undefined,
+          insert: () => ({ values: async (v: unknown) => { state.inserted.push(v) } }),
+        }),
     },
   }
 })
 
-import { getAvailableSlots, isSlotAvailable } from '@/lib/services/booking'
+import { getAvailableSlots, isSlotAvailable, insertAppointmentIfSlotFree } from '@/lib/services/booking'
 
 // A future Monday date-key (UTC math; service derives weekday in UTC here).
 function mondayKey(): string {
@@ -78,6 +85,7 @@ beforeEach(() => {
   state.timezone = 'UTC'
   state.chairCount = null
   state.appointments = []
+  state.inserted = []
   vi.useRealTimers()
 })
 
@@ -175,5 +183,37 @@ describe('chair-aware availability', () => {
     state.appointments = [apptAt9()]
     const slots = await getAvailableSlots('org_1', MONDAY)
     expect(slotAvailable(slots, SLOT_9)).toBe(false)
+  })
+})
+
+describe('insertAppointmentIfSlotFree — atomic booking', () => {
+  const values = (id: string) =>
+    ({ id, organizationId: 'org_1', patientId: 'p1', startTime: new Date(SLOT_9), endTime: new Date(`${MONDAY}T09:30:00.000Z`), type: 'cleaning', status: 'scheduled' }) as never
+
+  it('inserts when the slot re-check passes', async () => {
+    setHoursMon9to5()
+    state.chairCount = 1
+    state.appointments = [] // slot free
+    const ok = await insertAppointmentIfSlotFree('org_1', new Date(SLOT_9), 30, values('a1'))
+    expect(ok).toBe(true)
+    expect(state.inserted).toHaveLength(1)
+  })
+
+  it('refuses + does NOT insert when the slot was taken under the lock', async () => {
+    setHoursMon9to5()
+    state.chairCount = 1
+    state.appointments = [apptAt9()] // someone already has the 9:00 slot
+    const ok = await insertAppointmentIfSlotFree('org_1', new Date(SLOT_9), 30, values('a2'))
+    expect(ok).toBe(false)
+    expect(state.inserted).toHaveLength(0)
+  })
+
+  it('a multi-chair clinic still allows a concurrent booking up to the chair count', async () => {
+    setHoursMon9to5()
+    state.chairCount = 3
+    state.appointments = [apptAt9(), apptAt9()] // 2 of 3 chairs used
+    const ok = await insertAppointmentIfSlotFree('org_1', new Date(SLOT_9), 30, values('a3'))
+    expect(ok).toBe(true)
+    expect(state.inserted).toHaveLength(1)
   })
 })

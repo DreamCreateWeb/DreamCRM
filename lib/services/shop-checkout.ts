@@ -288,35 +288,77 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
   // Burn a single-use coupon now that the order is paid.
   if (order.couponId) await markCouponUsed(order.organizationId, order.couponId, order.id)
 
-  // Decrement tracked inventory.
+  // Decrement tracked inventory — serialized + oversell-aware (see helper).
   const items = await db.select().from(schema.shopOrderItem).where(eq(schema.shopOrderItem.orderId, order.id))
-  for (const it of items) {
-    if (!it.variantId) continue
-    await db
-      .update(schema.shopProductVariant)
-      .set({ inventoryQty: sql`greatest(${schema.shopProductVariant.inventoryQty} - ${it.quantity}, 0)` })
-      .where(
-        and(
-          eq(schema.shopProductVariant.organizationId, order.organizationId),
-          eq(schema.shopProductVariant.id, it.variantId),
-          sql`${schema.shopProductVariant.inventoryQty} is not null`,
-        ),
-      )
-  }
+  const oversold = await applyInventoryForPaidOrder(order.organizationId, items)
 
   // Tell the clinic a real order just came in — best-effort, never blocks the
   // finalize. (a) in-app notification to owners/admins; (b) an email to the
   // clinic's own contact address (same pattern as the contact-form lead email).
   const orderTotalCents = session.amount_total ?? order.totalCents
   const itemCount = items.reduce((n, it) => n + (it.quantity ?? 0), 0)
+  // Surface an oversell to staff right in the "you got paid" alert — the money
+  // is already captured, so they need to know to backorder or refund.
+  const oversoldNote =
+    oversold.length > 0
+      ? ` ⚠️ Heads up — ${oversold
+          .map((o) => `${o.ordered}× ${o.name} ordered but only ${o.had} were in stock`)
+          .join('; ')}. You may need to backorder or refund.`
+      : ''
   await notifyOrderReceived({
     organizationId: order.organizationId,
     title: `Paid order — ${itemCount} ${itemCount === 1 ? 'item' : 'items'}, ${dollarsFromCents(orderTotalCents)}`,
-    body: `${order.name || order.email} just paid for ${items.map((it) => `${it.quantity}× ${it.productName}`).join(', ') || 'an order'}.`,
+    body: `${order.name || order.email} just paid for ${items.map((it) => `${it.quantity}× ${it.productName}`).join(', ') || 'an order'}.${oversoldNote}`,
     linkPath: '/shop/orders',
   })
 
   return { ...order, status: 'paid', patientId }
+}
+
+/**
+ * Decrement tracked inventory for a paid order's items. A `FOR UPDATE` row lock
+ * serializes concurrent finalizes of DIFFERENT orders for the same variant, so
+ * the second one sees the first's committed decrement and can DETECT an oversell
+ * (the old `greatest(qty - n, 0)` silently floored it, hiding that the clinic
+ * sold more than it had). Oversold variants are clamped to 0 + returned so the
+ * caller can alert staff. Untracked variants (inventoryQty null) are unlimited.
+ */
+export async function applyInventoryForPaidOrder(
+  organizationId: string,
+  items: Array<{ variantId: string | null; quantity: number | null; productName: string }>,
+): Promise<Array<{ name: string; ordered: number; had: number }>> {
+  const oversold: Array<{ name: string; ordered: number; had: number }> = []
+  await db.transaction(async (tx) => {
+    for (const it of items) {
+      if (!it.variantId) continue
+      const [v] = await tx
+        .select({ qty: schema.shopProductVariant.inventoryQty })
+        .from(schema.shopProductVariant)
+        .where(
+          and(
+            eq(schema.shopProductVariant.organizationId, organizationId),
+            eq(schema.shopProductVariant.id, it.variantId),
+          ),
+        )
+        .for('update')
+        .limit(1)
+      if (!v || v.qty == null) continue // untracked → unlimited
+      const ordered = it.quantity ?? 0
+      if (v.qty < ordered) {
+        oversold.push({ name: it.productName, ordered, had: v.qty })
+        await tx
+          .update(schema.shopProductVariant)
+          .set({ inventoryQty: 0 })
+          .where(eq(schema.shopProductVariant.id, it.variantId))
+      } else {
+        await tx
+          .update(schema.shopProductVariant)
+          .set({ inventoryQty: v.qty - ordered })
+          .where(eq(schema.shopProductVariant.id, it.variantId))
+      }
+    }
+  })
+  return oversold
 }
 
 /** Compact dollar string from cents for clinic notifications. */
