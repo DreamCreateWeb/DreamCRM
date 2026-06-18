@@ -18,6 +18,14 @@ import {
 import { sendBulkPatientEmail, type BulkEmailResult } from '@/lib/services/patient-bulk-comms'
 import { addPatientNote, deletePatientNote } from '@/lib/services/patient-notes'
 import {
+  sniffPatientDocument,
+  addPatientDocument,
+  deletePatientDocument,
+  type PatientDocumentRow,
+} from '@/lib/services/patient-documents'
+import { MAX_DOCUMENT_BYTES } from '@/lib/types/patient-documents'
+import { uploadBlob } from '@/lib/blob'
+import {
   createPatientTag,
   updatePatientTag,
   deletePatientTag,
@@ -147,6 +155,74 @@ export async function deletePatientNoteAction(
   if (ctx.tenantType !== 'clinic') return
   await deletePatientNote(ctx.organizationId, noteId)
   revalidatePath(`/patients/${patientId}`)
+}
+
+// ---------- Documents ----------
+
+/**
+ * Upload a file and attach it to a patient. Sniffs the real bytes (PDF or
+ * image; never trusts the client type), caps size, stores it in S3, and records
+ * the row — all in one call so a failed insert can't orphan an upload's
+ * metadata. Clinic staff only.
+ */
+export async function uploadPatientDocumentAction(
+  formData: FormData,
+): Promise<{ ok: true; document: PatientDocumentRow } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can attach documents' }
+
+  const patientId = formData.get('patientId')?.toString() ?? ''
+  if (!patientId) return { ok: false, error: 'Missing patient' }
+  const label = formData.get('label')?.toString() ?? null
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: 'Choose a file to upload' }
+  if (file.size > MAX_DOCUMENT_BYTES) {
+    return { ok: false, error: 'File is too large (max 15MB).' }
+  }
+
+  // Sniff the leading bytes — PDF or image only.
+  const head = new Uint8Array(await file.slice(0, 32).arrayBuffer())
+  const sniff = sniffPatientDocument(head)
+  if (!sniff.ok) return { ok: false, error: sniff.reason }
+
+  const safe = (file.name || 'document').replace(/[^a-z0-9_.-]/gi, '_')
+  let fileUrl: string
+  try {
+    const res = await uploadBlob(`patient-documents/${ctx.organizationId}/${patientId}/${Date.now()}-${safe}`, file, {
+      contentType: sniff.contentType,
+    })
+    fileUrl = res.url
+  } catch {
+    return { ok: false, error: 'Upload failed — please try again.' }
+  }
+
+  try {
+    const document = await addPatientDocument({
+      organizationId: ctx.organizationId,
+      patientId,
+      uploadedBy: ctx.userId,
+      fileName: file.name || safe,
+      fileUrl,
+      contentType: sniff.contentType,
+      sizeBytes: file.size,
+      label,
+    })
+    revalidatePath(`/patients/${patientId}`)
+    return { ok: true, document }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save the document' }
+  }
+}
+
+export async function deletePatientDocumentAction(
+  patientId: string,
+  documentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can remove documents' }
+  await deletePatientDocument(ctx.organizationId, documentId)
+  revalidatePath(`/patients/${patientId}`)
+  return { ok: true }
 }
 
 // ---------- Tags ----------

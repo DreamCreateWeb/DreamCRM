@@ -17,7 +17,9 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import TagsPanel from './tags-panel'
+import DocumentsPanel from './documents-panel'
 import type { PatientTagView } from '@/lib/types/patient-tags'
+import type { PatientDocumentRow } from '@/lib/types/patient-documents'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
 import SendIntakeInline, { type IntakeFormOption } from '../send-intake-inline'
 import {
@@ -118,6 +120,7 @@ export default function PatientDetail({
   patientOptions = [],
   tags = [],
   tagCatalog = [],
+  documents = [],
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -129,6 +132,7 @@ export default function PatientDetail({
   patientOptions?: Array<{ id: string; name: string }>
   tags?: PatientTagView[]
   tagCatalog?: PatientTagView[]
+  documents?: PatientDocumentRow[]
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
   const [editOpen, setEditOpen] = useState(false)
@@ -315,9 +319,10 @@ export default function PatientDetail({
           </div>
         </section>
 
-        {/* ── Notes column ───────────────────────────────────────────── */}
-        <aside className="lg:col-span-3">
+        {/* ── Notes + documents column ───────────────────────────────── */}
+        <aside className="lg:col-span-3 space-y-4">
           <NotesPanel patientId={header.id} notes={notes} />
+          <DocumentsPanel patientId={header.id} initial={documents} />
           {/* Destructive action lives apart from the primary, at the bottom. */}
           <div className="mt-4">
             <ActionButton

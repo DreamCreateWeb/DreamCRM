@@ -547,6 +547,13 @@
       "when": 1781811696325,
       "tag": "0077_lucky_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1781814238008,
+      "tag": "0078_outgoing_tattoo",
+      "breakpoints": true
     }
   ]
 }
