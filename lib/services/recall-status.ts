@@ -50,6 +50,11 @@ const RECALL_WINDOW_DAYS = 30 // PMS recall ±window around the due date.
 export function derivePatientRecallStatus(opts: DeriveOpts): RecallStatus {
   // A booked future visit always wins — the recall is on the books.
   if (opts.hasUpcomingAppt) return 'scheduled'
+  // ANY future booking (even beyond the near window) suppresses due/overdue —
+  // the patient is already coming back. Applied to BOTH the PMS and heuristic
+  // branches so a patient booked 2 weeks out isn't tagged overdue by a stale
+  // PMS due date (and chased with redundant recall outreach).
+  if (opts.hasAnyFutureAppt) return 'na'
 
   // PMS recall takes precedence when present.
   if (opts.pmsRecallDueAt) {

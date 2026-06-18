@@ -206,10 +206,14 @@ export async function getSlotsForDay(
   for (let t = dayStart.getTime(); t + SLOT_MS <= dayEnd.getTime(); t += SLOT_MS) {
     const slotStart = new Date(t)
     if (slotStart.getTime() < now) continue
+    // The WHOLE visit must fit before closing — not just the leading 30-min
+    // slot. A 60-min visit at 16:30 (close 17:00) would otherwise read as
+    // available and book a patient into hours the clinic isn't staffed.
+    const fitsBeforeClose = t + windowMs <= dayEnd.getTime()
     slots.push({
       startIso: slotStart.toISOString(),
       label: fmtLabel(slotStart, timeZone),
-      available: !isBlocked(slotStart, windowMs),
+      available: fitsBeforeClose && !isBlocked(slotStart, windowMs),
     })
   }
   // Empty list with no genuine close reason → the clinic was open, we just

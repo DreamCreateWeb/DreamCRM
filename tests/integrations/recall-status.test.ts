@@ -53,6 +53,20 @@ describe('derivePatientRecallStatus', () => {
         }),
       ).toBe('na')
     })
+    it("does NOT mark overdue when a future visit is booked beyond the near window", () => {
+      // pmsRecallDueAt is long past, but the patient already has a booking
+      // (just not within the next ~7 days, so hasUpcomingAppt is false). They
+      // shouldn't be chased with recall outreach — they're already coming back.
+      expect(
+        derivePatientRecallStatus({
+          pmsRecallDueAt: days(-90),
+          hasUpcomingAppt: false,
+          hasAnyFutureAppt: true,
+          lastVisitAt: days(-365),
+          now,
+        }),
+      ).toBe('na')
+    })
   })
 
   describe('fallback (no PMS recall) — preserves the original heuristic', () => {

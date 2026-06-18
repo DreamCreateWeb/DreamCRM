@@ -151,6 +151,24 @@ describe('chair-aware availability', () => {
     expect(slotAvailable(at9_60min, SLOT_9)).toBe(false)
   })
 
+  it('a long visit cannot be booked when it would run past closing time', async () => {
+    setHoursMon9to5() // open 09:00–17:00, no existing appts
+    state.chairCount = 1
+    state.appointments = []
+    const SLOT_16_30 = `${MONDAY}T16:30:00.000Z`
+    const SLOT_16_00 = `${MONDAY}T16:00:00.000Z`
+    const slots60 = await getAvailableSlots('org_1', MONDAY, undefined, 60)
+    // 16:30 + 60min = 17:30 → past the 17:00 close → NOT available.
+    expect(slotAvailable(slots60, SLOT_16_30)).toBe(false)
+    // 16:00 + 60min = 17:00 → fits exactly → available.
+    expect(slotAvailable(slots60, SLOT_16_00)).toBe(true)
+    // The pre-insert race guard must agree (it defends the actual write path).
+    expect(await isSlotAvailable('org_1', new Date(SLOT_16_30), 60)).toBe(false)
+    // A 30-min visit at 16:30 still fits (16:30 + 30 = 17:00).
+    const slots30 = await getAvailableSlots('org_1', MONDAY, undefined, 30)
+    expect(slotAvailable(slots30, SLOT_16_30)).toBe(true)
+  })
+
   it('chairCount is clamped to 1..20 (0 → 1, huge → 20)', async () => {
     setHoursMon9to5()
     state.chairCount = 0 // invalid → 1
