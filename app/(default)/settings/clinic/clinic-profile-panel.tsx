@@ -44,10 +44,22 @@ const DAYS = [
 
 interface HoursEntry { open?: string | null; close?: string | null; closed?: boolean }
 
+// The Clinic profile is big. Rather than one endless scroll, split it into
+// focused tabs. All inputs stay MOUNTED (inactive tabs are `hidden`, not
+// unmounted) so the single Save still submits every field.
+const PROFILE_TABS = [
+  { id: 'basics', label: 'Profile & contact' },
+  { id: 'branding', label: 'Branding' },
+  { id: 'content', label: 'Website content' },
+  { id: 'billing', label: 'Insurance & payments' },
+] as const
+type ProfileTabId = (typeof PROFILE_TABS)[number]['id']
+
 export default function ClinicProfilePanel({ profile, orgName, orgId, library, gmailAccounts }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState<ProfileTabId>('basics')
 
   const initialHours = (profile?.hours ?? {}) as Record<string, HoursEntry>
   const initialServices = (profile?.services ?? null) as ClinicService[] | null
@@ -104,13 +116,33 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
 
   return (
     <div className="grow">
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="p-6">
+        {/* Tab nav — focus one group at a time instead of the whole wall. */}
+        <div className="mb-6 flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700/60">
+          {PROFILE_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`-mb-px px-3.5 py-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === t.id
+                  ? 'border-teal-500 text-teal-700 dark:text-teal-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Profile & contact ─────────────────────────────────────────── */}
+        <div className={tab === 'basics' ? 'space-y-6' : 'hidden'}>
         <SettingsSection>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Basics</h3>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="displayName">Display Name <span className="text-rose-500">*</span></label>
-              <input id="displayName" name="displayName" className="form-input w-full" type="text" required defaultValue={profile?.displayName ?? orgName} />
+              <input id="displayName" name="displayName" className="form-input w-full" type="text" defaultValue={profile?.displayName ?? orgName} />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Shown on your website and in the dashboard.</p>
             </div>
             <div>
@@ -290,6 +322,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
           </div>
         </SettingsSection>
 
+        </div>
+
+        {/* ── Branding ──────────────────────────────────────────────────── */}
+        <div className={tab === 'branding' ? 'space-y-6' : 'hidden'}>
         <SettingsSection>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Branding</h3>
           <div className="space-y-4">
@@ -346,6 +382,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
           </div>
         </SettingsSection>
 
+        </div>
+
+        {/* ── Website content ───────────────────────────────────────────── */}
+        <div className={tab === 'content' ? 'space-y-6' : 'hidden'}>
         <SettingsSection>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Services</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -397,6 +437,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
           <OfficePhotosEditor name="officePhotos" defaultValue={initialOfficePhotos} />
         </SettingsSection>
 
+        </div>
+
+        {/* ── Insurance & payments ──────────────────────────────────────── */}
+        <div className={tab === 'billing' ? 'space-y-6' : 'hidden'}>
         <SettingsSection>
           <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
             Accepted Insurance Carriers
@@ -470,9 +514,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
           />
         </SettingsSection>
 
-        {/* Sticky save bar — this form is long; keep Save reachable without
-            scrolling all the way down. */}
-        <div className="sticky bottom-4 z-10 flex items-center gap-3 v2-card px-4 py-3 shadow-[var(--shadow-pop)]">
+        </div>
+
+        {/* Sticky save bar — one Save for every tab (inputs stay mounted). */}
+        <div className="sticky bottom-4 z-10 mt-6 flex items-center gap-3 v2-card px-4 py-3 shadow-[var(--shadow-pop)]">
           <ActionButton variant="primary" type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Save changes'}
           </ActionButton>
