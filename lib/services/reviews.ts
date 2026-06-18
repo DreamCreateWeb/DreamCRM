@@ -746,7 +746,15 @@ export async function recordReviewCompleted(token: string, site: ReviewSite): Pr
       completedAt: sql`COALESCE(${schema.reviewRequest.completedAt}, ${now})`,
       updatedAt: now,
     })
-    .where(eq(schema.reviewRequest.token, token))
+    // Same gate as submitReviewText: only a live request (sent/clicked/completed)
+    // can be completed. A 'skipped' (staff chose not to ask) or 'failed' (never
+    // reached the patient) request must NOT be resurrected by a replayed token.
+    .where(
+      and(
+        eq(schema.reviewRequest.token, token),
+        inArray(schema.reviewRequest.status, ['sent', 'clicked', 'completed']),
+      ),
+    )
 }
 
 // ── Dashboard reads ──────────────────────────────────────────────────
@@ -865,8 +873,12 @@ export async function getReviewStats(
   return {
     windowDays,
     sent30d: sentAgg,
-    clickRate30d: sentAgg > 0 ? Math.round((clickAgg / sentAgg) * 100) : null,
-    completionRate30d: clickAgg > 0 ? Math.round((completedAgg / clickAgg) * 100) : null,
+    // Clamp to 100%: the numerator (clicked/completed IN the window) and the
+    // denominator (sent IN the window) are counted independently, so a request
+    // sent before the window but clicked/completed inside it can push the raw
+    // ratio over 100% — which reads as broken. Clamp so the KPI stays sane.
+    clickRate30d: sentAgg > 0 ? Math.min(100, Math.round((clickAgg / sentAgg) * 100)) : null,
+    completionRate30d: clickAgg > 0 ? Math.min(100, Math.round((completedAgg / clickAgg) * 100)) : null,
     clicked30d: clickAgg,
     completed30d: completedAgg,
     eligibleCount,

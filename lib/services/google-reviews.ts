@@ -130,8 +130,14 @@ async function upsertReview(
         comment: r.comment,
         reviewCreatedAt: parseDate(r.createTime),
         reviewUpdatedAt: parseDate(r.updateTime),
-        replyComment: r.replyComment,
-        replyUpdatedAt: parseDate(r.replyUpdateTime),
+        // Only overwrite the reply when THIS pull carries one. A reply the
+        // clinic just posted (persisted locally + shown immediately) often
+        // hasn't propagated back into the pulled payload yet — writing the
+        // pulled null here would wipe it from the dashboard until Google
+        // catches up. When the pull has no reply, leave the stored value alone.
+        ...(r.replyComment != null
+          ? { replyComment: r.replyComment, replyUpdatedAt: parseDate(r.replyUpdateTime) }
+          : {}),
         updatedAt: now,
       },
     })

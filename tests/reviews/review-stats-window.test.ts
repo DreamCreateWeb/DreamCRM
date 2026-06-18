@@ -37,6 +37,9 @@ vi.mock('drizzle-orm', () => ({
 // patients sub-queries (appointment/patient/reviewRequest) to empty arrays.
 // getReviewStats only cares about the .then()/.groupBy() resolution + the
 // gte() args (captured above), so a permissive chain is enough.
+// Optional per-query count overrides (consumed in query order). Empty → 3.
+const h = vi.hoisted(() => ({ counts: [] as number[] }))
+
 vi.mock('@/lib/db', () => {
   const makeChain = () => {
     const c: Record<string, unknown> = {}
@@ -44,7 +47,7 @@ vi.mock('@/lib/db', () => {
       c[m] = () => c
     }
     // Aggregate count() reads resolve via .then(); they want [{ c: N }].
-    c.then = (resolve: (v: unknown) => void) => resolve([{ c: 3 }])
+    c.then = (resolve: (v: unknown) => void) => resolve([{ c: h.counts.length ? h.counts.shift()! : 3 }])
     return c
   }
   return {
@@ -69,6 +72,7 @@ const DAY = 24 * 60 * 60 * 1000
 
 beforeEach(() => {
   gteDates.length = 0
+  h.counts = []
   vi.useFakeTimers()
   vi.setSystemTime(NOW)
 })
@@ -112,5 +116,17 @@ describe('getReviewStats — windowDays', () => {
     expect(stats.clicked30d).toBe(3) // a real count, not round(sent * rate)
     expect(stats.sent30d).toBe(3)
     expect(stats.clickRate30d).toBe(100) // 3/3
+  })
+
+  it('clamps the funnel rates to 100% (independent windows can push the raw ratio over)', async () => {
+    // sent=2 (in-window), clicked=5 (some clicked from requests sent BEFORE the
+    // window) → raw click rate 250%. Must clamp to 100. completed=3 → completion
+    // 3/5 = 60% stays as-is (a real sub-100 value isn't clamped).
+    h.counts = [2, 5, 3]
+    const stats = await getReviewStats('org_1', 30)
+    expect(stats.sent30d).toBe(2)
+    expect(stats.clicked30d).toBe(5)
+    expect(stats.clickRate30d).toBe(100) // clamped from 250
+    expect(stats.completionRate30d).toBe(60) // 3/5, not clamped
   })
 })

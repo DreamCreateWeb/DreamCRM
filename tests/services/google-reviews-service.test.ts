@@ -285,6 +285,26 @@ describe('syncGoogleReviews', () => {
     expect(store.reviews[0].replyComment).toBe('Thanks!')
   })
 
+  it('does NOT wipe an existing reply when a later sync pulls no reply (propagation lag)', async () => {
+    setConnected()
+    // First sync: the clinic's reply is present in the pulled payload.
+    client.listGoogleReviews.mockResolvedValueOnce({
+      reviews: [{ id: 'r1', starRating: 5, comment: 'A', reviewerName: 'X', createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: 'Thank you!', replyUpdateTime: '2026-06-05T00:00:00Z' }],
+      nextPageToken: null,
+    })
+    await syncGoogleReviews(ORG)
+    expect(store.reviews[0].replyComment).toBe('Thank you!')
+
+    // Second sync: Google hasn't propagated the reply back yet → null. The upsert
+    // must NOT overwrite the stored reply (the dashboard would flicker empty).
+    client.listGoogleReviews.mockResolvedValueOnce({
+      reviews: [{ id: 'r1', starRating: 5, comment: 'A', reviewerName: 'X', createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null }],
+      nextPageToken: null,
+    })
+    await syncGoogleReviews(ORG)
+    expect(store.reviews[0].replyComment).toBe('Thank you!')
+  })
+
   it('pages through nextPageToken', async () => {
     setConnected()
     client.listGoogleReviews
