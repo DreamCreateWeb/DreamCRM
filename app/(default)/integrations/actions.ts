@@ -12,8 +12,12 @@ function ensureClinicAdmin(ctx: { tenantType: string; role: string; planTier: Pl
   if (ctx.tenantType !== 'clinic') {
     throw new Error('Integrations is only available for clinic tenants.')
   }
-  if (ctx.role === 'patient') {
-    throw new Error('Patients cannot manage integrations.')
+  // Connecting / disconnecting / reconfiguring the PMS triggers a PHI import
+  // and is a privileged settings mutation — owner/admin only, matching every
+  // other settings surface (and the sibling ensureClinicChannelsAdmin). A
+  // front-desk `member` must not be able to sever or re-point the integration.
+  if (ctx.role === 'patient' || ctx.role === 'member') {
+    throw new Error('Only an owner or admin can manage integrations.')
   }
   // Integrations is Premium-tier (lib/modules/clinic.ts) — block below-tier
   // clinics from firing the action even via deep-link. Demo contexts inherit

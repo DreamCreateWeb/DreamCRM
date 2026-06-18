@@ -142,7 +142,9 @@ describe('retryPendingWrites — pushing into the PMS', () => {
     client.createAppointment = vi.fn(async (_p: unknown) => ({ externalId: 'od-apt-77' }))
     queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 0 }])
     queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date('2026-06-01T09:00:00Z'), endTime: null, notes: 'n' }])
-    queue('pmsEntityMap', [{ externalId: 'od-pat-1' }]) // patient already mapped
+    // pmsEntityMap is now consulted TWICE: first the appointment-already-mapped
+    // check (empty → not mapped), then the patient mapping.
+    queue('pmsEntityMap', [], [{ externalId: 'od-pat-1' }]) // appt not mapped; patient mapped
 
     await retryPendingWrites('org1', asClient(client))
 
@@ -181,12 +183,45 @@ describe('retryPendingWrites — pushing into the PMS', () => {
     })
     queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 0 }])
     queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date(), endTime: null, notes: null }])
-    queue('pmsEntityMap', [{ externalId: 'od-pat-1' }])
+    queue('pmsEntityMap', [], [{ externalId: 'od-pat-1' }]) // appt not mapped; patient mapped
 
     await expect(retryPendingWrites('org1', asClient(client))).resolves.toBeUndefined()
     const errUpdate = state.updates.find((u) => u.table === 'pmsWriteOp' && u.set.status === 'error')
     expect(errUpdate).toBeTruthy()
     expect(String(errUpdate!.set.error)).toMatch(/eConnector/)
+  })
+
+  it('does NOT re-create an appointment that is already mapped (idempotent retry)', async () => {
+    const client = makeFakeClient()
+    queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 1 }])
+    queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date(), endTime: null, notes: null }])
+    queue('pmsEntityMap', [{ externalId: 'od-apt-existing' }]) // appointment ALREADY mapped
+
+    await retryPendingWrites('org1', asClient(client))
+
+    // No second OD appointment created; the op is just settled to success.
+    expect(client.createAppointment).not.toHaveBeenCalled()
+    const success = state.updates.find((u) => u.table === 'pmsWriteOp' && u.set.status === 'success')
+    expect(success!.set.externalId).toBe('od-apt-existing')
+  })
+
+  it('recovers a prior external id instead of creating a duplicate when a past map-write failed', async () => {
+    const client = makeFakeClient()
+    queue(
+      'pmsWriteOp',
+      [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 1 }], // pending list
+      [{ externalId: 'od-apt-prior' }], // a prior op recorded the external id but failed to map
+    )
+    queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date(), endTime: null, notes: null }])
+    queue('pmsEntityMap', []) // appointment NOT mapped yet
+
+    await retryPendingWrites('org1', asClient(client))
+
+    // Reuse the recorded id + (re)write the map — never create a second OD appt.
+    expect(client.createAppointment).not.toHaveBeenCalled()
+    expect(state.inserts.some((i) => i.table === 'pmsEntityMap')).toBe(true)
+    const success = state.updates.find((u) => u.table === 'pmsWriteOp' && u.set.status === 'success')
+    expect(success!.set.externalId).toBe('od-apt-prior')
   })
 
   it('advances the attempt counter when the appointment no longer exists (no infinite retry)', async () => {

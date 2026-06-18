@@ -996,6 +996,41 @@ async function processAppointmentWriteOp(
       await failOp(op.id, op.attempts + 1, 'Appointment no longer exists')
       return
     }
+    // Idempotency + recovery: NEVER create a second appointment in the PMS for
+    // the same DreamCRM appointment. If it's already mapped — or a prior attempt
+    // recorded its external id but failed to write the entity-map (a DB blip
+    // right after createAppointment) — reuse that id + ensure the map instead of
+    // re-creating. Mirrors ensurePatientExternalId's recovery; the appointment
+    // path previously lacked it and duplicated on a map-write failure + retry.
+    const alreadyMapped = await mapInternalToExternal(organizationId, 'appointment', appt.id)
+    if (alreadyMapped) {
+      await db
+        .update(schema.pmsWriteOp)
+        .set({ status: 'success', externalId: alreadyMapped, error: null, completedAt: new Date(), attempts: op.attempts + 1 })
+        .where(eq(schema.pmsWriteOp.id, op.id))
+      return
+    }
+    const [priorApptOp] = await db
+      .select({ externalId: schema.pmsWriteOp.externalId })
+      .from(schema.pmsWriteOp)
+      .where(
+        and(
+          eq(schema.pmsWriteOp.organizationId, organizationId),
+          eq(schema.pmsWriteOp.entityType, 'appointment'),
+          eq(schema.pmsWriteOp.internalId, appt.id),
+          isNotNull(schema.pmsWriteOp.externalId),
+        ),
+      )
+      .orderBy(desc(schema.pmsWriteOp.createdAt))
+      .limit(1)
+    if (priorApptOp?.externalId) {
+      await insertMap(organizationId, 'appointment', priorApptOp.externalId, appt.id, 'dreamcrm', null)
+      await db
+        .update(schema.pmsWriteOp)
+        .set({ status: 'success', externalId: priorApptOp.externalId, error: null, completedAt: new Date(), attempts: op.attempts + 1 })
+        .where(eq(schema.pmsWriteOp.id, op.id))
+      return
+    }
     const patientExternalId = await ensurePatientExternalId(organizationId, client, appt.patientId)
     if (!patientExternalId) {
       await failOp(op.id, op.attempts + 1, 'Patient could not be created in the PMS yet')
@@ -1022,11 +1057,18 @@ async function processAppointmentWriteOp(
       providerExternalId,
       note: appt.notes,
     })
+    // Record the external id BEFORE writing the map — so if insertMap fails, the
+    // retry path above RECOVERS this id instead of creating a duplicate.
     await db
       .update(schema.pmsWriteOp)
-      .set({ status: 'success', externalId: res.externalId, responseBody: res.raw ?? null, error: null, completedAt: new Date() })
+      .set({ externalId: res.externalId, responseBody: res.raw ?? null })
       .where(eq(schema.pmsWriteOp.id, op.id))
     await insertMap(organizationId, 'appointment', res.externalId, appt.id, 'dreamcrm', null)
+    // Only mark success once the appointment is BOTH created and mapped.
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ status: 'success', externalId: res.externalId, error: null, completedAt: new Date() })
+      .where(eq(schema.pmsWriteOp.id, op.id))
   } catch (e) {
     await failOp(op.id, op.attempts + 1, (e as Error).message)
   }

@@ -200,7 +200,9 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     const provs = await db
       .select({ id: schema.clinicProvider.id, name: schema.clinicProvider.displayName })
       .from(schema.clinicProvider)
-      .where(inArray(schema.clinicProvider.id, providerIds))
+      // Defense-in-depth: scope to this org (the ids already come from this
+      // org's appointments, but never look up a foreign provider by id).
+      .where(and(eq(schema.clinicProvider.organizationId, organizationId), inArray(schema.clinicProvider.id, providerIds)))
     for (const p of provs) providerNames.set(p.id, p.name)
   }
   const providerCounts = new Map<string, number>()
