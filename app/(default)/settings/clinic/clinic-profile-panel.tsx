@@ -22,6 +22,7 @@ import StatsEditor from './stats-editor'
 import TestimonialsEditor from './testimonials-editor'
 import OfficePhotosEditor from './office-photos-editor'
 import FinancingPartnersEditor from './financing-partners-editor'
+import { SettingsSection } from '../settings-kit'
 
 interface Props {
   profile: ClinicProfile | null
@@ -104,8 +105,8 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
   return (
     <div className="grow">
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Basics</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Basics</h3>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="displayName">Display Name <span className="text-rose-500">*</span></label>
@@ -125,10 +126,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
               <textarea id="about" name="about" className="form-textarea w-full" rows={4} defaultValue={profile?.about ?? ''} placeholder="A short paragraph about your clinic, your team, and what makes you different." />
             </div>
           </div>
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Contact</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Contact</h3>
           <div className="space-y-4">
             <div className="flex space-x-4">
               <div className="flex-1">
@@ -234,10 +235,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
               </select>
             </div>
           </div>
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Office Hours</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Office Hours</h3>
           <div className="mb-4 max-w-xs">
             <label className="block text-sm font-medium mb-1" htmlFor="timezone">Timezone</label>
             <select
@@ -287,10 +288,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
               )
             })}
           </div>
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Branding</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Branding</h3>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="brandColor">Brand Color</label>
@@ -343,10 +344,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
                 value through so a profile save doesn't wipe it (see initialFaqJson). */}
             <input type="hidden" name="faq" value={initialFaqJson} />
           </div>
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Services</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Services</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             Pick from the shared library — each service gets a full Tend-style detail
             page on your site, rewritten in your clinic&apos;s voice with AI.
@@ -359,45 +360,45 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
             clinicName={profile?.displayName ?? orgName}
             city={profile?.city ?? null}
           />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Staff</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Staff</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             Your team. Add headshots and bios — they appear in a Meet The Team section.
           </p>
           <StaffEditor name="staff" defaultValue={initialStaff} />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Stats</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Stats</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             Three short trust signals shown right under your hero. Examples: &ldquo;8,000+
             five-star reviews&rdquo;, &ldquo;Same-week appointments&rdquo;, &ldquo;Most insurance accepted&rdquo;.
           </p>
           <StatsEditor name="stats" defaultValue={initialStats} />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Testimonials</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Testimonials</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             Long-form patient quotes — first name + city. The single strongest trust signal
             on the page when done well.
           </p>
           <TestimonialsEditor name="testimonials" defaultValue={initialTestimonials} />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Office Photos</h3>
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Office Photos</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             3–4 real photos of your office (reception, treatment room, waiting area). Drop
             them in below and they&apos;ll appear as a gallery on your site.
           </p>
           <OfficePhotosEditor name="officePhotos" defaultValue={initialOfficePhotos} />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
             Accepted Insurance Carriers
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -413,10 +414,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
             defaultValue={initialInsuranceCarriers.join('\n')}
             placeholder={'Aetna\nCigna\nDelta Dental\nGuardian\nMetLife'}
           />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
             Accepted Payment Methods
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -432,10 +433,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
             defaultValue={initialPaymentMethods.join('\n')}
             placeholder={DEFAULT_PAYMENT_METHODS.join('\n')}
           />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
             Financing Partners
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -448,10 +449,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
             name="financingPartners"
             defaultValue={initialFinancingPartners}
           />
-        </section>
+        </SettingsSection>
 
-        <section>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+        <SettingsSection>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
             Cancellation &amp; No-Show Policy
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -467,11 +468,13 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
             defaultValue={profile?.cancellationPolicy ?? ''}
             placeholder="We ask for 24 hours notice when you need to cancel or reschedule. Things come up — just let us know when you can, and we&apos;ll work with you."
           />
-        </section>
+        </SettingsSection>
 
-        <div className="flex items-center gap-3 pt-2 border-t border-gray-200 dark:border-gray-700/60">
+        {/* Sticky save bar — this form is long; keep Save reachable without
+            scrolling all the way down. */}
+        <div className="sticky bottom-4 z-10 flex items-center gap-3 v2-card px-4 py-3 shadow-[var(--shadow-pop)]">
           <ActionButton variant="primary" type="submit" disabled={saving}>
-            {saving ? 'Saving…' : 'Save Changes'}
+            {saving ? 'Saving…' : 'Save changes'}
           </ActionButton>
           {saved && <span className="text-sm text-emerald-700 dark:text-emerald-300">Saved ✓</span>}
           {error && <span className="text-sm text-rose-700 dark:text-rose-300">{error}</span>}
