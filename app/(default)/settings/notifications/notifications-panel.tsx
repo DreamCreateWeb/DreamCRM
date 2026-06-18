@@ -5,6 +5,7 @@ import { saveNotificationPrefs } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import { SettingsSection, SettingsRow } from '../settings-kit'
+import { SettingsTabs } from '../settings-tabs'
 
 interface Prefs {
   comments: boolean
@@ -113,22 +114,37 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
   }
 
   return (
-    <form onSubmit={onSubmit} className="p-6 space-y-6">
-      <SettingsSection title="In-app alerts" description="Pick which activity shows up in your notification bell.">
+    <form onSubmit={onSubmit} className="p-6">
+      <SettingsTabs
+        tabs={[
+          {
+            id: 'alerts',
+            label: 'In-app alerts',
+            content: (
+              <SettingsSection description="Pick which activity shows up in your notification bell.">
         {prefRow('comments', labels.comments.title, labels.comments.description)}
         {prefRow('candidates', labels.candidates.title, labels.candidates.description)}
         {prefRow('offers', labels.offers.title, labels.offers.description)}
-      </SettingsSection>
-
-      <SettingsSection title="Delivery" description="How these alerts reach you, on top of the bell.">
+              </SettingsSection>
+            ),
+          },
+          {
+            id: 'delivery',
+            label: 'Delivery',
+            content: (
+              <SettingsSection description="How these alerts reach you, on top of the bell.">
         {/* NOTE: no "mobile/desktop push" toggle — we don't ship push (no service
             worker / FCM / APNs), so a toggle promising it would be write-only.
             Email digest + Pause all are the two delivery controls that act. */}
         {prefRow('pushEmail', 'Email digest', 'Email a copy of these alerts to your inbox.')}
         {prefRow('pushNothing', 'Pause all', 'Temporarily silence every alert (overrides the rest).')}
-      </SettingsSection>
+              </SettingsSection>
+            ),
+          },
+        ]}
+      />
 
-      <div className="flex items-center justify-end gap-3">
+      <div className="mt-6 flex items-center justify-end gap-3">
         {feedback?.error && <span className="mr-auto text-sm text-rose-600 dark:text-rose-400">{feedback.error}</span>}
         {feedback?.ok && <span className="mr-auto text-sm text-emerald-600 dark:text-emerald-400">{feedback.ok}</span>}
         {dirty && (

@@ -7,6 +7,7 @@ import { relativeTime } from '@/lib/utils'
 import { revokeOtherSessions, revokeSession } from './security-actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { SettingsTabs } from '../settings-tabs'
 
 export interface SessionRow {
   id: string
@@ -72,11 +73,14 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
 
   return (
     <div className="grow">
-      <div className="p-6 space-y-8">
-        <h2 className="text-2xl text-gray-800 dark:text-gray-100 font-bold">Security</h2>
-
-        {/* ── Active sessions ── */}
-        <section>
+      <div className="p-6">
+        <SettingsTabs
+          tabs={[
+            {
+              id: 'sessions',
+              label: 'Active sessions',
+              content: (
+                <section>
           <div className="flex items-end justify-between mb-3">
             <div>
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
@@ -127,10 +131,14 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
               </li>
             ))}
           </ul>
-        </section>
-
-        {/* ── Password ── */}
-        <section>
+                </section>
+              ),
+            },
+            {
+              id: 'password',
+              label: 'Password',
+              content: (
+                <section>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Password</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
             Set a new password. You'll be signed out of every other device.
@@ -198,7 +206,11 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
               </div>
             </form>
           )}
-        </section>
+                </section>
+              ),
+            },
+          ]}
+        />
       </div>
     </div>
   )
