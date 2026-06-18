@@ -5,6 +5,8 @@ import { getIntegrationsHealth, type IntegrationsHealth } from '@/lib/services/p
 import { getReviewStats } from '@/lib/services/reviews'
 import { getInboxStats } from '@/lib/services/patient-messaging'
 import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient-followups'
+import { getTagsForPatients } from '@/lib/services/patient-tags'
+import type { PatientTagView } from '@/lib/types/patient-tags'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -86,6 +88,8 @@ export interface TodayAppointmentRow {
     hasOutstandingBalance: boolean
     hasIntakeOnFile: boolean
   }
+  /** CRM tags on the patient — shown on the today's-chair row. */
+  tags: PatientTagView[]
 }
 
 export interface LeadPreviewRow {
@@ -280,6 +284,11 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     }
   }
 
+  // CRM tags for today's chair — who's VIP / anxious, at a glance.
+  const todaysTagsByPatient = await getTagsForPatients(
+    organizationId,
+    todaysAppts.map((a) => a.patientId),
+  )
   const todaysAppointments: TodayAppointmentRow[] = todaysAppts.map((a) => ({
     id: a.id,
     patientId: a.patientId,
@@ -294,6 +303,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       hasOutstandingBalance: balanceSet.has(a.patientId),
       hasIntakeOnFile: intakeSet.has(a.patientId),
     },
+    tags: todaysTagsByPatient.get(a.patientId) ?? [],
   }))
 
   // ── Unconfirmed (next 48h) ──────────────────────────────────────────

@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { TagChip } from '@/components/ui/tag-chip'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -540,6 +541,9 @@ function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
             {appt.patientName}
           </Link>
           <GlyphCluster glyphs={glyphs} />
+          {appt.tags.slice(0, 3).map((t) => (
+            <TagChip key={t.id} name={t.name} color={t.color} size="xs" />
+          ))}
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{typeLabel}</div>
       </div>
