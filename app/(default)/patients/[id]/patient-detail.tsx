@@ -16,6 +16,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
+import TagsPanel from './tags-panel'
+import type { PatientTagView } from '@/lib/types/patient-tags'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
 import SendIntakeInline, { type IntakeFormOption } from '../send-intake-inline'
 import {
@@ -114,6 +116,8 @@ export default function PatientDetail({
   intakeForms = [],
   isPlatformAdmin = false,
   patientOptions = [],
+  tags = [],
+  tagCatalog = [],
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -123,6 +127,8 @@ export default function PatientDetail({
   isPlatformAdmin?: boolean
   /** id+name list for the guardian (family-access) picker in the edit modal. */
   patientOptions?: Array<{ id: string; name: string }>
+  tags?: PatientTagView[]
+  tagCatalog?: PatientTagView[]
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
   const [editOpen, setEditOpen] = useState(false)
@@ -274,6 +280,7 @@ export default function PatientDetail({
         {/* ── Identity rail ──────────────────────────────────────────── */}
         <aside className="lg:col-span-3 space-y-4">
           <NeedsAttention header={header} forms={intakeForms} />
+          <TagsPanel patientId={header.id} initialTags={tags} catalog={tagCatalog} />
           <IdentityCard header={header} />
         </aside>
 

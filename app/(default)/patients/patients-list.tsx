@@ -19,10 +19,11 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { TagChip } from '@/components/ui/tag-chip'
 import BulkMessageModal from './bulk-message-modal'
 import AddPatientModal from './add-patient-modal'
 import ImportPatientsModal from './import-patients-modal'
-import { bulkInvitePatientsToPortalAction } from './actions'
+import { bulkInvitePatientsToPortalAction, bulkAssignPatientTagAction } from './actions'
 
 function money(cents: number): string {
   if (cents === 0) return '—'
@@ -148,6 +149,24 @@ export default function PatientsList({
     })
   }
 
+  // Bulk-assign a tag to the selected patients.
+  const [tagging, startTagging] = useTransition()
+  function bulkAddTag(tagId: string) {
+    const ids = Array.from(selected)
+    if (ids.length === 0 || !tagId) return
+    startTagging(async () => {
+      const r = await bulkAssignPatientTagAction(ids, tagId)
+      if (!r.ok) {
+        setToast(r.error)
+        return
+      }
+      const tag = meta.tags.find((t) => t.id === tagId)
+      setToast(`Tagged ${r.assigned} ${r.assigned === 1 ? 'patient' : 'patients'}${tag ? ` · ${tag.name}` : ''}`)
+      setSelected(new Set())
+      router.refresh()
+    })
+  }
+
   const invitableCount = useMemo(
     () => rows.filter((r) => selected.has(r.id) && r.email).length,
     [rows, selected],
@@ -206,6 +225,7 @@ export default function PatientsList({
     !filters.missingIntake &&
     !filters.birthdayThisMonth &&
     !filters.sources?.length &&
+    !filters.tagIds?.length &&
     !filters.search
 
   return (
@@ -320,6 +340,21 @@ export default function PatientsList({
               ))}
             </select>
           )}
+          {meta.tags.length > 0 && (
+            <select
+              value={(filters.tagIds?.[0]) ?? ''}
+              onChange={(e) => setParam('tags', e.target.value || null)}
+              className="form-select text-xs py-1"
+              aria-label="Filter by tag"
+            >
+              <option value="">Any tag</option>
+              {meta.tags.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.patientCount ? ` (${t.patientCount})` : ''}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -412,6 +447,20 @@ export default function PatientsList({
         >
           Email {reachableCount} {reachableCount === 1 ? 'patient' : 'patients'}
         </ActionButton>
+        {meta.tags.length > 0 && (
+          <select
+            value=""
+            onChange={(e) => { bulkAddTag(e.target.value); e.target.value = '' }}
+            disabled={tagging}
+            className="form-select text-xs py-1.5"
+            aria-label="Add a tag to the selected patients"
+          >
+            <option value="">{tagging ? 'Tagging…' : '+ Add tag…'}</option>
+            {meta.tags.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        )}
         {canManage && (
           <ActionButton
             variant="secondary"
@@ -499,6 +548,13 @@ function PatientRow({
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[260px]">
             {row.email ?? row.phone ?? ''}
           </div>
+          {row.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {row.tags.map((t) => (
+                <TagChip key={t.id} name={t.name} color={t.color} size="xs" />
+              ))}
+            </div>
+          )}
         </Link>
       </td>
       <td

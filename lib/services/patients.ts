@@ -3,6 +3,8 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql }
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import { getTagsForPatients, listPatientTags } from '@/lib/services/patient-tags'
+import type { PatientTagView } from '@/lib/types/patient-tags'
 import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
 
 /**
@@ -57,6 +59,8 @@ export interface PatientListRow {
   shopSpendCents: number
   lastContactAt: Date | null
   flags: PatientRowFlags
+  /** CRM tags on this patient (org-scoped catalog). Empty when none. */
+  tags: PatientTagView[]
 }
 
 export interface PatientListFilters {
@@ -67,6 +71,8 @@ export interface PatientListFilters {
   sources?: string[]
   optedOut?: boolean
   search?: string
+  /** Keep only patients carrying ANY of these tag ids (OR semantics). */
+  tagIds?: string[]
 }
 
 export interface PatientListSort {
@@ -115,6 +121,8 @@ export interface PatientHeader {
 
 export interface PatientFilterMeta {
   sources: string[]
+  /** Org tag catalog — feeds the list's tag filter + the bulk "Add tag" menu. */
+  tags: PatientTagView[]
 }
 
 // ----- Helpers ----------------------------------------------------------
@@ -237,7 +245,7 @@ export async function listPatients(
   const clinicRecallMonths = await getClinicRecallDefaultMonths(organizationId)
 
   // Pull joined data in parallel.
-  const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear] =
+  const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear, tagsByPatient] =
     await Promise.all([
       // Last completed/confirmed appointment per patient (most recent past startTime).
       db
@@ -351,6 +359,8 @@ export async function listPatients(
             lte(schema.appointment.startTime, in7d),
           ),
         ),
+      // CRM tags per patient (org-scoped) — one query for the whole page.
+      getTagsForPatients(organizationId, ids),
     ])
 
   // Reduce arrays to maps so the per-row loop is O(1) each.
@@ -435,6 +445,7 @@ export async function listPatients(
         // surfaces this on the list.
         optedOut: p.marketingEmailOptIn === 0,
       },
+      tags: tagsByPatient.get(p.id) ?? [],
     }
   })
 
@@ -447,6 +458,10 @@ export async function listPatients(
   }
   if (filters.status === 'recall_due') {
     filtered = filtered.filter((r) => r.recallStatus === 'due' || r.recallStatus === 'overdue')
+  }
+  if (filters.tagIds?.length) {
+    const want = new Set(filters.tagIds)
+    filtered = filtered.filter((r) => r.tags.some((t) => want.has(t.id)))
   }
 
   // Sort.
@@ -482,12 +497,16 @@ export async function listPatients(
 }
 
 export async function getPatientListMeta(organizationId: string): Promise<PatientFilterMeta> {
-  const sources = await db
-    .selectDistinct({ source: schema.patient.source })
-    .from(schema.patient)
-    .where(and(eq(schema.patient.organizationId, organizationId), isNotNull(schema.patient.source)))
+  const [sources, tags] = await Promise.all([
+    db
+      .selectDistinct({ source: schema.patient.source })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, organizationId), isNotNull(schema.patient.source))),
+    listPatientTags(organizationId),
+  ])
   return {
     sources: sources.map((r) => r.source!).filter(Boolean).sort(),
+    tags,
   }
 }
 

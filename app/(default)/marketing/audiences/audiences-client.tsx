@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
 import type { AudienceFilterT, PatientAudienceFilterT } from '@/lib/services/marketing'
+import type { PatientTagView } from '@/lib/types/patient-tags'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -35,12 +36,14 @@ interface Props {
   tenantType: 'platform' | 'clinic'
   stages: PipelineStage[]
   sources: string[]
+  /** Org tag catalog — feeds the patient-segment tag picker (clinic only). */
+  tags: PatientTagView[]
   orgName: string
   /** "patients" (clinic) | "leads" (platform) — drives header copy. */
   leadsLabel: string
 }
 
-export default function AudiencesClient({ initial, tenantType, stages, sources, orgName, leadsLabel }: Props) {
+export default function AudiencesClient({ initial, tenantType, stages, sources, tags, orgName, leadsLabel }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState<AudienceRow | 'new' | null>(null)
   const [pending, startTransition] = useTransition()
@@ -125,6 +128,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
           return (
             <PatientAudienceEditor
               audience={audience}
+              tags={tags}
               onClose={() => setEditing(null)}
               onSaved={() => {
                 setEditing(null)
@@ -173,6 +177,7 @@ function AudienceFilterSummary({
     if (f.lastVisitWithinDays != null) chips.push(`Last visit ≤ ${f.lastVisitWithinDays}d`)
     if (f.hasOutstandingBalance) chips.push('Has balance')
     if (f.birthdayThisMonth) chips.push('Birthday this month')
+    if (f.tagIds?.length) chips.push(`${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}`)
     if (f.requireSmsOptIn) chips.push('SMS opt-in only')
     if (chips.length === 0) chips.push('All patients with email opt-in')
   } else {
@@ -452,10 +457,12 @@ const LAST_VISIT_OPTIONS = [
 
 function PatientAudienceEditor({
   audience,
+  tags,
   onClose,
   onSaved,
 }: {
   audience: AudienceRow | null
+  tags: PatientTagView[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -581,6 +588,16 @@ function PatientAudienceEditor({
             selected={filter.sources ?? []}
             onToggle={(v) => toggleInArray('sources', v)}
           />
+
+          {tags.length > 0 && (
+            <ChipRow
+              label="Tags"
+              help="Patients carrying ANY of the selected tags"
+              options={tags.map((t) => ({ key: t.id, label: t.name }))}
+              selected={filter.tagIds ?? []}
+              onToggle={(v) => toggleInArray('tagIds', v)}
+            />
+          )}
 
           <div>
             <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">

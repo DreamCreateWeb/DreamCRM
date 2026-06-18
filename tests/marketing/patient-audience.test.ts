@@ -95,4 +95,10 @@ describe('PatientAudienceFilter', () => {
     expect(today.birthdayThisMonth).toBeUndefined() // distinct toggles
     expect(today.requireEmailOptIn).toBe(true) // default
   })
+
+  it('accepts a tagIds list (tag targeting)', () => {
+    const tagged = PatientAudienceFilter.parse({ tagIds: ['ptag_a', 'ptag_b'] })
+    expect(tagged.tagIds).toEqual(['ptag_a', 'ptag_b'])
+    expect(tagged.requireEmailOptIn).toBe(true)
+  })
 })

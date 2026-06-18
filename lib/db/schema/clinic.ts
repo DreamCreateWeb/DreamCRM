@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, integer, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { pgTable, text, timestamp, integer, jsonb, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 
@@ -123,6 +124,48 @@ export const patientNote = pgTable(
     deletedAt: timestamp('deleted_at'),
   },
   (t) => [index('patient_note_patient_created_idx').on(t.patientId, t.createdAt)],
+)
+
+// Org-scoped tag catalog — reusable labels a clinic puts on patients
+// ("VIP", "Anxious", "Needs follow-up", "Pediatric"). CRM-side organization,
+// NOT clinical coding. `color` is one of a fixed tone palette
+// (lib/types/patient-tags.ts) so chips stay on-brand. Unique per org by
+// case-insensitive name so "VIP" and "vip" can't both exist.
+export const patientTag = pgTable(
+  'patient_tag',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color').notNull().default('gray'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('patient_tag_org_name_idx').on(t.organizationId, sql`lower(${t.name})`),
+  ],
+)
+
+// Many-to-many link between a patient and a tag. Composite PK (patientId, tagId)
+// makes a duplicate assignment impossible (idempotent assign via
+// onConflictDoNothing). organizationId is denormalized for fast scoped scans +
+// a defense-in-depth scope check; both FKs cascade so deleting a tag or a
+// patient cleans up its links.
+export const patientTagAssignment = pgTable(
+  'patient_tag_assignment',
+  {
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    tagId: text('tag_id').notNull().references(() => patientTag.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    assignedBy: text('assigned_by').references(() => user.id, { onDelete: 'set null' }),
+    assignedAt: timestamp('assigned_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.patientId, t.tagId] }),
+    index('patient_tag_assignment_tag_idx').on(t.tagId),
+    index('patient_tag_assignment_org_idx').on(t.organizationId),
+  ],
 )
 
 export const appointment = pgTable('appointment', {

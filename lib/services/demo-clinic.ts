@@ -23,6 +23,7 @@ import {
   type ClinicStaff,
 } from '@/lib/types/clinic-content'
 import { DEFAULT_VISIT_TYPES, OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
+import type { PatientTagColor } from '@/lib/types/patient-tags'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 
@@ -1239,6 +1240,49 @@ async function seedDemoAiUsage(orgId: string) {
     .onConflictDoNothing()
 }
 
+// Curated demo tags + which personas (by name) carry them — so the Patients
+// list chips, the detail tags editor, the tag filter, and the audience tag
+// picker all showcase populated state. Matched by name so it works for both a
+// fresh seed and a legacy self-heal (patient ids differ each seed).
+const DEMO_PATIENT_TAGS: Array<{ name: string; color: PatientTagColor; patients: Array<[string, string]> }> = [
+  { name: 'VIP', color: 'amber', patients: [['Mia', 'Hayes'], ['Sophia', 'Iverson']] },
+  { name: 'Anxious', color: 'rose', patients: [['Marcus', 'Johnson'], ['Noah', 'Mitchell']] },
+  { name: 'Needs follow-up', color: 'indigo', patients: [['Marcus', 'Johnson'], ['Aiden', 'Kim']] },
+  { name: 'Cosmetic interest', color: 'violet', patients: [['Liam', 'Brooks'], ['Charlotte', 'Diaz']] },
+]
+
+/**
+ * Seed the demo's patient tags + assignments. Idempotent: bails if the org has
+ * no patients (nothing to tag) or already has any tag. Patients are matched by
+ * name so the same call seeds a fresh demo and back-fills a legacy one.
+ */
+async function seedDemoPatientTags(orgId: string): Promise<void> {
+  const patients = await db
+    .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, orgId))
+  if (patients.length === 0) return
+  const [existing] = await db
+    .select({ id: schema.patientTag.id })
+    .from(schema.patientTag)
+    .where(eq(schema.patientTag.organizationId, orgId))
+    .limit(1)
+  if (existing) return
+
+  const idByName = new Map(patients.map((p) => [`${p.firstName} ${p.lastName}`, p.id]))
+  for (const t of DEMO_PATIENT_TAGS) {
+    const tagId = newId('ptag')
+    await db.insert(schema.patientTag).values({ id: tagId, organizationId: orgId, name: t.name, color: t.color })
+    const assignments = t.patients
+      .map(([f, l]) => idByName.get(`${f} ${l}`))
+      .filter((id): id is string => !!id)
+      .map((patientId) => ({ patientId, tagId, organizationId: orgId }))
+    if (assignments.length > 0) {
+      await db.insert(schema.patientTagAssignment).values(assignments).onConflictDoNothing()
+    }
+  }
+}
+
 /**
  * A SECOND (non-default) intake form so the demo exercises the "pick which
  * form" dropdown on the patient detail "Send intake" control — which only
@@ -2020,6 +2064,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // overrides so /analytics + /seo show real traffic on legacy demos.
     await seedDemoSiteAnalytics(existing.id)
 
+    // Patient tags self-heal: seed the curated tag catalog + assignments once
+    // (bails if any tag already exists, or if there are no patients). Matched by
+    // persona name so it back-fills legacy demos whose patient ids differ.
+    await seedDemoPatientTags(existing.id)
+
     // Referral partner self-heal: seed the demo MSP partner + attribution +
     // commission ledger so /partners populates on legacy demos. Idempotent;
     // never overwrites a real referral assignment. Runs LAST so its reads sit
@@ -2564,6 +2613,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Membership plans + members.
   await seedDemoMemberships(orgId, now, patientIds)
+
+  // Patient tags: a small curated catalog + assignments across the personas.
+  await seedDemoPatientTags(orgId)
 
   // ── Recall & Outreach — audiences + campaigns + events ──────────────
   // Seeded after patients/appointments so the audience filters resolve to
