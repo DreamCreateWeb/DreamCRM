@@ -66,6 +66,7 @@ JOBS=(
   "sync-gbp|sync-gbp|rate(1 hour)"
   "retention-automations|retention-automations|rate(1 day)"
   "followup-rules|followup-rules|rate(1 hour)"
+  "daily-digest|daily-digest|cron(0 13 * * ? *)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

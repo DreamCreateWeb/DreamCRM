@@ -22,6 +22,10 @@ const runFollowupRules = vi.fn(async () => ({ scanned: 0, created: 0, errors: []
 vi.mock('@/lib/services/followup-rules', () => ({
   runFollowupRules: () => runFollowupRules(),
 }))
+const runDailyDigest = vi.fn(async () => ({ scanned: 0, sent: 0, skippedEmpty: 0, skippedAlready: 0, errors: [] }))
+vi.mock('@/lib/services/daily-digest', () => ({
+  runDailyDigest: () => runDailyDigest(),
+}))
 
 const ROUTES = [
   '@/app/api/cron/pms-sync/route',
@@ -30,6 +34,7 @@ const ROUTES = [
   '@/app/api/cron/customize-services/route',
   '@/app/api/cron/retention-automations/route',
   '@/app/api/cron/followup-rules/route',
+  '@/app/api/cron/daily-digest/route',
 ] as const
 
 beforeEach(() => {

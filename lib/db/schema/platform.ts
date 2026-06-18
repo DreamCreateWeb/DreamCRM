@@ -197,6 +197,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   // null/absent = all off. Resolved with defaults in lib/types/followup-rules.ts.
   followupAutomation: jsonb('followup_automation'),
 
+  // Morning digest — when on, each staff member gets a daily email with their
+  // follow-ups due, visits to confirm, and new leads. Opt-in (default off).
+  dailyDigestEnabled: integer('daily_digest_enabled').notNull().default(0),
+
   // Public-website online self-scheduling switch. true (the default) = the
   // /book page shows the live slot picker and patients pick their own time.
   // false = the website's "Book a Visit" button leads to a request-only contact
