@@ -13,16 +13,10 @@
 // each of its top pages (the Settings → Search appearance panel).
 
 /** The set of public pages a clinic can override SEO copy for. Each maps to a
- *  page under app/site/[slug] whose generateMetadata threads resolveSeoMeta. */
-// NOTE (Wave 4 deferral): a `'dental-plans'` per-page Search-appearance key was
-// scoped here, but adding it cascades into the Settings → Search appearance
-// editor (app/(default)/settings/seo/seo-meta-form.tsx) which hardcodes a
-// `Record<SeoPageKey, …>` PAGE_PATH map + a `derivedFor` switch — both would
-// need a matching `dental-plans` arm. That editor was out of this wave's scope,
-// so /dental-plans keeps its own complete generateMetadata (canonical + OG +
-// Twitter + favicon) and simply isn't editable from the Search-appearance panel
-// yet. Add the key here + the two arms in seo-meta-form.tsx together when that
-// editor is next touched.
+ *  page under app/site/[slug] whose generateMetadata threads resolveSeoMeta.
+ *  Adding a key cascades into the Settings → Search appearance editor
+ *  (seo-meta-form.tsx: a `Record<SeoPageKey, …>` PAGE_PATH + a `derivedFor`
+ *  arm — both TS-enforced) and the target page's generateMetadata. */
 export const SEO_PAGE_KEYS = [
   'home',
   'about',
@@ -31,6 +25,7 @@ export const SEO_PAGE_KEYS = [
   'team',
   'insurance',
   'payment-financing',
+  'dental-plans',
   'faq',
   'careers',
   'blog-index',
@@ -60,6 +55,7 @@ export const SEO_PAGE_LABELS: Record<SeoPageKey, string> = {
   team: 'Our Team',
   insurance: 'Insurance',
   'payment-financing': 'Payment & Financing',
+  'dental-plans': 'Dental Plans',
   faq: 'FAQ',
   careers: 'Careers',
   'blog-index': 'Blog',

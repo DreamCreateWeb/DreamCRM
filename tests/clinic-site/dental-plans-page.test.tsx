@@ -97,7 +97,7 @@ vi.mock('@/lib/services/careers', () => ({
   getOpenJobs: vi.fn(async () => []),
 }))
 
-import DentalPlansPage from '@/app/site/[slug]/dental-plans/page'
+import DentalPlansPage, { generateMetadata } from '@/app/site/[slug]/dental-plans/page'
 import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
 
 function planRow(overrides: Partial<PlanRow> = {}): PlanRow {
@@ -165,5 +165,24 @@ describe('DentalPlansPage', () => {
     expect(screen.getAllByText(/No deductibles/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/No annual maximums/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/No claim forms/i).length).toBeGreaterThan(0)
+  })
+})
+
+describe('DentalPlansPage generateMetadata', () => {
+  const mockSite = (data: ClinicSiteData) =>
+    (getClinicSiteBySlug as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(data)
+
+  it('falls back to the derived title + description with no override', async () => {
+    mockSite(makeData())
+    const meta = await generateMetadata({ params: Promise.resolve({ slug: 'acme-dental' }) })
+    expect(meta.title).toBe('Dental Plans — Acme Dental')
+    expect(String(meta.description)).toContain('Join the Acme Dental dental plan')
+  })
+
+  it('honors a Search-appearance override (title only; description still derived)', async () => {
+    mockSite(makeData({ seoMeta: { 'dental-plans': { title: 'Our Membership Plan' } } } as Partial<ClinicSiteData['profile']>))
+    const meta = await generateMetadata({ params: Promise.resolve({ slug: 'acme-dental' }) })
+    expect(meta.title).toBe('Our Membership Plan')
+    expect(String(meta.description)).toContain('Join the Acme Dental dental plan')
   })
 })

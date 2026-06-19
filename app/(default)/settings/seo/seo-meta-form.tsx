@@ -38,6 +38,7 @@ const PAGE_PATH: Record<SeoPageKey, string> = {
   team: '/team',
   insurance: '/insurance',
   'payment-financing': '/payment-financing',
+  'dental-plans': '/dental-plans',
   faq: '/faq',
   careers: '/careers',
   'blog-index': '/blog',
@@ -89,6 +90,11 @@ function derivedFor(
       return {
         title: `Payment & Financing — ${name}`,
         description: `Payment methods, HSA / FSA, and financing options at ${name}. Honest billing — no silent surprises.`,
+      }
+    case 'dental-plans':
+      return {
+        title: `Dental Plans — ${name}`,
+        description: `No insurance? Join the ${name} dental plan — preventive care covered, savings on every treatment, no claims.`,
       }
     case 'faq':
       return { title: `FAQ — ${name}`, description: `Common questions answered for patients of ${name}.` }
