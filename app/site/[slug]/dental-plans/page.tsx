@@ -12,6 +12,7 @@ import { listActivePlans } from '@/lib/services/membership'
 import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { dentalPlansJsonLd } from '@/lib/clinic-site-jsonld'
+import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -59,11 +60,13 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/dental-plans`
-  // NOTE: not threaded through resolveSeoMeta — see the deferral note on
-  // SEO_PAGE_KEYS in lib/types/seo-meta.ts (the Search-appearance editor would
-  // need a matching arm). Standalone title/description below, complete OG/Twitter.
-  const title = `Dental Plans — ${name}`
-  const description = `No insurance? Join the ${name} dental plan — preventive care covered, savings on every treatment, no claims.`
+  // Clinic-editable search snippet (Settings → Search appearance), falling back
+  // to the derived default. Kept in lockstep with the 'dental-plans' arm of
+  // derivedFor() in seo-meta-form.tsx.
+  const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta)['dental-plans'], {
+    title: `Dental Plans — ${name}`,
+    description: `No insurance? Join the ${name} dental plan — preventive care covered, savings on every treatment, no claims.`,
+  })
   return {
     title,
     description,
