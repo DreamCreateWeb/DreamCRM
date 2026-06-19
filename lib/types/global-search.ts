@@ -8,6 +8,9 @@ export type SearchResultKind =
   | 'clinic'
   | 'page'
   | 'action'
+  | 'applicant'
+  | 'product'
+  | 'review'
 
 export interface SearchResult {
   id: string

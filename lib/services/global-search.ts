@@ -104,7 +104,7 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
 async function searchClinicEntities(orgId: string, q: string): Promise<SearchGroup[]> {
   const pattern = likePattern(q)
 
-  const [patients, leads, visits, threads, shopOrders] = await Promise.all([
+  const [patients, leads, visits, threads, shopOrders, applicants, products, reviews] = await Promise.all([
     db
       .select({
         id: schema.patient.id,
@@ -212,6 +212,43 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
       )
       .orderBy(desc(schema.shopOrder.createdAt))
       .limit(4),
+    // Job applicants — by name or email.
+    db
+      .select({
+        id: schema.jobApplication.id,
+        name: schema.jobApplication.name,
+        email: schema.jobApplication.email,
+        status: schema.jobApplication.status,
+      })
+      .from(schema.jobApplication)
+      .where(
+        and(
+          eq(schema.jobApplication.organizationId, orgId),
+          or(ilike(schema.jobApplication.name, pattern), ilike(schema.jobApplication.email, pattern)),
+        ),
+      )
+      .limit(4),
+    // Shop products — by name (the catalog).
+    db
+      .select({ id: schema.shopProduct.id, name: schema.shopProduct.name, status: schema.shopProduct.status })
+      .from(schema.shopProduct)
+      .where(and(eq(schema.shopProduct.organizationId, orgId), ilike(schema.shopProduct.name, pattern)))
+      .limit(4),
+    // Reviews received — by the reviewer's name or the review text.
+    db
+      .select({
+        id: schema.platformReview.id,
+        reviewerName: schema.platformReview.reviewerName,
+        comment: schema.platformReview.comment,
+      })
+      .from(schema.platformReview)
+      .where(
+        and(
+          eq(schema.platformReview.organizationId, orgId),
+          or(ilike(schema.platformReview.reviewerName, pattern), ilike(schema.platformReview.comment, pattern)),
+        ),
+      )
+      .limit(3),
   ])
 
   const fmtWhen = (d: Date) =>
@@ -281,6 +318,42 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
           kind: 'page',
         }
       }),
+    })
+  }
+  if (applicants.length > 0) {
+    groups.push({
+      label: 'Applicants',
+      results: applicants.map((a) => ({
+        id: `appl-${a.id}`,
+        label: a.name,
+        sublabel: a.email ? `${a.status} · ${a.email}` : a.status,
+        href: '/careers',
+        kind: 'applicant',
+      })),
+    })
+  }
+  if (products.length > 0) {
+    groups.push({
+      label: 'Products',
+      results: products.map((p) => ({
+        id: `prod-${p.id}`,
+        label: p.name,
+        sublabel: p.status === 'active' ? 'Live product' : p.status,
+        href: `/shop/products/${p.id}`,
+        kind: 'product',
+      })),
+    })
+  }
+  if (reviews.length > 0) {
+    groups.push({
+      label: 'Reviews',
+      results: reviews.map((r) => ({
+        id: `rev-${r.id}`,
+        label: r.reviewerName ?? 'Anonymous review',
+        sublabel: r.comment ? r.comment.slice(0, 60) : null,
+        href: '/reviews/received',
+        kind: 'review',
+      })),
     })
   }
   return groups
