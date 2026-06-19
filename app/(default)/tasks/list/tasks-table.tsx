@@ -16,6 +16,7 @@ import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from '@/lib/types/t
 import { moveTask, removeTasks } from '../actions'
 import DueDateChip from '../_components/due-date-chip'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 export interface TasksTableRow {
   id: number
@@ -51,6 +52,7 @@ const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
  */
 export default function TasksTable({ tasks }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const pathname = usePathname()
   const sp = useSearchParams()
   const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }])
@@ -197,9 +199,17 @@ export default function TasksTable({ tasks }: Props) {
     router.push(`${pathname}?${params.toString()}`, { scroll: false })
   }
 
-  function handleBulkDelete() {
+  async function handleBulkDelete() {
     if (!selectedCount) return
-    if (!confirm(`Delete ${selectedCount} task${selectedCount === 1 ? '' : 's'}? This cannot be undone.`)) return
+    if (
+      !(await confirm({
+        title: `Delete ${selectedCount} task${selectedCount === 1 ? '' : 's'}?`,
+        message: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       await removeTasks(selectedIds)
       setRowSelection({})

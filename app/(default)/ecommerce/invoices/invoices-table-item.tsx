@@ -4,6 +4,7 @@ import { useTransition } from 'react'
 import type { InvoiceRow } from './invoices-table'
 import { InvoicesProperties } from './invoices-properties'
 import { formatMoney } from '@/lib/utils'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { changeInvoiceStatus, removeInvoices } from './actions'
 
 interface InvoicesTableItemProps {
@@ -15,14 +16,15 @@ interface InvoicesTableItemProps {
 export default function InvoicesTableItem({ invoice, onCheckboxChange, isSelected }: InvoicesTableItemProps) {
   const { totalColor, statusColor, typeIcon } = InvoicesProperties()
   const [pending, startTransition] = useTransition()
+  const confirm = useConfirm()
 
   function handleMarkPaid() {
     startTransition(async () => {
       await changeInvoiceStatus(invoice.id, 'paid')
     })
   }
-  function handleDelete() {
-    if (!confirm(`Delete invoice ${invoice.invoice}?`)) return
+  async function handleDelete() {
+    if (!(await confirm({ title: `Delete invoice ${invoice.invoice}?`, confirmLabel: 'Delete', danger: true }))) return
     startTransition(async () => {
       await removeInvoices([invoice.id])
     })

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import Drawer from '@/components/ui/drawer'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { TASK_STATUSES, TASK_STATUS_LABEL, TASK_PRIORITIES } from '@/lib/types/tasks'
 import {
   addSubtaskAction,
@@ -46,6 +47,7 @@ const PRIORITY_DOT: Record<string, string> = {
  */
 export default function TaskDrawer({ task, onClose }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
   const [title, setTitle] = useState('')
   const [titleDirty, setTitleDirty] = useState(false)
@@ -97,8 +99,8 @@ export default function TaskDrawer({ task, onClose }: Props) {
     commit({ tags: t.tags.filter((t) => t !== tag) })
   }
 
-  function handleDelete() {
-    if (!confirm('Delete this task? This cannot be undone.')) return
+  async function handleDelete() {
+    if (!(await confirm({ title: 'Delete this task?', message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return
     startTransition(async () => {
       await removeTasks([id])
       onClose()

@@ -12,6 +12,7 @@ import {
 import type { AdminProduct } from '@/lib/services/stripe-admin'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 export default function PlansPanel({ products }: { products: AdminProduct[] }) {
   return (
@@ -41,9 +42,18 @@ export default function PlansPanel({ products }: { products: AdminProduct[] }) {
 function ProductRow({ product }: { product: AdminProduct }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
 
-  function handleArchiveProduct() {
-    if (!confirm(`Archive ${product.name}? Existing subscriptions keep running but no new ones can be created.`)) return
+  async function handleArchiveProduct() {
+    if (
+      !(await confirm({
+        title: `Archive ${product.name}?`,
+        message: 'Existing subscriptions keep running but no new ones can be created.',
+        confirmLabel: 'Archive',
+        danger: true,
+      }))
+    )
+      return
     setError(null)
     startTransition(async () => {
       try {

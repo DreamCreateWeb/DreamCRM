@@ -17,6 +17,7 @@ import { TONE_PILL, type Tone } from '@/lib/ui/encodings'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 const PRIMARY_STATUSES: AgencyProjectStatus[] = ['lead', 'discovery', 'in_progress', 'review', 'completed']
 const SIDE_STATUSES: AgencyProjectStatus[] = ['on_hold', 'cancelled']
@@ -223,6 +224,7 @@ function Column({ status, projects }: { status: AgencyProjectStatus; projects: P
 function ProjectCard({ project }: { project: PipelineProject }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const now = Date.now()
   const isOverdue = project.dueDate && new Date(project.dueDate).getTime() < now &&
@@ -241,8 +243,9 @@ function ProjectCard({ project }: { project: PipelineProject }) {
     })
   }
 
-  function handleDelete() {
-    if (!confirm(`Delete "${project.title}"? This cannot be undone.`)) return
+  async function handleDelete() {
+    if (!(await confirm({ title: `Delete “${project.title}”?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true })))
+      return
     setError(null)
     startTransition(async () => {
       try {

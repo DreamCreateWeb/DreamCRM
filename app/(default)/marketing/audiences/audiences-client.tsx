@@ -7,6 +7,7 @@ import type { AudienceFilterT, PatientAudienceFilterT } from '@/lib/services/mar
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
@@ -45,12 +46,21 @@ interface Props {
 
 export default function AudiencesClient({ initial, tenantType, stages, sources, tags, orgName, leadsLabel }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [editing, setEditing] = useState<AudienceRow | 'new' | null>(null)
   const [pending, startTransition] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
 
-  function handleDelete(id: number) {
-    if (!confirm('Delete this audience? Campaigns referencing it will lose their target list.')) return
+  async function handleDelete(id: number) {
+    if (
+      !(await confirm({
+        title: 'Delete this audience?',
+        message: 'Campaigns referencing it will lose their target list.',
+        confirmLabel: 'Delete',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       await deleteAudienceAction(id)
       setToast('Audience deleted.')

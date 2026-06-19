@@ -8,6 +8,8 @@ vi.mock('../../app/(default)/ecommerce/orders/pipeline-actions', () => ({
   deletePipelineProject: vi.fn(),
   createPipelineProject: vi.fn(),
 }))
+// Pass useConfirm() through (auto-confirm) — these tests render outside the provider.
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
 
 import PipelineBoard from '@/app/(default)/ecommerce/orders/pipeline-board'
 
