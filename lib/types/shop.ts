@@ -56,6 +56,46 @@ export interface ProductRow {
   totalInventory: number | null // null = any variant untracked
 }
 
+/** A variant at/below this many units counts as "low" (restock soon). */
+export const LOW_STOCK_THRESHOLD = 5
+
+export type StockState = 'ok' | 'low' | 'out' | 'untracked'
+
+/**
+ * Classify an ACTIVE product's stock from its tracked variants. Non-active
+ * products and any product with an untracked variant (null inventory =
+ * unlimited) are never flagged. 'out' = nothing buyable; 'low' = a variant
+ * at/below the threshold. Pure + client-safe.
+ */
+export function productStockState(
+  p: Pick<ProductRow, 'status' | 'variants'>,
+  threshold = LOW_STOCK_THRESHOLD,
+): StockState {
+  if (p.status !== 'active') return 'ok'
+  if (p.variants.length === 0 || p.variants.some((v) => v.inventoryQty == null)) return 'untracked'
+  const total = p.variants.reduce((s, v) => s + (v.inventoryQty ?? 0), 0)
+  if (total <= 0) return 'out'
+  const lowest = Math.min(...p.variants.map((v) => v.inventoryQty ?? 0))
+  return lowest <= threshold ? 'low' : 'ok'
+}
+
+/** Active products that are out of / low on stock — out-first, then lowest
+ *  remaining first — for the shop dashboard restock nudge. */
+export function lowStockProducts<T extends Pick<ProductRow, 'status' | 'variants'>>(
+  products: T[],
+  threshold = LOW_STOCK_THRESHOLD,
+): Array<{ product: T; state: 'out' | 'low'; lowestQty: number }> {
+  const rows: Array<{ product: T; state: 'out' | 'low'; lowestQty: number }> = []
+  for (const product of products) {
+    const state = productStockState(product, threshold)
+    if (state !== 'out' && state !== 'low') continue
+    const tracked = product.variants.map((v) => v.inventoryQty ?? 0)
+    rows.push({ product, state, lowestQty: tracked.length ? Math.min(...tracked) : 0 })
+  }
+  rows.sort((a, b) => (a.state !== b.state ? (a.state === 'out' ? -1 : 1) : a.lowestQty - b.lowestQty))
+  return rows
+}
+
 export interface ShopConfigView {
   stripeAccountStatus: StripeAccountStatus
   chargesEnabled: boolean
