@@ -42,13 +42,20 @@ export default async function MyDayPage() {
       />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         <KpiStat
           label="Follow-ups due"
           value={followupsDue}
           sub={data.followups.overdue > 0 ? `${data.followups.overdue} overdue` : 'overdue + today'}
           tone={followupsDue > 0 ? 'warn' : 'neutral'}
           href="/followups?mine=1"
+        />
+        <KpiStat
+          label="Need a text"
+          value={data.unconfirmedTodayCount}
+          sub="today, still unconfirmed"
+          tone={data.unconfirmedTodayCount > 0 ? 'warn' : 'neutral'}
+          href="/appointments?window=today&attention=unconfirmed"
         />
         <KpiStat
           label="My conversations"
@@ -62,6 +69,13 @@ export default async function MyDayPage() {
           value={data.todaysAppointments.length}
           sub="on the schedule"
           href="/appointments?window=today"
+        />
+        <KpiStat
+          label="Balances"
+          value={data.balances.count}
+          sub={data.balances.count > 0 ? `$${Math.round(data.balances.totalCents / 100).toLocaleString('en-US')} owed` : 'all paid up'}
+          tone={data.balances.count > 0 ? 'warn' : 'neutral'}
+          href="/patients?balance=1"
         />
         <KpiStat
           label="New leads"

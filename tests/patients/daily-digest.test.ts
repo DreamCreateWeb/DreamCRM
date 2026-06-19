@@ -15,12 +15,11 @@ function data(over: Partial<MyDayData> = {}): MyDayData {
     followups: { overdue: 0, today: 0, items: [] },
     conversations: [],
     todaysAppointments: [],
+    unconfirmedTodayCount: 0,
     newLeadsCount: 0,
+    balances: { count: 0, totalCents: 0 },
     ...over,
   }
-}
-function appt(status: string) {
-  return { id: 'a', status, startTime: new Date(), type: 'cleaning', patientName: 'X', patientId: 'p' } as never
 }
 function fu(title: string, dueDate: string | null) {
   return { id: 'f', patientId: 'p', patientName: 'Mia Hayes', title, dueDate, assignedUserId: null, assigneeName: null, status: 'open', createdByName: null, completedAt: null, createdAt: new Date() } as never
@@ -38,7 +37,7 @@ describe('buildDigestContent', () => {
     const c = buildDigestContent(
       data({
         followups: { overdue: 2, today: 1, items: [fu('Call Mia', '2026-06-15')] },
-        todaysAppointments: [appt('scheduled'), appt('confirmed')],
+        unconfirmedTodayCount: 1,
         newLeadsCount: 1,
       }),
       'Dream Dental',
@@ -47,8 +46,14 @@ describe('buildDigestContent', () => {
     expect(c.subject).toBe('Your day: 3 follow-ups, 1 to confirm, 1 new lead')
     expect(c.body).toContain('3 follow-ups due (2 overdue)')
     expect(c.body).toContain('Call Mia')
-    expect(c.body).toContain('1 visit') // unconfirmed = the one scheduled
+    expect(c.body).toContain('1 visit') // unconfirmed = the one still scheduled
     expect(c.body).toContain('1 new website lead')
+  })
+
+  it('includes a balances line and folds it into hasContent', () => {
+    const c = buildDigestContent(data({ balances: { count: 3, totalCents: 45000 } }), 'Dream Dental')
+    expect(c.hasContent).toBe(true)
+    expect(c.body).toContain('3 patients owe a balance ($450 total)')
   })
 
   it('does not add a greeting (the email shell adds it)', () => {

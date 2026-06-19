@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, count, eq } from 'drizzle-orm'
+import { and, count, eq, gt, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { listOpenFollowups, type PatientFollowupView } from '@/lib/services/patient-followups'
 import { listPatientThreads, type ThreadRow } from '@/lib/services/patient-messaging'
@@ -24,14 +24,19 @@ export interface MyDayData {
   conversations: ThreadRow[]
   /** Today's appointments (shared schedule context). */
   todaysAppointments: AppointmentRow[]
+  /** Today's visits still on `scheduled` — a confirmation text still needs to
+   *  go out (a subset of todaysAppointments, surfaced as its own number). */
+  unconfirmedTodayCount: number
   /** New website leads waiting on the team (shared). */
   newLeadsCount: number
+  /** Patients carrying an outstanding PMS balance (shared collections nudge). */
+  balances: { count: number; totalCents: number }
 }
 
 export async function getMyDay(organizationId: string, userId: string): Promise<MyDayData> {
   const today = todayYmd()
 
-  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow] = await Promise.all([
+  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow] = await Promise.all([
     listOpenFollowups(organizationId, { assignedTo: userId }),
     listOpenFollowups(organizationId, { assignedTo: 'unassigned' }),
     listPatientThreads(organizationId, userId, { status: 'open', assignedTo: 'me' }),
@@ -40,6 +45,19 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
       .select({ n: count() })
       .from(schema.lead)
       .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.status, 'new'))),
+    db
+      .select({
+        n: count(),
+        total: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::bigint`,
+      })
+      .from(schema.patient)
+      .where(
+        and(
+          eq(schema.patient.organizationId, organizationId),
+          eq(schema.patient.isActive, 1),
+          gt(schema.patient.pmsBalanceCents, 0),
+        ),
+      ),
   ])
 
   // Merge my + unclaimed follow-ups (disjoint sets), soonest-due first.
@@ -56,10 +74,17 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
     else if (s === 'today') dueToday++
   }
 
+  const unconfirmedTodayCount = todaysAppointments.filter((a) => a.status === 'scheduled').length
+
   return {
     followups: { overdue, today: dueToday, items: items.slice(0, 30) },
     conversations: conversations.slice(0, 8),
     todaysAppointments: todaysAppointments.slice(0, 30),
+    unconfirmedTodayCount,
     newLeadsCount: Number(leadCountRow[0]?.n ?? 0),
+    balances: {
+      count: Number(balanceRow[0]?.n ?? 0),
+      totalCents: Number(balanceRow[0]?.total ?? 0),
+    },
   }
 }
