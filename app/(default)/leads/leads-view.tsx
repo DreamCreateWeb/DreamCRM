@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus, LeadCounts } from '@/lib/services/leads'
 import { PageHeader } from '@/components/ui/page-header'
+import { ActionButton } from '@/components/ui/action-button'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -114,6 +115,15 @@ export default function LeadsView({
 
   const openRow = useMemo(() => rows.find((r) => r.id === openId) ?? null, [rows, openId])
 
+  // Export the current view — same status + search the table is showing.
+  const exportHref = useMemo(() => {
+    const p = new URLSearchParams()
+    if (status && status !== 'new') p.set('status', status)
+    if (search) p.set('q', search)
+    const qs = p.toString()
+    return qs ? `/leads/export?${qs}` : '/leads/export'
+  }, [status, search])
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       {/* ── Header — this page IS the queue, so no fabricated primary; the
@@ -131,6 +141,13 @@ export default function LeadsView({
               meaning: STATUS_PILL_MEANING[s],
             }))}
           />
+        }
+        actions={
+          counts.total > 0 ? (
+            <ActionButton variant="ghost" href={exportHref} target="_blank">
+              Export CSV
+            </ActionButton>
+          ) : undefined
         }
       />
 
