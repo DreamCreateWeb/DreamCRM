@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
+import { FieldError } from '@/components/ui/field-error'
+import { validateRequired, validateEmail, validatePhone } from '@/lib/validation'
 
 interface Props {
   /** Public slug — the action resolves the org from it server-side (never a
@@ -37,6 +39,7 @@ interface Props {
 export default function InsuranceVerifierForm({ slug, brand, carriers, services, fields }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
   const serviceList = (services ?? []).filter((s) => s.trim().length > 0)
@@ -75,10 +78,25 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setStatus('pending')
     setErrorMsg('')
     const fd = new FormData(e.currentTarget)
     fd.set('slug', slug)
+    // Inline field validation before the round-trip (form is noValidate).
+    const errs: Record<string, string> = {}
+    for (const f of formFields) {
+      const val = String(fd.get(f.id) ?? '')
+      let msg: string | null = null
+      if (f.required) msg = validateRequired(val, f.label)
+      if (!msg && val && f.type === 'email') msg = validateEmail(val)
+      if (!msg && val && f.type === 'tel') msg = validatePhone(val)
+      if (msg) errs[f.id] = msg
+    }
+    setFieldErrors(errs)
+    if (Object.keys(errs).length > 0) {
+      setStatus('idle')
+      return
+    }
+    setStatus('pending')
     const result = await submitInsuranceVerifyRequest(fd)
     if (result.ok) {
       setStatus('success')
@@ -115,6 +133,8 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
             name={f.id}
             defaultValue=""
             required={f.required}
+            aria-invalid={!!fieldErrors[f.id]}
+            aria-describedby={fieldErrors[f.id] ? `err-iv-${f.id}` : undefined}
             className={inputClass}
             style={{ appearance: 'auto' }}
           >
@@ -129,6 +149,7 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
             ))}
             {f.dynamicOptions && <option value="__other__">Other / not listed</option>}
           </select>
+          <FieldError id={`err-iv-${f.id}`} message={fieldErrors[f.id]} />
         </div>
       )
     }
@@ -142,10 +163,13 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
             id={`iv-${f.id}`}
             name={f.id}
             required={f.required}
+            aria-invalid={!!fieldErrors[f.id]}
+            aria-describedby={fieldErrors[f.id] ? `err-iv-${f.id}` : undefined}
             placeholder={placeholder}
             rows={3}
             className={`${inputClass} rounded-2xl`}
           />
+          <FieldError id={`err-iv-${f.id}`} message={fieldErrors[f.id]} />
         </div>
       )
     }
@@ -169,15 +193,18 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
           inputMode={f.type === 'tel' ? 'tel' : f.type === 'email' ? 'email' : undefined}
           autoComplete={f.type === 'tel' ? 'tel' : f.type === 'email' ? 'email' : undefined}
           required={f.required}
+          aria-invalid={!!fieldErrors[f.id]}
+          aria-describedby={fieldErrors[f.id] ? `err-iv-${f.id}` : undefined}
           placeholder={placeholder}
           className={inputClass}
         />
+        <FieldError id={`err-iv-${f.id}`} message={fieldErrors[f.id]} />
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} noValidate className="space-y-3">
       <FormTrustFields />
       {formFields.map(renderField)}
 
