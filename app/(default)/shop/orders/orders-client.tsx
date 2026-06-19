@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useOptimistic, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   formatCents,
@@ -63,6 +63,9 @@ const PILL_LEGEND: PillLegendRow[] = [
 /** The status chips the orders page offers (a subset of OrderStatus + "all"). */
 export type OrdersFilter = OrderStatus | 'all'
 
+// Stable empty base for the optimistic fulfillment map (useOptimistic resets to it).
+const EMPTY_FULFILLMENT: Record<string, FulfillmentStatus> = {}
+
 export default function OrdersClient({
   orders,
   orgName = 'Your clinic',
@@ -81,6 +84,11 @@ export default function OrdersClient({
   const [filter, setFilter] = useState<OrdersFilter>(initialFilter)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  // Fulfillment status flips instantly; the action + revalidation catch up.
+  const [optimisticFulfillment, setOptimisticFulfillment] = useOptimistic<
+    Record<string, FulfillmentStatus>,
+    { id: string; status: FulfillmentStatus }
+  >(EMPTY_FULFILLMENT, (current, { id, status }) => ({ ...current, [id]: status }))
 
   function run(fn: () => Promise<unknown>, done?: string) {
     startTransition(async () => {
@@ -88,6 +96,17 @@ export default function OrdersClient({
       if (done) setToast(done)
       router.refresh()
     })
+  }
+
+  function changeFulfillment(o: OrderRow, next: FulfillmentStatus, label: string) {
+    // Tracking prompt stays synchronous + up front (pre-existing); the optimistic
+    // flip + action then run together in the transition.
+    const tracking =
+      next === 'shipped' ? window.prompt('Tracking number (optional):')?.trim() || undefined : undefined
+    run(async () => {
+      setOptimisticFulfillment({ id: o.id, status: next })
+      await setOrderFulfillmentAction(o.id, next, tracking)
+    }, `Marked ${label}.`)
   }
 
   // Search across patient name / order name / order email / product names.
@@ -172,10 +191,10 @@ export default function OrdersClient({
                     </span>
                     {o.status === 'paid' && (
                       <StatusPill
-                        tone={FULFILLMENT_TONE[o.fulfillmentStatus]}
-                        label={FULFILLMENT_STATUS_LABELS[o.fulfillmentStatus]}
+                        tone={FULFILLMENT_TONE[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)]}
+                        label={FULFILLMENT_STATUS_LABELS[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)]}
                         title={
-                          o.fulfillmentStatus === 'unfulfilled'
+                          (optimisticFulfillment[o.id] ?? o.fulfillmentStatus) === 'unfulfilled'
                             ? 'Your move — mark it ready or shipped'
                             : undefined
                         }
@@ -211,9 +230,9 @@ export default function OrdersClient({
                   </p>
                 </div>
               </div>
-              {o.status === 'paid' && NEXT_STEPS[o.fulfillmentStatus].length > 0 && (
+              {o.status === 'paid' && NEXT_STEPS[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)].length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
-                  {NEXT_STEPS[o.fulfillmentStatus].map((s, i) => {
+                  {NEXT_STEPS[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)].map((s, i) => {
                     // One primary per row — the most likely next move leads;
                     // the alternate (e.g. "Mark shipped" vs "Mark ready") is secondary.
                     const statusLabel = FULFILLMENT_STATUS_LABELS[s].toLowerCase()
@@ -223,17 +242,7 @@ export default function OrdersClient({
                         variant={i === 0 ? 'primary' : 'secondary'}
                         size="sm"
                         disabled={isPending}
-                        onClick={() =>
-                          run(async () => {
-                            // Collect a tracking number when shipping — the action +
-                            // column already support it; the UI just asks here.
-                            const tracking =
-                              s === 'shipped'
-                                ? window.prompt('Tracking number (optional):')?.trim() || undefined
-                                : undefined
-                            await setOrderFulfillmentAction(o.id, s, tracking)
-                          }, `Marked ${statusLabel}.`)
-                        }
+                        onClick={() => changeFulfillment(o, s, statusLabel)}
                       >
                         Mark {statusLabel}
                       </ActionButton>
