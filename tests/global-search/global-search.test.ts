@@ -15,10 +15,11 @@ const state = {
   threads: [] as Array<Record<string, unknown>>,
   clinics: [] as Array<Record<string, unknown>>,
   shopOrders: [] as Array<Record<string, unknown>>,
+  savedViews: [] as Array<Record<string, unknown>>,
 }
 
 vi.mock('@/lib/db', async () => {
-  const { patient, lead, appointment, patientThread, shopOrder } = await import('@/lib/db/schema/clinic')
+  const { patient, lead, appointment, patientThread, shopOrder, patientView } = await import('@/lib/db/schema/clinic')
   const { organization } = await import('@/lib/db/schema/auth')
   const schema = await import('@/lib/db/schema')
 
@@ -29,6 +30,7 @@ vi.mock('@/lib/db', async () => {
     if (table === patientThread) return state.threads
     if (table === organization) return state.clinics
     if (table === shopOrder) return state.shopOrders
+    if (table === patientView) return state.savedViews
     return []
   }
 
@@ -74,6 +76,7 @@ beforeEach(() => {
   state.threads = []
   state.clinics = []
   state.shopOrders = []
+  state.savedViews = []
 })
 
 describe('likePattern', () => {
@@ -99,6 +102,22 @@ describe('globalSearch — launcher view (empty query)', () => {
     expect(ids).not.toContain('act-add-patient')
     expect(ids).not.toContain('act-agenda-today')
     expect(ids).toContain('act-edit-site')
+  })
+
+  it('surfaces saved views as one-click launches', async () => {
+    state.savedViews = [{ id: 'pview_1', name: 'No-shows', filters: { status: 'inactive' }, createdByName: null }]
+    const groups = await globalSearch(ctx(), '')
+    const views = groups.find((g) => g.label === 'Saved views')
+    expect(views).toBeTruthy()
+    const patView = views!.results.find((r) => r.href.startsWith('/patients'))
+    expect(patView?.label).toBe('No-shows')
+    expect(patView?.href).toBe('/patients?status=inactive')
+  })
+
+  it('omits the Saved views group when the clinic has none', async () => {
+    state.savedViews = []
+    const groups = await globalSearch(ctx(), '')
+    expect(groups.find((g) => g.label === 'Saved views')).toBeUndefined()
   })
 
   it('platform tenant gets pages but no clinic quick actions', async () => {

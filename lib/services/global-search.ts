@@ -3,6 +3,9 @@ import { and, desc, eq, gte, ilike, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { applyBundleGate, getVisibleModules } from '@/lib/modules'
 import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
+import { listSavedViews } from '@/lib/services/saved-views'
+import { viewFiltersToQuery, type SavedViewFilters } from '@/lib/types/patient-views'
+import { normalizeAppointmentViewFilters, appointmentViewFiltersToQuery } from '@/lib/types/appointment-views'
 import type { BundleId } from '@/lib/integrations/bundles'
 import type { TenantContext } from '@/lib/auth/context'
 import type { SearchGroup, SearchResult } from '@/lib/types/global-search'
@@ -44,6 +47,38 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     { id: 'page-settings-apps', label: 'Connected accounts', sublabel: 'Settings', href: '/settings/apps', kind: 'page' },
   ]
   return [...modules, ...settingsPages]
+}
+
+/** The clinic's saved list views as one-click launches — "jump to No-shows"
+ *  straight from ⌘K. Patients + appointments segments, mapped to their list
+ *  query string so they reopen exactly where the saved-views bar would. */
+async function savedViewResults(organizationId: string): Promise<SearchResult[]> {
+  const [patientViews, apptViews] = await Promise.all([
+    listSavedViews(organizationId, 'patients'),
+    listSavedViews(organizationId, 'appointments'),
+  ])
+  const out: SearchResult[] = []
+  for (const v of patientViews) {
+    const qs = viewFiltersToQuery(v.filters as SavedViewFilters)
+    out.push({
+      id: `view-pat-${v.id}`,
+      label: v.name,
+      sublabel: 'Patients view',
+      href: qs ? `/patients?${qs}` : '/patients',
+      kind: 'action',
+    })
+  }
+  for (const v of apptViews) {
+    const qs = appointmentViewFiltersToQuery(normalizeAppointmentViewFilters(v.filters))
+    out.push({
+      id: `view-appt-${v.id}`,
+      label: v.name,
+      sublabel: 'Appointments view',
+      href: qs ? `/appointments?${qs}` : '/appointments',
+      kind: 'action',
+    })
+  }
+  return out.slice(0, 6)
 }
 
 /** Quick actions surfaced when the palette is empty (and matched by text). */
@@ -281,11 +316,15 @@ export async function globalSearch(ctx: TenantContext, rawQuery: string): Promis
   const activeBundles: ReadonlySet<BundleId> =
     ctx.tenantType === 'clinic' ? await getActiveBundlesForSidebar(ctx.organizationId) : new Set<BundleId>()
 
-  // Empty query → the launcher view: quick actions + the page index.
+  // Empty query → the launcher view: quick actions + saved views + the page index.
   if (q.length === 0) {
     const groups: SearchGroup[] = []
     const actions = quickActions(ctx, activeBundles)
     if (actions.length > 0) groups.push({ label: 'Quick actions', results: actions })
+    if (ctx.tenantType === 'clinic') {
+      const views = await savedViewResults(ctx.organizationId)
+      if (views.length > 0) groups.push({ label: 'Saved views', results: views })
+    }
     groups.push({ label: 'Go to', results: pageIndex(ctx, activeBundles).slice(0, 8) })
     return groups
   }
