@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useOptimistic, useState, useTransition } from 'react'
 import type {
   AppointmentRow,
   AppointmentDayGroup,
@@ -151,6 +151,9 @@ function emptyCopy(filters: AppointmentListFilters): { icon: string; title: stri
   return { icon: '📅', title: 'No appointments in this window.', body: 'Try a wider date range, or share your booking link.' }
 }
 
+// Stable empty base for the optimistic-confirmed set (useOptimistic resets to it).
+const EMPTY_CONFIRMED: Set<string> = new Set()
+
 export default function AgendaView({
   groups,
   meta,
@@ -173,7 +176,12 @@ export default function AgendaView({
   const [newBookingOpen, setNewBookingOpen] = useState(() => params.get('new') === '1')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
-  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  // Optimistically mark a row confirmed the instant you click — the action +
+  // revalidation catch up behind it (front desk confirms all day; the wait felt slow).
+  const [optimisticConfirmed, addOptimisticConfirmed] = useOptimistic<Set<string>, string>(
+    EMPTY_CONFIRMED,
+    (current, id) => new Set(current).add(id),
+  )
   const [_pending, startTransition] = useTransition()
   const [bulkPending, startBulk] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
@@ -227,10 +235,9 @@ export default function AgendaView({
 
   function onConfirm(id: string, e: React.MouseEvent) {
     e.stopPropagation()
-    setConfirmingId(id)
     startTransition(async () => {
+      addOptimisticConfirmed(id)
       await confirmAppointmentAction(id)
-      setConfirmingId(null)
     })
   }
 
@@ -421,7 +428,7 @@ export default function AgendaView({
               onToggleRow={toggleRow}
               onOpen={(id) => setOpenDetail(id)}
               onConfirm={onConfirm}
-              confirmingId={confirmingId}
+              optimisticConfirmed={optimisticConfirmed}
             />
           ))}
         </div>
@@ -466,7 +473,7 @@ function DaySection({
   onToggleRow,
   onOpen,
   onConfirm,
-  confirmingId,
+  optimisticConfirmed,
 }: {
   group: AppointmentDayGroup
   selected: Set<string>
@@ -474,10 +481,12 @@ function DaySection({
   onToggleRow: (id: string) => void
   onOpen: (id: string) => void
   onConfirm: (id: string, e: React.MouseEvent) => void
-  confirmingId: string | null
+  optimisticConfirmed: Set<string>
 }) {
   const allSelected = group.rows.length > 0 && group.rows.every((r) => selected.has(r.id))
-  const stillUnconfirmed = group.rows.filter((r) => r.status === 'scheduled').length
+  const stillUnconfirmed = group.rows.filter(
+    (r) => r.status === 'scheduled' && !optimisticConfirmed.has(r.id),
+  ).length
   return (
     <section>
       <div className="sticky top-0 z-10 bg-[color:var(--color-surface-sunk)]/95 backdrop-blur px-4 py-2 mb-2 rounded-[var(--r-md)] ring-1 ring-inset ring-[color:var(--color-hairline)] flex items-center gap-3">
@@ -504,7 +513,7 @@ function DaySection({
             onToggle={() => onToggleRow(r.id)}
             onOpen={() => onOpen(r.id)}
             onConfirm={(e) => onConfirm(r.id, e)}
-            confirming={confirmingId === r.id}
+            confirmedOptimistic={optimisticConfirmed.has(r.id)}
           />
         ))}
       </ul>
@@ -518,16 +527,18 @@ function AppointmentRowCard({
   onToggle,
   onOpen,
   onConfirm,
-  confirming,
+  confirmedOptimistic,
 }: {
   row: AppointmentRow
   selected: boolean
   onToggle: () => void
   onOpen: () => void
   onConfirm: (e: React.MouseEvent) => void
-  confirming: boolean
+  confirmedOptimistic: boolean
 }) {
   const typeLabel = row.type.replace(/_/g, ' ')
+  // Reflect an in-flight confirm immediately (the button hides, the pill flips).
+  const status = confirmedOptimistic && row.status === 'scheduled' ? 'confirmed' : row.status
   return (
     <li
       onClick={onOpen}
@@ -582,19 +593,18 @@ function AppointmentRowCard({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {row.status === 'scheduled' && (
+          {status === 'scheduled' && (
             <ActionButton
               variant="secondary"
               size="sm"
               onClick={onConfirm}
-              disabled={confirming}
               title="Mark as confirmed (manual override)"
             >
-              {confirming ? '…' : 'Confirm'}
+              Confirm
             </ActionButton>
           )}
-          <StatusPill tone={STATUS_TONE[row.status]} title={STATUS_TITLE[row.status]}>
-            {STATUS_LABEL[row.status]}
+          <StatusPill tone={STATUS_TONE[status]} title={STATUS_TITLE[status]}>
+            {STATUS_LABEL[status]}
           </StatusPill>
           {row.needsRebooking && (
             <StatusPill tone="warn" title="Cancelled / no-show with nothing booked ahead — open this row to rebook">
