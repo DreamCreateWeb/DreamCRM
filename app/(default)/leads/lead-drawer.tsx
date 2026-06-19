@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus } from '@/lib/services/leads'
 import { ActionButton } from '@/components/ui/action-button'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { Tone } from '@/lib/ui/encodings'
@@ -51,6 +52,8 @@ export default function LeadDrawer({
   onClose: () => void
 }) {
   const router = useRouter()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, dialogRef, {}) // keeps the component's own Escape handler
   const [pending, startTransition] = useTransition()
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
@@ -167,6 +170,7 @@ export default function LeadDrawer({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Lead"

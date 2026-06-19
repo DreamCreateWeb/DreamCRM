@@ -1,8 +1,9 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { BookingSlot } from '@/lib/services/booking'
 import {
   createInternalAppointmentAction,
@@ -43,6 +44,8 @@ export default function BookFromPatientDrawer({
   onClose: () => void
 }) {
   const router = useRouter()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, dialogRef, { onEscape: onClose })
   const [dateStr, setDateStr] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 1)
@@ -160,7 +163,7 @@ export default function BookFromPatientDrawer({
   const availableSlots = slots.filter((s) => s.available)
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Book appointment" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Book appointment" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
       <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md flex flex-col max-h-[92vh]">
         <div className="px-6 py-5 border-b border-[color:var(--color-hairline)]">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Book appointment</h2>

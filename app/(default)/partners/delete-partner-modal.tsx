@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { moneyExact, moneyFromCents, type PartnerDeleteDisposition } from '@/lib/types/referrals'
 import {
@@ -51,6 +52,8 @@ export default function DeletePartnerModal({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(open, dialogRef, {}) // keeps the component's own Escape handler
   const [disposition, setDisposition] = useState<PartnerDeleteDisposition | null>(null)
   const [loading, setLoading] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -146,6 +149,7 @@ export default function DeletePartnerModal({
 
       {open && (
         <div
+          ref={dialogRef}
           className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"

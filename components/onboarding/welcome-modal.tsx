@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useCallback, useRef, useState, useTransition } from 'react'
 import { markWelcomeSeenAction } from '@/app/(default)/dashboard/onboarding-actions'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 /**
  * First-run welcome for clinic staff — one warm screen that explains how
@@ -21,19 +22,23 @@ const SECTIONS: Array<{ name: string; blurb: string; tint: string }> = [
 export default function WelcomeModal({ clinicName }: { clinicName: string }) {
   const [open, setOpen] = useState(true)
   const [pending, startTransition] = useTransition()
+  const dialogRef = useRef<HTMLDivElement>(null)
 
-  if (!open) return null
-
-  const close = () => {
+  const close = useCallback(() => {
     // Optimistic: hide immediately, persist in the background.
     setOpen(false)
     startTransition(async () => {
       await markWelcomeSeenAction()
     })
-  }
+  }, [])
+
+  useFocusTrap(open, dialogRef, { onEscape: close })
+
+  if (!open) return null
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={`Welcome to ${clinicName}'s dashboard`}
