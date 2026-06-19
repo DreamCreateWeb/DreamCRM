@@ -6,6 +6,7 @@ import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/re
 import { globalSearchAction } from '@/app/(default)/search/actions'
 import { createFollowupAction } from '@/app/(default)/patients/actions'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
+import PatientTagControl from '@/components/tags/patient-tag-control'
 import type { SearchGroup, SearchResult, SearchResultKind } from '@/lib/types/global-search'
 
 /**
@@ -46,9 +47,11 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
   const [groups, setGroups] = useState<SearchGroup[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
   const [pending, startTransition] = useTransition()
-  // Composer sub-mode: when set, the palette body swaps to "new follow-up for
-  // {patient}" instead of the results list. `flash` confirms the last add.
+  // Sub-modes: when set, the palette body swaps to a focused composer for one
+  // patient (a new follow-up, or the tag editor) instead of the results list.
+  // `flash` confirms the last action back on the results view.
   const [composer, setComposer] = useState<{ patientId: string; firstName: string } | null>(null)
+  const [tagTarget, setTagTarget] = useState<{ patientId: string; firstName: string } | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   const requestSeq = useRef(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -75,6 +78,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
     if (!isOpen) return
     setQuery('')
     setComposer(null)
+    setTagTarget(null)
     setFlash(null)
     runSearch('')
   }, [isOpen, runSearch])
@@ -94,8 +98,8 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
   )
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    // The composer owns its own inputs; don't run list nav underneath it.
-    if (composer) return
+    // A sub-mode owns its own inputs; don't run list nav underneath it.
+    if (composer || tagTarget) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActiveIdx((i) => Math.min(i + 1, flat.length - 1))
@@ -150,7 +154,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                   onChange={(e) => onQueryChange(e.target.value)}
                   onKeyDown={onKeyDown}
                   autoComplete="off"
-                  disabled={!!composer}
+                  disabled={!!composer || !!tagTarget}
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                 />
@@ -167,7 +171,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
             </div>
 
             <div className="px-2 py-4">
-              {flash && !composer && (
+              {flash && !composer && !tagTarget && (
                 <div className="mx-1 mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
                   ✓ {flash}
                 </div>
@@ -178,6 +182,12 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                   firstName={composer.firstName}
                   onCancel={() => setComposer(null)}
                   onDone={(msg) => { setComposer(null); setFlash(msg) }}
+                />
+              ) : tagTarget ? (
+                <TagSubview
+                  patientId={tagTarget.patientId}
+                  firstName={tagTarget.firstName}
+                  onBack={() => setTagTarget(null)}
                 />
               ) : groups.length === 0 ? (
                 <p className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -231,14 +241,24 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                               )}
                             </button>
                             {patientTarget && (
-                              <button
-                                type="button"
-                                onClick={() => { setFlash(null); setComposer(patientTarget) }}
-                                title={`Add a follow-up for ${patientTarget.firstName}`}
-                                className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-500/10 dark:text-teal-400"
-                              >
-                                ＋ Follow-up
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => { setFlash(null); setTagTarget(patientTarget) }}
+                                  title={`Tag ${patientTarget.firstName}`}
+                                  className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-500/10 dark:text-teal-400"
+                                >
+                                  🏷 Tag
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setFlash(null); setComposer(patientTarget) }}
+                                  title={`Add a follow-up for ${patientTarget.firstName}`}
+                                  className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-500/10 dark:text-teal-400"
+                                >
+                                  ＋ Follow-up
+                                </button>
+                              </>
                             )}
                           </li>
                         )
@@ -328,6 +348,38 @@ function FollowupComposer({
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+    </div>
+  )
+}
+
+/**
+ * The palette's "tag {patient}" sub-mode — reached by the 🏷 Tag affordance on
+ * a patient result. Reuses PatientTagControl (lazy catalog + find-or-create) so
+ * applying a tag from search behaves exactly like the patient page; the tag
+ * flows into the same targeting loop (view → audience → campaign).
+ */
+function TagSubview({
+  patientId,
+  firstName,
+  onBack,
+}: {
+  patientId: string
+  firstName: string
+  onBack: () => void
+}) {
+  return (
+    <div className="px-1 py-1">
+      <button
+        type="button"
+        onClick={onBack}
+        className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+      >
+        ← Back to results
+      </button>
+      <h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+        Tag {firstName}
+      </h3>
+      <PatientTagControl patientId={patientId} initialTags={[]} size="sm" />
     </div>
   )
 }
