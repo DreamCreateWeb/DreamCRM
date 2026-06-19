@@ -3,6 +3,7 @@
 import { randomUUID } from 'crypto'
 import { eq, and, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { rateLimitPublicAction } from '@/lib/services/rate-limit'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
@@ -23,6 +24,9 @@ export async function submitContactRequest(formData: FormData) {
   // Silent spam drop — a filled honeypot or instant submit returns the normal
   // success shape (no throw) without persisting anything, so bots get no signal.
   if (looksLikeBot(formData)) return
+  // Per-IP rate limit (same silent-drop shape as the honeypot, so a flood gets
+  // no signal). Generous for a real person; tight on a script.
+  if (!(await rateLimitPublicAction('contact'))) return
 
   // Resolve the org from the PUBLIC slug, never a client-posted orgId — a
   // submission can only ever target the real clinic whose page it came from.
@@ -159,6 +163,7 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
   // Silent spam drop — a filled honeypot / instant submit returns the normal
   // success shape (no throw) without persisting anything, so bots get no signal.
   if (looksLikeBot(formData)) return
+  if (!(await rateLimitPublicAction('booking', { limit: 6 }))) return
 
   const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
   if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')

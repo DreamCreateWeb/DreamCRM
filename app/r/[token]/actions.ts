@@ -10,6 +10,7 @@ import {
   type ReviewSite,
 } from '@/lib/services/reviews'
 import { looksLikeBot } from '@/lib/form-trust'
+import { rateLimitPublicAction } from '@/lib/services/rate-limit'
 
 /**
  * PRIMARY completion path — patient wrote their review on /r/<token> and
@@ -25,6 +26,8 @@ export async function submitReviewAction(
   // defense-in-depth). A filled honeypot / instant submit returns success
   // without persisting.
   if (looksLikeBot(formData)) return { ok: true }
+  if (!(await rateLimitPublicAction('review')))
+    return { ok: false, error: 'Too many attempts. Please wait a moment and try again.' }
   const text = (formData.get('reviewText')?.toString() ?? '').trim()
   const ratingRaw = formData.get('rating')?.toString()
   const rating = ratingRaw ? Number(ratingRaw) : null
