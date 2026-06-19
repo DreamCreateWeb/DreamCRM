@@ -87,6 +87,9 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
             ilike(sql`${schema.patient.firstName} || ' ' || ${schema.patient.lastName}`, pattern),
             ilike(schema.patient.email, pattern),
             ilike(schema.patient.phone, pattern),
+            // …or the patient carries a tag whose name matches (search by tag —
+            // "vip", "anxious" surfaces everyone you've labelled that way).
+            sql`exists (select 1 from ${schema.patientTagAssignment} ta join ${schema.patientTag} tg on tg.id = ta.tag_id where ta.patient_id = ${schema.patient.id} and ta.organization_id = ${orgId} and tg.name ilike ${pattern})`,
           ),
         ),
       )
