@@ -81,7 +81,7 @@ export default async function MyDayPage() {
               Open list →
             </Link>
           </div>
-          <MyDayFollowups initial={data.followups.items} />
+          <MyDayFollowups initial={data.followups.items} currentUserId={ctx.userId} />
         </section>
 
         <div className="space-y-4">
