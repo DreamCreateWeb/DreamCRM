@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { syncZernioAccountsAction, disconnectChannelAction } from '../actions'
 
 /**
@@ -20,6 +21,7 @@ export default function GbpDetailControls({
   configured: boolean
 }) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const awaitingConnect = useRef(false)
@@ -33,8 +35,16 @@ export default function GbpDetailControls({
     })
   }
 
-  function disconnect() {
-    if (!confirm('Disconnect Google Business? Your reviews, hours, and metrics will stop syncing.')) return
+  async function disconnect() {
+    if (
+      !(await confirm({
+        title: 'Disconnect Google Business?',
+        message: 'Your reviews, hours, and metrics will stop syncing.',
+        confirmLabel: 'Disconnect',
+        danger: true,
+      }))
+    )
+      return
     setError(null)
     start(async () => {
       const r = await disconnectChannelAction('googlebusiness')

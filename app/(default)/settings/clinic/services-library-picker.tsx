@@ -20,6 +20,7 @@ import type {
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
 import ImageUploader from '@/components/ui/image-uploader'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 /**
  * The Checkpoint 1B services editor — the picker drawer + selected-services
@@ -85,6 +86,7 @@ export default function ServicesLibraryPicker({
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [, startTransition] = useTransition()
+  const confirm = useConfirm()
 
   function showToast(t: Toast) {
     setToast(t)
@@ -172,13 +174,13 @@ export default function ServicesLibraryPicker({
                 void runAction(s.id, () => reorderService(s.id, dir))
               })
             }
-            onRemove={() =>
+            onRemove={async () => {
+              if (!(await confirm({ title: `Remove “${s.name}” from your services?`, confirmLabel: 'Remove', danger: true }))) return
               startTransition(() => {
-                if (!confirm(`Remove "${s.name}" from your services?`)) return
                 removeServiceLocal(s.id)
                 void runAction(s.id, () => removeService(s.id))
               })
-            }
+            }}
           />
         ))}
       </div>
@@ -869,6 +871,7 @@ function ContentEditDrawer({
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [err, setErr] = useState('')
+  const confirm = useConfirm()
 
   if (!service) {
     return (
@@ -884,9 +887,11 @@ function ContentEditDrawer({
   async function generate() {
     if (!service) return
     if (
-      !confirm(
-        'Fill every section with a fresh AI draft? This replaces what’s in the editor now — you can fine-tune afterward.',
-      )
+      !(await confirm({
+        title: 'Fill every section with a fresh AI draft?',
+        message: 'This replaces what’s in the editor now — you can fine-tune afterward.',
+        confirmLabel: 'Generate',
+      }))
     )
       return
     setGenerating(true)

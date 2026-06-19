@@ -39,6 +39,7 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/services/zernio', () => ({ getZernioConnection: svc.getZernioConnection }))
 vi.mock('@/lib/zernio', () => ({ zernioConfigured: svc.zernioConfigured }))
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true, useConfirmSafe: () => async () => true }))
 vi.mock('@/app/(default)/integrations/actions', () => ({
   syncZernioAccountsAction: vi.fn(async () => ({ ok: true })),
   disconnectChannelAction: vi.fn(async () => ({ ok: true })),

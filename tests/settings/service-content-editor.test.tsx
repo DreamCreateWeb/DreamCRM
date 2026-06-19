@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent, screen, waitFor } from '@testing-library/react'
 
+// The editor now confirms an AI Generate via useConfirm() (not window.confirm).
+// Rendered outside the ConfirmProvider, so pass it through as "confirmed".
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
+
 /**
  * The service builder used to expose only the description paragraph. It now
  * opens a full-page editor — Highlights · Description · What to expect · Common
@@ -97,9 +101,6 @@ function renderPicker(services: ClinicService[]) {
 beforeEach(() => {
   updateServiceContent.mockClear()
   regenerateCustomization.mockClear()
-  // happy-dom has no window.confirm — assign a mock directly (spyOn needs an
-  // existing function). The editor confirms before an AI Generate.
-  window.confirm = vi.fn(() => true)
 })
 
 describe('ServicesLibraryPicker — full content editor', () => {
