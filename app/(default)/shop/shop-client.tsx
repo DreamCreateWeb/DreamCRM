@@ -7,6 +7,7 @@ import {
   CATEGORY_LABELS,
   priceRangeLabel,
   formatCents,
+  lowStockProducts,
   type ProductRow,
   type ProductStatus,
   type ShopConfigView,
@@ -265,6 +266,8 @@ export default function ShopClient({
         </div>
       )}
 
+      <LowStockPanel products={products} />
+
       {/* Section navigation — the front desk's doorways into each shop area.
           Prominent etched, drillable cards (NOT tiny text links). */}
       <p className="mb-3 text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
@@ -481,5 +484,50 @@ function Toggle({ label, on, disabled, onClick }: { label: string; on: boolean; 
       {on ? '✓ ' : ''}
       {label}
     </button>
+  )
+}
+
+/**
+ * Restock nudge — active products that are out of / low on stock, derived from
+ * the already-loaded catalog (lowStockProducts). Hidden when everything's
+ * stocked or untracked. Each row links to the product editor to restock.
+ */
+function LowStockPanel({ products }: { products: ProductRow[] }) {
+  const rows = lowStockProducts(products)
+  if (rows.length === 0) return null
+  const outCount = rows.filter((r) => r.state === 'out').length
+  return (
+    <div className="v2-panel mb-6 p-4 ring-1 ring-inset ring-amber-500/30 bg-amber-500/[0.04]">
+      <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+        📦 Restock soon — {rows.length} {rows.length === 1 ? 'product needs' : 'products need'} attention
+        {outCount > 0 && (
+          <span className="text-rose-600 dark:text-rose-400"> · {outCount} out of stock</span>
+        )}
+      </p>
+      <ul className="divide-y divide-[color:var(--color-hairline)]">
+        {rows.slice(0, 8).map(({ product, state, lowestQty }) => (
+          <li key={product.id} className="py-1.5 flex items-center justify-between gap-3">
+            <Link
+              href={`/shop/products/${product.id}`}
+              className="text-sm text-gray-700 dark:text-gray-200 hover:underline truncate"
+            >
+              {product.name}
+            </Link>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                state === 'out'
+                  ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+              }`}
+            >
+              {state === 'out' ? 'Out of stock' : `Low · ${lowestQty} left`}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {rows.length > 8 && (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">…and {rows.length - 8} more</p>
+      )}
+    </div>
   )
 }
