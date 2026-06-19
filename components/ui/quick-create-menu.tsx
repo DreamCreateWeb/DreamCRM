@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 /**
  * `+ New ▾` header quick-create (DESIGN-SYSTEM.md Part 4). A context-aware
@@ -41,6 +42,10 @@ export default function QuickCreateMenu({ moduleIds }: { moduleIds: string[] }) 
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  // Keep Tab within the open menu + move focus into it on open (Esc/outside-click
+  // close is handled below).
+  useFocusTrap(open, menuRef)
 
   const allowed = new Set(moduleIds)
   const entries = ENTRIES.filter((e) => allowed.has(e.module))
@@ -121,6 +126,7 @@ export default function QuickCreateMenu({ moduleIds }: { moduleIds: string[] }) 
 
       {open && (
         <div
+          ref={menuRef}
           role="menu"
           className="absolute right-0 top-full z-50 mt-1 min-w-[12rem] rounded-lg bg-surface-2 p-1 shadow-[var(--shadow-pop)]"
         >

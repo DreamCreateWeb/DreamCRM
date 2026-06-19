@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { SiteNavLink } from '@/lib/clinic-site-helpers'
 import { SkipToContent } from '@/components/ui/skip-to-content'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 // Nav text + hairlines read the brand-derived neutral vars (set on :root by the
 // site layout). Literal fallbacks keep parity if rendered outside the layout.
@@ -62,6 +63,9 @@ export default function SiteHeader({
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   // Mobile slide-in drawer open/closed.
   const [mobileOpen, setMobileOpen] = useState(false)
+  const mobileNavRef = useRef<HTMLDivElement>(null)
+  // Trap focus + close on Esc while the mobile drawer is open.
+  useFocusTrap(mobileOpen, mobileNavRef, { onEscape: () => setMobileOpen(false) })
 
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelClose = () => {
@@ -424,6 +428,7 @@ export default function SiteHeader({
           transform doesn't create a containing block for our fixed overlay. */}
       {mobileOpen && (
         <div
+          ref={mobileNavRef}
           id="mobile-nav-drawer"
           className="lg:hidden fixed inset-0 z-50"
           role="dialog"

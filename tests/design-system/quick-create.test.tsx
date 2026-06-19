@@ -87,4 +87,12 @@ describe('QuickCreateMenu — C key (dc:quick-create event)', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
+
+  it('moves focus into the menu when it opens (focus trap)', () => {
+    render(<QuickCreateMenu moduleIds={['appointments', 'patients']} />)
+    fireEvent(window, new CustomEvent('dc:quick-create'))
+    const menu = screen.getByRole('menu')
+    // The trap's initialFocus lands on the first focusable inside the menu.
+    expect(menu.contains(document.activeElement)).toBe(true)
+  })
 })

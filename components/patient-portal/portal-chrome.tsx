@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PortalNavItem, PortalIconName } from './nav'
 
 /**
@@ -143,12 +144,14 @@ export function PortalTabBar({
 }) {
   const pathname = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(sheetOpen, sheetRef, { onEscape: () => setSheetOpen(false) })
   const moreActive = more.some((m) => isActive(pathname, m.href))
 
   return (
     <>
       {sheetOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-label="More">
+        <div ref={sheetRef} className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="More">
           <button
             type="button"
             aria-label="Close menu"
