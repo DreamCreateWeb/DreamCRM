@@ -12,6 +12,7 @@ import { cn, excerptFromHtml } from '@/lib/utils'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import { StatusPill } from '@/components/ui/status-pill'
 import {
   updateBlogPostAction,
@@ -88,6 +89,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   const [status, setStatus] = useState(post.status)
   const [dirty, setDirty] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  useUnsavedChanges(dirty, () =>
+    confirm({ title: 'Discard unsaved changes?', message: 'Your unsaved edits to this post will be lost.', confirmLabel: 'Discard', danger: true }),
+  )
   const [showAi, setShowAi] = useState(openAi)
   const [aiBusy, setAiBusy] = useState(false)
   const [showSeo, setShowSeo] = useState(Boolean(post.seoTitle || post.seoDescription))

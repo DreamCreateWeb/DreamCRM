@@ -11,6 +11,7 @@ import { DOMSerializer } from 'prosemirror-model'
 import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import {
   cancelScheduledCampaignAction,
   deleteCampaignAction,
@@ -74,6 +75,9 @@ export default function CampaignEditor({
   const [draft, setDraft] = useState(campaign)
   const [dirty, setDirty] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  useUnsavedChanges(dirty, () =>
+    askConfirm({ title: 'Discard unsaved changes?', message: 'Your unsaved edits to this campaign will be lost.', confirmLabel: 'Discard', danger: true }),
+  )
   const [showSend, setShowSend] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
   const [showAiDraft, setShowAiDraft] = useState(false)
