@@ -5,6 +5,7 @@ import { formatShortDate } from '@/lib/utils'
 import { cancelTeamInvitation, changeTeamMemberRole, inviteTeamMember, removeTeamMember } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SettingsSection } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
 
@@ -37,6 +38,7 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
   const [role, setRole] = useState<'admin' | 'member'>('member')
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
+  const confirm = useConfirm()
 
   function onInvite(e: React.FormEvent) {
     e.preventDefault()
@@ -52,8 +54,8 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
     })
   }
 
-  function handleCancel(id: string, email: string) {
-    if (!confirm(`Cancel invitation for ${email}?`)) return
+  async function handleCancel(id: string, email: string) {
+    if (!(await confirm({ title: `Cancel invitation for ${email}?`, confirmLabel: 'Cancel invitation', danger: true }))) return
     setFeedback(null)
     startTransition(async () => {
       try {
@@ -64,8 +66,16 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
     })
   }
 
-  function handleRemove(userId: string, name: string) {
-    if (!confirm(`Remove ${name} from the team? They'll lose access immediately.`)) return
+  async function handleRemove(userId: string, name: string) {
+    if (
+      !(await confirm({
+        title: `Remove ${name} from the team?`,
+        message: "They'll lose access immediately.",
+        confirmLabel: 'Remove',
+        danger: true,
+      }))
+    )
+      return
     setFeedback(null)
     startTransition(async () => {
       try {

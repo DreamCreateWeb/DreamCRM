@@ -11,6 +11,8 @@ vi.mock('../../app/(default)/settings/team/actions', () => ({
   removeTeamMember: vi.fn().mockResolvedValue({ ok: true }),
   changeTeamMemberRole,
 }))
+// Rendered outside the ConfirmProvider; pass useConfirm() through.
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
 // TeamPanel uses SettingsTabs, which reads ?tab=&sub= via useSearchParams.
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 

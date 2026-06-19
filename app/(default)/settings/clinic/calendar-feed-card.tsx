@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { generateCalendarFeedAction, disableCalendarFeedAction } from './calendar-feed-actions'
 
 /**
@@ -22,6 +23,7 @@ interface Props {
 export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: Props) {
   const [token, setToken] = useState<string | null>(initialToken)
   const [pending, startTransition] = useTransition()
+  const confirm = useConfirm()
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,8 +39,16 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
     })
   }
 
-  function disable() {
-    if (!confirm('Turn off the calendar feed? Anyone subscribed will stop getting updates.')) return
+  async function disable() {
+    if (
+      !(await confirm({
+        title: 'Turn off the calendar feed?',
+        message: 'Anyone subscribed will stop getting updates.',
+        confirmLabel: 'Turn off',
+        danger: true,
+      }))
+    )
+      return
     setError(null)
     startTransition(async () => {
       const r = await disableCalendarFeedAction()

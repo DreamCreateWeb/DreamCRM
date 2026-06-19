@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 import { useSelectedItems } from '@/app/selected-items-context'
+import { useConfirmSafe } from '@/components/ui/confirm-dialog'
 
 interface DeleteButtonProps {
   onDelete?: (ids: number[]) => void | Promise<void>
@@ -16,10 +17,11 @@ export default function DeleteButton({
 }: DeleteButtonProps) {
   const { selectedItems, setSelectedItems } = useSelectedItems()
   const [pending, startTransition] = useTransition()
+  const confirm = useConfirmSafe()
 
-  function handleClick() {
+  async function handleClick() {
     if (!selectedItems.length) return
-    if (!confirm(confirmMessage)) return
+    if (!(await confirm({ title: confirmMessage, confirmLabel: label, danger: true }))) return
     startTransition(async () => {
       await onDelete?.(selectedItems)
       setSelectedItems([])

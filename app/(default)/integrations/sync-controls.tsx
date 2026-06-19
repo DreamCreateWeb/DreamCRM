@@ -6,6 +6,7 @@ import type { SyncDirection } from '@/lib/types/pms'
 import { disconnectPmsAction, setAutoSyncAction, setSyncDirectionAction, syncNowAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 /**
  * The module's heartbeat action — "Sync now" — lives in the PageHeader as the
@@ -64,6 +65,7 @@ interface Props {
  */
 export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [pending, start] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
 
@@ -84,8 +86,16 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
     })
   }
 
-  function disconnect() {
-    if (!confirm('Disconnect this PMS? Synced records stay, but new bookings will stop writing to the PMS and imports will pause.')) return
+  async function disconnect() {
+    if (
+      !(await confirm({
+        title: 'Disconnect this PMS?',
+        message: 'Synced records stay, but new bookings will stop writing to the PMS and imports will pause.',
+        confirmLabel: 'Disconnect',
+        danger: true,
+      }))
+    )
+      return
     start(async () => {
       await disconnectPmsAction()
       router.refresh()

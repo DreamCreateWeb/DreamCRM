@@ -15,6 +15,7 @@ import type {
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import StudioAiBar, { type UndoData } from './studio-ai-bar'
 import RewriteWithAiButton from './rewrite-with-ai-button'
 import HeroTaglineRewrite from './hero-tagline-rewrite'
@@ -587,6 +588,7 @@ function StudioModal({
       : '',
   )
   const [busy, setBusy] = useState(false)
+  const confirm = useConfirm()
   const videoFileRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -607,9 +609,9 @@ function StudioModal({
   )
 
   // A close that respects unsaved work.
-  function requestClose() {
+  async function requestClose() {
     if (busy || uploading) return
-    if (dirty && !window.confirm('Discard unsaved changes?')) return
+    if (dirty && !(await confirm({ title: 'Discard unsaved changes?', message: 'Any edits you haven’t saved will be lost.', confirmLabel: 'Discard', danger: true }))) return
     onClose()
   }
 

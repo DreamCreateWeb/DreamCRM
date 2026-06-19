@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { ConfirmProvider, useConfirm } from '@/components/ui/confirm-dialog'
+import { ConfirmProvider, useConfirm, useConfirmSafe } from '@/components/ui/confirm-dialog'
 
 function Harness() {
   const confirm = useConfirm()
@@ -77,5 +77,36 @@ describe('useConfirm guard', () => {
   beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => {}))
   it('throws when used outside a provider', () => {
     expect(() => render(<Harness />)).toThrow(/ConfirmProvider/)
+  })
+})
+
+describe('useConfirmSafe (shared components outside a provider)', () => {
+  function SafeHarness() {
+    const confirm = useConfirmSafe()
+    const [r, setR] = useState('none')
+    return (
+      <button onClick={async () => setR(String(await confirm({ title: 'Delete?' })))} data-r={r}>
+        {r}
+      </button>
+    )
+  }
+
+  it('falls back to native window.confirm instead of throwing', async () => {
+    window.confirm = vi.fn(() => true)
+    render(<SafeHarness />)
+    fireEvent.click(screen.getByRole('button'))
+    await waitFor(() => expect(screen.getByRole('button').textContent).toBe('true'))
+    expect(window.confirm).toHaveBeenCalled()
+  })
+
+  it('uses the in-app dialog when a provider IS present', async () => {
+    render(
+      <ConfirmProvider>
+        <SafeHarness />
+      </ConfirmProvider>,
+    )
+    fireEvent.click(screen.getByRole('button'))
+    // The modal dialog appears rather than a native prompt.
+    expect(screen.getByRole('dialog')).toBeTruthy()
   })
 })

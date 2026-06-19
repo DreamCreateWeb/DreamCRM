@@ -40,6 +40,7 @@ const svc = vi.hoisted(() => ({
   openDentalConfigured: vi.fn(() => true),
   getIntegrationsHealth: vi.fn(async () => ({ status: 'ok', severity: 'info', message: '' })),
 }))
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true, useConfirmSafe: () => async () => true }))
 vi.mock('@/lib/services/pms', () => ({
   getIntegrationsDashboard: svc.getIntegrationsDashboard,
   openDentalConfigured: svc.openDentalConfigured,

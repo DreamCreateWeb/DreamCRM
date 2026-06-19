@@ -7,6 +7,7 @@ import { relativeTime } from '@/lib/utils'
 import { revokeOtherSessions, revokeSession } from './security-actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SettingsTabs } from '../settings-tabs'
 
 export interface SessionRow {
@@ -21,6 +22,7 @@ export interface SessionRow {
 
 export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
 
   // Password change UI
@@ -51,18 +53,25 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
     router.refresh()
   }
 
-  function handleRevoke(id: string) {
-    if (!confirm('Sign out this session?')) return
+  async function handleRevoke(id: string) {
+    if (!(await confirm({ title: 'Sign out this session?', confirmLabel: 'Sign out', danger: true }))) return
     startTransition(async () => {
       await revokeSession(id)
       router.refresh()
     })
   }
 
-  function handleRevokeOthers() {
+  async function handleRevokeOthers() {
     const others = sessions.filter((s) => !s.isCurrent)
     if (others.length === 0) return
-    if (!confirm(`Sign out ${others.length} other session${others.length === 1 ? '' : 's'}?`)) return
+    if (
+      !(await confirm({
+        title: `Sign out ${others.length} other session${others.length === 1 ? '' : 's'}?`,
+        confirmLabel: 'Sign out',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       await revokeOtherSessions()
       router.refresh()

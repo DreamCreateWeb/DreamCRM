@@ -7,6 +7,7 @@ import { type Tone } from '@/lib/ui/encodings'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SettingsTabs } from '../settings-tabs'
 
 export interface IntegrationAccount {
@@ -167,11 +168,20 @@ function IntegrationCard({ integration: i }: { integration: Integration }) {
 
 function AccountRow({ integrationKey, account }: { integrationKey: string; account: IntegrationAccount }) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
 
-  function handleDisconnect() {
+  async function handleDisconnect() {
     if (integrationKey !== 'gmail') return
-    if (!confirm(`Disconnect ${account.sub}? This stops inbox sync and revokes the OAuth token.`)) return
+    if (
+      !(await confirm({
+        title: `Disconnect ${account.sub}?`,
+        message: 'This stops inbox sync and revokes the OAuth token.',
+        confirmLabel: 'Disconnect',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       await disconnectMailbox(account.id)
       router.refresh()

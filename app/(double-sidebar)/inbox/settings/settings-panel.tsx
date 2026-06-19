@@ -6,6 +6,7 @@ import { formatShortDate, formatTime } from '@/lib/utils'
 import type { EmailAccountSummary } from '@/lib/services/mailbox'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { disconnectMailbox, reclassifyAllAction, syncMailbox } from '../mailbox-actions'
 
 interface Props {
@@ -25,9 +26,16 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
     remaining: number
   } | null>(null)
   const router = useRouter()
+  const confirm = useConfirm()
 
-  function handleReclassify() {
-    if (!confirm('Reclassify every auto-categorized message in this inbox? Manual moves and Gmail-labeled messages are left alone. Can take a couple minutes for large mailboxes.')) {
+  async function handleReclassify() {
+    if (
+      !(await confirm({
+        title: 'Reclassify every auto-categorized message?',
+        message: 'Manual moves and Gmail-labeled messages are left alone. This can take a couple of minutes for large mailboxes.',
+        confirmLabel: 'Reclassify',
+      }))
+    ) {
       return
     }
     setError(null)
@@ -56,7 +64,15 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
   }
 
   async function handleDisconnect(id: string, email: string) {
-    if (!confirm(`Disconnect ${email}? Cached messages stay until cleanup. You can reconnect anytime.`)) return
+    if (
+      !(await confirm({
+        title: `Disconnect ${email}?`,
+        message: 'Cached messages stay until cleanup. You can reconnect anytime.',
+        confirmLabel: 'Disconnect',
+        danger: true,
+      }))
+    )
+      return
     setBusy(id)
     setError(null)
     try {

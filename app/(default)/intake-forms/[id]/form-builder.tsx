@@ -11,6 +11,7 @@ import type {
 } from '@/lib/types/forms'
 import { archiveFormAction, saveFormAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface Props {
   template: FormTemplate
@@ -58,6 +59,7 @@ export default function FormBuilder({ template }: Props) {
   const [pending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   function updateSection(idx: number, patch: Partial<FormSection>) {
     setSections((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)))
@@ -144,7 +146,15 @@ export default function FormBuilder({ template }: Props) {
   }
 
   async function handleArchive() {
-    if (!confirm('Archive this form? Existing submissions are kept; the form stops accepting new ones.')) return
+    if (
+      !(await confirm({
+        title: 'Archive this form?',
+        message: 'Existing submissions are kept; the form stops accepting new ones.',
+        confirmLabel: 'Archive',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       try {
         await archiveFormAction(template.id)

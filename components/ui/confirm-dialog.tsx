@@ -39,6 +39,23 @@ export function useConfirm(): ConfirmFn {
   return ctx
 }
 
+/**
+ * Like useConfirm, but for SHARED components that can render outside a
+ * ConfirmProvider (e.g. the legacy Mosaic demo surfaces). Falls back to native
+ * window.confirm instead of throwing, so the component works everywhere.
+ */
+export function useConfirmSafe(): ConfirmFn {
+  const ctx = useContext(ConfirmContext)
+  return (
+    ctx ??
+    (async (opts = {}) => {
+      if (typeof window === 'undefined') return false
+      const text = opts.message ? `${opts.title ?? ''}\n\n${opts.message}`.trim() : (opts.title ?? 'Are you sure?')
+      return window.confirm(text)
+    })
+  )
+}
+
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useState<{ opts: ConfirmOptions; resolve: (v: boolean) => void } | null>(null)
 

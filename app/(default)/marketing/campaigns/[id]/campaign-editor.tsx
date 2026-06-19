@@ -10,6 +10,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { DOMSerializer } from 'prosemirror-model'
 import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import {
   cancelScheduledCampaignAction,
   deleteCampaignAction,
@@ -67,6 +68,8 @@ export default function CampaignEditor({
   clinicTimeZone,
 }: Props) {
   const router = useRouter()
+  // Named askConfirm to avoid shadowing the local schedule-picker `confirm()`.
+  const askConfirm = useConfirm()
   const [pending, startTransition] = useTransition()
   const [draft, setDraft] = useState(campaign)
   const [dirty, setDirty] = useState(false)
@@ -136,8 +139,8 @@ export default function CampaignEditor({
     setDirty(true)
   }
 
-  function destroy() {
-    if (!confirm('Delete this campaign and all its analytics?')) return
+  async function destroy() {
+    if (!(await askConfirm({ title: 'Delete this campaign?', message: 'This also deletes all its analytics.', confirmLabel: 'Delete', danger: true }))) return
     startTransition(async () => {
       await deleteCampaignAction(draft.id)
       router.push('/marketing/campaigns')
