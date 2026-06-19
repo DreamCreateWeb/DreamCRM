@@ -43,6 +43,7 @@ function header(overrides: Partial<PatientHeader> = {}): PatientHeader {
     lastActivityAt: new Date('2026-05-01T00:00:00Z'),
     hasPortalAccount: true,
     guardianPatientId: null,
+    mergedIntoPatientId: null,
     recallIntervalMonths: null,
     flags: {
       newPatient: false,

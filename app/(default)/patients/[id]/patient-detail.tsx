@@ -19,6 +19,7 @@ import NotesPanel from './notes-panel'
 import TagsPanel from './tags-panel'
 import DocumentsPanel from './documents-panel'
 import FollowupsPanel from './followups-panel'
+import MergeDuplicate from './merge-duplicate'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import type { PatientDocumentRow } from '@/lib/types/patient-documents'
 import type { PatientFollowupView } from '@/lib/types/followups'
@@ -125,6 +126,8 @@ export default function PatientDetail({
   documents = [],
   followups = [],
   staff = [],
+  canMerge = false,
+  mergeCandidates = [],
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -139,6 +142,8 @@ export default function PatientDetail({
   documents?: PatientDocumentRow[]
   followups?: PatientFollowupView[]
   staff?: Array<{ userId: string; name: string }>
+  canMerge?: boolean
+  mergeCandidates?: Array<{ id: string; name: string; email: string | null; phone: string | null; reason: string }>
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
   const [editOpen, setEditOpen] = useState(false)
@@ -341,6 +346,14 @@ export default function PatientDetail({
             >
               {archivePending ? 'Archiving…' : header.lifecycle === 'archived' ? 'Archived' : 'Archive patient'}
             </ActionButton>
+            {canMerge && (
+              <MergeDuplicate
+                survivorId={header.id}
+                survivorName={header.fullName}
+                candidates={mergeCandidates}
+                allPatients={patientOptions}
+              />
+            )}
           </div>
         </aside>
       </div>

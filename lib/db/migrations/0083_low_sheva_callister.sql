@@ -1,0 +1,1 @@
+ALTER TABLE "patient" ADD COLUMN "merged_into_patient_id" text;

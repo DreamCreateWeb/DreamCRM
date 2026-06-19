@@ -35,6 +35,11 @@ export const patient = pgTable(
     // service layer enforces same-org integrity on write.
     guardianPatientId: text('guardian_patient_id'),
 
+    // Tombstone: when this record was merged INTO another, points at the
+    // survivor. Set + the row archived by the merge tool; excluded from the
+    // patient list. Null for every live patient. Soft self-FK (no .references).
+    mergedIntoPatientId: text('merged_into_patient_id'),
+
     notes: text('notes'),
     isActive: integer('is_active').notNull().default(1),
 

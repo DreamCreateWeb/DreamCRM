@@ -8,6 +8,7 @@ import { listPatientNotes } from '@/lib/services/patient-notes'
 import { getTagsForPatient, listPatientTags } from '@/lib/services/patient-tags'
 import { listPatientDocuments } from '@/lib/services/patient-documents'
 import { listFollowupsForPatient, listAssignableStaff } from '@/lib/services/patient-followups'
+import { findMergeCandidates } from '@/lib/services/patient-merge'
 import { listFormTemplates } from '@/lib/services/forms'
 import PatientDetail from './patient-detail'
 
@@ -40,6 +41,11 @@ export default async function PatientDetailPage({ params }: PageProps) {
       listAssignableStaff(ctx.organizationId),
     ])
   if (!header) notFound()
+  // A merged tombstone isn't a real record anymore — send old links to the survivor.
+  if (header.mergedIntoPatientId) redirect(`/patients/${header.mergedIntoPatientId}`)
+
+  const canMerge = ctx.role === 'owner' || ctx.role === 'admin'
+  const mergeCandidates = canMerge ? await findMergeCandidates(ctx.organizationId, id) : []
 
   const counts = countTimeline(timeline)
   const intakeForms = forms.map((f) => ({ id: f.id, title: f.title }))
@@ -58,6 +64,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       documents={documents}
       followups={followups}
       staff={staff}
+      canMerge={canMerge}
+      mergeCandidates={mergeCandidates}
     />
   )
 }
