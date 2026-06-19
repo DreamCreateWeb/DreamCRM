@@ -104,6 +104,8 @@ export interface PatientHeader {
   hasPortalAccount: boolean
   /** Family access: the patient whose portal login manages this one. */
   guardianPatientId: string | null
+  /** When set, this record was merged into the named survivor (a tombstone). */
+  mergedIntoPatientId: string | null
   /** Per-patient recall cadence override in months (null = use clinic default). */
   recallIntervalMonths: number | null
   flags: PatientRowFlags
@@ -204,6 +206,8 @@ export async function listPatients(
   const monthBirthEnd = endOfMonth(now)
 
   const where = [eq(schema.patient.organizationId, organizationId)]
+  // Merged tombstones are no longer real patients — never list them.
+  where.push(isNull(schema.patient.mergedIntoPatientId))
   if (filters.status !== 'archived') {
     where.push(eq(schema.patient.isActive, 1))
   }
@@ -646,6 +650,7 @@ export async function getPatientHeader(
     lastActivityAt: p.lastActivityAt,
     hasPortalAccount: !!p.userId,
     guardianPatientId: p.guardianPatientId ?? null,
+    mergedIntoPatientId: p.mergedIntoPatientId ?? null,
     recallIntervalMonths: p.recallIntervalMonths ?? null,
     flags: {
       newPatient,

@@ -582,6 +582,13 @@
       "when": 1781825681778,
       "tag": "0082_abandoned_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1781843611054,
+      "tag": "0083_low_sheva_callister",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,7 @@ import {
   type PatientFollowupView,
 } from '@/lib/services/patient-followups'
 import { listPatients } from '@/lib/services/patients'
+import { mergePatients } from '@/lib/services/patient-merge'
 import {
   createPatientView,
   deletePatientView,
@@ -244,6 +245,28 @@ export async function deletePatientDocumentAction(
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can remove documents' }
   await deletePatientDocument(ctx.organizationId, documentId)
   revalidatePath(`/patients/${patientId}`)
+  return { ok: true }
+}
+
+// ---------- Merge ----------
+
+/**
+ * Fold a duplicate patient into this one (the survivor). Owner/admin only — it
+ * moves history + tombstones a record, so a staff `member` can't.
+ */
+export async function mergePatientsAction(
+  survivorId: string,
+  duplicateId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can merge patients' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can merge patients.' }
+  }
+  const res = await mergePatients(ctx.organizationId, survivorId, duplicateId, ctx.userId)
+  if (!res.ok) return { ok: false, error: res.error ?? 'Could not merge.' }
+  revalidatePath('/patients')
+  revalidatePath(`/patients/${survivorId}`)
   return { ok: true }
 }
 
