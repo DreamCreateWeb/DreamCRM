@@ -1,6 +1,14 @@
 'use client'
 
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useState,
+  useId,
+  isValidElement,
+  cloneElement,
+  type KeyboardEvent,
+  type ReactNode,
+  type ReactElement,
+} from 'react'
 
 /**
  * Shared UI primitives for the Website Studio section editors, so every modal
@@ -29,17 +37,27 @@ export function Field({
   className?: string
   children: ReactNode
 }) {
+  // Associate the <label> with its control so screen readers announce the field
+  // name. Callers rarely wire htmlFor + an input id, so when a single element is
+  // wrapped we auto-generate an id and inject it — turning a visual-only label
+  // into a real one. Falls back cleanly (htmlFor wins; multi/complex children or
+  // a child that already has an id are left untouched).
+  const autoId = useId()
+  const childEl = isValidElement(children) ? (children as ReactElement<{ id?: string }>) : null
+  const inject = !htmlFor && childEl !== null && childEl.props.id === undefined
+  const fieldId = htmlFor ?? (inject ? autoId : undefined)
+  const control = inject ? cloneElement(childEl, { id: autoId }) : children
   return (
     <div className={className}>
       {label && (
         <label
-          htmlFor={htmlFor}
+          htmlFor={fieldId}
           className="block text-[12px] font-medium text-stone-600 dark:text-stone-300 mb-1"
         >
           {label}
         </label>
       )}
-      {children}
+      {control}
       {hint && <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1">{hint}</p>}
     </div>
   )
