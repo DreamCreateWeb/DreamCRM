@@ -19,6 +19,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { FlashToast } from '@/components/ui/flash-toast'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -108,19 +109,26 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [toast, setToast] = useState<string | null>(null)
 
   const selected = applications.find((a) => a.id === selectedId) ?? null
   const filtered = statusFilter === 'all' ? applications : applications.filter((a) => a.status === statusFilter)
 
   function run(fn: () => Promise<void>) {
     startTransition(async () => {
-      await fn()
-      router.refresh()
+      try {
+        await fn()
+        router.refresh()
+      } catch (err) {
+        // Don't let a failed status/notes change vanish silently.
+        setToast(err instanceof Error ? err.message : 'Something went wrong — please try again.')
+      }
     })
   }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
       <PageHeader
         eyebrow={`Website · ${orgName}`}
         title="Careers"

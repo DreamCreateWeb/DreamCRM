@@ -9,6 +9,7 @@ vi.mock('@/app/(default)/shop/actions', () => ({
 }))
 
 import OrdersClient from '@/app/(default)/shop/orders/orders-client'
+import { setOrderFulfillmentAction } from '@/app/(default)/shop/actions'
 import type { OrderRow } from '@/lib/types/shop'
 
 function order(over: Partial<OrderRow> = {}): OrderRow {
@@ -103,5 +104,14 @@ describe('OrdersClient', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: /Search orders/i }), { target: { value: 'whitening' } })
     expect(screen.getByRole('link', { name: /Mia Hayes/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Liam Brooks/ })).not.toBeInTheDocument()
+  })
+
+  // Graceful action errors: a failed fulfillment update surfaces a toast instead
+  // of silently snapping the optimistic status back with no explanation.
+  it('shows a toast when a fulfillment update fails', async () => {
+    vi.mocked(setOrderFulfillmentAction).mockRejectedValueOnce(new Error('Server said no'))
+    render(<OrdersClient orders={[order({ fulfillmentStatus: 'ready_for_pickup' })]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Mark picked up/i }))
+    expect(await screen.findByText(/Server said no/i)).toBeInTheDocument()
   })
 })

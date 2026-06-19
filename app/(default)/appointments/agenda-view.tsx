@@ -237,7 +237,13 @@ export default function AgendaView({
     e.stopPropagation()
     startTransition(async () => {
       addOptimisticConfirmed(id)
-      await confirmAppointmentAction(id)
+      try {
+        await confirmAppointmentAction(id)
+      } catch {
+        // The optimistic confirm reverts when the transition ends; tell the
+        // user why instead of letting the pill silently snap back.
+        setToast("Couldn't confirm that visit — please try again.")
+      }
     })
   }
 
