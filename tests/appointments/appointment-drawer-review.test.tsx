@@ -14,6 +14,7 @@ vi.mock('@/components/followups/followup-quick-add', () => ({ default: () => <di
 vi.mock('@/components/tags/patient-tag-control', () => ({ default: () => <div data-testid="tags" /> }))
 vi.mock('@/app/(default)/patients/send-intake-inline', () => ({ default: () => <div data-testid="intake" /> }))
 vi.mock('@/app/(default)/appointments/book-from-patient-drawer', () => ({ default: () => null }))
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
 vi.mock('@/app/(default)/appointments/actions', () => ({
   confirmAppointmentAction: vi.fn(),
   cancelAppointmentAction: vi.fn(),

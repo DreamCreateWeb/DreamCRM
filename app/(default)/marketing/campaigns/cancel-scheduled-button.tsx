@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { cancelScheduledCampaignAction } from '../actions'
 
 /**
@@ -11,16 +12,25 @@ import { cancelScheduledCampaignAction } from '../actions'
  */
 export default function CancelScheduledButton({ campaignId }: { campaignId: number }) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
 
   return (
     <button
       type="button"
       disabled={pending}
-      onClick={(e) => {
+      onClick={async (e) => {
         e.preventDefault()
         e.stopPropagation()
-        if (!confirm('Cancel the scheduled send and move this back to draft?')) return
+        if (
+          !(await confirm({
+            title: 'Cancel the scheduled send?',
+            message: 'This moves the campaign back to draft.',
+            confirmLabel: 'Cancel send',
+            danger: true,
+          }))
+        )
+          return
         startTransition(async () => {
           const r = await cancelScheduledCampaignAction(campaignId)
           if (r.ok) router.refresh()

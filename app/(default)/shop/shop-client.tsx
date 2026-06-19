@@ -23,6 +23,7 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { NavIcon } from '@/components/ui/nav-icons'
 import { TONE_TEXT, type PillLegendRow, type Tone } from '@/lib/ui/encodings'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface OrderStatsView {
   paidCount: number
@@ -77,6 +78,7 @@ export default function ShopClient({
   orgName = 'Your clinic',
 }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
 
@@ -254,8 +256,15 @@ export default function ShopClient({
                 variant="ghost"
                 size="sm"
                 disabled={isPending}
-                onClick={() => {
-                  if (confirm('Disconnect Stripe? You won’t be able to take payments until you reconnect.'))
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: 'Disconnect Stripe?',
+                      message: 'You won’t be able to take payments until you reconnect.',
+                      confirmLabel: 'Disconnect',
+                      danger: true,
+                    })
+                  )
                     run(() => disconnectStripeAction(), 'Stripe disconnected.')
                 }}
               >
@@ -405,8 +414,9 @@ export default function ShopClient({
                   variant="danger"
                   size="sm"
                   disabled={isPending}
-                  onClick={() => {
-                    if (confirm(`Delete "${p.name}"?`)) run(() => deleteProductAction(p.id), `${p.name} deleted.`)
+                  onClick={async () => {
+                    if (await confirm({ title: `Delete “${p.name}”?`, confirmLabel: 'Delete', danger: true }))
+                      run(() => deleteProductAction(p.id), `${p.name} deleted.`)
                   }}
                 >
                   Delete

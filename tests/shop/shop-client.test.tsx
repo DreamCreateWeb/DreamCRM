@@ -11,6 +11,8 @@ vi.mock('@/app/(default)/shop/actions', () => ({
   updateShopConfigAction: vi.fn(),
   disconnectStripeAction: vi.fn(),
 }))
+// Rendered outside the ConfirmProvider; pass useConfirm() through.
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
 
 import ShopClient from '@/app/(default)/shop/shop-client'
 import type { ShopConfigView, ShopStats } from '@/lib/types/shop'
