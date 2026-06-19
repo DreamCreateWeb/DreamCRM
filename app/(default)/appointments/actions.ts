@@ -13,6 +13,12 @@ import {
   type CreateInternalAppointmentInput,
 } from '@/lib/services/appointments'
 import { getSlotsForDay, type BookingSlot } from '@/lib/services/booking'
+import { createSavedView, deleteSavedView } from '@/lib/services/saved-views'
+import {
+  normalizeAppointmentViewFilters,
+  appointmentViewFiltersToQuery,
+  type AppointmentViewFilters,
+} from '@/lib/types/appointment-views'
 import { sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
@@ -346,4 +352,36 @@ export async function getBookingSlotsAction(
   if (!dateKey) return []
   const { slots } = await getSlotsForDay(ctx.organizationId, dateKey, undefined, durationMinutes)
   return slots
+}
+
+// ── Saved views (the agenda's named filter combos) ─────────────────────────
+
+/** Save (or overwrite by name) the current agenda filters as a named view. */
+export async function createAppointmentViewAction(
+  name: string,
+  rawFilters: AppointmentViewFilters,
+): Promise<{ ok: true; view: { id: string; name: string; query: string } } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can save views' }
+  try {
+    const filters = normalizeAppointmentViewFilters(rawFilters as Record<string, unknown>)
+    const row = await createSavedView(ctx.organizationId, 'appointments', name, filters as Record<string, unknown>, ctx.userId)
+    return { ok: true, view: { id: row.id, name: row.name, query: appointmentViewFiltersToQuery(filters) } }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save the view' }
+  }
+}
+
+/** Delete a saved agenda view. */
+export async function deleteAppointmentViewAction(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can delete views' }
+  try {
+    await deleteSavedView(ctx.organizationId, id)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not delete the view' }
+  }
 }

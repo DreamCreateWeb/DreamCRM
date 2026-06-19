@@ -194,15 +194,20 @@ export const patientFollowup = pgTable(
   ],
 )
 
-// Saved patient-list views — a named filter+tag+search combo a clinic re-opens
-// in one click ("VIP with a balance", "Lapsed in Austin"). Org-scoped + shared
-// across the team. `filters` is the serialized PatientListFilters subset; the
-// same shape can be promoted straight into a marketing audience.
+// Saved list views — a named filter+search combo a clinic re-opens in one
+// click ("VIP with a balance", "My unconfirmed this week"). Org-scoped +
+// shared across the team. Despite the `patient_view` table name (kept to avoid
+// a rename migration), this is the GENERIC saved-views store for every list
+// surface, discriminated by `surface` ('patients' | 'appointments' | 'leads').
+// `filters` is the surface's own serialized filter subset; the patients shape
+// can additionally be promoted into a marketing audience. The unique index is
+// per (org, surface, name) so the same name can exist on more than one list.
 export const patientView = pgTable(
   'patient_view',
   {
     id: text('id').primaryKey(),
     organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    surface: text('surface').notNull().default('patients'),
     name: text('name').notNull(),
     filters: jsonb('filters').notNull().default(sql`'{}'::jsonb`),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -211,7 +216,7 @@ export const patientView = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('patient_view_org_name_idx').on(t.organizationId, sql`lower(${t.name})`),
+    uniqueIndex('patient_view_org_surface_name_idx').on(t.organizationId, t.surface, sql`lower(${t.name})`),
   ],
 )
 

@@ -27,10 +27,17 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
+import {
+  appointmentViewFiltersToQuery,
+  isEmptyAppointmentViewFilters,
+  describeAppointmentViewFilters,
+  type AppointmentViewFilters,
+} from '@/lib/types/appointment-views'
+import SavedViewsBar, { type SavedViewChip } from '@/components/saved-views/saved-views-bar'
 import { bulkCreateFollowupsForPatientsAction } from '../patients/actions'
 import NewBookingDrawer from './new-booking-drawer'
 import AppointmentDrawer from './appointment-drawer'
-import { confirmAppointmentAction, bulkSendRemindersAction } from './actions'
+import { confirmAppointmentAction, bulkSendRemindersAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
 
 // Status carries categorical state only (timing lives on the aging border,
 // per-row flags on the glyphs). Tones from the semantic contract:
@@ -149,11 +156,13 @@ export default function AgendaView({
   meta,
   filters,
   orgName,
+  savedViews = [],
 }: {
   groups: AppointmentDayGroup[]
   meta: AppointmentFilterMeta
   filters: AppointmentListFilters
   orgName: string
+  savedViews?: SavedViewChip[]
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -267,6 +276,23 @@ export default function AgendaView({
 
   const totalRows = useMemo(() => groups.reduce((acc, g) => acc + g.rows.length, 0), [groups])
 
+  // Saved-views bar inputs — the agenda filters map 1:1 onto the view shape.
+  const currentViewFilters: AppointmentViewFilters = {
+    window: filters.window,
+    attention: filters.attention,
+    providerId: filters.providerId,
+    source: filters.source,
+    search: filters.search,
+  }
+  const currentViewQuery = appointmentViewFiltersToQuery(currentViewFilters)
+  const viewIsEmpty = isEmptyAppointmentViewFilters(currentViewFilters)
+  const providerNameMap = useMemo(
+    () => new Map(meta.providers.map((p) => [p.id, p.displayName])),
+    [meta.providers],
+  )
+  const viewSuggestedName = describeAppointmentViewFilters(currentViewFilters, providerNameMap)
+  const viewIsActiveSaved = !viewIsEmpty && savedViews.some((v) => v.query === currentViewQuery)
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
@@ -356,6 +382,19 @@ export default function AgendaView({
           </form>
         </div>
       </div>
+
+      {/* ── Saved views (named filter combos) ────────────────────────── */}
+      <SavedViewsBar
+        basePath="/appointments"
+        allLabel="Next 14 days"
+        views={savedViews}
+        currentQuery={currentViewQuery}
+        isEmpty={viewIsEmpty}
+        isActiveSaved={viewIsActiveSaved}
+        suggestedName={viewSuggestedName}
+        onSave={(name) => createAppointmentViewAction(name, currentViewFilters)}
+        onDelete={(id) => deleteAppointmentViewAction(id)}
+      />
 
       {/* ── Agenda ───────────────────────────────────────────────────── */}
       {groups.length === 0 ? (

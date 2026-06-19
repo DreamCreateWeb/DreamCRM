@@ -13,6 +13,11 @@ import {
   groupByDay,
   type AppointmentListFilters,
 } from '@/lib/services/appointments'
+import { listSavedViews } from '@/lib/services/saved-views'
+import {
+  normalizeAppointmentViewFilters,
+  appointmentViewFiltersToQuery,
+} from '@/lib/types/appointment-views'
 import AgendaView from './agenda-view'
 import ModuleHint from '@/components/onboarding/module-hint'
 
@@ -48,11 +53,17 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
     search: typeof params.q === 'string' ? params.q : undefined,
   }
 
-  const [rows, meta] = await Promise.all([
+  const [rows, meta, viewRows] = await Promise.all([
     listAppointments(ctx.organizationId, filters),
     getAppointmentFilterMeta(ctx.organizationId),
+    listSavedViews(ctx.organizationId, 'appointments'),
   ])
   const groups = groupByDay(rows)
+  // Map each stored view to the chip the bar needs (name + reopen query).
+  const savedViews = viewRows.map((v) => {
+    const f = normalizeAppointmentViewFilters(v.filters)
+    return { id: v.id, name: v.name, query: appointmentViewFiltersToQuery(f) }
+  })
 
     return (
     <>
@@ -64,6 +75,7 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
       meta={meta}
       filters={filters}
       orgName={ctx.organizationName}
+      savedViews={savedViews}
     />
     </>
   )
