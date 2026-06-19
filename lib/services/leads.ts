@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
+import { toCsv } from '@/lib/csv'
 
 /**
  * Find an ACTIVE patient in the org that matches the given contact info, using
@@ -412,6 +413,35 @@ export async function createLead(input: CreateLeadInput): Promise<string> {
     utmCampaign: input.utmCampaign ?? null,
   })
   return id
+}
+
+const LEAD_EXPORT_HEADERS = [
+  'Name', 'Email', 'Phone', 'Status', 'Source', 'Referrer', 'UTM source', 'UTM campaign', 'Preferred date', 'Created',
+] as const
+
+/**
+ * The current lead queue as a CSV string — same filters as the on-screen list
+ * (status + search), so "export" hands back exactly what's in view. Reuses
+ * listLeads so the row set + ordering can't drift from the table.
+ */
+export async function exportLeadsCsv(
+  organizationId: string,
+  filters: LeadListFilters = {},
+): Promise<string> {
+  const rows = await listLeads(organizationId, filters)
+  const body = rows.map((r) => [
+    r.name,
+    r.email ?? '',
+    r.phone,
+    r.status,
+    r.sourcePage ?? '',
+    r.referrer ?? '',
+    r.utmSource ?? '',
+    r.utmCampaign ?? '',
+    r.preferredDate ?? '',
+    r.createdAt.toISOString().slice(0, 10),
+  ])
+  return toCsv([...LEAD_EXPORT_HEADERS], body) + '\r\n'
 }
 
 // Silence unused-import lint while keeping `isNull` + `asc` available
