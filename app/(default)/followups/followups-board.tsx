@@ -13,7 +13,7 @@ import {
   type FollowupDueState,
   type PatientFollowupView,
 } from '@/lib/types/followups'
-import { completeFollowupAction, reopenFollowupAction } from '../patients/actions'
+import { completeFollowupAction, reopenFollowupAction, updateFollowupAction } from '../patients/actions'
 import FollowupRulesCard from './followup-rules-card'
 import type { FollowupRuleConfig } from '@/lib/types/followup-rules'
 
@@ -37,6 +37,8 @@ export default function FollowupsBoard({
   rows,
   orgName,
   filters,
+  staff,
+  currentUserId,
   ruleConfig,
   digestEnabled,
   canManageRules,
@@ -44,6 +46,8 @@ export default function FollowupsBoard({
   rows: PatientFollowupView[]
   orgName: string
   filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean }
+  staff: Array<{ userId: string; name: string }>
+  currentUserId: string
   ruleConfig: FollowupRuleConfig
   digestEnabled: boolean
   canManageRules: boolean
@@ -75,6 +79,23 @@ export default function FollowupsBoard({
     setItems((cur) => cur.map((x) => (x.id === f.id ? { ...x, status: 'open' } : x)))
     startTransition(async () => {
       const res = await reopenFollowupAction(f.id, f.patientId)
+      if (!res.ok) { setItems(rows); setToast(res.error) }
+    })
+  }
+  function reassign(f: PatientFollowupView, userId: string | null) {
+    const name = userId
+      ? userId === currentUserId
+        ? 'You'
+        : staff.find((s) => s.userId === userId)?.name ?? null
+      : null
+    setItems((cur) => {
+      const mapped = cur.map((x) => (x.id === f.id ? { ...x, assignedUserId: userId, assigneeName: name } : x))
+      // Under the "Mine" filter, a follow-up reassigned away from me leaves the list.
+      if (filters.mine && userId !== currentUserId) return mapped.filter((x) => x.id !== f.id)
+      return mapped
+    })
+    startTransition(async () => {
+      const res = await updateFollowupAction(f.id, f.patientId, { assignedUserId: userId })
       if (!res.ok) { setItems(rows); setToast(res.error) }
     })
   }
@@ -140,7 +161,15 @@ export default function FollowupsBoard({
                 </h2>
                 <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
                   {list.map((f) => (
-                    <Row key={f.id} f={f} onComplete={() => complete(f)} pending={pending} />
+                    <Row
+                      key={f.id}
+                      f={f}
+                      onComplete={() => complete(f)}
+                      onReassign={(u) => reassign(f, u)}
+                      staff={staff}
+                      currentUserId={currentUserId}
+                      pending={pending}
+                    />
                   ))}
                 </ul>
               </section>
@@ -171,12 +200,18 @@ function Row({
   f,
   onComplete,
   onReopen,
+  onReassign,
+  staff = [],
+  currentUserId = '',
   pending,
   done = false,
 }: {
   f: PatientFollowupView
   onComplete?: () => void
   onReopen?: () => void
+  onReassign?: (userId: string | null) => void
+  staff?: Array<{ userId: string; name: string }>
+  currentUserId?: string
   pending: boolean
   done?: boolean
 }) {
@@ -207,9 +242,28 @@ function Row({
             {f.patientName}
           </Link>
           {!done && <span className={`ml-2 ${DUE_TONE[due]}`}>{formatDueLabel(f.dueDate)}</span>}
-          {f.assigneeName && <span className="ml-2 text-gray-400 dark:text-gray-500">· {f.assigneeName}</span>}
+          {(done || !onReassign) && f.assigneeName && (
+            <span className="ml-2 text-gray-400 dark:text-gray-500">· {f.assigneeName}</span>
+          )}
         </p>
       </div>
+      {onReassign && !done && (
+        <select
+          value={f.assignedUserId ?? ''}
+          onChange={(e) => onReassign(e.target.value || null)}
+          disabled={pending}
+          aria-label="Assign follow-up"
+          title="Assign this follow-up"
+          className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:border-teal-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        >
+          <option value="">Unassigned</option>
+          {staff.map((s) => (
+            <option key={s.userId} value={s.userId}>
+              {s.userId === currentUserId ? 'Me' : s.name}
+            </option>
+          ))}
+        </select>
+      )}
     </li>
   )
 }

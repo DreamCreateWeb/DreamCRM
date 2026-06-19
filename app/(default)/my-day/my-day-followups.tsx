@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { followupDueState, formatDueLabel, type FollowupDueState, type PatientFollowupView } from '@/lib/types/followups'
-import { completeFollowupAction } from '../patients/actions'
+import { completeFollowupAction, updateFollowupAction } from '../patients/actions'
 
 const DUE_TONE: Record<FollowupDueState, string> = {
   overdue: 'text-rose-600 dark:text-rose-400',
@@ -18,7 +18,13 @@ const DUE_TONE: Record<FollowupDueState, string> = {
  * The interactive "my follow-ups" list on /my-day — tick one off without
  * leaving the page. Optimistic; reverts on error.
  */
-export default function MyDayFollowups({ initial }: { initial: PatientFollowupView[] }) {
+export default function MyDayFollowups({
+  initial,
+  currentUserId,
+}: {
+  initial: PatientFollowupView[]
+  currentUserId: string
+}) {
   const [items, setItems] = useState<PatientFollowupView[]>(initial)
   const [, startTransition] = useTransition()
 
@@ -26,6 +32,13 @@ export default function MyDayFollowups({ initial }: { initial: PatientFollowupVi
     setItems((cur) => cur.filter((x) => x.id !== f.id))
     startTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
+      if (!res.ok) setItems(initial)
+    })
+  }
+  function claim(f: PatientFollowupView) {
+    setItems((cur) => cur.map((x) => (x.id === f.id ? { ...x, assignedUserId: currentUserId, assigneeName: 'You' } : x)))
+    startTransition(async () => {
+      const res = await updateFollowupAction(f.id, f.patientId, { assignedUserId: currentUserId })
       if (!res.ok) setItems(initial)
     })
   }
@@ -59,9 +72,18 @@ export default function MyDayFollowups({ initial }: { initial: PatientFollowupVi
                   {f.patientName}
                 </Link>
                 <span className={`ml-2 ${DUE_TONE[due]}`}>{formatDueLabel(f.dueDate)}</span>
-                {!f.assigneeName && <span className="ml-2 text-gray-400 dark:text-gray-500">· unclaimed</span>}
+                {!f.assignedUserId && <span className="ml-2 text-gray-400 dark:text-gray-500">· unclaimed</span>}
               </p>
             </div>
+            {!f.assignedUserId && (
+              <button
+                type="button"
+                onClick={() => claim(f)}
+                className="shrink-0 self-center rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-300"
+              >
+                Claim
+              </button>
+            )}
           </li>
         )
       })}
