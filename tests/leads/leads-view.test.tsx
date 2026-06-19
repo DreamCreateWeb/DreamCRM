@@ -1,13 +1,26 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock('@/app/(default)/leads/lead-drawer', () => ({
-  default: ({ row }: { row: { name: string } }) => (
-    <div data-testid="lead-drawer-stub">drawer:{row.name}</div>
+  default: ({
+    row,
+    onStatusChange,
+  }: {
+    row: { id: string; name: string }
+    onStatusChange: (id: string, next: string, action: () => Promise<unknown>) => void
+  }) => (
+    <div data-testid="lead-drawer-stub">
+      drawer:{row.name}
+      {/* A never-resolving action keeps the transition pending so the optimistic
+          flip persists for assertion. */}
+      <button onClick={() => onStatusChange(row.id, 'contacted', () => new Promise(() => {}))}>
+        stub-contacted
+      </button>
+    </div>
   ),
 }))
 
@@ -153,6 +166,16 @@ describe('LeadsView — list + filters + drawer trigger', () => {
     expect(screen.queryByTestId('lead-drawer-stub')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('Olivia Chen'))
     expect(screen.getByTestId('lead-drawer-stub')).toHaveTextContent('drawer:Olivia Chen')
+  })
+
+  it('optimistically drops a lead from the "new" view the instant it is marked contacted', async () => {
+    const row = makeRow({ id: 'l1', name: 'Olivia Chen', status: 'new' })
+    render(<LeadsView rows={[row]} counts={{ ...baseCounts, new: 1, total: 1 }} status="new" search="" />)
+    fireEvent.click(screen.getByText('Olivia Chen'))
+    fireEvent.click(screen.getByText('stub-contacted'))
+    // The optimistic status → 'contacted' no longer matches the 'new' filter, so
+    // the row (and the now-closed drawer) disappear without a server round-trip.
+    await waitFor(() => expect(screen.queryByText('Olivia Chen')).not.toBeInTheDocument())
   })
 
   it('displays UTM campaign attribution on the row when present', () => {

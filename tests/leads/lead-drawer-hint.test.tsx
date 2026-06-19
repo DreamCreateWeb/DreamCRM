@@ -46,7 +46,7 @@ beforeEach(() => previewLeadConvertAction.mockReset())
 describe('LeadDrawer — existing-patient hint on open', () => {
   it('shows the indigo info chip when the dedupe dry-run matches a patient', async () => {
     previewLeadConvertAction.mockResolvedValue({ ok: true, matchedPatientName: 'Olivia Chen' })
-    render(<LeadDrawer row={makeRow()} onClose={() => {}} />)
+    render(<LeadDrawer row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
     // Runs the preview on open (not just inside Convert).
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalledWith('lead_1'))
     const hint = await screen.findByText(/Looks like an existing patient/)
@@ -59,7 +59,7 @@ describe('LeadDrawer — existing-patient hint on open', () => {
 
   it('shows no chip when there is no match', async () => {
     previewLeadConvertAction.mockResolvedValue({ ok: true, matchedPatientName: null })
-    render(<LeadDrawer row={makeRow()} onClose={() => {}} />)
+    render(<LeadDrawer row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalled())
     expect(screen.queryByText(/Looks like an existing patient/)).not.toBeInTheDocument()
   })
@@ -69,6 +69,7 @@ describe('LeadDrawer — existing-patient hint on open', () => {
       <LeadDrawer
         row={makeRow({ status: 'converted', convertedToPatientId: 'pat_x', convertedPatientName: 'Olivia Chen' })}
         onClose={() => {}}
+        onStatusChange={() => {}}
       />,
     )
     // Give any (mistaken) effect a tick to fire.
@@ -80,7 +81,7 @@ describe('LeadDrawer — existing-patient hint on open', () => {
     // previewLeadConvertAction catches internally and returns { ok: false }
     // (it never rejects). The drawer must not show the chip in that case.
     previewLeadConvertAction.mockResolvedValue({ ok: false, error: 'lead gone' })
-    render(<LeadDrawer row={makeRow()} onClose={() => {}} />)
+    render(<LeadDrawer row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalled())
     expect(screen.queryByText(/Looks like an existing patient/)).not.toBeInTheDocument()
   })
@@ -92,7 +93,7 @@ describe('LeadDrawer — dismiss gestures', () => {
 
   it('closes on backdrop click', () => {
     const onClose = vi.fn()
-    const { container } = render(<LeadDrawer row={makeRow()} onClose={onClose} />)
+    const { container } = render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     // The backdrop is the outer fixed-inset overlay.
     fireEvent.click(container.querySelector('.fixed.inset-0')!)
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -100,14 +101,14 @@ describe('LeadDrawer — dismiss gestures', () => {
 
   it('does NOT close when clicking inside the panel', () => {
     const onClose = vi.fn()
-    render(<LeadDrawer row={makeRow()} onClose={onClose} />)
+    render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     fireEvent.click(screen.getByRole('dialog'))
     expect(onClose).not.toHaveBeenCalled()
   })
 
   it('closes on Escape', () => {
     const onClose = vi.fn()
-    render(<LeadDrawer row={makeRow()} onClose={onClose} />)
+    render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
   })

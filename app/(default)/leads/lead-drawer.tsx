@@ -47,9 +47,13 @@ function fmtFull(d: Date): string {
 export default function LeadDrawer({
   row,
   onClose,
+  onStatusChange,
 }: {
   row: LeadRow
   onClose: () => void
+  /** Lifts a status flip to the list so it updates optimistically + the drawer
+   *  closes immediately; the parent owns the transition + the action call. */
+  onStatusChange: (id: string, next: LeadStatus, action: () => Promise<unknown>) => void
 }) {
   const router = useRouter()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -103,33 +107,17 @@ export default function LeadDrawer({
     setToast(msg)
   }
 
-  function refreshAndClose() {
-    router.refresh()
-    onClose()
-  }
-
   function onMarkContacted() {
-    startTransition(async () => {
-      await markLeadContactedAction(row.id)
-      flash('Marked contacted.')
-      refreshAndClose()
-    })
+    onStatusChange(row.id, 'contacted', () => markLeadContactedAction(row.id))
   }
 
   function onArchive() {
-    startTransition(async () => {
-      await archiveLeadAction(row.id, archiveReason.trim() || null)
-      flash('Archived.')
-      refreshAndClose()
-    })
+    const reason = archiveReason.trim() || null
+    onStatusChange(row.id, 'archived', () => archiveLeadAction(row.id, reason))
   }
 
   function onReopen() {
-    startTransition(async () => {
-      await reopenLeadAction(row.id)
-      flash('Reopened.')
-      refreshAndClose()
-    })
+    onStatusChange(row.id, 'new', () => reopenLeadAction(row.id))
   }
 
   // Step 1: dry-run the dedupe check. If the lead's email/phone matches an
