@@ -3,6 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useToast } from '@/components/ui/toast'
 import { cancelScheduledCampaignAction } from '../actions'
 
 /**
@@ -13,6 +14,7 @@ import { cancelScheduledCampaignAction } from '../actions'
 export default function CancelScheduledButton({ campaignId }: { campaignId: number }) {
   const router = useRouter()
   const confirm = useConfirm()
+  const toast = useToast()
   const [pending, startTransition] = useTransition()
 
   return (
@@ -34,7 +36,7 @@ export default function CancelScheduledButton({ campaignId }: { campaignId: numb
         startTransition(async () => {
           const r = await cancelScheduledCampaignAction(campaignId)
           if (r.ok) router.refresh()
-          else alert(r.error)
+          else toast(r.error, { tone: 'urgent' })
         })
       }}
       className="text-xs font-medium text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 disabled:opacity-50"

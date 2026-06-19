@@ -14,6 +14,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { useToast } from '@/components/ui/toast'
 
 /**
  * Platform admin review board for the shared service library. Three tabs —
@@ -299,6 +300,7 @@ function ActionRow({
   onArchive: (note: string) => void
 }) {
   const [note, setNote] = useState('')
+  const toast = useToast()
   return (
     <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-gray-700/60">
       <textarea
@@ -324,7 +326,7 @@ function ActionRow({
               disabled={busy}
               onClick={() => {
                 if (!note.trim()) {
-                  alert('Please add a reviewer note before rejecting.')
+                  toast('Please add a reviewer note before rejecting.', { tone: 'urgent' })
                   return
                 }
                 onReject(note)
@@ -341,7 +343,7 @@ function ActionRow({
             disabled={busy}
             onClick={() => {
               if (!note.trim()) {
-                alert('Please add a note explaining why you are archiving this entry.')
+                toast('Please add a note explaining why you are archiving this entry.', { tone: 'urgent' })
                 return
               }
               onArchive(note)

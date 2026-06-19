@@ -12,6 +12,7 @@ import { cn, excerptFromHtml } from '@/lib/utils'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useToast } from '@/components/ui/toast'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import { StatusPill } from '@/components/ui/status-pill'
 import {
@@ -67,6 +68,7 @@ interface Props {
 export default function BlogEditor({ post, authors, categorySuggestions, baseUrl, openAi }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
+  const toast = useToast()
   const [pending, startTransition] = useTransition()
   const [draft, setDraft] = useState({
     title: post.title === 'Untitled post' ? '' : post.title,
@@ -608,7 +610,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             try {
               const result = await draftBlogPostAction(topic)
               if (!result) {
-                alert('AI is unavailable right now — try again in a moment.')
+                toast('AI is unavailable right now — try again in a moment.', { tone: 'urgent' })
                 return
               }
               editor?.commands.setContent(result.bodyHtml)
@@ -829,6 +831,7 @@ function FaqEditor({
   onChange: (faq: { q: string; a: string }[]) => void
 }) {
   const [busy, setBusy] = useState(false)
+  const toast = useToast()
 
   function update(i: number, key: 'q' | 'a', val: string) {
     onChange(faq.map((f, idx) => (idx === i ? { ...f, [key]: val } : f)))
@@ -839,7 +842,7 @@ function FaqEditor({
     try {
       const result = await generateFaqsAction(title, bodyHtml)
       if (!result || !result.length) {
-        alert('AI is unavailable right now — try again in a moment.')
+        toast('AI is unavailable right now — try again in a moment.', { tone: 'urgent' })
         return
       }
       const existing = faq.filter((f) => f.q.trim() && f.a.trim())

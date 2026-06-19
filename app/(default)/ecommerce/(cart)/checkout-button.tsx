@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
+import { useToast } from '@/components/ui/toast'
 import { checkoutCart } from '../(shop)/actions'
 
 export default function CheckoutButton({ totalCents, currency = 'USD' }: { totalCents: number; currency?: string }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+  const toast = useToast()
 
   function onClick() {
     startTransition(async () => {
@@ -14,7 +16,7 @@ export default function CheckoutButton({ totalCents, currency = 'USD' }: { total
         await checkoutCart()
         router.push('/ecommerce/orders')
       } catch (err) {
-        alert((err as Error).message)
+        toast((err as Error).message, { tone: 'urgent' })
       }
     })
   }
