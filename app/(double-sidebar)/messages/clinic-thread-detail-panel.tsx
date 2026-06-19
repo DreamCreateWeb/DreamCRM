@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import FollowupQuickAdd from '@/components/followups/followup-quick-add'
 import { channelMeta } from './channel-meta'
 import {
   archiveThreadAction,
@@ -350,6 +351,17 @@ export default function ThreadDetailPanel({
             )}
           </Link>
         )}
+
+        {/* Quick follow-up — jot "chase this next week" without leaving the
+            conversation. It flows into My Day, the morning digest, the
+            follow-ups board, and the patient's timeline. */}
+        <div className="mt-2.5">
+          <FollowupQuickAdd
+            patientId={thread.patientId}
+            patientFirstName={thread.patientFirstName}
+            onDone={(msg) => setToast(msg)}
+          />
+        </div>
       </div>
 
       {/* ── Message stream ────────────────────────────────────────── */}
