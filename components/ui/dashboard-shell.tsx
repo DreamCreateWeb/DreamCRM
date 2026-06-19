@@ -19,7 +19,7 @@ import type { BundleId } from '@/lib/integrations/bundles'
 
 /**
  * Shared dashboard chrome used by every authenticated route group
- * — (default), (double-sidebar), (alternative). Resolves the tenant
+ * — (default), (double-sidebar). Resolves the tenant
  * context once, renders the v2 tenant-aware sidebar with the right module
  * registry, and wraps children with the v2 header + scroll area.
  *
