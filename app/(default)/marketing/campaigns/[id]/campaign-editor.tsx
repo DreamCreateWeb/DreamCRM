@@ -11,6 +11,7 @@ import { DOMSerializer } from 'prosemirror-model'
 import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useToast } from '@/components/ui/toast'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import {
   cancelScheduledCampaignAction,
@@ -71,6 +72,7 @@ export default function CampaignEditor({
   const router = useRouter()
   // Named askConfirm to avoid shadowing the local schedule-picker `confirm()`.
   const askConfirm = useConfirm()
+  const toast = useToast()
   const [pending, startTransition] = useTransition()
   const [draft, setDraft] = useState(campaign)
   const [dirty, setDirty] = useState(false)
@@ -208,7 +210,7 @@ export default function CampaignEditor({
               if (!editor) return
               const { from, to } = editor.state.selection
               if (from === to) {
-                alert('Select some text to rewrite first.')
+                toast('Select some text to rewrite first.', { tone: 'urgent' })
                 return
               }
               setAiImproveInstruction('')
@@ -336,7 +338,7 @@ export default function CampaignEditor({
                   setDraft((d) => ({ ...d, status: 'draft', scheduledAt: null }))
                   router.refresh()
                 } else {
-                  alert(r.error)
+                  toast(r.error, { tone: 'urgent' })
                 }
               })
             }}
@@ -372,7 +374,7 @@ export default function CampaignEditor({
             try {
               const result = await draftCampaignAction(brief)
               if (!result) {
-                alert('AI is unavailable right now — try again in a moment.')
+                toast('AI is unavailable right now — try again in a moment.', { tone: 'urgent' })
                 return
               }
               field('subject', result.subject)
@@ -404,7 +406,7 @@ export default function CampaignEditor({
             try {
               const result = await improveCopyAction(selectedHtml, aiImproveInstruction)
               if (!result) {
-                alert('AI is unavailable right now — try again in a moment.')
+                toast('AI is unavailable right now — try again in a moment.', { tone: 'urgent' })
                 return
               }
               editor.chain().focus().deleteRange({ from, to }).insertContent(result).run()
