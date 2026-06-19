@@ -28,6 +28,7 @@ import TenantSidebar from '@/components/ui/tenant-sidebar'
 const MODULES: ModuleDef[] = [
   { id: 'overview', path: '/', label: 'Overview', section: 'Daily', icon: 'home', status: 'live' },
   { id: 'messages', path: '/messages', label: 'Messages', section: 'Daily', icon: 'chat', status: 'live' },
+  { id: 'followups', path: '/followups', label: 'Follow-ups', section: 'Daily', icon: 'check', status: 'live' },
   { id: 'leads', path: '/leads', label: 'Leads', section: 'Daily', icon: 'megaphone', status: 'live' },
   { id: 'shop', path: '/shop', label: 'Shop', section: 'Business', icon: 'bag', status: 'live' },
 ]
@@ -57,6 +58,14 @@ describe('TenantSidebar badges', () => {
     expect(screen.getByLabelText(/2 items need attention/i)).toHaveTextContent('2')
     expect(screen.getByLabelText(/5 items need attention/i)).toHaveTextContent('5')
     expect(fetchMock).toHaveBeenCalledWith('/api/nav-badges', { cache: 'no-store' })
+  })
+
+  it('renders a Follow-ups pill from the followups-due count', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ messages: 0, leads: 0, shop: 0, followups: 6 }))
+    render(<TenantSidebar modules={MODULES} tenantType="clinic" />)
+    await waitFor(() => {
+      expect(screen.getByLabelText(/6 items need attention/i)).toHaveTextContent('6')
+    })
   })
 
   it('shows no pill when a count is zero', async () => {

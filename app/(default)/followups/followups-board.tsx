@@ -17,6 +17,12 @@ import { completeFollowupAction, reopenFollowupAction, updateFollowupAction } fr
 import FollowupRulesCard from './followup-rules-card'
 import type { FollowupRuleConfig } from '@/lib/types/followup-rules'
 
+/** Nudge the sidebar to re-poll its "Follow-ups due" badge immediately, so
+ *  ticking one off drops the count without waiting for the 60s poll. */
+function pingNavBadges() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+}
+
 const GROUP_ORDER: FollowupDueState[] = ['overdue', 'today', 'soon', 'later', 'none']
 const GROUP_LABEL: Record<FollowupDueState, string> = {
   overdue: 'Overdue',
@@ -72,7 +78,7 @@ export default function FollowupsBoard({
     startTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
       if (!res.ok) { setItems(rows); setToast(res.error) }
-      else setToast('Nice — one less thing.')
+      else { setToast('Nice — one less thing.'); pingNavBadges() }
     })
   }
   function reopen(f: PatientFollowupView) {
@@ -80,6 +86,7 @@ export default function FollowupsBoard({
     startTransition(async () => {
       const res = await reopenFollowupAction(f.id, f.patientId)
       if (!res.ok) { setItems(rows); setToast(res.error) }
+      else pingNavBadges()
     })
   }
   function reassign(f: PatientFollowupView, userId: string | null) {

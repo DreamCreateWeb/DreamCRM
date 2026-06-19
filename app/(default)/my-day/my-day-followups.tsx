@@ -33,6 +33,8 @@ export default function MyDayFollowups({
     startTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
       if (!res.ok) setItems(initial)
+      // Drop the sidebar "Follow-ups due" badge immediately on a successful tick.
+      else if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
     })
   }
   function claim(f: PatientFollowupView) {

@@ -205,6 +205,32 @@ export async function getFollowupSummary(
   }
 }
 
+/**
+ * Count of open follow-ups that are actionable *now* — overdue or due today,
+ * org-wide. Drives the sidebar "Follow-ups" badge, which mirrors what you see
+ * when you click it (the board's default "Everyone" view). A lean single-row
+ * count (no joins/preview), so it's cheap to poll alongside the other badges.
+ */
+export async function countFollowupsDue(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const today = todayYmd(now)
+  const [row] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(schema.patientFollowup)
+    .where(
+      and(
+        eq(schema.patientFollowup.organizationId, organizationId),
+        eq(schema.patientFollowup.status, 'open'),
+        // dueDate <= today captures both overdue (< today) and due-today.
+        // NULL due dates and future ones are excluded — they aren't "due now".
+        sql`${schema.patientFollowup.dueDate} is not null and ${schema.patientFollowup.dueDate} <= ${today}`,
+      ),
+    )
+  return Number(row?.c ?? 0)
+}
+
 export interface CreateFollowupInput {
   organizationId: string
   patientId: string
