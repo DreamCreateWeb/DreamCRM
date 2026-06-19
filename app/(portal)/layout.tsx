@@ -20,6 +20,7 @@ import {
 } from '@/components/patient-portal/portal-chrome'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
 import DemoBanner from '@/components/ui/demo-banner'
+import { SkipToContent } from '@/components/ui/skip-to-content'
 
 /**
  * Patient-portal chrome — the clinic-branded replacement for the Mosaic
@@ -112,6 +113,7 @@ export default async function PortalLayout({ children }: { children: React.React
         className="min-h-screen flex flex-col"
         style={{ backgroundColor: '#FAF7F2', color: '#1C1A17' }}
       >
+        <SkipToContent targetId="portal-main" />
         <DemoBanner ctx={ctx} />
         {settings.copy.announcement && (
           <PortalAnnouncement text={settings.copy.announcement} brand={brand} />
@@ -171,7 +173,7 @@ export default async function PortalLayout({ children }: { children: React.React
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-6 sm:px-6 md:pb-16">
+        <main id="portal-main" tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-6 outline-none sm:px-6 md:pb-16">
           {children}
         </main>
 

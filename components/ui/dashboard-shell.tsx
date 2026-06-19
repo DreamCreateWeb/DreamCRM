@@ -8,6 +8,7 @@ import TrialEndedWall from './trial-ended-wall'
 import KeyboardShortcuts from './keyboard-shortcuts'
 import { TrailProvider } from '@/app/trail-context'
 import { ConfirmProvider } from '@/components/ui/confirm-dialog'
+import { SkipToContent } from '@/components/ui/skip-to-content'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
@@ -71,6 +72,9 @@ export default async function DashboardShell({
     // `v2-app` scopes the Geist Sans dashboard UI font to the authenticated
     // shell only (public site / portal / marketing keep their own families).
     <div className="v2-app flex h-[100dvh] overflow-hidden bg-canvas text-ink-600">
+      {/* Keyboard a11y: the first focusable element lets keyboard/AT users jump
+          past the whole sidebar straight to the page content. Hidden until focused. */}
+      <SkipToContent />
       <TenantSidebar
         modules={modules}
         orgName={ctx.organizationName}
@@ -95,7 +99,7 @@ export default async function DashboardShell({
           <BillingActivationBanner ctx={ctx} />
           <BillingDunningBanner ctx={ctx} />
           <TrialBanner ctx={ctx} />
-          <main className="grow [&>*:first-child]:scroll-mt-16">
+          <main id="main-content" tabIndex={-1} className="grow outline-none [&>*:first-child]:scroll-mt-16">
             {/* ConfirmProvider lets any page swap native window.confirm() for the
                 on-brand, accessible in-app dialog via useConfirm(). */}
             <ConfirmProvider>
