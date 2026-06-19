@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { submitContactRequest } from './actions'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
+import { FieldError } from '@/components/ui/field-error'
+import { validateRequired, validateEmail, validatePhone } from '@/lib/validation'
 
 /** Map a lead-form field to the right mobile keyboard + browser-autofill hint
  *  so phones surface the dialpad/email keys and Safari/Chrome can autofill. */
@@ -36,6 +38,7 @@ interface Props {
 export default function ContactForm({ slug, brand, isPro, basePath, fields, services, carriers }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const serviceList = (services ?? []).filter((s) => s.trim().length > 0)
   const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
@@ -75,10 +78,26 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setStatus('pending')
     setErrorMsg('')
     const fd = new FormData(e.currentTarget)
     fd.set('slug', slug)
+    // Inline field validation before the round-trip (consistent, accessible
+    // errors instead of the browser's default bubbles — the form is noValidate).
+    const errs: Record<string, string> = {}
+    for (const f of formFields) {
+      const val = String(fd.get(f.id) ?? '')
+      let msg: string | null = null
+      if (f.required) msg = validateRequired(val, f.label)
+      if (!msg && val && f.type === 'email') msg = validateEmail(val)
+      if (!msg && val && f.type === 'tel') msg = validatePhone(val)
+      if (msg) errs[f.id] = msg
+    }
+    setFieldErrors(errs)
+    if (Object.keys(errs).length > 0) {
+      setStatus('idle')
+      return
+    }
+    setStatus('pending')
     // Source-attribution snapshot — captured at submit time from the
     // browser context. Lets staff see "came from /services, referred by
     // Google" in the Leads drawer + drives a future UTM campaign report.
@@ -126,6 +145,8 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
             name={f.id}
             defaultValue=""
             required={f.required}
+            aria-invalid={!!fieldErrors[f.id]}
+            aria-describedby={fieldErrors[f.id] ? `err-cf-${f.id}` : undefined}
             className={inputClass}
           >
             <option value="">Select…</option>
@@ -136,6 +157,7 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
             ))}
             {f.dynamicOptions && <option value="__other__">Other / not listed</option>}
           </select>
+          <FieldError id={`err-cf-${f.id}`} message={fieldErrors[f.id]} />
         </div>
       )
     }
@@ -148,9 +170,12 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
             name={f.id}
             rows={3}
             required={f.required}
+            aria-invalid={!!fieldErrors[f.id]}
+            aria-describedby={fieldErrors[f.id] ? `err-cf-${f.id}` : undefined}
             placeholder={f.placeholder ?? ''}
             className={`${inputClass} resize-none`}
           />
+          <FieldError id={`err-cf-${f.id}`} message={fieldErrors[f.id]} />
         </div>
       )
     }
@@ -165,6 +190,8 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
           name={f.id}
           type={inputType}
           required={f.required}
+          aria-invalid={!!fieldErrors[f.id]}
+          aria-describedby={fieldErrors[f.id] ? `err-cf-${f.id}` : undefined}
           placeholder={f.placeholder ?? ''}
           min={f.type === 'date' ? new Date().toISOString().split('T')[0] : undefined}
           inputMode={attrs.inputMode}
@@ -172,12 +199,13 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
           className={inputClass}
           style={{ ['--tw-ring-color' as string]: brand }}
         />
+        <FieldError id={`err-cf-${f.id}`} message={fieldErrors[f.id]} />
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
       <FormTrustFields />
       {formFields.map(renderField)}
 
