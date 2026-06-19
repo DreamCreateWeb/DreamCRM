@@ -5,6 +5,8 @@ import { useRef, useState, useTransition } from 'react'
 import type { PatientHeader } from '@/lib/services/patients'
 import { ActionButton } from '@/components/ui/action-button'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { FieldError } from '@/components/ui/field-error'
+import { validateRequired, validateEmail, validatePhone, collectErrors } from '@/lib/validation'
 import { updatePatientAction } from '../actions'
 
 export default function EditPatientModal({
@@ -19,6 +21,7 @@ export default function EditPatientModal({
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [pending, startTransition] = useTransition()
   const dialogRef = useRef<HTMLDivElement>(null)
   useFocusTrap(true, dialogRef, { onEscape: onClose })
@@ -43,9 +46,14 @@ export default function EditPatientModal({
 
   function save() {
     setError(null)
-    if (!firstName.trim() || !lastName.trim()) {
-      setError('First and last name are required'); return
-    }
+    const errs = collectErrors({
+      firstName: validateRequired(firstName, 'First name'),
+      lastName: validateRequired(lastName, 'Last name'),
+      email: validateEmail(email),
+      phone: validatePhone(phone),
+    })
+    setFieldErrors(errs)
+    if (Object.keys(errs).length > 0) return
     startTransition(async () => {
       const r = await updatePatientAction(header.id, {
         firstName: firstName.trim(),
@@ -77,11 +85,11 @@ export default function EditPatientModal({
         </div>
         <div className="px-6 py-5 space-y-3 overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="First name" value={firstName} onChange={setFirstName} />
-            <Field label="Last name" value={lastName} onChange={setLastName} />
+            <Field label="First name" value={firstName} onChange={setFirstName} error={fieldErrors.firstName} />
+            <Field label="Last name" value={lastName} onChange={setLastName} error={fieldErrors.lastName} />
           </div>
-          <Field label="Email" value={email} onChange={setEmail} type="email" />
-          <Field label="Phone" value={phone} onChange={setPhone} type="tel" />
+          <Field label="Email" value={email} onChange={setEmail} type="email" error={fieldErrors.email} />
+          <Field label="Phone" value={phone} onChange={setPhone} type="tel" error={fieldErrors.phone} />
           <Field label="Date of birth" value={dob} onChange={setDob} type="date" />
           <div className="grid grid-cols-1 gap-3 pt-2">
             <Field label="Street address" value={address} onChange={setAddress} />
@@ -166,12 +174,15 @@ function Field({
   value,
   onChange,
   type = 'text',
+  error,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   type?: string
+  error?: string
 }) {
+  const errId = error ? `err-${label.replace(/\s+/g, '-').toLowerCase()}` : undefined
   return (
     <label className="block">
       <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</span>
@@ -179,8 +190,11 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-invalid={!!error}
+        aria-describedby={errId}
         className="form-input w-full text-sm mt-1"
       />
+      <FieldError id={errId} message={error} />
     </label>
   )
 }
