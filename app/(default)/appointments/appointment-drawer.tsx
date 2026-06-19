@@ -12,6 +12,7 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
 import PatientTagControl from '@/components/tags/patient-tag-control'
 import SendIntakeInline from '../patients/send-intake-inline'
+import { sendReviewRequestForPatientAction } from '../patients/actions'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import {
   confirmAppointmentAction,
@@ -180,6 +181,17 @@ export default function AppointmentDrawer({
     })
   }
 
+  function onRequestReview() {
+    if (!detail) return
+    const patientId = detail.patient.id
+    startTransition(async () => {
+      const r = await sendReviewRequestForPatientAction(patientId)
+      // The service enforces every guard (no email, opted out, no platforms
+      // configured, within the rate-limit window) — surface its message verbatim.
+      flash(r.ok ? 'Review request sent.' : r.error)
+    })
+  }
+
   function onSendReminder() {
     startTransition(async () => {
       const r = await sendReminderAction(appointmentId, 'email')
@@ -287,6 +299,11 @@ export default function AppointmentDrawer({
                 ) : isScheduled ? (
                   <ActionButton variant="primary" size="sm" onClick={onConfirm} disabled={pending}>
                     Mark confirmed
+                  </ActionButton>
+                ) : detail.status === 'completed' ? (
+                  // The visit's done — the natural next step is asking for a review.
+                  <ActionButton variant="primary" size="sm" onClick={onRequestReview} disabled={pending}>
+                    Request review
                   </ActionButton>
                 ) : (
                   <ActionButton variant="primary" size="sm" onClick={onSendReminder} disabled={pending}>
