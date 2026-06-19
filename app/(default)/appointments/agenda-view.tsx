@@ -311,9 +311,20 @@ export default function AgendaView({
           />
         }
         actions={
-          <ActionButton variant="primary" onClick={() => setNewBookingOpen(true)}>
-            + New booking
-          </ActionButton>
+          <>
+            {totalRows > 0 && (
+              <ActionButton
+                variant="ghost"
+                href={currentViewQuery ? `/appointments/export?${currentViewQuery}` : '/appointments/export'}
+                target="_blank"
+              >
+                Export CSV
+              </ActionButton>
+            )}
+            <ActionButton variant="primary" onClick={() => setNewBookingOpen(true)}>
+              + New booking
+            </ActionButton>
+          </>
         }
       />
 
