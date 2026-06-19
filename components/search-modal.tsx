@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter } from 'next/navigation'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { globalSearchAction } from '@/app/(default)/search/actions'
-import type { SearchGroup, SearchResultKind } from '@/lib/types/global-search'
+import { createFollowupAction } from '@/app/(default)/patients/actions'
+import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
+import type { SearchGroup, SearchResult, SearchResultKind } from '@/lib/types/global-search'
 
 /**
  * Global ⌘K command palette — replaces the Mosaic template's fake search
@@ -29,12 +31,25 @@ const KIND_GLYPHS: Record<SearchResultKind, React.ReactNode> = {
   action: <path d="M9.5 1 2 9h4.5L6 15l7.5-8H9l.5-6Z" />,
 }
 
+/** Pull the patient id + first name off a `kind: 'patient'` result so the
+ *  palette can compose a follow-up against it (href is `/patients/{id}`). */
+function patientFromResult(r: SearchResult): { patientId: string; firstName: string } | null {
+  if (r.kind !== 'patient') return null
+  const patientId = r.href.startsWith('/patients/') ? r.href.slice('/patients/'.length) : ''
+  if (!patientId) return null
+  return { patientId, firstName: r.label.split(' ')[0] || 'this patient' }
+}
+
 export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [groups, setGroups] = useState<SearchGroup[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
   const [pending, startTransition] = useTransition()
+  // Composer sub-mode: when set, the palette body swaps to "new follow-up for
+  // {patient}" instead of the results list. `flash` confirms the last add.
+  const [composer, setComposer] = useState<{ patientId: string; firstName: string } | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
   const requestSeq = useRef(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -59,6 +74,8 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
   useEffect(() => {
     if (!isOpen) return
     setQuery('')
+    setComposer(null)
+    setFlash(null)
     runSearch('')
   }, [isOpen, runSearch])
 
@@ -77,6 +94,8 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
   )
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // The composer owns its own inputs; don't run list nav underneath it.
+    if (composer) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActiveIdx((i) => Math.min(i + 1, flat.length - 1))
@@ -124,13 +143,14 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                 </label>
                 <input
                   id="search-modal"
-                  className="w-full dark:text-gray-300 bg-white dark:bg-gray-800 border-0 focus:ring-transparent placeholder-gray-400 dark:placeholder-gray-500 appearance-none py-3 pl-10 pr-16"
+                  className="w-full dark:text-gray-300 bg-white dark:bg-gray-800 border-0 focus:ring-transparent placeholder-gray-400 dark:placeholder-gray-500 appearance-none py-3 pl-10 pr-16 disabled:opacity-50"
                   type="search"
                   placeholder="Search patients, visits, leads, pages…"
                   value={query}
                   onChange={(e) => onQueryChange(e.target.value)}
                   onKeyDown={onKeyDown}
                   autoComplete="off"
+                  disabled={!!composer}
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                 />
@@ -147,7 +167,19 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
             </div>
 
             <div className="px-2 py-4">
-              {groups.length === 0 ? (
+              {flash && !composer && (
+                <div className="mx-1 mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                  ✓ {flash}
+                </div>
+              )}
+              {composer ? (
+                <FollowupComposer
+                  patientId={composer.patientId}
+                  firstName={composer.firstName}
+                  onCancel={() => setComposer(null)}
+                  onDone={(msg) => { setComposer(null); setFlash(msg) }}
+                />
+              ) : groups.length === 0 ? (
                 <p className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                   {pending
                     ? 'Searching…'
@@ -166,13 +198,14 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                         runningIdx += 1
                         const idx = runningIdx
                         const active = idx === activeIdx
+                        const patientTarget = patientFromResult(r)
                         return (
-                          <li key={r.id}>
+                          <li key={r.id} className="flex items-center gap-1">
                             <button
                               type="button"
                               onClick={() => go(r.href)}
                               onMouseEnter={() => setActiveIdx(idx)}
-                              className={`flex w-full items-center rounded-lg p-2 text-left text-gray-800 dark:text-gray-100 ${
+                              className={`flex flex-1 min-w-0 items-center rounded-lg p-2 text-left text-gray-800 dark:text-gray-100 ${
                                 active ? 'bg-gray-100 dark:bg-gray-700/30' : ''
                               }`}
                             >
@@ -197,6 +230,16 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                                 </kbd>
                               )}
                             </button>
+                            {patientTarget && (
+                              <button
+                                type="button"
+                                onClick={() => { setFlash(null); setComposer(patientTarget) }}
+                                title={`Add a follow-up for ${patientTarget.firstName}`}
+                                className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-500/10 dark:text-teal-400"
+                              >
+                                ＋ Follow-up
+                              </button>
+                            )}
                           </li>
                         )
                       })}
@@ -209,5 +252,82 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
         </TransitionChild>
       </Dialog>
     </Transition>
+  )
+}
+
+/**
+ * The palette's "new follow-up for {patient}" sub-mode — reached by the
+ * ＋ Follow-up affordance on a patient result. Reuses createFollowupAction so
+ * the new item flows into My Day / the digest / the board / the timeline like
+ * any other. Returns to the results list (with a flash) on success.
+ */
+function FollowupComposer({
+  patientId,
+  firstName,
+  onCancel,
+  onDone,
+}: {
+  patientId: string
+  firstName: string
+  onCancel: () => void
+  onDone: (msg: string) => void
+}) {
+  const [title, setTitle] = useState('')
+  const [dueDate, setDueDate] = useState(addDaysYmd(todayYmd(), 3))
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  function submit() {
+    if (!title.trim()) { setError('Add a short reminder.'); return }
+    setError(null)
+    startTransition(async () => {
+      const res = await createFollowupAction({ patientId, title, dueDate: dueDate || null })
+      if (res.ok) {
+        // Keep the sidebar "Follow-ups due" badge honest if this one is due now.
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+        onDone(`Follow-up added for ${firstName}`)
+      } else setError(res.error)
+    })
+  }
+
+  return (
+    <div className="px-1 py-1">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+      >
+        ← Back to results
+      </button>
+      <h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+        Add a follow-up for {firstName}
+      </h3>
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value.slice(0, MAX_FOLLOWUP_TITLE_LEN))}
+        onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
+        placeholder={`e.g. Call ${firstName} about the crown estimate`}
+        className="form-input w-full text-sm"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="form-input flex-1 text-sm"
+          aria-label="Due date"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending}
+          className="shrink-0 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+        >
+          {pending ? 'Adding…' : 'Add follow-up'}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+    </div>
   )
 }
