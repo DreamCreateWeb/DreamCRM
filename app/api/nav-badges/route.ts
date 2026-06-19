@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { getTenantContext } from '@/lib/auth/context'
 import { getInboxStats } from '@/lib/services/patient-messaging'
 import { getLeadCounts } from '@/lib/services/leads'
+import { countFollowupsDue } from '@/lib/services/patient-followups'
 
 /**
  * GET /api/nav-badges
@@ -23,6 +24,9 @@ import { getLeadCounts } from '@/lib/services/leads'
  *               nudge — the sidebar clears it on visit, see tenant-sidebar.tsx)
  *   - shop:     paid + `unfulfilled` orders; when `?shopSince=<epochMs>` is
  *               passed, only those paid since
+ *   - followups: open follow-ups due now (overdue or due today), org-wide — a
+ *               true state count that drops as items are completed (like
+ *               messages, no `*Since` model). Mirrors the board's default view.
  *
  * The `*Since` params let the sidebar reset the leads/shop badge the moment you
  * open that module, then tick it back up only for genuinely new arrivals —
@@ -32,9 +36,10 @@ export interface NavBadgeCounts {
   messages: number
   leads: number
   shop: number
+  followups: number
 }
 
-const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0 }
+const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0, followups: 0 }
 
 /** Parse an epoch-ms query param into a Date, or null if absent/invalid. */
 function parseSince(raw: string | null): Date | null {
@@ -61,15 +66,16 @@ export async function GET(req: Request) {
 
   // Each count is independent + best-effort — one failing query (e.g. shop
   // tables absent) must not blank out the others. Settle all, default to 0.
-  const [messages, leads, shop] = await Promise.all([
+  const [messages, leads, shop, followups] = await Promise.all([
     getInboxStats(orgId, ctx.userId)
       .then((s) => s.unread)
       .catch(() => 0),
     countNewLeads(orgId, leadsSince).catch(() => 0),
     countUnfulfilledPaidOrders(orgId, shopSince).catch(() => 0),
+    countFollowupsDue(orgId).catch(() => 0),
   ])
 
-  const body: NavBadgeCounts = { messages, leads, shop }
+  const body: NavBadgeCounts = { messages, leads, shop, followups }
   return NextResponse.json(body, { headers: { 'Cache-Control': 'no-store' } })
 }
 

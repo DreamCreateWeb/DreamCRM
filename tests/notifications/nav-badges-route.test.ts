@@ -6,15 +6,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * blank the others).
  */
 
-const { ctxMock, inboxMock, leadsMock } = vi.hoisted(() => ({
+const { ctxMock, inboxMock, leadsMock, followupsMock } = vi.hoisted(() => ({
   ctxMock: vi.fn(),
   inboxMock: vi.fn(),
   leadsMock: vi.fn(),
+  followupsMock: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/context', () => ({ getTenantContext: ctxMock }))
 vi.mock('@/lib/services/patient-messaging', () => ({ getInboxStats: inboxMock }))
 vi.mock('@/lib/services/leads', () => ({ getLeadCounts: leadsMock }))
+vi.mock('@/lib/services/patient-followups', () => ({ countFollowupsDue: followupsMock }))
 
 // Per-table count mock so the leads "since" branch (queries schema.lead) and
 // the shop count (queries schema.shopOrder) are distinguishable.
@@ -63,16 +65,24 @@ beforeEach(() => {
   ctxMock.mockResolvedValue(CLINIC_CTX)
   inboxMock.mockResolvedValue({ open: 5, unread: 3, snoozedAvailable: 0, archived: 0 })
   leadsMock.mockResolvedValue({ new: 2, contacted: 0, converted: 0, archived: 0, total: 2 })
+  followupsMock.mockResolvedValue(7)
 })
 
 describe('GET /api/nav-badges', () => {
-  it('returns the three counts for a clinic tenant (no since → totals)', async () => {
+  it('returns the four counts for a clinic tenant (no since → totals)', async () => {
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ messages: 3, leads: 2, shop: 4 })
+    expect(body).toEqual({ messages: 3, leads: 2, shop: 4, followups: 7 })
     // No since → leads come from getLeadCounts (the total backlog).
     expect(leadsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces the follow-ups-due count (overdue + due today)', async () => {
+    followupsMock.mockResolvedValue(3)
+    const body = await (await GET(req())).json()
+    expect(body.followups).toBe(3)
+    expect(followupsMock).toHaveBeenCalledWith('org_1')
   })
 
   it('counts only leads created since ?leadsSince (the "new since you looked" nudge)', async () => {
@@ -100,28 +110,36 @@ describe('GET /api/nav-badges', () => {
     ctxMock.mockResolvedValue(null)
     const res = await GET(req())
     expect(res.status).toBe(401)
-    expect(await res.json()).toEqual({ messages: 0, leads: 0, shop: 0 })
+    expect(await res.json()).toEqual({ messages: 0, leads: 0, shop: 0, followups: 0 })
   })
 
   it('zeroes the badges for a non-clinic (platform) tenant', async () => {
     ctxMock.mockResolvedValue({ tenantType: 'platform', organizationId: 'plat', userId: 'u1' })
     const res = await GET(req())
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ messages: 0, leads: 0, shop: 0 })
+    expect(await res.json()).toEqual({ messages: 0, leads: 0, shop: 0, followups: 0 })
     expect(inboxMock).not.toHaveBeenCalled()
+    expect(followupsMock).not.toHaveBeenCalled()
   })
 
   it('zeroes the badges for a patient tenant', async () => {
     ctxMock.mockResolvedValue({ tenantType: 'patient', organizationId: 'org_1', userId: 'u1', patientId: 'pat_1' })
     const res = await GET(req())
-    expect(await res.json()).toEqual({ messages: 0, leads: 0, shop: 0 })
+    expect(await res.json()).toEqual({ messages: 0, leads: 0, shop: 0, followups: 0 })
   })
 
   it('is resilient — one failing count zeroes only itself', async () => {
     state.orderThrows = true // shop count blows up
     const res = await GET(req())
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ messages: 3, leads: 2, shop: 0 })
+    expect(await res.json()).toEqual({ messages: 3, leads: 2, shop: 0, followups: 7 })
+  })
+
+  it('a failing follow-ups count zeroes only itself', async () => {
+    followupsMock.mockRejectedValue(new Error('followup tables missing'))
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ messages: 3, leads: 2, shop: 4, followups: 0 })
   })
 
   it('sets Cache-Control: no-store so badges never serve stale', async () => {

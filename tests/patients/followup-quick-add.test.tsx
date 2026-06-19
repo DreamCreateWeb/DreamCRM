@@ -8,9 +8,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-const createFollowupAction = vi.fn(async () => ({ ok: true as const, followup: {} as never }))
+type FollowupInput = { patientId: string; title: string; dueDate: string | null }
+const createFollowupAction = vi.fn(
+  async (_input: FollowupInput) => ({ ok: true as const, followup: {} as never }),
+)
 vi.mock('@/app/(default)/patients/actions', () => ({
-  createFollowupAction: (...args: unknown[]) => createFollowupAction(...(args as [])),
+  createFollowupAction: (input: FollowupInput) => createFollowupAction(input),
 }))
 
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
@@ -58,11 +61,7 @@ describe('FollowupQuickAdd', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
     await waitFor(() => expect(createFollowupAction).toHaveBeenCalledTimes(1))
-    const arg = createFollowupAction.mock.calls[0][0] as {
-      patientId: string
-      title: string
-      dueDate: string | null
-    }
+    const arg = createFollowupAction.mock.calls[0][0]
     expect(arg.patientId).toBe('pat_42')
     expect(arg.title).toBe('Call about the crown estimate')
     expect(arg.dueDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)

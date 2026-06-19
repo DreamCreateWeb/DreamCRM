@@ -19,6 +19,11 @@ import {
 
 type Staff = { userId: string; name: string }
 
+/** Nudge the sidebar to re-poll its "Follow-ups due" badge immediately. */
+function pingNavBadges() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+}
+
 /**
  * Follow-ups panel on the patient detail. Staff reminders attached to this
  * patient — create with a due date + assignee, tick off, reopen, remove.
@@ -54,6 +59,7 @@ export default function FollowupsPanel({
     startTransition(async () => {
       const res = await completeFollowupAction(id, patientId)
       if (!res.ok) { setStatus(id, 'open'); setError(res.error) }
+      else pingNavBadges()
     })
   }
   function reopen(id: string) {
@@ -62,6 +68,7 @@ export default function FollowupsPanel({
     startTransition(async () => {
       const res = await reopenFollowupAction(id, patientId)
       if (!res.ok) { setStatus(id, 'done'); setError(res.error) }
+      else pingNavBadges()
     })
   }
   function remove(id: string) {
