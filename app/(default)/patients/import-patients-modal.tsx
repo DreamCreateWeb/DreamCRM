@@ -9,6 +9,7 @@ import {
   type ImportPreview,
 } from './actions'
 import type { ColumnMapping, ImportField, ImportSummary } from '@/lib/services/patient-import'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 /**
  * CSV patient import — upload → auto-map columns (with manual remap) → preview
@@ -40,6 +41,8 @@ type Stage =
 export default function ImportPatientsModal({ onClose }: { onClose: () => void }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, dialogRef, { onEscape: onClose })
   const [file, setFile] = useState<File | null>(null)
   const [stage, setStage] = useState<Stage>({ type: 'upload' })
   const [mapping, setMapping] = useState<ColumnMapping>({})
@@ -104,7 +107,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Import patients" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Import patients" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
       <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="px-6 py-5 border-b border-[color:var(--color-hairline)] flex items-start justify-between">
           <div>

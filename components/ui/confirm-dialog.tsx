@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 /**
  * In-app confirmation dialog, replacing native window.confirm() across the
@@ -90,21 +91,20 @@ function ConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const panelRef = useRef<HTMLDivElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
+
+  // Trap + restore focus + Escape (initialFocus off — we focus the primary below).
+  useFocusTrap(true, panelRef, { onEscape: onCancel, initialFocus: false })
 
   useEffect(() => {
     confirmRef.current?.focus()
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prevOverflow
     }
-  }, [onCancel])
+  }, [])
 
   const {
     title = 'Are you sure?',
@@ -120,6 +120,7 @@ function ConfirmDialog({
       onClick={onCancel}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
