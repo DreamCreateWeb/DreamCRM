@@ -26,6 +26,8 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
+import { bulkCreateFollowupsForPatientsAction } from '../patients/actions'
 import NewBookingDrawer from './new-booking-drawer'
 import AppointmentDrawer from './appointment-drawer'
 import { confirmAppointmentAction, bulkSendRemindersAction } from './actions'
@@ -223,6 +225,8 @@ export default function AgendaView({
     })
   }
 
+  const [followupOpen, setFollowupOpen] = useState(false)
+
   function onBulkSend() {
     const ids = Array.from(selected)
     if (ids.length === 0) return
@@ -230,6 +234,34 @@ export default function AgendaView({
       const r = await bulkSendRemindersAction(ids, 'email')
       setToast(`Sent ${r.sent} reminder${r.sent === 1 ? '' : 's'}${r.skipped ? ` · skipped ${r.skipped}` : ''}${r.errors.length ? ` · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}` : ''}`)
       setSelected(new Set())
+    })
+  }
+
+  // Selected appointments → their unique patients (one follow-up per patient
+  // even if you picked two of their visits).
+  const selectedPatientIds = useMemo(() => {
+    const idToPatient = new Map<string, string>()
+    for (const g of groups) for (const r of g.rows) idToPatient.set(r.id, r.patientId)
+    const out = new Set<string>()
+    for (const id of Array.from(selected)) {
+      const p = idToPatient.get(id)
+      if (p) out.add(p)
+    }
+    return Array.from(out)
+  }, [selected, groups])
+
+  function onBulkFollowup(title: string, dueDate: string) {
+    if (selectedPatientIds.length === 0 || !title.trim()) return
+    startBulk(async () => {
+      const r = await bulkCreateFollowupsForPatientsAction(selectedPatientIds, { title, dueDate: dueDate || null })
+      if (r.ok) {
+        setToast(`Added ${r.created} follow-up${r.created === 1 ? '' : 's'}`)
+        setSelected(new Set())
+        setFollowupOpen(false)
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+      } else {
+        setToast(r.error)
+      }
     })
   }
 
@@ -350,6 +382,19 @@ export default function AgendaView({
         <ActionButton variant="primary" size="sm" onClick={onBulkSend} disabled={bulkPending}>
           {bulkPending ? 'Sending…' : `Send ${selected.size} reminder${selected.size === 1 ? '' : 's'}`}
         </ActionButton>
+        <div className="relative">
+          <ActionButton variant="secondary" size="sm" onClick={() => setFollowupOpen((o) => !o)} disabled={bulkPending}>
+            Add follow-up
+          </ActionButton>
+          {followupOpen && (
+            <BulkFollowupComposer
+              count={selectedPatientIds.length}
+              pending={bulkPending}
+              onSubmit={onBulkFollowup}
+              onClose={() => setFollowupOpen(false)}
+            />
+          )}
+        </div>
       </BulkBar>
 
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
@@ -531,5 +576,52 @@ function AgendaEmptyState({
         </ActionButton>
       }
     />
+  )
+}
+
+/**
+ * Compact composer for the agenda's bulk "Add follow-up" — opens upward from
+ * the sticky bulk bar. Creates one follow-up per selected (deduped) patient,
+ * e.g. "Call back about rebooking" for everyone who no-showed today.
+ */
+function BulkFollowupComposer({
+  count,
+  pending,
+  onSubmit,
+  onClose,
+}: {
+  count: number
+  pending: boolean
+  onSubmit: (title: string, dueDate: string) => void
+  onClose: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [dueDate, setDueDate] = useState(addDaysYmd(todayYmd(), 3))
+  return (
+    <div className="absolute bottom-full left-0 mb-2 w-72 rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] p-2.5 shadow-[var(--shadow-modal)]">
+      <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-200">
+        Follow-up for {count} patient{count === 1 ? '' : 's'}
+      </p>
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value.slice(0, MAX_FOLLOWUP_TITLE_LEN))}
+        onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(title, dueDate); if (e.key === 'Escape') onClose() }}
+        placeholder="e.g. Call about rebooking"
+        className="form-input w-full text-xs py-1"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="form-input text-xs py-1 flex-1"
+          aria-label="Due date"
+        />
+        <ActionButton variant="primary" size="sm" onClick={() => onSubmit(title, dueDate)} disabled={pending || !title.trim() || count === 0}>
+          {pending ? 'Adding…' : 'Add'}
+        </ActionButton>
+      </div>
+    </div>
   )
 }

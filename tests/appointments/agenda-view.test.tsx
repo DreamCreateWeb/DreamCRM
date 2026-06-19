@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -8,6 +8,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/app/(default)/appointments/actions', () => ({
   confirmAppointmentAction: vi.fn(async () => ({ ok: true })),
   bulkSendRemindersAction: vi.fn(async () => ({ attempted: 0, sent: 0, skipped: 0, errors: [] })),
+}))
+const { bulkFollowupMock } = vi.hoisted(() => ({ bulkFollowupMock: vi.fn() }))
+vi.mock('@/app/(default)/patients/actions', () => ({
+  bulkCreateFollowupsForPatientsAction: bulkFollowupMock,
 }))
 vi.mock('@/app/(default)/appointments/appointment-drawer', () => ({
   default: () => null,
@@ -299,6 +303,60 @@ describe('AgendaView', () => {
     expect(screen.getByText(/1 selected/)).toBeInTheDocument()
     // BulkBar uses an explicit-verb label that pluralizes by count.
     expect(screen.getByRole('button', { name: /Send 1 reminder/ })).toBeInTheDocument()
+  })
+
+  it('bulk "Add follow-up" creates one per selected patient', async () => {
+    bulkFollowupMock.mockClear().mockResolvedValue({ ok: true, created: 2 })
+    const group: AppointmentDayGroup = {
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [
+        makeRow({ id: 'a1', patientId: 'p1', patientName: 'Mia Hayes' }),
+        makeRow({ id: 'a2', patientId: 'p2', patientName: 'Liam Ross', startTime: new Date('2026-05-21T10:00:00Z') }),
+      ],
+      totals: { booked: 2, confirmed: 0, unconfirmed: 2 },
+    }
+    render(<AgendaView groups={[group]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    fireEvent.click(screen.getByLabelText('Select Mia Hayes'))
+    fireEvent.click(screen.getByLabelText('Select Liam Ross'))
+    fireEvent.click(screen.getByRole('button', { name: 'Add follow-up' }))
+
+    expect(screen.getByText(/Follow-up for 2 patients/)).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText(/Call about rebooking/), { target: { value: 'Rebook them' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/ }))
+
+    await waitFor(() =>
+      expect(bulkFollowupMock).toHaveBeenCalledWith(['p1', 'p2'], {
+        title: 'Rebook them',
+        dueDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
+  })
+
+  it('dedups a patient picked via two of their visits', async () => {
+    bulkFollowupMock.mockClear().mockResolvedValue({ ok: true, created: 1 })
+    const group: AppointmentDayGroup = {
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [
+        makeRow({ id: 'a1', patientId: 'p1', patientName: 'Mia Hayes' }),
+        makeRow({ id: 'a2', patientId: 'p1', patientName: 'Mia Again', startTime: new Date('2026-05-21T10:00:00Z') }),
+      ],
+      totals: { booked: 2, confirmed: 0, unconfirmed: 2 },
+    }
+    render(<AgendaView groups={[group]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    fireEvent.click(screen.getByLabelText('Select Mia Hayes'))
+    fireEvent.click(screen.getByLabelText('Select Mia Again'))
+    fireEvent.click(screen.getByRole('button', { name: 'Add follow-up' }))
+
+    // Two visits, one patient → the composer counts a single patient.
+    expect(screen.getByText(/Follow-up for 1 patient(?!s)/)).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText(/Call about rebooking/), { target: { value: 'Ring Mia' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/ }))
+
+    await waitFor(() =>
+      expect(bulkFollowupMock).toHaveBeenCalledWith(['p1'], expect.objectContaining({ title: 'Ring Mia' })),
+    )
   })
 
   // ── Design System v2 vocabulary ─────────────────────────────────────

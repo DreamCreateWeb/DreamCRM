@@ -308,6 +308,26 @@ export async function bulkFollowupForFilteredAction(
   }
 }
 
+/** Create one follow-up per (deduped, org-owned) patient from an explicit id
+ *  list — the appointments-agenda "follow up with these N patients" bulk
+ *  action (e.g. everyone who no-showed today). */
+export async function bulkCreateFollowupsForPatientsAction(
+  patientIds: string[],
+  input: { title: string; dueDate?: string | null },
+): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can add follow-ups' }
+  if (!input.title.trim()) return { ok: false, error: 'Give the follow-up a title.' }
+  try {
+    const { created } = await bulkCreateFollowups(ctx.organizationId, patientIds, input, ctx.userId)
+    revalidatePath('/followups')
+    revalidatePath('/dashboard')
+    return { ok: true, created }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not add follow-ups' }
+  }
+}
+
 /** Apply a tag to every patient matching the current view. */
 export async function bulkTagForFilteredAction(
   filters: SavedViewFilters,
