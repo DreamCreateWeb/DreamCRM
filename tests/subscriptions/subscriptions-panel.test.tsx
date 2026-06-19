@@ -8,6 +8,8 @@ vi.mock('../../app/(default)/ecommerce/invoices/admin-actions', () => ({
   toggleCancelAtPeriodEnd: vi.fn(),
   changePlan: vi.fn(),
 }))
+// Pass useConfirm() through (auto-confirm) — rendered outside the provider.
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
 
 import SubscriptionsPanel from '@/app/(default)/ecommerce/invoices/subscriptions-panel'
 

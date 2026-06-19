@@ -16,6 +16,7 @@ import {
 import { setPlanStatusAction, deletePlanAction, markBenefitUsedAction } from './actions'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -68,6 +69,7 @@ interface Props {
 
 export default function MembershipsClient({ plans, members, stats, publicBase, orgName = 'Your clinic' }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [tab, setTab] = useState<'plans' | 'members'>('plans')
   const [isPending, startTransition] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
@@ -186,8 +188,15 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                     variant="danger"
                     size="sm"
                     disabled={isPending}
-                    onClick={() => {
-                      if (confirm(`Delete "${p.name}"? (Archived instead if it has members.)`))
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: `Delete “${p.name}”?`,
+                          message: 'It’s archived instead if it has members.',
+                          confirmLabel: 'Delete',
+                          danger: true,
+                        })
+                      )
                         run(() => deletePlanAction(p.id), `${p.name} removed.`)
                     }}
                   >

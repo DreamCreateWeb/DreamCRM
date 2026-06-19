@@ -16,6 +16,7 @@ import {
 import { setJobStatusAction, deleteJobAction, setApplicationStatusAction, updateApplicationNotesAction } from './actions'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -102,6 +103,7 @@ interface Props {
 
 export default function CareersClient({ jobs, applications, counts, stats, publicBase, orgName = 'Your clinic' }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [tab, setTab] = useState<'roles' | 'applicants'>(stats.newApplicants > 0 ? 'applicants' : 'roles')
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -217,8 +219,16 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
                     variant="danger"
                     size="sm"
                     disabled={isPending}
-                    onClick={() => {
-                      if (confirm(`Delete "${j.title}"? This removes its applications too.`)) run(() => deleteJobAction(j.id))
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: `Delete “${j.title}”?`,
+                          message: 'This removes its applications too.',
+                          confirmLabel: 'Delete',
+                          danger: true,
+                        })
+                      )
+                        run(() => deleteJobAction(j.id))
                     }}
                   >
                     Delete

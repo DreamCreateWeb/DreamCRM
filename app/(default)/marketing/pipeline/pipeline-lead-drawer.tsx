@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Drawer from '@/components/ui/drawer'
 import { stageAccentClasses, type PipelineStage } from '@/lib/marketing/terminology'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { FlashToast } from '@/components/ui/flash-toast'
 import {
   archiveLeadAction,
@@ -35,6 +36,7 @@ interface Props {
 
 export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const pathname = usePathname()
   const sp = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -72,9 +74,17 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
     })
   }
 
-  function archive() {
+  async function archive() {
     if (!lead) return
-    if (!confirm('Archive this lead? You can find it again in the archived view.')) return
+    if (
+      !(await confirm({
+        title: 'Archive this lead?',
+        message: 'You can find it again in the archived view.',
+        confirmLabel: 'Archive',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       await archiveLeadAction(lead.id)
       close()

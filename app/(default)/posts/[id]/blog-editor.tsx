@@ -11,6 +11,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { cn, excerptFromHtml } from '@/lib/utils'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
 import {
   updateBlogPostAction,
@@ -64,6 +65,7 @@ interface Props {
 
 export default function BlogEditor({ post, authors, categorySuggestions, baseUrl, openAi }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
   const [draft, setDraft] = useState({
     title: post.title === 'Untitled post' ? '' : post.title,
@@ -206,8 +208,16 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
     })
   }
 
-  function destroy() {
-    if (!confirm('Archive this post? It will be removed from your website. You can’t undo this from here.')) return
+  async function destroy() {
+    if (
+      !(await confirm({
+        title: 'Archive this post?',
+        message: 'It will be removed from your website. You can’t undo this from here.',
+        confirmLabel: 'Archive',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       await archiveBlogPostAction(post.id)
     })

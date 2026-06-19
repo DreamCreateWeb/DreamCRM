@@ -14,6 +14,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface Props {
   subscriptions: AdminSubscription[]
@@ -205,9 +206,18 @@ function SubscriptionRow({
 }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
 
-  function handleCancelNow() {
-    if (!confirm(`Cancel ${sub.customerName ?? sub.customerEmail ?? sub.id} immediately? This cannot be undone.`)) return
+  async function handleCancelNow() {
+    if (
+      !(await confirm({
+        title: `Cancel ${sub.customerName ?? sub.customerEmail ?? sub.id} immediately?`,
+        message: 'This cannot be undone.',
+        confirmLabel: 'Cancel subscription',
+        danger: true,
+      }))
+    )
+      return
     setError(null)
     startTransition(async () => {
       try {
