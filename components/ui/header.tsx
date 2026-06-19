@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useAppProvider } from '@/app/app-provider'
 import { useTrail } from '@/app/trail-context'
 
-import SearchModal from '@/components/search-modal'
+// The ⌘K palette only opens on demand, so keep it out of the initial header
+// bundle that every dashboard page ships — load its chunk client-side.
+const SearchModal = dynamic(() => import('@/components/search-modal'), { ssr: false })
 import Notifications from '@/components/dropdown-notifications'
 import DropdownHelp from '@/components/dropdown-help'
 import ThemeToggle from '@/components/theme-toggle'

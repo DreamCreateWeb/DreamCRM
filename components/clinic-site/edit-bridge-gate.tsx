@@ -1,7 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import EditBridge from './edit-bridge'
+import dynamic from 'next/dynamic'
+
+// The editor canvas only mounts for an owner/admin with `?edit=1`, so keep its
+// chunk out of the public-site bundle every visitor downloads — it loads only
+// when the gate actually activates below.
+const EditBridge = dynamic(() => import('./edit-bridge'), { ssr: false })
 
 /**
  * Mounts the EditBridge on any clinic public page when (a) the server has
