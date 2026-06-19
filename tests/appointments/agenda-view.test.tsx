@@ -359,6 +359,26 @@ describe('AgendaView', () => {
     )
   })
 
+  it('renders saved views as reopen pills under /appointments', () => {
+    const group: AppointmentDayGroup = {
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [makeRow()],
+      totals: { booked: 1, confirmed: 0, unconfirmed: 1 },
+    }
+    render(
+      <AgendaView
+        groups={[group]}
+        meta={baseMeta}
+        filters={baseFilters}
+        orgName="Acme"
+        savedViews={[{ id: 'v1', name: 'No-shows', query: 'attention=no_show' }]}
+      />,
+    )
+    const link = screen.getByRole('link', { name: 'No-shows' })
+    expect(link.getAttribute('href')).toBe('/appointments?attention=no_show')
+  })
+
   // ── Design System v2 vocabulary ─────────────────────────────────────
   // These pin the v2 instrument-panel skin so a regression to the legacy
   // flat-white-card look fails loudly (DESIGN-SYSTEM.md Parts 2/5).

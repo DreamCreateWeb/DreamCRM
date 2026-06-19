@@ -589,6 +589,13 @@
       "when": 1781843611054,
       "tag": "0083_low_sheva_callister",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1781850087701,
+      "tag": "0084_special_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }
