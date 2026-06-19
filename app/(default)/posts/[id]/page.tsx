@@ -23,14 +23,15 @@ export default async function BlogPostEditorPage({ params, searchParams }: Props
   const dest = postsAccessRedirect(ctx)
   if (dest) redirect(dest)
 
-  const { id } = await params
-  const { ai } = await searchParams
-  const post = await getBlogPost(ctx.organizationId, id)
+  const [{ id }, { ai }] = await Promise.all([params, searchParams])
+  // post / authors / baseUrl are independent — fetch in parallel instead of a
+  // 3-deep await chain.
+  const [post, authors, baseUrl] = await Promise.all([
+    getBlogPost(ctx.organizationId, id),
+    listAuthorOptions(ctx.organizationId),
+    blogPublicBaseUrl(ctx),
+  ])
   if (!post) notFound()
-
-  const authors = await listAuthorOptions(ctx.organizationId)
-
-  const baseUrl = await blogPublicBaseUrl(ctx)
 
   return (
     <BlogEditor
