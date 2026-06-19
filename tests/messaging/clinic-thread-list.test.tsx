@@ -27,6 +27,7 @@ vi.mock('@/lib/services/patient-messaging', () => ({
   renderTemplate: (s: string) => s,
 }))
 vi.mock('@/lib/services/message-templates', () => ({ listMessageTemplates: async () => [] }))
+vi.mock('@/lib/services/patient-tags', () => ({ getTagsForPatient: async () => [] }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/app/(double-sidebar)/messages/clinic-thread-detail-panel', () => ({
   default: () => <div data-testid="detail-panel">panel</div>,

@@ -26,6 +26,7 @@ vi.mock('@/lib/services/patient-messaging', () => ({
   renderTemplate: (s: string) => s,
 }))
 vi.mock('@/lib/services/message-templates', () => ({ listMessageTemplates: async () => [] }))
+vi.mock('@/lib/services/patient-tags', () => ({ getTagsForPatient: async () => [] }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 // The client detail panel pulls server actions + router; stub it to a marker
 // so this test stays focused on the layout shell, not the panel internals.
