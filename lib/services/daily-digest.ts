@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { and, eq, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getMyDay, type MyDayData } from '@/lib/services/my-day'
+import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
 import { sendNotificationEmail } from '@/lib/email'
 import { formatDueLabel, todayYmd } from '@/lib/types/followups'
 
@@ -121,15 +122,18 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
   for (const clinic of clinics) {
     if (!clinic.organizationId || clinic.isDemo || clinic.enabled !== 1) continue
 
-    // Staff with an email (exclude patients).
-    const staff = await db
-      .select({ userId: schema.member.userId, name: schema.user.name, email: schema.user.email })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
-      .where(and(eq(schema.member.organizationId, clinic.organizationId), ne(schema.member.role, 'patient')))
+    // Staff with an email (exclude patients) + the per-staff opt-out set.
+    const [staff, optedOut] = await Promise.all([
+      db
+        .select({ userId: schema.member.userId, name: schema.user.name, email: schema.user.email })
+        .from(schema.member)
+        .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+        .where(and(eq(schema.member.organizationId, clinic.organizationId), ne(schema.member.role, 'patient'))),
+      getDigestOptOutUserIds(clinic.organizationId),
+    ])
 
     for (const s of staff) {
-      if (!s.email) continue
+      if (!s.email || optedOut.has(s.userId)) continue
       result.scanned++
       try {
         // Idempotency: skip if this user already got today's digest.

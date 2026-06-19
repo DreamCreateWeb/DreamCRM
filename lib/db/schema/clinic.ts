@@ -1276,6 +1276,25 @@ export const staffOnboarding = pgTable(
 )
 export type StaffOnboarding = typeof staffOnboarding.$inferSelect
 
+// Per-staff-member notification preferences (org+user scoped). Today just the
+// morning-digest opt-out: the clinic enables the digest org-wide
+// (clinic_profile.daily_digest_enabled), but an individual can mute their own
+// email here without turning it off for the team. A missing row = default
+// (opted IN, i.e. they get the digest when the clinic has it on).
+export const staffNotificationPref = pgTable(
+  'staff_notification_pref',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    // 1 = this user has muted their own morning digest email.
+    dailyDigestOptOut: integer('daily_digest_opt_out').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('staff_notification_pref_org_user_idx').on(t.organizationId, t.userId)],
+)
+
 // ── Zernio (Google Business + future social) connection ─────────────────────
 // Zernio is a unified social / Google Business Profile API (hosted OAuth — we
 // never run Google's API-access verification). One Zernio "profile" per clinic
