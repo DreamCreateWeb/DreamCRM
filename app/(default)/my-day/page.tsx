@@ -9,11 +9,14 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getMyDay } from '@/lib/services/my-day'
+import { getDigestEnabled } from '@/lib/services/daily-digest'
+import { getDigestOptOut } from '@/lib/services/staff-notification-pref'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
 import MyDayFollowups from './my-day-followups'
+import DigestToggle from './digest-toggle'
 
 function fmtTime(d: Date): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -24,7 +27,11 @@ export default async function MyDayPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/')
 
-  const data = await getMyDay(ctx.organizationId, ctx.userId)
+  const [data, digestEnabled, digestOptOut] = await Promise.all([
+    getMyDay(ctx.organizationId, ctx.userId),
+    getDigestEnabled(ctx.organizationId),
+    getDigestOptOut(ctx.organizationId, ctx.userId),
+  ])
   const firstName = (ctx.userName ?? '').split(' ')[0] || 'there'
   const followupsDue = data.followups.overdue + data.followups.today
 
@@ -165,6 +172,9 @@ export default async function MyDayPage() {
           </section>
         </div>
       </div>
+
+      {/* Personal morning-email switch — only when the clinic sends the digest. */}
+      {digestEnabled && <DigestToggle initialOptedOut={digestOptOut} />}
     </div>
   )
 }
