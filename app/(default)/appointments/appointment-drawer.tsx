@@ -8,9 +8,9 @@ import { appointmentFlagGlyphs, type Tone } from '@/lib/ui/encodings'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
-import { TagChip } from '@/components/ui/tag-chip'
 import { FlashToast } from '@/components/ui/flash-toast'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
+import PatientTagControl from '@/components/tags/patient-tag-control'
 import SendIntakeInline from '../patients/send-intake-inline'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import {
@@ -244,13 +244,12 @@ export default function AppointmentDrawer({
                   </StatusPill>
                   <GlyphCluster glyphs={appointmentFlagGlyphs(detail.flags)} cap={Infinity} />
                 </div>
-                {detail.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {detail.tags.map((t) => (
-                      <TagChip key={t.id} name={t.name} color={t.color} size="xs" />
-                    ))}
-                  </div>
-                )}
+                {/* Tags are now editable in place — apply "VIP"/"anxious"/a
+                    recare flag while you're looking at the visit; it flows into
+                    the targeting loop (view → audience → campaign). */}
+                <div className="mt-1.5">
+                  <PatientTagControl patientId={detail.patient.id} initialTags={detail.tags} />
+                </div>
               </div>
 
               {/* ── Appointment facts ────────────────────────────────── */}

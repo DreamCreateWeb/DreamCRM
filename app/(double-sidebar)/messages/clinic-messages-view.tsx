@@ -15,6 +15,8 @@ import {
   type ThreadRow,
 } from '@/lib/services/patient-messaging'
 import { listMessageTemplates } from '@/lib/services/message-templates'
+import { getTagsForPatient } from '@/lib/services/patient-tags'
+import type { PatientTagView } from '@/lib/types/patient-tags'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
@@ -115,12 +117,14 @@ export default async function ClinicMessagesView({
   // Pull the message stream + the slim patient context strip in parallel —
   // so staff replying see next/last visit, PMS balance, and missing-intake
   // without leaving the inbox.
-  const [messages, patientContext]: [ThreadMessage[], ThreadPatientContext | null] = activeThread
-    ? await Promise.all([
-        listMessagesInThread(ctx.organizationId, activeThread.id),
-        getThreadPatientContext(ctx.organizationId, activeThread.patientId),
-      ])
-    : [[], null]
+  const [messages, patientContext, patientTags]: [ThreadMessage[], ThreadPatientContext | null, PatientTagView[]] =
+    activeThread
+      ? await Promise.all([
+          listMessagesInThread(ctx.organizationId, activeThread.id),
+          getThreadPatientContext(ctx.organizationId, activeThread.patientId),
+          getTagsForPatient(ctx.organizationId, activeThread.patientId),
+        ])
+      : [[], null, []]
 
   // Mark the active thread read when it has unread messages on the
   // staff side. Call the service directly (NOT the server action wrapper):
@@ -328,6 +332,7 @@ export default async function ClinicMessagesView({
                 lastMessageChannel: activeThread.lastMessageChannel,
               }}
               patientContext={patientContext}
+              patientTags={patientTags}
               backHref={buildHref(searchParams, { thread: undefined })}
               messages={messages.map((m) => ({
                 ...m,

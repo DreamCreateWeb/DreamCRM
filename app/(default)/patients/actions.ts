@@ -49,6 +49,7 @@ import { planAllows } from '@/lib/modules'
 import { MAX_DOCUMENT_BYTES } from '@/lib/types/patient-documents'
 import { uploadBlob } from '@/lib/blob'
 import {
+  listPatientTags,
   createPatientTag,
   updatePatientTag,
   deletePatientTag,
@@ -502,6 +503,19 @@ export async function deleteFollowupAction(
 }
 
 // ---------- Tags ----------
+
+/** The org's tag catalog — lazy-loaded by the shared PatientTagControl when its
+ *  picker first opens (so surfaces like the appointment drawer + message thread
+ *  don't each have to preload it). Empty for non-clinic tenants. */
+export async function listTagCatalogAction(): Promise<PatientTagView[]> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return []
+  try {
+    return await listPatientTags(ctx.organizationId)
+  } catch {
+    return []
+  }
+}
 
 /** Create a new tag in the org catalog (idempotent on name) + return it. Any
  *  clinic staff can create + apply tags; deleting from the catalog is gated. */

@@ -7,6 +7,8 @@ import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
+import PatientTagControl from '@/components/tags/patient-tag-control'
+import type { PatientTagView } from '@/lib/types/patient-tags'
 import { channelMeta } from './channel-meta'
 import {
   archiveThreadAction,
@@ -73,6 +75,8 @@ interface Props {
   hasEmail: boolean
   /** Patient context strip data (next/last visit, balance, intake). */
   patientContext?: PatientContext | null
+  /** The patient's current CRM tags (editable in the header). */
+  patientTags?: PatientTagView[]
   /** Mobile-only "← All conversations" link back to the list pane. */
   backHref?: string
 }
@@ -111,6 +115,7 @@ export default function ThreadDetailPanel({
   templates,
   hasEmail,
   patientContext,
+  patientTags = [],
   backHref,
 }: Props) {
   const router = useRouter()
@@ -352,10 +357,16 @@ export default function ThreadDetailPanel({
           </Link>
         )}
 
+        {/* Tags — group this patient (VIP / anxious / recare) right from the
+            conversation; flows into the targeting loop (view → audience). */}
+        <div className="mt-2.5">
+          <PatientTagControl patientId={thread.patientId} initialTags={patientTags} />
+        </div>
+
         {/* Quick follow-up — jot "chase this next week" without leaving the
             conversation. It flows into My Day, the morning digest, the
             follow-ups board, and the patient's timeline. */}
-        <div className="mt-2.5">
+        <div className="mt-2">
           <FollowupQuickAdd
             patientId={thread.patientId}
             patientFirstName={thread.patientFirstName}
