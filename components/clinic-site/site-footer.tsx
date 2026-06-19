@@ -90,7 +90,7 @@ export default function SiteFooter({
           >
             {logoUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+              <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" width={40} height={40} loading="lazy" decoding="async" />
             ) : (
               <>
                 <span

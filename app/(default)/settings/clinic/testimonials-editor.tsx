@@ -139,7 +139,7 @@ function TestimonialRow({
           >
             {value.authorPhotoUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={value.authorPhotoUrl} alt="" className="w-full h-full object-cover" />
+              <img src={value.authorPhotoUrl} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
             ) : (
               'Add'
             )}

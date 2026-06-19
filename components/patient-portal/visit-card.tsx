@@ -43,7 +43,7 @@ function Face({ name, photoUrl, brand }: { name: string | null; photoUrl: string
   if (!name) return null
   if (photoUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={photoUrl} alt={name} className="h-11 w-11 shrink-0 rounded-full object-cover" />
+    return <img src={photoUrl} alt={name} className="h-11 w-11 shrink-0 rounded-full object-cover" width={44} height={44} loading="lazy" decoding="async" />
   }
   const initials = name
     .replace(/^Dr\.?\s+/i, '')
