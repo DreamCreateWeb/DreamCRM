@@ -14,6 +14,9 @@ vi.mock('@/app/(default)/patients/actions', () => ({
   sendIntakeRequestAction: vi.fn(async () => ({ ok: true, sentTo: 'mia@example.com' })),
   sendReviewRequestForPatientAction: vi.fn(async () => ({ ok: true })),
 }))
+// Rendered outside the ConfirmProvider; these tests don't exercise the
+// archive-confirm path, so pass useConfirm() through.
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
 
 import PatientDetail from '@/app/(default)/patients/[id]/patient-detail'
 import type { PatientHeader } from '@/lib/services/patients'

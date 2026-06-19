@@ -12,6 +12,7 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
 import PatientTagControl from '@/components/tags/patient-tag-control'
 import SendIntakeInline from '../patients/send-intake-inline'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { sendReviewRequestForPatientAction } from '../patients/actions'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import {
@@ -77,6 +78,7 @@ export default function AppointmentDrawer({
   onClose: () => void
 }) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [detail, setDetail] = useState<AppointmentDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -154,8 +156,16 @@ export default function AppointmentDrawer({
     })
   }
 
-  function onCancel() {
-    if (!confirm('Cancel this appointment? The patient will not be notified automatically.')) return
+  async function onCancel() {
+    if (
+      !(await confirm({
+        title: 'Cancel this appointment?',
+        message: 'The patient will not be notified automatically.',
+        confirmLabel: 'Cancel appointment',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => {
       await cancelAppointmentAction(appointmentId)
       flash('Cancelled.')
@@ -164,8 +174,8 @@ export default function AppointmentDrawer({
     })
   }
 
-  function onNoShow() {
-    if (!confirm('Mark as no-show?')) return
+  async function onNoShow() {
+    if (!(await confirm({ title: 'Mark as no-show?', confirmLabel: 'Mark no-show', danger: true }))) return
     startTransition(async () => {
       await markNoShowAction(appointmentId)
       flash('Marked no-show.')

@@ -7,6 +7,7 @@ import TrialBanner from './trial-banner'
 import TrialEndedWall from './trial-ended-wall'
 import KeyboardShortcuts from './keyboard-shortcuts'
 import { TrailProvider } from '@/app/trail-context'
+import { ConfirmProvider } from '@/components/ui/confirm-dialog'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
@@ -95,17 +96,21 @@ export default async function DashboardShell({
           <BillingDunningBanner ctx={ctx} />
           <TrialBanner ctx={ctx} />
           <main className="grow [&>*:first-child]:scroll-mt-16">
-            {/* No-card trial expired without billing → lock the dashboard behind
-                the "set up billing" wall (chrome stays so sign-out works). */}
-            {ctx.trialExpired && ctx.tenantType === 'clinic' ? (
-              <TrialEndedWall
-                orgName={ctx.organizationName}
-                managed={!!ctx.hasReservedPlan}
-                canManageBilling={ctx.role === 'owner' || ctx.role === 'admin'}
-              />
-            ) : (
-              children
-            )}
+            {/* ConfirmProvider lets any page swap native window.confirm() for the
+                on-brand, accessible in-app dialog via useConfirm(). */}
+            <ConfirmProvider>
+              {/* No-card trial expired without billing → lock the dashboard behind
+                  the "set up billing" wall (chrome stays so sign-out works). */}
+              {ctx.trialExpired && ctx.tenantType === 'clinic' ? (
+                <TrialEndedWall
+                  orgName={ctx.organizationName}
+                  managed={!!ctx.hasReservedPlan}
+                  canManageBilling={ctx.role === 'owner' || ctx.role === 'admin'}
+                />
+              ) : (
+                children
+              )}
+            </ConfirmProvider>
           </main>
         </div>
       </TrailProvider>

@@ -8,6 +8,7 @@ import type { PatientNoteRow } from '@/lib/services/patient-notes'
 import { patientFlagGlyphs, type Tone } from '@/lib/ui/encodings'
 import { useTrailLabel } from '@/app/trail-context'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
@@ -146,6 +147,7 @@ export default function PatientDetail({
   mergeCandidates?: Array<{ id: string; name: string; email: string | null; phone: string | null; reason: string }>
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
+  const confirm = useConfirm()
   const [editOpen, setEditOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -165,8 +167,16 @@ export default function PatientDetail({
 
   const lifecycle = LIFECYCLE[header.lifecycle] ?? { tone: 'ok' as Tone, label: header.lifecycle }
 
-  function onArchive() {
-    if (!confirm(`Archive ${header.fullName}? They'll move to the Archived list.`)) return
+  async function onArchive() {
+    if (
+      !(await confirm({
+        title: `Archive ${header.fullName}?`,
+        message: "They'll move to the Archived list.",
+        confirmLabel: 'Archive',
+        danger: true,
+      }))
+    )
+      return
     startArchive(async () => {
       await archivePatientAction(header.id)
       setToast(`${header.fullName} archived`)
