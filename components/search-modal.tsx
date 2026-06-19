@@ -30,6 +30,9 @@ const KIND_GLYPHS: Record<SearchResultKind, React.ReactNode> = {
   clinic: <path d="M8 1 1 5v10h5v-4h4v4h5V5L8 1Z" />,
   page: <path d="M9 1H3.5A1.5 1.5 0 0 0 2 2.5v11A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V6L9 1Zm0 5V2.5L12.5 6H9Z" />,
   action: <path d="M9.5 1 2 9h4.5L6 15l7.5-8H9l.5-6Z" />,
+  applicant: <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 1.5c-2.7 0-5.5 1.4-5.5 4V15h11v-1.5c0-2.6-2.8-4-5.5-4Z" />,
+  product: <path d="M8 1 1 4.5v7L8 15l7-3.5v-7L8 1Zm0 1.7 4.6 2.3L8 7.3 3.4 5 8 2.7Z" />,
+  review: <path d="m8 1.5 1.9 4 4.4.5-3.3 3 .9 4.3L8 11.1 4.1 13.3l.9-4.3-3.3-3 4.4-.5L8 1.5Z" />,
 }
 
 /** Pull the patient id + first name off a `kind: 'patient'` result so the

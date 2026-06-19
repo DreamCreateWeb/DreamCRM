@@ -16,10 +16,14 @@ const state = {
   clinics: [] as Array<Record<string, unknown>>,
   shopOrders: [] as Array<Record<string, unknown>>,
   savedViews: [] as Array<Record<string, unknown>>,
+  applicants: [] as Array<Record<string, unknown>>,
+  products: [] as Array<Record<string, unknown>>,
+  reviews: [] as Array<Record<string, unknown>>,
 }
 
 vi.mock('@/lib/db', async () => {
-  const { patient, lead, appointment, patientThread, shopOrder, patientView } = await import('@/lib/db/schema/clinic')
+  const { patient, lead, appointment, patientThread, shopOrder, patientView, jobApplication, shopProduct, platformReview } =
+    await import('@/lib/db/schema/clinic')
   const { organization } = await import('@/lib/db/schema/auth')
   const schema = await import('@/lib/db/schema')
 
@@ -31,6 +35,9 @@ vi.mock('@/lib/db', async () => {
     if (table === organization) return state.clinics
     if (table === shopOrder) return state.shopOrders
     if (table === patientView) return state.savedViews
+    if (table === jobApplication) return state.applicants
+    if (table === shopProduct) return state.products
+    if (table === platformReview) return state.reviews
     return []
   }
 
@@ -77,6 +84,9 @@ beforeEach(() => {
   state.clinics = []
   state.shopOrders = []
   state.savedViews = []
+  state.applicants = []
+  state.products = []
+  state.reviews = []
 })
 
 describe('likePattern', () => {
@@ -156,6 +166,29 @@ describe('globalSearch — querying', () => {
 
     const threads = groups.find((g) => g.label === 'Conversations')!
     expect(threads.results[0].href).toBe('/messages?thread=t1')
+  })
+
+  it('searches applicants, products, and reviews (new ⌘K coverage)', async () => {
+    state.applicants = [{ id: 'a1', name: 'Jordan Lee', email: 'jordan@x.com', status: 'new' }]
+    state.products = [{ id: 'pr1', name: 'Whitening Kit', status: 'active' }]
+    state.reviews = [{ id: 'rv1', reviewerName: 'Happy Patient', comment: 'Great visit and friendly staff.' }]
+    const groups = await globalSearch(ctx(), 'jordan')
+
+    expect(groups.find((g) => g.label === 'Applicants')!.results[0]).toMatchObject({
+      label: 'Jordan Lee',
+      href: '/careers',
+      kind: 'applicant',
+    })
+    expect(groups.find((g) => g.label === 'Products')!.results[0]).toMatchObject({
+      label: 'Whitening Kit',
+      href: '/shop/products/pr1',
+      kind: 'product',
+    })
+    expect(groups.find((g) => g.label === 'Reviews')!.results[0]).toMatchObject({
+      label: 'Happy Patient',
+      href: '/reviews/received',
+      kind: 'review',
+    })
   })
 
   it('omits empty entity groups entirely', async () => {
