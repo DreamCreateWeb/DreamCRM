@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
-import { FlashToast } from '@/components/ui/flash-toast'
+import { useToast } from '@/components/ui/toast'
+import { useOptimisticToggle } from '@/components/ui/use-optimistic-toggle'
 import type { Tone } from '@/lib/ui/encodings'
 import {
   featureReviewAsTestimonialAction,
@@ -98,32 +97,17 @@ export default function ReceivedList({ rows }: { rows: ReceivedRow[] }) {
 }
 
 function ReviewCard({ row }: { row: ReceivedRow }) {
-  const router = useRouter()
-  const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-
-  function feature() {
-    setError(null)
-    startTransition(async () => {
-      const r = await featureReviewAsTestimonialAction({ patientId: row.patientId, reviewRequestId: row.id })
-      if (r.ok) {
-        setToast('Featured on your website.')
-        router.refresh()
-      } else setError(r.error)
-    })
-  }
-
-  function unfeature() {
-    setError(null)
-    startTransition(async () => {
-      const r = await unfeatureReviewTestimonialAction(row.patientId)
-      if (r.ok) {
-        setToast('Removed from your website.')
-        router.refresh()
-      } else setError(r.error)
-    })
-  }
+  const toast = useToast()
+  // Featuring flips the public-site testimonial instantly; the action runs in
+  // the background and a failure snaps the toggle back + surfaces the message.
+  const featured = useOptimisticToggle(
+    row.isFeatured,
+    (next) =>
+      next
+        ? featureReviewAsTestimonialAction({ patientId: row.patientId, reviewRequestId: row.id })
+        : unfeatureReviewTestimonialAction(row.patientId),
+    { onError: (m) => toast(m, { tone: 'urgent' }) },
+  )
 
   return (
     <li className="v2-card overflow-hidden">
@@ -159,7 +143,7 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {row.rating != null && <Stars rating={row.rating} />}
-            {row.isFeatured && <StatusPill tone="special" label="✓ Featured" title="Showing on your public website" />}
+            {featured.value && <StatusPill tone="special" label="✓ Featured" title="Showing on your public website" />}
           </div>
         </div>
 
@@ -180,7 +164,7 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
         {/* ── Toggle action ─────────────────────────────────────────── */}
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {row.isFeatured
+            {featured.value
               ? 'Showing as a testimonial on your public site.'
               : row.reviewText
                 ? 'Privacy-safe display label is set from this patient — "First L." + city.'
@@ -188,25 +172,17 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
           </p>
           {row.reviewText && (
             <ActionButton
-              variant={row.isFeatured ? 'secondary' : 'primary'}
+              variant={featured.value ? 'secondary' : 'primary'}
               size="sm"
-              onClick={row.isFeatured ? unfeature : feature}
-              disabled={pending}
+              onClick={featured.toggle}
+              disabled={featured.pending}
               className="shrink-0"
             >
-              {pending
-                ? 'Saving…'
-                : row.isFeatured
-                  ? 'Remove from website'
-                  : 'Feature on website →'}
+              {featured.value ? 'Remove from website' : 'Feature on website →'}
             </ActionButton>
           )}
         </div>
-
-        {error && <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{error}</p>}
       </div>
-
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </li>
   )
 }
