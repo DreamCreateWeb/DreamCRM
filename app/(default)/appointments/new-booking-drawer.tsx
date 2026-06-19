@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import BookFromPatientDrawer from './book-from-patient-drawer'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { listPatientOptionsAction } from './actions'
 
 /**
@@ -20,6 +21,10 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  // Active only on the picker stage; once `picked`, BookFromPatientDrawer (its
+  // own trap) takes over and this returns early (ref is null → no-op).
+  useFocusTrap(true, dialogRef, {}) // keeps the component's own Escape handler
 
   useEffect(() => {
     let alive = true
@@ -57,6 +62,7 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label="New booking — pick a patient"
