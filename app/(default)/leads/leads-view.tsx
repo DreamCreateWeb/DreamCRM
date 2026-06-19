@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useOptimistic, useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus, LeadCounts } from '@/lib/services/leads'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -10,6 +10,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { FlashToast } from '@/components/ui/flash-toast'
 import { agingBorderClass, leadAgingTier, type Tone } from '@/lib/ui/encodings'
 import LeadDrawer from './lead-drawer'
 
@@ -100,7 +101,30 @@ export default function LeadsView({
   const params = useSearchParams()
   const [openId, setOpenId] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState(search)
+  const [toast, setToast] = useState<string | null>(null)
   const [_pending, startTransition] = useTransition()
+
+  // Optimistic status flips: the row updates the instant you act in the drawer,
+  // then the action + revalidation reconcile (or revert, with a toast). In a
+  // single-status view a flipped row drops out; in "All" its pill changes.
+  const [optimisticRows, addOptimisticStatus] = useOptimistic(
+    rows,
+    (current: LeadRow[], change: { id: string; status: LeadStatus }) =>
+      current.map((r) => (r.id === change.id ? { ...r, status: change.status } : r)),
+  )
+  const visibleRows = status === 'all' ? optimisticRows : optimisticRows.filter((r) => r.status === status)
+
+  function runLeadStatus(id: string, next: LeadStatus, action: () => Promise<unknown>) {
+    setOpenId(null)
+    startTransition(async () => {
+      addOptimisticStatus({ id, status: next })
+      try {
+        await action()
+      } catch (e) {
+        setToast(e instanceof Error ? e.message : "Couldn't update that lead — please try again.")
+      }
+    })
+  }
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString())
@@ -180,11 +204,11 @@ export default function LeadsView({
       </div>
 
       {/* ── List ─────────────────────────────────────────────────────── */}
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <LeadsEmpty status={status} />
       ) : (
         <ul className="space-y-2">
-          {rows.map((r) => (
+          {visibleRows.map((r) => (
             <LeadRowCard key={r.id} row={r} onOpen={() => setOpenId(r.id)} />
           ))}
         </ul>
@@ -194,8 +218,10 @@ export default function LeadsView({
         <LeadDrawer
           row={openRow}
           onClose={() => setOpenId(null)}
+          onStatusChange={runLeadStatus}
         />
       )}
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
   )
 }
