@@ -16,6 +16,7 @@ import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-libra
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import StudioAiBar, { type UndoData } from './studio-ai-bar'
 import RewriteWithAiButton from './rewrite-with-ai-button'
 import HeroTaglineRewrite from './hero-tagline-rewrite'
@@ -597,6 +598,9 @@ function StudioModal({
   // Dirty tracking: each editor reports whether the owner has changed anything,
   // so closing (ESC / backdrop / X / Cancel) can confirm before discarding.
   const [dirty, setDirty] = useState(false)
+  useUnsavedChanges(dirty, () =>
+    confirm({ title: 'Discard unsaved changes?', message: 'Your unsaved edits will be lost.', confirmLabel: 'Discard', danger: true }),
+  )
   // AI draft → re-key the editor so an uncontrolled editor re-reads its default.
   // The draft fills the form for REVIEW (never auto-saved); the owner still hits Save.
   const [aiDraft, setAiDraft] = useState<GeneratedContent | null>(null)

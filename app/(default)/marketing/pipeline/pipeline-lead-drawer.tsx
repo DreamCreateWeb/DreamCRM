@@ -6,6 +6,7 @@ import Drawer from '@/components/ui/drawer'
 import { stageAccentClasses, type PipelineStage } from '@/lib/marketing/terminology'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import { FlashToast } from '@/components/ui/flash-toast'
 import {
   archiveLeadAction,
@@ -43,6 +44,9 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
   const [draft, setDraft] = useState<PipelineLeadDetail | null>(lead)
   const [dirty, setDirty] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  useUnsavedChanges(dirty, () =>
+    confirm({ title: 'Discard unsaved changes?', message: 'Your unsaved edits to this lead will be lost.', confirmLabel: 'Discard', danger: true }),
+  )
 
   useEffect(() => {
     setDraft(lead)
