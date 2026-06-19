@@ -5,6 +5,8 @@ import { randomBytes } from 'crypto'
 import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack } from '@/lib/services/pms'
 import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
+import { toCsv } from '@/lib/csv'
+import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -1266,3 +1268,66 @@ export async function getAppointmentFilterMeta(organizationId: string): Promise<
 
 // Quiet unused-import lint for the seldom-hit `isNull` import.
 export const _internal = { isNull }
+
+// ── CSV export (the agenda's "call sheet") ──────────────────────────────────
+
+const APPT_EXPORT_HEADERS = ['Date', 'Time', 'Patient', 'Phone', 'Email', 'Type', 'Status', 'Provider'] as const
+
+/**
+ * Pure: render appointment rows + a patientId→contact map into a CSV, with the
+ * date + time formatted in the clinic's timezone (so a printed call sheet reads
+ * in local wall-clock, not UTC). Exported for tests.
+ */
+export function appointmentsToCsv(
+  rows: Array<Pick<AppointmentRow, 'patientId' | 'patientName' | 'startTime' | 'type' | 'status' | 'providerName'>>,
+  contactsById: Map<string, { phone: string | null; email: string | null }>,
+  timeZone: string,
+): string {
+  const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
+  const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' })
+  const body = rows.map((r) => {
+    const c = contactsById.get(r.patientId)
+    return [
+      dateFmt.format(r.startTime),
+      timeFmt.format(r.startTime),
+      r.patientName,
+      c?.phone ?? '',
+      c?.email ?? '',
+      r.type.replace(/_/g, ' '),
+      r.status,
+      r.providerName ?? '',
+    ]
+  })
+  return toCsv([...APPT_EXPORT_HEADERS], body) + '\r\n'
+}
+
+/**
+ * The current agenda view as a CSV — same window/attention/provider/source/
+ * search filters as the on-screen list. Adds patient phone + email (a usable
+ * call sheet) and renders times in the clinic timezone. Reuses listAppointments
+ * so the row set can't drift from the table.
+ */
+export async function exportAppointmentsCsv(
+  organizationId: string,
+  filters: AppointmentListFilters = {},
+): Promise<string> {
+  const rows = await listAppointments(organizationId, filters)
+
+  const [tzRow] = await db
+    .select({ tz: schema.clinicProfile.timezone })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const timeZone = resolveClinicTimeZone(tzRow?.tz)
+
+  const ids = Array.from(new Set(rows.map((r) => r.patientId)))
+  const contacts = ids.length
+    ? await db
+        .select({ id: schema.patient.id, phone: schema.patient.phone, email: schema.patient.email })
+        .from(schema.patient)
+        .where(and(eq(schema.patient.organizationId, organizationId), inArray(schema.patient.id, ids)))
+    : []
+  const byId = new Map(contacts.map((c) => [c.id, { phone: c.phone, email: c.email }]))
+
+  return appointmentsToCsv(rows, byId, timeZone)
+}
