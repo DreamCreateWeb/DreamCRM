@@ -177,7 +177,7 @@ function PhotoGallery({
               }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt={p.category ?? 'Google photo'} className="h-full w-full object-cover" />
+              <img src={p.url} alt={p.category ?? 'Google photo'} className="h-full w-full object-cover" loading="lazy" decoding="async" />
               {already && (
                 <span className="absolute bottom-1 right-1 rounded bg-emerald-600 px-1 text-[10px] font-medium text-white">
                   Added

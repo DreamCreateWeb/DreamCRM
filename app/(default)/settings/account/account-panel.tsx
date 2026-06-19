@@ -106,7 +106,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
         <div className="flex items-center gap-4 border-b border-gray-100 dark:border-gray-700/50 pb-4 mb-1">
           {image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img className="w-16 h-16 rounded-full object-cover" src={image} alt={name} />
+            <img className="w-16 h-16 rounded-full object-cover" src={image} alt={name} width={64} height={64} loading="lazy" decoding="async" />
           ) : (
             <div className="w-16 h-16 rounded-full bg-teal-100 dark:bg-teal-500/30 flex items-center justify-center text-xl font-semibold text-teal-700 dark:text-teal-200">
               {(name?.[0] ?? 'U').toUpperCase()}
