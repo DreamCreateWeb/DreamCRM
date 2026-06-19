@@ -196,7 +196,7 @@ export default async function ServiceDetailPage({ params }: Props) {
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
       {/* ── Promo ribbon (only when an offer is set) ───────────────────── */}
       {service.offer && (
         <div

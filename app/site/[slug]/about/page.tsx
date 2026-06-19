@@ -174,7 +174,7 @@ export default async function AboutPage({ params }: Props) {
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="pt-10 pb-12 sm:pt-20 sm:pb-20">
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">

@@ -193,7 +193,7 @@ export default async function BookPage({ params }: Props) {
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <section className="pt-14 sm:pt-20 pb-10 sm:pb-14">
           <div className="max-w-[1100px] mx-auto px-5 sm:px-8 text-center">

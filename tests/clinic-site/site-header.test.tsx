@@ -64,6 +64,21 @@ const navLinks = [
 ]
 
 describe('SiteHeader', () => {
+  it('renders a "Skip to content" link targeting the #main-content landmark', () => {
+    const { getByText } = render(
+      <SiteHeader
+        data={makeData()}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    const skip = getByText('Skip to content')
+    expect(skip.getAttribute('href')).toBe('#main-content')
+  })
+
   it('renders TWO bars — top announcement strip + main white nav', () => {
     const { container } = render(
       <SiteHeader

@@ -149,7 +149,7 @@ export default async function ClinicCareersPage({ params }: Props) {
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* ── Hero ──────────────────────────────────────────────────────── */}
         <section className="pt-14 sm:pt-20 pb-12 sm:pb-16">
           <div className="max-w-[900px] mx-auto px-5 sm:px-8 text-center">

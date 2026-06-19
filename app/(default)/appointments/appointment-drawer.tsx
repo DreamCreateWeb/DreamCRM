@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import type { AppointmentDetail } from '@/lib/services/appointments'
 import { appointmentFlagGlyphs, type Tone } from '@/lib/ui/encodings'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
@@ -86,6 +87,11 @@ export default function AppointmentDrawer({
   const [reschedOpen, setReschedOpen] = useState(false)
   const [rebookOpen, setRebookOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  // Trap focus in the drawer (it's a hand-rolled role="dialog"). Gated off while
+  // a sub-drawer is open — those own their focus trap, so only the top layer
+  // captures Tab. Esc stays on the drawer's own handler below.
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(!reschedOpen && !rebookOpen, dialogRef)
 
   async function loadDetail() {
     setLoading(true)
@@ -225,6 +231,7 @@ export default function AppointmentDrawer({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Appointment"
@@ -477,6 +484,8 @@ function RescheduleSubDrawer({
   onClose: () => void
   onDone: () => void
 }) {
+  const subRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, subRef, { onEscape: onClose })
   const [dateStr, setDateStr] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 1)
@@ -507,7 +516,13 @@ function RescheduleSubDrawer({
   }
 
   return (
-    <div className="absolute inset-0 bg-[color:var(--color-surface-2)] rounded-l-[var(--r-lg)] flex flex-col">
+    <div
+      ref={subRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Reschedule appointment"
+      className="absolute inset-0 bg-[color:var(--color-surface-2)] rounded-l-[var(--r-lg)] flex flex-col"
+    >
       <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Reschedule</h3>
         <button onClick={onClose} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">← Back</button>
