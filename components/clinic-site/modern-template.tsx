@@ -302,7 +302,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
       {/* ── Hero — Tend-verbatim composition ──────────────────────────── */}
       {/* LEFT photo (asymmetric oval, breaks out of container with neg
           margin, ~35% viewport) | CENTER text column capped at 640px

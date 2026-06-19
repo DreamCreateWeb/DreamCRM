@@ -170,7 +170,7 @@ export default async function DentalPlansPage({ params }: Props) {
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* ── Hero ─────────────────────────────────────────────────────────── */}
         <section className="pt-10 pb-10 sm:pt-20 sm:pb-16">
           <div className="max-w-[820px] mx-auto px-5 sm:px-8 text-center">

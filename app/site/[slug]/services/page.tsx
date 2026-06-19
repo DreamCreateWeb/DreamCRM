@@ -164,7 +164,7 @@ export default async function ServicesPage({ params }: Props) {
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       {/* Services pages aren't granularly editable — every edit affordance
           opens the services library picker (the single source of truth). */}

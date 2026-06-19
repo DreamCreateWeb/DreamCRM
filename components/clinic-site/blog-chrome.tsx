@@ -80,7 +80,7 @@ export default async function BlogChrome({
         signInUrl={signIn}
       />
 
-      <main>{children}</main>
+      <main id="main-content" tabIndex={-1}>{children}</main>
 
       <SiteFooter
         data={data}

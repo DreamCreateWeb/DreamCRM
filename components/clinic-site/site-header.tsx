@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { SiteNavLink } from '@/lib/clinic-site-helpers'
+import { SkipToContent } from '@/components/ui/skip-to-content'
 
 // Nav text + hairlines read the brand-derived neutral vars (set on :root by the
 // site layout). Literal fallbacks keep parity if rendered outside the layout.
@@ -159,6 +160,7 @@ export default function SiteHeader({
 
   return (
     <>
+      <SkipToContent />
       <header
         className="sticky top-0 z-40 site-header-slide"
         data-hidden={hidden ? 'true' : 'false'}

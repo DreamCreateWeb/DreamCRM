@@ -206,7 +206,7 @@ export default async function StaffDetailPage({ params }: Props) {
         signInUrl={signIn}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* ── Hero — 2-col on desktop ────────────────────────────────────── */}
         <section
           className="pt-12 pb-16 sm:pt-16 sm:pb-20"
