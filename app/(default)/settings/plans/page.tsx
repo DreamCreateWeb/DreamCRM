@@ -23,10 +23,11 @@ export default async function PlansSettings({ searchParams }: Props) {
   // both should bounce away rather than land on a dead page.
   if (ctx.tenantType !== 'clinic') redirect('/settings/account')
 
-  const { upgrade } = await searchParams
-  // Interval is a cheap read off the live subscription; plan/status come from
-  // the org-scoped clinic_profile that the tenant context already resolved.
-  const summary = await getOrgSubscriptionSummary(ctx.organizationId)
+  // searchParams + the subscription summary are independent — resolve together.
+  const [{ upgrade }, summary] = await Promise.all([
+    searchParams,
+    getOrgSubscriptionSummary(ctx.organizationId),
+  ])
 
   return (
     <>

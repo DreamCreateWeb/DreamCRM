@@ -83,14 +83,21 @@ export default async function SeoPage({ searchParams }: Props) {
       }
     }
   } else {
-    try {
-      clinicScope = await getClinicSeoPerformance(ctx.organizationId, 28)
-      perf = clinicScope.perf
-    } catch (err) {
-      gscLoadError = (err as Error).message
+    // The clinic-scoped GSC read + the GBP local metrics are independent —
+    // fetch in parallel (GBP is best-effort and never throws).
+    const [clinicResult, gbpMetrics] = await Promise.all([
+      getClinicSeoPerformance(ctx.organizationId, 28)
+        .then((r) => ({ ok: true as const, r }))
+        .catch((err) => ({ ok: false as const, err: err as Error })),
+      getGbpLocalMetrics(ctx.organizationId, { days: 30 }),
+    ])
+    if (clinicResult.ok) {
+      clinicScope = clinicResult.r
+      perf = clinicResult.r.perf
+    } else {
+      gscLoadError = clinicResult.err.message
     }
-    // Pull the clinic's connected-GBP local metrics over a matching window.
-    gbp = await getGbpLocalMetrics(ctx.organizationId, { days: 30 })
+    gbp = gbpMetrics
   }
 
   const scoreTone = health.score >= 80 ? 'ok' : health.score >= 60 ? 'warn' : 'bad'

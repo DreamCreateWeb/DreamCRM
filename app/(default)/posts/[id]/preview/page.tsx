@@ -64,19 +64,20 @@ export default async function BlogPreviewPage({ params }: { params: Promise<{ id
     )
   }
 
-  const [org] = await db
-    .select({ slug: organization.slug })
-    .from(organization)
-    .where(eq(organization.id, ctx.organizationId))
-    .limit(1)
+  // org · the post's people · related posts are independent — fetch in parallel
+  // (the clinic-site `data` then depends on org's slug).
+  const [orgRows, { author, reviewer }, related] = await Promise.all([
+    db.select({ slug: organization.slug }).from(organization).where(eq(organization.id, ctx.organizationId)).limit(1),
+    resolvePostPeople(ctx.organizationId, post),
+    listRelatedPosts(ctx.organizationId, post.id, post.category, 3),
+  ])
+  const org = orgRows[0]
   const data = org ? await getClinicSiteBySlug(org.slug) : null
   if (!data || !org) notFound()
 
   const basePath = `/site/${org.slug}`
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
-  const { author, reviewer } = await resolvePostPeople(ctx.organizationId, post)
-  const related = await listRelatedPosts(ctx.organizationId, post.id, post.category, 3)
 
   return (
     <div>
