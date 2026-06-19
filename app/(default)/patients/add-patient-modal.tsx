@@ -4,11 +4,14 @@ import { useRouter } from 'next/navigation'
 import { useRef, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { FieldError } from '@/components/ui/field-error'
+import { validateRequired, validateEmail, validatePhone, collectErrors } from '@/lib/validation'
 import { createPatientAction } from './actions'
 
 export default function AddPatientModal({ onClose }: { onClose: () => void }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null)
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
@@ -32,6 +35,16 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
   }
 
   function submit(formData: FormData) {
+    // Inline, pre-submit validation — show errors next to the fields instead of
+    // a native browser bubble or a round-trip to the server.
+    const errs = collectErrors({
+      firstName: validateRequired(String(formData.get('firstName') ?? ''), 'First name'),
+      lastName: validateRequired(String(formData.get('lastName') ?? ''), 'Last name'),
+      email: validateEmail(String(formData.get('email') ?? '')),
+      phone: validatePhone(String(formData.get('phone') ?? '')),
+    })
+    setFieldErrors(errs)
+    if (Object.keys(errs).length > 0) return
     setDuplicate(null)
     runSubmit(formData)
   }
@@ -59,20 +72,46 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">First name</span>
-              <input name="firstName" required className="form-input w-full mt-1 text-sm" />
+              <input
+                name="firstName"
+                aria-invalid={!!fieldErrors.firstName}
+                aria-describedby={fieldErrors.firstName ? 'err-firstName' : undefined}
+                className="form-input w-full mt-1 text-sm"
+              />
+              <FieldError id="err-firstName" message={fieldErrors.firstName} />
             </label>
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Last name</span>
-              <input name="lastName" required className="form-input w-full mt-1 text-sm" />
+              <input
+                name="lastName"
+                aria-invalid={!!fieldErrors.lastName}
+                aria-describedby={fieldErrors.lastName ? 'err-lastName' : undefined}
+                className="form-input w-full mt-1 text-sm"
+              />
+              <FieldError id="err-lastName" message={fieldErrors.lastName} />
             </label>
           </div>
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Email</span>
-            <input name="email" type="email" className="form-input w-full mt-1 text-sm" />
+            <input
+              name="email"
+              type="email"
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? 'err-email' : undefined}
+              className="form-input w-full mt-1 text-sm"
+            />
+            <FieldError id="err-email" message={fieldErrors.email} />
           </label>
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Phone</span>
-            <input name="phone" type="tel" className="form-input w-full mt-1 text-sm" />
+            <input
+              name="phone"
+              type="tel"
+              aria-invalid={!!fieldErrors.phone}
+              aria-describedby={fieldErrors.phone ? 'err-phone' : undefined}
+              className="form-input w-full mt-1 text-sm"
+            />
+            <FieldError id="err-phone" message={fieldErrors.phone} />
           </label>
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Date of birth</span>
