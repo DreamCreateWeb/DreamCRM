@@ -92,9 +92,15 @@ export default function OrdersClient({
 
   function run(fn: () => Promise<unknown>, done?: string) {
     startTransition(async () => {
-      await fn()
-      if (done) setToast(done)
-      router.refresh()
+      try {
+        await fn()
+        if (done) setToast(done)
+        router.refresh()
+      } catch (err) {
+        // Surface the failure (and let the optimistic flip revert) instead of
+        // swallowing it — otherwise the status snaps back with no explanation.
+        setToast(err instanceof Error ? err.message : "Couldn't update the order — please try again.")
+      }
     })
   }
 
