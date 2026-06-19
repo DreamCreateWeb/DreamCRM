@@ -6,6 +6,8 @@ const h = vi.hoisted(() => ({
   threads: [] as unknown[],
   appts: [] as unknown[],
   leadCount: 0,
+  balanceCount: 0,
+  balanceTotal: 0,
   listOpenFollowups: vi.fn(),
 }))
 
@@ -15,13 +17,27 @@ vi.mock('@/lib/services/appointments', () => ({ listAppointments: vi.fn(async ()
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const o: Record<string, unknown> = {}
-    o.from = () => o
-    o.where = () => Promise.resolve([{ n: h.leadCount }])
+    let tbl = ''
+    o.from = (t: { __t?: string }) => { tbl = t?.__t ?? ''; return o }
+    o.where = () =>
+      Promise.resolve(tbl === 'patient' ? [{ n: h.balanceCount, total: h.balanceTotal }] : [{ n: h.leadCount }])
     return o
   }
-  return { db: { select: () => chain() }, schema: { lead: { organizationId: 'o', status: 's' } } }
+  return {
+    db: { select: () => chain() },
+    schema: {
+      lead: { __t: 'lead', organizationId: 'o', status: 's' },
+      patient: { __t: 'patient', organizationId: 'o', isActive: 'a', pmsBalanceCents: 'b' },
+    },
+  }
 })
-vi.mock('drizzle-orm', () => ({ and: (...a: unknown[]) => ({ a }), count: () => ({ count: true }), eq: (...a: unknown[]) => ({ a }) }))
+vi.mock('drizzle-orm', () => ({
+  and: (...a: unknown[]) => ({ a }),
+  count: () => ({ count: true }),
+  eq: (...a: unknown[]) => ({ a }),
+  gt: (...a: unknown[]) => ({ a }),
+  sql: Object.assign((s: TemplateStringsArray, ...v: unknown[]) => ({ s, v }), {}),
+}))
 
 import { getMyDay } from '@/lib/services/my-day'
 import { todayYmd, addDaysYmd } from '@/lib/types/followups'
@@ -33,6 +49,7 @@ function fu(over: Record<string, unknown>) {
 
 beforeEach(() => {
   h.mine = []; h.unclaimed = []; h.threads = []; h.appts = []; h.leadCount = 0
+  h.balanceCount = 0; h.balanceTotal = 0
   h.listOpenFollowups.mockReset().mockImplementation(async (_org: string, f: { assignedTo?: string }) =>
     f.assignedTo === 'unassigned' ? h.unclaimed : h.mine,
   )
@@ -60,5 +77,14 @@ describe('getMyDay', () => {
     const d = await getMyDay('org_1', 'u1')
     expect(d.conversations).toHaveLength(8)
     expect(d.newLeadsCount).toBe(4)
+  })
+
+  it('counts today\'s unconfirmed visits + outstanding balances', async () => {
+    h.appts = [{ status: 'scheduled' }, { status: 'confirmed' }, { status: 'scheduled' }]
+    h.balanceCount = 3
+    h.balanceTotal = 45000
+    const d = await getMyDay('org_1', 'u1')
+    expect(d.unconfirmedTodayCount).toBe(2)
+    expect(d.balances).toEqual({ count: 3, totalCents: 45000 })
   })
 })

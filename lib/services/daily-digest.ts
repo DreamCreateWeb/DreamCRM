@@ -49,10 +49,11 @@ export interface DigestContent {
  */
 export function buildDigestContent(data: MyDayData, clinicName: string): DigestContent {
   const followupsDue = data.followups.overdue + data.followups.today
-  const unconfirmed = data.todaysAppointments.filter((a) => a.status === 'scheduled').length
+  const unconfirmed = data.unconfirmedTodayCount
   const conversations = data.conversations.length
   const leads = data.newLeadsCount
-  const hasContent = followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0
+  const balanceCount = data.balances.count
+  const hasContent = followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0
 
   const parts: string[] = []
   parts.push(`Here's what's waiting on you at ${clinicName} today.`)
@@ -75,6 +76,10 @@ export function buildDigestContent(data: MyDayData, clinicName: string): DigestC
   }
   if (leads > 0) {
     parts.push(`🌱 ${leads} new website lead${leads === 1 ? '' : 's'} waiting on the team.`)
+  }
+  if (balanceCount > 0) {
+    const dollars = Math.round(data.balances.totalCents / 100).toLocaleString('en-US')
+    parts.push(`💰 ${balanceCount} patient${balanceCount === 1 ? '' : 's'} owe a balance ($${dollars} total).`)
   }
   if (!hasContent) {
     parts.push("You're all caught up — nothing needs you this morning. Have a great day.")
