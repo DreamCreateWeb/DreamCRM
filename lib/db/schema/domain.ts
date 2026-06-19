@@ -721,3 +721,17 @@ export type Message = typeof messages.$inferSelect
 export type InboxMessage = typeof inboxMessages.$inferSelect
 export type FinCard = typeof finCards.$inferSelect
 export type Transaction = typeof transactions.$inferSelect
+
+/**
+ * Fixed-window rate limiter for unauthenticated public endpoints (booking,
+ * contact form, review submit, insurance verifier, …). Global, not
+ * tenant-scoped — keyed by "{action}:{client-ip}". One row per active key; the
+ * upsert resets the window when it has elapsed.
+ */
+export const rateLimit = pgTable('rate_limit', {
+  key: text('key').primaryKey(),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+  count: integer('count').notNull().default(0),
+})
+
+export type RateLimit = typeof rateLimit.$inferSelect
