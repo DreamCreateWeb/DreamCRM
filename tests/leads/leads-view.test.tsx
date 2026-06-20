@@ -5,6 +5,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }))
+const { bulkLeadMock } = vi.hoisted(() => ({
+  bulkLeadMock: vi.fn(async () => ({ ok: true, updated: 2 })),
+}))
+vi.mock('@/app/(default)/leads/actions', () => ({
+  bulkSetLeadStatusAction: bulkLeadMock,
+}))
 vi.mock('@/app/(default)/leads/lead-drawer', () => ({
   default: ({
     row,
@@ -187,5 +193,49 @@ describe('LeadsView — list + filters + drawer trigger', () => {
     render(<LeadsView rows={[row]} counts={{ ...baseCounts, new: 1, total: 1 }} status="new" search="" />)
     expect(screen.getByText('fall_recall')).toBeInTheDocument()
     expect(screen.getByText('from /')).toBeInTheDocument()
+  })
+})
+
+describe('LeadsView — bulk triage', () => {
+  it('keeps the bulk bar hidden until a row is selected', () => {
+    const rows = [makeRow({ id: 'l1', name: 'Olivia Chen', status: 'new' })]
+    render(<LeadsView rows={rows} counts={{ ...baseCounts, new: 1, total: 1 }} status="new" search="" />)
+    expect(screen.queryByRole('button', { name: 'Mark contacted' })).not.toBeInTheDocument()
+  })
+
+  it('select-all selects every visible inquiry and reveals the count', () => {
+    const rows = [
+      makeRow({ id: 'l1', name: 'Olivia Chen', status: 'new' }),
+      makeRow({ id: 'l2', name: 'Marcus Johnson', status: 'new' }),
+    ]
+    render(<LeadsView rows={rows} counts={{ ...baseCounts, new: 2, total: 2 }} status="new" search="" />)
+    fireEvent.click(screen.getByLabelText('Select all inquiries'))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+  })
+
+  it('bulk-marks the selected inquiries contacted in one pass', async () => {
+    bulkLeadMock.mockClear()
+    const rows = [
+      makeRow({ id: 'l1', name: 'Olivia Chen', status: 'new' }),
+      makeRow({ id: 'l2', name: 'Marcus Johnson', status: 'new' }),
+    ]
+    render(<LeadsView rows={rows} counts={{ ...baseCounts, new: 2, total: 2 }} status="new" search="" />)
+    fireEvent.click(screen.getByLabelText('Select Olivia Chen'))
+    fireEvent.click(screen.getByLabelText('Select Marcus Johnson'))
+    fireEvent.click(screen.getByRole('button', { name: 'Mark contacted' }))
+    await waitFor(() => expect(bulkLeadMock).toHaveBeenCalledWith(['l1', 'l2'], 'contacted'))
+  })
+
+  it('only acts on selections that are visible in the current filter', async () => {
+    bulkLeadMock.mockClear()
+    // Two 'new' rows shown; selecting all then archiving must pass only those ids.
+    const rows = [
+      makeRow({ id: 'l1', name: 'Olivia Chen', status: 'new' }),
+      makeRow({ id: 'l2', name: 'Marcus Johnson', status: 'new' }),
+    ]
+    render(<LeadsView rows={rows} counts={{ ...baseCounts, new: 2, total: 2 }} status="new" search="" />)
+    fireEvent.click(screen.getByLabelText('Select all inquiries'))
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    await waitFor(() => expect(bulkLeadMock).toHaveBeenCalledWith(['l1', 'l2'], 'archived'))
   })
 })

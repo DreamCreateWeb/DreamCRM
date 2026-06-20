@@ -85,6 +85,33 @@ export async function markCompletedAction(appointmentId: string): Promise<{ ok: 
   return { ok: true }
 }
 
+/**
+ * Bulk end-of-day reconciliation: mark the selected visits completed or
+ * no-show in one pass (the front desk used to open each drawer one at a time).
+ * Terminal-state guards (already cancelled/completed/no-show) throw per row —
+ * we count those as skipped so one bad row never fails the whole batch.
+ */
+export async function bulkSetAppointmentStatusAction(
+  ids: string[],
+  status: 'completed' | 'no_show',
+): Promise<{ ok: true; updated: number; skipped: number }> {
+  const ctx = await requireClinicTenant()
+  let updated = 0
+  let skipped = 0
+  for (const id of ids) {
+    try {
+      if (status === 'completed') await markCompleted(ctx.organizationId, id)
+      else await markNoShow(ctx.organizationId, id)
+      updated++
+    } catch {
+      skipped++
+    }
+  }
+  revalidatePath('/appointments')
+  revalidatePath('/')
+  return { ok: true, updated, skipped }
+}
+
 export interface RescheduleResult { ok: true; newId: string }
 
 export async function rescheduleAppointmentAction(input: {

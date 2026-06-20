@@ -45,6 +45,31 @@ export async function reopenLeadAction(id: string): Promise<{ ok: true }> {
 }
 
 /**
+ * Bulk triage: mark the selected inquiries contacted, or archive them, in one
+ * pass (you call a batch of new leads, then clear them all at once instead of
+ * one drawer at a time). One bad row never fails the whole batch.
+ */
+export async function bulkSetLeadStatusAction(
+  ids: string[],
+  action: 'contacted' | 'archived',
+): Promise<{ ok: true; updated: number }> {
+  const ctx = await requireClinicTenant()
+  let updated = 0
+  for (const id of ids) {
+    try {
+      if (action === 'contacted') await markLeadContacted(ctx.organizationId, id)
+      else await archiveLead(ctx.organizationId, id, null)
+      updated++
+    } catch {
+      // skip a row that can't transition rather than aborting the batch
+    }
+  }
+  revalidatePath('/leads')
+  revalidatePath('/')
+  return { ok: true, updated }
+}
+
+/**
  * Dry-run dedupe check — does this lead's email/phone already match an
  * existing patient? Returns the matched name so the UI can ask "link to
  * them, or create a separate patient?" BEFORE committing the convert.

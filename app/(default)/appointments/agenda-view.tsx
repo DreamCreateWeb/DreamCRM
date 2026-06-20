@@ -37,7 +37,7 @@ import SavedViewsBar, { type SavedViewChip } from '@/components/saved-views/save
 import { bulkCreateFollowupsForPatientsAction } from '../patients/actions'
 import NewBookingDrawer from './new-booking-drawer'
 import AppointmentDrawer from './appointment-drawer'
-import { confirmAppointmentAction, bulkSendRemindersAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
+import { confirmAppointmentAction, bulkSendRemindersAction, bulkSetAppointmentStatusAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
 
 // Status carries categorical state only (timing lives on the aging border,
 // per-row flags on the glyphs). Tones from the semantic contract:
@@ -259,6 +259,18 @@ export default function AgendaView({
     })
   }
 
+  // Bulk end-of-day reconciliation — mark the selected visits completed/no-show
+  // at once. `verb` is the toast phrasing ("completed" / "as no-show").
+  function onBulkStatus(status: 'completed' | 'no_show', verb: string) {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    startBulk(async () => {
+      const r = await bulkSetAppointmentStatusAction(ids, status)
+      setToast(`Marked ${r.updated} ${verb}${r.skipped ? ` · skipped ${r.skipped}` : ''}`)
+      setSelected(new Set())
+    })
+  }
+
   // Selected appointments → their unique patients (one follow-up per patient
   // even if you picked two of their visits).
   const selectedPatientIds = useMemo(() => {
@@ -444,6 +456,12 @@ export default function AgendaView({
       <BulkBar count={selected.size} onClear={() => setSelected(new Set())}>
         <ActionButton variant="primary" size="sm" onClick={onBulkSend} disabled={bulkPending}>
           {bulkPending ? 'Sending…' : `Send ${selected.size} reminder${selected.size === 1 ? '' : 's'}`}
+        </ActionButton>
+        <ActionButton variant="secondary" size="sm" onClick={() => onBulkStatus('completed', 'completed')} disabled={bulkPending}>
+          Mark completed
+        </ActionButton>
+        <ActionButton variant="secondary" size="sm" onClick={() => onBulkStatus('no_show', 'as no-show')} disabled={bulkPending}>
+          Mark no-show
         </ActionButton>
         <div className="relative">
           <ActionButton variant="secondary" size="sm" onClick={() => setFollowupOpen((o) => !o)} disabled={bulkPending}>
