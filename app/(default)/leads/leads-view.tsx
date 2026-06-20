@@ -11,8 +11,10 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { BulkBar } from '@/components/ui/bulk-bar'
 import { agingBorderClass, leadAgingTier, type Tone } from '@/lib/ui/encodings'
 import LeadDrawer from './lead-drawer'
+import { bulkSetLeadStatusAction } from './actions'
 
 const STATUS_CHIPS: Array<{ key: LeadStatus | 'all'; label: string }> = [
   { key: 'new', label: 'New' },
@@ -114,6 +116,49 @@ export default function LeadsView({
   )
   const visibleRows = status === 'all' ? optimisticRows : optimisticRows.filter((r) => r.status === status)
 
+  // ── Bulk triage selection ───────────────────────────────────────────
+  const [bulkPending, startBulk] = useTransition()
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const visibleIds = visibleRows.map((r) => r.id)
+  // Only count/act on selections that are actually in view (a status filter
+  // change leaves stale ids in the set — never act on a row you can't see).
+  const selectedVisible = visibleIds.filter((id) => selected.has(id))
+  const allSelected = visibleRows.length > 0 && selectedVisible.length === visibleRows.length
+
+  function toggleRow(id: string) {
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (allSelected) visibleIds.forEach((id) => next.delete(id))
+      else visibleIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  function runBulk(action: 'contacted' | 'archived') {
+    const ids = selectedVisible
+    if (ids.length === 0) return
+    const nextStatus: LeadStatus = action === 'contacted' ? 'contacted' : 'archived'
+    startBulk(async () => {
+      for (const id of ids) addOptimisticStatus({ id, status: nextStatus })
+      const r = await bulkSetLeadStatusAction(ids, action)
+      setToast(
+        action === 'contacted'
+          ? `Marked ${r.updated} ${r.updated === 1 ? 'inquiry' : 'inquiries'} contacted`
+          : `Archived ${r.updated} ${r.updated === 1 ? 'inquiry' : 'inquiries'}`,
+      )
+      setSelected(new Set())
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+    })
+  }
+
   function runLeadStatus(id: string, next: LeadStatus, action: () => Promise<unknown>) {
     setOpenId(null)
     startTransition(async () => {
@@ -207,12 +252,42 @@ export default function LeadsView({
       {visibleRows.length === 0 ? (
         <LeadsEmpty status={status} />
       ) : (
-        <ul className="space-y-2">
-          {visibleRows.map((r) => (
-            <LeadRowCard key={r.id} row={r} onOpen={() => setOpenId(r.id)} />
-          ))}
-        </ul>
+        <>
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              className="form-checkbox"
+              aria-label="Select all inquiries"
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {allSelected ? 'Deselect all' : `Select all ${visibleRows.length}`}
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {visibleRows.map((r) => (
+              <LeadRowCard
+                key={r.id}
+                row={r}
+                selected={selected.has(r.id)}
+                onToggle={() => toggleRow(r.id)}
+                onOpen={() => setOpenId(r.id)}
+              />
+            ))}
+          </ul>
+        </>
       )}
+
+      {/* ── Sticky bulk triage bar ───────────────────────────────────── */}
+      <BulkBar count={selectedVisible.length} onClear={() => setSelected(new Set())}>
+        <ActionButton variant="primary" size="sm" onClick={() => runBulk('contacted')} disabled={bulkPending}>
+          Mark contacted
+        </ActionButton>
+        <ActionButton variant="secondary" size="sm" onClick={() => runBulk('archived')} disabled={bulkPending}>
+          Archive
+        </ActionButton>
+      </BulkBar>
 
       {openRow && (
         <LeadDrawer
@@ -226,14 +301,34 @@ export default function LeadsView({
   )
 }
 
-function LeadRowCard({ row, onOpen }: { row: LeadRow; onOpen: () => void }) {
+function LeadRowCard({
+  row,
+  selected,
+  onToggle,
+  onOpen,
+}: {
+  row: LeadRow
+  selected: boolean
+  onToggle: () => void
+  onOpen: () => void
+}) {
   const tier = row.status === 'new' ? leadAgingTier(row.ageHours) : null
   return (
     <li
       onClick={onOpen}
-      className={`v2-card-interactive px-4 py-3 cursor-pointer border-l-4 ${agingBorderClass(tier)}`}
+      className={`v2-card-interactive px-4 py-3 cursor-pointer border-l-4 ${agingBorderClass(tier)} ${
+        selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
+      }`}
     >
       <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => { e.stopPropagation(); onToggle() }}
+          onClick={(e) => e.stopPropagation()}
+          className="form-checkbox mt-0.5 shrink-0"
+          aria-label={`Select ${row.name}`}
+        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">

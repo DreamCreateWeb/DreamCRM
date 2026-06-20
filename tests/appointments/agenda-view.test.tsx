@@ -5,11 +5,15 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }))
+const { bulkStatusMock, bulkFollowupMock } = vi.hoisted(() => ({
+  bulkStatusMock: vi.fn(async () => ({ ok: true, updated: 2, skipped: 0 })),
+  bulkFollowupMock: vi.fn(),
+}))
 vi.mock('@/app/(default)/appointments/actions', () => ({
   confirmAppointmentAction: vi.fn(async () => ({ ok: true })),
   bulkSendRemindersAction: vi.fn(async () => ({ attempted: 0, sent: 0, skipped: 0, errors: [] })),
+  bulkSetAppointmentStatusAction: bulkStatusMock,
 }))
-const { bulkFollowupMock } = vi.hoisted(() => ({ bulkFollowupMock: vi.fn() }))
 vi.mock('@/app/(default)/patients/actions', () => ({
   bulkCreateFollowupsForPatientsAction: bulkFollowupMock,
 }))
@@ -303,6 +307,24 @@ describe('AgendaView', () => {
     expect(screen.getByText(/1 selected/)).toBeInTheDocument()
     // BulkBar uses an explicit-verb label that pluralizes by count.
     expect(screen.getByRole('button', { name: /Send 1 reminder/ })).toBeInTheDocument()
+  })
+
+  it('bulk-marks the selected visits completed in one pass', async () => {
+    bulkStatusMock.mockClear()
+    const group: AppointmentDayGroup = {
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [
+        makeRow({ id: 'a1', patientId: 'p1', patientName: 'Mia Hayes' }),
+        makeRow({ id: 'a2', patientId: 'p2', patientName: 'Liam Ross', startTime: new Date('2026-05-21T10:00:00Z') }),
+      ],
+      totals: { booked: 2, confirmed: 0, unconfirmed: 2 },
+    }
+    render(<AgendaView groups={[group]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    fireEvent.click(screen.getByLabelText('Select Mia Hayes'))
+    fireEvent.click(screen.getByLabelText('Select Liam Ross'))
+    fireEvent.click(screen.getByRole('button', { name: 'Mark completed' }))
+    await waitFor(() => expect(bulkStatusMock).toHaveBeenCalledWith(['a1', 'a2'], 'completed'))
   })
 
   it('bulk "Add follow-up" creates one per selected patient', async () => {
