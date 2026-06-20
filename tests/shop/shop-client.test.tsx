@@ -39,7 +39,15 @@ const stats: ShopStats = { productCount: 3, activeCount: 2 }
 
 interface RenderOpts {
   config?: Partial<ShopConfigView>
-  orderStats?: { paidCount: number; unfulfilledCount: number; revenueCents: number }
+  orderStats?: Partial<{
+    paidCount: number
+    unfulfilledCount: number
+    fulfilledCount: number
+    revenueCents: number
+    last30Cents: number
+    last30Count: number
+  }>
+  topProducts?: Array<{ productName: string; unitsSold: number; revenueCents: number }>
   membershipStats?: { activeMembers: number; mrrCents: number }
   couponStats?: { activeCount: number }
   paymentStats?: { count: number }
@@ -53,7 +61,16 @@ function renderHub(opts: RenderOpts = {}) {
       config={config(opts.config)}
       products={[]}
       stats={stats}
-      orderStats={opts.orderStats ?? { paidCount: 5, unfulfilledCount: 0, revenueCents: 12000 }}
+      orderStats={{
+        paidCount: 5,
+        unfulfilledCount: 0,
+        fulfilledCount: 5,
+        revenueCents: 12000,
+        last30Cents: 12000,
+        last30Count: 5,
+        ...opts.orderStats,
+      }}
+      topProducts={opts.topProducts ?? []}
       membershipStats={opts.membershipStats ?? { activeMembers: 0, mrrCents: 0 }}
       couponStats={opts.couponStats ?? { activeCount: 0 }}
       paymentStats={opts.paymentStats ?? { count: 0 }}
@@ -166,6 +183,35 @@ describe('ShopClient — Stripe Connect status panel', () => {
       'href',
       'https://dashboard.stripe.com',
     )
+  })
+})
+
+describe('ShopClient — sales overview', () => {
+  it('leads with a sales band (revenue + best sellers) once there are sales', () => {
+    renderHub({
+      orderStats: { paidCount: 9, unfulfilledCount: 4, fulfilledCount: 5, revenueCents: 50000, last30Cents: 30000, last30Count: 6 },
+      topProducts: [
+        { productName: 'Whitening Kit', unitsSold: 7, revenueCents: 28000 },
+        { productName: 'Sonic Brush', unitsSold: 3, revenueCents: 26700 },
+      ],
+    })
+    expect(screen.getByText('Sales')).toBeInTheDocument()
+    expect(screen.getByText('Best sellers')).toBeInTheDocument()
+    expect(screen.getByText('Whitening Kit')).toBeInTheDocument()
+    expect(screen.getByText('7 sold')).toBeInTheDocument()
+    // Revenue KPI drills into the paid-orders view.
+    const revenueTile = screen.getByText('Revenue · 30 days').closest('a')
+    expect(revenueTile).toHaveAttribute('href', '/shop/orders?status=paid')
+  })
+
+  it('hides the sales band entirely for a brand-new shop with no sales', () => {
+    renderHub({
+      orderStats: { paidCount: 0, unfulfilledCount: 0, fulfilledCount: 0, revenueCents: 0, last30Cents: 0, last30Count: 0 },
+      membershipStats: { activeMembers: 0, mrrCents: 0 },
+      topProducts: [],
+    })
+    expect(screen.queryByText('Sales')).toBeNull()
+    expect(screen.queryByText('Best sellers')).toBeNull()
   })
 })
 

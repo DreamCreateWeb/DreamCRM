@@ -12,6 +12,7 @@ import {
   type ProductStatus,
   type ShopConfigView,
   type ShopStats,
+  type TopProduct,
 } from '@/lib/types/shop'
 import { setProductStatusAction, deleteProductAction, updateShopConfigAction, disconnectStripeAction } from './actions'
 import { PageHeader } from '@/components/ui/page-header'
@@ -28,7 +29,10 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 interface OrderStatsView {
   paidCount: number
   unfulfilledCount: number
+  fulfilledCount: number
   revenueCents: number
+  last30Cents: number
+  last30Count: number
 }
 
 // Product lifecycle → tone contract. draft + archived are inert (neutral); an
@@ -55,6 +59,7 @@ interface Props {
   products: ProductRow[]
   stats: ShopStats
   orderStats: OrderStatsView
+  topProducts: TopProduct[]
   membershipStats: { activeMembers: number; mrrCents: number }
   couponStats: { activeCount: number }
   paymentStats: { count: number }
@@ -69,6 +74,7 @@ export default function ShopClient({
   products,
   stats,
   orderStats,
+  topProducts,
   membershipStats,
   couponStats,
   paymentStats,
@@ -276,6 +282,77 @@ export default function ShopClient({
       )}
 
       <LowStockPanel products={products} />
+
+      {/* Sales overview — the hub used to be analytically hollow (doorway cards
+          only). Lead with the money: real revenue / orders / fulfillment / MRR
+          (all drillable) + best sellers. Hidden for a brand-new shop with no
+          sales yet, so nobody stares at a $0 band during setup. */}
+      {(orderStats.paidCount > 0 || membershipStats.activeMembers > 0) && (
+        <section className="mb-8">
+          <p className="mb-3 text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+            Sales
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiStat
+              label="Revenue · 30 days"
+              value={formatCents(orderStats.last30Cents)}
+              href="/shop/orders?status=paid"
+              sub={`${formatCents(orderStats.revenueCents)} all time`}
+            />
+            <KpiStat
+              label="Paid orders"
+              value={orderStats.paidCount}
+              href="/shop/orders?status=paid"
+              sub={orderStats.last30Count > 0 ? `${orderStats.last30Count} in 30 days` : 'all time'}
+            />
+            <KpiStat
+              label="To fulfill"
+              value={orderStats.unfulfilledCount}
+              tone={orderStats.unfulfilledCount > 0 ? 'warn' : undefined}
+              href="/shop/orders?status=paid"
+              sub={
+                orderStats.paidCount > 0
+                  ? `${Math.round((orderStats.fulfilledCount / orderStats.paidCount) * 100)}% fulfilled`
+                  : undefined
+              }
+            />
+            <KpiStat
+              label="Recurring"
+              value={`${formatCents(membershipStats.mrrCents)}/mo`}
+              tone={membershipStats.activeMembers > 0 ? 'ok' : undefined}
+              sub={`${membershipStats.activeMembers} member${membershipStats.activeMembers === 1 ? '' : 's'}`}
+            />
+          </div>
+          {topProducts.length > 0 && (
+            <div className="v2-card p-4 mt-3">
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                Best sellers
+              </p>
+              <ul className="divide-y divide-[color:var(--color-hairline)]">
+                {topProducts.map((p, i) => (
+                  <li
+                    key={p.productName}
+                    className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-xs font-mono-num tabular-nums text-gray-400 dark:text-gray-500 w-4 shrink-0">
+                        {i + 1}
+                      </span>
+                      <span className="text-sm text-gray-800 dark:text-gray-100 truncate">{p.productName}</span>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{p.unitsSold} sold</span>
+                      <span className="w-20 text-right text-sm font-medium font-mono-num text-gray-800 dark:text-gray-100">
+                        {formatCents(p.revenueCents)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Section navigation — the front desk's doorways into each shop area.
           Prominent etched, drillable cards (NOT tiny text links). */}
