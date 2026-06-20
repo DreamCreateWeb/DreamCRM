@@ -12,6 +12,7 @@ import type {
 import { archiveFormAction, saveFormAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import FormPreview from './form-preview'
 
 interface Props {
   template: FormTemplate
@@ -165,7 +166,8 @@ export default function FormBuilder({ template }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
+      <div className="min-w-0 space-y-6">
       {/* Header */}
       <div>
         <Link
@@ -323,6 +325,14 @@ export default function FormBuilder({ template }: Props) {
           </ActionButton>
         </div>
       </div>
+      </div>
+
+      <FormPreview
+        title={title}
+        description={description}
+        sections={sections}
+        className="hidden lg:block"
+      />
     </div>
   )
 }

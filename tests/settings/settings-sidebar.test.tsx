@@ -44,7 +44,7 @@ describe('SettingsSidebar — user vs org surfaces', () => {
     expect(screen.getByRole('link', { name: 'Clinic profile' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Practice setup' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Patient portal' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Billing' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Plan & billing' })).toBeTruthy()
     // Personal pages aren't in the clinic list.
     expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Security' })).toBeNull()
@@ -67,7 +67,7 @@ describe('SettingsSidebar — user vs org surfaces', () => {
     expect(screen.getByRole('link', { name: 'Team' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Connected accounts' })).toBeTruthy()
     // No clinic-only Plan/Billing for the platform org.
-    expect(screen.queryByRole('link', { name: 'Billing' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Plan & billing' })).toBeNull()
   })
 
   it('platform tenant on a personal page still gets user settings + a Platform footer', () => {
