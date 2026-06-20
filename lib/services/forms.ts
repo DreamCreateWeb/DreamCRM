@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { formTemplate, formSubmission, patient } from '@/lib/db/schema/clinic'
@@ -32,6 +32,41 @@ export const FormTemplateInput = z.object({
   }),
   isDefault: z.boolean().optional(),
 })
+
+export interface TemplateSubmissionStats {
+  count: number
+  lastSubmittedAt: Date | null
+}
+
+/**
+ * Per-template submission rollup for the intake-forms list. One grouped
+ * query over the org's submissions so the list can show which forms are
+ * actually being used (count) and how recently each was filled out —
+ * the signal a clinic needs to tell a working form from a dead one.
+ * Templates with zero submissions simply won't appear in the map.
+ */
+export async function getSubmissionStatsForTemplates(
+  organizationId: string,
+): Promise<Map<string, TemplateSubmissionStats>> {
+  const rows = await db
+    .select({
+      formTemplateId: formSubmission.formTemplateId,
+      count: sql<number>`count(*)::int`,
+      lastSubmittedAt: sql<Date | string | null>`max(${formSubmission.submittedAt})`,
+    })
+    .from(formSubmission)
+    .where(eq(formSubmission.organizationId, organizationId))
+    .groupBy(formSubmission.formTemplateId)
+
+  const map = new Map<string, TemplateSubmissionStats>()
+  for (const r of rows) {
+    map.set(r.formTemplateId, {
+      count: Number(r.count) || 0,
+      lastSubmittedAt: r.lastSubmittedAt ? new Date(r.lastSubmittedAt) : null,
+    })
+  }
+  return map
+}
 
 export async function listFormTemplates(organizationId: string): Promise<FormTemplate[]> {
   return db

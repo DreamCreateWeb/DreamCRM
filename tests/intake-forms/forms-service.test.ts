@@ -24,6 +24,7 @@ vi.mock('@/lib/db', async () => {
     obj.from = () => obj
     obj.where = () => obj
     obj.orderBy = () => obj
+    obj.groupBy = () => obj
     obj.limit = async () => state.selectQueue.shift() ?? []
     obj.then = (resolve: (v: unknown) => void) => resolve(state.selectQueue.shift() ?? [])
     return obj
@@ -73,6 +74,7 @@ import {
   seedDefaultIntakeForm,
   getFormTemplateBySlug,
   getDefaultFormTemplate,
+  getSubmissionStatsForTemplates,
 } from '@/lib/services/forms'
 
 beforeEach(() => {
@@ -272,6 +274,34 @@ describe('getDefaultFormTemplate', () => {
     state.selectQueue.push([])
     const out = await getDefaultFormTemplate('org_1')
     expect(out).toBeNull()
+  })
+})
+
+describe('getSubmissionStatsForTemplates', () => {
+  it('rolls up count + last submission date per template', async () => {
+    state.selectQueue.push([
+      { formTemplateId: 'tmpl_a', count: 3, lastSubmittedAt: new Date('2026-06-18T10:00:00Z') },
+      { formTemplateId: 'tmpl_b', count: 1, lastSubmittedAt: '2026-06-01T09:00:00Z' },
+    ])
+    const map = await getSubmissionStatsForTemplates('org_1')
+    expect(map.get('tmpl_a')?.count).toBe(3)
+    expect(map.get('tmpl_a')?.lastSubmittedAt).toBeInstanceOf(Date)
+    // a string timestamp (some drivers) is coerced to a Date too
+    expect(map.get('tmpl_b')?.count).toBe(1)
+    expect(map.get('tmpl_b')?.lastSubmittedAt).toBeInstanceOf(Date)
+  })
+
+  it('coerces a bigint-string count and tolerates a null last date', async () => {
+    state.selectQueue.push([{ formTemplateId: 'tmpl_a', count: '5', lastSubmittedAt: null }])
+    const map = await getSubmissionStatsForTemplates('org_1')
+    expect(map.get('tmpl_a')?.count).toBe(5)
+    expect(map.get('tmpl_a')?.lastSubmittedAt).toBeNull()
+  })
+
+  it('returns an empty map when the org has no submissions', async () => {
+    state.selectQueue.push([])
+    const map = await getSubmissionStatsForTemplates('org_1')
+    expect(map.size).toBe(0)
   })
 })
 
