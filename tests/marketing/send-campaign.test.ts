@@ -104,7 +104,7 @@ vi.mock('@/lib/services/gmail', () => ({
   sendMessage: vi.fn(),
 }))
 
-import { sendCampaign } from '@/lib/services/marketing-send'
+import { sendCampaign, buildCampaignPreview, neutralizePreviewLinks } from '@/lib/services/marketing-send'
 
 const CLINIC_SENDER = {
   name: 'Acme Dental',
@@ -287,5 +287,67 @@ describe('sendCampaign — duplicate-send guard', () => {
     expect(h.claimReturningMock).not.toHaveBeenCalled()
     expect(r.skipped).toBeUndefined()
     expect(r.sent).toBe(1)
+  })
+})
+
+describe('buildCampaignPreview', () => {
+  it('renders the draft with the first audience member personalized in, like a real send', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ audienceId: 7 }))
+    h.resolveRecipientsMock.mockResolvedValue([recipient({ firstName: 'Mia' })])
+    const r = await buildCampaignPreview(
+      'org_1',
+      99,
+      { subject: 'Hi {{firstName}}', previewText: 'a quick note', bodyHtml: '<p>Hello {{firstName}}!</p>' },
+      'patients',
+    )
+    expect(r.subject).toBe('Hi Mia')
+    expect(r.sampleName).toBe('Mia')
+    expect(r.realRecipient).toBe(true)
+    expect(r.html).toContain('Hello Mia!')
+    // sends AS the clinic identity (branding header + From)
+    expect(r.fromLabel).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
+  })
+
+  it('neutralizes links and omits tracking so a preview click is inert', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ audienceId: 7 }))
+    h.resolveRecipientsMock.mockResolvedValue([recipient({ firstName: 'Mia' })])
+    const r = await buildCampaignPreview(
+      'org_1',
+      99,
+      { subject: 'Book now', previewText: '', bodyHtml: '<p><a href="https://acme.example/book">Book</a></p>' },
+      'patients',
+    )
+    // the real destination is stripped to '#', no tracked-redirect, no open pixel
+    expect(r.html).not.toContain('https://acme.example/book')
+    expect(r.html).toContain('href="#"')
+    expect(r.html).not.toContain('/api/track/')
+  })
+
+  it('falls back to a synthetic sample when the audience resolves to nobody', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ audienceId: 7 }))
+    h.resolveRecipientsMock.mockResolvedValue([])
+    const r = await buildCampaignPreview(
+      'org_1',
+      99,
+      { subject: 'Hi {{firstName}}', previewText: '', bodyHtml: '<p>{{firstName}}</p>' },
+      'patients',
+    )
+    expect(r.realRecipient).toBe(false)
+    expect(r.sampleName).toBe('Taylor')
+    expect(r.subject).toBe('Hi Taylor')
+  })
+
+  it('throws when the campaign is not found (caller turns it into a structured error)', async () => {
+    h.getCampaignMock.mockResolvedValue(null)
+    await expect(
+      buildCampaignPreview('org_1', 99, { subject: '', previewText: '', bodyHtml: '' }, 'patients'),
+    ).rejects.toThrow(/not found/i)
+  })
+})
+
+describe('neutralizePreviewLinks', () => {
+  it('rewrites every href to # but leaves the rest of the markup intact', () => {
+    const out = neutralizePreviewLinks('<a href="https://x.com/y">x</a> and <a href=\'mailto:a@b.com\'>mail</a>')
+    expect(out).toBe('<a href="#">x</a> and <a href="#">mail</a>')
   })
 })
