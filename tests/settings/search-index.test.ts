@@ -53,7 +53,8 @@ describe('settings search-index — shape / drift guard', () => {
       '/settings/locations',
       '/settings/apps',
       '/settings/team',
-      '/settings/plans',
+      // /settings/plans merged into /settings/billing (redirect) — no longer
+      // a distinct search destination.
       '/settings/billing',
       '/settings/seo',
       '/settings/feedback',

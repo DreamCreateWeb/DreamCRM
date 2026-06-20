@@ -171,19 +171,21 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     tab: 'members', label: 'Team members & roles',
     keywords: ['members', 'roles', 'admin', 'remove', 'access', 'permissions'],
   },
+  // Plan & Billing were merged into one /settings/billing surface, so every
+  // plan/billing search lands there (no SettingsTabs → no tab/sub deep link).
   {
-    surface: 'clinic', href: '/settings/plans', page: 'Plan & usage',
-    tab: 'plan', sub: 'your-plan', label: 'Plan & usage',
+    surface: 'clinic', href: '/settings/billing', page: 'Plan & billing',
+    label: 'Plan & usage',
     keywords: ['plan', 'subscription', 'tier', 'upgrade', 'downgrade', 'usage'],
   },
   {
-    surface: 'clinic', href: '/settings/billing', page: 'Billing',
-    tab: 'overview', label: 'Subscription & payment method',
+    surface: 'clinic', href: '/settings/billing', page: 'Plan & billing',
+    label: 'Subscription & payment method',
     keywords: ['billing', 'payment method', 'card', 'subscription', 'renew'],
   },
   {
-    surface: 'clinic', href: '/settings/billing', page: 'Billing',
-    tab: 'invoices', label: 'Invoices',
+    surface: 'clinic', href: '/settings/billing', page: 'Plan & billing',
+    label: 'Invoices',
     keywords: ['invoices', 'receipts', 'past charges', 'history'],
   },
   {
