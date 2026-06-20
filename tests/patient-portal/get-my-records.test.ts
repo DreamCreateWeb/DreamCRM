@@ -17,6 +17,7 @@ vi.mock('@/lib/db', () => {
   type ChainShape = Promise<unknown[]> & {
     from: (t: unknown) => ChainShape
     innerJoin: () => ChainShape
+    leftJoin: () => ChainShape
     where: () => ChainShape
     orderBy: () => ChainShape
     limit: () => ChainShape
@@ -25,6 +26,7 @@ vi.mock('@/lib/db', () => {
     const p = Promise.resolve(rows) as ChainShape
     p.from = () => p
     p.innerJoin = () => p
+    p.leftJoin = () => p
     p.where = () => p
     p.orderBy = () => p
     p.limit = () => p
@@ -60,7 +62,7 @@ vi.mock('@/lib/db/schema/clinic', () => ({
   formTemplate: { id: 'ft.id', title: 'ft.title' },
   // Portal v2 additions — referenced at module level by patient-portal.ts
   // (visitSelection / balance payments); empty objects satisfy the import.
-  clinicProvider: {},
+  clinicProvider: { id: 'cp.id', displayName: 'cp.dn' },
   patientBalancePayment: {},
 }))
 vi.mock('@/lib/db/schema/platform', () => ({ clinicProfile: {} }))
@@ -137,12 +139,15 @@ describe('getMyRecords', () => {
     // simulates what the DB would have returned.
     state.patient = { firstName: 'M', lastName: 'H', email: null, phone: null, dateOfBirth: null, addressLine1: null, city: null, state: null, postalCode: null, insuranceProvider: null, insurancePolicyNumber: null, insuranceGroupNumber: null }
     state.visits = [
-      { id: 'apt_1', type: 'cleaning', startTime: new Date('2026-03-15T09:00:00Z'), notes: null },
+      { id: 'apt_1', type: 'cleaning', startTime: new Date('2026-03-15T09:00:00Z'), notes: null, providerName: 'Dr. Reyes' },
       { id: 'apt_2', type: 'checkup', startTime: new Date('2025-10-12T09:00:00Z'), notes: 'Sealants placed' },
     ]
     const r = await callGetMyRecords()
     expect(r?.visits).toHaveLength(2)
     expect(r?.visits[0].type).toBe('cleaning')
     expect(r?.visits[1].notes).toBe('Sealants placed')
+    // Provider name flows from the left join; null when no provider was assigned.
+    expect(r?.visits[0].providerName).toBe('Dr. Reyes')
+    expect(r?.visits[1].providerName).toBe(null)
   })
 })

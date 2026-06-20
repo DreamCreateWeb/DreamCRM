@@ -359,6 +359,30 @@ export async function requestMyVisitAction(formData: FormData): Promise<PortalAc
   return { ok: true }
 }
 
+/**
+ * "Request my records" from the portal Records page. A patient's right to a copy
+ * of their chart/X-rays is universal (HIPAA), so there's no feature flag — but
+ * the records themselves live in the clinic's PMS, not here. So we route the
+ * request as an INBOUND in-app message: the front desk sees it in /messages,
+ * replies in the patient's own portal thread, and mails/hands over the records
+ * out-of-band. Turns the old passive "call us" card into a real, tracked ask.
+ */
+export async function requestMyRecordsAction(): Promise<PortalActionResult> {
+  const ctx = await requirePatient()
+  const body = [
+    'Records request via the patient portal.',
+    '',
+    'I’d like a copy of my records (X-rays included). Please let me know the best way to get them to me — thank you!',
+  ].join('\n')
+  try {
+    await sendMessageFromPatient(ctx.organizationId, ctx.patientId, body)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+  }
+  revalidatePath('/patient/messages')
+  return { ok: true }
+}
+
 /** Short "Mon, Jun 15 · 2:00 PM" date for staff notifications (server-local). */
 function fmtNotifyDate(d: Date): string {
   return d.toLocaleString('en-US', {
