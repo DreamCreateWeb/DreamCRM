@@ -436,20 +436,12 @@ function OrgSwitcher({
           </Link>
           <div className="my-1 border-t border-hairline" />
           <Link
-            href="/settings/plans"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="block rounded-md px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-ink-900/[0.04]"
-          >
-            Plan &amp; usage
-          </Link>
-          <Link
             href="/settings/billing"
             role="menuitem"
             onClick={() => setOpen(false)}
             className="block rounded-md px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-ink-900/[0.04]"
           >
-            Billing
+            Plan &amp; billing
           </Link>
         </div>
       )}

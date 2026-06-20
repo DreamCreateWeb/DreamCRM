@@ -34,14 +34,28 @@ describe('Settings → Billing — no cross-tenant invoice leak', () => {
   })
 })
 
-describe('Settings → Plan — reads the truth, not billingProfiles', () => {
+describe('Settings → Plan — merged into Billing', () => {
+  it('redirects to the merged /settings/billing surface', () => {
+    expect(plansPage).toMatch(/redirect\(/)
+    expect(plansPage).toMatch(/\/settings\/billing/)
+  })
+
+  it('preserves the ?upgrade= module so requirePlan still lands on the grid', () => {
+    expect(plansPage).toMatch(/upgrade/)
+  })
+
   it('no longer reads getBilling / the user-keyed billing plan', () => {
     expect(plansPage).not.toMatch(/getBilling/)
   })
+})
 
-  it('passes the real plan tier from tenant context into the panel', () => {
-    expect(plansPage).toMatch(/requireTenant/)
-    expect(plansPage).toMatch(/currentPlanId=\{ctx\.planTier\}/)
-    expect(plansPage).toMatch(/subscriptionStatus=\{ctx\.subscriptionStatus/)
+describe('Settings → Billing — now the merged plan + billing surface', () => {
+  it('renders the plan grid (SubscriptionPanel) and the social add-on card', () => {
+    expect(billingPage).toMatch(/SubscriptionPanel/)
+    expect(billingPage).toMatch(/SocialConnectionsCard/)
+  })
+
+  it('surfaces requirePlan\'s ?upgrade= prompt on the merged page', () => {
+    expect(billingPage).toMatch(/upgrade/)
   })
 })

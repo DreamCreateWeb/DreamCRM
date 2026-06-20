@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
-import BillingPanel from './billing-panel'
+import SubscriptionPanel from './subscription-panel'
 import SocialConnectionsCard from './social-connections-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { requireTenant } from '@/lib/auth/context'
+import { getModuleLabel } from '@/lib/modules'
 import { getOrgSubscriptionSummary, listOrgStripeInvoices } from '@/lib/services/billing'
 import { db, schema } from '@/lib/db'
 import { getPlanById, socialAddonConfigured } from '@/lib/stripe-config'
@@ -15,15 +16,23 @@ import {
 import type { PlanTier } from '@/lib/modules/types'
 
 export const metadata = {
-  title: 'Billing Settings - DreamCRM',
-  description: 'Subscription, payment method and past invoices',
+  title: 'Plan & billing - DreamCRM',
+  description: 'Your subscription, plan, payment method, and past invoices',
 }
 
 export const dynamic = 'force-dynamic'
 
-export default async function BillingSettings() {
+export default async function BillingSettings({
+  searchParams,
+}: {
+  searchParams: Promise<{ upgrade?: string }>
+}) {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/settings/account')
+
+  // `?upgrade=<module>` arrives via requirePlan's redirect (now folded into this
+  // page) — show the "{module} is on a higher plan" banner above the grid.
+  const { upgrade } = await searchParams
 
   // Subscription truth lives org-scoped on clinic_profile (written by the Stripe
   // webhook) + the live subscription. Invoices come from Stripe scoped to THIS
@@ -55,37 +64,43 @@ export default async function BillingSettings() {
 
   return (
     <>
-      <PageHeader eyebrow="Clinic settings" title="Billing" subtitle="Your subscription, payment, and past invoices." />
+      <PageHeader
+        eyebrow="Clinic settings"
+        title="Plan & billing"
+        subtitle="What you have, what it costs, when it renews — change your plan and see past invoices."
+      />
       <div className="v2-panel mb-8">
         <div className="grow">
-            <BillingPanel
-              planTier={ctx.planTier}
-              subscriptionStatus={ctx.subscriptionStatus ?? summary?.status ?? null}
-              interval={summary?.interval ?? null}
-              renewsAt={summary?.currentPeriodEnd ? summary.currentPeriodEnd.toISOString() : null}
-              cancelAtPeriodEnd={summary?.cancelAtPeriodEnd ?? false}
-              invoices={invoices.map((inv) => ({
-                id: inv.id,
-                number: inv.number,
-                amountPaidCents: inv.amountPaidCents,
-                currency: inv.currency,
-                status: inv.status,
-                createdAt: inv.createdAt.toISOString(),
-                hostedInvoiceUrl: inv.hostedInvoiceUrl,
-              }))}
+          <SubscriptionPanel
+            planTier={ctx.planTier}
+            subscriptionStatus={ctx.subscriptionStatus ?? summary?.status ?? null}
+            interval={summary?.interval ?? null}
+            renewsAt={summary?.currentPeriodEnd ? summary.currentPeriodEnd.toISOString() : null}
+            cancelAtPeriodEnd={summary?.cancelAtPeriodEnd ?? false}
+            onTrial={ctx.onTrial ?? false}
+            upgradeModuleLabel={upgrade ? getModuleLabel('clinic', upgrade) ?? null : null}
+            invoices={invoices.map((inv) => ({
+              id: inv.id,
+              number: inv.number,
+              amountPaidCents: inv.amountPaidCents,
+              currency: inv.currency,
+              status: inv.status,
+              createdAt: inv.createdAt.toISOString(),
+              hostedInvoiceUrl: inv.hostedInvoiceUrl,
+            }))}
+          />
+          <div className="px-6 pb-6">
+            <SocialConnectionsCard
+              planName={getPlanById(planTier)?.name ?? planTier}
+              socialLimit={socialLimit}
+              addonActive={addonActive}
+              addonAvailable={socialAddonAvailable(planTier)}
+              addonPriceDollars={addonCents != null ? Math.round(addonCents / 100) : null}
+              addonRaisesTo={addonRaisesTo}
+              addonConfigured={socialAddonConfigured()}
+              managedBilling={managedBilling}
             />
-            <div className="px-6 pb-6">
-              <SocialConnectionsCard
-                planName={getPlanById(planTier)?.name ?? planTier}
-                socialLimit={socialLimit}
-                addonActive={addonActive}
-                addonAvailable={socialAddonAvailable(planTier)}
-                addonPriceDollars={addonCents != null ? Math.round(addonCents / 100) : null}
-                addonRaisesTo={addonRaisesTo}
-                addonConfigured={socialAddonConfigured()}
-                managedBilling={managedBilling}
-              />
-            </div>
+          </div>
         </div>
       </div>
     </>

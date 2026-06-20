@@ -120,8 +120,7 @@ function clinicSections(): NavSection[] {
     {
       title: 'Billing',
       items: [
-        { href: '/settings/plans', label: 'Plan & usage', icon: stackIcon },
-        { href: '/settings/billing', label: 'Billing', icon: cardIcon },
+        { href: '/settings/billing', label: 'Plan & billing', icon: cardIcon },
       ],
     },
     {

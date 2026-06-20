@@ -117,12 +117,15 @@ describe('TenantSidebar — org switcher + demo pill', () => {
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
   })
 
-  it('the org-switcher menu links to plan + billing settings', () => {
+  it('the org-switcher menu links to the merged plan & billing settings', () => {
     render(<TenantSidebar modules={MODULES} orgName="Acme" badge="Pro plan" tenantType="clinic" />)
     const block = screen.getByTestId('org-switcher')
     fireEvent.click(within(block).getByRole('button'))
-    expect(screen.getByRole('menuitem', { name: /Plan/i })).toHaveAttribute('href', '/settings/plans')
-    expect(screen.getByRole('menuitem', { name: /Billing/i })).toHaveAttribute('href', '/settings/billing')
+    // Plan + Billing were merged into one destination.
+    expect(screen.getByRole('menuitem', { name: /Plan & billing/i })).toHaveAttribute('href', '/settings/billing')
+    // No separate /settings/plans entry remains.
+    const items = screen.getAllByRole('menuitem')
+    expect(items.some((i) => i.getAttribute('href') === '/settings/plans')).toBe(false)
   })
 
   it('disables the switcher menu for a platform tenant (no plan to manage)', () => {
