@@ -12,17 +12,16 @@ import {
   type ThreadFilters,
   type ThreadMessage,
   type ThreadPatientContext,
-  type ThreadRow,
 } from '@/lib/services/patient-messaging'
 import { listMessageTemplates } from '@/lib/services/message-templates'
 import { getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
+import { listAssignableStaff } from '@/lib/services/patient-followups'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
-import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
-import { channelMeta, CHANNEL_LEGEND } from './channel-meta'
-import { avatarTint, messageInitials } from './message-grouping'
+import { CHANNEL_LEGEND } from './channel-meta'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
+import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
 import MessagesSurfaceTabs from './surface-tabs'
 import NavBadgeSync from './nav-badge-sync'
 
@@ -61,33 +60,6 @@ const ASSIGN_FILTERS: { key: ThreadFilters['assignedTo']; label: string }[] = [
   { key: 'unassigned', label: 'Unassigned' },
 ]
 
-function fmtRelative(d: Date | null): string {
-  if (!d) return ''
-  const ms = Date.now() - d.getTime()
-  const min = Math.floor(ms / 60_000)
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min}m`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h`
-  const days = Math.floor(h / 24)
-  if (days < 7) return `${days}d`
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-/**
- * Aging left-border for an inbound thread waiting on a reply — drifts
- * fresh (emerald) → aging (amber) → overdue (rose) via the shared
- * messages rot vocabulary. Returns transparent when the ball isn't ours
- * (last message was outbound, or no messages yet).
- */
-function rotBorderClass(t: ThreadRow): string {
-  if (t.lastMessageDirection !== 'inbound' || !t.lastMessageAt) {
-    return agingBorderClass(null)
-  }
-  const waitingHours = (Date.now() - t.lastMessageAt.getTime()) / (60 * 60 * 1000)
-  return agingBorderClass(messageRotTier(waitingHours))
-}
-
 export default async function ClinicMessagesView({
   ctx,
   searchParams,
@@ -104,11 +76,29 @@ export default async function ClinicMessagesView({
     hasUnread: searchParams.unread === '1',
   }
 
-  const [threads, stats, messageTemplates] = await Promise.all([
+  const [threads, stats, messageTemplates, members] = await Promise.all([
     listPatientThreads(ctx.organizationId, ctx.userId, filters),
     getInboxStats(ctx.organizationId, ctx.userId),
     listMessageTemplates(ctx.organizationId),
+    listAssignableStaff(ctx.organizationId),
   ])
+
+  // Serialize the rows the selectable client list needs (dates → ISO, plus the
+  // pre-built ?thread= href so the server keeps ownership of the querystring).
+  const threadRows: ThreadListRow[] = threads.map((t) => ({
+    id: t.id,
+    href: buildHref(searchParams, { thread: t.id }),
+    patientId: t.patientId,
+    patientFirstName: t.patientFirstName,
+    patientLastName: t.patientLastName,
+    unreadCount: t.unreadCount,
+    lastMessagePreview: t.lastMessagePreview,
+    lastMessageDirection: t.lastMessageDirection,
+    lastMessageChannel: t.lastMessageChannel,
+    lastMessageAt: t.lastMessageAt ? t.lastMessageAt.toISOString() : null,
+    status: t.status,
+    assignedUserName: t.assignedUserName,
+  }))
 
   const activeThread = searchParams.thread
     ? await getPatientThreadById(ctx.organizationId, searchParams.thread)
@@ -222,87 +212,7 @@ export default async function ClinicMessagesView({
               />
             </div>
           ) : (
-            <ul className="py-1">
-              {threads.map((t) => {
-                const ch = channelMeta(t.lastMessageChannel)
-                const active = activeThread?.id === t.id
-                const unread = t.unreadCount > 0
-                const name = `${t.patientFirstName} ${t.patientLastName}`.trim()
-                const tint = avatarTint(t.patientId || name)
-                return (
-                  <li key={t.id} className={`border-l-4 ${rotBorderClass(t)}`}>
-                    <Link
-                      href={buildHref(searchParams, { thread: t.id })}
-                      aria-current={active ? 'true' : undefined}
-                      title={name}
-                      className={`flex items-start gap-3 px-3 py-2.5 mx-1 rounded-[var(--r-md)] transition-colors ${
-                        active
-                          ? 'bg-teal-500/5 shadow-[inset_0_0_0_1px_rgb(40_179_173/0.4)]'
-                          : 'hover:bg-gray-500/[0.06]'
-                      }`}
-                    >
-                      {/* Avatar — initials on a stable per-patient tint so each
-                          patient reads consistently (Gmail/Linear). An amber
-                          dot rides the corner when there are unread messages. */}
-                      <span className="relative shrink-0">
-                        <span
-                          aria-hidden="true"
-                          className={`flex h-9 w-9 items-center justify-center rounded-[var(--r-pill)] text-xs font-semibold ${tint.bg} ${tint.text}`}
-                        >
-                          {messageInitials(t.patientFirstName, t.patientLastName)}
-                        </span>
-                        {unread && (
-                          <span
-                            className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-[color:var(--color-surface-1)]"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </span>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className={`text-sm truncate ${unread ? 'font-bold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-200'}`}>
-                            {name}
-                          </p>
-                          <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums shrink-0">
-                            {fmtRelative(t.lastMessageAt)}
-                          </span>
-                        </div>
-                        <p className={`mt-0.5 text-xs truncate ${unread ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>
-                          {t.lastMessageDirection === 'outbound' ? (
-                            <span className="text-gray-400 dark:text-gray-500">You: </span>
-                          ) : null}
-                          {t.lastMessagePreview ?? <span className="italic">No messages yet</span>}
-                        </p>
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <span
-                            className={`text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
-                            title={ch.title}
-                          >
-                            {ch.label}
-                          </span>
-                          {unread && (
-                            <span
-                              className="text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500 text-white dark:text-gray-900 tabular-nums"
-                              title={`${t.unreadCount} unread message${t.unreadCount === 1 ? '' : 's'}`}
-                            >
-                              {t.unreadCount}
-                            </span>
-                          )}
-                          {t.status === 'snoozed' ? (
-                            <span className="text-xs text-amber-700 dark:text-amber-300" title="Snoozed — will resurface later">💤</span>
-                          ) : t.assignedUserName ? (
-                            <span className="text-xs text-gray-400 dark:text-gray-500 truncate" title={`Assigned to ${t.assignedUserName}`}>
-                              · {t.assignedUserName.split(' ')[0]}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
+            <ClinicThreadList rows={threadRows} activeThreadId={activeThread?.id ?? null} />
           )}
         </aside>
 
@@ -327,10 +237,13 @@ export default async function ClinicMessagesView({
                 patientEmail: activeThread.patientEmail,
                 patientPhone: activeThread.patientPhone,
                 status: activeThread.status,
+                assignedUserId: activeThread.assignedUserId,
                 assignedUserName: activeThread.assignedUserName,
                 snoozedUntil: activeThread.snoozedUntil ? activeThread.snoozedUntil.toISOString() : null,
                 lastMessageChannel: activeThread.lastMessageChannel,
               }}
+              members={members}
+              currentUserId={ctx.userId}
               patientContext={patientContext}
               patientTags={patientTags}
               backHref={buildHref(searchParams, { thread: undefined })}

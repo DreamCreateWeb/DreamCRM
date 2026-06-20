@@ -74,3 +74,40 @@ export async function markReadAction(threadId: string) {
   await markThreadRead(ctx.organizationId, threadId)
   revalidatePath('/messages')
 }
+
+/** Cap + dedupe a bulk id list so a runaway client can't make us loop
+ *  thousands of times; order is irrelevant for these idempotent, org-scoped
+ *  writes (a foreign id simply matches no row). */
+function clampThreadIds(ids: string[]): string[] {
+  return Array.from(new Set(Array.isArray(ids) ? ids : []))
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    .slice(0, 200)
+}
+
+export async function bulkArchiveThreadsAction(threadIds: string[]) {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  for (const id of clampThreadIds(threadIds)) {
+    await archiveThread(ctx.organizationId, id)
+  }
+  revalidatePath('/messages')
+}
+
+export async function bulkSnoozeThreadsAction(threadIds: string[], hours: number) {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  const until = new Date(Date.now() + hours * 60 * 60 * 1000)
+  for (const id of clampThreadIds(threadIds)) {
+    await snoozeThread(ctx.organizationId, id, until)
+  }
+  revalidatePath('/messages')
+}
+
+export async function bulkMarkReadThreadsAction(threadIds: string[]) {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  for (const id of clampThreadIds(threadIds)) {
+    await markThreadRead(ctx.organizationId, id)
+  }
+  revalidatePath('/messages')
+}

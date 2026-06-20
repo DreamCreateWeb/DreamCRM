@@ -28,7 +28,18 @@ vi.mock('@/lib/services/patient-messaging', () => ({
 }))
 vi.mock('@/lib/services/message-templates', () => ({ listMessageTemplates: async () => [] }))
 vi.mock('@/lib/services/patient-tags', () => ({ getTagsForPatient: async () => [] }))
-vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
+vi.mock('@/lib/services/patient-followups', () => ({ listAssignableStaff: async () => [] }))
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}))
+// The selectable thread list is a client component; stub its bulk actions so
+// rendering the list doesn't pull the server-only auth/db graph.
+vi.mock('@/app/(double-sidebar)/messages/clinic-actions', () => ({
+  bulkArchiveThreadsAction: vi.fn(),
+  bulkSnoozeThreadsAction: vi.fn(),
+  bulkMarkReadThreadsAction: vi.fn(),
+}))
 vi.mock('@/app/(double-sidebar)/messages/clinic-thread-detail-panel', () => ({
   default: () => <div data-testid="detail-panel">panel</div>,
 }))

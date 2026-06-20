@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/app/(double-sidebar)/messages/clinic-actions', () => ({
   archiveThreadAction: vi.fn(),
+  assignThreadAction: vi.fn(),
   reopenThreadAction: vi.fn(),
   sendMessageAction: vi.fn(),
   snoozeThreadAction: vi.fn(),
@@ -32,6 +33,7 @@ const thread = {
   patientEmail: 'mia@example.com',
   patientPhone: '(512) 555-0101',
   status: 'open' as const,
+  assignedUserId: null,
   assignedUserName: null,
   snoozedUntil: null,
   lastMessageChannel: 'email' as const,
