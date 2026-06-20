@@ -16,6 +16,7 @@ import {
 } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort } from '@/components/patient-portal/format'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import RequestRecordsCard from './request-records'
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
   return (
@@ -68,6 +69,7 @@ export default async function PortalRecordsPage() {
                   </p>
                   <p className="text-[0.8rem]" style={{ color: PORTAL_MUTED }}>
                     {fmtVisitDayShort(v.startTime, timeZone)}
+                    {v.providerName ? ` · with ${v.providerName}` : ''}
                   </p>
                 </li>
               ))}
@@ -145,26 +147,7 @@ export default async function PortalRecordsPage() {
       </section>
 
       <section className="mt-7">
-        <PortalCard>
-          <p className="text-[0.95rem] font-semibold" style={{ color: PORTAL_INK }}>
-            Need your full chart or X-rays?
-          </p>
-          <p className="mt-1 text-[0.88rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
-            Your clinical records live in our practice system, and they&apos;re yours — by law you
-            can request a copy anytime, X-rays included.{' '}
-            {clinic?.phone ? (
-              <>
-                Call{' '}
-                <a href={`tel:${clinic.phone}`} className="font-semibold" style={{ color: brand }}>
-                  {clinic.phone}
-                </a>{' '}
-                or send a message and we&apos;ll get them to you.
-              </>
-            ) : (
-              'Send us a message and we’ll get them to you.'
-            )}
-          </p>
-        </PortalCard>
+        <RequestRecordsCard brand={brand} phone={clinic?.phone ?? null} />
       </section>
     </div>
   )

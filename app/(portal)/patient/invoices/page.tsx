@@ -16,10 +16,10 @@ import {
   PortalSectionLabel,
   PORTAL_INK,
   PORTAL_MUTED,
-  PORTAL_BORDER,
 } from '@/components/patient-portal/ui'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
 import PayBalanceForm from './pay-form'
+import BillingHistory, { type BillingHistoryRow } from './billing-history'
 
 const FULFILLMENT_LABELS: Record<string, string> = {
   unfulfilled: 'Being prepared',
@@ -53,32 +53,28 @@ export default async function PortalBillingPage({
   const hasBalance = bills.pmsBalanceCents != null && bills.pmsBalanceCents > 0
   const justPaid = Boolean(sessionId)
 
-  // One chronological money trail: balance payments + shop orders.
-  const history: Array<{
-    key: string
-    when: Date
-    label: string
-    detail: string | null
-    amountCents: number
-    badge: string | null
-  }> = [
-    ...payments.map((p) => ({
+  // One chronological money trail: balance payments + shop orders. Each row
+  // links to its printable receipt (key doubles as the receipt slug).
+  const history: BillingHistoryRow[] = [
+    ...payments.map((p): BillingHistoryRow => ({
       key: `pay-${p.id}`,
-      when: p.paidAt ?? p.createdAt,
+      kind: 'payment',
+      whenIso: (p.paidAt ?? p.createdAt).toISOString(),
       label: 'Balance payment',
       detail: p.status === 'paid' ? 'Paid online' : 'Processing',
       amountCents: p.amountCents,
       badge: p.status === 'paid' ? null : 'Processing',
     })),
-    ...bills.orders.map((o) => ({
+    ...bills.orders.map((o): BillingHistoryRow => ({
       key: `order-${o.id}`,
-      when: o.paidAt ?? o.createdAt,
+      kind: 'order',
+      whenIso: (o.paidAt ?? o.createdAt).toISOString(),
       label: o.items.map((i) => `${i.productName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`).join(', ') || 'Shop order',
       detail: FULFILLMENT_LABELS[o.fulfillmentStatus] ?? null,
       amountCents: o.totalCents,
       badge: o.status === 'pending' ? 'Processing' : null,
     })),
-  ].sort((a, b) => b.when.getTime() - a.when.getTime())
+  ].sort((a, b) => new Date(b.whenIso).getTime() - new Date(a.whenIso).getTime())
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -206,45 +202,7 @@ export default async function PortalBillingPage({
 
       <section className="mt-7">
         <PortalSectionLabel>History</PortalSectionLabel>
-        {history.length === 0 ? (
-          <PortalCard>
-            <p className="py-4 text-center text-[0.9rem]" style={{ color: PORTAL_MUTED }}>
-              No payments or purchases yet — when there are, they’ll live here.
-            </p>
-          </PortalCard>
-        ) : (
-          <div className="overflow-hidden rounded-2xl bg-white" style={{ border: `1px solid ${PORTAL_BORDER}` }}>
-            <ul>
-              {history.map((h, i) => (
-                <li
-                  key={h.key}
-                  className="flex items-center justify-between gap-3 px-5 py-3.5"
-                  style={i > 0 ? { borderTop: `1px solid ${PORTAL_BORDER}` } : undefined}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-[0.92rem] font-semibold" style={{ color: PORTAL_INK }}>
-                      {h.label}
-                    </p>
-                    <p className="text-[0.8rem]" style={{ color: PORTAL_MUTED }}>
-                      {fmtVisitDayShort(h.when, timeZone)}
-                      {h.detail ? ` · ${h.detail}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {h.badge && (
-                      <span className="rounded-full px-2 py-0.5 text-[0.68rem] font-semibold" style={{ backgroundColor: '#FBF3E4', color: '#8A6116' }}>
-                        {h.badge}
-                      </span>
-                    )}
-                    <span className="text-[0.95rem] font-semibold" style={{ color: PORTAL_INK }}>
-                      {fmtMoney(h.amountCents)}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <BillingHistory rows={history} brand={brand} timeZone={timeZone} />
       </section>
     </div>
   )

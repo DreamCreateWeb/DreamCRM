@@ -264,6 +264,8 @@ export interface MyVisitHistoryRow {
   type: string
   startTime: Date
   notes: string | null
+  /** The provider this visit was with, when one was assigned (left join). */
+  providerName: string | null
 }
 
 export interface MyRecords {
@@ -318,8 +320,10 @@ export async function getMyRecords(
         type: appointment.type,
         startTime: appointment.startTime,
         notes: appointment.notes,
+        providerName: clinicProvider.displayName,
       })
       .from(appointment)
+      .leftJoin(clinicProvider, eq(appointment.providerId, clinicProvider.id))
       .where(
         and(
           eq(appointment.patientId, patientId),
@@ -343,6 +347,7 @@ export async function getMyRecords(
       type: v.type,
       startTime: v.startTime,
       notes: v.notes,
+      providerName: v.providerName ?? null,
     })),
   }
 }
