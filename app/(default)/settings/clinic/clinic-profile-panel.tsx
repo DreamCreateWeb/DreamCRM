@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { updateClinicProfile } from './actions'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
 import type {
@@ -22,7 +22,6 @@ import StatsEditor from './stats-editor'
 import TestimonialsEditor from './testimonials-editor'
 import OfficePhotosEditor from './office-photos-editor'
 import FinancingPartnersEditor from './financing-partners-editor'
-import { SettingsTabs } from '../settings-tabs'
 
 interface Props {
   profile: ClinicProfile | null
@@ -45,6 +44,33 @@ const DAYS = [
 interface HoursEntry { open?: string | null; close?: string | null; closed?: boolean }
 
 const SUB_DESC = 'text-xs text-gray-500 dark:text-gray-400 mb-3'
+
+/**
+ * A titled, anchorable settings section. The `id` is the scroll target the
+ * sticky section rail (clinic-settings-nav) jumps to — and matches the old
+ * SettingsTabs sub-id so the settings smart-search deep links still land here.
+ */
+function Section({
+  id,
+  title,
+  desc,
+  children,
+}: {
+  id: string
+  title: string
+  desc?: string
+  children: ReactNode
+}) {
+  return (
+    <section id={id} className="scroll-mt-20">
+      <div className="mb-3">
+        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
+        {desc && <p className="mt-0.5 max-w-prose text-xs text-gray-500 dark:text-gray-400">{desc}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
 
 export default function ClinicProfilePanel({ profile, orgName, orgId, library, gmailAccounts }: Props) {
   const [saving, setSaving] = useState(false)
@@ -478,47 +504,48 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
     </div>
   )
 
+  // One scrollable hub of titled sections (the rail in clinic-settings-nav jumps
+  // between them). Every section's inputs stay mounted, so the single Save still
+  // submits every field at once — same one-Save model the old tabs had.
   return (
     <div className="grow">
-      <form onSubmit={handleSubmit} className="p-6">
-        <SettingsTabs
-          tabs={[
-            {
-              id: 'profile',
-              label: 'Profile & contact',
-              subtabs: [
-                { id: 'basics', label: 'Basics', content: basics },
-                { id: 'contact', label: 'Contact', content: contact },
-                { id: 'hours', label: 'Hours', content: hours },
-              ],
-            },
-            { id: 'branding', label: 'Branding', content: branding },
-            {
-              id: 'website',
-              label: 'Website content',
-              subtabs: [
-                { id: 'services', label: 'Services', content: services },
-                { id: 'staff', label: 'Staff', content: staff },
-                { id: 'stats', label: 'Stats', content: stats },
-                { id: 'testimonials', label: 'Testimonials', content: testimonials },
-                { id: 'photos', label: 'Office photos', content: officePhotos },
-              ],
-            },
-            {
-              id: 'payments',
-              label: 'Insurance & payments',
-              subtabs: [
-                { id: 'insurance', label: 'Insurance', content: insurance },
-                { id: 'methods', label: 'Payment methods', content: paymentMethods },
-                { id: 'financing', label: 'Financing', content: financing },
-                { id: 'cancellation', label: 'Cancellation', content: cancellation },
-              ],
-            },
-          ]}
-        />
+      <form onSubmit={handleSubmit} className="space-y-7 p-6">
+        <Section id="basics" title="Basics" desc="Your clinic's name and the short intro shown across your site.">
+          {basics}
+        </Section>
+        <Section
+          id="contact"
+          title="Contact & email"
+          desc="How patients reach you — and the identity your patient emails send from."
+        >
+          {contact}
+        </Section>
+        <Section
+          id="hours"
+          title="Hours"
+          desc="Opening hours and timezone. Drives your booking slots and the times shown in patient emails."
+        >
+          {hours}
+        </Section>
+        <Section
+          id="branding"
+          title="Branding & media"
+          desc={'Your brand color, logo, hero image, and the optional “Why us?” video.'}
+        >
+          {branding}
+        </Section>
+        <Section id="services" title="Services">{services}</Section>
+        <Section id="staff" title="Team">{staff}</Section>
+        <Section id="stats" title="Trust stats">{stats}</Section>
+        <Section id="testimonials" title="Testimonials">{testimonials}</Section>
+        <Section id="photos" title="Office photos">{officePhotos}</Section>
+        <Section id="insurance" title="Insurance carriers">{insurance}</Section>
+        <Section id="methods" title="Payment methods">{paymentMethods}</Section>
+        <Section id="financing" title="Financing">{financing}</Section>
+        <Section id="cancellation" title="Cancellation policy">{cancellation}</Section>
 
-        {/* Sticky save bar — one Save for every tab (inputs stay mounted). */}
-        <div className="sticky bottom-4 z-10 mt-6 flex items-center gap-3 v2-card px-4 py-3 shadow-[var(--shadow-pop)]">
+        {/* Sticky save bar — one Save for every section (all inputs stay mounted). */}
+        <div className="sticky bottom-4 z-10 flex items-center gap-3 v2-card px-4 py-3 shadow-[var(--shadow-pop)]">
           <ActionButton variant="primary" type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Save changes'}
           </ActionButton>

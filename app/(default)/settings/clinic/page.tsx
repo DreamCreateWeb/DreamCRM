@@ -17,6 +17,7 @@ import ClinicProfilePanel from './clinic-profile-panel'
 import CustomDomainCard from './custom-domain-card'
 import GbpSyncCard from './gbp-sync-card'
 import CalendarFeedCard from './calendar-feed-card'
+import ClinicSettingsNav, { type NavGroup } from './clinic-settings-nav'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
@@ -57,6 +58,48 @@ export default async function ClinicSettings() {
   const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || `https://www.${SITE_DOMAIN}`
   const canManageClinic = ctx.role === 'owner' || ctx.role === 'admin'
 
+  // The section rail. Every section is listed at once (the fix for the old
+  // 15-subtab maze); ids match the section anchors in the panel + the card
+  // wrappers below. "Sync from Google" only appears when a GBP card renders.
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Your clinic',
+      items: [
+        { id: 'basics', label: 'Basics' },
+        { id: 'contact', label: 'Contact & email' },
+        { id: 'hours', label: 'Hours' },
+      ],
+    },
+    {
+      label: 'Website content',
+      items: [
+        { id: 'branding', label: 'Branding & media' },
+        { id: 'services', label: 'Services' },
+        { id: 'staff', label: 'Team' },
+        { id: 'stats', label: 'Trust stats' },
+        { id: 'testimonials', label: 'Testimonials' },
+        { id: 'photos', label: 'Office photos' },
+      ],
+    },
+    {
+      label: 'Insurance & payments',
+      items: [
+        { id: 'insurance', label: 'Insurance carriers' },
+        { id: 'methods', label: 'Payment methods' },
+        { id: 'financing', label: 'Financing' },
+        { id: 'cancellation', label: 'Cancellation policy' },
+      ],
+    },
+    {
+      label: 'Connections & domain',
+      items: [
+        ...(gbpState ? [{ id: 'google-sync', label: 'Sync from Google' }] : []),
+        { id: 'calendar-feed', label: 'Calendar feed' },
+        { id: 'custom-domain', label: 'Custom domain' },
+      ],
+    },
+  ]
+
   return (
     <>
       <PageHeader
@@ -69,8 +112,9 @@ export default async function ClinicSettings() {
           </ActionButton>
         }
       />
-      <div className="v2-panel mb-8">
-        <div className="grow">
+      <div className="mb-8 lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:items-start lg:gap-8">
+        <ClinicSettingsNav groups={navGroups} />
+        <div className="v2-panel">
           <ClinicProfilePanel
             profile={profile ?? null}
             orgName={ctx.organizationName}
@@ -78,17 +122,23 @@ export default async function ClinicSettings() {
             library={library}
             gmailAccounts={gmailAccounts}
           />
-          {gbpState && <GbpSyncCard state={gbpState} />}
-          <CalendarFeedCard
-            initialToken={profile?.calendarFeedToken ?? null}
-            baseUrl={appBaseUrl}
-            canManage={canManageClinic}
-          />
-          <div className="border-t border-gray-200 dark:border-gray-700/60">
-            <CustomDomainCard
-              initialStatus={customDomainStatus}
-              subdomainUrl={subdomainUrl}
+          {gbpState && (
+            <div id="google-sync" className="scroll-mt-20">
+              <GbpSyncCard state={gbpState} />
+            </div>
+          )}
+          <div id="calendar-feed" className="scroll-mt-20">
+            <CalendarFeedCard
+              initialToken={profile?.calendarFeedToken ?? null}
+              baseUrl={appBaseUrl}
+              canManage={canManageClinic}
             />
+          </div>
+          <div
+            id="custom-domain"
+            className="scroll-mt-20 border-t border-gray-200 dark:border-gray-700/60"
+          >
+            <CustomDomainCard initialStatus={customDomainStatus} subdomainUrl={subdomainUrl} />
           </div>
         </div>
       </div>
