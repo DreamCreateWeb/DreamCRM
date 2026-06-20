@@ -18,6 +18,7 @@ import type {
   OrderItemRow,
   OrderStatus,
   FulfillmentStatus,
+  TopProduct,
 } from '@/lib/types/shop'
 
 /**
@@ -518,23 +519,68 @@ export async function setOrderFulfillment(
 export interface OrderStats {
   paidCount: number
   unfulfilledCount: number
+  /** Paid orders that reached a done state (picked up / delivered). */
+  fulfilledCount: number
   revenueCents: number
+  /** Paid revenue + order count in the trailing 30 days. */
+  last30Cents: number
+  last30Count: number
 }
 
 export async function getOrderStats(organizationId: string): Promise<OrderStats> {
   const orders = await db
-    .select({ status: schema.shopOrder.status, fulfillmentStatus: schema.shopOrder.fulfillmentStatus, totalCents: schema.shopOrder.totalCents })
+    .select({
+      status: schema.shopOrder.status,
+      fulfillmentStatus: schema.shopOrder.fulfillmentStatus,
+      totalCents: schema.shopOrder.totalCents,
+      createdAt: schema.shopOrder.createdAt,
+    })
     .from(schema.shopOrder)
     .where(eq(schema.shopOrder.organizationId, organizationId))
+  const cutoff = Date.now() - 30 * 24 * 3_600_000
   let paidCount = 0
   let unfulfilledCount = 0
+  let fulfilledCount = 0
   let revenueCents = 0
+  let last30Cents = 0
+  let last30Count = 0
   for (const o of orders) {
     if (o.status === 'paid') {
       paidCount++
       revenueCents += o.totalCents
       if (o.fulfillmentStatus === 'unfulfilled' || o.fulfillmentStatus === 'ready_for_pickup') unfulfilledCount++
+      if (o.fulfillmentStatus === 'picked_up' || o.fulfillmentStatus === 'delivered') fulfilledCount++
+      if (o.createdAt.getTime() >= cutoff) {
+        last30Count++
+        last30Cents += o.totalCents
+      }
     }
   }
-  return { paidCount, unfulfilledCount, revenueCents }
+  return { paidCount, unfulfilledCount, fulfilledCount, revenueCents, last30Cents, last30Count }
+}
+
+/**
+ * Best-selling products across PAID orders, ranked by revenue. Powers the Shop
+ * hub's "Best sellers" card. Aggregates the order-item lines (which snapshot the
+ * product name + price at purchase, so a renamed/deleted product still tallies).
+ */
+export async function getTopProducts(organizationId: string, limit = 5): Promise<TopProduct[]> {
+  const revenueExpr = sql<number>`sum(${schema.shopOrderItem.unitPriceCents} * ${schema.shopOrderItem.quantity})`
+  const rows = await db
+    .select({
+      productName: schema.shopOrderItem.productName,
+      unitsSold: sql<number>`sum(${schema.shopOrderItem.quantity})`,
+      revenueCents: revenueExpr,
+    })
+    .from(schema.shopOrderItem)
+    .innerJoin(schema.shopOrder, eq(schema.shopOrderItem.orderId, schema.shopOrder.id))
+    .where(and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.status, 'paid')))
+    .groupBy(schema.shopOrderItem.productName)
+    .orderBy(desc(revenueExpr))
+    .limit(limit)
+  return rows.map((r) => ({
+    productName: r.productName,
+    unitsSold: Number(r.unitsSold),
+    revenueCents: Number(r.revenueCents),
+  }))
 }

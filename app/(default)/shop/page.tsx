@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
-import { getShopConfig, listProducts, getShopStats, getOrderStats, shopConnectConfigured } from '@/lib/services/shop'
+import { getShopConfig, listProducts, getShopStats, getOrderStats, getTopProducts, shopConnectConfigured } from '@/lib/services/shop'
 import { refreshConnectStatus } from '@/lib/services/shop-connect'
 import { getMembershipStats } from '@/lib/services/membership'
 import { listCoupons } from '@/lib/services/coupons'
@@ -23,11 +23,12 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   // Flip pending → active without a manual reconnect once onboarding finishes.
   await refreshConnectStatus(ctx.organizationId)
 
-  const [config, products, stats, orderStats, membershipStats, coupons, payments, orgRow] = await Promise.all([
+  const [config, products, stats, orderStats, topProducts, membershipStats, coupons, payments, orgRow] = await Promise.all([
     getShopConfig(ctx.organizationId),
     listProducts(ctx.organizationId),
     getShopStats(ctx.organizationId),
     getOrderStats(ctx.organizationId),
+    getTopProducts(ctx.organizationId, 5),
     getMembershipStats(ctx.organizationId),
     listCoupons(ctx.organizationId),
     listRecentBalancePayments(ctx.organizationId),
@@ -51,6 +52,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       products={products}
       stats={stats}
       orderStats={orderStats}
+      topProducts={topProducts}
       membershipStats={membershipStats}
       couponStats={couponStats}
       paymentStats={paymentStats}

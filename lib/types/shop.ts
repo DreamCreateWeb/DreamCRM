@@ -194,6 +194,13 @@ export interface OrderRow {
   ageHours: number
 }
 
+/** A best-selling product, aggregated across paid orders (Shop hub sales band). */
+export interface TopProduct {
+  productName: string
+  unitsSold: number
+  revenueCents: number
+}
+
 // ── Coupons ───────────────────────────────────────────────────────────────
 export type DiscountType = 'percent' | 'amount'
 export type CouponSource = 'manual' | 'birthday' | 'loyalty'

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -113,5 +113,47 @@ describe('OrdersClient', () => {
     render(<OrdersClient orders={[order({ fulfillmentStatus: 'ready_for_pickup' })]} />)
     fireEvent.click(screen.getByRole('button', { name: /Mark picked up/i }))
     expect(await screen.findByText(/Server said no/i)).toBeInTheDocument()
+  })
+
+  // The detail drawer surfaces the per-line pricing, cost breakdown, and
+  // shipping address that previously only existed in the CSV export.
+  it('opens an order detail drawer with the full breakdown + shipping address', () => {
+    render(
+      <OrdersClient
+        orders={[
+          order({
+            name: 'Daniel Park',
+            fulfillmentType: 'ship',
+            status: 'paid',
+            fulfillmentStatus: 'shipped',
+            subtotalCents: 14800,
+            shippingCents: 600,
+            totalCents: 15400,
+            trackingNumber: '9400110200000000000000',
+            shippingAddress: { line1: '500 Cedar St', city: 'Austin', state: 'TX', postal_code: '78704', country: 'US' },
+            items: [
+              { productName: 'Sonic Brush', variantName: null, sku: null, unitPriceCents: 8900, quantity: 1 },
+              { productName: 'Water Flosser', variantName: null, sku: null, unitPriceCents: 5900, quantity: 1 },
+            ],
+          }),
+        ]}
+      />,
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    const drawer = screen.getByRole('dialog')
+    expect(within(drawer).getByText('500 Cedar St')).toBeInTheDocument()
+    expect(within(drawer).getByText(/Austin, TX 78704/)).toBeInTheDocument()
+    expect(within(drawer).getByText('Total')).toBeInTheDocument()
+    expect(within(drawer).getByText('$154.00')).toBeInTheDocument()
+    expect(within(drawer).getByText(/9400110200000000000000/)).toBeInTheDocument()
+  })
+
+  it('closes the order detail drawer on the close button', () => {
+    render(<OrdersClient orders={[order()]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

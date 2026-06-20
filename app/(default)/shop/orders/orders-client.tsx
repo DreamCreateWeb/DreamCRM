@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useOptimistic, useState, useTransition } from 'react'
+import { useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   formatCents,
@@ -19,6 +19,7 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
 
 // Payment status → tone. `pending` is the ball in Stripe's court (info, not
@@ -66,6 +67,18 @@ export type OrdersFilter = OrderStatus | 'all'
 // Stable empty base for the optimistic fulfillment map (useOptimistic resets to it).
 const EMPTY_FULFILLMENT: Record<string, FulfillmentStatus> = {}
 
+/** Render a stored shipping address (Stripe's snake_case keys) as display lines. */
+function shippingAddressLines(a: Record<string, string>): string[] {
+  const zip = a.postal_code ?? a.postalCode ?? ''
+  const cityLine = [a.city, [a.state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+  const country = a.country && a.country !== 'US' ? a.country : ''
+  return [a.line1, a.line2, cityLine, country].filter((l): l is string => Boolean(l))
+}
+
+function fmtOrderDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function OrdersClient({
   orders,
   orgName = 'Your clinic',
@@ -89,6 +102,15 @@ export default function OrdersClient({
     Record<string, FulfillmentStatus>,
     { id: string; status: FulfillmentStatus }
   >(EMPTY_FULFILLMENT, (current, { id, status }) => ({ ...current, [id]: status }))
+  // Order detail drawer — surfaces the full breakdown (per-line pricing, cost
+  // totals, shipping address, contact) that otherwise only lived in the CSV.
+  const [selected, setSelected] = useState<OrderRow | null>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(selected !== null, drawerRef, { onEscape: () => setSelected(null) })
+  // The live (optimistic-aware) fulfillment status the drawer should show.
+  const selectedFulfillment = selected
+    ? optimisticFulfillment[selected.id] ?? selected.fulfillmentStatus
+    : null
 
   function run(fn: () => Promise<unknown>, done?: string) {
     startTransition(async () => {
@@ -236,9 +258,12 @@ export default function OrdersClient({
                   </p>
                 </div>
               </div>
-              {o.status === 'paid' && NEXT_STEPS[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)].length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
-                  {NEXT_STEPS[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)].map((s, i) => {
+              <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
+                <ActionButton variant="ghost" size="sm" onClick={() => setSelected(o)}>
+                  Details
+                </ActionButton>
+                {o.status === 'paid' &&
+                  NEXT_STEPS[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)].map((s, i) => {
                     // One primary per row — the most likely next move leads;
                     // the alternate (e.g. "Mark shipped" vs "Mark ready") is secondary.
                     const statusLabel = FULFILLMENT_STATUS_LABELS[s].toLowerCase()
@@ -254,11 +279,161 @@ export default function OrdersClient({
                       </ActionButton>
                     )
                   })}
-                </div>
-              )}
+              </div>
             </div>
           ))}
         </div>
+      )}
+
+      {selected && selectedFulfillment && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/30"
+            onClick={() => setSelected(null)}
+            aria-hidden="true"
+          />
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Order for ${selected.name || selected.email}`}
+            className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-surface-2 shadow-[var(--shadow-modal)]"
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[color:var(--color-hairline)] bg-surface-2 px-5 py-4">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  {selected.name || selected.email}
+                </p>
+                <p className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                  Placed {fmtOrderDate(selected.createdAt)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                aria-label="Close"
+                className="shrink-0 rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={ORDER_STATUS_TONE[selected.status]} label={ORDER_STATUS_LABELS[selected.status]} />
+                {selected.status === 'paid' && (
+                  <StatusPill tone={FULFILLMENT_TONE[selectedFulfillment]} label={FULFILLMENT_STATUS_LABELS[selectedFulfillment]} />
+                )}
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {selected.fulfillmentType === 'pickup' ? 'In-office pickup' : 'Ship to patient'}
+                </span>
+              </div>
+
+              <div className="space-y-1 text-sm">
+                {selected.patientId ? (
+                  <Link href={`/patients/${selected.patientId}`} className="font-medium text-teal-700 hover:underline dark:text-teal-400">
+                    {selected.patientName ?? 'View patient'} →
+                  </Link>
+                ) : (
+                  selected.patientName && <p className="font-medium text-gray-800 dark:text-gray-100">{selected.patientName}</p>
+                )}
+                <p className="text-gray-600 dark:text-gray-300">{selected.email}</p>
+                {selected.phone && <p className="text-gray-600 dark:text-gray-300">{selected.phone}</p>}
+              </div>
+
+              {selected.fulfillmentType === 'ship' && selected.shippingAddress && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Ship to</p>
+                  <address className="text-sm not-italic text-gray-700 dark:text-gray-200">
+                    {shippingAddressLines(selected.shippingAddress).map((l, i) => (
+                      <span key={i} className="block">{l}</span>
+                    ))}
+                  </address>
+                </div>
+              )}
+              {selected.trackingNumber && (
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Tracking: <span className="font-mono-num">{selected.trackingNumber}</span>
+                </p>
+              )}
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Items</p>
+                <ul className="divide-y divide-[color:var(--color-hairline)]">
+                  {selected.items.map((it, i) => (
+                    <li key={i} className="flex items-start justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-800 dark:text-gray-100">
+                          {it.productName}
+                          {it.variantName ? ` · ${it.variantName}` : ''}
+                        </p>
+                        <p className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                          {formatCents(it.unitPriceCents)} × {it.quantity}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-sm font-medium tabular-nums font-mono-num text-gray-800 dark:text-gray-100">
+                        {formatCents(it.unitPriceCents * it.quantity)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <dl className="space-y-1 border-t border-[color:var(--color-hairline)] pt-3 text-sm">
+                <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                  <dt>Subtotal</dt>
+                  <dd className="tabular-nums font-mono-num">{formatCents(selected.subtotalCents)}</dd>
+                </div>
+                {selected.shippingCents > 0 && (
+                  <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                    <dt>Shipping</dt>
+                    <dd className="tabular-nums font-mono-num">{formatCents(selected.shippingCents)}</dd>
+                  </div>
+                )}
+                {selected.taxCents > 0 && (
+                  <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                    <dt>Tax</dt>
+                    <dd className="tabular-nums font-mono-num">{formatCents(selected.taxCents)}</dd>
+                  </div>
+                )}
+                {selected.discountCents > 0 && (
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-300">
+                    <dt>Discount</dt>
+                    <dd className="tabular-nums font-mono-num">−{formatCents(selected.discountCents)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-[color:var(--color-hairline)] pt-1.5 font-semibold text-gray-900 dark:text-gray-100">
+                  <dt>Total</dt>
+                  <dd className="tabular-nums font-mono-num">{formatCents(selected.totalCents)}</dd>
+                </div>
+                {selected.paidAt && (
+                  <p className="pt-1 text-xs text-gray-500 dark:text-gray-400">Paid {fmtOrderDate(selected.paidAt)}</p>
+                )}
+              </dl>
+
+              {selected.status === 'paid' && NEXT_STEPS[selectedFulfillment].length > 0 && (
+                <div className="flex flex-wrap gap-1.5 border-t border-[color:var(--color-hairline)] pt-3">
+                  {NEXT_STEPS[selectedFulfillment].map((s, i) => {
+                    const statusLabel = FULFILLMENT_STATUS_LABELS[s].toLowerCase()
+                    return (
+                      <ActionButton
+                        key={s}
+                        variant={i === 0 ? 'primary' : 'secondary'}
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() => changeFulfillment(selected, s, statusLabel)}
+                      >
+                        Mark {statusLabel}
+                      </ActionButton>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
