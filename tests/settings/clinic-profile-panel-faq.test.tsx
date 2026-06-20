@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, fireEvent, waitFor } from '@testing-library/react'
 
 /**
  * Regression: the clinic profile panel has NO FAQ editor (FAQ is authored in the
@@ -25,7 +25,8 @@ vi.mock('@/app/(default)/settings/clinic/services-library-picker', () => ({
   default: ({ name }: { name: string }) => <input type="hidden" name={name} defaultValue="[]" />,
 }))
 
-// SettingsTabs reads ?tab=&sub= via useSearchParams.
+// The panel no longer uses next/navigation (the section rail does), but keep the
+// mock harmless in case any child reaches for useSearchParams.
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
 import ClinicProfilePanel from '@/app/(default)/settings/clinic/clinic-profile-panel'
@@ -81,37 +82,29 @@ describe('ClinicProfilePanel — FAQ preservation', () => {
   })
 })
 
-describe('ClinicProfilePanel — tabs', () => {
-  it('renders the four section tabs', () => {
+describe('ClinicProfilePanel — hub sections', () => {
+  // The old nested-tab maze (4 tabs → 15 hidden subtabs) is gone: every setting
+  // is now an anchorable section in one scroll, so the rail can jump to any of
+  // them and nothing hides behind a tab.
+  const SECTION_IDS = [
+    'basics', 'contact', 'hours', 'branding', 'services', 'staff', 'stats',
+    'testimonials', 'photos', 'insurance', 'methods', 'financing', 'cancellation',
+  ]
+
+  it('renders every setting as an anchorable section (the rail jumps to these ids)', () => {
     render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
-    for (const label of ['Profile & contact', 'Branding', 'Website content', 'Insurance & payments']) {
-      expect(screen.getByRole('tab', { name: label })).toBeTruthy()
+    for (const id of SECTION_IDS) {
+      expect(document.getElementById(id), `missing section #${id}`).not.toBeNull()
     }
   })
 
-  it('keeps EVERY tab\'s inputs mounted so the single Save still submits all fields', () => {
+  it('mounts every section\'s inputs at once so the single Save submits all fields', () => {
     render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
-    // Default tab is "Profile & contact", yet fields from other tabs are still
-    // in the DOM (hidden, not unmounted) — the whole point, so Save persists all.
-    expect(document.querySelector('textarea[name="paymentMethods"]')).not.toBeNull() // payments tab
-    expect(document.querySelector('textarea[name="acceptedInsuranceCarriers"]')).not.toBeNull() // payments tab
-    expect(document.querySelector('input[name="faq"]')).not.toBeNull() // branding tab
-  })
-
-  it('activates a tab on click', () => {
-    render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
-    const btn = screen.getByRole('tab', { name: 'Insurance & payments' })
-    expect(btn.className).not.toContain('border-teal-500')
-    fireEvent.click(btn)
-    expect(btn.className).toContain('border-teal-500')
-  })
-
-  it('Services and Staff are their own subtabs', () => {
-    render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
-    // Switch to the Website content tab, then its subtabs appear.
-    fireEvent.click(screen.getByRole('tab', { name: 'Website content' }))
-    expect(screen.getByRole('tab', { name: 'Services' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Staff' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Testimonials' })).toBeTruthy()
+    // No tab hides anything now — fields from every section are in the DOM, so
+    // one Save still persists them all.
+    expect(document.querySelector('input[name="displayName"]')).not.toBeNull()
+    expect(document.querySelector('textarea[name="paymentMethods"]')).not.toBeNull()
+    expect(document.querySelector('textarea[name="acceptedInsuranceCarriers"]')).not.toBeNull()
+    expect(document.querySelector('input[name="faq"]')).not.toBeNull()
   })
 })
