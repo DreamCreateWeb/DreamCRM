@@ -9,7 +9,7 @@ import { MARKETING } from './site'
  */
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')
-export const LOGO_URL = `${SITE_URL}/dream-create-logo.webp`
+export const LOGO_URL = `${SITE_URL}/images/dream-create-logo.webp`
 
 export function organizationLd() {
   return {

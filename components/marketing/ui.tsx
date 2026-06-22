@@ -91,7 +91,7 @@ export function MarketingFooter() {
         <div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/dream-create-logo-inverse.webp"
+            src="/images/dream-create-logo-inverse.webp"
             alt={MARKETING.companyName}
             width={470}
             height={100}

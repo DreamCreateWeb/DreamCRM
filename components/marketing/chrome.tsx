@@ -85,7 +85,7 @@ export function MarketingHeader() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/dream-create-logo.webp"
+              src="/images/dream-create-logo.webp"
               alt={MARKETING.companyName}
               width={470}
               height={100}
