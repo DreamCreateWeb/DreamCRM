@@ -12,6 +12,7 @@ import type { PatientTagView } from '@/lib/types/patient-tags'
 import { channelMeta } from './channel-meta'
 import {
   archiveThreadAction,
+  assignThreadAction,
   reopenThreadAction,
   sendMessageAction,
   snoozeThreadAction,
@@ -29,6 +30,7 @@ interface ThreadHeader {
   patientEmail: string | null
   patientPhone: string | null
   status: 'open' | 'snoozed' | 'archived'
+  assignedUserId: string | null
   assignedUserName: string | null
   snoozedUntil: string | null
   lastMessageChannel: Channel | null
@@ -77,6 +79,10 @@ interface Props {
   patientContext?: PatientContext | null
   /** The patient's current CRM tags (editable in the header). */
   patientTags?: PatientTagView[]
+  /** Org staff who can own this conversation (the reassign dropdown). */
+  members?: { userId: string; name: string }[]
+  /** The signed-in staff user — powers the "Assign to me" shortcut. */
+  currentUserId?: string | null
   /** Mobile-only "← All conversations" link back to the list pane. */
   backHref?: string
 }
@@ -116,6 +122,8 @@ export default function ThreadDetailPanel({
   hasEmail,
   patientContext,
   patientTags = [],
+  members = [],
+  currentUserId = null,
   backHref,
 }: Props) {
   const router = useRouter()
@@ -131,6 +139,7 @@ export default function ThreadDetailPanel({
     pickDefaultReplyChannel(messages, hasEmail),
   )
   const [showSnooze, setShowSnooze] = useState(false)
+  const [showAssign, setShowAssign] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const streamRef = useRef<HTMLDivElement | null>(null)
 
@@ -183,6 +192,17 @@ export default function ThreadDetailPanel({
     startTransition(async () => {
       await reopenThreadAction(thread.id)
       setToast('Thread reopened')
+      router.refresh()
+    })
+  }
+
+  function handleAssign(userId: string | null) {
+    setShowAssign(false)
+    if (userId === thread.assignedUserId) return
+    const who = userId ? members.find((m) => m.userId === userId)?.name ?? 'teammate' : null
+    startTransition(async () => {
+      await assignThreadAction(thread.id, userId)
+      setToast(who ? `Assigned to ${who}` : 'Unassigned')
       router.refresh()
     })
   }
@@ -248,6 +268,64 @@ export default function ThreadDetailPanel({
         {/* Routine triage actions — all secondary; none competes with the
             reply composer's single primary, and archive is NOT destructive. */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Assign / reassign — independent of status, so it sits ahead of the
+              status-dependent snooze/archive/reopen controls. */}
+          <div className="relative">
+            <ActionButton
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowAssign(!showAssign)}
+              disabled={pending}
+              aria-expanded={showAssign}
+              title="Assign this conversation to a teammate"
+            >
+              {thread.assignedUserName ? `👤 ${thread.assignedUserName.split(' ')[0]}` : 'Assign'}
+            </ActionButton>
+            {showAssign && (
+              <div className="pop-in origin-top-right absolute right-0 top-full mt-1 z-10 py-1 min-w-[12rem] max-h-72 overflow-y-auto rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)]">
+                {currentUserId && thread.assignedUserId !== currentUserId && (
+                  <button
+                    type="button"
+                    onClick={() => handleAssign(currentUserId)}
+                    className="block w-full text-left text-xs px-3 py-1.5 font-medium text-teal-700 dark:text-teal-300 hover:bg-gray-500/[0.08]"
+                  >
+                    Assign to me
+                  </button>
+                )}
+                {members.length === 0 ? (
+                  <p className="px-3 py-1.5 text-xs text-gray-400 dark:text-gray-500">No teammates yet</p>
+                ) : (
+                  members.map((m) => {
+                    const isCurrent = m.userId === thread.assignedUserId
+                    return (
+                      <button
+                        key={m.userId}
+                        type="button"
+                        onClick={() => handleAssign(m.userId)}
+                        className={`flex w-full items-center justify-between gap-2 text-left text-xs px-3 py-1.5 hover:bg-gray-500/[0.08] ${
+                          isCurrent
+                            ? 'font-semibold text-teal-700 dark:text-teal-300'
+                            : 'text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        <span className="truncate">{m.name}</span>
+                        {isCurrent && <span aria-hidden="true">✓</span>}
+                      </button>
+                    )
+                  })
+                )}
+                {thread.assignedUserId && (
+                  <button
+                    type="button"
+                    onClick={() => handleAssign(null)}
+                    className="block w-full text-left text-xs px-3 py-1.5 mt-1 border-t border-[color:var(--color-hairline)] text-gray-500 dark:text-gray-400 hover:bg-gray-500/[0.08]"
+                  >
+                    Unassign
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           {thread.status === 'snoozed' ? (
             <ActionButton size="sm" variant="secondary" onClick={handleReopen} disabled={pending}>
               Reopen (snoozed)

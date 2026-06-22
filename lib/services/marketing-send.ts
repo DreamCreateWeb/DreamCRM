@@ -373,6 +373,103 @@ function recipientMergeFields(r: ResolvedRecipient, bookingUrl: string | null): 
   }
 }
 
+export interface CampaignPreviewDraft {
+  subject: string
+  previewText: string
+  bodyHtml: string
+}
+
+export interface CampaignPreviewResult {
+  /** A full, ready-to-render email document (the same shell a recipient gets). */
+  html: string
+  /** Subject after merge-field substitution (may be empty for a draft). */
+  subject: string
+  /** First name used in the merge — a real audience member's, or a sample. */
+  sampleName: string
+  /** True when the sample is the first real audience member; false = synthetic. */
+  realRecipient: boolean
+  /** The visible From header, e.g. `Acme Dental <acme@dreamcreatestudio.com>`. */
+  fromLabel: string
+}
+
+/**
+ * Render a campaign EXACTLY as a recipient would receive it — same branded
+ * shell, footer, postal address, and `{{firstName}}`/`{{bookingUrl}}` merge as
+ * the live send path (reuses resolveCampaignSender + renderCampaignEmail), so a
+ * clinic can spot-check personalization + layout BEFORE sending. Differences
+ * from a real send: tracking is OFF (no open pixel / no link rewriting) and
+ * every link is neutralized, so opening + clicking around the preview can't
+ * fire a real open / click / unsubscribe against the sample recipient.
+ *
+ * The sample is the FIRST audience member that has an address (so the clinic
+ * sees a true personalization); with no audience chosen — or one that resolves
+ * to nobody — it falls back to a clearly-synthetic "Taylor". `defaultSource`
+ * (derived from the caller's tenant type) picks the sender voice in that case;
+ * when a real recipient exists, its own customer/patient identity decides.
+ */
+export async function buildCampaignPreview(
+  organizationId: string,
+  campaignId: number,
+  draft: CampaignPreviewDraft,
+  defaultSource: 'customers' | 'patients',
+): Promise<CampaignPreviewResult> {
+  const campaign = await getMarketingCampaign(organizationId, campaignId)
+  if (!campaign) throw new Error('Campaign not found')
+
+  const recipients = campaign.audienceId
+    ? await resolveCampaignRecipients(organizationId, campaignId)
+    : []
+  // Prefer a recipient we could actually email so the preview is representative.
+  const sample = recipients.find((r) => !!r.email) ?? recipients[0] ?? null
+  const recipientSource: 'customers' | 'patients' =
+    sample?.patientId != null
+      ? 'patients'
+      : sample?.customerId != null
+        ? 'customers'
+        : defaultSource
+
+  const sender = await resolveCampaignSender(organizationId, recipientSource)
+  const bookingUrl =
+    recipientSource === 'patients' ? await resolveClinicBookingUrl(organizationId) : null
+
+  const sampleName = sample ? sample.firstName?.trim() || 'there' : 'Taylor'
+  const mergeFields = { firstName: sampleName, bookingUrl: bookingUrl ?? '' }
+  const subject = applyMergeFields(draft.subject || '', mergeFields)
+
+  const { html } = renderCampaignEmail({
+    campaignId: campaign.id,
+    recipientEmail: sample?.email || 'sample@example.com',
+    recipientCustomerId: sample?.customerId ?? undefined,
+    recipientPatientId: sample?.patientId ?? undefined,
+    subject: subject || '(no subject yet)',
+    previewText: draft.previewText || null,
+    bodyHtml: draft.bodyHtml?.trim()
+      ? draft.bodyHtml
+      : '<p style="color:#a8a29e">Your email body is empty — add content to see it here.</p>',
+    fromName: sender.name,
+    clinicName: sender.name,
+    clinicLogoUrl: sender.clinicLogoUrl,
+    postalAddress: sender.postalAddress,
+    tracking: false,
+    mergeFields,
+  })
+
+  return {
+    html: neutralizePreviewLinks(html),
+    subject,
+    sampleName,
+    realRecipient: !!sample,
+    fromLabel: sender.from,
+  }
+}
+
+/** Strip every link target to `#` so a click inside the preview iframe can't
+ *  navigate to a real tracking / unsubscribe endpoint (the UI also sandboxes
+ *  the iframe, so this is defense in depth). */
+export function neutralizePreviewLinks(html: string): string {
+  return html.replace(/href=("|')([^"']*)\1/gi, 'href="#"')
+}
+
 /**
  * Filter recipients to those a given channel can actually send to. For email
  * channels we need a non-null email AND email opt-in. For SMS we need a

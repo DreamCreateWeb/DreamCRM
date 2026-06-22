@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { listFormTemplates } from '@/lib/services/forms'
+import { listFormTemplates, getSubmissionStatsForTemplates } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { db } from '@/lib/db'
 import { eq } from 'drizzle-orm'
@@ -21,7 +21,13 @@ export default async function IntakeFormsListPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
 
-  const templates = await listFormTemplates(ctx.organizationId)
+  const [templates, submissionStats] = await Promise.all([
+    listFormTemplates(ctx.organizationId),
+    getSubmissionStatsForTemplates(ctx.organizationId),
+  ])
+
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
   // For the "share link" preview we need the canonical site URL.
   const [profile] = await db
@@ -86,6 +92,7 @@ export default async function IntakeFormsListPage() {
                   n + ((s as { fields?: unknown[] }).fields?.length ?? 0),
                 0,
               )
+              const stats = submissionStats.get(t.id)
               return (
                 <li
                   key={t.id}
@@ -109,11 +116,22 @@ export default async function IntakeFormsListPage() {
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       <span className="tabular-nums">{sections.length}</span> section{sections.length === 1 ? '' : 's'} ·{' '}
-                      <span className="tabular-nums">{fieldCount}</span> field{fieldCount === 1 ? '' : 's'}
-                      <span className="mx-2">·</span>
-                      <span className="font-mono truncate inline-block max-w-[24ch] align-middle">
-                        {fillUrl}
-                      </span>
+                      <span className="tabular-nums">{fieldCount}</span> field{fieldCount === 1 ? '' : 's'} ·{' '}
+                      {stats && stats.count > 0 ? (
+                        <span className="text-gray-700 dark:text-gray-200">
+                          <span className="tabular-nums font-semibold">{stats.count}</span> submission{stats.count === 1 ? '' : 's'}
+                          {stats.lastSubmittedAt && (
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {' '}· last {fmtDate(stats.lastSubmittedAt)}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-500">No submissions yet</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono truncate max-w-[40ch]">
+                      {fillUrl}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">

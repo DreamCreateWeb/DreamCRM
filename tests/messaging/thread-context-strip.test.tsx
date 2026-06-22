@@ -20,6 +20,7 @@ const baseThread = {
   patientEmail: 'mia@example.com',
   patientPhone: '(512) 555-0101',
   status: 'open' as const,
+  assignedUserId: null,
   assignedUserName: null,
   snoozedUntil: null,
   lastMessageChannel: 'email' as const,

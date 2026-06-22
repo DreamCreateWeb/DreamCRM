@@ -31,7 +31,7 @@ import {
   updateMarketingCampaign,
   type ScheduleResult,
 } from '@/lib/services/marketing-campaigns'
-import { sendCampaign } from '@/lib/services/marketing-send'
+import { sendCampaign, buildCampaignPreview } from '@/lib/services/marketing-send'
 import { draftCampaign, improveCopy } from '@/lib/services/ai-marketing'
 import { setRetentionAutomation, type RetentionKind } from '@/lib/services/retention-automation'
 
@@ -213,6 +213,47 @@ export async function improveCopyAction(html: string, instruction: string) {
   if (!html.trim() || !instruction.trim()) return null
   if (html.length > 12_000 || instruction.length > 400) return null
   return improveCopy(html, instruction, ctx.tenantType)
+}
+
+/**
+ * Render the campaign's current draft (subject + preview text + body, as the
+ * editor holds it — including unsaved edits) into the exact email a recipient
+ * would receive, personalized with the first real audience member. Read-only;
+ * fires no send and records nothing. Returns the rendered HTML for the preview
+ * modal, or a structured error.
+ */
+export async function previewCampaignAction(
+  campaignId: number,
+  draft: { subject: string; previewText: string; bodyHtml: string },
+): Promise<
+  | {
+      ok: true
+      html: string
+      subject: string
+      sampleName: string
+      realRecipient: boolean
+      fromLabel: string
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const ctx = await requireClinicStaff()
+    const defaultSource: 'customers' | 'patients' =
+      ctx.tenantType === 'clinic' ? 'patients' : 'customers'
+    const res = await buildCampaignPreview(
+      ctx.organizationId,
+      campaignId,
+      {
+        subject: draft?.subject ?? '',
+        previewText: draft?.previewText ?? '',
+        bodyHtml: draft?.bodyHtml ?? '',
+      },
+      defaultSource,
+    )
+    return { ok: true, ...res }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not build a preview.' }
+  }
 }
 
 // ---------- Retention automations (set & forget) ----------

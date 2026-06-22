@@ -18,6 +18,7 @@ import {
   deleteCampaignAction,
   draftCampaignAction,
   improveCopyAction,
+  previewCampaignAction,
   scheduleCampaignAction,
   sendCampaignAction,
   updateCampaignAction,
@@ -82,6 +83,9 @@ export default function CampaignEditor({
   )
   const [showSend, setShowSend] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [previewInput, setPreviewInput] = useState<
+    null | { subject: string; previewText: string; bodyHtml: string }
+  >(null)
   const [showAiDraft, setShowAiDraft] = useState(false)
   const [aiImproveInstruction, setAiImproveInstruction] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState(false)
@@ -324,6 +328,20 @@ export default function CampaignEditor({
           ) : null}
         </div>
 
+        <ActionButton
+          variant="secondary"
+          onClick={() =>
+            setPreviewInput({
+              subject: draft.subject,
+              previewText: draft.previewText,
+              bodyHtml: editor?.getHTML() ?? draft.bodyHtml,
+            })
+          }
+          className="w-full justify-center"
+        >
+          👁 Preview email
+        </ActionButton>
+
         {sent ? (
           <StatsPanel stats={stats} />
         ) : isScheduled ? (
@@ -364,6 +382,14 @@ export default function CampaignEditor({
           </div>
         )}
       </aside>
+
+      {previewInput && (
+        <CampaignPreviewModal
+          campaignId={draft.id}
+          draft={previewInput}
+          onClose={() => setPreviewInput(null)}
+        />
+      )}
 
       {showAiDraft && (
         <AiDraftModal
@@ -480,6 +506,131 @@ function renderSelectionAsHtml(editor: ReturnType<typeof useEditor>, from: numbe
   const div = document.createElement('div')
   div.appendChild(serializer.serializeFragment(fragment))
   return div.innerHTML
+}
+
+type PreviewState =
+  | { status: 'loading' }
+  | { status: 'error'; error: string }
+  | {
+      status: 'ready'
+      html: string
+      subject: string
+      sampleName: string
+      realRecipient: boolean
+      fromLabel: string
+    }
+
+function CampaignPreviewModal({
+  campaignId,
+  draft,
+  onClose,
+}: {
+  campaignId: number
+  draft: { subject: string; previewText: string; bodyHtml: string }
+  onClose: () => void
+}) {
+  const [state, setState] = useState<PreviewState>({ status: 'loading' })
+
+  useEffect(() => {
+    let active = true
+    setState({ status: 'loading' })
+    previewCampaignAction(campaignId, draft)
+      .then((r) => {
+        if (!active) return
+        setState(r.ok ? { status: 'ready', ...r } : { status: 'error', error: r.error })
+      })
+      .catch(() => {
+        if (active) setState({ status: 'error', error: 'Could not build a preview.' })
+      })
+    return () => {
+      active = false
+    }
+  }, [campaignId, draft])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-3 border-b border-[color:var(--color-hairline)] flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+              Preview
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Exactly what a recipient receives — branding, footer, and personalization.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close preview"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none -mt-0.5 px-1"
+          >
+            ×
+          </button>
+        </div>
+
+        {state.status === 'ready' && (
+          <div className="px-5 py-2.5 border-b border-[color:var(--color-hairline)] text-xs space-y-1 v2-well">
+            <div className="flex gap-2">
+              <span className="text-gray-400 dark:text-gray-500 w-14 shrink-0">From</span>
+              <span className="font-mono text-gray-700 dark:text-gray-200 truncate">{state.fromLabel}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-400 dark:text-gray-500 w-14 shrink-0">To</span>
+              <span className="text-gray-700 dark:text-gray-200 truncate">
+                <strong>{state.sampleName}</strong>
+                {state.realRecipient
+                  ? ' — first in your audience'
+                  : ' — sample data (no audience chosen yet)'}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-400 dark:text-gray-500 w-14 shrink-0">Subject</span>
+              <span className="text-gray-800 dark:text-gray-100 font-medium truncate">
+                {state.subject || <span className="italic font-normal text-gray-400">(no subject yet)</span>}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-hidden bg-[#f5f5f4] dark:bg-gray-900/40 p-3">
+          {state.status === 'loading' && (
+            <div className="h-[60vh] min-h-[320px] flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+              Building preview…
+            </div>
+          )}
+          {state.status === 'error' && (
+            <div className="h-[60vh] min-h-[320px] flex items-center justify-center text-center px-6">
+              <p className="text-sm text-rose-600 dark:text-rose-400">{state.error}</p>
+            </div>
+          )}
+          {state.status === 'ready' && (
+            <iframe
+              title="Email preview"
+              srcDoc={state.html}
+              sandbox=""
+              className="w-full h-[60vh] min-h-[320px] rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] bg-white"
+            />
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex items-center justify-between gap-3">
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-snug">
+            Links are disabled in preview. {`{{firstName}}`} and {`{{bookingUrl}}`} are filled in,
+            just like a real send.
+          </p>
+          <ActionButton variant="secondary" size="sm" onClick={onClose}>
+            Close
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function AiDraftModal({
