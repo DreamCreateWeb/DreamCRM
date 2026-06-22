@@ -221,6 +221,25 @@ describe('assignThread — cross-tenant assignee guard', () => {
     expect(state.updates).toHaveLength(1)
     expect(state.updates[0].set).toMatchObject({ assignedUserId: 'usr_1' })
   })
+
+  it('allows self-assignment WITHOUT a membership check (platform-admin "Assign to me" in demo)', async () => {
+    // The acting user is not a row in `member` (demo "view as clinic"), but you
+    // can always take a thread yourself — this was throwing and blanking the inbox.
+    state.memberExists = false
+    const { assignThread } = await import('@/lib/services/patient-messaging')
+    await assignThread('org_real', 'thr_1', 'usr_self', 'usr_self')
+    expect(state.updates).toHaveLength(1)
+    expect(state.updates[0].set).toMatchObject({ assignedUserId: 'usr_self' })
+  })
+
+  it('still checks membership when assigning to SOMEONE ELSE (not the acting user)', async () => {
+    state.memberExists = false
+    const { assignThread } = await import('@/lib/services/patient-messaging')
+    await expect(assignThread('org_real', 'thr_1', 'usr_other', 'usr_self')).rejects.toThrow(
+      /not a member of this organization/i,
+    )
+    expect(state.updates).toHaveLength(0)
+  })
 })
 
 describe('findPatientThread — read-only lookup', () => {

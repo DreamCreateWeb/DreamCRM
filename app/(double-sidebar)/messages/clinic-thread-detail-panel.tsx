@@ -158,53 +158,71 @@ export default function ThreadDetailPanel({
     if (el) el.scrollTop = el.scrollHeight
   }, [thread.id, messages.length])
 
+  // Run a thread action inside the transition, catching failures so a single
+  // failed action surfaces a toast instead of throwing up to the route error
+  // boundary and blanking the whole conversation view.
+  function runAction(fn: () => Promise<unknown>, onSuccess: () => void) {
+    startTransition(async () => {
+      try {
+        await fn()
+        onSuccess()
+      } catch (err) {
+        setToast(err instanceof Error && err.message ? err.message : 'Something went wrong. Please try again.')
+      }
+    })
+  }
+
   function handleSend() {
     if (!body.trim()) return
-    startTransition(async () => {
-      await sendMessageAction({
-        patientId: thread.patientId,
-        body,
-        channel,
-      })
-      setBody('')
-      setToast(`Sent to ${thread.patientFirstName}`)
-      router.refresh()
-    })
+    runAction(
+      () => sendMessageAction({ patientId: thread.patientId, body, channel }),
+      () => {
+        setBody('')
+        setToast(`Sent to ${thread.patientFirstName}`)
+        router.refresh()
+      },
+    )
   }
 
   function handleSnooze(hours: number) {
     setShowSnooze(false)
-    startTransition(async () => {
-      await snoozeThreadAction(thread.id, hours)
-      setToast('Thread snoozed')
-      router.refresh()
-    })
+    runAction(
+      () => snoozeThreadAction(thread.id, hours),
+      () => {
+        setToast('Thread snoozed')
+        router.refresh()
+      },
+    )
   }
 
   function handleArchive() {
-    startTransition(async () => {
-      await archiveThreadAction(thread.id)
-      router.push('/messages')
-    })
+    runAction(
+      () => archiveThreadAction(thread.id),
+      () => router.push('/messages'),
+    )
   }
 
   function handleReopen() {
-    startTransition(async () => {
-      await reopenThreadAction(thread.id)
-      setToast('Thread reopened')
-      router.refresh()
-    })
+    runAction(
+      () => reopenThreadAction(thread.id),
+      () => {
+        setToast('Thread reopened')
+        router.refresh()
+      },
+    )
   }
 
   function handleAssign(userId: string | null) {
     setShowAssign(false)
     if (userId === thread.assignedUserId) return
     const who = userId ? members.find((m) => m.userId === userId)?.name ?? 'teammate' : null
-    startTransition(async () => {
-      await assignThreadAction(thread.id, userId)
-      setToast(who ? `Assigned to ${who}` : 'Unassigned')
-      router.refresh()
-    })
+    runAction(
+      () => assignThreadAction(thread.id, userId),
+      () => {
+        setToast(who ? `Assigned to ${who}` : 'Unassigned')
+        router.refresh()
+      },
+    )
   }
 
   function applyTemplate(key: string) {
