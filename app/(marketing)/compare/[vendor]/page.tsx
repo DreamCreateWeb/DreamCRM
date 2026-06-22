@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { COMPARISONS, COMPARISON_DISCLAIMER, getComparison } from '@/lib/marketing/comparisons'
 import { Eyebrow, PrimaryCta, GhostCta, MatrixMark, CheckIcon } from '@/components/marketing/ui'
 import { DEMO_URL } from '@/lib/marketing/site'
+import { JsonLd, breadcrumbLd } from '@/lib/marketing/seo'
 
 interface Props {
   params: Promise<{ vendor: string }>
@@ -19,6 +20,7 @@ export async function generateMetadata({ params }: Props) {
   return {
     title: `DreamCRM vs ${c.name} — an honest comparison`,
     description: c.summary.slice(0, 155),
+    alternates: { canonical: `/compare/${c.slug}` },
   }
 }
 
@@ -29,6 +31,13 @@ export default async function ComparePage({ params }: Props) {
 
   return (
     <>
+      <JsonLd
+        data={breadcrumbLd([
+          { name: 'Home', path: '/' },
+          { name: 'Compare', path: '/compare' },
+          { name: `DreamCRM vs ${c.name}`, path: `/compare/${c.slug}` },
+        ])}
+      />
       <section className="border-b border-gray-100 bg-gradient-to-b from-teal-50/60 to-white">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
           <div className="mkt-enter"><Eyebrow>Comparison</Eyebrow></div>
@@ -67,7 +76,7 @@ export default async function ComparePage({ params }: Props) {
               {c.ourStrengths.map((s) => (
                 <li key={s.title} className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
                   <p className="flex items-center gap-2 text-[0.92rem] font-bold text-gray-900">
-                    <CheckIcon className="h-4 w-4 text-teal-600" />
+                    <CheckIcon className="h-4 w-4 text-teal-700" />
                     {s.title}
                   </p>
                   <p className="mt-1 text-[0.85rem] leading-relaxed text-gray-700">{s.body}</p>
@@ -136,13 +145,13 @@ export default async function ComparePage({ params }: Props) {
             </ul>
           </div>
           <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5">
-            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-teal-600">
+            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-teal-700">
               Choose DreamCRM if
             </p>
             <ul className="mt-3 space-y-2">
               {c.ourStrengths.slice(0, 3).map((s) => (
                 <li key={s.title} className="flex items-start gap-2 text-[0.88rem] text-gray-800">
-                  <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
+                  <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
                   {s.title} — if that&apos;s what you&apos;re missing
                 </li>
               ))}
@@ -158,7 +167,7 @@ export default async function ComparePage({ params }: Props) {
         </div>
         <p className="mt-8 text-[0.85rem] text-gray-500">
           Comparing someone else?{' '}
-          <Link href="/compare" className="font-semibold text-teal-600 hover:underline">
+          <Link href="/compare" className="font-semibold text-teal-700 hover:underline">
             All comparisons →
           </Link>
         </p>

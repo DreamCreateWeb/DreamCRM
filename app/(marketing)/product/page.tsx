@@ -20,6 +20,7 @@ import Link from 'next/link'
 
 export const metadata = {
   title: 'Platform tour — DreamCRM',
+  alternates: { canonical: '/product' },
   description:
     'A deep dive through every module: website studio, online booking, patient portal, unified messages, reviews, recall, shop & memberships, and the official-API Open Dental sync.',
 }
@@ -237,7 +238,7 @@ export default function ProductPage() {
                 <h2 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-[1.9rem]">{s.title}</h2>
                 <p className="mt-4 text-[0.95rem] leading-relaxed text-gray-600">{s.body}</p>
                 {s.docHref && (
-                  <Link href={s.docHref} className="mt-4 inline-block text-[0.88rem] font-semibold text-teal-600 hover:underline">
+                  <Link href={s.docHref} className="mt-4 inline-block text-[0.88rem] font-semibold text-teal-700 hover:underline">
                     Read the setup doc →
                   </Link>
                 )}
@@ -247,7 +248,7 @@ export default function ProductPage() {
                 <ul className="mt-5 grid gap-2 sm:grid-cols-2">
                   {s.bullets.map((b) => (
                     <li key={b} className="flex items-start gap-2 text-[0.85rem] leading-snug text-gray-700">
-                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
+                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
                       {b}
                     </li>
                   ))}

@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { MARKETING, MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
-import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 
 /**
  * Marketing-site header: megamenu dropdowns for Product / Compare /
@@ -84,7 +83,15 @@ export function MarketingHeader() {
             aria-label={`${MARKETING.companyName} — home`}
             onClick={() => setMobileOpen(false)}
           >
-            <DreamCreateLogo size={30} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/dream-create-logo.webp"
+              alt={MARKETING.companyName}
+              width={470}
+              height={100}
+              className="h-8 w-auto"
+              decoding="async"
+            />
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
@@ -159,7 +166,7 @@ export function MarketingHeader() {
           </Link>
           <Link
             href="/signup"
-            className="rounded-lg bg-teal-600 px-3.5 py-2 text-[0.875rem] font-semibold text-white transition-colors hover:bg-teal-700"
+            className="rounded-lg bg-teal-700 px-3.5 py-2 text-[0.875rem] font-semibold text-white transition-colors hover:bg-teal-800"
           >
             Get started
           </Link>
@@ -232,7 +239,7 @@ export function MarketingHeader() {
             </Link>
             <Link
               href="/signup"
-              className="flex-1 rounded-lg bg-teal-600 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-white"
+              className="flex-1 rounded-lg bg-teal-700 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-white"
               onClick={() => setMobileOpen(false)}
             >
               Get started

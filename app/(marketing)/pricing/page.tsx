@@ -2,9 +2,11 @@ import React from 'react'
 import Link from 'next/link'
 import { PLANS } from '@/lib/stripe-config'
 import { SectionTitle, PrimaryCta, CheckIcon, MatrixMark, PageHero } from '@/components/marketing/ui'
+import { JsonLd, faqPageLd } from '@/lib/marketing/seo'
 
 export const metadata = {
   title: 'Pricing — DreamCRM',
+  alternates: { canonical: '/pricing' },
   description:
     'Flat, published pricing: Basic $99/mo (website tier), Pro $149/mo (front office), Premium $199/mo (growth + PMS sync). Month-to-month, no contract — or annual with 2 months free.',
 }
@@ -93,6 +95,7 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
 export default function PricingPage() {
   return (
     <>
+      <JsonLd data={faqPageLd(PRICING_FAQS)} />
       <PageHero
         eyebrow="Pricing"
         title="The whole number, on the page"
@@ -124,7 +127,7 @@ export default function PricingPage() {
               <ul className="mt-5 flex-1 space-y-2.5">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-[0.875rem] leading-snug text-gray-700">
-                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
+                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
                     {f}
                   </li>
                 ))}
@@ -133,7 +136,7 @@ export default function PricingPage() {
                 href={`/signup?plan=${plan.id}`}
                 className={`mt-7 block rounded-lg py-2.5 text-center text-[0.9rem] font-semibold ${
                   plan.id === 'pro'
-                    ? 'bg-teal-600 text-white hover:bg-teal-700'
+                    ? 'bg-teal-700 text-white hover:bg-teal-800'
                     : 'border border-gray-300 text-gray-800 hover:border-gray-400'
                 }`}
               >
@@ -195,7 +198,7 @@ export default function PricingPage() {
             <details key={f.q} className="group rounded-xl border border-gray-200 px-5 py-4">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold [&::-webkit-details-marker]:hidden">
                 {f.q}
-                <span className="shrink-0 text-teal-600 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+                <span className="shrink-0 text-teal-700 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
               </summary>
               <p className="mt-3 text-[0.9rem] leading-relaxed text-gray-600">{f.a}</p>
             </details>

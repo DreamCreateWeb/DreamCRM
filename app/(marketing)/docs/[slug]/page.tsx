@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { DOCS, getDoc } from '@/lib/marketing/docs'
+import { JsonLd, breadcrumbLd } from '@/lib/marketing/seo'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -14,7 +15,11 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params
   const doc = getDoc(slug)
   if (!doc) return {}
-  return { title: `${doc.title} — DreamCRM docs`, description: doc.summary }
+  return {
+    title: `${doc.title} — DreamCRM docs`,
+    description: doc.summary,
+    alternates: { canonical: `/docs/${slug}` },
+  }
 }
 
 export default async function DocArticlePage({ params }: Props) {
@@ -26,8 +31,15 @@ export default async function DocArticlePage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <JsonLd
+        data={breadcrumbLd([
+          { name: 'Home', path: '/' },
+          { name: 'Docs', path: '/docs' },
+          { name: doc.title, path: `/docs/${doc.slug}` },
+        ])}
+      />
       <nav className="text-[0.82rem] text-gray-500" aria-label="Breadcrumb">
-        <Link href="/docs" className="font-medium text-teal-600 hover:underline">
+        <Link href="/docs" className="font-medium text-teal-700 hover:underline">
           Docs
         </Link>{' '}
         / {doc.category}
@@ -73,7 +85,7 @@ export default async function DocArticlePage({ params }: Props) {
           <ul className="mt-3 space-y-2">
             {related.map((r) => (
               <li key={r.slug}>
-                <Link href={`/docs/${r.slug}`} className="text-[0.9rem] font-semibold text-teal-600 hover:underline">
+                <Link href={`/docs/${r.slug}`} className="text-[0.9rem] font-semibold text-teal-700 hover:underline">
                   {r.title}
                 </Link>
               </li>
@@ -83,10 +95,10 @@ export default async function DocArticlePage({ params }: Props) {
       )}
 
       <div className="mt-10 flex items-center justify-between border-t border-gray-100 pt-6 text-[0.88rem]">
-        <Link href="/docs" className="font-semibold text-teal-600 hover:underline">
+        <Link href="/docs" className="font-semibold text-teal-700 hover:underline">
           ← All docs
         </Link>
-        <Link href="/signup" className="font-semibold text-teal-600 hover:underline">
+        <Link href="/signup" className="font-semibold text-teal-700 hover:underline">
           Start free setup →
         </Link>
       </div>

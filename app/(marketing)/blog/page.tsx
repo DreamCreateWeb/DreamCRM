@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Blog — DreamCRM',
+  alternates: { canonical: '/blog' },
   description:
     'Product announcements and essays on running a modern dental front office — from the team building DreamCRM.',
 }
@@ -39,7 +40,7 @@ export default async function MarketingBlogPage() {
         {posts.length === 0 ? (
           <p className="rounded-xl border border-gray-200 bg-gray-50/70 px-5 py-10 text-center text-[0.92rem] text-gray-600">
             First posts are on their way. Meanwhile, the{' '}
-            <Link href="/docs" className="font-semibold text-teal-600 hover:underline">
+            <Link href="/docs" className="font-semibold text-teal-700 hover:underline">
               help docs
             </Link>{' '}
             cover the whole product.
@@ -50,7 +51,7 @@ export default async function MarketingBlogPage() {
               <li key={post.id}>
                 <Link href={`/blog/${post.slug}`} className="group block py-7">
                   <p className="flex items-center gap-2 text-[0.78rem] font-semibold text-gray-400">
-                    {post.category && <span className="text-teal-600">{post.category}</span>}
+                    {post.category && <span className="text-teal-700">{post.category}</span>}
                     {post.category && <span aria-hidden="true">·</span>}
                     <time>{fmtDate(post.publishedAt)}</time>
                   </p>
@@ -60,7 +61,7 @@ export default async function MarketingBlogPage() {
                   {post.excerpt && (
                     <p className="mt-2 text-[0.92rem] leading-relaxed text-gray-600">{post.excerpt}</p>
                   )}
-                  <span className="mt-3 inline-block text-[0.85rem] font-semibold text-teal-600 group-hover:underline">
+                  <span className="mt-3 inline-block text-[0.85rem] font-semibold text-teal-700 group-hover:underline">
                     Read the post →
                   </span>
                 </Link>
