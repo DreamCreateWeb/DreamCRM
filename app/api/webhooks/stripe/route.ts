@@ -143,11 +143,11 @@ export async function POST(request: Request) {
           }
         }
         if (event.type === 'invoice.payment_failed') {
+          const amount = invoice.amount_due
+            ? `$${(invoice.amount_due / 100).toFixed(2)} ${(invoice.currency ?? 'usd').toUpperCase()}`
+            : 'a payment'
           const orgId = await platformOrgId()
           if (orgId) {
-            const amount = invoice.amount_due
-              ? `$${(invoice.amount_due / 100).toFixed(2)} ${(invoice.currency ?? 'usd').toUpperCase()}`
-              : 'a payment'
             await notifyOrgMembers(
               orgId,
               {
@@ -160,6 +160,16 @@ export async function POST(request: Request) {
               },
               { roles: ['owner', 'admin'] },
             )
+          }
+          // Email the CLINIC owner too (the in-app dunning banner only reaches
+          // them on next login). Best-effort — never break the webhook.
+          if (typeof invoice.customer === 'string') {
+            try {
+              const { sendPaymentFailedEmailForCustomer } = await import('@/lib/services/billing-notifications')
+              await sendPaymentFailedEmailForCustomer(invoice.customer, amount)
+            } catch (err) {
+              console.warn('[stripe webhook] clinic dunning email failed (non-fatal)', err)
+            }
           }
         }
         break

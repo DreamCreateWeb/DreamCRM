@@ -554,6 +554,77 @@ export async function sendVerificationEmail(to: string, verifyUrl: string) {
   })
 }
 
+/** Escalating trial-ending email, keyed by the same milestones the cron uses. */
+export type TrialEmailMilestone = 'd3' | 'd1' | 'ended'
+
+const TRIAL_EMAIL: Record<TrialEmailMilestone, { subject: string; heading: string; intro: string; accent: string }> = {
+  d3: {
+    subject: '3 days left in your DreamCRM free trial',
+    heading: '3 days left in your free trial',
+    intro:
+      'Your free trial wraps up in a few days. Add a payment method and choose a plan to keep full access to your website, patients, and bookings — it locks in your price and takes about a minute.',
+    accent: '#f59e0b',
+  },
+  d1: {
+    subject: "Last day — your DreamCRM free trial ends tomorrow",
+    heading: 'Your free trial ends tomorrow',
+    intro:
+      "This is the last day of your free trial. Add a card and choose a plan now so your website and patient tools keep running without a break — everything you've set up is ready and waiting.",
+    accent: '#ea580c',
+  },
+  ended: {
+    subject: 'Your DreamCRM free trial has ended',
+    heading: 'Your free trial has ended',
+    intro:
+      "Your workspace is paused, but nothing is lost — your website, patients, and settings are all safe. Add a payment method and choose a plan to switch everything back on.",
+    accent: '#e11d48',
+  },
+}
+
+/** Trial-ending nudge to a clinic owner. Platform-identity send (Dream Create),
+ *  NOT the clinic's patient-facing sender — this is billing comms TO the clinic. */
+export async function sendTrialReminderEmail(
+  to: string,
+  data: { firstName: string | null; milestone: TrialEmailMilestone; billingUrl: string },
+) {
+  const t = TRIAL_EMAIL[data.milestone]
+  const hi = data.firstName ? `Hi ${escapeHtml(data.firstName)},` : 'Hi,'
+  await deliver({
+    to,
+    subject: t.subject,
+    html: authEmailShell({
+      heading: t.heading,
+      introHtml: `${hi}<br><br>${t.intro}`,
+      buttonUrl: data.billingUrl,
+      buttonLabel: 'Add payment & choose a plan',
+      accent: t.accent,
+      footnoteHtml: 'You’re receiving this because your clinic is on a DreamCRM free trial.',
+    }),
+  })
+}
+
+/** Dunning email to a clinic owner when a subscription payment fails. */
+export async function sendBillingPastDueEmail(
+  to: string,
+  data: { firstName: string | null; amountLabel: string; billingUrl: string },
+) {
+  const hi = data.firstName ? `Hi ${escapeHtml(data.firstName)},` : 'Hi,'
+  await deliver({
+    to,
+    subject: "Your DreamCRM payment didn't go through",
+    html: authEmailShell({
+      heading: "Your payment didn't go through",
+      introHtml: `${hi}<br><br>We couldn't process ${escapeHtml(
+        data.amountLabel,
+      )} for your DreamCRM subscription. Update your card and we'll retry right away so your access continues without interruption.`,
+      buttonUrl: data.billingUrl,
+      buttonLabel: 'Update payment method',
+      accent: '#e11d48',
+      footnoteHtml: "If you've already updated your card you can ignore this — Stripe retries automatically.",
+    }),
+  })
+}
+
 export interface NotificationEmailInput {
   to: string
   /** Recipient name, used in the greeting if present. */

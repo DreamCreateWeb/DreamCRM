@@ -129,11 +129,10 @@ describe('trialUrgency — escalating tiers', () => {
 })
 
 describe('dueTrialReminder — which email to send', () => {
-  it('fires d3 / d1 / d0 / ended at the right moments', () => {
+  it('fires d3 / d1 / ended at the right moments', () => {
     expect(dueTrialReminder(3, false, [])).toBe('d3')
     expect(dueTrialReminder(2, false, [])).toBe('d3') // still the 3-day bucket
-    expect(dueTrialReminder(1, false, [])).toBe('d1')
-    expect(dueTrialReminder(0, false, [])).toBe('d0')
+    expect(dueTrialReminder(1, false, [])).toBe('d1') // d1 covers the whole final day
     expect(dueTrialReminder(0, true, [])).toBe('ended')
     expect(dueTrialReminder(5, false, [])).toBeNull() // too early
   })
@@ -142,7 +141,7 @@ describe('dueTrialReminder — which email to send', () => {
     expect(dueTrialReminder(3, false, ['d3'])).toBeNull()
     expect(dueTrialReminder(1, false, ['d3'])).toBe('d1')
     expect(dueTrialReminder(1, false, ['d3', 'd1'])).toBeNull()
-    expect(dueTrialReminder(0, true, ['d3', 'd1', 'd0'])).toBe('ended')
+    expect(dueTrialReminder(0, true, ['d3', 'd1'])).toBe('ended')
     expect(dueTrialReminder(0, true, ['ended'])).toBeNull()
   })
 })

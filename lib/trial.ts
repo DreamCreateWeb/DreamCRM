@@ -136,13 +136,14 @@ export function trialSubline(daysLeft: number | null): string {
 }
 
 /**
- * Which trial-reminder EMAILS are due, in order, as a clinic nears (and passes)
- * its trial end. Returns the milestone key the cron should send right now given
- * the days left and what's already been sent — or null when nothing is due.
- * Keys: 'd3' (3 days), 'd1' (1 day), 'd0' (ends today), 'ended' (expired).
+ * Which trial-reminder EMAIL is due, as a clinic nears (and passes) its trial
+ * end. Returns the milestone key the cron should send right now given the days
+ * left and what's already been sent — or null when nothing is due. Keys: 'd3'
+ * (2–3 days out), 'd1' (the final day — `daysLeft` is `ceil`, so it reads 1 for
+ * the whole last day and then flips straight to expired), 'ended' (expired).
  * Idempotent by design: the caller records each sent key so a re-run skips it.
  */
-export type TrialReminderMilestone = 'd3' | 'd1' | 'd0' | 'ended'
+export type TrialReminderMilestone = 'd3' | 'd1' | 'ended'
 
 export function dueTrialReminder(
   daysLeft: number | null,
@@ -152,8 +153,7 @@ export function dueTrialReminder(
   const sent = new Set(alreadySent)
   if (expired) return sent.has('ended') ? null : 'ended'
   if (daysLeft == null) return null
-  if (daysLeft <= 0) return sent.has('d0') ? null : 'd0'
-  if (daysLeft === 1) return sent.has('d1') ? null : 'd1'
+  if (daysLeft <= 1) return sent.has('d1') ? null : 'd1'
   if (daysLeft <= 3) return sent.has('d3') ? null : 'd3'
   return null
 }

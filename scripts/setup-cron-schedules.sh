@@ -56,6 +56,11 @@ BASE_URL="https://www.dreamcreatestudio.com"
 #                                       (keyed per-month) auto-send campaigns;
 #                                       idempotent via campaigns.automation_key,
 #                                       so a daily cadence is safe for both
+#   trial-reminders          6 hours  — escalating trial-ending emails (3d/1d/
+#                                       today/ended); per-milestone idempotent
+#                                       via clinic_profile.trial_reminders_sent,
+#                                       so a few-times-a-day cadence sends each
+#                                       milestone exactly once
 JOBS=(
   "auto-send-reviews|auto-send-reviews|rate(1 hour)"
   "pms-sync|pms-sync|rate(1 hour)"
@@ -67,6 +72,7 @@ JOBS=(
   "retention-automations|retention-automations|rate(1 day)"
   "followup-rules|followup-rules|rate(1 hour)"
   "daily-digest|daily-digest|cron(0 13 * * ? *)"
+  "trial-reminders|trial-reminders|rate(6 hours)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"
