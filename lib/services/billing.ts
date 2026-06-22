@@ -149,6 +149,34 @@ export interface OrgSubscriptionSummary {
   interval: BillingInterval | null
   currentPeriodEnd: Date | null
   cancelAtPeriodEnd: boolean
+  /** The default card on file (brand + last 4 + expiry), when one is set. */
+  card: { brand: string; last4: string; expMonth: number; expYear: number } | null
+  /** The TRUE next-charge amount from Stripe's upcoming invoice (accounts for
+   *  coupons / add-ons / proration). Null when none / canceling / unavailable. */
+  nextChargeCents: number | null
+  nextChargeCurrency: string | null
+}
+
+/** Pull the default card off an expanded subscription (its own default PM, else
+ *  the customer's invoice-settings default). Defensive — Stripe's expanded
+ *  shapes vary, so everything is optional. */
+function extractCardFromSub(sub: unknown): OrgSubscriptionSummary['card'] {
+  const s = sub as {
+    default_payment_method?: unknown
+    customer?: { invoice_settings?: { default_payment_method?: unknown } }
+  }
+  const candidate =
+    s.default_payment_method && typeof s.default_payment_method === 'object'
+      ? s.default_payment_method
+      : s.customer?.invoice_settings?.default_payment_method
+  const card = (candidate as { card?: { brand?: string; last4?: string; exp_month?: number; exp_year?: number } } | null)?.card
+  if (!card?.last4) return null
+  return {
+    brand: card.brand ?? 'card',
+    last4: card.last4,
+    expMonth: card.exp_month ?? 0,
+    expYear: card.exp_year ?? 0,
+  }
 }
 
 /**
@@ -169,7 +197,13 @@ export async function getOrgSubscriptionSummary(
   if (!subId) return null
 
   try {
-    const sub = await stripe.subscriptions.retrieve(subId, { expand: ['items.data.price'] })
+    const sub = await stripe.subscriptions.retrieve(subId, {
+      expand: [
+        'items.data.price',
+        'default_payment_method',
+        'customer.invoice_settings.default_payment_method',
+      ],
+    })
     const price = sub.items?.data?.[0]?.price
     const recurring = price?.recurring?.interval
     const interval: BillingInterval | null =
@@ -180,15 +214,67 @@ export async function getOrgSubscriptionSummary(
       (sub as { current_period_end?: number | null }).current_period_end ??
       (sub.items?.data?.[0] as { current_period_end?: number | null } | undefined)?.current_period_end ??
       null
+
+    // The TRUE next charge (coupon/add-on/proration-accurate) comes from the
+    // upcoming invoice. Defensive: the method name + availability vary by API
+    // version, and there's no upcoming invoice when canceling — degrade to
+    // null (the UI then shows the renewal DATE only, never a wrong amount).
+    let nextChargeCents: number | null = null
+    let nextChargeCurrency: string | null = null
+    const customerId = typeof sub.customer === 'string' ? sub.customer : (sub.customer as { id?: string })?.id
+    if (!sub.cancel_at_period_end && customerId) {
+      try {
+        const upcoming = await (
+          stripe.invoices as unknown as {
+            retrieveUpcoming: (a: Record<string, unknown>) => Promise<{ amount_due?: number; currency?: string }>
+          }
+        ).retrieveUpcoming({ customer: customerId, subscription: subId })
+        if (typeof upcoming?.amount_due === 'number') {
+          nextChargeCents = upcoming.amount_due
+          nextChargeCurrency = upcoming.currency ?? null
+        }
+      } catch {
+        /* no upcoming invoice available — leave null */
+      }
+    }
+
     return {
       status: sub.status ?? null,
       interval,
       currentPeriodEnd: periodEndRaw ? new Date(periodEndRaw * 1000) : null,
       cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+      card: extractCardFromSub(sub),
+      nextChargeCents,
+      nextChargeCurrency,
     }
   } catch (err) {
     console.warn('[billing] getOrgSubscriptionSummary failed', err)
     return null
+  }
+}
+
+/**
+ * Flip a clinic's subscription to cancel-at-period-end (or back). Keeps full
+ * access until the period end either way; reversible right up to that moment.
+ * Org-scoped. Returns the `{ ok | error }` convention for the settings action.
+ */
+export async function setSubscriptionCancelation(
+  organizationId: string,
+  cancelAtPeriodEnd: boolean,
+): Promise<{ ok: true; cancelAtPeriodEnd: boolean } | { ok: false; error: string }> {
+  const [profile] = await db
+    .select({ stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const subId = profile?.stripeSubscriptionId
+  if (!subId) return { ok: false, error: 'No active subscription to change.' }
+  try {
+    await stripe.subscriptions.update(subId, { cancel_at_period_end: cancelAtPeriodEnd })
+    return { ok: true, cancelAtPeriodEnd }
+  } catch (err) {
+    console.warn('[billing] setSubscriptionCancelation failed', err)
+    return { ok: false, error: "We couldn't update your subscription right now. Try the Stripe portal." }
   }
 }
 

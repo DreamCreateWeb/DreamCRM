@@ -15,7 +15,7 @@ import {
   upsertBilling,
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
-import { createCheckoutSession, createPortalSession } from '@/lib/services/billing'
+import { createCheckoutSession, createPortalSession, setSubscriptionCancelation } from '@/lib/services/billing'
 import type { BillingInterval, PlanId } from '@/lib/stripe-config'
 
 export async function saveAccount(input: unknown) {
@@ -112,6 +112,33 @@ export async function cancelSocialAddonAction(): Promise<{ ok: true } | { ok: fa
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
+}
+
+/**
+ * Cancel (or resume) the clinic's subscription at period end, in-app — instead
+ * of forcing them out to the Stripe portal. Owner/admin + clinic only.
+ * Reversible right up to the period end. Returns `{ ok | error }`.
+ */
+export async function cancelSubscriptionAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinics can change billing.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can change billing.' }
+  }
+  const r = await setSubscriptionCancelation(ctx.organizationId, true)
+  if (r.ok) revalidatePath('/settings/billing')
+  return r.ok ? { ok: true } : { ok: false, error: r.error }
+}
+
+export async function reactivateSubscriptionAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinics can change billing.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only an owner or admin can change billing.' }
+  }
+  const r = await setSubscriptionCancelation(ctx.organizationId, false)
+  if (r.ok) revalidatePath('/settings/billing')
+  return r.ok ? { ok: true } : { ok: false, error: r.error }
 }
 
 export async function saveNotificationPrefs(input: unknown) {

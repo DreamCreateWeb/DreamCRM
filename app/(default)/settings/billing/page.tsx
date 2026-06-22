@@ -77,6 +77,10 @@ export default async function BillingSettings({
             interval={summary?.interval ?? null}
             renewsAt={summary?.currentPeriodEnd ? summary.currentPeriodEnd.toISOString() : null}
             cancelAtPeriodEnd={summary?.cancelAtPeriodEnd ?? false}
+            card={summary?.card ?? null}
+            nextChargeCents={summary?.nextChargeCents ?? null}
+            nextChargeCurrency={summary?.nextChargeCurrency ?? null}
+            hasSubscription={!managedBilling}
             onTrial={ctx.onTrial ?? false}
             upgradeModuleLabel={upgrade ? getModuleLabel('clinic', upgrade) ?? null : null}
             invoices={invoices.map((inv) => ({
