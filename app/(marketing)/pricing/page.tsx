@@ -43,12 +43,14 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
       { label: 'Self-serve reschedule & cancel', tiers: [false, true, true] },
       { label: 'Family access (one login per household)', tiers: [false, true, true] },
       { label: 'Review collection + website testimonials', tiers: [false, true, true] },
+      { label: 'Google reviews sync + reply', tiers: [false, true, true] },
     ],
   },
   {
     group: 'Growth & integrations',
     rows: [
       { label: 'Recall & outreach campaigns', tiers: [false, false, true] },
+      { label: 'Google Business sync + social posting', tiers: [false, true, true] },
       { label: 'Practice analytics', tiers: [false, false, true] },
       { label: 'Online shop + membership plans', tiers: [false, false, true] },
       { label: 'Online balance payments (via Stripe Connect)', tiers: [false, false, true] },
@@ -79,6 +81,10 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
     a: 'Patient-facing email is live today (sent from your practice identity). Two-way SMS is on our roadmap but not available yet — it needs a regulated carrier-registration process we haven’t completed. We won’t sell it before it works.',
   },
   {
+    q: 'How many social accounts can I connect?',
+    a: 'Connecting your Google Business profile is free on every plan and never counts against a limit. For social platforms (Instagram, Facebook, TikTok, YouTube, LinkedIn), Pro includes one connected account and Premium includes two; if you want more, there’s a flat add-on ($30/mo on Pro, $20/mo on Premium). It’s published here, same as everything else.',
+  },
+  {
     q: 'Is my data locked in?',
     a: 'No. Your PMS remains the system of record for clinical data, your website content is exportable, and leaving is a cancellation, not a migration project.',
   },
@@ -98,12 +104,12 @@ export default function PricingPage() {
           {PLANS.map((plan) => (
             <div
               key={plan.id}
-              className={`flex flex-col rounded-xl border bg-white p-7 ${plan.id === 'pro' ? 'border-violet-400 ring-1 ring-violet-400' : 'border-gray-200'}`}
+              className={`flex flex-col rounded-xl border bg-white p-7 ${plan.id === 'pro' ? 'border-teal-400 ring-1 ring-teal-400' : 'border-gray-200'}`}
             >
               <div className="flex items-baseline justify-between">
                 <h2 className="text-[1.05rem] font-bold">{plan.name}</h2>
                 {plan.id === 'pro' && (
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[0.7rem] font-bold text-violet-700">
+                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.7rem] font-bold text-teal-700">
                     Most popular
                   </span>
                 )}
@@ -118,7 +124,7 @@ export default function PricingPage() {
               <ul className="mt-5 flex-1 space-y-2.5">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-[0.875rem] leading-snug text-gray-700">
-                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
+                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
                     {f}
                   </li>
                 ))}
@@ -127,7 +133,7 @@ export default function PricingPage() {
                 href={`/signup?plan=${plan.id}`}
                 className={`mt-7 block rounded-lg py-2.5 text-center text-[0.9rem] font-semibold ${
                   plan.id === 'pro'
-                    ? 'bg-violet-600 text-white hover:bg-violet-700'
+                    ? 'bg-teal-600 text-white hover:bg-teal-700'
                     : 'border border-gray-300 text-gray-800 hover:border-gray-400'
                 }`}
               >
@@ -189,7 +195,7 @@ export default function PricingPage() {
             <details key={f.q} className="group rounded-xl border border-gray-200 px-5 py-4">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold [&::-webkit-details-marker]:hidden">
                 {f.q}
-                <span className="shrink-0 text-violet-600 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+                <span className="shrink-0 text-teal-600 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
               </summary>
               <p className="mt-3 text-[0.9rem] leading-relaxed text-gray-600">{f.a}</p>
             </details>

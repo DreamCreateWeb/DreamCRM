@@ -109,7 +109,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
       <BlogViewBeacon postId={post.id} />
 
       <nav className="text-[0.82rem] text-gray-500" aria-label="Breadcrumb">
-        <Link href="/blog" className="font-medium text-violet-600 hover:underline">
+        <Link href="/blog" className="font-medium text-teal-600 hover:underline">
           Blog
         </Link>
         {post.category && <> / {post.category}</>}
@@ -133,7 +133,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
       {/* bodyHtml is sanitized at write time (sanitizeBlogHtml) — same
           trust path as the clinic public blogs. */}
       <div
-        className="prose prose-gray mt-8 max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-violet-600"
+        className="prose prose-gray mt-8 max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-teal-600"
         dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
       />
 
@@ -145,7 +145,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
               <details key={i} className="group rounded-xl border border-gray-200 px-5 py-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold [&::-webkit-details-marker]:hidden">
                   {f.q}
-                  <span className="shrink-0 text-violet-600 transition-transform group-open:rotate-45" aria-hidden="true">
+                  <span className="shrink-0 text-teal-600 transition-transform group-open:rotate-45" aria-hidden="true">
                     +
                   </span>
                 </summary>
@@ -156,7 +156,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
         </section>
       )}
 
-      <div className="mt-12 rounded-xl border border-violet-200 bg-violet-50/60 px-6 py-7 text-center">
+      <div className="mt-12 rounded-xl border border-teal-200 bg-teal-50/60 px-6 py-7 text-center">
         <p className="text-[1.05rem] font-bold tracking-tight">Run your front office from one system</p>
         <p className="mx-auto mt-1 max-w-md text-[0.88rem] text-gray-600">
           Website, booking, portal, reviews, recall — $99–199/mo, month-to-month.
@@ -172,7 +172,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
           <ul className="mt-3 space-y-2">
             {others.map((p) => (
               <li key={p.id}>
-                <Link href={`/blog/${p.slug}`} className="text-[0.92rem] font-semibold text-violet-600 hover:underline">
+                <Link href={`/blog/${p.slug}`} className="text-[0.92rem] font-semibold text-teal-600 hover:underline">
                   {p.title}
                 </Link>
               </li>

@@ -11,6 +11,7 @@ import {
   ReviewsMock,
   RecallFunnelMock,
   ShopMock,
+  GoogleSocialMock,
 } from '@/components/marketing/ui'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { PageHero } from '@/components/marketing/ui'
@@ -30,7 +31,7 @@ interface ModuleSection {
   body: string
   bullets: string[]
   docHref: string
-  visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop'
+  visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop' | 'gbp'
 }
 
 const SECTIONS: ModuleSection[] = [
@@ -112,6 +113,22 @@ const SECTIONS: ModuleSection[] = [
     visual: 'reviews',
   },
   {
+    id: 'gbp',
+    eyebrow: 'Local presence',
+    title: 'Your Google profile and socials, run from one place',
+    body: 'Connect your Google Business Profile in a couple of clicks and the real reviews patients leave sync in — reply from your dashboard, and your live star rating shows on your website. The same connection keeps your Google hours, address, and photos in step with your site and surfaces your local search performance on the SEO and Analytics pages. Then compose once and publish — or schedule — to Google, Instagram, Facebook, TikTok, YouTube, and LinkedIn from a single composer with a content calendar.',
+    bullets: [
+      'Real Google reviews sync in — reply in one place; they drive your site’s rating',
+      'Facebook recommendations alongside them, with a reply link-out',
+      'Google hours, address, and photos keep your site current automatically',
+      'Local performance — impressions, calls, directions — on SEO + Analytics',
+      'One composer → Google, Instagram, Facebook, TikTok, YouTube, LinkedIn',
+      'Schedule ahead and see everything on a content calendar',
+    ],
+    docHref: '',
+    visual: 'gbp',
+  },
+  {
     id: 'recall',
     eyebrow: 'Reactivation',
     title: 'Recall that fills chairs, measured honestly',
@@ -174,6 +191,7 @@ const VISUALS: Record<ModuleSection['visual'], React.ReactNode> = {
   reviews: <ReviewsMock />,
   recall: <RecallFunnelMock />,
   shop: <ShopMock />,
+  gbp: <GoogleSocialMock />,
 }
 
 export default function ProductPage() {
@@ -219,7 +237,7 @@ export default function ProductPage() {
                 <h2 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-[1.9rem]">{s.title}</h2>
                 <p className="mt-4 text-[0.95rem] leading-relaxed text-gray-600">{s.body}</p>
                 {s.docHref && (
-                  <Link href={s.docHref} className="mt-4 inline-block text-[0.88rem] font-semibold text-violet-600 hover:underline">
+                  <Link href={s.docHref} className="mt-4 inline-block text-[0.88rem] font-semibold text-teal-600 hover:underline">
                     Read the setup doc →
                   </Link>
                 )}
@@ -229,7 +247,7 @@ export default function ProductPage() {
                 <ul className="mt-5 grid gap-2 sm:grid-cols-2">
                   {s.bullets.map((b) => (
                     <li key={b} className="flex items-start gap-2 text-[0.85rem] leading-snug text-gray-700">
-                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
+                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
                       {b}
                     </li>
                   ))}
@@ -241,7 +259,7 @@ export default function ProductPage() {
       </div>
 
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 px-8 py-12 text-center">
+        <div className="rounded-2xl border border-teal-200 bg-teal-50/60 px-8 py-12 text-center">
           <h2 className="text-[1.6rem] font-bold tracking-tight">Ten minutes from signup to a live website</h2>
           <p className="mx-auto mt-2 max-w-xl text-[0.95rem] text-gray-600">
             Start on Basic with the website, switch tiers as you adopt more. Month-to-month, no contract.
