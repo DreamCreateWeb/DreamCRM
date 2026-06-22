@@ -42,6 +42,7 @@ function baseMatrix(vendor: {
   inbox: [MatrixValue, string?]
   reviews: [MatrixValue, string?]
   recall: [MatrixValue, string?]
+  social: [MatrixValue, string?]
   shop: [MatrixValue, string?]
   careers: [MatrixValue, string?]
   pms: [MatrixValue, string?]
@@ -56,6 +57,7 @@ function baseMatrix(vendor: {
     { feature: 'Unified patient inbox (portal + email threads)', dreamcrm: 'yes', vendor: vendor.inbox[0], vendorNote: vendor.inbox[1] },
     { feature: 'Review collection & website testimonials', dreamcrm: 'yes', dreamcrmNote: 'Patient-written reviews feed your site', vendor: vendor.reviews[0], vendorNote: vendor.reviews[1] },
     { feature: 'Recall & reactivation campaigns', dreamcrm: 'yes', dreamcrmNote: 'Email today; SMS on the roadmap', vendor: vendor.recall[0], vendorNote: vendor.recall[1] },
+    { feature: 'Google Business sync + social posting', dreamcrm: 'yes', dreamcrmNote: 'Sync + reply to Google reviews; post to Instagram/Facebook/TikTok', vendor: vendor.social[0], vendorNote: vendor.social[1] },
     { feature: 'Online store + membership plans', dreamcrm: 'yes', dreamcrmNote: 'Stripe payouts to the clinic’s own bank', vendor: vendor.shop[0], vendorNote: vendor.shop[1] },
     { feature: 'Careers page + applicant tracking', dreamcrm: 'yes', vendor: vendor.careers[0], vendorNote: vendor.careers[1] },
     { feature: 'PMS sync', dreamcrm: 'yes', dreamcrmNote: 'Open Dental two-way via the official API only', vendor: vendor.pms[0], vendorNote: vendor.pms[1] },
@@ -91,6 +93,7 @@ export const COMPARISONS: VendorComparison[] = [
       inbox: ['partial', 'Calls + SMS unified; no portal/email patient threads'],
       reviews: ['yes'],
       recall: ['yes', 'Via texting tiers'],
+      social: ['partial', 'Reviews + Google tools; limited social'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes', 'Broad PMS coverage via its sync app'],
@@ -126,6 +129,7 @@ export const COMPARISONS: VendorComparison[] = [
       inbox: ['partial', 'Messaging tied to reminders'],
       reviews: ['yes'],
       recall: ['yes'],
+      social: ['no'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes', 'Many PMSs; direct-DB writes on server installs'],
@@ -144,7 +148,7 @@ export const COMPARISONS: VendorComparison[] = [
     summary:
       'RevenueWell is a mature dental marketing suite — campaigns, reminders, and a patient portal (PatientConnect365) with configurable features. It earned its install base. But its portal settings are vendor-branded and coarse (its own docs describe toggles that disable a function while leaving the link visible), the website is an add-on service, and the stack is priced as a platform plus add-ons. DreamCRM ships the same jobs as one product with toggles that fully remove what you turn off.',
     theirStrengths: [
-      { title: 'Marketing automation depth', body: 'Years of dental campaign tooling — postcards, email sequences, social posting — broader than our email-first recall engine today.' },
+      { title: 'Marketing automation depth', body: 'Years of dental campaign tooling — including direct-mail postcards and deep multi-step sequences — broader than our email-first recall engine today.' },
       { title: 'Phone & add-on ecosystem', body: 'Optional phone, virtual visits, and forms add-ons let practices assemble a bigger bundle from one vendor.' },
       { title: 'PMS coverage', body: 'Long-standing sync with the major server PMSs.' },
     ],
@@ -161,6 +165,7 @@ export const COMPARISONS: VendorComparison[] = [
       inbox: ['partial'],
       reviews: ['yes'],
       recall: ['yes', 'Deeper channel mix today (incl. postcards)'],
+      social: ['yes', 'Mature social + listings tools'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes'],
@@ -196,6 +201,7 @@ export const COMPARISONS: VendorComparison[] = [
       inbox: ['partial', 'SMS-centric'],
       reviews: ['yes'],
       recall: ['yes', 'Their heritage'],
+      social: ['partial', 'Reviews; social via add-ons'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes'],
@@ -231,6 +237,7 @@ export const COMPARISONS: VendorComparison[] = [
       inbox: ['partial', 'Calls + SMS centric'],
       reviews: ['yes'],
       recall: ['yes'],
+      social: ['yes', 'Social + reviews in-suite'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes'],

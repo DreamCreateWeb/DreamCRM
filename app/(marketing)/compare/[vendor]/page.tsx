@@ -29,13 +29,13 @@ export default async function ComparePage({ params }: Props) {
 
   return (
     <>
-      <section className="border-b border-gray-100 bg-gradient-to-b from-violet-50/60 to-white">
+      <section className="border-b border-gray-100 bg-gradient-to-b from-teal-50/60 to-white">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
           <div className="mkt-enter"><Eyebrow>Comparison</Eyebrow></div>
           <h1 className="mkt-enter mkt-d1 text-[2.1rem] font-extrabold leading-tight tracking-tight sm:text-[2.7rem]">
             DreamCRM vs {c.name}
           </h1>
-          <p className="mkt-enter mkt-d2 mt-2 text-[0.95rem] font-medium text-violet-700">{c.category}</p>
+          <p className="mkt-enter mkt-d2 mt-2 text-[0.95rem] font-medium text-teal-700">{c.category}</p>
           <p className="mt-5 text-[0.98rem] leading-relaxed text-gray-700">{c.summary}</p>
           <p className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-[0.82rem] text-gray-500">
             <span className="font-semibold text-gray-700">Reported pricing:</span> {c.reportedPricing}.
@@ -61,13 +61,13 @@ export default async function ComparePage({ params }: Props) {
             </ul>
           </div>
           <div>
-            <h2 className="text-[1.2rem] font-bold tracking-tight text-violet-700">Where DreamCRM wins</h2>
+            <h2 className="text-[1.2rem] font-bold tracking-tight text-teal-700">Where DreamCRM wins</h2>
             <p className="mt-1 text-[0.82rem] text-gray-500">Every claim verifiable in the product today.</p>
             <ul className="mt-5 space-y-4">
               {c.ourStrengths.map((s) => (
-                <li key={s.title} className="rounded-xl border border-violet-200 bg-violet-50/50 p-4">
+                <li key={s.title} className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
                   <p className="flex items-center gap-2 text-[0.92rem] font-bold text-gray-900">
-                    <CheckIcon className="h-4 w-4 text-violet-600" />
+                    <CheckIcon className="h-4 w-4 text-teal-600" />
                     {s.title}
                   </p>
                   <p className="mt-1 text-[0.85rem] leading-relaxed text-gray-700">{s.body}</p>
@@ -88,7 +88,7 @@ export default async function ComparePage({ params }: Props) {
               <thead>
                 <tr className="border-b border-gray-200 text-left">
                   <th className="px-4 py-3 font-semibold text-gray-500">Capability</th>
-                  <th className="w-44 px-4 py-3 text-center font-bold text-violet-700">DreamCRM</th>
+                  <th className="w-44 px-4 py-3 text-center font-bold text-teal-700">DreamCRM</th>
                   <th className="w-44 px-4 py-3 text-center font-bold text-gray-950">{c.name}</th>
                 </tr>
               </thead>
@@ -135,14 +135,14 @@ export default async function ComparePage({ params }: Props) {
               ))}
             </ul>
           </div>
-          <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-5">
-            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-violet-600">
+          <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5">
+            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-teal-600">
               Choose DreamCRM if
             </p>
             <ul className="mt-3 space-y-2">
               {c.ourStrengths.slice(0, 3).map((s) => (
                 <li key={s.title} className="flex items-start gap-2 text-[0.88rem] text-gray-800">
-                  <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
+                  <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
                   {s.title} — if that&apos;s what you&apos;re missing
                 </li>
               ))}
@@ -158,7 +158,7 @@ export default async function ComparePage({ params }: Props) {
         </div>
         <p className="mt-8 text-[0.85rem] text-gray-500">
           Comparing someone else?{' '}
-          <Link href="/compare" className="font-semibold text-violet-600 hover:underline">
+          <Link href="/compare" className="font-semibold text-teal-600 hover:underline">
             All comparisons →
           </Link>
         </p>

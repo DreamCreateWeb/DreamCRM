@@ -126,14 +126,14 @@ export default async function MarketingHome() {
         <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white to-transparent" aria-hidden="true" />
         <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="mkt-enter mb-5 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-3.5 py-1.5 text-[0.78rem] font-semibold text-violet-700 shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-600" aria-hidden="true" />
+            <p className="mkt-enter mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3.5 py-1.5 text-[0.78rem] font-semibold text-teal-700 shadow-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-600" aria-hidden="true" />
               Built for dental practices · syncs with Open Dental
             </p>
             <h1 className="mkt-enter mkt-d1 text-[2.6rem] font-extrabold leading-[1.04] tracking-tight text-gray-950 sm:text-[3.5rem]">
               Your whole front office.
               <br />
-              <span className="bg-gradient-to-r from-violet-600 to-violet-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent">
                 One calm system.
               </span>
             </h1>
@@ -149,7 +149,7 @@ export default async function MarketingHome() {
             <div className="mkt-enter mkt-d4 mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
               {['$99–199/mo flat', 'Month-to-month', '10-minute setup', 'Official PMS APIs only'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
-                  <CheckIcon className="h-3.5 w-3.5 text-violet-600" />
+                  <CheckIcon className="h-3.5 w-3.5 text-teal-600" />
                   {t}
                 </span>
               ))}
@@ -214,9 +214,9 @@ export default async function MarketingHome() {
                     <td className="px-3 py-2.5 text-right text-gray-400 line-through">{price}</td>
                   </tr>
                 ))}
-                <tr className="border-t-2 border-violet-200 bg-violet-50/60">
+                <tr className="border-t-2 border-teal-200 bg-teal-50/60">
                   <td className="px-3 py-3 font-bold text-gray-950">DreamCRM — all of it</td>
-                  <td className="px-3 py-3 text-right font-bold text-violet-700">$99–199/mo</td>
+                  <td className="px-3 py-3 text-right font-bold text-teal-700">$99–199/mo</td>
                 </tr>
               </tbody>
             </table>
@@ -237,16 +237,16 @@ export default async function MarketingHome() {
               <ScrollReveal key={p.title} delay={Math.min(i * 60, 240)}>
                 <Link
                   href={p.href}
-                  className="group block h-full rounded-xl border border-gray-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md hover:shadow-violet-100"
+                  className="group block h-full rounded-xl border border-gray-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md hover:shadow-teal-100"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       {p.glyph}
                     </svg>
                   </span>
                   <h3 className="mt-3.5 text-[0.98rem] font-bold text-gray-950">{p.title}</h3>
                   <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{p.body}</p>
-                  <span className="mt-3 inline-block text-[0.82rem] font-semibold text-violet-600 group-hover:underline">
+                  <span className="mt-3 inline-block text-[0.82rem] font-semibold text-teal-600 group-hover:underline">
                     Learn more →
                   </span>
                 </Link>
@@ -273,7 +273,7 @@ export default async function MarketingHome() {
             {TENETS.map((t) => (
               <div key={t.title} className="rounded-xl border border-gray-200 p-5">
                 <p className="flex items-center gap-2 text-[0.95rem] font-bold text-gray-950">
-                  <CheckIcon className="h-4 w-4 shrink-0 text-violet-600" />
+                  <CheckIcon className="h-4 w-4 shrink-0 text-teal-600" />
                   {t.title}
                 </p>
                 <p className="mt-2 text-[0.85rem] leading-relaxed text-gray-600">{t.body}</p>
@@ -296,7 +296,7 @@ export default async function MarketingHome() {
               <ScrollReveal key={c.slug} delay={Math.min(i * 60, 240)}>
                 <Link
                   href={`/compare/${c.slug}`}
-                  className="block h-full rounded-xl border border-gray-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md hover:shadow-violet-100"
+                  className="block h-full rounded-xl border border-gray-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md hover:shadow-teal-100"
                 >
                   <p className="text-[0.78rem] font-semibold text-gray-400">DreamCRM vs</p>
                   <p className="mt-0.5 text-[1.05rem] font-bold text-gray-950">{c.name}</p>
@@ -317,12 +317,12 @@ export default async function MarketingHome() {
           {PLANS.map((plan) => (
             <div
               key={plan.id}
-              className={`rounded-xl border bg-white p-6 ${plan.id === 'pro' ? 'border-violet-400 shadow-lg shadow-violet-100 ring-1 ring-violet-400' : 'border-gray-200'}`}
+              className={`rounded-xl border bg-white p-6 ${plan.id === 'pro' ? 'border-teal-400 shadow-lg shadow-teal-100 ring-1 ring-teal-400' : 'border-gray-200'}`}
             >
               <div className="flex items-baseline justify-between">
                 <h3 className="text-[1rem] font-bold">{plan.name}</h3>
                 {plan.id === 'pro' && (
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[0.7rem] font-bold text-violet-700">
+                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.7rem] font-bold text-teal-700">
                     Most popular
                   </span>
                 )}
@@ -334,14 +334,14 @@ export default async function MarketingHome() {
               <ul className="mt-4 space-y-2">
                 {plan.features.slice(0, 4).map((f) => (
                   <li key={f} className="flex items-start gap-2 text-[0.85rem] text-gray-700">
-                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" />
+                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
                     {f}
                   </li>
                 ))}
               </ul>
               <Link
                 href="/pricing"
-                className="mt-5 inline-block text-[0.85rem] font-semibold text-violet-600 hover:underline"
+                className="mt-5 inline-block text-[0.85rem] font-semibold text-teal-600 hover:underline"
               >
                 Full plan details →
               </Link>
@@ -356,7 +356,7 @@ export default async function MarketingHome() {
           <div className="relative overflow-hidden rounded-2xl bg-gray-950 px-8 py-16 text-center">
             <div
               className="absolute inset-0 opacity-[0.15]"
-              style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, #7c3aed 0%, transparent 45%), radial-gradient(circle at 75% 85%, #7c3aed 0%, transparent 40%)' }}
+              style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, #2a7f8c 0%, transparent 45%), radial-gradient(circle at 75% 85%, #4dcdc4 0%, transparent 40%)' }}
               aria-hidden="true"
             />
             <div className="relative">
@@ -370,7 +370,7 @@ export default async function MarketingHome() {
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link
                   href="/signup"
-                  className="inline-flex items-center justify-center rounded-lg bg-violet-600 px-5 py-2.5 text-[0.92rem] font-semibold text-white hover:bg-violet-500"
+                  className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2.5 text-[0.92rem] font-semibold text-white hover:bg-teal-500"
                 >
                   Get started
                 </Link>

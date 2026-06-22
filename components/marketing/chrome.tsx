@@ -4,11 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { MARKETING, MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
+import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 
 /**
  * Marketing-site header: megamenu dropdowns for Product / Compare /
  * Resources, scroll-aware elevation, full mobile menu. B2B SaaS register —
- * ink on white, violet accent (the product's own accent), Inter, dense.
+ * ink on white, brand-teal accent, Inter, dense. The Dream Create lockup
+ * (liquid-D mark + wordmark) is the company brand in the chrome; "DreamCRM"
+ * stays the product name in copy.
  */
 
 function ChildLink({
@@ -20,7 +23,7 @@ function ChildLink({
 }) {
   const inner = (
     <>
-      <span className="block text-[0.85rem] font-semibold text-gray-900 group-hover/item:text-violet-700">
+      <span className="block text-[0.85rem] font-semibold text-gray-900 group-hover/item:text-teal-700">
         {child.label}
         {child.external && <span className="ml-1 text-gray-400">↗</span>}
       </span>
@@ -75,11 +78,13 @@ export function MarketingHeader() {
     >
       <div className="mx-auto flex h-[60px] max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-600 text-[0.8rem] font-extrabold text-white">
-              D
-            </span>
-            <span className="text-[0.98rem] font-bold tracking-tight text-gray-950">{MARKETING.productName}</span>
+          <Link
+            href="/"
+            className="flex items-center"
+            aria-label={`${MARKETING.companyName} — home`}
+            onClick={() => setMobileOpen(false)}
+          >
+            <DreamCreateLogo size={30} />
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
@@ -154,7 +159,7 @@ export function MarketingHeader() {
           </Link>
           <Link
             href="/signup"
-            className="rounded-lg bg-violet-600 px-3.5 py-2 text-[0.875rem] font-semibold text-white transition-colors hover:bg-violet-700"
+            className="rounded-lg bg-teal-600 px-3.5 py-2 text-[0.875rem] font-semibold text-white transition-colors hover:bg-teal-700"
           >
             Get started
           </Link>
@@ -227,7 +232,7 @@ export function MarketingHeader() {
             </Link>
             <Link
               href="/signup"
-              className="flex-1 rounded-lg bg-violet-600 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-white"
+              className="flex-1 rounded-lg bg-teal-600 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-white"
               onClick={() => setMobileOpen(false)}
             >
               Get started

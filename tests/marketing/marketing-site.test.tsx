@@ -136,9 +136,9 @@ describe('content config integrity', () => {
     expect(new Set(slugs).size).toBe(slugs.length)
   })
 
-  it('every comparison has the full 12-row matrix and at least 3 honest vendor strengths', () => {
+  it('every comparison has the full 13-row matrix and at least 3 honest vendor strengths', () => {
     for (const c of COMPARISONS) {
-      expect(c.matrix).toHaveLength(12)
+      expect(c.matrix).toHaveLength(13)
       expect(c.theirStrengths.length).toBeGreaterThanOrEqual(3)
       expect(c.ourStrengths.length).toBeGreaterThanOrEqual(3)
       expect(c.reportedPricing.toLowerCase()).toMatch(/reported|custom/)

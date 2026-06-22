@@ -27,7 +27,7 @@ export default async function DocArticlePage({ params }: Props) {
   return (
     <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
       <nav className="text-[0.82rem] text-gray-500" aria-label="Breadcrumb">
-        <Link href="/docs" className="font-medium text-violet-600 hover:underline">
+        <Link href="/docs" className="font-medium text-teal-600 hover:underline">
           Docs
         </Link>{' '}
         / {doc.category}
@@ -53,7 +53,7 @@ export default async function DocArticlePage({ params }: Props) {
               <ol className="space-y-3">
                 {section.steps.map((step, j) => (
                   <li key={j} className="flex gap-3">
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[0.78rem] font-bold text-violet-700">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[0.78rem] font-bold text-teal-700">
                       {j + 1}
                     </span>
                     <span className="text-[0.95rem] leading-relaxed text-gray-700">{step}</span>
@@ -73,7 +73,7 @@ export default async function DocArticlePage({ params }: Props) {
           <ul className="mt-3 space-y-2">
             {related.map((r) => (
               <li key={r.slug}>
-                <Link href={`/docs/${r.slug}`} className="text-[0.9rem] font-semibold text-violet-600 hover:underline">
+                <Link href={`/docs/${r.slug}`} className="text-[0.9rem] font-semibold text-teal-600 hover:underline">
                   {r.title}
                 </Link>
               </li>
@@ -83,10 +83,10 @@ export default async function DocArticlePage({ params }: Props) {
       )}
 
       <div className="mt-10 flex items-center justify-between border-t border-gray-100 pt-6 text-[0.88rem]">
-        <Link href="/docs" className="font-semibold text-violet-600 hover:underline">
+        <Link href="/docs" className="font-semibold text-teal-600 hover:underline">
           ← All docs
         </Link>
-        <Link href="/signup" className="font-semibold text-violet-600 hover:underline">
+        <Link href="/signup" className="font-semibold text-teal-600 hover:underline">
           Start free setup →
         </Link>
       </div>

@@ -1,8 +1,8 @@
 // Shared structure + constants for the public marketing site
 // (www.dreamcreatestudio.com). Design register: B2B SaaS (the buyer is a
 // practice owner / office manager evaluating software), NOT the warm
-// patient-facing language the clinic sites use. Ink + violet (the
-// product's own accent), Inter, dense and concrete.
+// patient-facing language the clinic sites use. Ink + brand teal (the Dream
+// Create accent), Inter, dense and concrete.
 
 export const MARKETING = {
   productName: 'DreamCRM',
@@ -44,6 +44,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
       { label: 'Patient portal', href: '/product#portal', description: 'Your brand, your feature toggles' },
       { label: 'Unified messages', href: '/product#messages', description: 'Portal + email, one thread per patient' },
       { label: 'Reviews', href: '/product#reviews', description: 'Their words, your testimonials' },
+      { label: 'Google Business & social', href: '/product#gbp', description: 'Sync reviews, post everywhere' },
       { label: 'Recall & outreach', href: '/product#recall', description: 'Measured in booked visits' },
       { label: 'Shop & memberships', href: '/product#shop', description: 'Payouts to your own bank' },
       { label: 'Open Dental sync', href: '/product#integrations', description: 'Two-way, official API only' },

@@ -23,13 +23,13 @@ export default function CompareIndexPage() {
             <Link
               key={c.slug}
               href={`/compare/${c.slug}`}
-              className="group rounded-xl border border-gray-200 p-6 transition-colors hover:border-violet-300"
+              className="group rounded-xl border border-gray-200 p-6 transition-colors hover:border-teal-300"
             >
               <p className="text-[0.8rem] font-semibold text-gray-400">DreamCRM vs</p>
               <h2 className="mt-0.5 text-[1.3rem] font-bold text-gray-950">{c.name}</h2>
-              <p className="mt-1 text-[0.85rem] font-medium text-violet-600">{c.category}</p>
+              <p className="mt-1 text-[0.85rem] font-medium text-teal-600">{c.category}</p>
               <p className="mt-3 line-clamp-3 text-[0.9rem] leading-relaxed text-gray-600">{c.summary}</p>
-              <span className="mt-4 inline-block text-[0.85rem] font-semibold text-violet-600 group-hover:underline">
+              <span className="mt-4 inline-block text-[0.85rem] font-semibold text-teal-600 group-hover:underline">
                 Read the full comparison →
               </span>
             </Link>

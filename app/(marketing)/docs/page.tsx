@@ -30,7 +30,7 @@ export default function DocsIndexPage() {
                   <li key={a.slug}>
                     <Link href={`/docs/${a.slug}`} className="group block px-4 py-3.5 hover:bg-gray-50">
                       <p className="flex items-baseline justify-between gap-3">
-                        <span className="text-[0.95rem] font-semibold text-gray-900 group-hover:text-violet-700">
+                        <span className="text-[0.95rem] font-semibold text-gray-900 group-hover:text-teal-700">
                           {a.title}
                         </span>
                         <span className="shrink-0 text-[0.72rem] font-medium text-gray-400">
@@ -47,7 +47,7 @@ export default function DocsIndexPage() {
         </div>
         <p className="mt-12 rounded-xl border border-gray-200 bg-gray-50/70 px-5 py-4 text-center text-[0.88rem] text-gray-600">
           Can&apos;t find it? Email{' '}
-          <a href="mailto:hello@dreamcreatestudio.com" className="font-semibold text-violet-600 hover:underline">
+          <a href="mailto:hello@dreamcreatestudio.com" className="font-semibold text-teal-600 hover:underline">
             hello@dreamcreatestudio.com
           </a>{' '}
           — a person answers.
