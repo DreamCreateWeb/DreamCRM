@@ -30,8 +30,13 @@ vi.mock('drizzle-orm', () => ({ eq: vi.fn(() => ({ _k: 'eq' })) }))
 vi.mock('@/lib/services/billing', () => ({
   clearSubscription: vi.fn(),
   syncSubscriptionFromStripe: vi.fn(async () => undefined),
+  claimStripeEvent: vi.fn(async () => true),
+  releaseStripeEvent: vi.fn(async () => undefined),
 }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn(async () => undefined) }))
+vi.mock('@/lib/services/billing-notifications', () => ({
+  sendPaymentFailedEmailForCustomer: vi.fn(async () => undefined),
+}))
 vi.mock('@/lib/services/referrals', () => ({
   accrueCommissionForInvoice: vi.fn(async (args: Record<string, unknown>) => {
     state.accrueCalls.push(args)

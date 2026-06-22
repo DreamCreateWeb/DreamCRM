@@ -332,3 +332,26 @@ export async function clearSubscription(subscriptionId: string) {
     })
     .where(eq(schema.clinicProfile.organizationId, profile.organizationId))
 }
+
+/**
+ * Idempotency claim for the platform Stripe webhook. Atomically records the
+ * Stripe event id; returns true when WE claimed it (first time → process it),
+ * false when it was already there (a retry/duplicate → skip). Paired with
+ * `releaseStripeEvent` so a failed handler frees the claim for Stripe's retry.
+ */
+export async function claimStripeEvent(eventId: string, eventType: string): Promise<boolean> {
+  if (!eventId) return true // no id to dedupe on — never block processing
+  const rows = await db
+    .insert(schema.stripeWebhookEvent)
+    .values({ eventId, eventType })
+    .onConflictDoNothing({ target: schema.stripeWebhookEvent.eventId })
+    .returning({ eventId: schema.stripeWebhookEvent.eventId })
+  return rows.length > 0
+}
+
+/** Release a previously-claimed event so a retry re-processes it (used when the
+ *  handler throws, before returning 500). */
+export async function releaseStripeEvent(eventId: string): Promise<void> {
+  if (!eventId) return
+  await db.delete(schema.stripeWebhookEvent).where(eq(schema.stripeWebhookEvent.eventId, eventId))
+}

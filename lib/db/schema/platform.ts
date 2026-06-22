@@ -544,3 +544,20 @@ export const aiUsageCounter = pgTable(
 )
 
 export type AiUsageCounter = typeof aiUsageCounter.$inferSelect
+
+/**
+ * Idempotency ledger for the platform Stripe (subscription) webhook. One row
+ * per Stripe event id we've successfully processed — claimed atomically
+ * (INSERT … ON CONFLICT DO NOTHING) BEFORE handling, so a retried/duplicate
+ * delivery becomes a no-op instead of double-notifying or re-running side
+ * effects. A failed handler DELETES its claim so Stripe's retry re-processes.
+ * Migration 0088.
+ */
+export const stripeWebhookEvent = pgTable('stripe_webhook_event', {
+  // Stripe's globally-unique `evt_…` id is the natural idempotency key.
+  eventId: text('event_id').primaryKey(),
+  eventType: text('event_type'),
+  processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type StripeWebhookEvent = typeof stripeWebhookEvent.$inferSelect

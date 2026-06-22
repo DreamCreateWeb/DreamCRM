@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { stripe } from '@/lib/stripe'
 import { db, schema } from '@/lib/db'
-import { clearSubscription, syncSubscriptionFromStripe } from '@/lib/services/billing'
+import {
+  claimStripeEvent,
+  clearSubscription,
+  releaseStripeEvent,
+  syncSubscriptionFromStripe,
+} from '@/lib/services/billing'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 import { accrueCommissionForInvoice } from '@/lib/services/referrals'
 
@@ -56,12 +61,25 @@ export async function POST(request: Request) {
   if (!sig) return NextResponse.json({ error: 'missing stripe-signature' }, { status: 400 })
 
   const body = await request.text()
-  let event: { type: string; data: { object: Record<string, any> } }
+  let event: { id: string; type: string; data: { object: Record<string, any> } }
   try {
     event = stripe.webhooks.constructEvent(body, sig, secret) as any
   } catch (err) {
     console.error('[stripe webhook] signature verification failed', err)
     return NextResponse.json({ error: 'invalid signature' }, { status: 400 })
+  }
+
+  // Idempotency: claim the event id BEFORE handling. A retried/duplicate
+  // delivery (Stripe retries on timeout, App Runner restarts mid-process) is a
+  // no-op so it can't double-notify or re-run side effects. Best-effort — if the
+  // ledger itself errors we fall through and process rather than drop the event.
+  try {
+    const claimed = await claimStripeEvent(event.id, event.type)
+    if (!claimed) {
+      return NextResponse.json({ received: true, duplicate: true })
+    }
+  } catch (err) {
+    console.warn('[stripe webhook] idempotency claim failed; processing anyway', err)
   }
 
   try {
@@ -181,6 +199,13 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     console.error('[stripe webhook] handler error for', event.type, err)
+    // Free the idempotency claim so Stripe's automatic retry re-processes this
+    // event instead of it being permanently marked done.
+    try {
+      await releaseStripeEvent(event.id)
+    } catch (releaseErr) {
+      console.warn('[stripe webhook] failed to release event claim', releaseErr)
+    }
     return NextResponse.json({ error: 'handler failed' }, { status: 500 })
   }
 
