@@ -109,7 +109,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
       <BlogViewBeacon postId={post.id} />
 
       <nav className="text-[0.82rem] text-gray-500" aria-label="Breadcrumb">
-        <Link href="/blog" className="font-medium text-teal-600 hover:underline">
+        <Link href="/blog" className="font-medium text-teal-700 hover:underline">
           Blog
         </Link>
         {post.category && <> / {post.category}</>}
@@ -133,7 +133,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
       {/* bodyHtml is sanitized at write time (sanitizeBlogHtml) — same
           trust path as the clinic public blogs. */}
       <div
-        className="prose prose-gray mt-8 max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-teal-600"
+        className="prose prose-gray mt-8 max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-teal-700"
         dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
       />
 
@@ -145,7 +145,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
               <details key={i} className="group rounded-xl border border-gray-200 px-5 py-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold [&::-webkit-details-marker]:hidden">
                   {f.q}
-                  <span className="shrink-0 text-teal-600 transition-transform group-open:rotate-45" aria-hidden="true">
+                  <span className="shrink-0 text-teal-700 transition-transform group-open:rotate-45" aria-hidden="true">
                     +
                   </span>
                 </summary>
@@ -172,7 +172,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
           <ul className="mt-3 space-y-2">
             {others.map((p) => (
               <li key={p.id}>
-                <Link href={`/blog/${p.slug}`} className="text-[0.92rem] font-semibold text-teal-600 hover:underline">
+                <Link href={`/blog/${p.slug}`} className="text-[0.92rem] font-semibold text-teal-700 hover:underline">
                   {p.title}
                 </Link>
               </li>

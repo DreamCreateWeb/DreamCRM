@@ -4,6 +4,7 @@ import { PageHero } from '@/components/marketing/ui'
 
 export const metadata = {
   title: 'Help docs — DreamCRM',
+  alternates: { canonical: '/docs' },
   description:
     'Setup guides and how-tos for every part of DreamCRM: website, booking, patient portal, reviews, recall, shop, and the Open Dental sync.',
 }
@@ -47,7 +48,7 @@ export default function DocsIndexPage() {
         </div>
         <p className="mt-12 rounded-xl border border-gray-200 bg-gray-50/70 px-5 py-4 text-center text-[0.88rem] text-gray-600">
           Can&apos;t find it? Email{' '}
-          <a href="mailto:hello@dreamcreatestudio.com" className="font-semibold text-teal-600 hover:underline">
+          <a href="mailto:hello@dreamcreatestudio.com" className="font-semibold text-teal-700 hover:underline">
             hello@dreamcreatestudio.com
           </a>{' '}
           — a person answers.

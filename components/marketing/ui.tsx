@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { FOOTER_COLUMNS, MARKETING } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
-import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 
 /**
  * Server-side primitives for the marketing site: footer, section scaffolds,
@@ -90,7 +89,15 @@ export function MarketingFooter() {
     <footer className="bg-gray-950 text-gray-400">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.2fr_repeat(4,1fr)]">
         <div>
-          <DreamCreateLogo size={26} wordmarkClassName="text-white!" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/dream-create-logo-inverse.webp"
+            alt={MARKETING.companyName}
+            width={470}
+            height={100}
+            className="h-7 w-auto"
+            decoding="async"
+          />
           <p className="mt-3 max-w-[16rem] text-[0.82rem] leading-relaxed">
             {MARKETING.tagline}. Website, booking, portal, comms, reviews, and shop — wrapped around
             the PMS you already run.
@@ -135,7 +142,7 @@ export function MarketingFooter() {
 
 export function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-3 text-[0.75rem] font-bold uppercase tracking-[0.14em] text-teal-600">{children}</p>
+    <p className="mb-3 text-[0.75rem] font-bold uppercase tracking-[0.14em] text-teal-700">{children}</p>
   )
 }
 
@@ -195,7 +202,7 @@ export function PrimaryCta({ href, children }: { href: string; children: React.R
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2.5 text-[0.92rem] font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:-translate-y-px hover:bg-teal-700 hover:shadow-md hover:shadow-teal-200"
+      className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-5 py-2.5 text-[0.92rem] font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:-translate-y-px hover:bg-teal-800 hover:shadow-md hover:shadow-teal-200"
     >
       {children}
     </Link>
@@ -227,7 +234,7 @@ export function GhostCta({
   )
 }
 
-export function CheckIcon({ className = 'h-4 w-4 text-teal-600' }: { className?: string }) {
+export function CheckIcon({ className = 'h-4 w-4 text-teal-700' }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M2.5 8.5l3.5 3.5 7.5-8" />
@@ -322,7 +329,7 @@ export function DashboardMock() {
         <div className="flex-1 space-y-3 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[0.58rem] font-bold uppercase tracking-wider text-teal-600">Morning huddle · Tue, Jun 16</p>
+              <p className="text-[0.58rem] font-bold uppercase tracking-wider text-teal-700">Morning huddle · Tue, Jun 16</p>
               <p className="text-[0.85rem] font-bold text-gray-900">Dream Dental</p>
             </div>
             <span className="rounded-md bg-teal-600 px-2.5 py-1 text-[0.62rem] font-bold text-white">Open agenda</span>

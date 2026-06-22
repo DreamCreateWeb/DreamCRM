@@ -5,6 +5,7 @@ import { getServerSession } from '@/lib/session'
 import { PLANS } from '@/lib/stripe-config'
 import { DEMO_URL } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
+import { JsonLd, softwareApplicationLd } from '@/lib/marketing/seo'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import {
   Eyebrow,
@@ -120,6 +121,7 @@ export default async function MarketingHome() {
 
   return (
     <>
+      <JsonLd data={softwareApplicationLd(PLANS)} />
       {/* ── Hero ── */}
       <section className="relative overflow-hidden border-b border-gray-100">
         <div className="absolute inset-0 opacity-40" style={HERO_DOT_GRID} aria-hidden="true" />
@@ -149,7 +151,7 @@ export default async function MarketingHome() {
             <div className="mkt-enter mkt-d4 mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
               {['$99–199/mo flat', 'Month-to-month', '10-minute setup', 'Official PMS APIs only'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
-                  <CheckIcon className="h-3.5 w-3.5 text-teal-600" />
+                  <CheckIcon className="h-3.5 w-3.5 text-teal-700" />
                   {t}
                 </span>
               ))}
@@ -239,14 +241,14 @@ export default async function MarketingHome() {
                   href={p.href}
                   className="group block h-full rounded-xl border border-gray-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md hover:shadow-teal-100"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       {p.glyph}
                     </svg>
                   </span>
                   <h3 className="mt-3.5 text-[0.98rem] font-bold text-gray-950">{p.title}</h3>
                   <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{p.body}</p>
-                  <span className="mt-3 inline-block text-[0.82rem] font-semibold text-teal-600 group-hover:underline">
+                  <span className="mt-3 inline-block text-[0.82rem] font-semibold text-teal-700 group-hover:underline">
                     Learn more →
                   </span>
                 </Link>
@@ -273,7 +275,7 @@ export default async function MarketingHome() {
             {TENETS.map((t) => (
               <div key={t.title} className="rounded-xl border border-gray-200 p-5">
                 <p className="flex items-center gap-2 text-[0.95rem] font-bold text-gray-950">
-                  <CheckIcon className="h-4 w-4 shrink-0 text-teal-600" />
+                  <CheckIcon className="h-4 w-4 shrink-0 text-teal-700" />
                   {t.title}
                 </p>
                 <p className="mt-2 text-[0.85rem] leading-relaxed text-gray-600">{t.body}</p>
@@ -334,14 +336,14 @@ export default async function MarketingHome() {
               <ul className="mt-4 space-y-2">
                 {plan.features.slice(0, 4).map((f) => (
                   <li key={f} className="flex items-start gap-2 text-[0.85rem] text-gray-700">
-                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" />
+                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
                     {f}
                   </li>
                 ))}
               </ul>
               <Link
                 href="/pricing"
-                className="mt-5 inline-block text-[0.85rem] font-semibold text-teal-600 hover:underline"
+                className="mt-5 inline-block text-[0.85rem] font-semibold text-teal-700 hover:underline"
               >
                 Full plan details →
               </Link>
@@ -370,7 +372,7 @@ export default async function MarketingHome() {
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link
                   href="/signup"
-                  className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2.5 text-[0.92rem] font-semibold text-white hover:bg-teal-500"
+                  className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-5 py-2.5 text-[0.92rem] font-semibold text-white hover:bg-teal-600"
                 >
                   Get started
                 </Link>
