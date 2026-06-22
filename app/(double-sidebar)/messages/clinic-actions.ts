@@ -42,7 +42,7 @@ export async function sendMessageAction(input: {
 export async function assignThreadAction(threadId: string, assigneeUserId: string | null) {
   const ctx = await requireTenant()
   ensureClinic(ctx)
-  await assignThread(ctx.organizationId, threadId, assigneeUserId)
+  await assignThread(ctx.organizationId, threadId, assigneeUserId, ctx.userId)
   revalidatePath('/messages')
 }
 

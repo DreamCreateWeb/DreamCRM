@@ -784,10 +784,15 @@ export async function assignThread(
   organizationId: string,
   threadId: string,
   assigneeUserId: string | null,
+  actingUserId?: string | null,
 ): Promise<void> {
-  if (assigneeUserId) {
-    // Reject assignment to a user outside this org — would leak their
-    // display name into the inbox via the user JOIN on the thread list.
+  // A user can always take a thread for THEMSELVES — the tenant context already
+  // proved they operate in this org, even when they aren't a row in `member`
+  // (platform-admin "view as clinic" demo mode is exactly this case, and was
+  // crashing the inbox on "Assign to me"). Assigning to SOMEONE ELSE still
+  // requires real membership, so another org's user can't be set as assignee
+  // (which would leak their display name into the inbox via the user JOIN).
+  if (assigneeUserId && assigneeUserId !== actingUserId) {
     await assertUserInOrg(organizationId, assigneeUserId)
   }
   await db
