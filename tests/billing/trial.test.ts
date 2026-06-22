@@ -6,6 +6,10 @@ import {
   trialEndDate,
   trialDaysLeft,
   trialDaysLeftLabel,
+  trialUrgency,
+  trialHeadline,
+  trialSubline,
+  dueTrialReminder,
 } from '@/lib/trial'
 
 /**
@@ -99,5 +103,46 @@ describe('helpers', () => {
     expect(trialDaysLeftLabel(1)).toMatch(/1 day left/)
     expect(trialDaysLeftLabel(0)).toMatch(/ends today/)
     expect(trialDaysLeftLabel(null)).toBe('')
+  })
+})
+
+describe('trialUrgency — escalating tiers', () => {
+  it('steps calm → soon → urgent → final as the trial winds down', () => {
+    expect(trialUrgency(7)).toBe('calm')
+    expect(trialUrgency(4)).toBe('calm')
+    expect(trialUrgency(3)).toBe('soon')
+    expect(trialUrgency(2)).toBe('soon')
+    expect(trialUrgency(1)).toBe('urgent')
+    expect(trialUrgency(0)).toBe('final')
+    expect(trialUrgency(null)).toBe('calm')
+  })
+
+  it('headline + subline escalate with the tier', () => {
+    expect(trialHeadline(0)).toMatch(/ends today/i)
+    expect(trialHeadline(1)).toMatch(/tomorrow/i)
+    expect(trialHeadline(3)).toMatch(/only 3 days/i)
+    expect(trialHeadline(6)).toMatch(/6 days left/i)
+    // the closer it gets, the more it spells out what's at stake
+    expect(trialSubline(0)).toMatch(/now/i)
+    expect(trialSubline(6)).toMatch(/whenever you're ready/i)
+  })
+})
+
+describe('dueTrialReminder — which email to send', () => {
+  it('fires d3 / d1 / d0 / ended at the right moments', () => {
+    expect(dueTrialReminder(3, false, [])).toBe('d3')
+    expect(dueTrialReminder(2, false, [])).toBe('d3') // still the 3-day bucket
+    expect(dueTrialReminder(1, false, [])).toBe('d1')
+    expect(dueTrialReminder(0, false, [])).toBe('d0')
+    expect(dueTrialReminder(0, true, [])).toBe('ended')
+    expect(dueTrialReminder(5, false, [])).toBeNull() // too early
+  })
+
+  it('is idempotent — never re-sends a milestone already recorded', () => {
+    expect(dueTrialReminder(3, false, ['d3'])).toBeNull()
+    expect(dueTrialReminder(1, false, ['d3'])).toBe('d1')
+    expect(dueTrialReminder(1, false, ['d3', 'd1'])).toBeNull()
+    expect(dueTrialReminder(0, true, ['d3', 'd1', 'd0'])).toBe('ended')
+    expect(dueTrialReminder(0, true, ['ended'])).toBeNull()
   })
 })
