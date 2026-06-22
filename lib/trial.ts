@@ -87,3 +87,73 @@ export function trialDaysLeftLabel(daysLeft: number | null): string {
   if (daysLeft === 1) return '1 day left in your free trial'
   return `${daysLeft} days left in your free trial`
 }
+
+/**
+ * Escalating urgency bucket as the trial winds down — the single knob that
+ * drives the banner's + the reminder modal's colour and copy so they can't
+ * drift apart:
+ *   calm   4+ days  (violet, low pressure)
+ *   soon   2–3 days (amber)
+ *   urgent 1 day    (orange)
+ *   final  today    (rose — last chance before the lock wall)
+ */
+export type TrialUrgency = 'calm' | 'soon' | 'urgent' | 'final'
+
+export function trialUrgency(daysLeft: number | null): TrialUrgency {
+  if (daysLeft == null) return 'calm'
+  if (daysLeft <= 0) return 'final'
+  if (daysLeft <= 1) return 'urgent'
+  if (daysLeft <= 3) return 'soon'
+  return 'calm'
+}
+
+/** A short, escalating headline for the trial nudge (banner + modal). */
+export function trialHeadline(daysLeft: number | null): string {
+  switch (trialUrgency(daysLeft)) {
+    case 'final':
+      return 'Your free trial ends today'
+    case 'urgent':
+      return 'Your free trial ends tomorrow'
+    case 'soon':
+      return `Only ${daysLeft} days left in your free trial`
+    default:
+      return `${daysLeft} days left in your free trial`
+  }
+}
+
+/** The escalating supporting line — what's at stake + the action to take. */
+export function trialSubline(daysLeft: number | null): string {
+  switch (trialUrgency(daysLeft)) {
+    case 'final':
+      return "Add a payment method and choose a plan now to keep your website, patients, and everything you've set up."
+    case 'urgent':
+      return "Add a card and choose a plan before tomorrow so you don't lose access to your site and patients."
+    case 'soon':
+      return 'Add a payment method and choose a plan to keep full access when the trial ends.'
+    default:
+      return "You have full access with no card on file. Pick a plan whenever you're ready — it locks in your price."
+  }
+}
+
+/**
+ * Which trial-reminder EMAIL is due, as a clinic nears (and passes) its trial
+ * end. Returns the milestone key the cron should send right now given the days
+ * left and what's already been sent — or null when nothing is due. Keys: 'd3'
+ * (2–3 days out), 'd1' (the final day — `daysLeft` is `ceil`, so it reads 1 for
+ * the whole last day and then flips straight to expired), 'ended' (expired).
+ * Idempotent by design: the caller records each sent key so a re-run skips it.
+ */
+export type TrialReminderMilestone = 'd3' | 'd1' | 'ended'
+
+export function dueTrialReminder(
+  daysLeft: number | null,
+  expired: boolean,
+  alreadySent: readonly string[],
+): TrialReminderMilestone | null {
+  const sent = new Set(alreadySent)
+  if (expired) return sent.has('ended') ? null : 'ended'
+  if (daysLeft == null) return null
+  if (daysLeft <= 1) return sent.has('d1') ? null : 'd1'
+  if (daysLeft <= 3) return sent.has('d3') ? null : 'd3'
+  return null
+}

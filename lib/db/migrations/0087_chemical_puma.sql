@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "trial_reminders_sent" jsonb DEFAULT '[]'::jsonb;

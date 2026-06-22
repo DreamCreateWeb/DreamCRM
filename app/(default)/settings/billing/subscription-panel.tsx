@@ -1,12 +1,19 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatMoney, formatShortDate } from '@/lib/utils'
-import { openBillingPortal, startStripeCheckout } from '../actions'
+import {
+  cancelSubscriptionAction,
+  openBillingPortal,
+  reactivateSubscriptionAction,
+  startStripeCheckout,
+} from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Toggle } from '@/components/ui/toggle'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
 
@@ -34,6 +41,13 @@ interface Props {
   interval: BillingInterval | null
   renewsAt: string | null
   cancelAtPeriodEnd: boolean
+  /** Default card on file (brand + last4 + expiry), when one is set. */
+  card: { brand: string; last4: string; expMonth: number; expYear: number } | null
+  /** True next-charge amount from Stripe's upcoming invoice. */
+  nextChargeCents: number | null
+  nextChargeCurrency: string | null
+  /** A real Stripe subscription exists (not comped/managed-no-sub) → can cancel/resume. */
+  hasSubscription: boolean
   /** No-card free trial — full access, no PAID plan yet, so every plan is choosable. */
   onTrial: boolean
   /** When arriving via requirePlan's redirect, the gated module's label. */
@@ -47,14 +61,23 @@ export default function SubscriptionPanel({
   interval: currentInterval,
   renewsAt,
   cancelAtPeriodEnd,
+  card,
+  nextChargeCents,
+  nextChargeCurrency,
+  hasSubscription,
   onTrial,
   upgradeModuleLabel,
   invoices,
 }: Props) {
+  const router = useRouter()
+  const askConfirm = useConfirm()
   const [interval, setInterval] = useState<BillingInterval>(currentInterval ?? 'monthly')
   const [pending, startTransition] = useTransition()
   const [pendingPlan, setPendingPlan] = useState<PlanId | null>(null)
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
+  // Separate channel for the subscription-card actions (cancel / resume) so
+  // their result shows next to the card, not down in the plan-grid error slot.
+  const [subFeedback, setSubFeedback] = useState<{ ok?: string; error?: string } | null>(null)
 
   const plan = PLANS.find((p) => p.id === planTier)
   const status = subscriptionStatusMeta(subscriptionStatus)
@@ -89,9 +112,53 @@ export default function SubscriptionPanel({
     })
   }
 
+  function handleCancel() {
+    setSubFeedback(null)
+    void (async () => {
+      const ok = await askConfirm({
+        title: 'Cancel your subscription?',
+        message:
+          "You'll keep full access until the end of your current billing period, then your plan ends. You can resume anytime before then.",
+        confirmLabel: 'Cancel subscription',
+        danger: true,
+      })
+      if (!ok) return
+      startTransition(async () => {
+        const r = await cancelSubscriptionAction()
+        if (r.ok) {
+          setSubFeedback({ ok: 'Your plan will end at the end of this billing period. You can resume anytime before then.' })
+          router.refresh()
+        } else {
+          setSubFeedback({ error: r.error })
+        }
+      })
+    })()
+  }
+
+  function handleResume() {
+    setSubFeedback(null)
+    startTransition(async () => {
+      const r = await reactivateSubscriptionAction()
+      if (r.ok) {
+        setSubFeedback({ ok: 'Your subscription will continue — no break in access.' })
+        router.refresh()
+      } else {
+        setSubFeedback({ error: r.error })
+      }
+    })
+  }
+
   function priceFor(p: (typeof PLANS)[number]) {
     return interval === 'annual' ? p.annualPrice : p.price
   }
+
+  const cardLabel = card
+    ? `${card.brand.charAt(0).toUpperCase()}${card.brand.slice(1)} •••• ${card.last4}`
+    : null
+  const nextChargeLabel =
+    nextChargeCents != null
+      ? formatMoney(nextChargeCents, (nextChargeCurrency ?? 'usd').toUpperCase())
+      : null
 
   return (
     <div className="grow space-y-7 p-6">
@@ -130,6 +197,28 @@ export default function SubscriptionPanel({
                 <strong className="font-medium text-gray-700 dark:text-gray-200">{formatShortDate(renewsAt)}</strong>.
               </div>
             )}
+            {!onTrial && (cardLabel || nextChargeLabel) && (
+              <div className="mt-1 space-y-0.5 text-sm text-gray-500 dark:text-gray-400">
+                {cardLabel && (
+                  <div>
+                    Card on file:{' '}
+                    <strong className="font-medium text-gray-700 dark:text-gray-200 tabular-nums">{cardLabel}</strong>
+                    {card && card.expMonth > 0 && (
+                      <span className="tabular-nums">
+                        {' '}· exp {String(card.expMonth).padStart(2, '0')}/{card.expYear}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {!cancelAtPeriodEnd && nextChargeLabel && renewsAt && (
+                  <div>
+                    Next charge:{' '}
+                    <strong className="font-medium text-gray-700 dark:text-gray-200 tabular-nums">{nextChargeLabel}</strong>{' '}
+                    on <strong className="font-medium text-gray-700 dark:text-gray-200">{formatShortDate(renewsAt)}</strong>.
+                  </div>
+                )}
+              </div>
+            )}
             {billingBroken && (
               <div className="mt-2 text-sm text-rose-700 dark:text-rose-300">
                 {status.description} Update your card to keep your features.
@@ -140,9 +229,33 @@ export default function SubscriptionPanel({
             {pending ? 'Opening…' : 'Manage billing in Stripe →'}
           </ActionButton>
         </div>
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          Update your card, download receipts, or cancel anytime in the secure Stripe billing portal.
-        </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Update your card, download receipts, or manage everything in the secure Stripe billing portal.
+          </p>
+          {hasSubscription &&
+            !onTrial &&
+            (cancelAtPeriodEnd ? (
+              <ActionButton variant="primary" size="sm" onClick={handleResume} disabled={pending}>
+                Resume subscription
+              </ActionButton>
+            ) : !billingBroken ? (
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={pending}
+                className="shrink-0 text-xs font-medium text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 disabled:opacity-50"
+              >
+                Cancel subscription
+              </button>
+            ) : null)}
+        </div>
+        {subFeedback?.ok && (
+          <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{subFeedback.ok}</p>
+        )}
+        {subFeedback?.error && (
+          <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{subFeedback.error}</p>
+        )}
       </section>
 
       {/* ── Choose / change your plan ──────────────────────────────── */}

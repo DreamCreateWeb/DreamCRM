@@ -4,6 +4,7 @@ import TenantSidebar from './tenant-sidebar'
 import BillingActivationBanner from './billing-activation-banner'
 import BillingDunningBanner from './billing-dunning-banner'
 import TrialBanner from './trial-banner'
+import TrialReminderModal from './trial-reminder-modal'
 import TrialEndedWall from './trial-ended-wall'
 import KeyboardShortcuts from './keyboard-shortcuts'
 import { TrailProvider } from '@/app/trail-context'
@@ -12,6 +13,7 @@ import { ToastProvider } from '@/components/ui/toast'
 import { SkipToContent } from '@/components/ui/skip-to-content'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
+import { trialDaysLeft } from '@/lib/trial'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
 import { applyBundleGate, getVisibleModules } from '@/lib/modules'
 import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
@@ -69,6 +71,13 @@ export default async function DashboardShell({
         ? 'Patient portal'
         : `${ctx.planTier[0].toUpperCase()}${ctx.planTier.slice(1)} plan`
 
+  // Owner/admin of a clinic in the last 3 days of its no-card trial → mount the
+  // once-a-day escalating reminder popup (a nudge; the hard lock is the wall).
+  const trialNudgeDays =
+    ctx.onTrial && ctx.tenantType === 'clinic' && (ctx.role === 'owner' || ctx.role === 'admin')
+      ? trialDaysLeft(ctx.trialEndsAt ?? null)
+      : null
+
   return (
     // `v2-app` scopes the Geist Sans dashboard UI font to the authenticated
     // shell only (public site / portal / marketing keep their own families).
@@ -100,6 +109,13 @@ export default async function DashboardShell({
           <BillingActivationBanner ctx={ctx} />
           <BillingDunningBanner ctx={ctx} />
           <TrialBanner ctx={ctx} />
+          {trialNudgeDays != null && trialNudgeDays <= 3 && (
+            <TrialReminderModal
+              daysLeft={trialNudgeDays}
+              href={ctx.hasReservedPlan ? '/billing/activate' : '/settings/billing'}
+              storageKey={`dc.trial-nudge:${ctx.userId}`}
+            />
+          )}
           <main id="main-content" tabIndex={-1} className="grow outline-none [&>*:first-child]:scroll-mt-16">
             {/* ConfirmProvider lets any page swap native window.confirm() for the
                 on-brand, accessible in-app dialog via useConfirm(). */}

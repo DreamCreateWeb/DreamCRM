@@ -259,6 +259,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   // wall. A real paid subscription (stripeSubscriptionId + an active/past_due
   // status) always overrides the trial — see lib/trial.ts + getTenantContext.
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+  // Which trial-ending reminder EMAILS have already gone out (migration 0087) —
+  // keys from lib/trial.ts `dueTrialReminder` ('d3' / 'd1' / 'd0' / 'ended').
+  // Append-only; the reminder cron checks this so a re-run never re-emails the
+  // same milestone (idempotent regardless of how often it runs).
+  trialRemindersSent: jsonb('trial_reminders_sent').$type<string[]>().default([]),
 
   // ── Social-connection add-on (Zernio social module, Phase 3, migration 0067)
   // 1 = the clinic has purchased the flat per-tier "extra social connections"
@@ -539,3 +544,20 @@ export const aiUsageCounter = pgTable(
 )
 
 export type AiUsageCounter = typeof aiUsageCounter.$inferSelect
+
+/**
+ * Idempotency ledger for the platform Stripe (subscription) webhook. One row
+ * per Stripe event id we've successfully processed — claimed atomically
+ * (INSERT … ON CONFLICT DO NOTHING) BEFORE handling, so a retried/duplicate
+ * delivery becomes a no-op instead of double-notifying or re-running side
+ * effects. A failed handler DELETES its claim so Stripe's retry re-processes.
+ * Migration 0088.
+ */
+export const stripeWebhookEvent = pgTable('stripe_webhook_event', {
+  // Stripe's globally-unique `evt_…` id is the natural idempotency key.
+  eventId: text('event_id').primaryKey(),
+  eventType: text('event_type'),
+  processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type StripeWebhookEvent = typeof stripeWebhookEvent.$inferSelect
