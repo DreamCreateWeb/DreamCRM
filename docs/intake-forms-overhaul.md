@@ -1,12 +1,9 @@
 # Intake Forms overhaul — research + plan
 
-Status: **10 of 11 phases SHIPPED** (1A field types · 2A conditional logic · 3A
+Status: **ALL 11 phases SHIPPED** (1A field types · 2A conditional logic · 3A
 insurance-card OCR · 2C return-visit pre-fill · 3B AI pre-visit summary · 4A
 honest OD mirror · 2B smart auto-send · 4B Spanish · 1B forms-completion
-reminders). **Deferred:** 2D form packets (a multi-form bundle/flow — lower
-value because DreamCRM's single comprehensive default template already covers
-intake+insurance+medical+consent in one form; build if a clinic wants split
-forms). Grounded in a deep-research pass on NexHealth (the
+reminders · 2D form packets). Grounded in a deep-research pass on NexHealth (the
 category leader for dental digital forms) + the competitive set (Modento/Dental
 Intelligence, RevenueWell, Weave, Adit, Yapi, Dentrix Ascend, Open Dental
 eForms). This doc is the durable reference for the multi-PR build; CLAUDE.md is
