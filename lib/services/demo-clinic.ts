@@ -2430,6 +2430,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // file data onto a submission. Placed at the tail so its reads sit after the
     // count selects (mirrors the referral self-heal note above).
     await upgradeDemoIntakeForm(existing.id)
+    // Seed a "New Patient Packet" bundling the two demo forms. Tail placement →
+    // exhausted seeder-test queue makes it a clean no-op there.
+    await seedDemoPacket(existing.id)
 
     return {
       organizationId: existing.id,
@@ -3816,6 +3819,32 @@ async function topUpStarredThread(orgId: string, patientIds: string[]): Promise<
     .update(schema.patientThread)
     .set({ starred: true })
     .where(and(eq(schema.patientThread.organizationId, orgId), eq(schema.patientThread.patientId, marcusId)))
+}
+
+/** Idempotent: bundle the demo's two intake forms into a "New Patient Packet"
+ *  so the packets manager + the public sequential flow showcase. No-op when a
+ *  packet already exists or the forms aren't both present. */
+async function seedDemoPacket(orgId: string): Promise<void> {
+  const [existingPacket] = await db
+    .select({ id: schema.formPacket.id })
+    .from(schema.formPacket)
+    .where(eq(schema.formPacket.organizationId, orgId))
+    .limit(1)
+  if (existingPacket) return
+  const forms = await db
+    .select({ id: schema.formTemplate.id, slug: schema.formTemplate.slug })
+    .from(schema.formTemplate)
+    .where(eq(schema.formTemplate.organizationId, orgId))
+  const intake = forms.find((f) => f.slug === 'new-patient-intake')
+  const update = forms.find((f) => f.slug === 'returning-patient-update')
+  if (!intake || !update) return
+  await db.insert(schema.formPacket).values({
+    id: newId('pkt'),
+    organizationId: orgId,
+    title: 'New Patient Packet',
+    slug: 'new-patient-packet',
+    formIds: [intake.id, update.id],
+  })
 }
 
 async function seedDemoScheduledMessage(orgId: string, patientIds: string[], now: Date): Promise<void> {

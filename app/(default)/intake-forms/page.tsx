@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { listFormTemplates, getSubmissionStatsForTemplates } from '@/lib/services/forms'
+import { listFormTemplates, getSubmissionStatsForTemplates, listPackets } from '@/lib/services/forms'
+import PacketsManager, { type PacketView } from './packets-manager'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { db } from '@/lib/db'
 import { eq } from 'drizzle-orm'
@@ -21,9 +22,10 @@ export default async function IntakeFormsListPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
 
-  const [templates, submissionStats] = await Promise.all([
+  const [templates, submissionStats, packets] = await Promise.all([
     listFormTemplates(ctx.organizationId),
     getSubmissionStatsForTemplates(ctx.organizationId),
+    listPackets(ctx.organizationId),
   ])
 
   const fmtDate = (d: Date) =>
@@ -155,6 +157,21 @@ export default async function IntakeFormsListPage() {
             })}
           </ul>
         </div>
+      )}
+
+      {templates.length > 0 && (
+        <PacketsManager
+          packets={packets.map(
+            (p): PacketView => ({
+              id: p.id,
+              title: p.title,
+              slug: p.slug,
+              formCount: p.formIds.length,
+              url: baseUrl ? `${baseUrl}/intake/packet/${p.slug}` : null,
+            }),
+          )}
+          forms={templates.map((t) => ({ id: t.id, title: t.title }))}
+        />
       )}
     </div>
   )

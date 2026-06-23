@@ -7,6 +7,8 @@ import {
   FormTemplateInput,
   archiveFormTemplate,
   createFormTemplate,
+  createPacket,
+  deletePacket,
   listFormTemplates,
   updateFormTemplate,
 } from '@/lib/services/forms'
@@ -55,6 +57,28 @@ export async function archiveFormAction(id: string) {
   await archiveFormTemplate(ctx.organizationId, id)
   revalidatePath('/intake-forms')
   redirect('/intake-forms')
+}
+
+/** Create a form packet (a named bundle of forms patients fill in one sitting). */
+export async function createPacketAction(
+  title: string,
+  formIds: string[],
+): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  const ctx = await requireClinicAdmin()
+  if (!Array.isArray(formIds) || formIds.length < 2) {
+    return { ok: false, error: 'Pick at least two forms for a packet.' }
+  }
+  const packet = await createPacket(ctx.organizationId, { title, formIds })
+  if (packet.formIds.length < 2) return { ok: false, error: 'Pick at least two of your forms.' }
+  revalidatePath('/intake-forms')
+  return { ok: true, slug: packet.slug }
+}
+
+export async function deletePacketAction(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireClinicAdmin()
+  await deletePacket(ctx.organizationId, id)
+  revalidatePath('/intake-forms')
+  return { ok: true }
 }
 
 /** Generate (and cache) the Spanish translation of a form. Owner/admin. */

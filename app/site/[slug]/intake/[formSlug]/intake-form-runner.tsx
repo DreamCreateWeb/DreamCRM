@@ -83,9 +83,14 @@ interface Props {
   initialValues?: FormSubmissionData
   /** Cached translations — when es exists, a language toggle appears. */
   translations?: FormTranslations | null
+  /** Packet mode — when set, a successful submit calls this (to advance to the
+   *  next form) instead of showing the single-form success screen. */
+  onComplete?: () => void
+  /** Optional progress label shown above the form (e.g. "Form 2 of 3"). */
+  progressLabel?: string
 }
 
-export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues, translations }: Props) {
+export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues, translations, onComplete, progressLabel }: Props) {
   const [values, setValues] = useState<FormSubmissionData>(() => initialValues ?? {})
   const prefilled = !!initialValues && Object.keys(initialValues).length > 0
   const hasEs = !!translations?.es && Object.keys(translations.es).length > 0
@@ -189,7 +194,10 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         submitterEmail: submitter.email,
         submitterPhone: submitter.phone,
       })
-      setStatus('success')
+      // Packet mode: hand control back so the parent advances to the next form
+      // (no single-form success screen between steps).
+      if (onComplete) onComplete()
+      else setStatus('success')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Could not submit — try again.')
       setStatus('error')
@@ -229,6 +237,11 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {progressLabel && (
+        <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: brand }}>
+          {progressLabel}
+        </p>
+      )}
       {hasEs && (
         <div className="flex justify-end">
           <div className="inline-flex overflow-hidden rounded-full text-xs font-semibold" style={{ border: `1px solid ${BORDER}` }}>

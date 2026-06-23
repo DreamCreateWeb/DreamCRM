@@ -2,7 +2,7 @@ import 'server-only'
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { formTemplate, formSubmission, patient } from '@/lib/db/schema/clinic'
+import { formTemplate, formSubmission, formPacket, patient } from '@/lib/db/schema/clinic'
 import type { FormTemplate, FormSubmission } from '@/lib/db/schema/clinic'
 import { newId, slugify } from '@/lib/utils'
 import {
@@ -229,6 +229,94 @@ export async function getBookingIntakeForm(
 
 function mostRecent(forms: FormTemplate[]): FormTemplate {
   return [...forms].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
+}
+
+// ── Form packets (a bundle of forms completed in one sitting) ───────────────
+
+export interface FormPacketRow {
+  id: string
+  title: string
+  slug: string
+  formIds: string[]
+}
+
+/** Create a packet from an ordered list of (existing, non-archived) form ids. */
+export async function createPacket(
+  organizationId: string,
+  input: { title: string; formIds: string[] },
+): Promise<FormPacketRow> {
+  const title = input.title.trim() || 'Form packet'
+  const slug = await uniquePacketSlug(organizationId, title)
+  // Keep only ids that actually belong to this org (defense against a stale/
+  // foreign id), preserving order + dropping dupes.
+  const owned = await db
+    .select({ id: formTemplate.id })
+    .from(formTemplate)
+    .where(and(eq(formTemplate.organizationId, organizationId), isNull(formTemplate.archivedAt)))
+  const ownedSet = new Set(owned.map((f) => f.id))
+  const formIds = Array.from(new Set(input.formIds)).filter((id) => ownedSet.has(id))
+  const [row] = await db
+    .insert(formPacket)
+    .values({ id: newId('pkt'), organizationId, title, slug, formIds })
+    .returning()
+  return { id: row.id, title: row.title, slug: row.slug, formIds: row.formIds as string[] }
+}
+
+export async function listPackets(organizationId: string): Promise<FormPacketRow[]> {
+  const rows = await db
+    .select()
+    .from(formPacket)
+    .where(and(eq(formPacket.organizationId, organizationId), isNull(formPacket.archivedAt)))
+    .orderBy(desc(formPacket.createdAt))
+  return rows.map((r) => ({ id: r.id, title: r.title, slug: r.slug, formIds: r.formIds as string[] }))
+}
+
+export async function deletePacket(organizationId: string, id: string): Promise<void> {
+  await db
+    .update(formPacket)
+    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(formPacket.id, id), eq(formPacket.organizationId, organizationId)))
+}
+
+/** A packet + its ordered, non-archived forms — for the public sequential fill.
+ *  null when the packet or all its forms are gone. */
+export async function getPacketWithForms(
+  organizationId: string,
+  slug: string,
+): Promise<{ packet: FormPacketRow; forms: FormTemplate[] } | null> {
+  const [pkt] = await db
+    .select()
+    .from(formPacket)
+    .where(and(eq(formPacket.organizationId, organizationId), eq(formPacket.slug, slug), isNull(formPacket.archivedAt)))
+    .limit(1)
+  if (!pkt) return null
+  const ids = (pkt.formIds as string[]) ?? []
+  if (ids.length === 0) return null
+  const all = await db
+    .select()
+    .from(formTemplate)
+    .where(and(eq(formTemplate.organizationId, organizationId), isNull(formTemplate.archivedAt)))
+  const byId = new Map(all.map((f) => [f.id, f]))
+  // Preserve packet order; drop any form that's since been archived/deleted.
+  const forms = ids.map((id) => byId.get(id)).filter((f): f is FormTemplate => !!f)
+  if (forms.length === 0) return null
+  return { packet: { id: pkt.id, title: pkt.title, slug: pkt.slug, formIds: ids }, forms }
+}
+
+async function uniquePacketSlug(organizationId: string, baseTitle: string): Promise<string> {
+  const root = slugify(baseTitle) || 'packet'
+  let attempt = root
+  let n = 1
+  for (;;) {
+    const [hit] = await db
+      .select({ id: formPacket.id })
+      .from(formPacket)
+      .where(and(eq(formPacket.organizationId, organizationId), eq(formPacket.slug, attempt)))
+      .limit(1)
+    if (!hit) return attempt
+    n += 1
+    attempt = `${root}-${n}`
+  }
 }
 
 /** Soft delete — archived templates stay around for old submissions to

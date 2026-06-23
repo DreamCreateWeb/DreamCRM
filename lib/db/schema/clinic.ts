@@ -416,6 +416,27 @@ export const formSubmission = pgTable('form_submission', {
   aiSummaryAt: timestamp('ai_summary_at'),
 })
 
+// A named bundle of intake forms a patient completes in one sitting (e.g. a
+// "New Patient Packet" = intake + financial policy + consent). The public
+// packet flow walks them through each form in `formIds` order; each form still
+// submits independently (its own form_submission), so there are no field-id
+// collisions across forms.
+export const formPacket = pgTable(
+  'form_packet',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    slug: text('slug').notNull(),
+    // Ordered array of form_template ids.
+    formIds: jsonb('form_ids').notNull(),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('form_packet_org_slug_idx').on(t.organizationId, t.slug)],
+)
+
 // Public website contact-form submissions. Distinct from `patient` —
 // these are inbound prospects who have not yet converted. Once a lead
 // becomes a patient (front-desk clicks "Convert"), a `patient` row is
