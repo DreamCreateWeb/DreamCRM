@@ -55,7 +55,7 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-import { saveSelfBookingAction, getPracticeSettings } from '@/app/(default)/settings/practice/actions'
+import { saveSelfBookingAction, savePracticeOpsAction, getPracticeSettings } from '@/app/(default)/settings/practice/actions'
 
 beforeEach(() => {
   ops.length = 0
@@ -102,5 +102,40 @@ describe('getPracticeSettings — selfBookingEnabled resolution', () => {
     selectProfile = { chairCount: 1, recallDefaultMonths: 6, visitTypeSettings: null, selfBookingEnabled: null }
     const data = await getPracticeSettings()
     expect(data.selfBookingEnabled).toBe(true)
+  })
+})
+
+describe('savePracticeOpsAction — lapsed threshold', () => {
+  it('persists a valid lapsed-after-months value', async () => {
+    const r = await savePracticeOpsAction({ chairCount: 3, recallDefaultMonths: 6, lapsedAfterMonths: 24 })
+    expect(r).toEqual({ ok: true })
+    expect(ops[0].values.lapsedAfterMonths).toBe(24)
+  })
+
+  it('clamps an out-of-range value into [6, 60]', async () => {
+    await savePracticeOpsAction({ chairCount: 1, recallDefaultMonths: 6, lapsedAfterMonths: 999 })
+    expect(ops[0].values.lapsedAfterMonths).toBe(60)
+  })
+
+  it('falls back to 18 for a non-finite value', async () => {
+    await savePracticeOpsAction({ chairCount: 1, recallDefaultMonths: 6, lapsedAfterMonths: Number.NaN })
+    expect(ops[0].values.lapsedAfterMonths).toBe(18)
+  })
+
+  it('is blocked for a non-owner/admin member', async () => {
+    tenantCtx = { tenantType: 'clinic', role: 'member', organizationId: 'org_1', organizationSlug: 'acme' }
+    await expect(savePracticeOpsAction({ chairCount: 1, recallDefaultMonths: 6, lapsedAfterMonths: 18 })).rejects.toThrow(/owner|admin/i)
+    expect(ops).toHaveLength(0)
+  })
+})
+
+describe('getPracticeSettings — lapsedAfterMonths resolution', () => {
+  it('returns the stored value', async () => {
+    selectProfile = { chairCount: 1, recallDefaultMonths: 6, lapsedAfterMonths: 12, visitTypeSettings: null, selfBookingEnabled: true }
+    expect((await getPracticeSettings()).lapsedAfterMonths).toBe(12)
+  })
+  it('defaults to 18 when null', async () => {
+    selectProfile = { chairCount: 1, recallDefaultMonths: 6, lapsedAfterMonths: null, visitTypeSettings: null, selfBookingEnabled: true }
+    expect((await getPracticeSettings()).lapsedAfterMonths).toBe(18)
   })
 })

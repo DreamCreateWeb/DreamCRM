@@ -36,9 +36,19 @@ export function endOfMonth(d: Date): Date {
   return r
 }
 
-/** Lapsed = last visit older than ~9 months. Drives the 💤 glyph + the
- *  `lifecycle = 'lapsed'` denormalization across Patients + Appointments. */
-export const LAPSED_THRESHOLD_MS = 9 * 30 * 24 * 60 * 60 * 1000 // ~9 months
+/** Default months without a visit before a patient is considered lapsed (💤 +
+ *  lifecycle='lapsed'). 18 is the proactive dental-industry standard (the ADA's
+ *  hard "inactive" line is 24mo; recall is ~6mo) — clinics can override per
+ *  practice via clinic_profile.lapsed_after_months. */
+export const LAPSED_DEFAULT_MONTHS = 18
+
+/** The cutoff date before which a last-visit counts as lapsed, for a clinic's
+ *  configured months (null/0 → the default). ~30-day months, matching the prior
+ *  heuristic. */
+export function lapsedCutoff(now: Date, months: number | null | undefined): Date {
+  const m = months && months > 0 ? months : LAPSED_DEFAULT_MONTHS
+  return new Date(now.getTime() - m * 30 * 24 * 60 * 60 * 1000)
+}
 
 const DOB_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 

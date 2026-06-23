@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "lapsed_after_months" integer;

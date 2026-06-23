@@ -120,7 +120,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   {
     surface: 'clinic', href: '/settings/practice', page: 'Practice setup',
     tab: 'recall', label: 'Chairs & recall',
-    keywords: ['chairs', 'operatories', 'recall', 'cadence', 'recall interval', 'capacity'],
+    keywords: ['chairs', 'operatories', 'recall', 'cadence', 'recall interval', 'capacity', 'lapsed', 'inactive', 'gone quiet', 'reactivation', 'active patient'],
   },
 
   // ─── Patient portal ──────────────────────────────────────────────────

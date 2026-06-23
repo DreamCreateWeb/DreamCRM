@@ -180,6 +180,13 @@ export const clinicProfile = pgTable('clinic_profile', {
   // engine still wins when an Open Dental due date is synced.
   recallDefaultMonths: integer('recall_default_months'),
 
+  // Months without a visit before a patient counts as "lapsed" (💤 glyph +
+  // lifecycle='lapsed'). Null = LAPSED_DEFAULT_MONTHS (18 — the proactive
+  // dental-industry standard; the ADA's hard "inactive" line is 24mo, recall is
+  // ~6mo). Practice-configurable because cadence varies (general recall vs a
+  // specialist with no recall).
+  lapsedAfterMonths: integer('lapsed_after_months'),
+
   // ── Retention automations (set & forget) ─────────────────────────────────
   // When enabled, the retention-automation cron auto-creates a SCHEDULED
   // campaign (delivered compliantly by the existing scheduled-send cron, so it

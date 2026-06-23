@@ -50,7 +50,7 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
             { id: 'booking', label: 'Online booking', content: <SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} /> },
             { id: 'providers', label: 'Providers', content: <ProvidersSection providers={initial.providers} flash={flash} /> },
             { id: 'visit-types', label: 'Visit types', content: <VisitTypesSection initial={initial.visitTypes} flash={flash} /> },
-            { id: 'recall', label: 'Chairs & recall', content: <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} flash={flash} /> },
+            { id: 'recall', label: 'Chairs & recall', content: <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} lapsedAfterMonths={initial.lapsedAfterMonths} flash={flash} /> },
           ]}
         />
       </fieldset>
@@ -334,20 +334,23 @@ function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m
 function OpsSection({
   chairCount,
   recallDefaultMonths,
+  lapsedAfterMonths,
   flash,
 }: {
   chairCount: number
   recallDefaultMonths: number
+  lapsedAfterMonths: number
   flash: (m: string) => void
 }) {
   const router = useRouter()
   const [chairs, setChairs] = useState(chairCount)
   const [months, setMonths] = useState(recallDefaultMonths)
+  const [lapsedMonths, setLapsedMonths] = useState(lapsedAfterMonths)
   const [pending, start] = useTransition()
 
   function save() {
     start(async () => {
-      const r = await savePracticeOpsAction({ chairCount: chairs, recallDefaultMonths: months })
+      const r = await savePracticeOpsAction({ chairCount: chairs, recallDefaultMonths: months, lapsedAfterMonths: lapsedMonths })
       if (r.ok) { flash('Saved.'); router.refresh() }
       else flash(r.error)
     })
@@ -355,7 +358,7 @@ function OpsSection({
 
   return (
     <section>
-      <SectionHeading title="Booking & recall" hint="Two settings that shape how online booking and recall behave for your whole practice." />
+      <SectionHeading title="Booking & recall" hint="A few settings that shape how online booking, recall, and the “gone quiet” flag behave for your whole practice." />
       <div className="grid sm:grid-cols-2 gap-5 max-w-xl">
         <label className="block">
           <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Chairs</span>
@@ -366,6 +369,15 @@ function OpsSection({
           <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Default recall interval (months)</span>
           <input type="number" min={1} max={36} value={months} onChange={(e) => setMonths(Math.min(36, Math.max(1, Number(e.target.value) || 6)))} className="form-input w-full text-sm mt-1" />
           <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">How often patients are due for a recall visit by default. Individual patients can override this; a synced PMS recall date always wins.</span>
+        </label>
+        <label className="block">
+          <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Flag a patient “lapsed” after</span>
+          <select value={lapsedMonths} onChange={(e) => setLapsedMonths(Number(e.target.value))} className="form-select w-full text-sm mt-1">
+            <option value={12}>12 months — most proactive</option>
+            <option value={18}>18 months — recommended</option>
+            <option value={24}>24 months — ADA inactive standard</option>
+          </select>
+          <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">How long without a visit before a patient shows the 💤 “gone quiet” flag and counts as lapsed. Recall is ~6 months; the dental industry typically flags lapsed at 18 months, the ADA’s hard inactive line is 24.</span>
         </label>
       </div>
       <div className="mt-4">

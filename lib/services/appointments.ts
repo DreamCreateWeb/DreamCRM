@@ -7,7 +7,8 @@ import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-ta
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
 import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
-import { startOfDay, startOfWeek, isBirthdayThisWeek, LAPSED_THRESHOLD_MS } from '@/lib/dates'
+import { startOfDay, startOfWeek, isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
+import { getClinicCadence } from '@/lib/services/clinic-cadence'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -211,7 +212,6 @@ export async function listAppointments(
   const win = resolveWindow(filters.window, now)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const lapsedCutoff = new Date(now.getTime() - LAPSED_THRESHOLD_MS)
 
   // Base where: org + window. Status filter is applied post-query only for
   // attention chips that map to specific statuses; otherwise SQL handles it.
@@ -283,7 +283,7 @@ export async function listAppointments(
   // Fan-out queries for derived signal columns. All parallel. (Balance is read
   // straight off the patient join above — pms_balance_cents, the same source
   // the Patients list + Overview KPI use — so the $ glyph agrees everywhere.)
-  const [intakeRows, lastReminderRows, priorAppts, futureAppts] = await Promise.all([
+  const [intakeRows, lastReminderRows, priorAppts, futureAppts, cadence] = await Promise.all([
     // Intake submission tied to this appointment specifically.
     db
       .select({ appointmentId: schema.formSubmission.appointmentId, patientId: schema.formSubmission.patientId })
@@ -344,7 +344,10 @@ export async function listAppointments(
           ne(schema.appointment.status, 'no_show'),
         ),
       ),
+    getClinicCadence(organizationId),
   ])
+
+  const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
 
   // Per-appointment intake flag (this appointment OR this patient has any submission)
   const intakeApptSet = new Set<string>()
@@ -545,7 +548,7 @@ export async function getAppointmentDetail(
   const now = new Date()
   // Tags fold into the parallel batch (was a separate serial round-trip on
   // every drawer open). Balance reads off the patient join (pms_balance_cents).
-  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags] = await Promise.all([
+  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence] = await Promise.all([
     db
       .select({
         id: schema.appointmentReminderLog.id,
@@ -640,6 +643,7 @@ export async function getAppointmentDetail(
       )
       .limit(1),
     getTagsForPatient(organizationId, base.patientId),
+    getClinicCadence(organizationId),
   ])
 
   const outstanding = base.pmsBalanceCents ?? 0
@@ -649,7 +653,7 @@ export async function getAppointmentDetail(
     base.endTime ? Math.max(15, Math.round((base.endTime.getTime() - base.startTime.getTime()) / 60000)) : null
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const lastVisit = lastVisitRow[0]?.startTime ?? null
-  const lapsed = !!lastVisit && lastVisit < new Date(now.getTime() - LAPSED_THRESHOLD_MS)
+  const lapsed = !!lastVisit && lastVisit < lapsedCutoffDate(now, cadence.lapsedMonths)
   const isFuture = base.startTime > now
   const newPatient = !lastVisit && isFuture
   const hasIntake = !!intakeRow[0]

@@ -138,15 +138,18 @@ export async function saveSelfBookingAction(enabled: boolean): Promise<Result> {
 export async function savePracticeOpsAction(input: {
   chairCount: number
   recallDefaultMonths: number
+  lapsedAfterMonths: number
 }): Promise<Result> {
   const ctx = await requirePracticeAdmin()
   const chairCount = normalizeChairCount(input.chairCount)
   const months = Number(input.recallDefaultMonths)
   const recallDefaultMonths = Number.isFinite(months) ? Math.min(36, Math.max(1, Math.round(months))) : 6
+  const lapsedMonths = Number(input.lapsedAfterMonths)
+  const lapsedAfterMonths = Number.isFinite(lapsedMonths) ? Math.min(60, Math.max(6, Math.round(lapsedMonths))) : 18
   try {
     await db
       .update(clinicProfile)
-      .set({ chairCount, recallDefaultMonths, updatedAt: new Date() })
+      .set({ chairCount, recallDefaultMonths, lapsedAfterMonths, updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
     revalidatePath('/settings/practice')
     revalidatePath('/appointments')
@@ -163,6 +166,8 @@ export interface PracticeSettingsData {
   visitTypes: VisitType[]
   chairCount: number
   recallDefaultMonths: number
+  /** Months without a visit before a patient is flagged lapsed (💤). */
+  lapsedAfterMonths: number
   /** Public-website online self-scheduling (the live slot picker on /book). */
   selfBookingEnabled: boolean
   /** Whether the current user can change these (owner/admin). Members can view. */
@@ -177,6 +182,7 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
       .select({
         chairCount: clinicProfile.chairCount,
         recallDefaultMonths: clinicProfile.recallDefaultMonths,
+        lapsedAfterMonths: clinicProfile.lapsedAfterMonths,
         visitTypeSettings: clinicProfile.visitTypeSettings,
         selfBookingEnabled: clinicProfile.selfBookingEnabled,
       })
@@ -189,6 +195,7 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
     visitTypes: resolveVisitTypes(profile?.visitTypeSettings ?? null),
     chairCount: normalizeChairCount(profile?.chairCount),
     recallDefaultMonths: profile?.recallDefaultMonths ?? 6,
+    lapsedAfterMonths: profile?.lapsedAfterMonths ?? 18,
     // null/undefined → enabled, matching the not-null default(true) column.
     selfBookingEnabled: profile?.selfBookingEnabled !== false,
     canEdit: ctx.role === 'owner' || ctx.role === 'admin',

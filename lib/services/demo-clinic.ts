@@ -213,12 +213,12 @@ function buildPatientPersonas(now: Date): PatientPersona[] {
       lifecycle: 'active',
       firstSeenAt: new Date(now.getTime() - 200 * dayMs),
     }),
-    // [5] Lapsed (💤) — 11 months since last visit, no future
+    // [5] Lapsed (💤) — ~20 months since last visit (past the 18mo default)
     persona('Aiden', 'Kim', '1965-06-30', {
       source: 'referral',
       lifecycle: 'lapsed',
       firstSeenAt: new Date(now.getTime() - 1500 * dayMs),
-      lastActivityAt: new Date(now.getTime() - 330 * dayMs),
+      lastActivityAt: new Date(now.getTime() - 600 * dayMs),
     }),
     // [6] At-risk — 7 months since last visit
     persona('Emma', 'Lopez', '1983-12-01', {
@@ -2543,7 +2543,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // - [2] Charlotte Diaz — birthday this week (🎂)
   // - [3] Marcus Johnson — outstanding overdue invoice ($)
   // - [4] Sophia Iverson — confirmed appt in next 24h (warms the chair view)
-  // - [5] Aiden Kim — lapsed, 11 months since last visit (💤 + lifecycle=lapsed)
+  // - [5] Aiden Kim — lapsed, ~20 months since last visit (💤 + lifecycle=lapsed)
   // - [6] Emma Lopez — at_risk, 7 months since last visit
   // - [7] Noah Mitchell — relationship notes + intake on file
   // - [8..13] Filler active patients (randomized within persona shape)
@@ -2675,7 +2675,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     { id: newId('appt'), patientIdx: 0, startOffsetMs: -240 * dayMs, type: 'checkup', status: 'completed', notes: null, providerId: providerDentistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 2, startOffsetMs: -90 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 3, startOffsetMs: -45 * dayMs, type: 'filling', status: 'completed', notes: 'MOD on #14, 2 carpules lido', providerId: providerDentistId, source: 'manual' },
-    { id: newId('appt'), patientIdx: 5, startOffsetMs: -330 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
+    { id: newId('appt'), patientIdx: 5, startOffsetMs: -600 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 6, startOffsetMs: -210 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 7, startOffsetMs: -150 * dayMs, type: 'consultation', status: 'completed', notes: null, providerId: providerDentistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 8, startOffsetMs: -30 * dayMs, type: 'cleaning', status: 'no_show', notes: null, providerId: providerHygienistId, source: 'manual' },
@@ -2688,7 +2688,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     { id: newId('appt'), patientIdx: 4, startOffsetMs: 22 * hourMs, type: 'cleaning', status: 'confirmed', notes: null, providerId: providerHygienistId, source: 'booking_widget', confirmedAt: new Date(now.getTime() - 4 * hourMs), confirmedVia: 'sms' },
     { id: newId('appt'), patientIdx: 3, startOffsetMs: 30 * hourMs, type: 'filling', status: 'scheduled', notes: 'Patient called to ask about pre-auth status', providerId: providerDentistId, source: 'phone' },
     { id: newId('appt'), patientIdx: 7, startOffsetMs: 9 * dayMs + 14 * hourMs, type: 'cleaning', status: 'confirmed', notes: null, providerId: providerHygienistId, source: 'manual', confirmedAt: new Date(now.getTime() - 12 * hourMs), confirmedVia: 'manual' },
-    // 💤 lapsed-returning — Aiden (persona 5) just rebooked after 11 months
+    // 💤 lapsed-returning — Aiden (persona 5) just rebooked after ~20 months
     { id: newId('appt'), patientIdx: 5, startOffsetMs: 3 * dayMs + 13 * hourMs, type: 'cleaning', status: 'scheduled', notes: 'Welcome back! First visit in almost a year.', providerId: providerHygienistId, source: 'recall_campaign' },
     // 🆕 booked-just-now — Emma (persona 6) booked 20 min ago
     { id: newId('appt'), patientIdx: 6, startOffsetMs: 11 * dayMs + 15 * hourMs, type: 'consultation', status: 'scheduled', notes: null, providerId: providerDentistId, source: 'booking_widget', createdAtOverride: new Date(now.getTime() - 20 * 60 * 1000) },

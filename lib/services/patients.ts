@@ -13,8 +13,9 @@ import {
   ageFromDob,
   isBirthdayThisWeek,
   isBirthdayThisMonth,
-  LAPSED_THRESHOLD_MS,
+  lapsedCutoff as lapsedCutoffDate,
 } from '@/lib/dates'
+import { getClinicCadence } from '@/lib/services/clinic-cadence'
 
 /**
  * Patients service — the CRM-side relationship view.
@@ -146,17 +147,6 @@ export function newPatientNoteId(): string {
   return `pnote_${randomBytes(10).toString('hex')}`
 }
 
-/** Read the clinic's default recall cadence in months (null when unset). The
- *  recall helper falls through to RECALL_DEFAULT_MONTHS when this is null. */
-async function getClinicRecallDefaultMonths(organizationId: string): Promise<number | null> {
-  const [row] = await db
-    .select({ recallDefaultMonths: schema.clinicProfile.recallDefaultMonths })
-    .from(schema.clinicProfile)
-    .where(eq(schema.clinicProfile.organizationId, organizationId))
-    .limit(1)
-  return row?.recallDefaultMonths ?? null
-}
-
 // ----- List page --------------------------------------------------------
 
 export async function listPatients(
@@ -168,7 +158,6 @@ export async function listPatients(
   const today = startOfDay(now)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const lapsedCutoff = new Date(now.getTime() - LAPSED_THRESHOLD_MS)
   const monthBirthStart = startOfMonth(now)
   const monthBirthEnd = endOfMonth(now)
 
@@ -211,9 +200,11 @@ export async function listPatients(
   const ids = patients.map((p) => p.id)
   const emails = patients.map((p) => p.email).filter((e): e is string => !!e)
 
-  // Clinic-wide default recall cadence (months). Per-patient overrides win;
-  // both fall through to RECALL_DEFAULT_MONTHS inside derivePatientRecallStatus.
-  const clinicRecallMonths = await getClinicRecallDefaultMonths(organizationId)
+  // Clinic-wide cadence settings: recall default (per-patient overrides win;
+  // both fall through to RECALL_DEFAULT_MONTHS) + the lapsed threshold (the 💤
+  // cutoff, clinic-configurable, default 18mo).
+  const cadence = await getClinicCadence(organizationId)
+  const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
 
   // Pull joined data in parallel.
   const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear, tagsByPatient] =
@@ -381,7 +372,7 @@ export async function listPatients(
       hasAnyFutureAppt: !!next,
       lastVisitAt,
       now,
-      intervalMonths: p.recallIntervalMonths ?? clinicRecallMonths,
+      intervalMonths: p.recallIntervalMonths ?? cadence.recallMonths,
     })
     return {
       id: p.id,
@@ -499,9 +490,8 @@ export async function getPatientHeader(
   const now = new Date()
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const lapsedCutoff = new Date(now.getTime() - LAPSED_THRESHOLD_MS)
 
-  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow] =
+  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow, cadence] =
     await Promise.all([
       db
         .select({ startTime: schema.appointment.startTime })
@@ -578,7 +568,10 @@ export async function getPatientHeader(
           ),
         )
         .limit(1),
+      getClinicCadence(organizationId),
     ])
+
+  const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
 
   // Outstanding balance = PMS sync truth (NULL when none on file → the UI
   // shows "No PMS balance on file", not a fabricated $0).

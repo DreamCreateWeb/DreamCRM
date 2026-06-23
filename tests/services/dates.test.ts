@@ -8,7 +8,8 @@ import {
   ageFromDob,
   isBirthdayThisWeek,
   isBirthdayThisMonth,
-  LAPSED_THRESHOLD_MS,
+  LAPSED_DEFAULT_MONTHS,
+  lapsedCutoff,
 } from '@/lib/dates'
 
 describe('date boundaries', () => {
@@ -62,13 +63,24 @@ describe('isBirthdayThisWeek', () => {
   })
 })
 
-describe('isBirthdayThisMonth / LAPSED_THRESHOLD_MS', () => {
+describe('isBirthdayThisMonth', () => {
   it('matches the current month only', () => {
     const today = new Date(2026, 5, 1) // June
     expect(isBirthdayThisMonth('1990-06-30', today)).toBe(true)
     expect(isBirthdayThisMonth('1990-07-01', today)).toBe(false)
   })
-  it('lapsed threshold is ~9 months', () => {
-    expect(LAPSED_THRESHOLD_MS).toBe(9 * 30 * 24 * 60 * 60 * 1000)
+})
+
+describe('lapsedCutoff', () => {
+  const now = new Date(2026, 5, 17)
+  const monthsBack = (n: number) => now.getTime() - n * 30 * 24 * 60 * 60 * 1000
+  it('defaults to 18 months (the proactive dental standard)', () => {
+    expect(LAPSED_DEFAULT_MONTHS).toBe(18)
+    expect(lapsedCutoff(now, null).getTime()).toBe(monthsBack(18))
+    expect(lapsedCutoff(now, 0).getTime()).toBe(monthsBack(18)) // 0/invalid → default
+  })
+  it('honors a clinic-configured value', () => {
+    expect(lapsedCutoff(now, 12).getTime()).toBe(monthsBack(12))
+    expect(lapsedCutoff(now, 24).getTime()).toBe(monthsBack(24))
   })
 })
