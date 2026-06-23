@@ -24,6 +24,7 @@ import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-
 import { avatarTint, groupMessagesByDay, messageInitials } from './message-grouping'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 import { MAX_MESSAGE_ATTACHMENTS } from '@/lib/types/messaging'
+import BookFromPatientDrawer from '@/app/(default)/appointments/book-from-patient-drawer'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -173,6 +174,13 @@ const IconUser = () => (
     <path d="M5.5 19a6.5 6.5 0 0 1 13 0" />
   </svg>
 )
+const IconCalendarPlus = () => (
+  <svg {...SVG_BASE}>
+    <rect x="3.5" y="5" width="17" height="15" rx="2" />
+    <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+    <path d="M12 13v4M10 15h4" />
+  </svg>
+)
 const IconCalendar = () => (
   <svg {...SVG_BASE} width={14} height={14}>
     <rect x="3.5" y="5" width="17" height="15" rx="2" />
@@ -287,6 +295,7 @@ export default function ThreadDetailPanel({
   const [showSnooze, setShowSnooze] = useState(false)
   const [showAssign, setShowAssign] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [bookOpen, setBookOpen] = useState(false)
   const streamRef = useRef<HTMLDivElement | null>(null)
 
   // Group the flat message list into day buckets, each holding runs of
@@ -608,10 +617,22 @@ export default function ThreadDetailPanel({
             </>
           )}
           </div>
+          {/* Book a visit without leaving the conversation — opens the same
+              in-place drawer staff use on the patient page (provider / type /
+              slot-picker / walk-in). Keeps them in relationship context. */}
+          <button
+            type="button"
+            onClick={() => setBookOpen(true)}
+            title={`Book a visit for ${thread.patientFirstName}`}
+            className="group ml-0.5 inline-flex items-center gap-1.5 rounded-[var(--r-sm)] px-2.5 py-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-colors"
+          >
+            <IconCalendarPlus />
+            <span className="hidden md:inline">Book</span>
+          </button>
           <Link
             href={`/patients/${thread.patientId}`}
             title="Open this patient's full record"
-            className="group ml-0.5 inline-flex items-center gap-1.5 rounded-[var(--r-sm)] px-2.5 py-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-colors"
+            className="group inline-flex items-center gap-1.5 rounded-[var(--r-sm)] px-2.5 py-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-colors"
           >
             <IconUser />
             <span className="hidden md:inline">View patient</span>
@@ -1009,6 +1030,14 @@ export default function ThreadDetailPanel({
             </div>
           </div>
         </div>
+      )}
+
+      {bookOpen && (
+        <BookFromPatientDrawer
+          patientId={thread.patientId}
+          patientName={patientName}
+          onClose={() => setBookOpen(false)}
+        />
       )}
 
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
