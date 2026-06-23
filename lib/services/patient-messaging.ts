@@ -1,10 +1,12 @@
 import 'server-only'
-import { and, asc, count, desc, eq, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { sendPatientMessageEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
+import { resolvePortalSettings, DEFAULT_AUTO_REPLY_MESSAGE } from '@/lib/types/portal'
+import { isWithinOfficeHours, type ClinicHours } from '@/lib/clinic-timezone'
 
 /**
  * Patient Communications service. Unified per-patient threads across
@@ -779,6 +781,84 @@ export async function markOutboundMessagesReadByPatient(
  * handlers (Twilio for SMS Phase B; in-app patient-portal action for
  * portal messages). Increments unread counter so staff sees a badge.
  */
+/** How long an auto-reply silences further auto-replies on a thread, so a
+ *  patient firing off several after-hours messages gets ONE ack, not a barrage. */
+const AUTO_REPLY_DEDUP_MS = 12 * 60 * 60 * 1000
+
+/**
+ * After-hours auto-reply: when the office is closed (per the clinic's hours +
+ * timezone) and the clinic has opted in, send ONE courteous acknowledgement to
+ * a patient's portal message so they aren't left wondering. Best-effort — never
+ * throws into the inbound path. The ack does NOT clear the clinic's unread
+ * counter (a human still needs to give a real answer); it just updates the
+ * thread preview + appears in the patient's portal.
+ */
+async function maybeSendAfterHoursAutoReply(
+  organizationId: string,
+  patientId: string,
+  threadId: string,
+): Promise<void> {
+  try {
+    const [clinic] = await db
+      .select({
+        displayName: schema.clinicProfile.displayName,
+        hours: schema.clinicProfile.hours,
+        timezone: schema.clinicProfile.timezone,
+        portalSettings: schema.clinicProfile.portalSettings,
+      })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    if (!clinic) return
+
+    const settings = resolvePortalSettings(clinic.portalSettings)
+    if (!settings.autoReply.enabled) return
+    // Only when the office is closed right now.
+    if (isWithinOfficeHours(clinic.hours as ClinicHours | null, clinic.timezone)) return
+
+    // Dedup: skip if we already auto-replied on this thread recently.
+    const since = new Date(Date.now() - AUTO_REPLY_DEDUP_MS)
+    const [recent] = await db
+      .select({ id: schema.patientMessage.id })
+      .from(schema.patientMessage)
+      .where(
+        and(
+          eq(schema.patientMessage.threadId, threadId),
+          eq(schema.patientMessage.direction, 'outbound'),
+          gte(schema.patientMessage.sentAt, since),
+          sql`(${schema.patientMessage.meta} ->> 'autoReply') = 'true'`,
+        ),
+      )
+      .limit(1)
+    if (recent) return
+
+    const clinicName = clinic.displayName?.trim() || 'our office'
+    const body = (settings.autoReply.message || DEFAULT_AUTO_REPLY_MESSAGE).replace(/\{clinic\}/g, clinicName)
+    const now = new Date()
+    await db.insert(schema.patientMessage).values({
+      id: newMessageId(),
+      threadId,
+      organizationId,
+      patientId,
+      channel: 'in_app',
+      direction: 'outbound',
+      body,
+      sentByUserId: null,
+      sentAt: now,
+      deliveredAt: now,
+      meta: { autoReply: true },
+    })
+    // Update the preview/ordering but DELIBERATELY leave unreadCountForClinic +
+    // status alone — the front desk still owes a real reply.
+    await db
+      .update(schema.patientThread)
+      .set({ lastMessageAt: now, lastMessageDirection: 'outbound', lastMessageChannel: 'in_app', updatedAt: now })
+      .where(eq(schema.patientThread.id, threadId))
+  } catch (err) {
+    console.warn('[patient-messaging.maybeSendAfterHoursAutoReply] failed', err)
+  }
+}
+
 export async function recordInboundMessage(input: {
   organizationId: string
   patientId: string
@@ -850,6 +930,13 @@ export async function recordInboundMessage(input: {
     )
   } catch (err) {
     console.warn('[patient-messaging.recordInboundMessage] notification failed', err)
+  }
+
+  // After-hours auto-reply for portal (in-app) messages only — the contact
+  // form (channel='email') has its own auto-acknowledgement, so this won't
+  // double-ack. Best-effort; never blocks the inbound record.
+  if (input.channel === 'in_app') {
+    await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId)
   }
 
   return { threadId, messageId }

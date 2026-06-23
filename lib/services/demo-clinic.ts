@@ -897,6 +897,11 @@ const DEMO_PORTAL_SETTINGS = {
     aftercareNote:
       'A little sensitivity after a cleaning or filling is normal for a day or two.\nStick to soft foods tonight, rinse gently with warm salt water, and skip anything too hot or icy.\nIf anything feels genuinely wrong, call us — that is what we are here for.',
   },
+  // Showcase the after-hours auto-reply (uses the warm built-in default).
+  autoReply: {
+    enabled: true,
+    message: null,
+  },
 } as const
 
 // Clinic-ops demo settings — exercises the new Practice setup controls.

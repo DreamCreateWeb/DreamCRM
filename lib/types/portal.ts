@@ -76,13 +76,28 @@ export interface PortalDisplaySettings {
   showTeamPhotos: boolean
 }
 
+/** After-hours auto-reply to a patient's portal message. When the office is
+ *  closed (per clinic hours + timezone), an enabled clinic sends one courteous
+ *  acknowledgement so the patient isn't left wondering. */
+export interface PortalAutoReplySettings {
+  enabled: boolean
+  /** Custom body; null = the built-in default (supports the {clinic} token). */
+  message: string | null
+}
+
 export interface PortalSettings {
   features: PortalFeatureFlags
   booking: PortalBookingSettings
   reschedule: PortalRescheduleSettings
   copy: PortalCopySettings
   display: PortalDisplaySettings
+  autoReply: PortalAutoReplySettings
 }
+
+/** Built-in after-hours message when the clinic hasn't customized one.
+ *  `{clinic}` is substituted with the clinic display name. */
+export const DEFAULT_AUTO_REPLY_MESSAGE =
+  "Thanks for reaching out to {clinic}! Our office is closed right now, but we've got your message and will reply as soon as we're back. If this is a dental emergency, please call us."
 
 export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
   features: {
@@ -114,6 +129,12 @@ export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
   },
   display: {
     showTeamPhotos: true,
+  },
+  // Opt-in: a clinic turns this on so it never auto-messages patients without
+  // the owner choosing to.
+  autoReply: {
+    enabled: false,
+    message: null,
   },
 }
 
@@ -237,5 +258,13 @@ export function resolvePortalSettings(stored: unknown): PortalSettings {
     if (typeof v === 'boolean') display.showTeamPhotos = v
   }
 
-  return { features, booking, reschedule, copy, display }
+  const autoReply = { ...d.autoReply }
+  if (s.autoReply && typeof s.autoReply === 'object') {
+    const a = s.autoReply as Record<string, unknown>
+    if (typeof a.enabled === 'boolean') autoReply.enabled = a.enabled
+    if (typeof a.message === 'string') autoReply.message = a.message.trim() === '' ? null : a.message
+    else if (a.message === null) autoReply.message = null
+  }
+
+  return { features, booking, reschedule, copy, display, autoReply }
 }

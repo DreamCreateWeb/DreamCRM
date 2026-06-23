@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import {
   PORTAL_FEATURE_LABELS,
   PORTAL_BOOKABLE_TYPES,
+  DEFAULT_AUTO_REPLY_MESSAGE,
   type PortalSettings,
   type PortalFeatureFlags,
 } from '@/lib/types/portal'
@@ -69,6 +70,9 @@ export default function PortalSettingsForm({
 
   const setCopy = (key: keyof PortalSettings['copy'], value: string) =>
     setSettings((s) => ({ ...s, copy: { ...s.copy, [key]: value.trim() === '' ? null : value } }))
+
+  const setAutoReply = (patch: Partial<PortalSettings['autoReply']>) =>
+    setSettings((s) => ({ ...s, autoReply: { ...s.autoReply, ...patch } }))
 
   const save = () => {
     setFeedback(null)
@@ -263,6 +267,41 @@ export default function PortalSettingsForm({
           onChange={(v) => setSettings((s) => ({ ...s, display: { showTeamPhotos: v } }))}
           srLabel="Show team photos"
         />
+      </div>
+
+      {/* After-hours auto-reply — sends one courteous ack to a patient's portal
+          message when the office is closed (per your hours + timezone). */}
+      <div className="border-t border-[color:var(--color-hairline)] pt-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-100">After-hours auto-reply</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              When a patient messages you outside your office hours, send one automatic acknowledgement so they
+              know you got it. You still owe a real reply — the thread stays unread.
+            </p>
+          </div>
+          <Toggle
+            checked={settings.autoReply.enabled}
+            onChange={(v) => setAutoReply({ enabled: v })}
+            srLabel="Enable after-hours auto-reply"
+          />
+        </div>
+        {settings.autoReply.enabled && (
+          <label className="block mt-3">
+            <span className="text-sm font-medium text-gray-800 dark:text-gray-100">Auto-reply message</span>
+            <textarea
+              value={settings.autoReply.message ?? ''}
+              onChange={(e) => setAutoReply({ message: e.target.value.trim() === '' ? null : e.target.value })}
+              placeholder={DEFAULT_AUTO_REPLY_MESSAGE}
+              rows={3}
+              className="form-textarea w-full text-sm mt-1.5"
+              maxLength={1000}
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
+              Use <code className="font-mono-num">{'{clinic}'}</code> for your clinic name. Empty = our warm default.
+            </span>
+          </label>
+        )}
       </div>
     </Section>
   )
