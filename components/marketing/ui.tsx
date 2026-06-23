@@ -293,14 +293,31 @@ function Avatar({ initials, color }: { initials: string; color: string }) {
   )
 }
 
-/** Browser-framed morning-huddle dashboard, populated like a real Tuesday. */
+/** Browser-framed morning-huddle dashboard, populated like a real Tuesday —
+ *  the grouped sidebar shows the platform's real module breadth. */
 export function DashboardMock() {
-  const nav = ['Overview', 'Patients', 'Appointments', 'Leads', 'Messages']
-  const chair: Array<{ t: string; n: string; v: string; s: 'Confirmed' | 'Unconfirmed'; i: string; c: string }> = [
-    { t: '8:00', n: 'Mia Hayes', v: 'Cleaning', s: 'Confirmed', i: 'MH', c: 'bg-teal-400' },
-    { t: '9:30', n: 'Liam Brooks', v: 'Checkup', s: 'Unconfirmed', i: 'LB', c: 'bg-sky-400' },
-    { t: '10:00', n: 'Lily Lopez', v: 'Cleaning ★ first visit', s: 'Confirmed', i: 'LL', c: 'bg-emerald-400' },
+  const groups: Array<{ label: string; items: string[] }> = [
+    { label: 'Daily', items: ['Overview', 'Patients', 'Appointments', 'Leads', 'Messages'] },
+    { label: 'Growth', items: ['Recall', 'Reviews', 'Social Posts', 'Analytics'] },
+    { label: 'Website', items: ['Website', 'Blog', 'SEO'] },
+    { label: 'Business', items: ['Shop', 'Integrations'] },
+  ]
+  const kpis: Array<[string, string, string]> = [
+    ['Unconfirmed · 48h', '3', 'border-amber-200 bg-amber-50 text-amber-800'],
+    ['New leads', '2', 'border-sky-200 bg-sky-50 text-sky-800'],
+    ['Forms this week', '5', 'border-emerald-200 bg-emerald-50 text-emerald-800'],
+    ['Reviews to ask', '4', 'border-violet-200 bg-violet-50 text-violet-800'],
+  ]
+  const chair: Array<{ t: string; n: string; v: string; s: 'Confirmed' | 'Unconfirmed'; i: string; c: string; g?: string }> = [
+    { t: '8:00', n: 'Mia Hayes', v: 'Cleaning', s: 'Confirmed', i: 'MH', c: 'bg-teal-400', g: '🎂' },
+    { t: '9:30', n: 'Liam Brooks', v: 'Checkup', s: 'Unconfirmed', i: 'LB', c: 'bg-sky-400', g: '$' },
+    { t: '10:00', n: 'Lily Lopez', v: 'Cleaning', s: 'Confirmed', i: 'LL', c: 'bg-emerald-400', g: '★ 📝' },
     { t: '11:30', n: 'Marcus Johnson', v: 'Consultation', s: 'Unconfirmed', i: 'MJ', c: 'bg-amber-400' },
+  ]
+  const trends: Array<[string, string, string]> = [
+    ['New patients', '12', 'text-emerald-600'],
+    ['No-show rate', '3%', 'text-emerald-600'],
+    ['Recall booked', '9', 'text-teal-700'],
   ]
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
@@ -313,18 +330,29 @@ export function DashboardMock() {
         </span>
       </div>
       <div className="flex">
-        <div className="hidden w-32 shrink-0 border-r border-gray-100 p-3 sm:block">
-          <p className="px-1 text-[0.56rem] font-bold uppercase tracking-wider text-gray-400">Daily</p>
-          <div className="mt-1.5 space-y-0.5">
-            {nav.map((item, i) => (
-              <div
-                key={item}
-                className={`rounded-md px-2 py-1 text-[0.66rem] font-semibold ${i === 0 ? 'bg-teal-50 text-teal-700' : 'text-gray-500'}`}
-              >
-                {item}
-              </div>
-            ))}
+        <div className="hidden w-36 shrink-0 border-r border-gray-100 bg-gray-50/40 p-2.5 sm:block">
+          <div className="mb-2.5 flex items-center gap-1.5 rounded-md border border-gray-100 bg-white px-1.5 py-1">
+            <span className="flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-teal-400 to-teal-700 text-[0.5rem] font-bold text-white">
+              D
+            </span>
+            <span className="truncate text-[0.6rem] font-bold text-gray-800">Dream Dental</span>
+            <span className="ml-auto rounded bg-teal-50 px-1 py-0.5 text-[0.46rem] font-bold text-teal-700">Pro</span>
           </div>
+          {groups.map((grp) => (
+            <div key={grp.label} className="mb-2 last:mb-0">
+              <p className="px-1 pb-0.5 text-[0.5rem] font-bold uppercase tracking-wider text-gray-400">{grp.label}</p>
+              <div className="space-y-0.5">
+                {grp.items.map((item) => (
+                  <div
+                    key={item}
+                    className={`rounded-md px-1.5 py-1 text-[0.62rem] font-semibold ${item === 'Overview' ? 'bg-teal-50 text-teal-700' : 'text-gray-500'}`}
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
         <div className="flex-1 space-y-3 p-4">
           <div className="flex items-center justify-between">
@@ -334,20 +362,19 @@ export function DashboardMock() {
             </div>
             <span className="rounded-md bg-teal-600 px-2.5 py-1 text-[0.62rem] font-bold text-white">Open agenda</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              ['Unconfirmed · 48h', '3', 'border-amber-200 bg-amber-50 text-amber-800'],
-              ['New leads', '2', 'border-teal-200 bg-teal-50 text-teal-800'],
-              ['Forms this week', '5', 'border-emerald-200 bg-emerald-50 text-emerald-800'],
-            ].map(([label, n, tone]) => (
+          <div className="grid grid-cols-4 gap-2">
+            {kpis.map(([label, n, tone]) => (
               <div key={label} className={`rounded-lg border p-2 ${tone}`}>
-                <p className="text-[0.56rem] font-semibold opacity-80">{label}</p>
-                <p className="text-[1rem] font-extrabold leading-tight">{n}</p>
+                <p className="text-[0.5rem] font-semibold leading-tight opacity-80">{label}</p>
+                <p className="text-[0.95rem] font-extrabold leading-tight">{n}</p>
               </div>
             ))}
           </div>
           <div className="rounded-lg border border-gray-100 p-2.5">
-            <p className="mb-1.5 text-[0.6rem] font-bold uppercase tracking-wider text-gray-400">Today&apos;s chair</p>
+            <div className="mb-1.5 flex items-center justify-between">
+              <p className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-400">Today&apos;s chair</p>
+              <p className="text-[0.54rem] font-semibold text-gray-400">8 booked · 5 confirmed</p>
+            </div>
             <div className="space-y-1">
               {chair.map((r) => (
                 <div
@@ -357,13 +384,24 @@ export function DashboardMock() {
                   <span className="w-7 text-[0.6rem] font-bold text-gray-400">{r.t}</span>
                   <Avatar initials={r.i} color={r.c} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[0.66rem] font-semibold text-gray-800">{r.n}</span>
+                    <span className="flex items-center gap-1">
+                      <span className="truncate text-[0.66rem] font-semibold text-gray-800">{r.n}</span>
+                      {r.g && <span className="shrink-0 text-[0.56rem] leading-none">{r.g}</span>}
+                    </span>
                     <span className="block text-[0.56rem] text-gray-400">{r.v}</span>
                   </span>
                   <StatusPill tone={r.s === 'Confirmed' ? 'emerald' : 'amber'}>{r.s}</StatusPill>
                 </div>
               ))}
             </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {trends.map(([label, n, tone]) => (
+              <div key={label} className="rounded-lg border border-gray-100 px-2 py-1.5">
+                <p className="text-[0.5rem] font-semibold text-gray-400">{label}</p>
+                <p className={`text-[0.8rem] font-extrabold ${tone}`}>{n}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
