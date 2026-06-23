@@ -1,0 +1,2 @@
+CREATE INDEX "form_submission_org_template_idx" ON "form_submission" USING btree ("organization_id","form_template_id","submitted_at");--> statement-breakpoint
+CREATE INDEX "form_submission_org_patient_idx" ON "form_submission" USING btree ("organization_id","patient_id");

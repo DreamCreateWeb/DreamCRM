@@ -414,7 +414,16 @@ export const formSubmission = pgTable('form_submission', {
   // provider. jsonb so the shape can grow; null until generated.
   aiSummary: jsonb('ai_summary'),
   aiSummaryAt: timestamp('ai_summary_at'),
-})
+}, (t) => [
+  // Postgres does NOT auto-index FK columns, and this is the module's
+  // highest-volume table (one row per form fill, forever). These two composites
+  // cover every hot read: the per-template stats GROUP BY + the form-edit
+  // submissions list + return-visit prefill (org, template, recent-first), and
+  // the every-30-min forms-reminder cron's per-patient "already submitted?"
+  // check + the patient timeline (org, patient).
+  index('form_submission_org_template_idx').on(t.organizationId, t.formTemplateId, t.submittedAt),
+  index('form_submission_org_patient_idx').on(t.organizationId, t.patientId),
+])
 
 // A named bundle of intake forms a patient completes in one sitting (e.g. a
 // "New Patient Packet" = intake + financial policy + consent). The public
