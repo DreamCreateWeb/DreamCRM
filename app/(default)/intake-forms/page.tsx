@@ -22,26 +22,29 @@ export default async function IntakeFormsListPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
 
-  const [templates, submissionStats, packets] = await Promise.all([
+  // All five reads are independent — fire them in one wave instead of three
+  // serial DB round-trips (the Promise.all + two trailing awaits before).
+  const [templates, submissionStats, packets, profileRows, orgRows] = await Promise.all([
     listFormTemplates(ctx.organizationId),
     getSubmissionStatsForTemplates(ctx.organizationId),
     listPackets(ctx.organizationId),
+    db
+      .select({ websiteDomain: clinicProfile.websiteDomain })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, ctx.organizationId))
+      .limit(1),
+    db
+      .select({ slug: organization.slug })
+      .from(organization)
+      .where(eq(organization.id, ctx.organizationId))
+      .limit(1),
   ])
+  const profile = profileRows[0]
+  const org = orgRows[0]
 
   const fmtDate = (d: Date) =>
     d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-  // For the "share link" preview we need the canonical site URL.
-  const [profile] = await db
-    .select({ websiteDomain: clinicProfile.websiteDomain })
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
-  const [org] = await db
-    .select({ slug: organization.slug })
-    .from(organization)
-    .where(eq(organization.id, ctx.organizationId))
-    .limit(1)
   const baseUrl = org
     ? publicSiteUrl({
         slug: org.slug,

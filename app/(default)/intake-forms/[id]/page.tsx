@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getFormTemplate, listSubmissionsForTemplate } from '@/lib/services/forms'
+import { getFormTemplate, listSubmissionsForTemplate, countSubmissionsForTemplate } from '@/lib/services/forms'
 import FormBuilder from './form-builder'
 
 interface Props {
@@ -14,9 +14,12 @@ export default async function EditFormPage({ params }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
   const { id } = await params
-  const template = await getFormTemplate(ctx.organizationId, id)
+  const [template, submissions, totalSubmissions] = await Promise.all([
+    getFormTemplate(ctx.organizationId, id),
+    listSubmissionsForTemplate(ctx.organizationId, id),
+    countSubmissionsForTemplate(ctx.organizationId, id),
+  ])
   if (!template) notFound()
-  const submissions = await listSubmissionsForTemplate(ctx.organizationId, id)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
@@ -24,7 +27,7 @@ export default async function EditFormPage({ params }: Props) {
 
       <div className="mt-10 max-w-4xl">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">
-          Submissions <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums font-mono-num">({submissions.length})</span>
+          Submissions <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums font-mono-num">({totalSubmissions})</span>
         </h2>
         {submissions.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">

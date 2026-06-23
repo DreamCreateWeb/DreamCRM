@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { formTemplate, formSubmission, formPacket, patient } from '@/lib/db/schema/clinic'
@@ -292,10 +292,18 @@ export async function getPacketWithForms(
   if (!pkt) return null
   const ids = (pkt.formIds as string[]) ?? []
   if (ids.length === 0) return null
+  // Fetch only the packet's own forms (was: SELECT * over EVERY org template,
+  // dragging each form's schema + translations jsonb on a public page render).
   const all = await db
     .select()
     .from(formTemplate)
-    .where(and(eq(formTemplate.organizationId, organizationId), isNull(formTemplate.archivedAt)))
+    .where(
+      and(
+        eq(formTemplate.organizationId, organizationId),
+        isNull(formTemplate.archivedAt),
+        inArray(formTemplate.id, ids),
+      ),
+    )
   const byId = new Map(all.map((f) => [f.id, f]))
   // Preserve packet order; drop any form that's since been archived/deleted.
   const forms = ids.map((id) => byId.get(id)).filter((f): f is FormTemplate => !!f)
@@ -464,13 +472,28 @@ export async function getReturnVisitPrefill(
   return prefillFromPriorData(prior.schema as FormTemplateSchema, prior.data as FormSubmissionData)
 }
 
+export interface SubmissionListItem {
+  id: string
+  submitterName: string | null
+  submitterEmail: string | null
+  submittedAt: Date
+}
+
+/** Recent submissions for the form-edit list. Narrowed to the columns the list
+ *  renders — the `data` jsonb (the whole answer blob) is never read there, so
+ *  fetching up to 50 of them was pure waste. */
 export async function listSubmissionsForTemplate(
   organizationId: string,
   formTemplateId: string,
   limit = 50,
-): Promise<FormSubmission[]> {
+): Promise<SubmissionListItem[]> {
   return db
-    .select()
+    .select({
+      id: formSubmission.id,
+      submitterName: formSubmission.submitterName,
+      submitterEmail: formSubmission.submitterEmail,
+      submittedAt: formSubmission.submittedAt,
+    })
     .from(formSubmission)
     .where(
       and(
@@ -480,6 +503,24 @@ export async function listSubmissionsForTemplate(
     )
     .orderBy(desc(formSubmission.submittedAt))
     .limit(limit)
+}
+
+/** True total submission count for a template (the list above is capped, so its
+ *  length can't be trusted for the header count). */
+export async function countSubmissionsForTemplate(
+  organizationId: string,
+  formTemplateId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(formSubmission)
+    .where(
+      and(
+        eq(formSubmission.organizationId, organizationId),
+        eq(formSubmission.formTemplateId, formTemplateId),
+      ),
+    )
+  return Number(row?.count) || 0
 }
 
 export interface SubmissionForReview {
@@ -501,21 +542,25 @@ export async function getSubmissionForReview(
     .where(and(eq(formSubmission.organizationId, organizationId), eq(formSubmission.id, submissionId)))
     .limit(1)
   if (!sub) return null
-  const [tmpl] = await db
-    .select()
-    .from(formTemplate)
-    .where(and(eq(formTemplate.organizationId, organizationId), eq(formTemplate.id, sub.formTemplateId)))
-    .limit(1)
+  // The template + patient lookups both depend only on the loaded submission and
+  // are independent of each other — fire them together instead of in series.
+  const [[tmpl], patientRow] = await Promise.all([
+    db
+      .select()
+      .from(formTemplate)
+      .where(and(eq(formTemplate.organizationId, organizationId), eq(formTemplate.id, sub.formTemplateId)))
+      .limit(1),
+    sub.patientId
+      ? db
+          .select({ firstName: patient.firstName, lastName: patient.lastName })
+          .from(patient)
+          .where(and(eq(patient.organizationId, organizationId), eq(patient.id, sub.patientId)))
+          .limit(1)
+      : Promise.resolve([]),
+  ])
   if (!tmpl) return null
-  let patientName: string | null = null
-  if (sub.patientId) {
-    const [p] = await db
-      .select({ firstName: patient.firstName, lastName: patient.lastName })
-      .from(patient)
-      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, sub.patientId)))
-      .limit(1)
-    if (p) patientName = `${p.firstName} ${p.lastName}`.trim()
-  }
+  const p = patientRow[0]
+  const patientName = p ? `${p.firstName} ${p.lastName}`.trim() : null
   return { submission: sub, template: tmpl, patientId: sub.patientId, patientName }
 }
 
