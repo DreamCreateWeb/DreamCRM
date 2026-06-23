@@ -412,13 +412,34 @@ export function DashboardMock() {
 /** Phone-framed clinic-branded patient portal (warm sage theme). */
 export function PortalMock() {
   return (
-    <div className="mx-auto w-[232px] overflow-hidden rounded-[2rem] border-[6px] border-gray-900 bg-[#FAF7F2] text-left shadow-xl" aria-hidden="true">
-      <div className="flex items-center gap-2 border-b border-[#E8E2D9] px-3 py-2.5">
+    <div className="mx-auto w-[230px] overflow-hidden rounded-[2.6rem] border-[8px] border-gray-900 bg-[#FAF7F2] text-left shadow-2xl shadow-gray-500/30 ring-1 ring-black/5" aria-hidden="true">
+      {/* status bar + notch */}
+      <div className="relative flex items-center justify-between bg-white px-4 pt-2 pb-1 text-[#1C1A17]">
+        <span className="text-[0.5rem] font-bold tabular-nums">9:41</span>
+        <span className="absolute left-1/2 top-1.5 h-3 w-14 -translate-x-1/2 rounded-full bg-gray-900" />
+        <span className="flex items-center gap-1">
+          <span className="flex items-end gap-[1.5px]">
+            <span className="h-1 w-[2px] rounded-sm bg-current" />
+            <span className="h-[6px] w-[2px] rounded-sm bg-current" />
+            <span className="h-2 w-[2px] rounded-sm bg-current" />
+            <span className="h-2.5 w-[2px] rounded-sm bg-current opacity-30" />
+          </span>
+          <svg viewBox="0 0 16 11" className="h-2 w-2.5 fill-current" aria-hidden="true">
+            <path d="M8 10.5 .4 3A10.7 10.7 0 0 1 15.6 3L8 10.5Z" />
+          </svg>
+          <span className="relative inline-flex h-2 w-3.5 items-center rounded-[2px] border border-current px-[1px]">
+            <span className="h-1 w-2/3 rounded-[1px] bg-current" />
+            <span className="absolute -right-[2.5px] top-1/2 h-[5px] w-[1.5px] -translate-y-1/2 rounded-r-sm bg-current" />
+          </span>
+        </span>
+      </div>
+      {/* app header */}
+      <div className="flex items-center gap-2 border-b border-[#E8E2D9] bg-white px-3 py-2.5">
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7E957F] text-[0.55rem] font-bold text-white">D</span>
         <span className="text-[0.7rem] font-bold text-[#1C1A17]">Dream Dental</span>
         <span className="ml-auto rounded-full bg-[#7E957F] px-2 py-0.5 text-[0.5rem] font-bold text-white">Book</span>
       </div>
-      <div className="space-y-2 p-3">
+      <div className="space-y-2.5 p-3">
         <p className="font-serif text-[0.92rem] font-semibold text-[#7E957F]">Good morning, Mia</p>
         <div className="rounded-xl border border-l-4 border-[#E8E2D9] border-l-[#7E957F] bg-white p-2.5">
           <div className="flex items-center gap-2">
@@ -441,6 +462,14 @@ export function PortalMock() {
             A few questions before your visit — saves you the clipboard.
           </p>
         </div>
+        <div className="rounded-xl bg-gradient-to-br from-[#7E957F] to-[#5f7561] p-2.5 text-white">
+          <div className="flex items-center justify-between">
+            <p className="text-[0.5rem] font-bold uppercase tracking-wider opacity-80">Smile Club</p>
+            <span className="text-[0.6rem]" aria-hidden="true">✨</span>
+          </div>
+          <p className="mt-0.5 text-[0.7rem] font-bold">Member · 2 cleanings left</p>
+          <p className="text-[0.5rem] opacity-80">Renews Jan 2027</p>
+        </div>
         <div className="grid grid-cols-3 gap-1.5">
           {['Book', 'Message', 'Billing'].map((label) => (
             <div key={label} className="rounded-lg border border-[#E8E2D9] bg-white px-1.5 py-2 text-center">
@@ -449,11 +478,16 @@ export function PortalMock() {
           ))}
         </div>
       </div>
+      {/* bottom tab bar */}
       <div className="flex justify-around border-t border-[#E8E2D9] bg-white px-2 py-1.5 text-[0.5rem] font-semibold text-gray-400">
         <span className="text-[#7E957F]">Home</span>
         <span>Visits</span>
         <span>Messages</span>
         <span>More</span>
+      </div>
+      {/* home indicator */}
+      <div className="flex justify-center bg-white pb-1.5 pt-1">
+        <span className="h-1 w-20 rounded-full bg-gray-900/70" />
       </div>
     </div>
   )
