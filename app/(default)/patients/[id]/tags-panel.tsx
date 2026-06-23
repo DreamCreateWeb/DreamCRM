@@ -111,7 +111,7 @@ export default function TagsPanel({
           ))}
         </div>
       )}
-      {error && <p className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
     </div>
   )
 }

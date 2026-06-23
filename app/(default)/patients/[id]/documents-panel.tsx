@@ -104,8 +104,8 @@ export default function DocumentsPanel({
           onChange={onPick}
           className="hidden"
         />
-        <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">PDF or image, up to 15MB.</p>
-        {error && <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">{error}</p>}
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">PDF or image, up to 15MB.</p>
+        {error && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       </div>
 
       {docs.length === 0 ? (
@@ -127,7 +127,7 @@ export default function DocumentsPanel({
                 >
                   {d.label || d.fileName}
                 </a>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                <p className="text-xs text-gray-400 dark:text-gray-500">
                   {d.label ? `${d.fileName} · ` : ''}
                   {formatFileSize(d.sizeBytes)}
                   {d.uploadedByName ? ` · ${d.uploadedByName}` : ''}
@@ -142,7 +142,7 @@ export default function DocumentsPanel({
                 onClick={() => remove(d.id)}
                 disabled={pending}
                 aria-label={`Remove ${d.label || d.fileName}`}
-                className="shrink-0 text-[11px] text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 px-1 disabled:opacity-50"
+                className="shrink-0 text-xs text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 px-1 disabled:opacity-50"
               >
                 Remove
               </button>

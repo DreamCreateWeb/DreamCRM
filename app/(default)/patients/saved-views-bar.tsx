@@ -185,7 +185,7 @@ export default function SavedViewsBar({
       {/* ── Launchpad: act on everyone matching the current view ──────── */}
       {!empty && matchCount > 0 && (
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-gray-400 dark:text-gray-500">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
             {matchCount} {matchCount === 1 ? 'match' : 'matches'} ·
           </span>
 

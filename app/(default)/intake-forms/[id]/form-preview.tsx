@@ -93,7 +93,7 @@ function PreviewField({ field }: { field: FormField }) {
         {field.required && <span className="text-rose-500"> *</span>}
         {field.visibleWhen && (
           <span
-            className="ml-1.5 align-middle text-[0.625rem] font-medium uppercase tracking-wide text-indigo-600 dark:text-indigo-400"
+            className="ml-1.5 align-middle text-xs font-medium uppercase tracking-wide text-indigo-600 dark:text-indigo-400"
             title="Shown only when its condition is met"
           >
             · conditional

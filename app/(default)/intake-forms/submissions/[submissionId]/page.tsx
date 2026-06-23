@@ -35,7 +35,7 @@ function SubmissionValue({ value }: { value: FormFieldValue | undefined }) {
             ) : (
               <span className="inline-flex items-center gap-1 rounded-[var(--r-sm)] bg-gray-500/10 px-2 py-1 text-xs underline">📎 {f.name || 'File'}</span>
             )}
-            {f.side && <span className="mt-0.5 block text-center text-[0.625rem] uppercase tracking-wide text-gray-400">{f.side}</span>}
+            {f.side && <span className="mt-0.5 block text-center text-xs uppercase tracking-wide text-gray-400">{f.side}</span>}
           </a>
         ))}
       </div>

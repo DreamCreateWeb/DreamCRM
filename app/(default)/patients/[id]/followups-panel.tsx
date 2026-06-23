@@ -122,7 +122,7 @@ export default function FollowupsPanel({
           ))}
         </ul>
       )}
-      {error && <p className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
     </div>
   )
 }
@@ -168,7 +168,7 @@ function FollowupItem({
         <p className={`text-xs ${done ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'}`}>
           {f.title}
         </p>
-        <p className="text-[11px] text-gray-400 dark:text-gray-500">
+        <p className="text-xs text-gray-400 dark:text-gray-500">
           {!done && (
             <span className={DUE_TONE[due]}>{formatDueLabel(f.dueDate)}</span>
           )}
@@ -179,7 +179,7 @@ function FollowupItem({
         type="button"
         onClick={onRemove}
         aria-label="Remove follow-up"
-        className="shrink-0 text-[11px] text-gray-300 opacity-0 group-hover:opacity-100 hover:text-rose-600 dark:text-gray-600 dark:hover:text-rose-400"
+        className="shrink-0 text-xs text-gray-300 opacity-0 group-hover:opacity-100 hover:text-rose-600 dark:text-gray-600 dark:hover:text-rose-400"
       >
         ✕
       </button>

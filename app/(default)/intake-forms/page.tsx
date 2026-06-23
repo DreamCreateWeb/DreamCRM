@@ -140,17 +140,9 @@ export default async function IntakeFormsListPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Plain <a> (not ActionButton) because the shared button
-                        primitive doesn't forward target/rel for new-tab links;
-                        styled to match a secondary ActionButton. */}
-                    <a
-                      href={fillUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-sm bg-[color:var(--color-surface-2)] border-[color:var(--color-hairline)] hover:border-[color:var(--color-hairline-strong)] text-gray-800 dark:text-gray-300 transition-colors"
-                    >
+                    <ActionButton variant="secondary" size="sm" href={fillUrl} target="_blank">
                       Preview ↗
-                    </a>
+                    </ActionButton>
                     <ActionButton variant="ghost" size="sm" href={`/intake-forms/${t.id}`}>
                       Edit
                     </ActionButton>
