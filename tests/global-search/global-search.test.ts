@@ -162,7 +162,8 @@ describe('globalSearch — querying', () => {
     })
 
     const visits = groups.find((g) => g.label === 'Upcoming visits')!
-    expect(visits.results[0].href).toBe('/appointments?q=Mia%20Hayes')
+    // Deep-links straight to the visit's drawer (?appt=) rather than a name filter.
+    expect(visits.results[0].href).toBe('/appointments?appt=a1')
 
     const threads = groups.find((g) => g.label === 'Conversations')!
     expect(threads.results[0].href).toBe('/messages?thread=t1')
