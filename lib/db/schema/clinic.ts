@@ -383,6 +383,10 @@ export const formTemplate = pgTable(
     // rides a booking confirmation for a given patient (new patients get the
     // full intake; returning patients a short update). Default 'all'.
     autoSendAudience: text('auto_send_audience').notNull().default('all'),
+    // Cached per-locale translations of the form's display strings, keyed by
+    // locale → a parallel FormTemplateSchema (same field ids, translated
+    // labels/help/options/body/section titles). { es?: FormTemplateSchema }.
+    translations: jsonb('translations'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

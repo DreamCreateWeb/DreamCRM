@@ -925,6 +925,37 @@ const DEMO_INTAKE_SUMMARY = {
   alerts: ['Mild dental anxiety — likes a heads-up before each step', 'Reports sensitivity on an upper right molar'],
 } as const
 
+// Hand-written Spanish translation of the default intake template (keyed to its
+// field/section ids) so the demo showcases the language toggle without an AI
+// call. Missing keys fall back to English via localizeSchema.
+const DEMO_FORM_ES: Record<string, string> = {
+  's:patient_info': 'Sobre usted', 'sd:patient_info': 'Lo básico — lo usamos para iniciar su expediente.',
+  'f:first_name': 'Nombre', 'f:last_name': 'Apellido', 'f:date_of_birth': 'Fecha de nacimiento',
+  'f:email': 'Correo electrónico', 'f:phone': 'Teléfono', 'f:address_line1': 'Dirección',
+  'f:city': 'Ciudad', 'f:state': 'Estado', 'f:postal_code': 'Código postal',
+  's:insurance': 'Seguro', 'sd:insurance': 'Omítalo si paga de su bolsillo — lo resolvemos en la cita.',
+  'f:insurance_card': 'Tome una foto de su tarjeta de seguro',
+  'h:insurance_card': 'Frente y reverso — extraemos los datos para que no tenga que escribirlos.',
+  'f:insurance_provider': 'Compañía de seguro', 'f:insurance_policy_number': 'Número de póliza / miembro',
+  'f:insurance_group_number': 'Número de grupo',
+  's:medical': 'Historial médico', 'sd:medical': 'Cualquier cosa que debamos saber antes de tratarlo.',
+  'f:conditions': '¿Tiene actualmente alguna de las siguientes?',
+  'o:conditions:0': 'Diabetes', 'o:conditions:1': 'Presión alta', 'o:conditions:2': 'Problema cardíaco',
+  'o:conditions:3': 'Embarazo', 'o:conditions:4': 'Ansiedad o pánico', 'o:conditions:5': 'Ninguna de las anteriores',
+  'f:has_allergies': '¿Tiene alguna alergia?', 'f:allergies': '¿A qué es alérgico? (medicamentos, látex, etc.)',
+  'f:medications': 'Medicamentos que toma con regularidad',
+  's:dental': 'Historial dental', 'f:last_visit': '¿Cuándo fue su última visita dental?',
+  'f:concerns': '¿Algo específico que le gustaría que revisáramos?',
+  'f:concern_photo': '¿Tiene una foto de lo que le molesta?',
+  'f:anxiety_level': '¿Cómo se siente generalmente con las visitas al dentista?',
+  'o:anxiety_level:0': 'Totalmente cómodo', 'o:anxiety_level:1': 'Un poco nervioso',
+  'o:anxiety_level:2': 'Ansioso — vaya despacio conmigo', 'o:anxiety_level:3': 'Me da pavor',
+  's:consent': 'Consentimiento', 'sd:consent': 'Reconocimiento estándar para poder atenderlo.',
+  'f:privacy_notice': 'Aviso de Prácticas de Privacidad',
+  'f:hipaa': 'Reconozco haber recibido el Aviso de Prácticas de Privacidad (HIPAA).',
+  'f:signature': 'Firma', 'h:signature': 'Escriba su nombre completo para firmar.',
+}
+
 // Clinic-ops demo settings — exercises the new Practice setup controls.
 // Three chairs so the demo can take simultaneous bookings; a custom 60-min
 // "Implant consult" type on top of the standard catalog so the visit-type
@@ -1551,7 +1582,7 @@ async function seedSecondDemoIntakeForm(orgId: string) {
  */
 async function upgradeDemoIntakeForm(orgId: string): Promise<void> {
   const [form] = await db
-    .select({ id: schema.formTemplate.id, schema: schema.formTemplate.schema })
+    .select({ id: schema.formTemplate.id, schema: schema.formTemplate.schema, translations: schema.formTemplate.translations })
     .from(schema.formTemplate)
     .where(and(eq(schema.formTemplate.organizationId, orgId), eq(schema.formTemplate.slug, 'new-patient-intake')))
     .limit(1)
@@ -1562,6 +1593,14 @@ async function upgradeDemoIntakeForm(orgId: string): Promise<void> {
     await db
       .update(schema.formTemplate)
       .set({ schema: DEFAULT_INTAKE_TEMPLATE, updatedAt: new Date() })
+      .where(eq(schema.formTemplate.id, form.id))
+  }
+
+  // Seed the hand-written Spanish translation so the language toggle showcases.
+  if (!(form.translations as { es?: unknown } | null)?.es) {
+    await db
+      .update(schema.formTemplate)
+      .set({ translations: { es: DEMO_FORM_ES }, updatedAt: new Date() })
       .where(eq(schema.formTemplate.id, form.id))
   }
 
@@ -2855,6 +2894,13 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   await seedDefaultIntakeForm(orgId)
   // A second form so the "Send intake" dropdown (multi-form picker) is visible.
   await seedSecondDemoIntakeForm(orgId)
+  // Seed the hand-written Spanish translation on the default form (fresh demos).
+  // A targeted update by slug — no select, so it doesn't shift the seeder test's
+  // staged select queue (the self-heal path uses upgradeDemoIntakeForm instead).
+  await db
+    .update(schema.formTemplate)
+    .set({ translations: { es: DEMO_FORM_ES } })
+    .where(and(eq(schema.formTemplate.organizationId, orgId), eq(schema.formTemplate.slug, 'new-patient-intake')))
 
   // Form submissions — one per persona that already filled out the intake.
   // Persona [1] (new patient, future visit) is intentionally *missing* a

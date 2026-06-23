@@ -5,7 +5,7 @@ import {
   resolveSiteBasePath,
 } from '@/lib/services/clinic-site'
 import { getFormTemplateBySlug } from '@/lib/services/forms'
-import type { FormTemplateSchema } from '@/lib/types/forms'
+import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { readableInk } from '@/lib/clinic-site-theme'
 import IntakeFormRunner from './intake-form-runner'
@@ -132,6 +132,7 @@ export default async function IntakeFormPage({ params }: Props) {
                 clinicName={name}
                 action={submitIntakeForm}
                 ocrAction={readInsuranceCardAction}
+                translations={template.translations as FormTranslations | null}
               />
             </div>
           </ScrollReveal>

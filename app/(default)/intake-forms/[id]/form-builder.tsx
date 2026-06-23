@@ -20,7 +20,8 @@ interface TriggerCandidate {
   type: FormFieldType
   options?: string[]
 }
-import { archiveFormAction, saveFormAction } from '../actions'
+import { archiveFormAction, saveFormAction, translateFormAction } from '../actions'
+import type { FormTranslations } from '@/lib/types/forms'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import FormPreview from './form-preview'
@@ -81,7 +82,27 @@ export default function FormBuilder({ template }: Props) {
   const [pending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [translating, setTranslating] = useState(false)
+  const [hasSpanish, setHasSpanish] = useState(!!(template.translations as FormTranslations | null)?.es)
   const confirm = useConfirm()
+
+  function handleTranslate() {
+    if (translating) return
+    setTranslating(true)
+    setError(null)
+    void translateFormAction(template.id)
+      .then((res) => {
+        if (res.ok) {
+          setHasSpanish(true)
+          setSaved(true)
+          setTimeout(() => setSaved(false), 2000)
+        } else {
+          setError(res.error)
+        }
+      })
+      .catch(() => setError('Could not translate'))
+      .finally(() => setTranslating(false))
+  }
 
   function updateSection(idx: number, patch: Partial<FormSection>) {
     setSections((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)))
@@ -364,6 +385,15 @@ export default function FormBuilder({ template }: Props) {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleTranslate}
+            disabled={translating || pending}
+            title="Generate a Spanish version patients can switch to"
+            className="text-sm font-medium text-violet-700 hover:underline disabled:opacity-50 dark:text-violet-300"
+          >
+            {translating ? 'Translating…' : hasSpanish ? '✨ Update Spanish' : '✨ Add Spanish'}
+          </button>
           <button
             type="button"
             onClick={handleArchive}

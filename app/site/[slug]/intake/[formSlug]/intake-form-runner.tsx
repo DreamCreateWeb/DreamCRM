@@ -8,8 +8,35 @@ import type {
   FormSubmissionData,
   FormTemplateSchema,
 } from '@/lib/types/forms'
-import { isDisplayOnlyField, isFieldVisible, sanitizeFileRefs } from '@/lib/types/forms'
+import { isDisplayOnlyField, isFieldVisible, localizeSchema, sanitizeFileRefs } from '@/lib/types/forms'
+import type { FormTranslations } from '@/lib/types/forms'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
+
+type Lang = 'en' | 'es'
+
+/** UI-chrome strings (field labels come from the translated schema). */
+const STR: Record<Lang, {
+  submit: string; submitting: string; required: (l: string) => string; allSet: string
+  received: (c: string) => string; confidential: (c: string) => string; welcomeBack: string
+  select: string; yes: string; no: string; signPlaceholder: string
+}> = {
+  en: {
+    submit: 'Submit', submitting: 'Submitting…',
+    required: (l) => `“${l}” is required.`, allSet: 'You’re all set.',
+    received: (c) => `${c} has your form. We’ll see you at your appointment.`,
+    confidential: (c) => `Your responses go directly to ${c} and are kept confidential.`,
+    welcomeBack: 'Welcome back. We filled in what you told us last time — just check everything is still right and update anything that’s changed.',
+    select: 'Select…', yes: 'Yes', no: 'No', signPlaceholder: 'Type your full name to sign',
+  },
+  es: {
+    submit: 'Enviar', submitting: 'Enviando…',
+    required: (l) => `«${l}» es obligatorio.`, allSet: 'Todo listo.',
+    received: (c) => `${c} ya tiene su formulario. Nos vemos en su cita.`,
+    confidential: (c) => `Sus respuestas van directamente a ${c} y se mantienen confidenciales.`,
+    welcomeBack: 'Bienvenido de nuevo. Completamos lo que nos dijo la última vez — solo confirme que todo sigue correcto y actualice lo que haya cambiado.',
+    select: 'Seleccione…', yes: 'Sí', no: 'No', signPlaceholder: 'Escriba su nombre completo para firmar',
+  },
+}
 import type { InsuranceCardFields } from '@/lib/services/insurance-ocr'
 
 export type OcrAction = (
@@ -54,11 +81,22 @@ interface Props {
   ocrAction?: OcrAction
   /** Return-visit pre-fill — a known patient's prior answers (portal). */
   initialValues?: FormSubmissionData
+  /** Cached translations — when es exists, a language toggle appears. */
+  translations?: FormTranslations | null
 }
 
-export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues }: Props) {
+export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues, translations }: Props) {
   const [values, setValues] = useState<FormSubmissionData>(() => initialValues ?? {})
   const prefilled = !!initialValues && Object.keys(initialValues).length > 0
+  const hasEs = !!translations?.es && Object.keys(translations.es).length > 0
+  const [lang, setLang] = useState<Lang>('en')
+  const t = STR[lang]
+  // The schema used for DISPLAY (labels/options) + validation messages. Field
+  // ids + types are preserved, so submitted values key the same in any language.
+  const displaySchema = useMemo(
+    () => (lang === 'es' && translations?.es ? localizeSchema(schema, translations.es) : schema),
+    [lang, schema, translations],
+  )
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -96,7 +134,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
   }
 
   function validate(): { fieldId: string; message: string } | null {
-    for (const section of schema.sections) {
+    for (const section of displaySchema.sections) {
       for (const field of section.fields) {
         // Display-only blocks carry no value; a conditionally-hidden field
         // isn't required while hidden.
@@ -109,7 +147,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
           (Array.isArray(v) && v.length === 0) ||
           (field.type === 'yes_no' && typeof v !== 'boolean')
         ) {
-          return { fieldId: field.id, message: `“${field.label}” is required.` }
+          return { fieldId: field.id, message: t.required(field.label) }
         }
       }
     }
@@ -180,10 +218,10 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
           </svg>
         </div>
         <h2 className="text-3xl font-bold tracking-[-0.02em] mb-3" style={{ color: INK }}>
-          You&rsquo;re all set.
+          {t.allSet}
         </h2>
         <p className="leading-relaxed max-w-sm mx-auto" style={{ color: INK_MUTED }}>
-          {clinicName} has your form. We&rsquo;ll see you at your appointment.
+          {t.received(clinicName)}
         </p>
       </div>
     )
@@ -191,13 +229,30 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {prefilled && (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}`, color: INK_MUTED }}>
-          <span style={{ color: INK, fontWeight: 600 }}>Welcome back.</span> We filled in what you told us last
-          time — just check everything is still right and update anything that&rsquo;s changed.
+      {hasEs && (
+        <div className="flex justify-end">
+          <div className="inline-flex overflow-hidden rounded-full text-xs font-semibold" style={{ border: `1px solid ${BORDER}` }}>
+            {(['en', 'es'] as Lang[]).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLang(l)}
+                className="px-3 py-1.5"
+                style={lang === l ? { backgroundColor: brand, color: 'white' } : { backgroundColor: SURFACE, color: INK_MUTED }}
+                aria-pressed={lang === l}
+              >
+                {l === 'en' ? 'English' : 'Español'}
+              </button>
+            ))}
+          </div>
         </div>
       )}
-      {schema.sections.map((section, si) => (
+      {prefilled && (
+        <div className="rounded-xl px-4 py-3 text-sm" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}`, color: INK_MUTED }}>
+          {t.welcomeBack}
+        </div>
+      )}
+      {displaySchema.sections.map((section, si) => (
         <section
           key={section.id}
           className="rounded-2xl p-6 sm:p-8 space-y-5"
@@ -229,6 +284,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
                   orgId={orgId}
                   ocrAction={ocrAction}
                   onOcrFill={fillFromCard}
+                  t={t}
                 />
               ))}
           </div>
@@ -245,10 +301,10 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         className="w-full py-4 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50"
         style={{ backgroundColor: brand }}
       >
-        {status === 'pending' ? 'Submitting…' : 'Submit'}
+        {status === 'pending' ? t.submitting : t.submit}
       </button>
       <p className="text-xs text-center" style={{ color: INK_MUTED }}>
-        Your responses go directly to {clinicName} and are kept confidential.
+        {t.confidential(clinicName)}
       </p>
     </form>
   )
@@ -262,6 +318,7 @@ function FieldInput({
   orgId,
   ocrAction,
   onOcrFill,
+  t,
 }: {
   field: FormField
   value: FormFieldValue | undefined
@@ -270,6 +327,7 @@ function FieldInput({
   orgId: string
   ocrAction?: OcrAction
   onOcrFill?: (fields: InsuranceCardFields) => void
+  t: (typeof STR)[Lang]
 }) {
   const labelEl = (
     <label
@@ -358,7 +416,7 @@ function FieldInput({
             className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
             style={inputStyle}
           >
-            <option value="">Select…</option>
+            <option value="">{t.select}</option>
             {field.options.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
@@ -445,7 +503,7 @@ function FieldInput({
                 }}
                 aria-pressed={value === v}
               >
-                {v ? 'Yes' : 'No'}
+                {v ? t.yes : t.no}
               </button>
             ))}
           </div>
@@ -461,7 +519,7 @@ function FieldInput({
             type="text"
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Type your full name to sign"
+            placeholder={t.signPlaceholder}
             required={field.required}
             className="w-full px-4 py-3 rounded-xl text-lg font-medium italic focus:outline-none focus:ring-2"
             // An italic-serif stack reads as a "signature" reliably across

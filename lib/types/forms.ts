@@ -137,6 +137,61 @@ export const SYSTEM_FIELD_KEYS = [
 ] as const
 export type SystemFieldKey = (typeof SYSTEM_FIELD_KEYS)[number]
 
+/** A locale → flat translation map ({ key → translated string }). Keys are
+ *  produced by `extractTranslatableStrings`; missing keys fall back to English. */
+export type FormTranslationMap = Record<string, string>
+export type FormTranslations = Partial<Record<'es', FormTranslationMap>>
+
+/** Every user-visible string in a form, keyed stably so a translation can be
+ *  looked up per string. Pure. */
+export function extractTranslatableStrings(schema: FormTemplateSchema): Array<{ key: string; text: string }> {
+  const out: Array<{ key: string; text: string }> = []
+  const push = (key: string, text: string | null | undefined) => {
+    if (typeof text === 'string' && text.trim() !== '') out.push({ key, text })
+  }
+  for (const section of schema?.sections ?? []) {
+    push(`s:${section.id}`, section.title)
+    push(`sd:${section.id}`, section.description)
+    for (const field of section.fields ?? []) {
+      push(`f:${field.id}`, field.label)
+      push(`h:${field.id}`, field.help)
+      if (field.type === 'content') push(`b:${field.id}`, field.body)
+      if ('options' in field && Array.isArray(field.options)) {
+        field.options.forEach((o, i) => push(`o:${field.id}:${i}`, o))
+      }
+    }
+  }
+  return out
+}
+
+/** Produce a display copy of the schema with strings replaced from `map`
+ *  (per-string fallback to English when a key is missing). Field ids + types are
+ *  untouched so submitted values still key correctly. Pure. */
+export function localizeSchema(schema: FormTemplateSchema, map: FormTranslationMap | null | undefined): FormTemplateSchema {
+  if (!map) return schema
+  const tr = (key: string, fallback: string | null | undefined) =>
+    (typeof map[key] === 'string' && map[key].trim() !== '' ? map[key] : fallback) ?? ''
+  return {
+    sections: (schema?.sections ?? []).map((section) => ({
+      ...section,
+      title: tr(`s:${section.id}`, section.title),
+      description: section.description ? tr(`sd:${section.id}`, section.description) : section.description,
+      fields: (section.fields ?? []).map((field) => {
+        const next = {
+          ...field,
+          label: tr(`f:${field.id}`, field.label),
+          help: field.help ? tr(`h:${field.id}`, field.help) : field.help,
+        } as FormField
+        if (next.type === 'content') (next as ContentField).body = tr(`b:${field.id}`, (field as ContentField).body)
+        if ('options' in next && Array.isArray((next as ChoiceField).options)) {
+          ;(next as ChoiceField).options = (field as ChoiceField).options.map((o, i) => tr(`o:${field.id}:${i}`, o))
+        }
+        return next
+      }),
+    })),
+  }
+}
+
 /** Who a form auto-sends to with a booking confirmation. */
 export type FormAutoSendAudience = 'all' | 'new' | 'returning'
 

@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { getMyPendingForms, getMyRecords } from '@/lib/services/patient-portal'
 import { getFormTemplate, getReturnVisitPrefill } from '@/lib/services/forms'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
-import type { FormTemplateSchema } from '@/lib/types/forms'
+import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import IntakeFormRunner from '@/app/site/[slug]/intake/[formSlug]/intake-form-runner'
 import { submitPatientIntakeAction, readPatientInsuranceCardAction } from './actions'
 import {
@@ -65,6 +65,7 @@ export default async function PortalFormsPage({
             action={submitPatientIntakeAction}
             ocrAction={readPatientInsuranceCardAction}
             initialValues={initialValues}
+            translations={template.translations as FormTranslations | null}
           />
         </div>
       )

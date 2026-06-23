@@ -11,6 +11,7 @@ import {
   updateFormTemplate,
 } from '@/lib/services/forms'
 import { summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
+import { generateFormTranslation } from '@/lib/services/form-translate'
 import { DEFAULT_INTAKE_TEMPLATE } from '@/lib/types/forms'
 
 async function requireClinicAdmin() {
@@ -54,6 +55,29 @@ export async function archiveFormAction(id: string) {
   await archiveFormTemplate(ctx.organizationId, id)
   revalidatePath('/intake-forms')
   redirect('/intake-forms')
+}
+
+/** Generate (and cache) the Spanish translation of a form. Owner/admin. */
+export async function translateFormAction(
+  templateId: string,
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const ctx = await requireClinicAdmin()
+  const res = await generateFormTranslation({ organizationId: ctx.organizationId, templateId, locale: 'es' })
+  if (res.ok) {
+    revalidatePath(`/intake-forms/${templateId}`)
+    return { ok: true, count: res.count }
+  }
+  return {
+    ok: false,
+    error:
+      res.reason === 'no_allowance'
+        ? "You've used this month's AI translations."
+        : res.reason === 'not_configured'
+          ? 'AI translation isn’t configured.'
+          : res.reason === 'empty'
+            ? 'Add some questions first.'
+            : 'Could not translate — please try again.',
+  }
 }
 
 /** Generate (or re-generate) the AI pre-visit summary for a submission. Any

@@ -1,0 +1,1 @@
+ALTER TABLE "form_template" ADD COLUMN "translations" jsonb;
