@@ -274,7 +274,7 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         id: `apt-${v.id}`,
         label: `${v.firstName} ${v.lastName} — ${v.type.replace('_', ' ')}`,
         sublabel: fmtWhen(v.startTime),
-        href: `/appointments?q=${encodeURIComponent(`${v.firstName} ${v.lastName}`)}`,
+        href: `/appointments?appt=${v.id}`,
         kind: 'appointment',
       })),
     })

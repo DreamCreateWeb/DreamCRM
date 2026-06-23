@@ -459,7 +459,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       occurredAt: a.createdAt,
       title: `${a.firstName} ${a.lastName} booked ${a.type.replace('_', ' ')}`,
       subtitle: `for ${a.startTime.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
-      href: '/appointments',
+      href: `/appointments?appt=${a.id}`,
     })
   }
   for (const s of recentIntake) {

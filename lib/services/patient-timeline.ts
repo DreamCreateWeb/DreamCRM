@@ -526,7 +526,7 @@ export async function getPatientTimeline(
       }),
       status: a.status,
       direction: null,
-      href: '/appointments',
+      href: `/appointments?appt=${a.id}`,
       body: a.notes,
       agingDays: aging,
     })

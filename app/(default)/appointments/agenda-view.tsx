@@ -169,7 +169,10 @@ export default function AgendaView({
 }) {
   const router = useRouter()
   const params = useSearchParams()
-  const [openDetail, setOpenDetail] = useState<string | null>(null)
+  // ?appt=<id> deep-links straight to a visit's drawer (Overview activity, the
+  // patient timeline, ⌘K). Like ?new=1, we seed React state from the param then
+  // strip it so closing + refreshing doesn't re-pop the drawer.
+  const [openDetail, setOpenDetail] = useState<string | null>(() => params.get('appt'))
   // ?new=1 (the header "+ New ▾" quick-create + ⌘K "Add a booking") opens the
   // new-booking drawer on arrival, then we strip the param so closing it and
   // refreshing doesn't pop the drawer back open.
@@ -186,12 +189,14 @@ export default function AgendaView({
   const [bulkPending, startBulk] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
 
-  // Consume the ?new=1 deep-link once: drop it from the URL (replace, no
-  // history entry) so the drawer's open state is owned by React from here on.
+  // Consume the ?new=1 / ?appt= deep-links once: drop them from the URL
+  // (replace, no history entry) so each drawer's open state is owned by React
+  // from here on.
   useEffect(() => {
-    if (params.get('new') !== '1') return
+    if (params.get('new') !== '1' && !params.get('appt')) return
     const next = new URLSearchParams(params.toString())
     next.delete('new')
+    next.delete('appt')
     const qs = next.toString()
     router.replace(qs ? `/appointments?${qs}` : '/appointments')
     // eslint-disable-next-line react-hooks/exhaustive-deps
