@@ -4,8 +4,11 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getSubmissionForReview } from '@/lib/services/forms'
+import { getCachedSummary } from '@/lib/services/intake-summary'
+import { aiConfigured } from '@/lib/ai'
 import type { FormTemplateSchema, FormSubmissionData, FormFieldValue } from '@/lib/types/forms'
 import { isFileRefArray, sanitizeFileRefs } from '@/lib/types/forms'
+import PreVisitSummary from './previsit-summary'
 
 interface Props {
   params: Promise<{ submissionId: string }>
@@ -57,6 +60,7 @@ export default async function SubmissionPage({ params }: Props) {
   const { submission, template, patientId, patientName } = result
   const schema = template.schema as FormTemplateSchema
   const data = (submission.data ?? {}) as FormSubmissionData
+  const cachedSummary = await getCachedSummary(ctx.organizationId, submissionId)
   const submittedAt = new Date(submission.submittedAt).toLocaleString('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -92,6 +96,8 @@ export default async function SubmissionPage({ params }: Props) {
           </p>
         )}
       </div>
+
+      <PreVisitSummary submissionId={submissionId} initial={cachedSummary} aiEnabled={aiConfigured()} />
 
       <div className="v2-card divide-y divide-[color:var(--color-hairline)]">
         {(schema?.sections ?? []).map((section) => (

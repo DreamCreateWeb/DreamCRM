@@ -401,6 +401,11 @@ export const formSubmission = pgTable('form_submission', {
   submitterEmail: text('submitter_email'),
   submitterPhone: text('submitter_phone'),
   submittedAt: timestamp('submitted_at').notNull().defaultNow(),
+  // AI pre-visit summary (generated on demand, cached): a one-line summary + a
+  // list of medical alerts (allergies / meds / conditions / anxiety) for the
+  // provider. jsonb so the shape can grow; null until generated.
+  aiSummary: jsonb('ai_summary'),
+  aiSummaryAt: timestamp('ai_summary_at'),
 })
 
 // Public website contact-form submissions. Distinct from `patient` —

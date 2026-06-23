@@ -10,6 +10,7 @@ import {
   listFormTemplates,
   updateFormTemplate,
 } from '@/lib/services/forms'
+import { summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
 import { DEFAULT_INTAKE_TEMPLATE } from '@/lib/types/forms'
 
 async function requireClinicAdmin() {
@@ -53,4 +54,30 @@ export async function archiveFormAction(id: string) {
   await archiveFormTemplate(ctx.organizationId, id)
   revalidatePath('/intake-forms')
   redirect('/intake-forms')
+}
+
+/** Generate (or re-generate) the AI pre-visit summary for a submission. Any
+ *  clinic staff can run it — it's read-only over an existing submission. */
+export async function summarizeSubmissionAction(
+  submissionId: string,
+  force = false,
+): Promise<{ ok: true; summary: IntakeSummary } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Clinic tenants only' }
+  const res = await summarizeSubmission({ organizationId: ctx.organizationId, submissionId, force })
+  if (res.ok) {
+    revalidatePath(`/intake-forms/submissions/${submissionId}`)
+    return { ok: true, summary: res.summary }
+  }
+  return {
+    ok: false,
+    error:
+      res.reason === 'no_allowance'
+        ? "You've used this month's AI summaries."
+        : res.reason === 'empty'
+          ? 'Nothing to summarize on this form.'
+          : res.reason === 'not_configured'
+            ? 'AI summaries aren’t configured.'
+            : 'Could not summarize — please try again.',
+  }
 }

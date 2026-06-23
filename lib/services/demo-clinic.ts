@@ -918,6 +918,13 @@ const DEMO_INTAKE_FILE_DATA = {
   ],
 } as const
 
+// A pre-generated AI pre-visit summary for the showcase submission (no AI call
+// in the demo). Mirrors what summarizeSubmission would produce.
+const DEMO_INTAKE_SUMMARY = {
+  summary: 'Returning adult patient here for a cleaning with a sensitive upper molar to evaluate; a little dental anxiety.',
+  alerts: ['Mild dental anxiety — likes a heads-up before each step', 'Reports sensitivity on an upper right molar'],
+} as const
+
 // Clinic-ops demo settings — exercises the new Practice setup controls.
 // Three chairs so the demo can take simultaneous bookings; a custom 60-min
 // "Implant consult" type on top of the standard catalog so the visit-type
@@ -1569,7 +1576,11 @@ async function upgradeDemoIntakeForm(orgId: string): Promise<void> {
   if (!anyHasFiles && subs[0]) {
     await db
       .update(schema.formSubmission)
-      .set({ data: { ...(subs[0].data as Record<string, unknown>), ...DEMO_INTAKE_FILE_DATA } })
+      .set({
+        data: { ...(subs[0].data as Record<string, unknown>), ...DEMO_INTAKE_FILE_DATA },
+        aiSummary: DEMO_INTAKE_SUMMARY,
+        aiSummaryAt: new Date(),
+      })
       .where(eq(schema.formSubmission.id, subs[0].id))
   }
 }
@@ -2888,6 +2899,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         submitterEmail: p.email,
         submitterPhone: p.phone,
         submittedAt: new Date(now.getTime() - s.daysAgo * dayMs),
+        ...(s.patientIdx === 0 ? { aiSummary: DEMO_INTAKE_SUMMARY, aiSummaryAt: new Date(now.getTime() - s.daysAgo * dayMs) } : {}),
       })
     }
   }
