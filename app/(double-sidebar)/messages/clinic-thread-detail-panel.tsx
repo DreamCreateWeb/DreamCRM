@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useMemo, useRef } from 'react'
+import { useState, useTransition, useEffect, useMemo, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
@@ -113,6 +113,123 @@ function fmtMoney(cents: number): string {
 function fmtClock(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
+
+/* ── Inline icon set ────────────────────────────────────────────────────
+   A small, consistent stroke-icon family for the header toolbar + context
+   strip — replaces stray emoji so the controls read as one designed system
+   (16px, 1.75 stroke, currentColor; 14px overrides for the context stats). */
+const SVG_BASE = {
+  width: 16,
+  height: 16,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+} as const
+
+const IconAssign = () => (
+  <svg {...SVG_BASE}>
+    <circle cx="9.5" cy="8" r="3.25" />
+    <path d="M4 19a5.5 5.5 0 0 1 11 0" />
+    <path d="M19 7.5v5M21.5 10h-5" />
+  </svg>
+)
+const IconSnooze = () => (
+  <svg {...SVG_BASE}>
+    <path d="M20 14.2A8.4 8.4 0 1 1 9.8 4 6.6 6.6 0 0 0 20 14.2Z" />
+  </svg>
+)
+const IconArchive = () => (
+  <svg {...SVG_BASE}>
+    <rect x="3.5" y="4.5" width="17" height="4" rx="1.2" />
+    <path d="M5 8.5V18a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 18V8.5" />
+    <path d="M9.5 12h5" />
+  </svg>
+)
+const IconReopen = () => (
+  <svg {...SVG_BASE}>
+    <path d="M3 4.5v4h4" />
+    <path d="M3.5 8.5A8 8 0 1 1 4 14.5" />
+  </svg>
+)
+const IconUser = () => (
+  <svg {...SVG_BASE}>
+    <circle cx="12" cy="8" r="3.25" />
+    <path d="M5.5 19a6.5 6.5 0 0 1 13 0" />
+  </svg>
+)
+const IconCalendar = () => (
+  <svg {...SVG_BASE} width={14} height={14}>
+    <rect x="3.5" y="5" width="17" height="15" rx="2" />
+    <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+  </svg>
+)
+const IconClock = () => (
+  <svg {...SVG_BASE} width={14} height={14}>
+    <circle cx="12" cy="12" r="8.4" />
+    <path d="M12 7.5V12l3 1.5" />
+  </svg>
+)
+const IconCard = () => (
+  <svg {...SVG_BASE} width={14} height={14}>
+    <rect x="3" y="5.5" width="18" height="13" rx="2" />
+    <path d="M3 10h18" />
+  </svg>
+)
+const IconClipboard = () => (
+  <svg {...SVG_BASE} width={14} height={14}>
+    <rect x="5.5" y="4.5" width="13" height="16" rx="2" />
+    <path d="M9 6V4.6A1.6 1.6 0 0 1 10.6 3h2.8A1.6 1.6 0 0 1 15 4.6V6z" />
+    <path d="M9 12h6M9 15.5h4" />
+  </svg>
+)
+
+/** A cohesive triage-toolbar button: icon (quiet at rest → tints on hover) +
+ *  an optional label that collapses on narrow panes. `active` = its menu is
+ *  open (or the thread is assigned) → a soft teal wash. */
+function ToolButton({
+  icon,
+  active = false,
+  className = '',
+  children,
+  ...rest
+}: {
+  icon: ReactNode
+  active?: boolean
+  className?: string
+  children?: ReactNode
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={`group inline-flex items-center gap-1.5 rounded-[var(--r-sm)] px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none ${
+        active
+          ? 'bg-teal-500/[0.12] text-teal-700 dark:text-teal-300'
+          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-500/[0.08] hover:text-gray-900 dark:hover:text-gray-100'
+      } ${className}`}
+      {...rest}
+    >
+      <span
+        className={`shrink-0 transition-colors ${
+          active
+            ? 'text-teal-600 dark:text-teal-400'
+            : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300'
+        }`}
+      >
+        {icon}
+      </span>
+      {children && <span className="hidden md:inline">{children}</span>}
+    </button>
+  )
+}
+
+/** Thin vertical rule between context-strip stats / toolbar groups. */
+const StripDivider = () => (
+  <span aria-hidden="true" className="h-3.5 w-px shrink-0 bg-[color:var(--color-hairline-strong)]" />
+)
 
 export default function ThreadDetailPanel({
   thread,
@@ -251,7 +368,7 @@ export default function ThreadDetailPanel({
               chip the thread list shows, so identity carries across panes. */}
           <span
             aria-hidden="true"
-            className={`hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--r-pill)] text-sm font-semibold ${patientTint.bg} ${patientTint.text}`}
+            className={`hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--r-pill)] text-sm font-semibold ring-1 ring-inset ring-black/[0.04] dark:ring-white/10 ${patientTint.bg} ${patientTint.text}`}
           >
             {patientInitials}
           </span>
@@ -283,22 +400,24 @@ export default function ThreadDetailPanel({
             </p>
           </div>
         </div>
-        {/* Routine triage actions — all secondary; none competes with the
-            reply composer's single primary, and archive is NOT destructive. */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Routine triage actions — one cohesive icon toolbar; none competes
+            with the reply composer's single primary, and archive is NOT
+            destructive. Labels collapse below md so the cluster never crowds
+            the patient name on a narrow pane. */}
+        <div className="flex items-center gap-0.5 shrink-0">
           {/* Assign / reassign — independent of status, so it sits ahead of the
               status-dependent snooze/archive/reopen controls. */}
           <div className="relative">
-            <ActionButton
-              size="sm"
-              variant="secondary"
+            <ToolButton
+              icon={<IconAssign />}
               onClick={() => setShowAssign(!showAssign)}
               disabled={pending}
+              active={showAssign || !!thread.assignedUserName}
               aria-expanded={showAssign}
               title="Assign this conversation to a teammate"
             >
-              {thread.assignedUserName ? `👤 ${thread.assignedUserName.split(' ')[0]}` : 'Assign'}
-            </ActionButton>
+              {thread.assignedUserName ? thread.assignedUserName.split(' ')[0] : 'Assign'}
+            </ToolButton>
             {showAssign && (
               <div className="pop-in origin-top-right absolute right-0 top-full mt-1 z-10 py-1 min-w-[12rem] max-h-72 overflow-y-auto rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)]">
                 {currentUserId && thread.assignedUserId !== currentUserId && (
@@ -345,26 +464,26 @@ export default function ThreadDetailPanel({
             )}
           </div>
           {thread.status === 'snoozed' ? (
-            <ActionButton size="sm" variant="secondary" onClick={handleReopen} disabled={pending}>
-              Reopen (snoozed)
-            </ActionButton>
+            <ToolButton icon={<IconReopen />} onClick={handleReopen} disabled={pending} title="Reopen this snoozed conversation">
+              Reopen
+            </ToolButton>
           ) : thread.status === 'archived' ? (
-            <ActionButton size="sm" variant="secondary" onClick={handleReopen} disabled={pending}>
-              Reopen (archived)
-            </ActionButton>
+            <ToolButton icon={<IconReopen />} onClick={handleReopen} disabled={pending} title="Reopen this archived conversation">
+              Reopen
+            </ToolButton>
           ) : (
             <>
               <div className="relative">
-                <ActionButton
-                  size="sm"
-                  variant="secondary"
+                <ToolButton
+                  icon={<IconSnooze />}
                   onClick={() => setShowSnooze(!showSnooze)}
                   disabled={pending}
+                  active={showSnooze}
                   aria-expanded={showSnooze}
                   title="Snooze this thread to resurface it later"
                 >
-                  💤 Snooze
-                </ActionButton>
+                  Snooze
+                </ToolButton>
                 {showSnooze && (
                   <div className="pop-in origin-top-right absolute right-0 top-full mt-1 z-10 py-1 min-w-[10rem] rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)]">
                     {SNOOZE_OPTIONS.map((opt) => (
@@ -380,14 +499,20 @@ export default function ThreadDetailPanel({
                   </div>
                 )}
               </div>
-              <ActionButton size="sm" variant="secondary" onClick={handleArchive} disabled={pending} title="Close and tuck this thread away">
+              <ToolButton icon={<IconArchive />} onClick={handleArchive} disabled={pending} title="Close and tuck this thread away">
                 Archive
-              </ActionButton>
+              </ToolButton>
             </>
           )}
-          <ActionButton size="sm" variant="ghost" href={`/patients/${thread.patientId}`}>
-            View patient →
-          </ActionButton>
+          <StripDivider />
+          <Link
+            href={`/patients/${thread.patientId}`}
+            title="Open this patient's full record"
+            className="group ml-0.5 inline-flex items-center gap-1.5 rounded-[var(--r-sm)] px-2.5 py-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-colors"
+          >
+            <IconUser />
+            <span className="hidden md:inline">View patient</span>
+          </Link>
         </div>
         </div>
 
@@ -400,10 +525,12 @@ export default function ThreadDetailPanel({
           <Link
             href={`/patients/${patientContext.patientId}`}
             title="Open this patient's record"
-            className="v2-well group mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 transition-colors hover:bg-[color:var(--color-hairline)]"
+            className="v2-well group mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 text-xs transition-colors hover:bg-[color:var(--color-hairline)]"
           >
-            <span className="flex items-baseline gap-1.5">
-              <span className="text-[color:var(--color-ink-500)] uppercase tracking-wide text-[0.625rem] font-semibold">Next</span>
+            {/* Next visit */}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-gray-400 dark:text-gray-500"><IconCalendar /></span>
+              <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Next</span>
               {patientContext.nextVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.nextVisitAt)}
@@ -413,9 +540,11 @@ export default function ThreadDetailPanel({
                 <span className="text-gray-500 dark:text-gray-400">none scheduled</span>
               )}
             </span>
-            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
-            <span className="flex items-baseline gap-1.5">
-              <span className="text-[color:var(--color-ink-500)] uppercase tracking-wide text-[0.625rem] font-semibold">Last</span>
+            <StripDivider />
+            {/* Last visit */}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-gray-400 dark:text-gray-500"><IconClock /></span>
+              <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Last</span>
               {patientContext.lastVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.lastVisitAt)}
@@ -424,13 +553,24 @@ export default function ThreadDetailPanel({
                 <span className="text-gray-500 dark:text-gray-400">none yet</span>
               )}
             </span>
-            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
-            <span className="flex items-baseline gap-1.5">
-              <span className="text-[color:var(--color-ink-500)] uppercase tracking-wide text-[0.625rem] font-semibold">Balance</span>
+            <StripDivider />
+            {/* Balance — the icon + value tint by state (rose = owed now,
+                emerald = clear), so the picture reads at a glance. */}
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={
+                  patientContext.outstandingBalanceCents != null && patientContext.outstandingBalanceCents > 0
+                    ? 'text-rose-500 dark:text-rose-400'
+                    : patientContext.outstandingBalanceCents === 0
+                      ? 'text-emerald-500 dark:text-emerald-400'
+                      : 'text-gray-400 dark:text-gray-500'
+                }
+              >
+                <IconCard />
+              </span>
+              <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Balance</span>
               {patientContext.outstandingBalanceCents == null ? (
-                <span className="text-gray-500 dark:text-gray-400" title="No balance synced from the PMS">
-                  no PMS balance
-                </span>
+                <span className="text-gray-500 dark:text-gray-400" title="No balance synced from the PMS">no PMS balance</span>
               ) : patientContext.outstandingBalanceCents > 0 ? (
                 <span className="font-semibold text-rose-700 dark:text-rose-300 font-mono-num tabular-nums">
                   {fmtMoney(patientContext.outstandingBalanceCents)}
@@ -441,12 +581,12 @@ export default function ThreadDetailPanel({
             </span>
             {patientContext.missingIntake && (
               <>
-                <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
+                <StripDivider />
                 <span
-                  className="font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                  className="inline-flex items-center gap-1 rounded-[var(--r-xs)] bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-700 dark:text-amber-300"
                   title="A visit is booked soon and no intake form is on file"
                 >
-                  📝 Intake missing
+                  <IconClipboard /> Intake missing
                 </span>
               </>
             )}
@@ -513,7 +653,7 @@ export default function ThreadDetailPanel({
                           aria-hidden="true"
                           className={`mt-auto hidden sm:flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--r-pill)] text-xs font-semibold ${
                             outbound
-                              ? 'bg-ink-800/10 text-ink-700 dark:bg-white/10 dark:text-gray-200'
+                              ? 'bg-teal-500/15 text-teal-700 dark:bg-teal-400/20 dark:text-teal-200'
                               : `${patientTint.bg} ${patientTint.text}`
                           }`}
                         >
@@ -548,7 +688,7 @@ export default function ThreadDetailPanel({
                                 key={m.id}
                                 className={`w-fit px-3.5 py-2 rounded-[var(--r-lg)] text-sm leading-relaxed whitespace-pre-wrap break-words ${tail} ${
                                   outbound
-                                    ? 'bg-ink-900 text-[color:var(--color-surface-2)]'
+                                    ? 'bg-teal-600 text-white dark:bg-teal-500'
                                     : 'bg-[color:var(--color-surface-2)] text-gray-800 dark:text-gray-100 shadow-[inset_0_0_0_1px_var(--color-hairline)]'
                                 }`}
                               >
