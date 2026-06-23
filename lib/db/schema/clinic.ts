@@ -110,6 +110,8 @@ export const patient = pgTable(
     // For audience materialization in Recall & Outreach — fast "patients
     // with email opt-in" scans.
     index('patient_org_marketing_email_idx').on(t.organizationId, t.marketingEmailOptIn),
+    // New-patient counts (Overview MTD trend) + recent-activity ordering.
+    index('patient_org_created_idx').on(t.organizationId, t.createdAt),
   ],
 )
 
@@ -315,6 +317,8 @@ export const appointment = pgTable('appointment', {
   index('appointment_org_status_idx').on(t.organizationId, t.status),
   index('appointment_patient_start_idx').on(t.patientId, t.startTime),
   index('appointment_org_provider_idx').on(t.organizationId, t.providerId),
+  // Bookings-today count (Overview trend) + recent-activity ordering.
+  index('appointment_org_created_idx').on(t.organizationId, t.createdAt),
 ])
 
 // Clinic staff who patients can be booked "with". Intentionally lightweight:
