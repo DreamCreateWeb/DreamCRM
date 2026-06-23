@@ -288,6 +288,7 @@ export async function listAppointments(
       cancelledAt: schema.appointment.cancelledAt,
       rescheduledFromAppointmentId: schema.appointment.rescheduledFromAppointmentId,
       createdAt: schema.appointment.createdAt,
+      pmsBalanceCents: schema.patient.pmsBalanceCents,
     })
     .from(schema.appointment)
     .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
@@ -300,12 +301,11 @@ export async function listAppointments(
 
   const apptIds = rows.map((r) => r.id)
   const patientIds = Array.from(new Set(rows.map((r) => r.patientId)))
-  const patientEmails = Array.from(
-    new Set(rows.map((r) => r.patientEmail).filter((e): e is string => !!e)),
-  )
 
-  // Fan-out queries for derived signal columns. All parallel.
-  const [intakeRows, lastReminderRows, balanceRows, priorAppts, futureAppts] = await Promise.all([
+  // Fan-out queries for derived signal columns. All parallel. (Balance is read
+  // straight off the patient join above — pms_balance_cents, the same source
+  // the Patients list + Overview KPI use — so the $ glyph agrees everywhere.)
+  const [intakeRows, lastReminderRows, priorAppts, futureAppts] = await Promise.all([
     // Intake submission tied to this appointment specifically.
     db
       .select({ appointmentId: schema.formSubmission.appointmentId, patientId: schema.formSubmission.patientId })
@@ -333,27 +333,6 @@ export async function listAppointments(
         ),
       )
       .orderBy(desc(schema.appointmentReminderLog.sentAt)),
-    // Outstanding balance per patient (prefer FK; fall back to email).
-    patientEmails.length === 0
-      ? []
-      : db
-          .select({
-            patientId: schema.customers.patientId,
-            email: schema.customers.email,
-            totalCents: schema.invoices.totalCents,
-          })
-          .from(schema.invoices)
-          .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
-          .where(
-            and(
-              eq(schema.invoices.organizationId, organizationId),
-              inArray(schema.invoices.status, ['pending', 'overdue']),
-              or(
-                inArray(schema.customers.patientId, patientIds),
-                inArray(schema.customers.email, patientEmails),
-              )!,
-            ),
-          ),
     // For each patient, the most recent *prior* completed appointment.
     // Used for new-patient detection (no prior) and lapsed-returning (prior > 9mo ago).
     db
@@ -403,18 +382,6 @@ export async function listAppointments(
     if (!lastReminderByAppt.has(r.appointmentId)) lastReminderByAppt.set(r.appointmentId, r.sentAt)
   }
 
-  // Balance per patient (sum across invoices linked by FK or email).
-  const balanceByPatient = new Map<string, number>()
-  const emailLowerToPatientId = new Map<string, string>()
-  for (const r of rows) {
-    if (r.patientEmail) emailLowerToPatientId.set(r.patientEmail.toLowerCase(), r.patientId)
-  }
-  for (const r of balanceRows) {
-    const pid = r.patientId ?? (r.email ? emailLowerToPatientId.get(r.email.toLowerCase()) ?? null : null)
-    if (!pid) continue
-    balanceByPatient.set(pid, (balanceByPatient.get(pid) ?? 0) + Number(r.totalCents ?? 0))
-  }
-
   // Latest prior appointment per patient (the array is already sorted desc).
   const latestPriorByPatient = new Map<string, Date>()
   for (const r of priorAppts) {
@@ -436,7 +403,7 @@ export async function listAppointments(
     const lastReminder = lastReminderByAppt.get(r.id) ?? null
     const hasIntake = intakeApptSet.has(r.id) || intakeAnyPatient.has(r.patientId)
     const isFuture = r.startTime > now
-    const balance = balanceByPatient.get(r.patientId) ?? 0
+    const balance = r.pmsBalanceCents ?? 0
     const duration =
       r.endTime ? Math.max(15, Math.round((r.endTime.getTime() - r.startTime.getTime()) / 60000)) : null
     // Recovery queue: this row is a recent cancellation / no-show and the
@@ -582,6 +549,7 @@ export async function getAppointmentDetail(
       cancelledAt: schema.appointment.cancelledAt,
       rescheduledFromAppointmentId: schema.appointment.rescheduledFromAppointmentId,
       createdAt: schema.appointment.createdAt,
+      pmsBalanceCents: schema.patient.pmsBalanceCents,
     })
     .from(schema.appointment)
     .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
@@ -597,7 +565,9 @@ export async function getAppointmentDetail(
   if (!base) return null
 
   const now = new Date()
-  const [reminderRows, intakeRow, balanceRows, ltvRows, lastVisitRow, bookingCountRow, futureApptRow] = await Promise.all([
+  // Tags fold into the parallel batch (was a separate serial round-trip on
+  // every drawer open). Balance reads off the patient join (pms_balance_cents).
+  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags] = await Promise.all([
     db
       .select({
         id: schema.appointmentReminderLog.id,
@@ -637,22 +607,6 @@ export async function getAppointmentDetail(
       )
       .orderBy(desc(schema.formSubmission.submittedAt))
       .limit(1),
-    db
-      .select({ totalCents: schema.invoices.totalCents })
-      .from(schema.invoices)
-      .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
-      .where(
-        and(
-          eq(schema.invoices.organizationId, organizationId),
-          inArray(schema.invoices.status, ['pending', 'overdue']),
-          base.patientEmail
-            ? or(
-                eq(schema.customers.patientId, base.patientId),
-                eq(schema.customers.email, base.patientEmail),
-              )!
-            : eq(schema.customers.patientId, base.patientId),
-        ),
-      ),
     db
       .select({ totalCents: schema.invoices.totalCents })
       .from(schema.invoices)
@@ -707,9 +661,10 @@ export async function getAppointmentDetail(
         ),
       )
       .limit(1),
+    getTagsForPatient(organizationId, base.patientId),
   ])
 
-  const outstanding = balanceRows.reduce<number>((acc, r) => acc + Number(r.totalCents ?? 0), 0)
+  const outstanding = base.pmsBalanceCents ?? 0
   const ltv = ltvRows.reduce<number>((acc, r) => acc + Number(r.totalCents ?? 0), 0)
   const status = base.status as AppointmentStatus
   const duration =
@@ -727,7 +682,6 @@ export async function getAppointmentDetail(
     hasFutureAppt: futureApptRow.length > 0,
     now,
   })
-  const tags = await getTagsForPatient(organizationId, base.patientId)
 
   return {
     id: base.id,

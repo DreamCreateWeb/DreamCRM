@@ -185,6 +185,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       endTime: schema.appointment.endTime,
       type: schema.appointment.type,
       status: schema.appointment.status,
+      pmsBalanceCents: schema.patient.pmsBalanceCents,
     })
     .from(schema.appointment)
     .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
@@ -196,89 +197,48 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     )
     .orderBy(asc(schema.appointment.startTime))
 
-  // For glyph flags we need to know, for each patient on today's chair:
-  //   - is this their first appointment ever (new patient)
-  //   - do they have unpaid invoices on file
-  //   - do they have an intake submission on file
+  // Per-patient glyph flags for today's chair: first-ever appointment (new
+  // patient) and intake-on-file. Balance reads straight off the patient join
+  // above (pms_balance_cents) — the same source the Patients list + the
+  // outstanding-balances KPI below use, so the $ glyph agrees across screens.
   const patientIdsToday = Array.from(new Set(todaysAppts.map((a) => a.patientId)))
 
   const newPatientSet = new Set<string>()
   const balanceSet = new Set<string>()
   const intakeSet = new Set<string>()
 
+  for (const a of todaysAppts) {
+    if ((a.pmsBalanceCents ?? 0) > 0) balanceSet.add(a.patientId)
+  }
+
   if (patientIdsToday.length > 0) {
-    // Patients whose ONLY appointments are today's (count of past appts = 0).
-    // Cheap-ish way: pull all appointments for those patients with startTime
-    // < today, build the set of "has prior" patients, then invert.
-    const priors = await db
-      .select({ patientId: schema.appointment.patientId })
-      .from(schema.appointment)
-      .where(
-        and(
-          eq(schema.appointment.organizationId, organizationId),
-          inArray(schema.appointment.patientId, patientIdsToday),
-          lte(schema.appointment.startTime, todayStart),
+    const [priors, submissions] = await Promise.all([
+      // Patients with no appointment before today → new patient.
+      db
+        .select({ patientId: schema.appointment.patientId })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, organizationId),
+            inArray(schema.appointment.patientId, patientIdsToday),
+            lte(schema.appointment.startTime, todayStart),
+          ),
         ),
-      )
+      // Intake submissions on file.
+      db
+        .select({ patientId: schema.formSubmission.patientId })
+        .from(schema.formSubmission)
+        .where(
+          and(
+            eq(schema.formSubmission.organizationId, organizationId),
+            inArray(schema.formSubmission.patientId, patientIdsToday),
+          ),
+        ),
+    ])
     const hasPrior = new Set(priors.map((p) => p.patientId))
     for (const id of patientIdsToday) {
       if (!hasPrior.has(id)) newPatientSet.add(id)
     }
-
-    // Outstanding balances — look up customers row by email match to patient.
-    // We don't have a direct patient→invoice link yet (invoices link to
-    // customers, not patient). For v1 we approximate by checking if any
-    // unpaid invoices exist for a customer whose email matches a patient.
-    // TODO: when we unify patient + customer this becomes a single query.
-    const patientEmails = await db
-      .select({ id: schema.patient.id, email: schema.patient.email })
-      .from(schema.patient)
-      .where(
-        and(
-          eq(schema.patient.organizationId, organizationId),
-          inArray(schema.patient.id, patientIdsToday),
-        ),
-      )
-    const emailToPatientId = new Map(
-      patientEmails.filter((p) => p.email).map((p) => [p.email!.toLowerCase(), p.id]),
-    )
-    if (emailToPatientId.size > 0) {
-      const unpaid = await db
-        .select({ email: schema.customers.email })
-        .from(schema.invoices)
-        .innerJoin(
-          schema.customers,
-          eq(schema.invoices.customerId, schema.customers.id),
-        )
-        .where(
-          and(
-            eq(schema.invoices.organizationId, organizationId),
-            inArray(schema.invoices.status, ['pending', 'overdue']),
-            inArray(
-              schema.customers.email,
-              Array.from(emailToPatientId.keys()),
-            ),
-          ),
-        )
-      for (const u of unpaid) {
-        const pid = emailToPatientId.get(u.email.toLowerCase())
-        if (pid) balanceSet.add(pid)
-      }
-    }
-
-    // Intake submissions on file
-    const submissions = await db
-      .select({ patientId: schema.formSubmission.patientId })
-      .from(schema.formSubmission)
-      .where(
-        and(
-          eq(schema.formSubmission.organizationId, organizationId),
-          inArray(
-            schema.formSubmission.patientId,
-            patientIdsToday,
-          ),
-        ),
-      )
     for (const s of submissions) {
       if (s.patientId) intakeSet.add(s.patientId)
     }
@@ -306,25 +266,73 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     tags: todaysTagsByPatient.get(a.patientId) ?? [],
   }))
 
-  // ── Unconfirmed (next 48h) ──────────────────────────────────────────
-  const unconfirmedRows = await db
-    .select({
-      id: schema.appointment.id,
-      firstName: schema.patient.firstName,
-      lastName: schema.patient.lastName,
-      startTime: schema.appointment.startTime,
-    })
-    .from(schema.appointment)
-    .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
-    .where(
-      and(
-        eq(schema.appointment.organizationId, organizationId),
-        eq(schema.appointment.status, 'scheduled'),
-        gte(schema.appointment.startTime, now),
-        lte(schema.appointment.startTime, in48h),
+  // ── Attention signals — unconfirmed / intake / balances / leads ────────
+  // All four are independent; one parallel batch instead of four serial hops.
+  const [unconfirmedRows, intakeRows, balanceRowArr, leadRows] = await Promise.all([
+    // Unconfirmed (next 48h)
+    db
+      .select({
+        id: schema.appointment.id,
+        firstName: schema.patient.firstName,
+        lastName: schema.patient.lastName,
+        startTime: schema.appointment.startTime,
+      })
+      .from(schema.appointment)
+      .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
+      .where(
+        and(
+          eq(schema.appointment.organizationId, organizationId),
+          eq(schema.appointment.status, 'scheduled'),
+          gte(schema.appointment.startTime, now),
+          lte(schema.appointment.startTime, in48h),
+        ),
+      )
+      .orderBy(asc(schema.appointment.startTime)),
+    // Intake submissions (last 7d)
+    db
+      .select({
+        id: schema.formSubmission.id,
+        title: schema.formTemplate.title,
+        submitterName: schema.formSubmission.submitterName,
+        submittedAt: schema.formSubmission.submittedAt,
+      })
+      .from(schema.formSubmission)
+      .innerJoin(schema.formTemplate, eq(schema.formSubmission.formTemplateId, schema.formTemplate.id))
+      .where(
+        and(
+          eq(schema.formSubmission.organizationId, organizationId),
+          gte(schema.formSubmission.submittedAt, since7d),
+        ),
+      )
+      .orderBy(desc(schema.formSubmission.submittedAt)),
+    // Outstanding balances (PMS sync, not legacy invoices)
+    db
+      .select({
+        count: count(),
+        totalCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::int`,
+      })
+      .from(schema.patient)
+      .where(
+        and(
+          eq(schema.patient.organizationId, organizationId),
+          eq(schema.patient.isActive, 1),
+          sql`${schema.patient.pmsBalanceCents} > 0`,
+        ),
       ),
-    )
-    .orderBy(asc(schema.appointment.startTime))
+    // New leads (untouched website inquiries)
+    db
+      .select({
+        id: schema.lead.id,
+        name: schema.lead.name,
+        phone: schema.lead.phone,
+        createdAt: schema.lead.createdAt,
+      })
+      .from(schema.lead)
+      .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.status, 'new')))
+      .orderBy(desc(schema.lead.createdAt))
+      .limit(5),
+  ])
+  const balanceRow = balanceRowArr[0]
 
   const unconfirmed = {
     count: unconfirmedRows.length,
@@ -334,27 +342,6 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       startTime: r.startTime,
     })),
   }
-
-  // ── Intake submissions (last 7d) ────────────────────────────────────
-  const intakeRows = await db
-    .select({
-      id: schema.formSubmission.id,
-      title: schema.formTemplate.title,
-      submitterName: schema.formSubmission.submitterName,
-      submittedAt: schema.formSubmission.submittedAt,
-    })
-    .from(schema.formSubmission)
-    .innerJoin(
-      schema.formTemplate,
-      eq(schema.formSubmission.formTemplateId, schema.formTemplate.id),
-    )
-    .where(
-      and(
-        eq(schema.formSubmission.organizationId, organizationId),
-        gte(schema.formSubmission.submittedAt, since7d),
-      ),
-    )
-    .orderBy(desc(schema.formSubmission.submittedAt))
 
   const intakeSubmissions = {
     count: intakeRows.length,
@@ -366,43 +353,10 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     })),
   }
 
-  // ── Outstanding balances (from the PMS sync, not legacy invoices) ───────
-  const [balanceRow] = await db
-    .select({
-      count: count(),
-      totalCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::int`,
-    })
-    .from(schema.patient)
-    .where(
-      and(
-        eq(schema.patient.organizationId, organizationId),
-        eq(schema.patient.isActive, 1),
-        sql`${schema.patient.pmsBalanceCents} > 0`,
-      ),
-    )
-
   const outstandingBalances = {
     count: Number(balanceRow?.count ?? 0),
     totalCents: Number(balanceRow?.totalCents ?? 0),
   }
-
-  // ── New leads (untouched website inquiries) ─────────────────────────
-  const leadRows = await db
-    .select({
-      id: schema.lead.id,
-      name: schema.lead.name,
-      phone: schema.lead.phone,
-      createdAt: schema.lead.createdAt,
-    })
-    .from(schema.lead)
-    .where(
-      and(
-        eq(schema.lead.organizationId, organizationId),
-        eq(schema.lead.status, 'new'),
-      ),
-    )
-    .orderBy(desc(schema.lead.createdAt))
-    .limit(5)
 
   const newLeads = {
     count: leadRows.length,
@@ -415,60 +369,49 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     })),
   }
 
-  // ── Trend tiles ─────────────────────────────────────────────────────
-  const [bookingsTodayRow] = await db
-    .select({ count: count() })
-    .from(schema.appointment)
-    .where(
-      and(
-        eq(schema.appointment.organizationId, organizationId),
-        gte(schema.appointment.createdAt, todayStart),
-      ),
-    )
-
-  const [newPatientsMTDRow] = await db
-    .select({ count: count() })
-    .from(schema.patient)
-    .where(
-      and(
-        eq(schema.patient.organizationId, organizationId),
-        gte(schema.patient.createdAt, monthStart),
-      ),
-    )
-
-  const [newPatientsLastMTDRow] = await db
-    .select({ count: count() })
-    .from(schema.patient)
-    .where(
-      and(
-        eq(schema.patient.organizationId, organizationId),
-        gte(schema.patient.createdAt, lastMonthStart),
-        lte(schema.patient.createdAt, lastMonthEnd),
-      ),
-    )
-
-  const [upcomingRow] = await db
-    .select({ count: count() })
-    .from(schema.appointment)
-    .where(
-      and(
-        eq(schema.appointment.organizationId, organizationId),
-        gte(schema.appointment.startTime, now),
-        lte(schema.appointment.startTime, in7d),
-        ne(schema.appointment.status, 'cancelled'),
-        ne(schema.appointment.status, 'no_show'),
-      ),
-    )
-
-  const [activeFormsRow] = await db
-    .select({ count: count() })
-    .from(schema.formTemplate)
-    .where(
-      and(
-        eq(schema.formTemplate.organizationId, organizationId),
-        sql`${schema.formTemplate.archivedAt} is null`,
-      ),
-    )
+  // ── Trend tiles — five independent counts, one parallel batch ──────────
+  const [bookingsTodayRow, newPatientsMTDRow, newPatientsLastMTDRow, upcomingRow, activeFormsRow] =
+    await Promise.all([
+      db
+        .select({ count: count() })
+        .from(schema.appointment)
+        .where(and(eq(schema.appointment.organizationId, organizationId), gte(schema.appointment.createdAt, todayStart)))
+        .then((r) => r[0]),
+      db
+        .select({ count: count() })
+        .from(schema.patient)
+        .where(and(eq(schema.patient.organizationId, organizationId), gte(schema.patient.createdAt, monthStart)))
+        .then((r) => r[0]),
+      db
+        .select({ count: count() })
+        .from(schema.patient)
+        .where(
+          and(
+            eq(schema.patient.organizationId, organizationId),
+            gte(schema.patient.createdAt, lastMonthStart),
+            lte(schema.patient.createdAt, lastMonthEnd),
+          ),
+        )
+        .then((r) => r[0]),
+      db
+        .select({ count: count() })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, organizationId),
+            gte(schema.appointment.startTime, now),
+            lte(schema.appointment.startTime, in7d),
+            ne(schema.appointment.status, 'cancelled'),
+            ne(schema.appointment.status, 'no_show'),
+          ),
+        )
+        .then((r) => r[0]),
+      db
+        .select({ count: count() })
+        .from(schema.formTemplate)
+        .where(and(eq(schema.formTemplate.organizationId, organizationId), sql`${schema.formTemplate.archivedAt} is null`))
+        .then((r) => r[0]),
+    ])
 
   const trends = {
     bookingsToday: Number(bookingsTodayRow?.count ?? 0),

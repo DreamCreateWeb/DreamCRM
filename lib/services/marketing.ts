@@ -451,6 +451,7 @@ export async function resolvePatientAudience(
       marketingEmailOptIn: schema.patient.marketingEmailOptIn,
       marketingSmsOptIn: schema.patient.marketingSmsOptIn,
       pmsRecallDueAt: schema.patient.pmsRecallDueAt,
+      pmsBalanceCents: schema.patient.pmsBalanceCents,
     })
     .from(schema.patient)
     .where(and(...where))
@@ -462,10 +463,8 @@ export async function resolvePatientAudience(
     parsed.lastVisitWithinDays != null ||
     parsed.recallStatuses?.length
   const needUpcoming = parsed.recallStatuses?.length || parsed.hasUnconfirmedNextHours != null
-  const needBalance = parsed.hasOutstandingBalance != null
 
   const ids = patients.map((p) => p.id)
-  const emails = patients.map((p) => p.email).filter((e): e is string => !!e)
 
   // Tag targeting — only resolve when the filter asks for it. Build a per-patient
   // tag-id set so the post-query predicate is O(1).
@@ -475,7 +474,7 @@ export async function resolvePatientAudience(
     tagMap.forEach((tags, pid) => tagSetByPatient.set(pid, new Set(tags.map((t) => t.id))))
   }
 
-  const [lastVisitRows, upcomingRows, unconfirmedRows, invoiceRows] = await Promise.all([
+  const [lastVisitRows, upcomingRows, unconfirmedRows] = await Promise.all([
     needLastVisit
       ? db
           .select({ patientId: schema.appointment.patientId, startTime: schema.appointment.startTime })
@@ -519,26 +518,6 @@ export async function resolvePatientAudience(
             ),
           )
       : Promise.resolve([] as { patientId: string }[]),
-    needBalance && emails.length > 0
-      ? db
-          .select({
-            patientId: schema.customers.patientId,
-            email: schema.customers.email,
-            totalCents: schema.invoices.totalCents,
-          })
-          .from(schema.invoices)
-          .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
-          .where(
-            and(
-              eq(schema.invoices.organizationId, organizationId),
-              inArray(schema.invoices.status, ['pending', 'overdue']),
-              or(
-                inArray(schema.customers.patientId, ids),
-                inArray(schema.customers.email, emails),
-              )!,
-            ),
-          )
-      : Promise.resolve([] as { patientId: string | null; email: string | null; totalCents: string | number | null }[]),
   ])
 
   // Build per-patient lookup maps. We dedupe last-visit to MAX (most recent) and
@@ -554,17 +533,6 @@ export async function resolvePatientAudience(
   }
   const unconfirmedSet = new Set(unconfirmedRows.map((r) => r.patientId))
 
-  const emailLowerToId = new Map<string, string>()
-  for (const p of patients) {
-    if (p.email) emailLowerToId.set(p.email.toLowerCase(), p.id)
-  }
-  const balanceByPatient = new Map<string, number>()
-  for (const r of invoiceRows) {
-    const pid = r.patientId ?? (r.email ? emailLowerToId.get(r.email.toLowerCase()) ?? null : null)
-    if (!pid) continue
-    balanceByPatient.set(pid, (balanceByPatient.get(pid) ?? 0) + Number(r.totalCents ?? 0))
-  }
-
   // Recall status: shared helper with the patients list. Prefers the PMS
   // recall date when present (Integrations sync); falls back to the
   // appointment-derived heuristic otherwise.
@@ -572,7 +540,7 @@ export async function resolvePatientAudience(
     .map((p) => {
       const lastVisitAt = lastVisitMap.get(p.id) ?? null
       const upcoming = upcomingMap.get(p.id) ?? null
-      const balance = balanceByPatient.get(p.id) ?? 0
+      const balance = p.pmsBalanceCents ?? 0
       const recallStatus = derivePatientRecallStatus({
         pmsRecallDueAt: p.pmsRecallDueAt,
         hasUpcomingAppt: !!upcoming,
