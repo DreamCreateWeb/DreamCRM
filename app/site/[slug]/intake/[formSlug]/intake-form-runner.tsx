@@ -66,6 +66,10 @@ const SURFACE = 'var(--c-surface, #FFFFFF)'
 const BG = 'var(--c-bg, #FAF7F2)'
 const BORDER = 'var(--c-border, #E8E2D9)'
 
+/** Shared upload bounds for the photo + insurance-card fields. */
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+const UPLOAD_FOLDER = 'intake-uploads'
+
 interface Props {
   orgId: string
   templateId: string
@@ -619,12 +623,12 @@ function PhotoUploadInput({
         setErr('Please choose an image.')
         continue
       }
-      if (file.size > 8 * 1024 * 1024) {
+      if (file.size > MAX_UPLOAD_BYTES) {
         setErr(`"${file.name}" is over 8MB.`)
         continue
       }
       setUploading((n) => n + 1)
-      uploadFileWithProgress(file, 'intake-uploads')
+      uploadFileWithProgress(file, UPLOAD_FOLDER)
         .promise.then((url) => {
           commit([...valueRef.current, { url, name: file.name, contentType: file.type }])
         })
@@ -753,12 +757,12 @@ function InsuranceCardInput({
       setErr('Please take a photo of the card.')
       return
     }
-    if (file.size > 8 * 1024 * 1024) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       setErr('That image is over 8MB.')
       return
     }
     setUploading(s)
-    uploadFileWithProgress(file, 'intake-uploads')
+    uploadFileWithProgress(file, UPLOAD_FOLDER)
       .promise.then((url) => {
         const others = valueRef.current.filter((f) => f.side !== s)
         commit([...others, { url, name: `${s}.jpg`, contentType: file.type, side: s }])
