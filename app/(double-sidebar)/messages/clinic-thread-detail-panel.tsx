@@ -13,6 +13,7 @@ import { channelMeta } from './channel-meta'
 import {
   archiveThreadAction,
   assignThreadAction,
+  draftReplyAction,
   reopenThreadAction,
   sendMessageAction,
   snoozeThreadAction,
@@ -88,6 +89,8 @@ interface Props {
   currentUserId?: string | null
   /** Mobile-only "← All conversations" link back to the list pane. */
   backHref?: string
+  /** Whether the Anthropic key is configured — shows the "✨ Draft" assist. */
+  aiEnabled?: boolean
 }
 
 const SNOOZE_OPTIONS = [
@@ -257,10 +260,12 @@ export default function ThreadDetailPanel({
   members = [],
   currentUserId = null,
   backHref,
+  aiEnabled = false,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [body, setBody] = useState('')
+  const [drafting, setDrafting] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   // Auto-pick the reply channel using the patient's historical inbound
   // distribution (when a strong majority exists) or the channel of the
@@ -361,6 +366,37 @@ export default function ThreadDetailPanel({
     const tpl = templates.find((t) => t.key === key)
     if (tpl) setBody(tpl.rendered)
     setShowTemplates(false)
+  }
+
+  // Ask Claude to draft the next reply, then drop it into the composer for
+  // staff to review + edit before sending — never auto-sends. Gated by the
+  // monthly allowance; surfaces a friendly toast on any miss.
+  function handleDraft() {
+    if (drafting) return
+    setDrafting(true)
+    void draftReplyAction(thread.id)
+      .then((res) => {
+        if (res.ok) {
+          setBody(res.draft)
+          setToast(
+            res.remaining <= 5
+              ? `Draft ready · ${res.remaining} AI draft${res.remaining === 1 ? '' : 's'} left this month`
+              : 'Draft ready — review and edit before sending',
+          )
+        } else {
+          setToast(
+            res.reason === 'no_allowance'
+              ? "You've used this month's AI drafts — they reset on the 1st."
+              : res.reason === 'no_messages'
+                ? 'Add a message first, then AI can draft a reply.'
+                : res.reason === 'not_configured'
+                  ? 'AI drafting is not configured yet.'
+                  : "Couldn't draft a reply just now. Please try again.",
+          )
+        }
+      })
+      .catch(() => setToast("Couldn't draft a reply just now. Please try again."))
+      .finally(() => setDrafting(false))
   }
 
   return (
@@ -803,6 +839,21 @@ export default function ThreadDetailPanel({
                     </div>
                   )}
                 </div>
+              )}
+              {aiEnabled && messages.length > 0 && (
+                // AI draft assist — fills the box with an on-voice reply for
+                // staff to review. Violet (special tone), distinct from the
+                // teal primary Send so it never competes for "the" action.
+                <button
+                  type="button"
+                  onClick={handleDraft}
+                  disabled={drafting}
+                  title="Let AI draft a reply you can review and edit"
+                  className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-violet-300/70 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-500/15 disabled:opacity-50 disabled:pointer-events-none dark:border-violet-400/30 dark:text-violet-300 transition-colors"
+                >
+                  <span aria-hidden="true">✨</span>
+                  {drafting ? 'Drafting…' : 'Draft'}
+                </button>
               )}
               {preferred && (
                 // A derived metadata hint, not a status — quiet ink chip in a

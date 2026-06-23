@@ -25,6 +25,7 @@ import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
 import MessagesSurfaceTabs from './surface-tabs'
 import NavBadgeSync from './nav-badge-sync'
 import ThreadSearchInput from './thread-search-input'
+import { aiConfigured } from '@/lib/ai'
 
 /**
  * Front-style unified Patient Communications inbox for clinic tenants.
@@ -266,6 +267,7 @@ export default async function ClinicMessagesView({
                 readByPatientAt: m.readByPatientAt ? m.readByPatientAt.toISOString() : null,
               }))}
               currentUserName={ctx.userName ?? null}
+              aiEnabled={aiConfigured()}
               templates={messageTemplates.map((t) => ({
                 key: t.id,
                 label: t.name,

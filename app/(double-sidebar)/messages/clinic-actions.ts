@@ -11,6 +11,7 @@ import {
   snoozeThread,
   type MessageChannel,
 } from '@/lib/services/patient-messaging'
+import { draftPatientReply } from '@/lib/services/message-ai'
 
 function ensureClinic(ctx: { tenantType: string; role: string }) {
   if (ctx.tenantType !== 'clinic') {
@@ -37,6 +38,14 @@ export async function sendMessageAction(input: {
   })
   revalidatePath('/messages')
   return result
+}
+
+/** AI-draft the next reply for a thread. Review-only — fills the composer for
+ *  staff to edit; never sends. Gated by the monthly draft allowance. */
+export async function draftReplyAction(threadId: string) {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  return draftPatientReply({ organizationId: ctx.organizationId, threadId, planTier: ctx.planTier })
 }
 
 export async function assignThreadAction(threadId: string, assigneeUserId: string | null) {
