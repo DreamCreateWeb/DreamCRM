@@ -404,9 +404,11 @@ export default function ThreadDetailPanel({
             with the reply composer's single primary, and archive is NOT
             destructive. Labels collapse below md so the cluster never crowds
             the patient name on a narrow pane. */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          {/* Assign / reassign — independent of status, so it sits ahead of the
-              status-dependent snooze/archive/reopen controls. */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Triage actions, grouped into one segmented instrument-panel
+              control so they read as a designed unit — not buttons sprinkled
+              in a row. Assign first; snooze/archive/reopen follow by status. */}
+          <div className="flex items-center gap-0.5 rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] p-0.5 shadow-[inset_0_0_0_1px_var(--color-hairline)]">
           <div className="relative">
             <ToolButton
               icon={<IconAssign />}
@@ -504,7 +506,7 @@ export default function ThreadDetailPanel({
               </ToolButton>
             </>
           )}
-          <StripDivider />
+          </div>
           <Link
             href={`/patients/${thread.patientId}`}
             title="Open this patient's full record"
@@ -612,7 +614,7 @@ export default function ThreadDetailPanel({
       </div>
 
       {/* ── Message stream ────────────────────────────────────────── */}
-      <div ref={streamRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-[color:var(--color-canvas)]">
+      <div ref={streamRef} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 bg-[color:var(--color-canvas)]">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <EmptyState

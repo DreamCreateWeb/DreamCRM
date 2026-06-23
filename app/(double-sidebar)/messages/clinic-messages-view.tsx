@@ -24,6 +24,7 @@ import ThreadDetailPanel from './clinic-thread-detail-panel'
 import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
 import MessagesSurfaceTabs from './surface-tabs'
 import NavBadgeSync from './nav-badge-sync'
+import ThreadSearchInput from './thread-search-input'
 
 /**
  * Front-style unified Patient Communications inbox for clinic tenants.
@@ -193,33 +194,44 @@ export default async function ClinicMessagesView({
           thread (?thread=…) swaps to the detail with a "← All conversations"
           back link; with none selected we show the list. At lg+ both panes
           show side-by-side, exactly as before. */}
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Thread list — full width on mobile when no thread is selected;
             hidden on mobile once a thread is open; fixed-width column at lg+. */}
         <aside
-          className={`${threadSelected ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[22rem] shrink-0 border-r border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] overflow-y-auto`}
+          className={`${threadSelected ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[22rem] shrink-0 min-h-0 border-r border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)]`}
         >
-          {threads.length === 0 ? (
-            <div className="p-3">
-              <EmptyState
-                icon={filterEmpty ? '🔍' : '💬'}
-                title={filterEmpty ? 'No threads match these filters' : 'No conversations yet'}
-                body={
-                  filterEmpty
-                    ? 'Try a different status, or clear the unread filter to see more.'
-                    : 'When a patient messages you — in-app, by email, or by text — the thread shows up right here, one row per patient.'
-                }
-              />
-            </div>
-          ) : (
-            <ClinicThreadList rows={threadRows} activeThreadId={activeThread?.id ?? null} />
-          )}
+          {/* Fixed search header — the conversation list scrolls beneath it. */}
+          <div className="shrink-0 border-b border-[color:var(--color-hairline)] px-2.5 py-2">
+            <ThreadSearchInput
+              defaultQuery={filters.search ?? ''}
+              status={searchParams.status}
+              assignedTo={searchParams.assignedTo}
+              unread={searchParams.unread}
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {threads.length === 0 ? (
+              <div className="p-3">
+                <EmptyState
+                  icon={filterEmpty ? '🔍' : '💬'}
+                  title={filterEmpty ? 'No conversations match' : 'No conversations yet'}
+                  body={
+                    filterEmpty
+                      ? 'Try a different status or search term, or clear the filters to see more.'
+                      : 'When a patient messages you — in-app, by email, or by text — the thread shows up right here, one row per patient.'
+                  }
+                />
+              </div>
+            ) : (
+              <ClinicThreadList rows={threadRows} activeThreadId={activeThread?.id ?? null} />
+            )}
+          </div>
         </aside>
 
         {/* Thread detail — full width on mobile once a thread is open;
             hidden on mobile when none is selected (the list shows instead);
             grows beside the list at lg+. */}
-        <section className={`${threadSelected ? 'flex' : 'hidden lg:flex'} flex-1 min-w-0 flex-col`}>
+        <section className={`${threadSelected ? 'flex' : 'hidden lg:flex'} flex-1 min-w-0 min-h-0 flex-col`}>
           {activeThread ? (
             <ThreadDetailPanel
               // Re-mount the panel per thread so its useState-initializer
