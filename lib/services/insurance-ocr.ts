@@ -1,10 +1,7 @@
 import 'server-only'
 import { z } from 'zod'
-import { and, eq, sql } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { aiUsageCounter } from '@/lib/db/schema/platform'
 import { runClaudeVisionJson, aiConfigured } from '@/lib/ai'
-import { newId } from '@/lib/utils'
+import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
 
 /**
  * Insurance-card OCR auto-fill — the headline differentiator (no dental-forms
@@ -22,35 +19,6 @@ const KIND = 'insurance_ocr'
 /** Generous per-org monthly cap — well above a busy practice's new-patient
  *  volume, low enough to bound abuse of the public endpoint. */
 const MONTHLY_CAP = 400
-
-function currentPeriod(now: Date = new Date()): string {
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-async function usageThisMonth(orgId: string, now: Date = new Date()): Promise<number> {
-  const [row] = await db
-    .select({ count: aiUsageCounter.count })
-    .from(aiUsageCounter)
-    .where(
-      and(
-        eq(aiUsageCounter.organizationId, orgId),
-        eq(aiUsageCounter.period, currentPeriod(now)),
-        eq(aiUsageCounter.kind, KIND),
-      ),
-    )
-    .limit(1)
-  return row?.count ?? 0
-}
-
-async function bumpUsage(orgId: string, now: Date = new Date()): Promise<void> {
-  await db
-    .insert(aiUsageCounter)
-    .values({ id: newId('aiu'), organizationId: orgId, period: currentPeriod(now), kind: KIND, count: 1 })
-    .onConflictDoUpdate({
-      target: [aiUsageCounter.organizationId, aiUsageCounter.period, aiUsageCounter.kind],
-      set: { count: sql`${aiUsageCounter.count} + 1`, updatedAt: new Date() },
-    })
-}
 
 /** The fields we try to read off a dental insurance card. */
 export interface InsuranceCardFields {
@@ -91,7 +59,7 @@ export async function readInsuranceCard(input: {
   const images = input.imageUrls.filter((u) => /^https?:\/\//i.test(u)).slice(0, 2)
   if (images.length === 0) return { ok: false, reason: 'no_images' }
 
-  if ((await usageThisMonth(input.organizationId)) >= MONTHLY_CAP) {
+  if (await isAiUsageOverCap(input.organizationId, KIND, MONTHLY_CAP)) {
     return { ok: false, reason: 'no_allowance' }
   }
 
@@ -134,7 +102,7 @@ export async function readInsuranceCard(input: {
   const parsed = Schema.safeParse(raw)
   if (!parsed.success) return { ok: false, reason: 'failed' }
 
-  await bumpUsage(input.organizationId)
+  await bumpAiUsage(input.organizationId, KIND)
   return {
     ok: true,
     fields: {

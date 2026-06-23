@@ -1,10 +1,9 @@
 import 'server-only'
 import { z } from 'zod'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { aiUsageCounter } from '@/lib/db/schema/platform'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
-import { newId } from '@/lib/utils'
+import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
 import {
   buildIntakeTranscript,
   type FormSubmissionData,
@@ -38,29 +37,6 @@ const Schema = z.object({
 export type SummaryResult =
   | { ok: true; summary: IntakeSummary }
   | { ok: false; reason: 'not_configured' | 'no_allowance' | 'not_found' | 'empty' | 'failed' }
-
-function currentPeriod(now: Date = new Date()): string {
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-async function overCap(orgId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ count: aiUsageCounter.count })
-    .from(aiUsageCounter)
-    .where(and(eq(aiUsageCounter.organizationId, orgId), eq(aiUsageCounter.period, currentPeriod()), eq(aiUsageCounter.kind, KIND)))
-    .limit(1)
-  return (row?.count ?? 0) >= MONTHLY_CAP
-}
-
-async function bump(orgId: string): Promise<void> {
-  await db
-    .insert(aiUsageCounter)
-    .values({ id: newId('aiu'), organizationId: orgId, period: currentPeriod(), kind: KIND, count: 1 })
-    .onConflictDoUpdate({
-      target: [aiUsageCounter.organizationId, aiUsageCounter.period, aiUsageCounter.kind],
-      set: { count: sql`${aiUsageCounter.count} + 1`, updatedAt: new Date() },
-    })
-}
 
 /** Read the cached summary, if any. */
 export async function getCachedSummary(organizationId: string, submissionId: string): Promise<IntakeSummary | null> {
@@ -105,7 +81,7 @@ export async function summarizeSubmission(input: {
   const transcript = buildIntakeTranscript(row.tplSchema as FormTemplateSchema, row.data as FormSubmissionData)
   if (transcript.trim() === '') return { ok: false, reason: 'empty' }
 
-  if (await overCap(input.organizationId)) return { ok: false, reason: 'no_allowance' }
+  if (await isAiUsageOverCap(input.organizationId, KIND, MONTHLY_CAP)) return { ok: false, reason: 'no_allowance' }
 
   const system = `You are a dental clinical assistant preparing a provider for a patient's visit. From the intake answers, produce:
 - "alerts": short bullet strings for anything the PROVIDER must know before treating — drug/material allergies, current medications (especially blood thinners, bisphosphonates, immunosuppressants), medical conditions (heart conditions, diabetes, pregnancy), and dental anxiety. One concern per string, concise (e.g. "Allergic to penicillin", "Takes warfarin (blood thinner)", "High dental anxiety — prefers nitrous"). Empty array if nothing notable.
@@ -138,7 +114,7 @@ Rules: Use ONLY what the patient actually reported. NEVER invent allergies, medi
   const parsed = Schema.safeParse(raw)
   if (!parsed.success) return { ok: false, reason: 'failed' }
 
-  await bump(input.organizationId)
+  await bumpAiUsage(input.organizationId, KIND)
   await db
     .update(schema.formSubmission)
     .set({ aiSummary: parsed.data, aiSummaryAt: new Date() })

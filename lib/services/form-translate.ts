@@ -1,10 +1,9 @@
 import 'server-only'
 import { z } from 'zod'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { aiUsageCounter } from '@/lib/db/schema/platform'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
-import { newId } from '@/lib/utils'
+import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
 import {
   extractTranslatableStrings,
   type FormTemplateSchema,
@@ -22,29 +21,6 @@ import {
 
 const KIND = 'form_translate'
 const MONTHLY_CAP = 200
-
-function currentPeriod(now = new Date()): string {
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-async function overCap(orgId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ count: aiUsageCounter.count })
-    .from(aiUsageCounter)
-    .where(and(eq(aiUsageCounter.organizationId, orgId), eq(aiUsageCounter.period, currentPeriod()), eq(aiUsageCounter.kind, KIND)))
-    .limit(1)
-  return (row?.count ?? 0) >= MONTHLY_CAP
-}
-
-async function bump(orgId: string): Promise<void> {
-  await db
-    .insert(aiUsageCounter)
-    .values({ id: newId('aiu'), organizationId: orgId, period: currentPeriod(), kind: KIND, count: 1 })
-    .onConflictDoUpdate({
-      target: [aiUsageCounter.organizationId, aiUsageCounter.period, aiUsageCounter.kind],
-      set: { count: sql`${aiUsageCounter.count} + 1`, updatedAt: new Date() },
-    })
-}
 
 const ResultSchema = z.object({
   items: z.array(z.object({ key: z.string(), es: z.string() })).max(500),
@@ -74,7 +50,7 @@ export async function generateFormTranslation(input: {
   const strings = extractTranslatableStrings(tpl.schema as FormTemplateSchema)
   if (strings.length === 0) return { ok: false, reason: 'empty' }
   if (!aiConfigured()) return { ok: false, reason: 'not_configured' }
-  if (await overCap(input.organizationId)) return { ok: false, reason: 'no_allowance' }
+  if (await isAiUsageOverCap(input.organizationId, KIND, MONTHLY_CAP)) return { ok: false, reason: 'no_allowance' }
 
   const system = `You translate a dental practice's patient intake form into natural, warm, patient-friendly LATIN AMERICAN SPANISH. You are given a list of strings, each with a stable "key". Translate the "text" of each into Spanish and return it under the same key.
 Rules:
@@ -124,7 +100,7 @@ Rules:
   if (Object.keys(map).length === 0) return { ok: false, reason: 'failed' }
 
   const next: FormTranslations = { ...((tpl.translations as FormTranslations) ?? {}), [locale]: map }
-  await bump(input.organizationId)
+  await bumpAiUsage(input.organizationId, KIND)
   await db
     .update(schema.formTemplate)
     .set({ translations: next, updatedAt: new Date() })
