@@ -5,6 +5,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import { getMyThread } from '@/lib/services/patient-portal'
+import { markOutboundMessagesReadByPatient } from '@/lib/services/patient-messaging'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import PortalMessagesView from './messages-view'
 
@@ -14,6 +15,9 @@ export default async function PortalMessagesPage() {
   const { ctx, clinic, brand } = pc
 
   const thread = await getMyThread(ctx.organizationId, ctx.patientId)
+  // Opening the conversation marks the clinic's in-app messages read — powers
+  // the staff-side "Read" receipt. Best-effort; never blocks the render.
+  await markOutboundMessagesReadByPatient(ctx.organizationId, ctx.patientId)
 
   // Serialize Date → ISO string for the client component.
   const serialized = thread.messages.map((m) => ({

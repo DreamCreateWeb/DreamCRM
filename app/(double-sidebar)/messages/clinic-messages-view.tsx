@@ -262,6 +262,8 @@ export default async function ClinicMessagesView({
               messages={messages.map((m) => ({
                 ...m,
                 sentAt: m.sentAt.toISOString(),
+                deliveredAt: m.deliveredAt ? m.deliveredAt.toISOString() : null,
+                readByPatientAt: m.readByPatientAt ? m.readByPatientAt.toISOString() : null,
               }))}
               currentUserName={ctx.userName ?? null}
               templates={messageTemplates.map((t) => ({

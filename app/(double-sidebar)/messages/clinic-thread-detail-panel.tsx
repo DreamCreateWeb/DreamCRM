@@ -49,6 +49,9 @@ interface SerializedMessage {
   sentByUserId?: string | null
   sentByUserName?: string | null
   externalId?: string | null
+  /** Outbound delivery receipts (in-app channel), ISO strings. */
+  deliveredAt?: string | null
+  readByPatientAt?: string | null
 }
 
 interface TemplateOption {
@@ -184,6 +187,18 @@ const IconClipboard = () => (
     <rect x="5.5" y="4.5" width="13" height="16" rx="2" />
     <path d="M9 6V4.6A1.6 1.6 0 0 1 10.6 3h2.8A1.6 1.6 0 0 1 15 4.6V6z" />
     <path d="M9 12h6M9 15.5h4" />
+  </svg>
+)
+/* Delivery-receipt ticks: single = delivered, double = read. */
+const IconCheck = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 12.5 9.5 18 20 6.5" />
+  </svg>
+)
+const IconCheckDouble = () => (
+  <svg width="15" height="12" viewBox="0 0 30 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 12.5 7 18 16.5 6.5" />
+    <path d="M11.5 14.5 13 16 23.5 4.5" />
   </svg>
 )
 
@@ -702,9 +717,28 @@ export default function ThreadDetailPanel({
                             )
                           })}
 
-                          {/* Timestamp once per group, on the last bubble. */}
-                          <span className="px-0.5 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                          {/* Timestamp once per group, on the last bubble —
+                              outbound carries a delivery receipt (Delivered ✓ /
+                              Read ✓✓ for in-app; email shows just the time). */}
+                          <span className="flex items-center gap-1 px-0.5 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
                             {fmtClock(last.sentAt)}
+                            {outbound && (last.readByPatientAt || last.deliveredAt) && (
+                              <span
+                                className={`inline-flex items-center gap-0.5 ${
+                                  last.readByPatientAt
+                                    ? 'text-teal-600 dark:text-teal-400 font-medium'
+                                    : 'text-gray-400 dark:text-gray-500'
+                                }`}
+                                title={
+                                  last.readByPatientAt
+                                    ? 'Read by the patient in their portal'
+                                    : 'Delivered to the patient portal'
+                                }
+                              >
+                                {last.readByPatientAt ? <IconCheckDouble /> : <IconCheck />}
+                                {last.readByPatientAt ? 'Read' : 'Delivered'}
+                              </span>
+                            )}
                           </span>
                         </div>
                       </li>

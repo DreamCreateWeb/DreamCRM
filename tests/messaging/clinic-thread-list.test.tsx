@@ -144,6 +144,6 @@ describe('Thread list rows (v2)', () => {
   it('shows a filter-aware empty state when filters exclude everything', async () => {
     listThreads.mockResolvedValue([])
     render(await ClinicMessagesView({ ctx, searchParams: { status: 'archived' } }))
-    expect(screen.getByText('No threads match these filters')).toBeInTheDocument()
+    expect(screen.getByText('No conversations match')).toBeInTheDocument()
   })
 })

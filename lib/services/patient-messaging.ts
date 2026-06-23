@@ -88,6 +88,11 @@ export interface ThreadMessage {
   sentByUserId?: string | null
   sentByUserName?: string | null
   externalId?: string | null
+  /** Outbound delivery receipts — set for the in-app channel: delivered to the
+   *  portal the instant it's written, read when the patient opens the
+   *  conversation. Null for inbound and for email (no read tracking there). */
+  deliveredAt?: Date | null
+  readByPatientAt?: Date | null
 }
 
 export interface ThreadFilters {
@@ -479,6 +484,8 @@ export async function listMessagesInThread(
         sentByUserId: schema.patientMessage.sentByUserId,
         sentByName: schema.user.name,
         sentAt: schema.patientMessage.sentAt,
+        deliveredAt: schema.patientMessage.deliveredAt,
+        readByPatientAt: schema.patientMessage.readByPatientAt,
         externalId: schema.patientMessage.externalId,
       })
       .from(schema.patientMessage)
@@ -514,6 +521,8 @@ export async function listMessagesInThread(
     direction: m.direction as MessageDirection,
     body: m.body,
     sentAt: m.sentAt,
+    deliveredAt: m.deliveredAt,
+    readByPatientAt: m.readByPatientAt,
     sentByUserId: m.sentByUserId,
     sentByUserName: m.sentByName,
     externalId: m.externalId,
@@ -684,6 +693,9 @@ export async function sendMessageToPatient(input: {
     body: input.body.trim(),
     sentByUserId: input.sentByUserId,
     sentAt: now,
+    // In-app is delivered the instant it's written (it lands in the portal).
+    // Email delivery/read isn't tracked yet, so leave null → the UI reads "Sent".
+    deliveredAt: input.channel === 'in_app' ? now : null,
   })
 
   // Denormalize on thread; flipping outbound zeros the unread counter
@@ -703,6 +715,34 @@ export async function sendMessageToPatient(input: {
     .where(eq(schema.patientThread.id, threadId))
 
   return { threadId, messageId }
+}
+
+/**
+ * Mark the clinic's outbound in-app messages in a patient's thread as read —
+ * called when the patient opens the conversation in their portal. Powers the
+ * "Read" receipt staff see on those bubbles. Idempotent (only touches
+ * not-yet-read rows); best-effort, never throws into the portal render.
+ */
+export async function markOutboundMessagesReadByPatient(
+  organizationId: string,
+  patientId: string,
+): Promise<void> {
+  try {
+    await db
+      .update(schema.patientMessage)
+      .set({ readByPatientAt: new Date() })
+      .where(
+        and(
+          eq(schema.patientMessage.organizationId, organizationId),
+          eq(schema.patientMessage.patientId, patientId),
+          eq(schema.patientMessage.direction, 'outbound'),
+          eq(schema.patientMessage.channel, 'in_app'),
+          isNull(schema.patientMessage.readByPatientAt),
+        ),
+      )
+  } catch (err) {
+    console.warn('[patient-messaging.markOutboundMessagesReadByPatient] failed', err)
+  }
 }
 
 /**

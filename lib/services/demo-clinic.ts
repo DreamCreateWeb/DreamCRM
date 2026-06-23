@@ -3489,7 +3489,10 @@ async function seedPatientMessagesForOrg(
     })
     threadsAdded++
 
+    const newestHoursAgo = Math.min(...sortedMessages.map((x) => x.hoursAgo))
     for (const m of sortedMessages) {
+      const sentAt = new Date(now.getTime() - m.hoursAgo * hourMs)
+      const isOutboundInApp = m.direction === 'outbound' && m.channel === 'in_app'
       await db.insert(schema.patientMessage).values({
         id: newId('pmsg'),
         threadId,
@@ -3499,7 +3502,15 @@ async function seedPatientMessagesForOrg(
         direction: m.direction,
         body: m.body,
         sentByUserId: null, // demo seeder doesn't tie to a specific staff user
-        sentAt: new Date(now.getTime() - m.hoursAgo * hourMs),
+        sentAt,
+        // Delivery receipts: in-app delivers on send; mark all but the newest
+        // outbound as read so the demo shows both "Read ✓✓" and a fresh
+        // "Delivered ✓".
+        deliveredAt: isOutboundInApp ? new Date(sentAt.getTime() + 2_000) : null,
+        readByPatientAt:
+          isOutboundInApp && m.hoursAgo > newestHoursAgo
+            ? new Date(sentAt.getTime() + 30 * 60_000)
+            : null,
       })
       messagesAdded++
     }
