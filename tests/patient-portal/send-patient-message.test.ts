@@ -70,7 +70,7 @@ describe('sendPortalMessageAction', () => {
   it('sends the message on the happy path', async () => {
     const r = await callAction('Hi, can I reschedule?')
     expect(r).toEqual({ ok: true })
-    expect(sendMessageFromPatient).toHaveBeenCalledWith('org_1', 'pat_1', 'Hi, can I reschedule?')
+    expect(sendMessageFromPatient).toHaveBeenCalledWith('org_1', 'pat_1', 'Hi, can I reschedule?', [])
   })
 
   it('throws when caller is not a patient tenant', async () => {
@@ -97,7 +97,7 @@ describe('sendPortalMessageAction', () => {
 
   it('rejects empty body without calling the service', async () => {
     const r = await callAction('   ')
-    expect(r).toEqual({ ok: false, error: 'Write a message first.' })
+    expect(r).toEqual({ ok: false, error: 'Write a message or add a photo first.' })
     expect(sendMessageFromPatient).not.toHaveBeenCalled()
   })
 

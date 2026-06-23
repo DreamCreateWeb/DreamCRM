@@ -9,6 +9,8 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
 import PatientTagControl from '@/components/tags/patient-tag-control'
 import type { PatientTagView } from '@/lib/types/patient-tags'
+import type { MessageAttachment } from '@/lib/types/messaging'
+import { MessageAttachments } from './message-attachments'
 import { channelMeta } from './channel-meta'
 import {
   archiveThreadAction,
@@ -20,6 +22,8 @@ import {
 } from './clinic-actions'
 import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-reply-channel'
 import { avatarTint, groupMessagesByDay, messageInitials } from './message-grouping'
+import { uploadFileWithProgress } from '@/lib/upload-with-progress'
+import { MAX_MESSAGE_ATTACHMENTS } from '@/lib/types/messaging'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -53,6 +57,8 @@ interface SerializedMessage {
   /** Outbound delivery receipts (in-app channel), ISO strings. */
   deliveredAt?: string | null
   readByPatientAt?: string | null
+  /** Image attachments on this message. */
+  attachments?: MessageAttachment[]
 }
 
 interface TemplateOption {
@@ -266,6 +272,9 @@ export default function ThreadDetailPanel({
   const [pending, startTransition] = useTransition()
   const [body, setBody] = useState('')
   const [drafting, setDrafting] = useState(false)
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([])
+  const [uploading, setUploading] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   // Auto-pick the reply channel using the patient's historical inbound
   // distribution (when a strong majority exists) or the channel of the
@@ -310,15 +319,56 @@ export default function ThreadDetailPanel({
   }
 
   function handleSend() {
-    if (!body.trim()) return
+    if (!body.trim() && attachments.length === 0) return
+    if (uploading > 0) return
+    const sent = attachments
     runAction(
-      () => sendMessageAction({ patientId: thread.patientId, body, channel }),
+      () => sendMessageAction({ patientId: thread.patientId, body, channel, attachments: sent }),
       () => {
         setBody('')
+        setAttachments([])
         setToast(`Sent to ${thread.patientFirstName}`)
         router.refresh()
       },
     )
+  }
+
+  // Upload one or more chosen image files to S3, then add them to the pending
+  // attachment tray. The /api/upload route sniffs magic bytes + rejects
+  // non-images, so a bad pick surfaces a toast rather than a broken thumbnail.
+  function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return
+    const room = MAX_MESSAGE_ATTACHMENTS - attachments.length
+    if (room <= 0) {
+      setToast(`Up to ${MAX_MESSAGE_ATTACHMENTS} photos per message.`)
+      return
+    }
+    const picked = Array.from(files).slice(0, room)
+    for (const file of picked) {
+      if (!file.type.startsWith('image/')) {
+        setToast('Only images can be attached.')
+        continue
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        setToast(`"${file.name}" is over 8MB — pick a smaller image.`)
+        continue
+      }
+      setUploading((n) => n + 1)
+      uploadFileWithProgress(file, 'message-attachments')
+        .promise.then((url) => {
+          setAttachments((prev) =>
+            prev.length >= MAX_MESSAGE_ATTACHMENTS
+              ? prev
+              : [...prev, { url, name: file.name, contentType: file.type }],
+          )
+        })
+        .catch(() => setToast(`Couldn't upload "${file.name}". Please try again.`))
+        .finally(() => setUploading((n) => Math.max(0, n - 1)))
+    }
+  }
+
+  function removeAttachment(url: string) {
+    setAttachments((prev) => prev.filter((a) => a.url !== url))
   }
 
   function handleSnooze(hours: number) {
@@ -749,6 +799,12 @@ export default function ThreadDetailPanel({
                                   <p className="font-semibold text-xs mb-1 opacity-75">{m.subject}</p>
                                 )}
                                 {m.body}
+                                {m.attachments && m.attachments.length > 0 && (
+                                  <MessageAttachments
+                                    attachments={m.attachments}
+                                    className={m.body ? 'mt-2' : ''}
+                                  />
+                                )}
                               </div>
                             )
                           })}
@@ -855,6 +911,33 @@ export default function ThreadDetailPanel({
                   {drafting ? 'Drafting…' : 'Draft'}
                 </button>
               )}
+              {/* Attach photos — opens the OS file picker; uploads land in the
+                  tray above the textarea. Hidden input is driven by the button. */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  handleFiles(e.target.files)
+                  e.target.value = '' // allow re-picking the same file
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={attachments.length >= MAX_MESSAGE_ATTACHMENTS}
+                title={
+                  attachments.length >= MAX_MESSAGE_ATTACHMENTS
+                    ? `Up to ${MAX_MESSAGE_ATTACHMENTS} photos`
+                    : 'Attach a photo'
+                }
+                className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] px-2.5 py-1 text-xs font-medium text-gray-700 hover:border-gray-300 disabled:opacity-50 disabled:pointer-events-none dark:text-gray-200 dark:hover:border-gray-600 transition-colors"
+              >
+                <span aria-hidden="true">📎</span>
+                <span className="hidden sm:inline">Photo</span>
+              </button>
               {preferred && (
                 // A derived metadata hint, not a status — quiet ink chip in a
                 // sunk well so it never reads as an encoded tone.
@@ -869,6 +952,37 @@ export default function ThreadDetailPanel({
                 ⌘ + Enter to send
               </span>
             </div>
+            {/* Pending-attachment tray — thumbnails with a remove ×; an
+                uploading placeholder shimmers while a transfer is in flight. */}
+            {(attachments.length > 0 || uploading > 0) && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {attachments.map((a) => (
+                  <div
+                    key={a.url}
+                    className="group relative h-16 w-16 overflow-hidden rounded-[var(--r-sm)] ring-1 ring-inset ring-[color:var(--color-hairline-strong)]"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element -- user upload preview */}
+                    <img src={a.url} alt={a.name || 'attachment'} className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(a.url)}
+                      title="Remove"
+                      className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {uploading > 0 &&
+                  Array.from({ length: uploading }).map((_, i) => (
+                    <div
+                      key={`up-${i}`}
+                      className="skeleton h-16 w-16 rounded-[var(--r-sm)]"
+                      aria-label="Uploading photo"
+                    />
+                  ))}
+              </div>
+            )}
             {/* Framed reply box — textarea + Send together in one calm panel. */}
             <div className="v2-panel flex items-end gap-2 p-2 focus-within:shadow-[inset_0_0_0_1px_var(--color-hairline-strong)] transition-shadow">
               <label className="sr-only" htmlFor="reply-body">Your reply</label>
@@ -884,7 +998,12 @@ export default function ThreadDetailPanel({
                 className="flex-1 resize-none border-0 bg-transparent px-1.5 py-1 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-0"
               />
               {/* The pane's single primary action. */}
-              <ActionButton variant="primary" size="sm" onClick={handleSend} disabled={pending || !body.trim()}>
+              <ActionButton
+                variant="primary"
+                size="sm"
+                onClick={handleSend}
+                disabled={pending || uploading > 0 || (!body.trim() && attachments.length === 0)}
+              >
                 {pending ? 'Sending…' : `Send ${channel === 'email' ? 'email' : channel === 'sms' ? 'SMS' : 'message'}`}
               </ActionButton>
             </div>

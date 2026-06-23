@@ -698,6 +698,8 @@ export interface PatientMessageEmailData {
   from?: string
   /** Tier 2: send via the clinic's connected Gmail account. */
   gmail?: { accountId: string; from: string }
+  /** Image attachments — rendered inline (hosted on S3) under the body. */
+  attachments?: Array<{ url: string; name: string; contentType: string }>
 }
 
 /**
@@ -709,6 +711,24 @@ export interface PatientMessageEmailData {
  */
 export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
   const greeting = data.patientFirstName ? `Hi ${escapeHtml(data.patientFirstName)},` : 'Hi,'
+  // Inline image attachments (hosted on the public S3 bucket). Only render the
+  // ones that are actually images + have an http(s) URL — defensive against a
+  // malformed meta blob.
+  const images = (data.attachments ?? []).filter(
+    (a) => a.contentType.startsWith('image/') && /^https?:\/\//i.test(a.url),
+  )
+  const attachmentsHtml = images.length
+    ? `<div style="margin:0 0 20px">${images
+        .map(
+          (a) =>
+            `<a href="${escapeHtml(a.url)}" style="display:block;margin:0 0 8px"><img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name || 'attachment')}" style="max-width:100%;border-radius:8px;border:1px solid #e7e5e4" /></a>`,
+        )
+        .join('')}</div>`
+    : ''
+  // A photo-only message has no body — skip the empty paragraph then.
+  const bodyHtml = data.body.trim()
+    ? `<p style="margin:0 0 20px;color:#1c1917;line-height:1.6;white-space:pre-wrap">${escapeHtml(data.body)}</p>`
+    : ''
   await deliver({
     to: data.to,
     from: data.from,
@@ -718,7 +738,8 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1c1917">
         <p style="margin:0 0 16px;color:#57534e">${greeting}</p>
-        <p style="margin:0 0 20px;color:#1c1917;line-height:1.6;white-space:pre-wrap">${escapeHtml(data.body)}</p>
+        ${bodyHtml}
+        ${attachmentsHtml}
         <p style="margin:0;color:#1c1917">— ${escapeHtml(data.clinicName)}</p>
         ${data.replyTo ? `<p style="margin:20px 0 0;font-size:12px;color:#a8a29e">You can reply directly to this email to reach us.</p>` : ''}
       </div>

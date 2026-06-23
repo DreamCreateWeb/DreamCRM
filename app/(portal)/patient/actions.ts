@@ -24,6 +24,7 @@ import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
 
 /**
  * Patient-side server actions for the portal. Every action:
@@ -404,18 +405,22 @@ async function patientDisplayName(organizationId: string, patientId: string): Pr
   return p ? `${p.firstName} ${p.lastName}`.trim() : 'A patient'
 }
 
-export async function sendPortalMessageAction(body: string): Promise<PortalActionResult> {
+export async function sendPortalMessageAction(
+  body: string,
+  attachments?: MessageAttachment[],
+): Promise<PortalActionResult> {
   const ctx = await requirePatient()
   const settings = await getPortalSettings(ctx.organizationId)
   if (!settings.features.messages) {
     return { ok: false, error: 'Messaging isn’t available — give us a call instead.' }
   }
   const trimmed = body.trim()
-  if (!trimmed) return { ok: false, error: 'Write a message first.' }
+  const clean = sanitizeAttachments(attachments)
+  if (!trimmed && clean.length === 0) return { ok: false, error: 'Write a message or add a photo first.' }
   if (trimmed.length > 5000) return { ok: false, error: 'That message is a little long — keep it under 5,000 characters.' }
 
   try {
-    await sendMessageFromPatient(ctx.organizationId, ctx.patientId, trimmed)
+    await sendMessageFromPatient(ctx.organizationId, ctx.patientId, trimmed, clean)
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
   }

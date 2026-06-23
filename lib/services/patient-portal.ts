@@ -22,6 +22,7 @@ import {
   type ThreadMessage,
 } from '@/lib/services/patient-messaging'
 import { derivePatientRecallStatus, type RecallStatus } from '@/lib/services/recall-status'
+import type { MessageAttachment } from '@/lib/types/messaging'
 
 export async function getMyPatientRecord(patientId: string, organizationId: string) {
   const [row] = await db
@@ -390,12 +391,14 @@ export async function sendMessageFromPatient(
   organizationId: string,
   patientId: string,
   body: string,
+  attachments: MessageAttachment[] = [],
 ): Promise<{ threadId: string; messageId: string }> {
   return recordInboundMessage({
     organizationId,
     patientId,
     body,
     channel: 'in_app',
+    attachments,
   })
 }
 

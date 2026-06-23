@@ -2116,6 +2116,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // inserts when count is still below the threshold.
     await topUpSophiaPreferenceMessages(existing.id, existingPatientIds, new Date())
 
+    // Backfill the demo image attachment onto Emma's "temporary crown" inbound
+    // (the photo-attachment showcase) for legacy demos seeded before
+    // attachments existed. Idempotent: only writes when no message in her
+    // thread carries an attachment yet.
+    await topUpEmmaAttachment(existing.id, existingPatientIds)
+
     // Testimonials self-heal: legacy demos seeded fabricated "Sarah K."
     // testimonials with no patientId — they don't correspond to any CRM
     // patient. Idempotent: only patches when none of the existing
@@ -3383,6 +3389,7 @@ async function seedPatientMessagesForOrg(
       channel: 'in_app' | 'email'
       body: string
       hoursAgo: number
+      attachments?: Array<{ url: string; name: string; contentType: string }>
     }>
   }
   const THREAD_SEEDS: SeedThread[] = [
@@ -3436,7 +3443,20 @@ async function seedPatientMessagesForOrg(
       patientIdx: 6,
       status: 'open',
       messages: [
-        { direction: 'inbound', channel: 'email', body: 'Hi! Quick question — I booked through your website for next week but I forgot to mention I have a temporary crown on a back molar that\'s been bothering me. Could we look at that during the consult, or do I need a separate appointment?', hoursAgo: 16 },
+        {
+          direction: 'inbound',
+          channel: 'email',
+          body: 'Hi! Quick question — I booked through your website for next week but I forgot to mention I have a temporary crown on a back molar that\'s been bothering me. Could we look at that during the consult, or do I need a separate appointment? I snapped a photo so you can see what I mean.',
+          hoursAgo: 16,
+          // A patient attaching a photo of their concern — the headline use case.
+          attachments: [
+            {
+              url: 'https://images.unsplash.com/photo-1606265752439-1f18756aa8ed?w=900&q=80',
+              name: 'tooth-photo.jpg',
+              contentType: 'image/jpeg',
+            },
+          ],
+        },
       ],
     },
     // Mason — a website APPOINTMENT REQUEST: exactly what request-only booking
@@ -3511,6 +3531,7 @@ async function seedPatientMessagesForOrg(
           isOutboundInApp && m.hoursAgo > newestHoursAgo
             ? new Date(sentAt.getTime() + 30 * 60_000)
             : null,
+        ...(m.attachments && m.attachments.length > 0 ? { meta: { attachments: m.attachments } } : {}),
       })
       messagesAdded++
     }
@@ -3575,6 +3596,56 @@ async function topUpSophiaPreferenceMessages(
       sentAt: new Date(now.getTime() - f.hoursAgo * hourMs),
     })
   }
+}
+
+/**
+ * Idempotent self-heal: attach the demo "tooth photo" to Emma's most-recent
+ * inbound message so legacy demos (seeded before attachments shipped) showcase
+ * the photo-attachment render on /messages + the portal. Skips when any message
+ * in her thread already has an attachment (so a hand-edited demo isn't touched).
+ */
+async function topUpEmmaAttachment(orgId: string, patientIds: string[]): Promise<void> {
+  const emmaId = patientIds[6]
+  if (!emmaId) return
+
+  const [thread] = await db
+    .select({ id: schema.patientThread.id })
+    .from(schema.patientThread)
+    .where(and(eq(schema.patientThread.organizationId, orgId), eq(schema.patientThread.patientId, emmaId)))
+    .limit(1)
+  if (!thread) return
+
+  const msgs = await db
+    .select({
+      id: schema.patientMessage.id,
+      direction: schema.patientMessage.direction,
+      sentAt: schema.patientMessage.sentAt,
+      meta: schema.patientMessage.meta,
+    })
+    .from(schema.patientMessage)
+    .where(eq(schema.patientMessage.threadId, thread.id))
+  if (msgs.length === 0) return
+  // Already has an attachment somewhere → nothing to do.
+  if (msgs.some((m) => Array.isArray((m.meta as { attachments?: unknown } | null)?.attachments) && ((m.meta as { attachments?: unknown[] }).attachments?.length ?? 0) > 0)) {
+    return
+  }
+  // Target the newest inbound message (her concern note).
+  const inbound = msgs.filter((m) => m.direction === 'inbound').sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())
+  const target = inbound[0] ?? msgs.sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())[0]
+  await db
+    .update(schema.patientMessage)
+    .set({
+      meta: {
+        attachments: [
+          {
+            url: 'https://images.unsplash.com/photo-1606265752439-1f18756aa8ed?w=900&q=80',
+            name: 'tooth-photo.jpg',
+            contentType: 'image/jpeg',
+          },
+        ],
+      },
+    })
+    .where(eq(schema.patientMessage.id, target.id))
 }
 
 /**

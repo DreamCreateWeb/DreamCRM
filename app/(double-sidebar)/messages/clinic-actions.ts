@@ -12,6 +12,7 @@ import {
   type MessageChannel,
 } from '@/lib/services/patient-messaging'
 import { draftPatientReply } from '@/lib/services/message-ai'
+import type { MessageAttachment } from '@/lib/types/messaging'
 
 function ensureClinic(ctx: { tenantType: string; role: string }) {
   if (ctx.tenantType !== 'clinic') {
@@ -26,6 +27,7 @@ export async function sendMessageAction(input: {
   patientId: string
   body: string
   channel: MessageChannel
+  attachments?: MessageAttachment[]
 }) {
   const ctx = await requireTenant()
   ensureClinic(ctx)
@@ -35,6 +37,7 @@ export async function sendMessageAction(input: {
     body: input.body,
     channel: input.channel,
     sentByUserId: ctx.userId,
+    attachments: input.attachments,
   })
   revalidatePath('/messages')
   return result

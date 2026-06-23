@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { sendPatientMessageEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
 
 /**
  * Patient Communications service. Unified per-patient threads across
@@ -93,6 +94,8 @@ export interface ThreadMessage {
    *  conversation. Null for inbound and for email (no read tracking there). */
   deliveredAt?: Date | null
   readByPatientAt?: Date | null
+  /** Image attachments (stored in patient_message.meta). Empty when none. */
+  attachments?: MessageAttachment[]
 }
 
 export interface ThreadFilters {
@@ -487,6 +490,7 @@ export async function listMessagesInThread(
         deliveredAt: schema.patientMessage.deliveredAt,
         readByPatientAt: schema.patientMessage.readByPatientAt,
         externalId: schema.patientMessage.externalId,
+        meta: schema.patientMessage.meta,
       })
       .from(schema.patientMessage)
       .leftJoin(schema.user, eq(schema.patientMessage.sentByUserId, schema.user.id))
@@ -526,6 +530,7 @@ export async function listMessagesInThread(
     sentByUserId: m.sentByUserId,
     sentByUserName: m.sentByName,
     externalId: m.externalId,
+    attachments: sanitizeAttachments((m.meta as { attachments?: unknown } | null)?.attachments),
   }))
 
   const fromEmail: ThreadMessage[] = emails.map((e) => ({
@@ -620,7 +625,12 @@ export { deliverableReplyTo } from '@/lib/email-identity'
  * Throws on no-email or a send failure so the caller never records a misleading
  * "sent" bubble for an email that didn't go out.
  */
-async function deliverPatientMessageEmail(organizationId: string, patientId: string, body: string): Promise<void> {
+async function deliverPatientMessageEmail(
+  organizationId: string,
+  patientId: string,
+  body: string,
+  attachments: MessageAttachment[] = [],
+): Promise<void> {
   const [p] = await db
     .select({ email: schema.patient.email, firstName: schema.patient.firstName })
     .from(schema.patient)
@@ -636,6 +646,7 @@ async function deliverPatientMessageEmail(organizationId: string, patientId: str
     patientFirstName: p.firstName,
     clinicName: sender.name,
     body,
+    attachments,
     from: sender.from,
     gmail: sender.gmail,
     // deliverableReplyTo (inside getClinicSenderIdentity) skips a non-deliverable
@@ -662,8 +673,14 @@ export async function sendMessageToPatient(input: {
   body: string
   channel: MessageChannel
   sentByUserId: string
+  /** Optional image attachments (uploaded to S3 via /api/upload first). */
+  attachments?: MessageAttachment[]
 }): Promise<{ threadId: string; messageId: string }> {
-  if (!input.body.trim()) throw new Error('Message body cannot be empty')
+  const attachments = sanitizeAttachments(input.attachments)
+  // A photo-only message is valid — require text OR at least one attachment.
+  if (!input.body.trim() && attachments.length === 0) {
+    throw new Error('Add a message or an attachment to send.')
+  }
   assertBodyWithinLimit(input.body)
   assertValidChannel(input.channel)
   if (input.channel === 'sms') {
@@ -676,7 +693,7 @@ export async function sendMessageToPatient(input: {
   // before recording the row, so the thread never shows a "sent" email that
   // never went out.
   if (input.channel === 'email') {
-    await deliverPatientMessageEmail(input.organizationId, input.patientId, input.body.trim())
+    await deliverPatientMessageEmail(input.organizationId, input.patientId, input.body.trim(), attachments)
   }
 
   const threadId = await getOrCreatePatientThread(input.organizationId, input.patientId)
@@ -696,6 +713,7 @@ export async function sendMessageToPatient(input: {
     // In-app is delivered the instant it's written (it lands in the portal).
     // Email delivery/read isn't tracked yet, so leave null → the UI reads "Sent".
     deliveredAt: input.channel === 'in_app' ? now : null,
+    ...(attachments.length > 0 ? { meta: { attachments } } : {}),
   })
 
   // Denormalize on thread; flipping outbound zeros the unread counter
@@ -756,8 +774,13 @@ export async function recordInboundMessage(input: {
   body: string
   channel: MessageChannel
   externalId?: string
+  /** Optional image attachments (e.g. a patient photo from the portal). */
+  attachments?: MessageAttachment[]
 }): Promise<{ threadId: string; messageId: string }> {
-  if (!input.body.trim()) throw new Error('Message body cannot be empty')
+  const attachments = sanitizeAttachments(input.attachments)
+  if (!input.body.trim() && attachments.length === 0) {
+    throw new Error('Message body cannot be empty')
+  }
   assertBodyWithinLimit(input.body)
   assertValidChannel(input.channel)
   // Cross-tenant patient check lives inside getOrCreatePatientThread.
@@ -776,6 +799,7 @@ export async function recordInboundMessage(input: {
     body: input.body.trim(),
     sentAt: now,
     externalId: input.externalId ?? null,
+    ...(attachments.length > 0 ? { meta: { attachments } } : {}),
   })
 
   await db

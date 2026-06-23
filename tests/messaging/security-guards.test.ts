@@ -103,7 +103,7 @@ describe('sendMessageToPatient — cross-tenant + body guards', () => {
     expect(state.inserts).toHaveLength(0)
   })
 
-  it('rejects an empty body before touching the DB', async () => {
+  it('rejects an empty body (and no attachment) before touching the DB', async () => {
     state.patientExists = true
     const { sendMessageToPatient } = await import('@/lib/services/patient-messaging')
     await expect(
@@ -114,7 +114,7 @@ describe('sendMessageToPatient — cross-tenant + body guards', () => {
         channel: 'in_app',
         sentByUserId: 'usr_1',
       }),
-    ).rejects.toThrow(/cannot be empty/i)
+    ).rejects.toThrow(/message or an attachment/i)
     expect(state.inserts).toHaveLength(0)
   })
 

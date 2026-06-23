@@ -30,6 +30,7 @@ export default async function PortalMessagesPage() {
     fromName: m.fromName ?? null,
     sentByUserName: m.sentByUserName ?? null,
     sentAtIso: m.sentAt.toISOString(),
+    attachments: m.attachments ?? [],
   }))
 
   return (

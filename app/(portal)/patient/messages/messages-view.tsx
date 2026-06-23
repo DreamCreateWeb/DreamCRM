@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendPortalMessageAction } from '../actions'
 import { PortalHeading } from '@/components/patient-portal/ui'
+import { uploadFileWithProgress } from '@/lib/upload-with-progress'
+import { MAX_MESSAGE_ATTACHMENTS, isImageAttachment, type MessageAttachment } from '@/lib/types/messaging'
 
 /**
  * Patient ↔ front desk conversation, portal-side. One thread, plain
@@ -21,6 +23,7 @@ interface SerializedMessage {
   fromName: string | null
   sentByUserName: string | null
   sentAtIso: string
+  attachments: MessageAttachment[]
 }
 
 const INK = '#1C1A17'
@@ -65,6 +68,9 @@ export default function PortalMessagesView({
   const [draft, setDraft] = useState('')
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([])
+  const [uploading, setUploading] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -73,13 +79,15 @@ export default function PortalMessagesView({
 
   function onSend(e: React.FormEvent) {
     e.preventDefault()
-    if (!draft.trim()) return
+    if ((!draft.trim() && attachments.length === 0) || uploading > 0) return
     setFeedback(null)
     const body = draft
+    const sent = attachments
     startTransition(async () => {
-      const r = await sendPortalMessageAction(body)
+      const r = await sendPortalMessageAction(body, sent)
       if (r.ok) {
         setDraft('')
+        setAttachments([])
         setFeedback({ kind: 'ok', msg: 'Sent — the front desk will reply during office hours.' })
         router.refresh()
         setTimeout(() => setFeedback(null), 5000)
@@ -87,6 +95,37 @@ export default function PortalMessagesView({
         setFeedback({ kind: 'err', msg: r.error })
       }
     })
+  }
+
+  // Upload chosen photos to S3 (the route sniffs bytes + rejects non-images),
+  // then add them to the tray. A patient snapping a photo of a concern is the
+  // headline use case here.
+  function onFiles(files: FileList | null) {
+    if (!files || files.length === 0) return
+    const room = MAX_MESSAGE_ATTACHMENTS - attachments.length
+    if (room <= 0) {
+      setFeedback({ kind: 'err', msg: `You can attach up to ${MAX_MESSAGE_ATTACHMENTS} photos.` })
+      return
+    }
+    for (const file of Array.from(files).slice(0, room)) {
+      if (!file.type.startsWith('image/')) {
+        setFeedback({ kind: 'err', msg: 'Only photos can be attached.' })
+        continue
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        setFeedback({ kind: 'err', msg: `"${file.name}" is over 8MB — pick a smaller photo.` })
+        continue
+      }
+      setUploading((n) => n + 1)
+      uploadFileWithProgress(file, 'message-attachments')
+        .promise.then((url) => {
+          setAttachments((prev) =>
+            prev.length >= MAX_MESSAGE_ATTACHMENTS ? prev : [...prev, { url, name: file.name, contentType: file.type }],
+          )
+        })
+        .catch(() => setFeedback({ kind: 'err', msg: `Couldn't upload "${file.name}".` }))
+        .finally(() => setUploading((n) => Math.max(0, n - 1)))
+    }
   }
 
   const grouped: Array<{ day: string; rows: SerializedMessage[] }> = []
@@ -167,6 +206,29 @@ export default function PortalMessagesView({
                         >
                           {m.subject && <p className="mb-1 text-[0.78rem] font-semibold opacity-80">{m.subject}</p>}
                           {m.body}
+                          {m.attachments.length > 0 && (
+                            <div className={`flex flex-wrap gap-1.5 ${m.body ? 'mt-2' : ''}`}>
+                              {m.attachments.filter(isImageAttachment).map((a, i) => (
+                                <a
+                                  key={`${a.url}-${i}`}
+                                  href={a.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block overflow-hidden rounded-xl"
+                                  style={{ border: '1px solid rgba(0,0,0,0.08)' }}
+                                  title={a.name || 'Open photo'}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- patient upload on S3 */}
+                                  <img
+                                    src={a.url}
+                                    alt={a.name || 'Attached photo'}
+                                    loading="lazy"
+                                    className="h-32 w-32 object-cover"
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -179,7 +241,58 @@ export default function PortalMessagesView({
         </div>
 
         <form onSubmit={onSend} className="p-3" style={{ borderTop: `1px solid ${BORDER}` }}>
+          {/* Pending-photo tray */}
+          {(attachments.length > 0 || uploading > 0) && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {attachments.map((a) => (
+                <div key={a.url} className="relative h-16 w-16 overflow-hidden rounded-xl" style={{ border: `1px solid ${BORDER}` }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- patient upload preview */}
+                  <img src={a.url} alt={a.name || 'photo'} className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setAttachments((prev) => prev.filter((x) => x.url !== a.url))}
+                    title="Remove"
+                    className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {uploading > 0 &&
+                Array.from({ length: uploading }).map((_, i) => (
+                  <div
+                    key={`up-${i}`}
+                    className="h-16 w-16 animate-pulse rounded-xl"
+                    style={{ backgroundColor: '#EFEAE2' }}
+                    aria-label="Uploading photo"
+                  />
+                ))}
+            </div>
+          )}
           <div className="flex items-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                onFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={pending || attachments.length >= MAX_MESSAGE_ATTACHMENTS}
+              title="Attach a photo"
+              aria-label="Attach a photo"
+              className="shrink-0 rounded-full px-3 py-3 text-[1rem] disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ border: `1px solid ${BORDER}`, color: MUTED, backgroundColor: '#FAF7F2' }}
+            >
+              📎
+            </button>
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -194,7 +307,7 @@ export default function PortalMessagesView({
             />
             <button
               type="submit"
-              disabled={pending || !draft.trim()}
+              disabled={pending || uploading > 0 || (!draft.trim() && attachments.length === 0)}
               className="shrink-0 rounded-full px-5 py-3 text-[0.88rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               style={{ backgroundColor: brand }}
             >
