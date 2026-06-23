@@ -1,12 +1,15 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type {
   FormField,
   FormFieldValue,
+  FormFileRef,
   FormSubmissionData,
   FormTemplateSchema,
 } from '@/lib/types/forms'
+import { isDisplayOnlyField, isFieldVisible, sanitizeFileRefs } from '@/lib/types/forms'
+import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 
 export interface IntakeSubmitPayload {
   orgId: string
@@ -61,7 +64,10 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
   function validate(): { fieldId: string; message: string } | null {
     for (const section of schema.sections) {
       for (const field of section.fields) {
-        if (!field.required) continue
+        // Display-only blocks carry no value; a conditionally-hidden field
+        // isn't required while hidden.
+        if (isDisplayOnlyField(field) || !field.required) continue
+        if (field.visibleWhen && !isFieldVisible(field.visibleWhen, values)) continue
         const v = values[field.id]
         if (
           v == null ||
@@ -171,15 +177,17 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
             )}
           </div>
           <div className="space-y-5">
-            {section.fields.map((field) => (
-              <FieldInput
-                key={field.id}
-                field={field}
-                value={values[field.id]}
-                onChange={(v) => setValue(field.id, v)}
-                brand={brand}
-              />
-            ))}
+            {section.fields
+              .filter((field) => isFieldVisible(field.visibleWhen, values))
+              .map((field) => (
+                <FieldInput
+                  key={field.id}
+                  field={field}
+                  value={values[field.id]}
+                  onChange={(v) => setValue(field.id, v)}
+                  brand={brand}
+                />
+              ))}
           </div>
         </section>
       ))}
@@ -237,9 +245,23 @@ function FieldInput({
   } as React.CSSProperties
 
   switch (field.type) {
+    case 'content':
+      return (
+        <div className="rounded-xl p-4" style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}>
+          {field.label && (
+            <p className="text-sm font-semibold mb-1" style={{ color: INK }}>
+              {field.label}
+            </p>
+          )}
+          <p className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: INK_MUTED }}>
+            {field.body}
+          </p>
+        </div>
+      )
     case 'text':
     case 'email':
     case 'tel':
+    case 'number':
     case 'date':
       return (
         <div>
@@ -247,6 +269,7 @@ function FieldInput({
           <input
             id={`f-${field.id}`}
             type={field.type}
+            inputMode={field.type === 'number' ? 'numeric' : undefined}
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder ?? undefined}
@@ -323,7 +346,7 @@ function FieldInput({
         </div>
       )
     case 'checkbox': {
-      const selected = Array.isArray(value) ? value : []
+      const selected = Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : []
       return (
         <div>
           {labelEl}
@@ -400,5 +423,241 @@ function FieldInput({
           {helpEl}
         </div>
       )
+    case 'file':
+      return (
+        <div>
+          {labelEl}
+          <PhotoUploadInput
+            fieldId={field.id}
+            value={sanitizeFileRefs(value)}
+            onChange={onChange}
+            maxFiles={field.maxFiles ?? 1}
+            imagesOnly={field.imagesOnly !== false}
+            brand={brand}
+          />
+          {helpEl}
+        </div>
+      )
+    case 'insurance_card':
+      return (
+        <div>
+          {labelEl}
+          <InsuranceCardInput value={sanitizeFileRefs(value)} onChange={onChange} brand={brand} />
+          {helpEl}
+        </div>
+      )
   }
+}
+
+/** Upload-to-S3 photo/file field. Stores a `FormFileRef[]`. */
+function PhotoUploadInput({
+  fieldId,
+  value,
+  onChange,
+  maxFiles,
+  imagesOnly,
+  brand,
+}: {
+  fieldId: string
+  value: FormFileRef[]
+  onChange: (v: FormFieldValue) => void
+  maxFiles: number
+  imagesOnly: boolean
+  brand: string
+}) {
+  const [uploading, setUploading] = useState(0)
+  const [err, setErr] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // All writes to this field route through `valueRef` so concurrent upload
+  // completions merge instead of clobbering a stale `value` closure.
+  const valueRef = useRef<FormFileRef[]>(value)
+  valueRef.current = value
+  const commit = (next: FormFileRef[]) => {
+    valueRef.current = next
+    onChange(next)
+  }
+
+  function pick(files: FileList | null) {
+    if (!files || files.length === 0) return
+    setErr(null)
+    const room = maxFiles - valueRef.current.length
+    if (room <= 0) {
+      setErr(`Up to ${maxFiles} file${maxFiles === 1 ? '' : 's'}.`)
+      return
+    }
+    for (const file of Array.from(files).slice(0, room)) {
+      if (imagesOnly && !file.type.startsWith('image/')) {
+        setErr('Please choose an image.')
+        continue
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        setErr(`"${file.name}" is over 8MB.`)
+        continue
+      }
+      setUploading((n) => n + 1)
+      uploadFileWithProgress(file, 'intake-uploads')
+        .promise.then((url) => {
+          commit([...valueRef.current, { url, name: file.name, contentType: file.type }])
+        })
+        .catch(() => setErr(`Couldn't upload "${file.name}".`))
+        .finally(() => setUploading((n) => Math.max(0, n - 1)))
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {value.map((f) => (
+          <div key={f.url} className="relative h-20 w-20 overflow-hidden rounded-lg" style={{ border: `1px solid ${BORDER}` }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- patient upload preview */}
+            <img src={f.url} alt={f.name || 'upload'} className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => commit(valueRef.current.filter((x) => x.url !== f.url))}
+              className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+              style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+              aria-label="Remove"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {uploading > 0 &&
+          Array.from({ length: uploading }).map((_, i) => (
+            <div key={i} className="h-20 w-20 animate-pulse rounded-lg" style={{ backgroundColor: '#EFEAE2' }} aria-label="Uploading" />
+          ))}
+        {value.length + uploading < maxFiles && (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="grid h-20 w-20 place-items-center rounded-lg text-2xl"
+            style={{ border: `1px dashed ${BORDER}`, color: brand, backgroundColor: BG }}
+            aria-label="Add a photo"
+          >
+            +
+          </button>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        id={`f-${fieldId}`}
+        type="file"
+        accept={imagesOnly ? 'image/*' : 'image/*,application/pdf'}
+        multiple={maxFiles > 1}
+        className="hidden"
+        onChange={(e) => {
+          pick(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+    </div>
+  )
+}
+
+/** Front + back insurance-card capture. Stores two `FormFileRef`s tagged
+ *  `side: 'front' | 'back'` (read by the Phase-3 OCR auto-fill). */
+function InsuranceCardInput({
+  value,
+  onChange,
+  brand,
+}: {
+  value: FormFileRef[]
+  onChange: (v: FormFieldValue) => void
+  brand: string
+}) {
+  const [uploading, setUploading] = useState<'front' | 'back' | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const frontRef = useRef<HTMLInputElement>(null)
+  const backRef = useRef<HTMLInputElement>(null)
+  // Front + back can upload concurrently — route both through a ref so one
+  // completion never drops the other's photo.
+  const valueRef = useRef<FormFileRef[]>(value)
+  valueRef.current = value
+  const commit = (next: FormFileRef[]) => {
+    valueRef.current = next
+    onChange(next)
+  }
+
+  function side(s: 'front' | 'back') {
+    return value.find((f) => f.side === s) ?? null
+  }
+
+  function upload(s: 'front' | 'back', files: FileList | null) {
+    const file = files?.[0]
+    if (!file) return
+    setErr(null)
+    if (!file.type.startsWith('image/')) {
+      setErr('Please take a photo of the card.')
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setErr('That image is over 8MB.')
+      return
+    }
+    setUploading(s)
+    uploadFileWithProgress(file, 'intake-uploads')
+      .promise.then((url) => {
+        const others = valueRef.current.filter((f) => f.side !== s)
+        commit([...others, { url, name: `${s}.jpg`, contentType: file.type, side: s }])
+      })
+      .catch(() => setErr(`Couldn't upload the ${s}.`))
+      .finally(() => setUploading(null))
+  }
+
+  const slots: Array<{ s: 'front' | 'back'; label: string; ref: React.RefObject<HTMLInputElement | null> }> = [
+    { s: 'front', label: 'Front', ref: frontRef },
+    { s: 'back', label: 'Back', ref: backRef },
+  ]
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-3">
+        {slots.map(({ s, label, ref }) => {
+          const f = side(s)
+          return (
+            <div key={s}>
+              <input
+                ref={ref}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  upload(s, e.target.files)
+                  e.target.value = ''
+                }}
+              />
+              {f ? (
+                <div className="relative h-28 overflow-hidden rounded-xl" style={{ border: `1px solid ${BORDER}` }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- patient upload preview */}
+                  <img src={f.url} alt={`Insurance card ${label}`} className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => commit(valueRef.current.filter((x) => x.side !== s))}
+                    className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+                    aria-label={`Remove ${label}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => ref.current?.click()}
+                  disabled={uploading === s}
+                  className="grid h-28 w-full place-items-center rounded-xl text-sm font-medium"
+                  style={{ border: `1px dashed ${BORDER}`, color: brand, backgroundColor: BG }}
+                >
+                  {uploading === s ? 'Uploading…' : `📷 ${label} of card`}
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+    </div>
+  )
 }

@@ -27,12 +27,16 @@ const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
   textarea: 'Long text',
   email: 'Email',
   tel: 'Phone',
+  number: 'Number',
   date: 'Date',
   select: 'Dropdown',
   radio: 'Single choice',
   checkbox: 'Multiple choice',
   yes_no: 'Yes / No',
   signature: 'Signature',
+  file: 'Photo / file',
+  insurance_card: 'Insurance card',
+  content: 'Instructions',
 }
 
 function isChoiceField(type: FormFieldType): boolean {
@@ -46,7 +50,10 @@ function newField(type: FormFieldType): FormField {
   }
   if (type === 'yes_no') return { ...base, type: 'yes_no' }
   if (type === 'signature') return { ...base, type: 'signature' }
-  return { ...base, type: type as 'text' | 'textarea' | 'email' | 'tel' | 'date', placeholder: null }
+  if (type === 'file') return { ...base, type: 'file', imagesOnly: true, maxFiles: 1 }
+  if (type === 'insurance_card') return { ...base, type: 'insurance_card', label: 'Insurance card' }
+  if (type === 'content') return { ...base, type: 'content', label: 'Heading', body: 'Add your instructions or notice text here.' }
+  return { ...base, type: type as 'text' | 'textarea' | 'email' | 'tel' | 'number' | 'date', placeholder: null }
 }
 
 export default function FormBuilder({ template }: Props) {
@@ -378,30 +385,77 @@ function FieldRow({
             <span className="text-xs font-semibold uppercase tracking-wider bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-[var(--r-pill)]">
               {FIELD_TYPE_LABELS[field.type]}
             </span>
-            <label className="text-xs flex items-center gap-1 text-gray-600 dark:text-gray-400">
-              <input
-                type="checkbox"
-                checked={field.required}
-                onChange={(e) => onChange({ required: e.target.checked })}
-                className="form-checkbox"
-              />
-              Required
-            </label>
+            {/* Display-only blocks (instructions) take no answer, so "Required"
+                doesn't apply to them. */}
+            {field.type !== 'content' && (
+              <label className="text-xs flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={field.required}
+                  onChange={(e) => onChange({ required: e.target.checked })}
+                  className="form-checkbox"
+                />
+                Required
+              </label>
+            )}
           </div>
           <input
             type="text"
             value={field.label}
             onChange={(e) => onChange({ label: e.target.value })}
             className="form-input w-full"
-            placeholder="Question text"
+            placeholder={field.type === 'content' ? 'Heading' : 'Question text'}
           />
-          <input
-            type="text"
-            value={field.help ?? ''}
-            onChange={(e) => onChange({ help: e.target.value || null })}
-            className="form-input w-full text-sm"
-            placeholder="Help text (optional)"
-          />
+          {field.type !== 'content' && (
+            <input
+              type="text"
+              value={field.help ?? ''}
+              onChange={(e) => onChange({ help: e.target.value || null })}
+              className="form-input w-full text-sm"
+              placeholder="Help text (optional)"
+            />
+          )}
+
+          {field.type === 'content' && (
+            <textarea
+              value={field.body}
+              onChange={(e) => onChange({ body: e.target.value } as Partial<FormField>)}
+              className="form-textarea w-full text-sm"
+              rows={3}
+              placeholder="Instructions or notice text shown to the patient."
+            />
+          )}
+
+          {field.type === 'file' && (
+            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={field.imagesOnly !== false}
+                  onChange={(e) => onChange({ imagesOnly: e.target.checked } as Partial<FormField>)}
+                  className="form-checkbox"
+                />
+                Photos only
+              </label>
+              <label className="flex items-center gap-1.5">
+                Max files
+                <input
+                  type="number"
+                  min={1}
+                  max={6}
+                  value={field.maxFiles ?? 1}
+                  onChange={(e) => onChange({ maxFiles: Math.max(1, Math.min(6, Number(e.target.value) || 1)) } as Partial<FormField>)}
+                  className="form-input w-16 text-sm"
+                />
+              </label>
+            </div>
+          )}
+
+          {field.type === 'insurance_card' && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+              Patients photograph the front and back of their insurance card.
+            </p>
+          )}
 
           {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') && (
             <div className="space-y-1.5 mt-1">
@@ -444,6 +498,7 @@ function FieldRow({
             field.type === 'textarea' ||
             field.type === 'email' ||
             field.type === 'tel' ||
+            field.type === 'number' ||
             field.type === 'date') && (
             <input
               type="text"
@@ -472,12 +527,16 @@ function FieldTypeMenu({ onPick }: { onPick: (type: FormFieldType) => void }) {
     'textarea',
     'email',
     'tel',
+    'number',
     'date',
     'select',
     'radio',
     'checkbox',
     'yes_no',
     'signature',
+    'file',
+    'insurance_card',
+    'content',
   ]
   return (
     <details className="ml-8">

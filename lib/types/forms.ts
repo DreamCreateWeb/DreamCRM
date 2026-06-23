@@ -7,12 +7,27 @@ export type FormFieldType =
   | 'textarea'
   | 'email'
   | 'tel'
+  | 'number'
   | 'date'
   | 'select'
   | 'radio'
   | 'checkbox'
   | 'yes_no'
   | 'signature'
+  | 'file'
+  | 'insurance_card'
+  | 'content'
+
+/** One uploaded file on a submission (image or document), stored in the
+ *  submission `data` jsonb under the field id. Same shape as message
+ *  attachments; `side` distinguishes the two insurance-card photos. */
+export interface FormFileRef {
+  url: string
+  name: string
+  contentType: string
+  /** 'front' | 'back' for insurance_card; absent for generic file uploads. */
+  side?: 'front' | 'back'
+}
 
 interface BaseField {
   id: string
@@ -22,10 +37,22 @@ interface BaseField {
   /** Pre-filled when this field is one of the well-known "system" fields
    * we'll auto-pull from the patient record on return visits. */
   systemKey?: SystemFieldKey | null
+  /** Conditional visibility — the field shows only when another field's value
+   *  matches. Evaluated in the preview + the public/portal renderer. (Phase 2.) */
+  visibleWhen?: FieldCondition | null
+}
+
+/** Show this field only when `fieldId`'s value satisfies the condition.
+ *  `equals` matches a string/boolean exactly; `includes` matches a member of a
+ *  multi-select (checkbox) array; `answered` = any non-empty value. */
+export interface FieldCondition {
+  fieldId: string
+  op: 'equals' | 'includes' | 'answered'
+  value?: string
 }
 
 export interface TextField extends BaseField {
-  type: 'text' | 'textarea' | 'email' | 'tel' | 'date'
+  type: 'text' | 'textarea' | 'email' | 'tel' | 'number' | 'date'
   placeholder?: string | null
 }
 
@@ -42,7 +69,43 @@ export interface SignatureField extends BaseField {
   type: 'signature'
 }
 
-export type FormField = TextField | ChoiceField | YesNoField | SignatureField
+/** A file/photo upload (e.g. a referral, an X-ray, a photo of a concern). */
+export interface FileField extends BaseField {
+  type: 'file'
+  /** Restrict to images only (the upload route rejects non-images regardless
+   *  unless docs are later allowed; default true = photos). */
+  imagesOnly?: boolean
+  /** Max files the patient can attach (default 1). */
+  maxFiles?: number
+}
+
+/** Front + back photo of a dental insurance card. Phase 3 reads these with
+ *  Claude vision to pre-fill the carrier/member-id/group fields. */
+export interface InsuranceCardField extends BaseField {
+  type: 'insurance_card'
+}
+
+/** A static instruction / notice block — no input, no stored value. Used for
+ *  consent prose, section guidance, etc. `required` is always false. */
+export interface ContentField extends BaseField {
+  type: 'content'
+  /** The text to display (plain text; newlines preserved). */
+  body: string
+}
+
+export type FormField =
+  | TextField
+  | ChoiceField
+  | YesNoField
+  | SignatureField
+  | FileField
+  | InsuranceCardField
+  | ContentField
+
+/** Field types that carry no submitted value (display-only). */
+export function isDisplayOnlyField(field: { type: FormFieldType }): boolean {
+  return field.type === 'content'
+}
 
 export interface FormSection {
   id: string
@@ -75,7 +138,34 @@ export const SYSTEM_FIELD_KEYS = [
 export type SystemFieldKey = (typeof SYSTEM_FIELD_KEYS)[number]
 
 export type FormSubmissionData = Record<string, FormFieldValue>
-export type FormFieldValue = string | string[] | boolean | null
+export type FormFieldValue = string | string[] | boolean | FormFileRef[] | null
+
+/** True when a value is an array of file refs (vs a string[] of choice values). */
+export function isFileRefArray(v: unknown): v is FormFileRef[] {
+  return Array.isArray(v) && v.length > 0 && typeof v[0] === 'object' && v[0] !== null && 'url' in (v[0] as object)
+}
+
+/**
+ * Coerce an untrusted value into clean `FormFileRef[]` — the trust boundary for
+ * file uploads on a submission (client-supplied + re-read from jsonb). Requires
+ * an http(s) URL, trims display fields, caps the count. Pure (client + server).
+ */
+export function sanitizeFileRefs(value: unknown, max = 6): FormFileRef[] {
+  if (!Array.isArray(value)) return []
+  const out: FormFileRef[] = []
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    const url = typeof r.url === 'string' ? r.url.trim() : ''
+    if (!/^https?:\/\//i.test(url)) continue
+    const name = typeof r.name === 'string' ? r.name.trim().slice(0, 200) : ''
+    const contentType = typeof r.contentType === 'string' ? r.contentType.trim().slice(0, 100) : ''
+    const side = r.side === 'front' || r.side === 'back' ? r.side : undefined
+    out.push({ url, name, contentType, ...(side ? { side } : {}) })
+    if (out.length >= max) break
+  }
+  return out
+}
 
 /**
  * Returns the label of the first required field missing a value, or null when
@@ -89,7 +179,10 @@ export function firstMissingRequiredField(
 ): string | null {
   for (const section of schema?.sections ?? []) {
     for (const field of section.fields ?? []) {
-      if (!field.required) continue
+      // Display-only blocks (content) never require a value.
+      if (isDisplayOnlyField(field) || !field.required) continue
+      // A conditionally-hidden field isn't required while hidden.
+      if (field.visibleWhen && !isFieldVisible(field.visibleWhen, data)) continue
       const v = data?.[field.id]
       const empty =
         v === undefined ||
@@ -100,6 +193,59 @@ export function firstMissingRequiredField(
     }
   }
   return null
+}
+
+/**
+ * Evaluate a field's `visibleWhen` condition against the current answers. Pure;
+ * shared by the public renderer, the preview, and server-side validation so a
+ * hidden required field is never enforced. Returns true (visible) when there's
+ * no condition.
+ */
+export function isFieldVisible(
+  cond: FieldCondition | null | undefined,
+  data: FormSubmissionData,
+): boolean {
+  if (!cond) return true
+  const v = data?.[cond.fieldId]
+  switch (cond.op) {
+    case 'answered':
+      return v !== undefined && v !== null && v !== '' && v !== false && !(Array.isArray(v) && v.length === 0)
+    case 'includes':
+      return Array.isArray(v) && (v as unknown[]).some((x) => x === cond.value)
+    case 'equals':
+    default: {
+      if (typeof v === 'boolean') return String(v) === cond.value
+      return v === cond.value
+    }
+  }
+}
+
+/**
+ * Server-side cleanup of a submission before persistence. For file/insurance
+ * fields it clamps the value to clean `FormFileRef[]` (the trust boundary —
+ * a client could POST arbitrary URLs); other field values pass through. Pure.
+ */
+export function sanitizeSubmissionData(
+  schema: FormTemplateSchema,
+  data: FormSubmissionData,
+): FormSubmissionData {
+  const byId = new Map<string, FormField>()
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) byId.set(field.id, field)
+  }
+  const out: FormSubmissionData = {}
+  for (const [key, value] of Object.entries(data ?? {})) {
+    const field = byId.get(key)
+    if (field && (field.type === 'file' || field.type === 'insurance_card')) {
+      out[key] = sanitizeFileRefs(value)
+    } else if (field && isDisplayOnlyField(field)) {
+      // Display-only blocks never store a value.
+      continue
+    } else {
+      out[key] = value as FormFieldValue
+    }
+  }
+  return out
 }
 
 /** A reasonable starter form clinics inherit on day one. The standard
@@ -128,6 +274,7 @@ export const DEFAULT_INTAKE_TEMPLATE: FormTemplateSchema = {
       title: 'Insurance',
       description: 'Skip if you’re paying out of pocket — we’ll work it out at the visit.',
       fields: [
+        { id: 'insurance_card', type: 'insurance_card', label: 'Snap a photo of your insurance card', required: false, help: 'Front and back — we’ll pull the details from it so you don’t have to type them.' },
         { id: 'insurance_provider', type: 'text', label: 'Insurance provider', required: false, systemKey: 'insurance_provider' },
         { id: 'insurance_policy_number', type: 'text', label: 'Policy / member number', required: false, systemKey: 'insurance_policy_number' },
         { id: 'insurance_group_number', type: 'text', label: 'Group number', required: false, systemKey: 'insurance_group_number' },
@@ -162,6 +309,7 @@ export const DEFAULT_INTAKE_TEMPLATE: FormTemplateSchema = {
       fields: [
         { id: 'last_visit', type: 'text', label: 'When was your last dental visit?', required: false, placeholder: 'Approximate is fine.' },
         { id: 'concerns', type: 'textarea', label: 'Anything specific you’d like us to look at?', required: false, placeholder: 'A tooth that’s sensitive, a chipped molar, whitening interest — anything.' },
+        { id: 'concern_photo', type: 'file', label: 'Have a photo of what’s bothering you?', required: false, imagesOnly: true, maxFiles: 3, help: 'Optional — a quick photo helps us prepare for your visit.' },
         {
           id: 'anxiety_level',
           type: 'radio',
@@ -177,6 +325,13 @@ export const DEFAULT_INTAKE_TEMPLATE: FormTemplateSchema = {
       title: 'Consent',
       description: 'Standard acknowledgment so we can treat you.',
       fields: [
+        {
+          id: 'privacy_notice',
+          type: 'content',
+          label: 'Notice of Privacy Practices',
+          required: false,
+          body: 'We protect your health information under HIPAA and only share it to coordinate your care, handle billing, or where the law requires. You can ask for a full copy of our Notice of Privacy Practices at any time.',
+        },
         {
           id: 'hipaa',
           type: 'yes_no',

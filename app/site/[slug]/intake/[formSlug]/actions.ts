@@ -1,7 +1,12 @@
 'use server'
 
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
-import { firstMissingRequiredField, type FormSubmissionData, type FormTemplateSchema } from '@/lib/types/forms'
+import {
+  firstMissingRequiredField,
+  sanitizeSubmissionData,
+  type FormSubmissionData,
+  type FormTemplateSchema,
+} from '@/lib/types/forms'
 
 interface Input {
   orgId: string
@@ -22,14 +27,18 @@ export async function submitIntakeForm(input: Input) {
   const template = await getFormTemplate(input.orgId, input.templateId)
   if (!template || template.archivedAt) throw new Error('Form is no longer accepting submissions')
 
-  // Re-validate required fields server-side (the client runner can be bypassed).
-  const missing = firstMissingRequiredField(template.schema as FormTemplateSchema, input.data)
+  // Clamp file/insurance fields to clean refs (client could POST arbitrary
+  // URLs) + drop display-only values, then re-validate required fields
+  // server-side (the client runner can be bypassed).
+  const schema = template.schema as FormTemplateSchema
+  const data = sanitizeSubmissionData(schema, input.data)
+  const missing = firstMissingRequiredField(schema, data)
   if (missing) throw new Error(`${missing} is required`)
 
   await submitForm({
     organizationId: input.orgId,
     formTemplateId: input.templateId,
-    data: input.data,
+    data,
     submitterName: input.submitterName,
     submitterEmail: input.submitterEmail,
     submitterPhone: input.submitterPhone,

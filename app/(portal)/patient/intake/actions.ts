@@ -3,7 +3,12 @@
 import { requireTenant } from '@/lib/auth/context'
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
 import { getPortalSettings } from '@/lib/services/portal-settings'
-import { firstMissingRequiredField, type FormSubmissionData, type FormTemplateSchema } from '@/lib/types/forms'
+import {
+  firstMissingRequiredField,
+  sanitizeSubmissionData,
+  type FormSubmissionData,
+  type FormTemplateSchema,
+} from '@/lib/types/forms'
 
 interface PatientIntakeInput {
   orgId: string
@@ -33,14 +38,16 @@ export async function submitPatientIntakeAction(input: PatientIntakeInput) {
   const template = await getFormTemplate(ctx.organizationId, input.templateId)
   if (!template || template.archivedAt) throw new Error('Form is no longer accepting submissions')
 
-  const missing = firstMissingRequiredField(template.schema as FormTemplateSchema, input.data)
+  const schema = template.schema as FormTemplateSchema
+  const data = sanitizeSubmissionData(schema, input.data)
+  const missing = firstMissingRequiredField(schema, data)
   if (missing) throw new Error(`${missing} is required`)
 
   await submitForm({
     organizationId: ctx.organizationId,
     formTemplateId: input.templateId,
     patientId: ctx.patientId,
-    data: input.data,
+    data,
     submitterName: input.submitterName,
     submitterEmail: input.submitterEmail,
     submitterPhone: input.submitterPhone,

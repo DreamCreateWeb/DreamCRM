@@ -1,8 +1,9 @@
 import 'server-only'
-import { and, eq, gte, isNull, like, or } from 'drizzle-orm'
+import { and, desc, eq, gte, isNull, like, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
+import { DEFAULT_INTAKE_TEMPLATE } from '@/lib/types/forms'
 import { seedServiceLibrary } from '@/lib/services/service-library'
 import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-templates'
 import { STARTER_BLOG_TOPICS } from '@/lib/services/blog'
@@ -904,6 +905,19 @@ const DEMO_PORTAL_SETTINGS = {
   },
 } as const
 
+// Insurance-card photo pair + a concern photo for the demo's intake submission,
+// so the file-upload + insurance-card render paths showcase on the submission
+// viewer / patient timeline. Public Unsplash URLs (resolvable, non-PHI).
+const DEMO_INTAKE_FILE_DATA = {
+  insurance_card: [
+    { url: 'https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?w=900&q=80', name: 'front.jpg', contentType: 'image/jpeg', side: 'front' as const },
+    { url: 'https://images.unsplash.com/photo-1556742400-b5b7c5121f90?w=900&q=80', name: 'back.jpg', contentType: 'image/jpeg', side: 'back' as const },
+  ],
+  concern_photo: [
+    { url: 'https://images.unsplash.com/photo-1606265752439-1f18756aa8ed?w=900&q=80', name: 'tooth.jpg', contentType: 'image/jpeg' },
+  ],
+} as const
+
 // Clinic-ops demo settings — exercises the new Practice setup controls.
 // Three chairs so the demo can take simultaneous bookings; a custom 60-min
 // "Implant consult" type on top of the standard catalog so the visit-type
@@ -1517,6 +1531,47 @@ async function seedSecondDemoIntakeForm(orgId: string) {
       isDefault: 0,
     })
     .onConflictDoNothing({ target: [schema.formTemplate.organizationId, schema.formTemplate.slug] })
+}
+
+/**
+ * Self-heal: bring a legacy demo's default intake form up to the latest
+ * DEFAULT_INTAKE_TEMPLATE so it showcases the new field types (insurance-card
+ * capture / photo upload / instructions block), and backfill the file/insurance
+ * photos onto one submission so the upload render path is populated. Demo-
+ * scoped, idempotent: the schema refresh only runs when an expected new field
+ * is absent; the submission backfill only when no submission has file data yet.
+ */
+async function upgradeDemoIntakeForm(orgId: string): Promise<void> {
+  const [form] = await db
+    .select({ id: schema.formTemplate.id, schema: schema.formTemplate.schema })
+    .from(schema.formTemplate)
+    .where(and(eq(schema.formTemplate.organizationId, orgId), eq(schema.formTemplate.slug, 'new-patient-intake')))
+    .limit(1)
+  if (!form) return
+
+  const hasNewTypes = JSON.stringify(form.schema ?? {}).includes('insurance_card')
+  if (!hasNewTypes) {
+    await db
+      .update(schema.formTemplate)
+      .set({ schema: DEFAULT_INTAKE_TEMPLATE, updatedAt: new Date() })
+      .where(eq(schema.formTemplate.id, form.id))
+  }
+
+  // Backfill file/insurance photos onto the newest submission for this form
+  // when none carry uploads yet.
+  const subs = await db
+    .select({ id: schema.formSubmission.id, data: schema.formSubmission.data })
+    .from(schema.formSubmission)
+    .where(eq(schema.formSubmission.formTemplateId, form.id))
+    .orderBy(desc(schema.formSubmission.submittedAt))
+    .limit(20)
+  const anyHasFiles = subs.some((s) => JSON.stringify(s.data ?? {}).includes('"insurance_card"'))
+  if (!anyHasFiles && subs[0]) {
+    await db
+      .update(schema.formSubmission)
+      .set({ data: { ...(subs[0].data as Record<string, unknown>), ...DEMO_INTAKE_FILE_DATA } })
+      .where(eq(schema.formSubmission.id, subs[0].id))
+  }
 }
 
 export async function createDemoClinic(): Promise<DemoClinicResult> {
@@ -2319,6 +2374,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // at the tail of the self-heal sequence.
     await seedDemoReferralPartner(existing.id)
 
+    // Intake-forms self-heal: upgrade a legacy demo's default form to the latest
+    // template (adds insurance-card / photo / instructions field types) + backfill
+    // file data onto a submission. Placed at the tail so its reads sit after the
+    // count selects (mirrors the referral self-heal note above).
+    await upgradeDemoIntakeForm(existing.id)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -2807,14 +2868,21 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         formTemplateId: defaultForm.id,
         patientId: patientIds[s.patientIdx],
         appointmentId: null,
+        // Keyed to the real DEFAULT_INTAKE_TEMPLATE field ids so the submission
+        // viewer + timeline render actual answers. Persona 0 also carries an
+        // insurance-card photo pair + a concern photo so the file-upload render
+        // path is exercised.
         data: {
           first_name: p.firstName,
           last_name: p.lastName,
           email: p.email,
           phone: p.phone,
-          dob: p.dateOfBirth,
-          insurance: p.insuranceProvider ?? 'None',
-          anxious: s.patientIdx === 7 ? 'Yes — I prefer nitrous oxide' : 'A little — please go slow',
+          date_of_birth: p.dateOfBirth,
+          insurance_provider: p.insuranceProvider ?? 'None',
+          anxiety_level: s.patientIdx === 7 ? 'Anxious — go slow with me' : 'A little nervous',
+          hipaa: true,
+          signature: `${p.firstName} ${p.lastName}`,
+          ...(s.patientIdx === 0 ? DEMO_INTAKE_FILE_DATA : {}),
         },
         submitterName: `${p.firstName} ${p.lastName}`,
         submitterEmail: p.email,

@@ -77,6 +77,15 @@ export default function FormPreview({
 }
 
 function PreviewField({ field }: { field: FormField }) {
+  // A display-only instructions block: heading + body, no input/required marker.
+  if (field.type === 'content') {
+    return (
+      <div className="rounded-[var(--r-sm)] bg-gray-50 dark:bg-gray-900/40 p-3">
+        {field.label && <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{field.label}</p>}
+        <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300">{field.body}</p>
+      </div>
+    )
+  }
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -98,9 +107,10 @@ function PreviewControl({ field }: { field: FormField }) {
     case 'text':
     case 'email':
     case 'tel':
+    case 'number':
       return (
         <input
-          type={field.type}
+          type={field.type === 'number' ? 'number' : field.type}
           disabled
           placeholder={field.placeholder ?? ''}
           className="form-input w-full bg-gray-50 dark:bg-gray-900/40"
@@ -151,5 +161,27 @@ function PreviewControl({ field }: { field: FormField }) {
           Signature
         </div>
       )
+    case 'file':
+      return (
+        <div className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-400 dark:text-gray-500">
+          📎 {field.imagesOnly !== false ? 'Photo upload' : 'File upload'}
+        </div>
+      )
+    case 'insurance_card':
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          {['Front', 'Back'].map((side) => (
+            <div
+              key={side}
+              className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-400 dark:text-gray-500"
+            >
+              📷 {side}
+            </div>
+          ))}
+        </div>
+      )
+    case 'content':
+      // Rendered by PreviewField (no labeled control).
+      return null
   }
 }
