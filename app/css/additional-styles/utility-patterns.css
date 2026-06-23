@@ -165,3 +165,55 @@ input[type="search"]::-webkit-search-results-decoration {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* ── Custom scrollbar ─────────────────────────────────────────────────────
+   Replaces the chunky default grey scrollbar with a calm, thin, rounded one
+   in the brand's navy-ink temperature. Applied globally inside the dashboard
+   shell (.v2-app) so every scroll region inherits it for free, and exposed as
+   `.dc-scroll` for explicit opt-in on any surface outside that scope (public
+   site / portal / marketing keep native scrollbars). The thumb is a
+   translucent ink pill, inset from the edge via a transparent border so it
+   never crowds the content, over an invisible track; it deepens on hover.
+   `.no-scrollbar` is excluded so its hide-the-scrollbar rule keeps winning. */
+.v2-app,
+.dc-scroll {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgb(20 26 46 / 0.25) transparent;
+}
+.dark .v2-app,
+.dark .dc-scroll {
+  scrollbar-color: rgb(255 255 255 / 0.22) transparent;
+}
+
+.v2-app *:not(.no-scrollbar)::-webkit-scrollbar,
+.dc-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.v2-app *:not(.no-scrollbar)::-webkit-scrollbar-track,
+.dc-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.v2-app *:not(.no-scrollbar)::-webkit-scrollbar-thumb,
+.dc-scroll::-webkit-scrollbar-thumb {
+  background-color: rgb(20 26 46 / 0.2);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+}
+.v2-app *:not(.no-scrollbar)::-webkit-scrollbar-thumb:hover,
+.dc-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(20 26 46 / 0.4);
+}
+.v2-app *:not(.no-scrollbar)::-webkit-scrollbar-corner,
+.dc-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.dark .v2-app *:not(.no-scrollbar)::-webkit-scrollbar-thumb,
+.dark .dc-scroll::-webkit-scrollbar-thumb {
+  background-color: rgb(255 255 255 / 0.18);
+}
+.dark .v2-app *:not(.no-scrollbar)::-webkit-scrollbar-thumb:hover,
+.dark .dc-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(255 255 255 / 0.34);
+}
