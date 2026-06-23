@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type {
   FormField,
   FormFieldValue,
@@ -105,38 +105,29 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Pull the "system" fields (name / email / phone) up to the submitter
-  // record at submit time, so the clinic can see who filled the form
-  // even when there's no patientId attached yet.
-  const submitter = useMemo(() => {
-    const first = values['first_name']
-    const last = values['last_name']
-    const name = [first, last].filter((x): x is string => typeof x === 'string' && !!x).join(' ')
-    return {
-      name: name || null,
-      email: typeof values['email'] === 'string' ? (values['email'] as string) : null,
-      phone: typeof values['phone'] === 'string' ? (values['phone'] as string) : null,
-    }
-  }, [values])
-
-  function setValue(fieldId: string, value: FormFieldValue) {
+  // A STABLE setter (and a stable OCR-fill) so memoized FieldInputs only
+  // re-render when THEIR own value changes — not every input on every keystroke.
+  const setValue = useCallback((fieldId: string, value: FormFieldValue) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }))
-  }
+  }, [])
 
   // Pre-fill the insurance text fields (matched by systemKey) from an OCR read.
   // Only writes a field we successfully read; the patient confirms/edits.
-  function fillFromCard(fields: InsuranceCardFields) {
-    setValues((prev) => {
-      const next = { ...prev }
-      for (const section of schema.sections) {
-        for (const f of section.fields) {
-          const key = f.systemKey ? OCR_SYSTEM_KEY[f.systemKey] : undefined
-          if (key && fields[key]) next[f.id] = fields[key] as string
+  const fillFromCard = useCallback(
+    (fields: InsuranceCardFields) => {
+      setValues((prev) => {
+        const next = { ...prev }
+        for (const section of schema.sections) {
+          for (const f of section.fields) {
+            const key = f.systemKey ? OCR_SYSTEM_KEY[f.systemKey] : undefined
+            if (key && fields[key]) next[f.id] = fields[key] as string
+          }
         }
-      }
-      return next
-    })
-  }
+        return next
+      })
+    },
+    [schema],
+  )
 
   function validate(): { fieldId: string; message: string } | null {
     for (const section of displaySchema.sections) {
@@ -185,14 +176,21 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
     }
     setStatus('pending')
     setErrorMsg('')
+    // System fields → the submitter record (so the clinic sees who filled the
+    // form even before a patientId is attached). Computed once at submit, not
+    // memoized on every keystroke.
+    const first = values['first_name']
+    const last = values['last_name']
+    const submitterName =
+      [first, last].filter((x): x is string => typeof x === 'string' && !!x).join(' ') || null
     try {
       await action({
         orgId,
         templateId,
         data: values,
-        submitterName: submitter.name,
-        submitterEmail: submitter.email,
-        submitterPhone: submitter.phone,
+        submitterName,
+        submitterEmail: typeof values['email'] === 'string' ? (values['email'] as string) : null,
+        submitterPhone: typeof values['phone'] === 'string' ? (values['phone'] as string) : null,
       })
       // Packet mode: hand control back so the parent advances to the next form
       // (no single-form success screen between steps).
@@ -292,7 +290,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
                   key={field.id}
                   field={field}
                   value={values[field.id]}
-                  onChange={(v) => setValue(field.id, v)}
+                  onChange={setValue}
                   brand={brand}
                   orgId={orgId}
                   ocrAction={ocrAction}
@@ -323,10 +321,10 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
   )
 }
 
-function FieldInput({
+const FieldInput = memo(function FieldInput({
   field,
   value,
-  onChange,
+  onChange: onChangeField,
   brand,
   orgId,
   ocrAction,
@@ -335,13 +333,17 @@ function FieldInput({
 }: {
   field: FormField
   value: FormFieldValue | undefined
-  onChange: (v: FormFieldValue) => void
+  /** Stable (fieldId, value) setter — lets this component memoize. */
+  onChange: (fieldId: string, v: FormFieldValue) => void
   brand: string
   orgId: string
   ocrAction?: OcrAction
   onOcrFill?: (fields: InsuranceCardFields) => void
   t: (typeof STR)[Lang]
 }) {
+  // Narrow the stable setter to this field's value-only onChange so the entire
+  // switch below + the upload sub-components stay unchanged.
+  const onChange = (v: FormFieldValue) => onChangeField(field.id, v)
   const labelEl = (
     <label
       className="block text-sm font-medium mb-2"
@@ -574,7 +576,7 @@ function FieldInput({
         </div>
       )
   }
-}
+})
 
 /** Upload-to-S3 photo/file field. Stores a `FormFileRef[]`. */
 function PhotoUploadInput({

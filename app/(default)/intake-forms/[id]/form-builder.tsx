@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { FormTemplate } from '@/lib/db/schema/clinic'
 import type {
@@ -210,10 +210,15 @@ export default function FormBuilder({ template }: Props) {
 
   // Fields that can drive a "show only when…" condition — answerable types
   // with a stable id + label (excludes display-only + upload + signature).
-  const triggerCandidates: TriggerCandidate[] = sections
-    .flatMap((s) => s.fields)
-    .filter((f) => f.type !== 'content' && f.type !== 'file' && f.type !== 'insurance_card' && f.type !== 'signature')
-    .map((f) => ({ id: f.id, label: f.label, type: f.type, options: 'options' in f ? f.options : undefined }))
+  // Memoized so it isn't rebuilt over every field on each keystroke.
+  const triggerCandidates: TriggerCandidate[] = useMemo(
+    () =>
+      sections
+        .flatMap((s) => s.fields)
+        .filter((f) => f.type !== 'content' && f.type !== 'file' && f.type !== 'insurance_card' && f.type !== 'signature')
+        .map((f) => ({ id: f.id, label: f.label, type: f.type, options: 'options' in f ? f.options : undefined })),
+    [sections],
+  )
 
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
