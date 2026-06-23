@@ -137,6 +137,19 @@ export const SYSTEM_FIELD_KEYS = [
 ] as const
 export type SystemFieldKey = (typeof SYSTEM_FIELD_KEYS)[number]
 
+/** Who a form auto-sends to with a booking confirmation. */
+export type FormAutoSendAudience = 'all' | 'new' | 'returning'
+
+export const AUTO_SEND_AUDIENCE_LABELS: Record<FormAutoSendAudience, string> = {
+  all: 'Everyone',
+  new: 'New patients only',
+  returning: 'Returning patients only',
+}
+
+export function coerceAutoSendAudience(v: unknown): FormAutoSendAudience {
+  return v === 'new' || v === 'returning' ? v : 'all'
+}
+
 export type FormSubmissionData = Record<string, FormFieldValue>
 export type FormFieldValue = string | string[] | boolean | FormFileRef[] | null
 

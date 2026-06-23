@@ -1,12 +1,12 @@
 import 'server-only'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, lt } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { patient } from '@/lib/db/schema/clinic'
+import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { sendBookingConfirmationEmail } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
-import { getDefaultFormTemplate } from '@/lib/services/forms'
+import { getBookingIntakeForm } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 
@@ -44,8 +44,24 @@ export async function sendBookingConfirmation(opts: {
       .where(eq(clinicProfile.organizationId, opts.organizationId))
       .limit(1)
 
+    // New vs returning drives which form auto-sends — a returning patient with a
+    // prior completed visit gets the short update form, not the full intake.
+    const [priorVisit] = await db
+      .select({ id: appointment.id })
+      .from(appointment)
+      .where(
+        and(
+          eq(appointment.organizationId, opts.organizationId),
+          eq(appointment.patientId, opts.patientId),
+          eq(appointment.status, 'completed'),
+          lt(appointment.startTime, new Date()),
+        ),
+      )
+      .limit(1)
+    const isNewPatient = !priorVisit
+
     let intakeFormUrl: string | null = null
-    const defaultForm = await getDefaultFormTemplate(opts.organizationId)
+    const defaultForm = await getBookingIntakeForm(opts.organizationId, isNewPatient)
     if (defaultForm) {
       const [org] = await db
         .select({ slug: organization.slug })

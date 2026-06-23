@@ -5,11 +5,13 @@ import Link from 'next/link'
 import type { FormTemplate } from '@/lib/db/schema/clinic'
 import type {
   FieldCondition,
+  FormAutoSendAudience,
   FormField,
   FormFieldType,
   FormSection,
   FormTemplateSchema,
 } from '@/lib/types/forms'
+import { AUTO_SEND_AUDIENCE_LABELS, coerceAutoSendAudience } from '@/lib/types/forms'
 
 /** A field that can drive another field's conditional visibility. */
 interface TriggerCandidate {
@@ -70,6 +72,9 @@ export default function FormBuilder({ template }: Props) {
   const [title, setTitle] = useState(template.title)
   const [description, setDescription] = useState(template.description ?? '')
   const [isDefault, setIsDefault] = useState(template.isDefault === 1)
+  const [autoSendAudience, setAutoSendAudience] = useState<FormAutoSendAudience>(
+    coerceAutoSendAudience(template.autoSendAudience),
+  )
   const [sections, setSections] = useState<FormSection[]>(
     initialSchema.sections ?? [],
   )
@@ -153,6 +158,7 @@ export default function FormBuilder({ template }: Props) {
           description: description.trim() || null,
           schema: { sections },
           isDefault,
+          autoSendAudience,
         })
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
@@ -237,6 +243,28 @@ export default function FormBuilder({ template }: Props) {
             Default form — sent automatically with booking confirmations
           </span>
         </label>
+        <div>
+          <span className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+            Auto-send to
+          </span>
+          <div className="flex flex-wrap gap-3">
+            {(Object.keys(AUTO_SEND_AUDIENCE_LABELS) as FormAutoSendAudience[]).map((a) => (
+              <label key={a} className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200">
+                <input
+                  type="radio"
+                  name="auto-send-audience"
+                  checked={autoSendAudience === a}
+                  onChange={() => setAutoSendAudience(a)}
+                  className="form-radio"
+                />
+                {AUTO_SEND_AUDIENCE_LABELS[a]}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            New patients get the full intake; returning patients can get a short update form instead.
+          </p>
+        </div>
       </div>
 
       {/* Sections */}

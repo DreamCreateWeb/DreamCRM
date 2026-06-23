@@ -33,6 +33,7 @@ export const FormTemplateInput = z.object({
     ),
   }),
   isDefault: z.boolean().optional(),
+  autoSendAudience: z.enum(['all', 'new', 'returning']).optional(),
 })
 
 export interface TemplateSubmissionStats {
@@ -166,6 +167,7 @@ export async function createFormTemplate(
       slug,
       schema: data.schema as FormTemplateSchema,
       isDefault: data.isDefault ? 1 : 0,
+      autoSendAudience: data.autoSendAudience ?? 'all',
     })
     .returning()
   return row
@@ -192,11 +194,41 @@ export async function updateFormTemplate(
       description: data.description ?? null,
       schema: data.schema as FormTemplateSchema,
       isDefault: data.isDefault ? 1 : 0,
+      ...(data.autoSendAudience ? { autoSendAudience: data.autoSendAudience } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(formTemplate.id, id), eq(formTemplate.organizationId, organizationId)))
     .returning()
   return row ?? null
+}
+
+/**
+ * Pick the form to send with a booking confirmation for a given patient. An
+ * audience-specific match ('new' / 'returning') wins over an 'all' form, which
+ * wins over the org default. Returns null when there's nothing to send.
+ */
+export async function getBookingIntakeForm(
+  organizationId: string,
+  isNewPatient: boolean,
+): Promise<FormTemplate | null> {
+  const forms = await db
+    .select()
+    .from(formTemplate)
+    .where(and(eq(formTemplate.organizationId, organizationId), isNull(formTemplate.archivedAt)))
+  if (forms.length === 0) return null
+  const want = isNewPatient ? 'new' : 'returning'
+  const specific = forms.filter((f) => f.autoSendAudience === want)
+  if (specific.length > 0) return mostRecent(specific)
+  const all = forms.filter((f) => f.autoSendAudience === 'all')
+  if (all.length > 0) {
+    // Prefer the default among the 'all' forms.
+    return all.find((f) => f.isDefault === 1) ?? mostRecent(all)
+  }
+  return forms.find((f) => f.isDefault === 1) ?? null
+}
+
+function mostRecent(forms: FormTemplate[]): FormTemplate {
+  return [...forms].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
 }
 
 /** Soft delete — archived templates stay around for old submissions to

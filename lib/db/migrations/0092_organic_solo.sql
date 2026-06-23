@@ -1,0 +1,1 @@
+ALTER TABLE "form_template" ADD COLUMN "auto_send_audience" text DEFAULT 'all' NOT NULL;

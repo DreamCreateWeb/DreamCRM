@@ -1522,6 +1522,7 @@ async function seedSecondDemoIntakeForm(orgId: string) {
       title: 'Returning Patient Update',
       description: "A short check-in for returning patients — what's changed since their last visit.",
       slug: 'returning-patient-update',
+      autoSendAudience: 'returning',
       schema: {
         sections: [
           {

@@ -379,6 +379,10 @@ export const formTemplate = pgTable(
     // per org, enforced at the service layer (not in SQL — partial unique
     // would require a more complex constraint).
     isDefault: integer('is_default').notNull().default(0),
+    // Smart auto-send audience: 'all' | 'new' | 'returning'. Decides which form
+    // rides a booking confirmation for a given patient (new patients get the
+    // full intake; returning patients a short update). Default 'all'.
+    autoSendAudience: text('auto_send_audience').notNull().default('all'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
