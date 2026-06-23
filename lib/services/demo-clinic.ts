@@ -2122,6 +2122,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // thread carries an attachment yet.
     await topUpEmmaAttachment(existing.id, existingPatientIds)
 
+    // Seed a pending "send later" message (Marcus) so the scheduled-send strip
+    // shows in legacy demos. Idempotent: skips when one already exists.
+    await seedDemoScheduledMessage(existing.id, existingPatientIds, new Date())
+
     // Testimonials self-heal: legacy demos seeded fabricated "Sarah K."
     // testimonials with no patientId — they don't correspond to any CRM
     // patient. Idempotent: only patches when none of the existing
@@ -2876,6 +2880,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Mix of in-app + email messages, mix of inbound/outbound, one snoozed
   // thread, one with high unread count for the red-rot border state.
   await seedPatientMessagesForOrg(orgId, now, patientIds, new Set())
+  await seedDemoScheduledMessage(orgId, patientIds, now)
 
   // ── Reviews & Reputation — config + review requests ─────────────────
   // Seeded after patients + appointments so requests can be tied to
@@ -3646,6 +3651,40 @@ async function topUpEmmaAttachment(orgId: string, patientIds: string[]): Promise
       },
     })
     .where(eq(schema.patientMessage.id, target.id))
+}
+
+/**
+ * Idempotent seed of a pending "send later" message so the scheduled-send strip
+ * demos on /messages. Marcus (the unanswered RED-ROT thread) gets a drafted
+ * reply queued for ~2 days out — far enough that it stays "Scheduled" between
+ * frequent deploys, and in_app so if the cron ever flushes it the result is a
+ * harmless message row (no network). Skips when a pending row already exists.
+ */
+async function seedDemoScheduledMessage(orgId: string, patientIds: string[], now: Date): Promise<void> {
+  const marcusId = patientIds[3]
+  if (!marcusId) return
+  const [existing] = await db
+    .select({ id: schema.scheduledMessage.id })
+    .from(schema.scheduledMessage)
+    .where(
+      and(
+        eq(schema.scheduledMessage.organizationId, orgId),
+        eq(schema.scheduledMessage.status, 'pending'),
+      ),
+    )
+    .limit(1)
+  if (existing) return
+  await db.insert(schema.scheduledMessage).values({
+    id: newId('smsg'),
+    organizationId: orgId,
+    patientId: marcusId,
+    channel: 'in_app',
+    body: "Hi Marcus — good news: your insurance pre-auth came through. You're all set for Tuesday, and yes, your partner is welcome to join the consultation.",
+    attachments: [],
+    scheduledFor: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+    status: 'pending',
+    createdByUserId: null,
+  })
 }
 
 /**

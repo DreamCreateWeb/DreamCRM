@@ -17,6 +17,7 @@ import { listMessageTemplates } from '@/lib/services/message-templates'
 import { getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { listAssignableStaff } from '@/lib/services/patient-followups'
+import { listScheduledForPatient, type ScheduledMessageView } from '@/lib/services/scheduled-messages'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CHANNEL_LEGEND } from './channel-meta'
@@ -109,14 +110,19 @@ export default async function ClinicMessagesView({
   // Pull the message stream + the slim patient context strip in parallel —
   // so staff replying see next/last visit, PMS balance, and missing-intake
   // without leaving the inbox.
-  const [messages, patientContext, patientTags]: [ThreadMessage[], ThreadPatientContext | null, PatientTagView[]] =
-    activeThread
-      ? await Promise.all([
-          listMessagesInThread(ctx.organizationId, activeThread.id),
-          getThreadPatientContext(ctx.organizationId, activeThread.patientId),
-          getTagsForPatient(ctx.organizationId, activeThread.patientId),
-        ])
-      : [[], null, []]
+  const [messages, patientContext, patientTags, scheduledMessages]: [
+    ThreadMessage[],
+    ThreadPatientContext | null,
+    PatientTagView[],
+    ScheduledMessageView[],
+  ] = activeThread
+    ? await Promise.all([
+        listMessagesInThread(ctx.organizationId, activeThread.id),
+        getThreadPatientContext(ctx.organizationId, activeThread.patientId),
+        getTagsForPatient(ctx.organizationId, activeThread.patientId),
+        listScheduledForPatient(ctx.organizationId, activeThread.patientId),
+      ])
+    : [[], null, [], []]
 
   // Mark the active thread read when it has unread messages on the
   // staff side. Call the service directly (NOT the server action wrapper):
@@ -268,6 +274,7 @@ export default async function ClinicMessagesView({
               }))}
               currentUserName={ctx.userName ?? null}
               aiEnabled={aiConfigured()}
+              scheduledMessages={scheduledMessages}
               templates={messageTemplates.map((t) => ({
                 key: t.id,
                 label: t.name,

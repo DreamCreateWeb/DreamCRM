@@ -12,6 +12,11 @@ import {
   type MessageChannel,
 } from '@/lib/services/patient-messaging'
 import { draftPatientReply } from '@/lib/services/message-ai'
+import {
+  scheduleMessage,
+  cancelScheduledMessage,
+  type ScheduledChannel,
+} from '@/lib/services/scheduled-messages'
 import type { MessageAttachment } from '@/lib/types/messaging'
 
 function ensureClinic(ctx: { tenantType: string; role: string }) {
@@ -49,6 +54,47 @@ export async function draftReplyAction(threadId: string) {
   const ctx = await requireTenant()
   ensureClinic(ctx)
   return draftPatientReply({ organizationId: ctx.organizationId, threadId, planTier: ctx.planTier })
+}
+
+/** Queue a message to send later. `scheduledForIso` is an ISO instant built
+ *  from the staff member's chosen date + time. Returns `{ ok | error }`. */
+export async function scheduleMessageAction(input: {
+  patientId: string
+  body: string
+  channel: ScheduledChannel
+  scheduledForIso: string
+  attachments?: MessageAttachment[]
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  try {
+    const { id } = await scheduleMessage({
+      organizationId: ctx.organizationId,
+      patientId: input.patientId,
+      body: input.body,
+      channel: input.channel,
+      attachments: input.attachments,
+      scheduledFor: new Date(input.scheduledForIso),
+      createdByUserId: ctx.userId,
+    })
+    revalidatePath('/messages')
+    return { ok: true, id }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not schedule the message.' }
+  }
+}
+
+/** Cancel a pending scheduled send. */
+export async function cancelScheduledMessageAction(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  try {
+    await cancelScheduledMessage(ctx.organizationId, id)
+    revalidatePath('/messages')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not cancel.' }
+  }
 }
 
 export async function assignThreadAction(threadId: string, assigneeUserId: string | null) {

@@ -15,11 +15,14 @@ import { channelMeta } from './channel-meta'
 import {
   archiveThreadAction,
   assignThreadAction,
+  cancelScheduledMessageAction,
   draftReplyAction,
   reopenThreadAction,
+  scheduleMessageAction,
   sendMessageAction,
   snoozeThreadAction,
 } from './clinic-actions'
+import type { ScheduledMessageView } from '@/lib/services/scheduled-messages'
 import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-reply-channel'
 import { avatarTint, groupMessagesByDay, messageInitials } from './message-grouping'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
@@ -98,6 +101,8 @@ interface Props {
   backHref?: string
   /** Whether the Anthropic key is configured — shows the "✨ Draft" assist. */
   aiEnabled?: boolean
+  /** Pending "send later" messages for this patient (shown above the composer). */
+  scheduledMessages?: ScheduledMessageView[]
 }
 
 const SNOOZE_OPTIONS = [
@@ -125,6 +130,20 @@ function fmtMoney(cents: number): string {
 /** Bare clock for the per-group timestamp ("3:24 PM"). */
 function fmtClock(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+/** Friendly date+time for a scheduled send ("Mon, Jun 23 · 9:00 AM"). */
+function fmtSchedule(iso: string): string {
+  const d = new Date(iso)
+  return `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+}
+
+/** A `datetime-local` default value (next top of the hour, local zone). */
+function defaultScheduleLocal(): string {
+  const d = new Date()
+  d.setHours(d.getHours() + 1, 0, 0, 0)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 /* ── Inline icon set ────────────────────────────────────────────────────
@@ -275,6 +294,7 @@ export default function ThreadDetailPanel({
   currentUserId = null,
   backHref,
   aiEnabled = false,
+  scheduledMessages = [],
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -296,6 +316,9 @@ export default function ThreadDetailPanel({
   const [showAssign, setShowAssign] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
+  const [showSchedule, setShowSchedule] = useState(false)
+  const [scheduleAt, setScheduleAt] = useState('')
+  const [scheduling, setScheduling] = useState(false)
   const streamRef = useRef<HTMLDivElement | null>(null)
 
   // Group the flat message list into day buckets, each holding runs of
@@ -378,6 +401,65 @@ export default function ThreadDetailPanel({
 
   function removeAttachment(url: string) {
     setAttachments((prev) => prev.filter((a) => a.url !== url))
+  }
+
+  // Queue the composed message for a future time (the cron flushes it). Same
+  // body/attachment validation as Send; clears the composer on success.
+  function handleSchedule() {
+    if (scheduling || uploading > 0) return
+    if (!body.trim() && attachments.length === 0) {
+      setToast('Add a message or an attachment to schedule.')
+      return
+    }
+    if (!scheduleAt) {
+      setToast('Pick a date and time first.')
+      return
+    }
+    const when = new Date(scheduleAt)
+    if (Number.isNaN(when.getTime()) || when.getTime() < Date.now() + 60_000) {
+      setToast('Pick a send time at least a minute from now.')
+      return
+    }
+    if (channel === 'sms') {
+      setToast('SMS is not available yet — schedule an email or in-app message.')
+      return
+    }
+    setScheduling(true)
+    const sent = attachments
+    void scheduleMessageAction({
+      patientId: thread.patientId,
+      body,
+      channel,
+      scheduledForIso: when.toISOString(),
+      attachments: sent,
+    })
+      .then((res) => {
+        if (res.ok) {
+          setBody('')
+          setAttachments([])
+          setShowSchedule(false)
+          setScheduleAt('')
+          setToast(`Scheduled for ${fmtSchedule(when.toISOString())}`)
+          router.refresh()
+        } else {
+          setToast(res.error)
+        }
+      })
+      .catch(() => setToast("Couldn't schedule the message. Please try again."))
+      .finally(() => setScheduling(false))
+  }
+
+  function handleCancelScheduled(id: string) {
+    void cancelScheduledMessageAction(id)
+      .then((res) => {
+        if (res.ok) {
+          setToast('Scheduled message canceled')
+          router.refresh()
+        } else {
+          setToast(res.error)
+        }
+      })
+      .catch(() => setToast("Couldn't cancel. Please try again."))
   }
 
   function handleSnooze(hours: number) {
@@ -864,6 +946,36 @@ export default function ThreadDetailPanel({
         )}
       </div>
 
+      {/* ── Scheduled sends (pending) ─────────────────────────────────
+          Shown above the composer so staff see what's queued + can cancel.
+          Renders even when archived so a queued send is never invisible. */}
+      {scheduledMessages.length > 0 && (
+        <div className="border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] px-4 sm:px-6 pt-3 shrink-0">
+          <div className="max-w-3xl mx-auto space-y-1.5">
+            {scheduledMessages.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-2 rounded-[var(--r-sm)] bg-indigo-500/[0.08] px-3 py-1.5 text-xs text-indigo-800 dark:text-indigo-200"
+              >
+                <span aria-hidden="true">⏰</span>
+                <span className="font-medium shrink-0">Scheduled · {fmtSchedule(s.scheduledFor)}</span>
+                <span className="text-indigo-700/70 dark:text-indigo-300/70 truncate">
+                  {s.body || (s.attachments.length > 0 ? `${s.attachments.length} photo${s.attachments.length === 1 ? '' : 's'}` : '')}
+                  {s.channel === 'email' ? ' · email' : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCancelScheduled(s.id)}
+                  className="ml-auto shrink-0 font-semibold text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100 hover:underline"
+                >
+                  Cancel
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Composer (only when not archived) ─────────────────────── */}
       {thread.status !== 'archived' && (
         <div className="border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] px-4 sm:px-6 py-3 shrink-0">
@@ -1018,6 +1130,59 @@ export default function ThreadDetailPanel({
                 rows={2}
                 className="flex-1 resize-none border-0 bg-transparent px-1.5 py-1 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-0"
               />
+              {/* Schedule (send later) — a quiet clock toggle beside Send; opens
+                  a popover with a date+time picker. Never competes with Send. */}
+              {channel !== 'sms' && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSchedule((s) => !s)
+                      if (!scheduleAt) setScheduleAt(defaultScheduleLocal())
+                    }}
+                    disabled={pending || scheduling}
+                    aria-expanded={showSchedule}
+                    title="Schedule this message to send later"
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-[var(--r-sm)] border transition-colors disabled:opacity-50 ${
+                      showSchedule
+                        ? 'border-indigo-300 bg-indigo-500/10 text-indigo-700 dark:border-indigo-400/40 dark:text-indigo-300'
+                        : 'border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] text-gray-600 hover:text-gray-900 dark:text-gray-300'
+                    }`}
+                  >
+                    <IconClock />
+                  </button>
+                  {showSchedule && (
+                    <div className="pop-in origin-bottom-right absolute right-0 bottom-full mb-1 z-10 w-64 rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] p-3 shadow-[var(--shadow-pop)]">
+                      <p className="mb-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">Send later</p>
+                      <input
+                        type="datetime-local"
+                        value={scheduleAt}
+                        min={defaultScheduleLocal()}
+                        onChange={(e) => setScheduleAt(e.target.value)}
+                        className="form-input w-full text-xs"
+                        aria-label="Send date and time"
+                      />
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowSchedule(false)}
+                          className="rounded-[var(--r-sm)] px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSchedule}
+                          disabled={scheduling || uploading > 0 || (!body.trim() && attachments.length === 0)}
+                          className="rounded-[var(--r-sm)] bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {scheduling ? 'Scheduling…' : 'Schedule'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {/* The pane's single primary action. */}
               <ActionButton
                 variant="primary"

@@ -553,6 +553,39 @@ export const patientMessage = pgTable(
   ],
 )
 
+// Scheduled (send-later) patient messages. A staff member can compose a reply
+// now and have it delivered at a future time (e.g. draft an after-hours answer
+// to go out when the office opens). Kept in its OWN table — not patient_message
+// — so an unsent message never pollutes the thread read path. A cron flushes
+// due 'pending' rows by calling sendMessageToPatient (atomic claim → no
+// double-send). Cancelable from the composer until it fires.
+export const scheduledMessage = pgTable(
+  'scheduled_message',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    channel: text('channel').notNull(), // 'in_app' | 'email'
+    body: text('body').notNull().default(''),
+    attachments: jsonb('attachments').notNull().default([]),
+    scheduledFor: timestamp('scheduled_for').notNull(),
+    // 'pending' → 'sent' | 'canceled' | 'failed'
+    status: text('status').notNull().default('pending'),
+    createdByUserId: text('created_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    // The patient_message row id once delivered (audit back-ref).
+    sentMessageId: text('sent_message_id'),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // Cron flush: pending rows whose time has come.
+    index('scheduled_message_status_due_idx').on(t.status, t.scheduledFor),
+    // Thread view: a patient's pending scheduled sends.
+    index('scheduled_message_org_patient_idx').on(t.organizationId, t.patientId),
+  ],
+)
+
 // Reviews & Reputation v1 — post-visit review requests.
 //
 // Per-org config (one row per org, keyed on org id). Stores the review-

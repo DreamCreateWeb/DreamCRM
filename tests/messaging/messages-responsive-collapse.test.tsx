@@ -28,6 +28,7 @@ vi.mock('@/lib/services/patient-messaging', () => ({
 vi.mock('@/lib/services/message-templates', () => ({ listMessageTemplates: async () => [] }))
 vi.mock('@/lib/services/patient-tags', () => ({ getTagsForPatient: async () => [] }))
 vi.mock('@/lib/services/patient-followups', () => ({ listAssignableStaff: async () => [] }))
+vi.mock('@/lib/services/scheduled-messages', () => ({ listScheduledForPatient: async () => [] }))
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
