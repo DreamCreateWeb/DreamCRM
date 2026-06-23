@@ -91,6 +91,14 @@ function PreviewField({ field }: { field: FormField }) {
       <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
         {field.label || 'Untitled question'}
         {field.required && <span className="text-rose-500"> *</span>}
+        {field.visibleWhen && (
+          <span
+            className="ml-1.5 align-middle text-[0.625rem] font-medium uppercase tracking-wide text-indigo-600 dark:text-indigo-400"
+            title="Shown only when its condition is met"
+          >
+            · conditional
+          </span>
+        )}
       </label>
       {field.help && <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">{field.help}</p>}
       <PreviewControl field={field} />

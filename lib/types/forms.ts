@@ -299,7 +299,16 @@ export const DEFAULT_INTAKE_TEMPLATE: FormTemplateSchema = {
             'None of the above',
           ],
         },
-        { id: 'allergies', type: 'textarea', label: 'Allergies (medications, latex, etc.)', required: false, placeholder: 'List anything we should avoid.' },
+        { id: 'has_allergies', type: 'yes_no', label: 'Do you have any allergies?', required: false },
+        {
+          id: 'allergies',
+          type: 'textarea',
+          label: 'What are you allergic to? (medications, latex, etc.)',
+          required: false,
+          placeholder: 'List anything we should avoid.',
+          // Conditional: only ask for detail when they said yes.
+          visibleWhen: { fieldId: 'has_allergies', op: 'equals', value: 'true' },
+        },
         { id: 'medications', type: 'textarea', label: 'Medications you take regularly', required: false, placeholder: 'Including supplements.' },
       ],
     },

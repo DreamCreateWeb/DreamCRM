@@ -4,11 +4,20 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { FormTemplate } from '@/lib/db/schema/clinic'
 import type {
+  FieldCondition,
   FormField,
   FormFieldType,
   FormSection,
   FormTemplateSchema,
 } from '@/lib/types/forms'
+
+/** A field that can drive another field's conditional visibility. */
+interface TriggerCandidate {
+  id: string
+  label: string
+  type: FormFieldType
+  options?: string[]
+}
 import { archiveFormAction, saveFormAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -172,6 +181,13 @@ export default function FormBuilder({ template }: Props) {
     })
   }
 
+  // Fields that can drive a "show only when…" condition — answerable types
+  // with a stable id + label (excludes display-only + upload + signature).
+  const triggerCandidates: TriggerCandidate[] = sections
+    .flatMap((s) => s.fields)
+    .filter((f) => f.type !== 'content' && f.type !== 'file' && f.type !== 'insurance_card' && f.type !== 'signature')
+    .map((f) => ({ id: f.id, label: f.label, type: f.type, options: 'options' in f ? f.options : undefined }))
+
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
       <div className="min-w-0 space-y-6">
@@ -284,6 +300,7 @@ export default function FormBuilder({ template }: Props) {
               <FieldRow
                 key={field.id}
                 field={field}
+                candidates={triggerCandidates.filter((c) => c.id !== field.id)}
                 onChange={(patch) => updateField(si, fi, patch)}
                 onRemove={() => removeField(si, fi)}
                 onMoveUp={fi > 0 ? () => moveField(si, fi, -1) : undefined}
@@ -346,12 +363,14 @@ export default function FormBuilder({ template }: Props) {
 
 function FieldRow({
   field,
+  candidates,
   onChange,
   onRemove,
   onMoveUp,
   onMoveDown,
 }: {
   field: FormField
+  candidates: TriggerCandidate[]
   onChange: (patch: Partial<FormField>) => void
   onRemove: () => void
   onMoveUp?: () => void
@@ -508,6 +527,14 @@ function FieldRow({
               placeholder="Placeholder (optional)"
             />
           )}
+
+          {candidates.length > 0 && (
+            <ConditionEditor
+              condition={field.visibleWhen ?? null}
+              candidates={candidates}
+              onChange={(c) => onChange({ visibleWhen: c } as Partial<FormField>)}
+            />
+          )}
         </div>
         <button
           type="button"
@@ -517,6 +544,97 @@ function FieldRow({
           Remove
         </button>
       </div>
+    </div>
+  )
+}
+
+/** Builder UI for a field's `visibleWhen` condition — pick a prior field, an
+ *  operator, and (for equals/includes) a value. Off by default. */
+function ConditionEditor({
+  condition,
+  candidates,
+  onChange,
+}: {
+  condition: FieldCondition | null
+  candidates: TriggerCandidate[]
+  onChange: (c: FieldCondition | null) => void
+}) {
+  const enabled = !!condition
+  const trigger = condition ? candidates.find((c) => c.id === condition.fieldId) : undefined
+  // A choice/yes_no trigger gives a fixed value set; otherwise free text.
+  const valueOptions =
+    trigger?.type === 'yes_no'
+      ? [
+          { v: 'true', label: 'Yes' },
+          { v: 'false', label: 'No' },
+        ]
+      : trigger && trigger.options
+        ? trigger.options.map((o) => ({ v: o, label: o }))
+        : null
+
+  function patch(p: Partial<FieldCondition>) {
+    const base: FieldCondition = condition ?? { fieldId: candidates[0].id, op: 'answered' }
+    onChange({ ...base, ...p })
+  }
+
+  return (
+    <div className="rounded-[var(--r-sm)] bg-gray-50 dark:bg-gray-900/30 p-2.5">
+      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onChange(e.target.checked ? { fieldId: candidates[0].id, op: 'answered' } : null)}
+          className="form-checkbox"
+        />
+        Show this field only when…
+      </label>
+      {enabled && condition && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+          <select
+            value={condition.fieldId}
+            onChange={(e) => patch({ fieldId: e.target.value, value: undefined })}
+            className="form-select text-xs py-1 max-w-[12rem] truncate"
+          >
+            {candidates.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label || '(untitled)'}
+              </option>
+            ))}
+          </select>
+          <select
+            value={condition.op}
+            onChange={(e) => patch({ op: e.target.value as FieldCondition['op'] })}
+            className="form-select text-xs py-1"
+          >
+            <option value="answered">is answered</option>
+            <option value="equals">equals</option>
+            {(trigger?.type === 'checkbox') && <option value="includes">includes</option>}
+          </select>
+          {condition.op !== 'answered' &&
+            (valueOptions ? (
+              <select
+                value={condition.value ?? ''}
+                onChange={(e) => patch({ value: e.target.value })}
+                className="form-select text-xs py-1 max-w-[10rem] truncate"
+              >
+                <option value="">Choose…</option>
+                {valueOptions.map((o) => (
+                  <option key={o.v} value={o.v}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={condition.value ?? ''}
+                onChange={(e) => patch({ value: e.target.value })}
+                placeholder="value"
+                className="form-input text-xs py-1 w-28"
+              />
+            ))}
+        </div>
+      )}
     </div>
   )
 }
