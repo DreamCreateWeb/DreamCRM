@@ -35,7 +35,7 @@ vi.mock('@/lib/db', () => {
 })
 
 import { extractTranslatableStrings, localizeSchema, type FormTemplateSchema } from '@/lib/types/forms'
-import { generateFormTranslation } from '@/lib/services/form-translate'
+import { generateFormTranslation, sourceStringsHash } from '@/lib/services/form-translate'
 
 const schema: FormTemplateSchema = {
   sections: [
@@ -119,5 +119,32 @@ describe('generateFormTranslation', () => {
     runClaudeJson.mockResolvedValue({ nope: true })
     expect(await generateFormTranslation({ organizationId: 'o', templateId: 't' })).toEqual({ ok: false, reason: 'failed' })
     expect(updates).toHaveLength(0)
+  })
+
+  it('returns the cached map (no model call, no allowance burn) when the src hash matches', async () => {
+    const src = sourceStringsHash(extractTranslatableStrings(schema))
+    selectRows = [[{ schema, translations: { es: { 'f:name': 'Nombre', 's:s1': 'Sobre usted' }, src: { es: src } }, title: 'Intake' }]]
+    const res = await generateFormTranslation({ organizationId: 'o', templateId: 't' })
+    expect(res).toEqual({ ok: true, count: 2 })
+    expect(runClaudeJson).not.toHaveBeenCalled()
+    expect(inserts).toHaveLength(0)
+    expect(updates).toHaveLength(0)
+  })
+
+  it('re-translates when the form changed (src hash mismatch)', async () => {
+    selectRows = [[{ schema, translations: { es: { 'f:name': 'Viejo' }, src: { es: 'stale' } }, title: 'Intake' }], [{ count: 0 }]]
+    runClaudeJson.mockResolvedValue({ items: [{ key: 'f:name', es: 'Nombre' }] })
+    const res = await generateFormTranslation({ organizationId: 'o', templateId: 't' })
+    expect(res).toEqual({ ok: true, count: 1 })
+    expect(runClaudeJson).toHaveBeenCalled()
+  })
+
+  it('force re-translates even when the cache matches', async () => {
+    const src = sourceStringsHash(extractTranslatableStrings(schema))
+    selectRows = [[{ schema, translations: { es: { 'f:name': 'Nombre' }, src: { es: src } }, title: 'Intake' }], [{ count: 0 }]]
+    runClaudeJson.mockResolvedValue({ items: [{ key: 'f:name', es: 'Nombre' }] })
+    const res = await generateFormTranslation({ organizationId: 'o', templateId: 't', force: true })
+    expect(res).toEqual({ ok: true, count: 1 })
+    expect(runClaudeJson).toHaveBeenCalled()
   })
 })

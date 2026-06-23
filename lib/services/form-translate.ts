@@ -11,6 +11,19 @@ import {
   type FormTranslations,
 } from '@/lib/types/forms'
 
+/** Stable, dependency-free hash of the source strings (FNV-1a over the
+ *  serialized {key,text} list) — lets a re-run on an unchanged form skip the
+ *  model. Exported for the cache-hit test. */
+export function sourceStringsHash(strings: Array<{ key: string; text: string }>): string {
+  const s = JSON.stringify(strings)
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16)
+}
+
 /**
  * AI translation of a form's display strings into Spanish (the one non-English
  * locale US dental needs most). Admin-triggered + cached on the template, so
@@ -38,6 +51,8 @@ export async function generateFormTranslation(input: {
   organizationId: string
   templateId: string
   locale?: 'es'
+  /** Re-translate even if the cached map already matches the current form. */
+  force?: boolean
 }): Promise<TranslateResult> {
   const locale = input.locale ?? 'es'
   const [tpl] = await db
@@ -49,6 +64,19 @@ export async function generateFormTranslation(input: {
 
   const strings = extractTranslatableStrings(tpl.schema as FormTemplateSchema)
   if (strings.length === 0) return { ok: false, reason: 'empty' }
+
+  // Already translated this exact set of strings? Return the cached map — no
+  // model call, no allowance burn (a re-click / idempotent save is free). A
+  // genuine form edit changes the hash and falls through to re-translate.
+  const existing = (tpl.translations as FormTranslations | null) ?? null
+  const srcHash = sourceStringsHash(strings)
+  if (!input.force) {
+    const cachedMap = existing?.[locale]
+    if (cachedMap && existing?.src?.[locale] === srcHash) {
+      return { ok: true, count: Object.keys(cachedMap).length }
+    }
+  }
+
   if (!aiConfigured()) return { ok: false, reason: 'not_configured' }
   if (await isAiUsageOverCap(input.organizationId, KIND, MONTHLY_CAP)) return { ok: false, reason: 'no_allowance' }
 
@@ -62,7 +90,10 @@ Rules:
   let raw: unknown | null
   try {
     raw = await runClaudeJson({
-      model: 'sonnet',
+      // Haiku handles warm patient-facing translation well; admin-triggered +
+      // cached (so low volume), spot-checkable, and partials fall back to
+      // English. ~3x cheaper than Sonnet.
+      model: 'haiku',
       maxTokens: 4000,
       system,
       messages: [{ role: 'user', content: `Translate each to Spanish:\n${JSON.stringify(strings)}` }],
@@ -99,7 +130,11 @@ Rules:
   }
   if (Object.keys(map).length === 0) return { ok: false, reason: 'failed' }
 
-  const next: FormTranslations = { ...((tpl.translations as FormTranslations) ?? {}), [locale]: map }
+  const next: FormTranslations = {
+    ...(existing ?? {}),
+    [locale]: map,
+    src: { ...(existing?.src ?? {}), [locale]: srcHash },
+  }
   await bumpAiUsage(input.organizationId, KIND)
   await db
     .update(schema.formTemplate)

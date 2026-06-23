@@ -140,7 +140,13 @@ export type SystemFieldKey = (typeof SYSTEM_FIELD_KEYS)[number]
 /** A locale → flat translation map ({ key → translated string }). Keys are
  *  produced by `extractTranslatableStrings`; missing keys fall back to English. */
 export type FormTranslationMap = Record<string, string>
-export type FormTranslations = Partial<Record<'es', FormTranslationMap>>
+/** Per-locale translation maps, plus `src` — a hash of the source strings each
+ *  locale was translated from, so re-running translation on an UNCHANGED form
+ *  returns the cached map instead of re-calling the model. Consumers read only
+ *  the locale maps (`.es`); `src` is bookkeeping for the translation service. */
+export type FormTranslations = Partial<Record<'es', FormTranslationMap>> & {
+  src?: Partial<Record<'es', string>>
+}
 
 /** Every user-visible string in a form, keyed stably so a translation can be
  *  looked up per string. Pure. */

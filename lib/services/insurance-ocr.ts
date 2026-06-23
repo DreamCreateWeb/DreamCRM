@@ -75,7 +75,11 @@ export async function readInsuranceCard(input: {
   let raw: unknown | null
   try {
     raw = await runClaudeVisionJson({
-      model: 'sonnet',
+      // Haiku: the extraction is bounded by a strict tool schema (null-when-
+      // unsure) and the patient confirms every field before it's used, so the
+      // accuracy floor is the human review, not the model. Haiku is ~3x cheaper
+      // and faster — and this is a public, patient-facing, wait-for-it call.
+      model: 'haiku',
       maxTokens: 400,
       system,
       text: 'Read this dental insurance card and return the fields you can clearly see.',
