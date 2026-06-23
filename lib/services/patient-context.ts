@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import type { InboxPatientContext } from '@/lib/types/patient-context'
 
@@ -17,47 +17,57 @@ export async function getInboxPatientContext(
   if (!p) return null
 
   const now = new Date()
-  const upcoming = await db
-    .select()
-    .from(schema.appointment)
-    .where(
-      and(
-        eq(schema.appointment.patientId, patientId),
-        eq(schema.appointment.organizationId, organizationId),
-        gte(schema.appointment.startTime, now),
+  // The three appointment reads are independent — one parallel batch, not three
+  // serial round-trips. Next/last use the SAME semantics as getPatientHeader so
+  // the Inbox context strip agrees with the Patients/Messages strips: the "last
+  // visit" is the most recent ATTENDED visit (past, not cancelled/no-show), not
+  // whatever row happens to sort last (which could be a future or cancelled one).
+  const [upcoming, recent, countRows] = await Promise.all([
+    db
+      .select()
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.patientId, patientId),
+          eq(schema.appointment.organizationId, organizationId),
+          gte(schema.appointment.startTime, now),
+          ne(schema.appointment.status, 'cancelled'),
+          ne(schema.appointment.status, 'no_show'),
+        ),
+      )
+      .orderBy(asc(schema.appointment.startTime))
+      .limit(1),
+    db
+      .select()
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.patientId, patientId),
+          eq(schema.appointment.organizationId, organizationId),
+          lte(schema.appointment.startTime, now),
+          ne(schema.appointment.status, 'cancelled'),
+          ne(schema.appointment.status, 'no_show'),
+        ),
+      )
+      .orderBy(desc(schema.appointment.startTime))
+      .limit(1),
+    // Total visit count regardless of status — the "x visits" badge.
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.patientId, patientId),
+          eq(schema.appointment.organizationId, organizationId),
+        ),
       ),
-    )
-    .orderBy(schema.appointment.startTime)
-    .limit(1)
-
-  const recent = await db
-    .select()
-    .from(schema.appointment)
-    .where(
-      and(
-        eq(schema.appointment.patientId, patientId),
-        eq(schema.appointment.organizationId, organizationId),
-      ),
-    )
-    .orderBy(desc(schema.appointment.startTime))
-    .limit(1)
-
-  // Total visit count regardless of status — used for the "x visits" badge.
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(schema.appointment)
-    .where(
-      and(
-        eq(schema.appointment.patientId, patientId),
-        eq(schema.appointment.organizationId, organizationId),
-      ),
-    )
+  ])
 
   return {
     patient: p,
     nextAppointment: upcoming[0] ?? null,
     lastAppointment: recent[0] ?? null,
-    appointmentCount: count ?? 0,
+    appointmentCount: countRows[0]?.count ?? 0,
   }
 }
 
