@@ -25,6 +25,7 @@ import ThreadDetailPanel from './clinic-thread-detail-panel'
 import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
 import MessagesSurfaceTabs from './surface-tabs'
 import NavBadgeSync from './nav-badge-sync'
+import InboxAutoRefresh from './inbox-auto-refresh'
 import ThreadSearchInput from './thread-search-input'
 import { aiConfigured } from '@/lib/ai'
 
@@ -149,6 +150,9 @@ export default async function ClinicMessagesView({
     <div className="flex flex-col h-full bg-[color:var(--color-canvas)]">
       {/* Drops the sidebar's unread-Messages badge the moment a thread is read. */}
       <NavBadgeSync signal={activeThread?.id ?? 'list'} />
+      {/* Soft-refreshes on tab focus + a gentle interval so new inbound
+          messages appear without a manual reload (composer draft preserved). */}
+      <InboxAutoRefresh />
       {/* Surface tabs (Patients ⇄ Mailbox) — shared with /inbox so neither is
           a one-way trip. */}
       <MessagesSurfaceTabs active="patients" />
