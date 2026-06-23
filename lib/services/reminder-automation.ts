@@ -1,11 +1,11 @@
 import 'server-only'
-import { and, eq, gte, isNotNull, lte, ne } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getAppointmentDetail, logReminderSent, type AppointmentDetail } from '@/lib/services/appointments'
-import { resolveReminderSettings, type ReminderSettings } from '@/lib/types/reminders'
+import { resolveReminderSettings, FORMS_REMINDER_WINDOW_HOURS, type ReminderSettings } from '@/lib/types/reminders'
 import type { ClinicSender } from '@/lib/email-identity'
 
 // ── Settings CRUD (Settings → Reminders) ─────────────────────────────────────
@@ -236,6 +236,125 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           appointmentId: c.appointmentId,
           error: err instanceof Error ? err.message : 'unknown',
         })
+      }
+    }
+  }
+
+  return result
+}
+
+const FORMS_REMINDER_TEMPLATE = 'forms_intake'
+
+/**
+ * Forms-completion reminders: nudge a patient with an upcoming LIVE visit who
+ * hasn't completed any intake form yet. Distinct from the visit reminder above
+ * — fixes the two complaints from the research: invisible/unfinished forms, and
+ * reminders firing for cancelled visits (only scheduled/confirmed qualify).
+ * Idempotent via an `appointment_reminder_log` row tagged `forms_intake`.
+ */
+export async function runDueFormReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
+  const now = opts?.now ?? new Date()
+  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, alreadyReminded: 0, skipped: 0, failed: 0, errors: [] }
+
+  const profiles = await db
+    .select({ organizationId: schema.clinicProfile.organizationId, reminderSettings: schema.clinicProfile.reminderSettings })
+    .from(schema.clinicProfile)
+
+  const { sendIntakeRequestToPatient } = await import('@/lib/services/patient-intake-send')
+
+  for (const profile of profiles) {
+    const settings = resolveReminderSettings(profile.reminderSettings)
+    if (!settings.formsReminder) continue
+    result.orgsScanned++
+
+    const windowEnd = new Date(now.getTime() + FORMS_REMINDER_WINDOW_HOURS * 60 * 60 * 1000)
+    const remindedSince = new Date(now.getTime() - FORMS_REMINDER_WINDOW_HOURS * 60 * 60 * 1000)
+
+    // Upcoming LIVE appointments with an email on file. 'scheduled' OR
+    // 'confirmed' — a confirmed visit still needs its paperwork. Cancelled /
+    // no-show / completed are excluded by construction.
+    const candidates = await db
+      .select({ appointmentId: schema.appointment.id, patientId: schema.appointment.patientId })
+      .from(schema.appointment)
+      .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
+      .where(
+        and(
+          eq(schema.appointment.organizationId, profile.organizationId),
+          inArray(schema.appointment.status, ['scheduled', 'confirmed']),
+          gte(schema.appointment.startTime, now),
+          lte(schema.appointment.startTime, windowEnd),
+          eq(schema.patient.isActive, 1),
+          isNotNull(schema.patient.email),
+          ne(schema.patient.email, ''),
+        ),
+      )
+      .limit(500)
+
+    const remindedPatients = new Set<string>()
+
+    for (const c of candidates) {
+      if (!c.patientId) continue
+      result.candidates++
+
+      // One nudge per patient per run (a patient with two upcoming visits gets
+      // a single reminder).
+      if (remindedPatients.has(c.patientId)) {
+        result.alreadyReminded++
+        continue
+      }
+
+      // Already completed a form? Then nothing to chase.
+      const [submission] = await db
+        .select({ id: schema.formSubmission.id })
+        .from(schema.formSubmission)
+        .where(and(eq(schema.formSubmission.organizationId, profile.organizationId), eq(schema.formSubmission.patientId, c.patientId)))
+        .limit(1)
+      if (submission) {
+        result.skipped++
+        continue
+      }
+
+      // Cross-run dedup: a forms reminder already went out for this appointment
+      // within the window.
+      const [recent] = await db
+        .select({ id: schema.appointmentReminderLog.id })
+        .from(schema.appointmentReminderLog)
+        .where(
+          and(
+            eq(schema.appointmentReminderLog.appointmentId, c.appointmentId),
+            eq(schema.appointmentReminderLog.template, FORMS_REMINDER_TEMPLATE),
+            gte(schema.appointmentReminderLog.sentAt, remindedSince),
+          ),
+        )
+        .limit(1)
+      if (recent) {
+        result.alreadyReminded++
+        continue
+      }
+
+      try {
+        // Throws on success-blockers (no email, no default form). Any return
+        // means it sent.
+        await sendIntakeRequestToPatient(profile.organizationId, c.patientId)
+        remindedPatients.add(c.patientId)
+        await logReminderSent({
+          organizationId: profile.organizationId,
+          appointmentId: c.appointmentId,
+          channel: 'email',
+          template: FORMS_REMINDER_TEMPLATE,
+          sentByUserId: null,
+        })
+        result.sent++
+      } catch (err) {
+        // "No email" / "no default form" / "rate limit" are expected non-sends,
+        // not failures — don't noise up the error list.
+        const msg = err instanceof Error ? err.message : 'unknown'
+        if (/no email|default intake form|opted|already|available/i.test(msg)) {
+          result.skipped++
+        } else {
+          result.failed++
+          result.errors.push({ organizationId: profile.organizationId, appointmentId: c.appointmentId, error: msg })
+        }
       }
     }
   }

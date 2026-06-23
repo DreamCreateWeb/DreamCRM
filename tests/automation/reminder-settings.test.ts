@@ -15,12 +15,12 @@ describe('resolveReminderSettings — merge-over-defaults', () => {
   })
 
   it('default offset is 24 and enabled is true', () => {
-    expect(REMINDER_DEFAULTS).toEqual({ enabled: true, offsetHours: 24 })
+    expect(REMINDER_DEFAULTS).toEqual({ enabled: true, offsetHours: 24, formsReminder: true })
   })
 
   it('merges a partial blob over defaults (missing keys inherit)', () => {
-    expect(resolveReminderSettings({ enabled: false })).toEqual({ enabled: false, offsetHours: 24 })
-    expect(resolveReminderSettings({ offsetHours: 48 })).toEqual({ enabled: true, offsetHours: 48 })
+    expect(resolveReminderSettings({ enabled: false })).toEqual({ enabled: false, offsetHours: 24, formsReminder: true })
+    expect(resolveReminderSettings({ offsetHours: 48 })).toEqual({ enabled: true, offsetHours: 48, formsReminder: true })
   })
 
   it('ignores junk-typed values', () => {

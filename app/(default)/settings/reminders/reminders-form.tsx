@@ -19,6 +19,7 @@ import { SettingsSection, SettingsRow } from '../settings-kit'
 export default function RemindersForm({ initial }: { initial: ReminderSettings }) {
   const [enabled, setEnabled] = useState(initial.enabled)
   const [offsetHours, setOffsetHours] = useState(String(initial.offsetHours))
+  const [formsReminder, setFormsReminder] = useState(initial.formsReminder)
   const [pending, startTransition] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +33,7 @@ export default function RemindersForm({ initial }: { initial: ReminderSettings }
       return
     }
     startTransition(async () => {
-      const r = await saveReminderSettingsAction({ enabled, offsetHours: Math.round(n) })
+      const r = await saveReminderSettingsAction({ enabled, offsetHours: Math.round(n), formsReminder })
       if (r.ok) setToast('Saved.')
       else setError(r.error)
     })
@@ -68,6 +69,11 @@ export default function RemindersForm({ initial }: { initial: ReminderSettings }
               <span className="text-sm text-gray-500 dark:text-gray-400">hours</span>
             </div>
           }
+        />
+        <SettingsRow
+          label="Remind patients to finish their forms"
+          description="Email patients with an upcoming visit who haven’t completed their intake yet. Stops once they submit, and never goes to a cancelled visit."
+          control={<Toggle checked={formsReminder} onChange={setFormsReminder} srLabel="Remind patients to finish their forms" />}
         />
       </div>
 

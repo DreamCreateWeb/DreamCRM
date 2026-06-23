@@ -20,12 +20,23 @@ export interface ReminderSettings {
    * appointment drawer's manual reminder copy implies). Clamped 4–168 on read.
    */
   offsetHours: number
+  /**
+   * Nudge patients with an upcoming visit who haven't completed their intake
+   * forms (within FORMS_REMINDER_WINDOW_HOURS). Default ON. Only fires for LIVE
+   * appointments (cancelled/no-show/completed never get one) and stops once the
+   * patient submits a form.
+   */
+  formsReminder: boolean
 }
 
 export const REMINDER_DEFAULTS: ReminderSettings = {
   enabled: true,
   offsetHours: 24,
+  formsReminder: true,
 }
+
+/** How far ahead a forms-completion reminder looks for an unfinished intake. */
+export const FORMS_REMINDER_WINDOW_HOURS = 48
 
 /** Inclusive bounds for the offset, shared by the resolver + the settings form. */
 export const REMINDER_OFFSET_MIN_HOURS = 4
@@ -44,6 +55,7 @@ export function resolveReminderSettings(stored: unknown): ReminderSettings {
 
   const out: ReminderSettings = { ...d }
   if (typeof s.enabled === 'boolean') out.enabled = s.enabled
+  if (typeof s.formsReminder === 'boolean') out.formsReminder = s.formsReminder
   if (typeof s.offsetHours === 'number' && Number.isFinite(s.offsetHours)) {
     out.offsetHours = Math.min(
       REMINDER_OFFSET_MAX_HOURS,

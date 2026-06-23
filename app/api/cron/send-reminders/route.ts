@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { runDueReminders } from '@/lib/services/reminder-automation'
+import { runDueReminders, runDueFormReminders } from '@/lib/services/reminder-automation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +25,13 @@ async function run(request: Request) {
   }
   try {
     const result = await runDueReminders()
-    return NextResponse.json({ ok: true, ...result })
+    // Also nudge patients who haven't completed their intake forms before an
+    // upcoming visit. Best-effort — a forms-reminder failure can't fail the
+    // visit-reminder job (the primary one).
+    const forms = await runDueFormReminders().catch((err) => ({
+      error: err instanceof Error ? err.message : 'unknown',
+    }))
+    return NextResponse.json({ ok: true, ...result, forms })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }
