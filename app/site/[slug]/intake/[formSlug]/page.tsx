@@ -9,7 +9,7 @@ import type { FormTemplateSchema } from '@/lib/types/forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { readableInk } from '@/lib/clinic-site-theme'
 import IntakeFormRunner from './intake-form-runner'
-import { submitIntakeForm } from './actions'
+import { submitIntakeForm, readInsuranceCardAction } from './actions'
 
 interface Props {
   params: Promise<{ slug: string; formSlug: string }>
@@ -131,6 +131,7 @@ export default async function IntakeFormPage({ params }: Props) {
                 brand={brand}
                 clinicName={name}
                 action={submitIntakeForm}
+                ocrAction={readInsuranceCardAction}
               />
             </div>
           </ScrollReveal>

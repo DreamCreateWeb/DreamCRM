@@ -2,6 +2,7 @@
 
 import { requireTenant } from '@/lib/auth/context'
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
+import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { getPortalSettings } from '@/lib/services/portal-settings'
 import {
   firstMissingRequiredField,
@@ -52,4 +53,20 @@ export async function submitPatientIntakeAction(input: PatientIntakeInput) {
     submitterEmail: input.submitterEmail,
     submitterPhone: input.submitterPhone,
   })
+}
+
+/** Portal insurance-card OCR — org from the session; same per-org cap. */
+export async function readPatientInsuranceCardAction(
+  _orgId: string,
+  imageUrls: string[],
+): Promise<{ ok: true; fields: InsuranceCardFields } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'patient' || !ctx.patientId) {
+    return { ok: false, error: 'Only patients can use this.' }
+  }
+  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 2)
+  if (urls.length === 0) return { ok: false, error: 'Add a photo of your card first.' }
+  const result = await readInsuranceCard({ organizationId: ctx.organizationId, imageUrls: urls })
+  if (result.ok) return { ok: true, fields: result.fields }
+  return { ok: false, error: 'We couldn’t read the card — please type your details.' }
 }

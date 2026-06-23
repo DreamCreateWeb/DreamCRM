@@ -10,6 +10,19 @@ import type {
 } from '@/lib/types/forms'
 import { isDisplayOnlyField, isFieldVisible, sanitizeFileRefs } from '@/lib/types/forms'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
+import type { InsuranceCardFields } from '@/lib/services/insurance-ocr'
+
+export type OcrAction = (
+  orgId: string,
+  imageUrls: string[],
+) => Promise<{ ok: true; fields: InsuranceCardFields } | { ok: false; error: string }>
+
+/** Map a `SystemFieldKey` → the extracted card field, for OCR auto-fill. */
+const OCR_SYSTEM_KEY: Partial<Record<string, keyof InsuranceCardFields>> = {
+  insurance_provider: 'provider',
+  insurance_policy_number: 'memberId',
+  insurance_group_number: 'groupNumber',
+}
 
 export interface IntakeSubmitPayload {
   orgId: string
@@ -36,9 +49,12 @@ interface Props {
    *  unauthenticated action; the patient portal passes one that attaches
    *  `patientId` from the session. */
   action: (payload: IntakeSubmitPayload) => Promise<void>
+  /** Optional insurance-card OCR action — when present, an insurance_card field
+   *  offers "Read my card" to auto-fill the insurance fields. */
+  ocrAction?: OcrAction
 }
 
-export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action }: Props) {
+export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction }: Props) {
   const [values, setValues] = useState<FormSubmissionData>({})
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -59,6 +75,21 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
 
   function setValue(fieldId: string, value: FormFieldValue) {
     setValues((prev) => ({ ...prev, [fieldId]: value }))
+  }
+
+  // Pre-fill the insurance text fields (matched by systemKey) from an OCR read.
+  // Only writes a field we successfully read; the patient confirms/edits.
+  function fillFromCard(fields: InsuranceCardFields) {
+    setValues((prev) => {
+      const next = { ...prev }
+      for (const section of schema.sections) {
+        for (const f of section.fields) {
+          const key = f.systemKey ? OCR_SYSTEM_KEY[f.systemKey] : undefined
+          if (key && fields[key]) next[f.id] = fields[key] as string
+        }
+      }
+      return next
+    })
   }
 
   function validate(): { fieldId: string; message: string } | null {
@@ -186,6 +217,9 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
                   value={values[field.id]}
                   onChange={(v) => setValue(field.id, v)}
                   brand={brand}
+                  orgId={orgId}
+                  ocrAction={ocrAction}
+                  onOcrFill={fillFromCard}
                 />
               ))}
           </div>
@@ -216,11 +250,17 @@ function FieldInput({
   value,
   onChange,
   brand,
+  orgId,
+  ocrAction,
+  onOcrFill,
 }: {
   field: FormField
   value: FormFieldValue | undefined
   onChange: (v: FormFieldValue) => void
   brand: string
+  orgId: string
+  ocrAction?: OcrAction
+  onOcrFill?: (fields: InsuranceCardFields) => void
 }) {
   const labelEl = (
     <label
@@ -442,7 +482,14 @@ function FieldInput({
       return (
         <div>
           {labelEl}
-          <InsuranceCardInput value={sanitizeFileRefs(value)} onChange={onChange} brand={brand} />
+          <InsuranceCardInput
+            value={sanitizeFileRefs(value)}
+            onChange={onChange}
+            brand={brand}
+            orgId={orgId}
+            ocrAction={ocrAction}
+            onOcrFill={onOcrFill}
+          />
           {helpEl}
         </div>
       )
@@ -561,15 +608,48 @@ function InsuranceCardInput({
   value,
   onChange,
   brand,
+  orgId,
+  ocrAction,
+  onOcrFill,
 }: {
   value: FormFileRef[]
   onChange: (v: FormFieldValue) => void
   brand: string
+  orgId: string
+  ocrAction?: OcrAction
+  onOcrFill?: (fields: InsuranceCardFields) => void
 }) {
   const [uploading, setUploading] = useState<'front' | 'back' | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [reading, setReading] = useState(false)
+  const [readMsg, setReadMsg] = useState<string | null>(null)
   const frontRef = useRef<HTMLInputElement>(null)
   const backRef = useRef<HTMLInputElement>(null)
+
+  function readCard() {
+    if (!ocrAction || reading) return
+    const urls = value.map((f) => f.url)
+    if (urls.length === 0) return
+    setReading(true)
+    setReadMsg(null)
+    setErr(null)
+    void ocrAction(orgId, urls)
+      .then((res) => {
+        if (res.ok) {
+          onOcrFill?.(res.fields)
+          const got = Object.values(res.fields).filter(Boolean).length
+          setReadMsg(
+            got > 0
+              ? '✓ We filled in what we could read — please double-check below.'
+              : "We couldn't read the card clearly — please type your details below.",
+          )
+        } else {
+          setErr(res.error)
+        }
+      })
+      .catch(() => setErr('We couldn’t read the card — please type your details.'))
+      .finally(() => setReading(false))
+  }
   // Front + back can upload concurrently — route both through a ref so one
   // completion never drops the other's photo.
   const valueRef = useRef<FormFileRef[]>(value)
@@ -657,6 +737,22 @@ function InsuranceCardInput({
           )
         })}
       </div>
+      {/* AI auto-fill — reads the uploaded card and pre-fills the insurance
+          fields for the patient to confirm. Only when an OCR action is wired
+          (the public + portal forms) + at least one photo is up. */}
+      {ocrAction && value.length > 0 && (
+        <button
+          type="button"
+          onClick={readCard}
+          disabled={reading}
+          className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          style={{ backgroundColor: brand }}
+        >
+          <span aria-hidden="true">✨</span>
+          {reading ? 'Reading your card…' : 'Read my card & fill it in'}
+        </button>
+      )}
+      {readMsg && <p className="mt-1.5 text-xs" style={{ color: INK_MUTED }}>{readMsg}</p>}
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
     </div>
   )

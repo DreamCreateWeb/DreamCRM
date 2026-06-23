@@ -142,3 +142,58 @@ export async function runClaudeJson(req: ClaudeJsonRequest): Promise<unknown | n
   }
   return block.input
 }
+
+export interface ClaudeVisionJsonRequest {
+  model: ClaudeModel
+  maxTokens: number
+  system: string
+  /** Instruction text shown alongside the image(s). */
+  text: string
+  /** Public image URLs (e.g. S3) to attach as vision input. */
+  imageUrls: string[]
+  toolName: string
+  toolDescription: string
+  inputSchema: Record<string, unknown>
+}
+
+/**
+ * Structured-output call WITH image input (vision) — same forced-tool pattern as
+ * runClaudeJson, but the user turn carries the instruction text plus one or more
+ * images by URL. Used for insurance-card reading. Anthropic-only; returns the
+ * tool input (validate with zod) or null. Throws on transport/API errors.
+ */
+export async function runClaudeVisionJson(req: ClaudeVisionJsonRequest): Promise<unknown | null> {
+  if (driver() !== 'anthropic') {
+    console.warn('[ai] runClaudeVisionJson is only supported on the anthropic driver')
+    return null
+  }
+  const content: Anthropic.ContentBlockParam[] = [
+    { type: 'text', text: req.text },
+    ...req.imageUrls.map(
+      (url): Anthropic.ImageBlockParam => ({ type: 'image', source: { type: 'url', url } }),
+    ),
+  ]
+  const final = await anthropic().messages.create({
+    model: ANTHROPIC_MODEL_IDS[req.model],
+    max_tokens: req.maxTokens,
+    system: req.system,
+    messages: [{ role: 'user', content }],
+    tools: [
+      {
+        name: req.toolName,
+        description: req.toolDescription,
+        input_schema: req.inputSchema as Anthropic.Tool.InputSchema,
+      },
+    ],
+    tool_choice: { type: 'tool', name: req.toolName },
+  })
+  const block = final.content.find((b) => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') {
+    console.warn('[ai] no tool_use block in vision response', {
+      stopReason: final.stop_reason,
+      blockTypes: final.content.map((b) => b.type),
+    })
+    return null
+  }
+  return block.input
+}

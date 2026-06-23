@@ -10,7 +10,7 @@ import { getFormTemplate } from '@/lib/services/forms'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import type { FormTemplateSchema } from '@/lib/types/forms'
 import IntakeFormRunner from '@/app/site/[slug]/intake/[formSlug]/intake-form-runner'
-import { submitPatientIntakeAction } from './actions'
+import { submitPatientIntakeAction, readPatientInsuranceCardAction } from './actions'
 import {
   PortalCard,
   PortalHeading,
@@ -58,6 +58,7 @@ export default async function PortalFormsPage({
             brand={brand}
             clinicName={clinic?.displayName ?? ctx.organizationName}
             action={submitPatientIntakeAction}
+            ocrAction={readPatientInsuranceCardAction}
           />
         </div>
       )
