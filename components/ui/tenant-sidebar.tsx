@@ -32,6 +32,7 @@ interface NavBadgeCounts {
   leads: number
   shop: number
   followups: number
+  appointments: number
 }
 
 /** Maps a module id → which badge count drives its pill. */
@@ -40,6 +41,7 @@ const BADGE_FOR_MODULE: Record<string, keyof NavBadgeCounts> = {
   leads: 'leads',
   shop: 'shop',
   followups: 'followups',
+  appointments: 'appointments',
 }
 
 const BADGE_POLL_MS = 60_000
@@ -104,7 +106,7 @@ export default function TenantSidebar({
   const sidebar = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const { sidebarOpen, setSidebarOpen, railCollapsed, toggleRail } = useAppProvider()
-  const [badges, setBadges] = useState<NavBadgeCounts>({ messages: 0, leads: 0, shop: 0, followups: 0 })
+  const [badges, setBadges] = useState<NavBadgeCounts>({ messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0 })
   const [orgMenuOpen, setOrgMenuOpen] = useState(false)
 
   // Live unread-count pills (Messages / Leads / Shop). Clinic tenants only —
@@ -129,6 +131,7 @@ export default function TenantSidebar({
         leads: Number(json.leads ?? 0),
         shop: Number(json.shop ?? 0),
         followups: Number(json.followups ?? 0),
+        appointments: Number(json.appointments ?? 0),
       })
     } catch {
       // Swallow — keep prior counts; next tick retries.

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { and, count, eq, gt } from 'drizzle-orm'
+import { and, count, eq, gt, gte, lte } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getTenantContext } from '@/lib/auth/context'
 import { getInboxStats } from '@/lib/services/patient-messaging'
@@ -27,6 +27,9 @@ import { countFollowupsDue } from '@/lib/services/patient-followups'
  *   - followups: open follow-ups due now (overdue or due today), org-wide — a
  *               true state count that drops as items are completed (like
  *               messages, no `*Since` model). Mirrors the board's default view.
+ *   - appointments: unconfirmed scheduled visits in the next 48h — the most
+ *               time-critical Daily signal (the first Overview attention card).
+ *               A true state count that drops as visits get confirmed.
  *
  * The `*Since` params let the sidebar reset the leads/shop badge the moment you
  * open that module, then tick it back up only for genuinely new arrivals —
@@ -37,9 +40,10 @@ export interface NavBadgeCounts {
   leads: number
   shop: number
   followups: number
+  appointments: number
 }
 
-const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0, followups: 0 }
+const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0 }
 
 /** Parse an epoch-ms query param into a Date, or null if absent/invalid. */
 function parseSince(raw: string | null): Date | null {
@@ -66,17 +70,37 @@ export async function GET(req: Request) {
 
   // Each count is independent + best-effort — one failing query (e.g. shop
   // tables absent) must not blank out the others. Settle all, default to 0.
-  const [messages, leads, shop, followups] = await Promise.all([
+  const [messages, leads, shop, followups, appointments] = await Promise.all([
     getInboxStats(orgId, ctx.userId)
       .then((s) => s.unread)
       .catch(() => 0),
     countNewLeads(orgId, leadsSince).catch(() => 0),
     countUnfulfilledPaidOrders(orgId, shopSince).catch(() => 0),
     countFollowupsDue(orgId).catch(() => 0),
+    countUnconfirmedNext48h(orgId).catch(() => 0),
   ])
 
-  const body: NavBadgeCounts = { messages, leads, shop, followups }
+  const body: NavBadgeCounts = { messages, leads, shop, followups, appointments }
   return NextResponse.json(body, { headers: { 'Cache-Control': 'no-store' } })
+}
+
+/** Unconfirmed scheduled visits in the next 48h — the most time-critical Daily
+ *  signal. True state count (no `*Since`); drops as the front desk confirms. */
+async function countUnconfirmedNext48h(organizationId: string): Promise<number> {
+  const now = new Date()
+  const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+  const [row] = await db
+    .select({ c: count() })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, organizationId),
+        eq(schema.appointment.status, 'scheduled'),
+        gte(schema.appointment.startTime, now),
+        lte(schema.appointment.startTime, in48h),
+      ),
+    )
+  return Number(row?.c ?? 0)
 }
 
 /** New (untriaged) leads — all, or only those created after `since`. */
