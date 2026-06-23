@@ -216,17 +216,26 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             title="New intake submissions"
             count={data.intakeSubmissions.count}
             countSuffix={data.intakeSubmissions.count === 1 ? 'in the last 7 days' : 'in the last 7 days'}
-            cta={data.intakeSubmissions.count > 0 ? { label: 'Review submissions', href: '/intake-forms' } : null}
+            cta={
+              data.intakeSubmissions.count > 0
+                ? { label: 'Review submissions', href: `/intake-forms/submissions/${data.intakeSubmissions.preview[0]?.id ?? ''}` }
+                : null
+            }
             emptyCopy="No intake submissions this week. Send the link to new bookings to drive volume."
           >
             {data.intakeSubmissions.preview.map((r) => (
-              <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
-                <span className="truncate text-gray-700 dark:text-gray-200">
-                  {r.submitterName ?? 'Anonymous'}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 truncate max-w-[10ch]">
-                  {r.formTitle}
-                </span>
+              <li key={r.id} className="py-1.5">
+                <Link
+                  href={`/intake-forms/submissions/${r.id}`}
+                  className="flex items-center justify-between text-sm hover:underline"
+                >
+                  <span className="truncate text-gray-700 dark:text-gray-200">
+                    {r.submitterName ?? 'Anonymous'}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 truncate max-w-[10ch]">
+                    {r.formTitle}
+                  </span>
+                </Link>
               </li>
             ))}
           </AttentionCard>
@@ -362,6 +371,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             label="Bookings today"
             value={data.trends.bookingsToday}
             sub="across all channels"
+            href="/appointments?window=today"
             countUp
           />
           <KpiStat
@@ -373,6 +383,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                 : `${mtdDelta >= 0 ? '+' : ''}${mtdDelta} vs last month`
             }
             tone={data.trends.newPatientsLastMTD === 0 ? undefined : mtdDelta >= 0 ? 'ok' : 'urgent'}
+            href="/patients?status=new"
             countUp
           />
           <KpiStat

@@ -299,6 +299,15 @@ export default function PatientDetail({
           />
           <Stat label="Shop purchases" mono value={money(header.shopSpendCents)} hint="paid in your store" />
         </div>
+        {/* Jump straight to this patient's visits in the schedule. */}
+        <div className="pt-2">
+          <Link
+            href={`/appointments?q=${encodeURIComponent(header.fullName)}`}
+            className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
+          >
+            View in schedule →
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
