@@ -136,6 +136,12 @@ describe('Thread list rows (v2)', () => {
     expect(link.className).toMatch(/bg-teal-500\/5/)
   })
 
+  it('renders a star marker on a starred row', async () => {
+    listThreads.mockResolvedValue([row({ starred: true })])
+    render(await ClinicMessagesView({ ctx, searchParams: {} }))
+    expect(screen.getByLabelText('Starred')).toBeInTheDocument()
+  })
+
   it('shows the warm empty state when there are no conversations', async () => {
     listThreads.mockResolvedValue([])
     render(await ClinicMessagesView({ ctx, searchParams: {} }))

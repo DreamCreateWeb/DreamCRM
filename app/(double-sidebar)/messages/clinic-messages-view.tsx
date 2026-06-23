@@ -48,6 +48,7 @@ interface SP {
   assignedTo?: string
   q?: string
   unread?: string
+  starred?: string
 }
 
 const STATUS_FILTERS: { key: ThreadFilters['status']; label: string }[] = [
@@ -77,6 +78,7 @@ export default async function ClinicMessagesView({
     assignedTo: (ASSIGN_FILTERS.find((f) => f.key === searchParams.assignedTo)?.key as ThreadFilters['assignedTo']) ?? 'all',
     search: searchParams.q,
     hasUnread: searchParams.unread === '1',
+    starredOnly: searchParams.starred === '1',
   }
 
   const [threads, stats, messageTemplates, members] = await Promise.all([
@@ -101,6 +103,7 @@ export default async function ClinicMessagesView({
     lastMessageAt: t.lastMessageAt ? t.lastMessageAt.toISOString() : null,
     status: t.status,
     assignedUserName: t.assignedUserName,
+    starred: t.starred,
   }))
 
   const activeThread = searchParams.thread
@@ -187,6 +190,13 @@ export default async function ClinicMessagesView({
           count={stats.unread || null}
           title="Show only threads with messages you haven't read yet"
         />
+        <NavFilterChip
+          href={buildHref(searchParams, { starred: searchParams.starred === '1' ? undefined : '1', thread: undefined })}
+          label="★ Starred"
+          active={searchParams.starred === '1'}
+          count={null}
+          title="Show only threads you've starred for priority"
+        />
         {/* Key affordance — explains the rot border + channel hues. */}
         <div className="ml-auto shrink-0">
           <EncodingLegend
@@ -260,6 +270,7 @@ export default async function ClinicMessagesView({
                 assignedUserName: activeThread.assignedUserName,
                 snoozedUntil: activeThread.snoozedUntil ? activeThread.snoozedUntil.toISOString() : null,
                 lastMessageChannel: activeThread.lastMessageChannel,
+                starred: activeThread.starred,
               }}
               members={members}
               currentUserId={ctx.userId}
@@ -364,7 +375,8 @@ function hasActiveFilters(filters: ThreadFilters): boolean {
     (filters.status ?? 'open') !== 'open' ||
     (filters.assignedTo ?? 'all') !== 'all' ||
     !!filters.search ||
-    !!filters.hasUnread
+    !!filters.hasUnread ||
+    !!filters.starredOnly
   )
 }
 

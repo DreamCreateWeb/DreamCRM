@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, timestamp, integer, jsonb, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 
@@ -505,6 +505,9 @@ export const patientThread = pgTable(
     // Front-style "needs reply" counter — incremented on inbound messages,
     // reset to 0 when a clinic user marks the thread read.
     unreadCountForClinic: integer('unread_count_for_clinic').notNull().default(0),
+    // Staff "flag for priority" toggle — surfaces a Starred filter + a star
+    // marker on the row. Independent of status/unread.
+    starred: boolean('starred').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

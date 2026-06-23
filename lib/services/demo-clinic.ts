@@ -2126,6 +2126,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // shows in legacy demos. Idempotent: skips when one already exists.
     await seedDemoScheduledMessage(existing.id, existingPatientIds, new Date())
 
+    // Star Marcus's thread on legacy demos (showcases the star marker +
+    // Starred filter). Idempotent: skips when any thread is already starred.
+    await topUpStarredThread(existing.id, existingPatientIds)
+
     // Testimonials self-heal: legacy demos seeded fabricated "Sarah K."
     // testimonials with no patientId — they don't correspond to any CRM
     // patient. Idempotent: only patches when none of the existing
@@ -3389,6 +3393,7 @@ async function seedPatientMessagesForOrg(
     patientIdx: number
     status: 'open' | 'snoozed' | 'archived'
     snoozedInHours?: number
+    starred?: boolean
     messages: Array<{
       direction: 'inbound' | 'outbound'
       channel: 'in_app' | 'email'
@@ -3408,10 +3413,12 @@ async function seedPatientMessagesForOrg(
         { direction: 'outbound', channel: 'in_app', body: 'Got it. We\'ll send a reminder the day before.', hoursAgo: 70 },
       ],
     },
-    // Marcus — RED ROT: inbound 3 days ago, no reply
+    // Marcus — RED ROT: inbound 3 days ago, no reply. Starred for priority
+    // (showcases the star marker + Starred filter).
     {
       patientIdx: 3,
       status: 'open',
+      starred: true,
       messages: [
         { direction: 'outbound', channel: 'in_app', body: 'Hi Marcus, your filling appointment is coming up. We\'ll see you Tuesday at 10am.', hoursAgo: 96 },
         { direction: 'inbound', channel: 'in_app', body: 'Hey, quick question about insurance pre-auth — did the request go through? My HR rep said she hadn\'t seen anything yet.', hoursAgo: 75 },
@@ -3509,6 +3516,7 @@ async function seedPatientMessagesForOrg(
       lastMessageDirection: lastMessage.direction,
       lastMessageChannel: lastMessage.channel,
       unreadCountForClinic: inboundAfterLastOutbound,
+      starred: seed.starred ?? false,
       createdAt: new Date(now.getTime() - sortedMessages[0].hoursAgo * hourMs),
       updatedAt: new Date(now.getTime() - lastMessage.hoursAgo * hourMs),
     })
@@ -3660,6 +3668,24 @@ async function topUpEmmaAttachment(orgId: string, patientIds: string[]): Promise
  * frequent deploys, and in_app so if the cron ever flushes it the result is a
  * harmless message row (no network). Skips when a pending row already exists.
  */
+/** Idempotent self-heal: star Marcus's thread so legacy demos showcase the
+ *  star marker + Starred filter. Skips when any thread is already starred (so a
+ *  hand-curated demo isn't overridden). */
+async function topUpStarredThread(orgId: string, patientIds: string[]): Promise<void> {
+  const marcusId = patientIds[3]
+  if (!marcusId) return
+  const [alreadyStarred] = await db
+    .select({ id: schema.patientThread.id })
+    .from(schema.patientThread)
+    .where(and(eq(schema.patientThread.organizationId, orgId), eq(schema.patientThread.starred, true)))
+    .limit(1)
+  if (alreadyStarred) return
+  await db
+    .update(schema.patientThread)
+    .set({ starred: true })
+    .where(and(eq(schema.patientThread.organizationId, orgId), eq(schema.patientThread.patientId, marcusId)))
+}
+
 async function seedDemoScheduledMessage(orgId: string, patientIds: string[], now: Date): Promise<void> {
   const marcusId = patientIds[3]
   if (!marcusId) return

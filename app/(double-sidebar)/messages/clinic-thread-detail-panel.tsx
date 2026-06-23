@@ -17,10 +17,12 @@ import {
   assignThreadAction,
   cancelScheduledMessageAction,
   draftReplyAction,
+  markUnreadAction,
   reopenThreadAction,
   scheduleMessageAction,
   sendMessageAction,
   snoozeThreadAction,
+  toggleStarAction,
 } from './clinic-actions'
 import type { ScheduledMessageView } from '@/lib/services/scheduled-messages'
 import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-reply-channel'
@@ -43,6 +45,7 @@ interface ThreadHeader {
   assignedUserName: string | null
   snoozedUntil: string | null
   lastMessageChannel: Channel | null
+  starred?: boolean
 }
 
 interface SerializedMessage {
@@ -200,6 +203,18 @@ const IconCalendarPlus = () => (
     <path d="M12 13v4M10 15h4" />
   </svg>
 )
+const IconStar = ({ filled = false }: { filled?: boolean }) => (
+  <svg {...SVG_BASE} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.77l-5.2 2.75.99-5.8-4.21-4.1 5.82-.85z" />
+  </svg>
+)
+const IconMailUnread = () => (
+  <svg {...SVG_BASE}>
+    <path d="M4 8.5 12 13l4-2.25" />
+    <path d="M4 7.5h11M4 7.5v9a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V11" />
+    <circle cx="19" cy="6" r="2.5" fill="currentColor" stroke="none" />
+  </svg>
+)
 const IconCalendar = () => (
   <svg {...SVG_BASE} width={14} height={14}>
     <rect x="3.5" y="5" width="17" height="15" rx="2" />
@@ -319,6 +334,7 @@ export default function ThreadDetailPanel({
   const [showSchedule, setShowSchedule] = useState(false)
   const [scheduleAt, setScheduleAt] = useState('')
   const [scheduling, setScheduling] = useState(false)
+  const [starred, setStarred] = useState(!!thread.starred)
   const streamRef = useRef<HTMLDivElement | null>(null)
 
   // Group the flat message list into day buckets, each holding runs of
@@ -490,6 +506,24 @@ export default function ThreadDetailPanel({
     )
   }
 
+  function handleMarkUnread() {
+    runAction(
+      () => markUnreadAction(thread.id),
+      // Close back to the list so the on-open auto-read doesn't immediately
+      // re-clear the unread we just set.
+      () => router.push('/messages'),
+    )
+  }
+
+  function handleToggleStar() {
+    const next = !starred
+    setStarred(next) // optimistic — the star is a trivial toggle
+    runAction(
+      () => toggleStarAction(thread.id, next),
+      () => router.refresh(),
+    )
+  }
+
   function handleAssign(userId: string | null) {
     setShowAssign(false)
     if (userId === thread.assignedUserId) return
@@ -597,6 +631,22 @@ export default function ThreadDetailPanel({
             destructive. Labels collapse below md so the cluster never crowds
             the patient name on a narrow pane. */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Star (priority flag) — a standalone amber toggle, set apart from
+              the triage group since it's a flag, not an action. */}
+          <button
+            type="button"
+            onClick={handleToggleStar}
+            disabled={pending}
+            aria-pressed={starred}
+            title={starred ? 'Starred — click to unstar' : 'Star this conversation'}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] transition-colors disabled:opacity-50 ${
+              starred
+                ? 'text-amber-500 hover:bg-amber-500/10'
+                : 'text-gray-400 hover:bg-gray-500/[0.08] hover:text-gray-600 dark:hover:text-gray-300'
+            }`}
+          >
+            <IconStar filled={starred} />
+          </button>
           {/* Triage actions, grouped into one segmented instrument-panel
               control so they read as a designed unit — not buttons sprinkled
               in a row. Assign first; snooze/archive/reopen follow by status. */}
@@ -657,6 +707,16 @@ export default function ThreadDetailPanel({
               </div>
             )}
           </div>
+          {/* Mark unread — flag a read thread back into the needs-attention
+              view; closes to the list so it isn't auto-re-read on this render. */}
+          <ToolButton
+            icon={<IconMailUnread />}
+            onClick={handleMarkUnread}
+            disabled={pending}
+            title="Mark unread — bring this back to your needs-attention view"
+          >
+            Unread
+          </ToolButton>
           {thread.status === 'snoozed' ? (
             <ToolButton icon={<IconReopen />} onClick={handleReopen} disabled={pending} title="Reopen this snoozed conversation">
               Reopen

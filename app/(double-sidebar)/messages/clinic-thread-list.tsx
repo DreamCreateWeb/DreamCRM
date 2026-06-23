@@ -38,6 +38,7 @@ export interface ThreadListRow {
   lastMessageAt: string | null
   status: 'open' | 'snoozed' | 'archived'
   assignedUserName: string | null
+  starred?: boolean
 }
 
 const SNOOZE_OPTIONS = [
@@ -190,6 +191,9 @@ export default function ClinicThreadList({
                             : 'font-medium text-gray-700 dark:text-gray-200'
                         }`}
                       >
+                        {t.starred && (
+                          <span className="text-amber-500 mr-1" title="Starred" aria-label="Starred">★</span>
+                        )}
                         {name}
                       </p>
                       <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums shrink-0">

@@ -6,8 +6,10 @@ import {
   archiveThread,
   assignThread,
   markThreadRead,
+  markThreadUnread,
   reopenThread,
   sendMessageToPatient,
+  setThreadStarred,
   snoozeThread,
   type MessageChannel,
 } from '@/lib/services/patient-messaging'
@@ -130,6 +132,23 @@ export async function markReadAction(threadId: string) {
   const ctx = await requireTenant()
   ensureClinic(ctx)
   await markThreadRead(ctx.organizationId, threadId)
+  revalidatePath('/messages')
+}
+
+/** Flag a read thread as unread again so it returns to the needs-attention
+ *  view + the nav badge (email-style mark-unread). */
+export async function markUnreadAction(threadId: string) {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  await markThreadUnread(ctx.organizationId, threadId)
+  revalidatePath('/messages')
+}
+
+/** Toggle the staff "star" (priority flag) on a thread. */
+export async function toggleStarAction(threadId: string, starred: boolean) {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  await setThreadStarred(ctx.organizationId, threadId, starred)
   revalidatePath('/messages')
 }
 

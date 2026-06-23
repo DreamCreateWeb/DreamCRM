@@ -1,0 +1,1 @@
+ALTER TABLE "patient_thread" ADD COLUMN "starred" boolean DEFAULT false NOT NULL;

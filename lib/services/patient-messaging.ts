@@ -71,6 +71,7 @@ export interface ThreadRow {
   lastMessageChannel: MessageChannel | null
   lastMessagePreview: string | null
   unreadCount: number
+  starred: boolean
   createdAt: Date
 }
 
@@ -103,6 +104,8 @@ export interface ThreadFilters {
   assignedTo?: 'me' | 'unassigned' | 'all'
   search?: string
   hasUnread?: boolean
+  /** Only threads the staff starred (priority flag). */
+  starredOnly?: boolean
   /** Default: open + non-snoozed first */
   sort?: 'recent' | 'oldest_unanswered'
 }
@@ -223,6 +226,10 @@ export async function listPatientThreads(
     where.push(sql`${schema.patientThread.unreadCountForClinic} > 0`)
   }
 
+  if (filters.starredOnly) {
+    where.push(eq(schema.patientThread.starred, true))
+  }
+
   // Join patient + assignee + latest message preview.
   // Latest preview is fetched in a subquery for efficiency vs. a JS roll-up.
   const rows = await db
@@ -241,6 +248,7 @@ export async function listPatientThreads(
       lastMessageDirection: schema.patientThread.lastMessageDirection,
       lastMessageChannel: schema.patientThread.lastMessageChannel,
       unreadCount: schema.patientThread.unreadCountForClinic,
+      starred: schema.patientThread.starred,
       createdAt: schema.patientThread.createdAt,
       lastMessagePreview: sql<string | null>`(
         select body from ${schema.patientMessage} m
@@ -287,6 +295,7 @@ export async function listPatientThreads(
     lastMessageChannel: r.lastMessageChannel as MessageChannel | null,
     lastMessagePreview: r.lastMessagePreview,
     unreadCount: r.unreadCount,
+    starred: r.starred,
     createdAt: r.createdAt,
   }))
 }
@@ -429,6 +438,7 @@ export async function getPatientThreadById(
       lastMessageDirection: schema.patientThread.lastMessageDirection,
       lastMessageChannel: schema.patientThread.lastMessageChannel,
       unreadCount: schema.patientThread.unreadCountForClinic,
+      starred: schema.patientThread.starred,
       createdAt: schema.patientThread.createdAt,
     })
     .from(schema.patientThread)
@@ -458,6 +468,7 @@ export async function getPatientThreadById(
     lastMessageChannel: row.lastMessageChannel as MessageChannel | null,
     lastMessagePreview: null,
     unreadCount: row.unreadCount,
+    starred: row.starred,
     createdAt: row.createdAt,
   }
 }
@@ -924,6 +935,46 @@ export async function markThreadRead(
   await db
     .update(schema.patientThread)
     .set({ unreadCountForClinic: 0, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.patientThread.id, threadId),
+        eq(schema.patientThread.organizationId, organizationId),
+      ),
+    )
+}
+
+/**
+ * Manually flag a thread as unread again ("I read this but want it back in my
+ * needs-attention view"). Bumps the unread counter to 1 only when it's
+ * currently 0, so it surfaces in the Unread filter + the nav badge. Opening the
+ * thread re-clears it via markThreadRead — same as email mark-unread. Meant to
+ * be used as staff LEAVE a thread (the panel closes back to the list after).
+ */
+export async function markThreadUnread(
+  organizationId: string,
+  threadId: string,
+): Promise<void> {
+  await db
+    .update(schema.patientThread)
+    .set({ unreadCountForClinic: 1, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.patientThread.id, threadId),
+        eq(schema.patientThread.organizationId, organizationId),
+        eq(schema.patientThread.unreadCountForClinic, 0),
+      ),
+    )
+}
+
+/** Toggle the staff "star" (priority flag) on a thread. */
+export async function setThreadStarred(
+  organizationId: string,
+  threadId: string,
+  starred: boolean,
+): Promise<void> {
+  await db
+    .update(schema.patientThread)
+    .set({ starred, updatedAt: new Date() })
     .where(
       and(
         eq(schema.patientThread.id, threadId),
