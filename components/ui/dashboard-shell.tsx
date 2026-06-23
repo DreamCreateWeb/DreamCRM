@@ -36,10 +36,17 @@ export default async function DashboardShell({
   children,
   sidebarVariant = 'default',
   headerVariant = 'default',
+  fullHeight = false,
 }: {
   children: React.ReactNode
   sidebarVariant?: 'default' | 'v2'
   headerVariant?: 'default' | 'v2' | 'v3'
+  /**
+   * Full-height app mode: bounds <main> to the viewport (no shell scroll) so a
+   * page can own its own internal scroll regions. Used by the two-pane
+   * inbox/messages group; normal pages leave this off and scroll the shell.
+   */
+  fullHeight?: boolean
 }) {
   const session = await getServerSession()
   if (!session?.user) redirect('/signin')
@@ -116,7 +123,15 @@ export default async function DashboardShell({
               storageKey={`dc.trial-nudge:${ctx.userId}`}
             />
           )}
-          <main id="main-content" tabIndex={-1} className="grow outline-none [&>*:first-child]:scroll-mt-16">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className={
+              fullHeight
+                ? 'grow min-h-0 overflow-hidden outline-none'
+                : 'grow outline-none [&>*:first-child]:scroll-mt-16'
+            }
+          >
             {/* ConfirmProvider lets any page swap native window.confirm() for the
                 on-brand, accessible in-app dialog via useConfirm(). */}
             <ConfirmProvider>
