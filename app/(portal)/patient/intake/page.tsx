@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { getMyPendingForms, getMyRecords } from '@/lib/services/patient-portal'
-import { getFormTemplate } from '@/lib/services/forms'
+import { getFormTemplate, getReturnVisitPrefill } from '@/lib/services/forms'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import type { FormTemplateSchema } from '@/lib/types/forms'
 import IntakeFormRunner from '@/app/site/[slug]/intake/[formSlug]/intake-form-runner'
@@ -35,6 +35,11 @@ export default async function PortalFormsPage({
   if (selectedId) {
     const template = await getFormTemplate(ctx.organizationId, selectedId)
     if (template && !template.archivedAt) {
+      // Return-visit pre-fill: seed the form with the patient's prior answers
+      // (minus uploads/signature) so they confirm + update instead of re-typing.
+      const initialValues = ctx.patientId
+        ? await getReturnVisitPrefill(ctx.organizationId, ctx.patientId, template.id)
+        : {}
       return (
         <div className="mx-auto max-w-2xl">
           <Link href="/patient/intake" className="text-[0.85rem] font-semibold" style={{ color: brand }}>
@@ -59,6 +64,7 @@ export default async function PortalFormsPage({
             clinicName={clinic?.displayName ?? ctx.organizationName}
             action={submitPatientIntakeAction}
             ocrAction={readPatientInsuranceCardAction}
+            initialValues={initialValues}
           />
         </div>
       )

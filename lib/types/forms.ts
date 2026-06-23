@@ -221,6 +221,33 @@ export function isFieldVisible(
 }
 
 /**
+ * Build return-visit pre-fill values from a patient's prior submission. Copies
+ * every answer EXCEPT the ones that should always be re-done in person:
+ * file/insurance uploads (a fresh photo) and signatures (re-signed each visit).
+ * Pure + client-safe.
+ */
+export function prefillFromPriorData(
+  schema: FormTemplateSchema,
+  priorData: FormSubmissionData,
+): FormSubmissionData {
+  const skip = new Set<string>()
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) {
+      if (field.type === 'file' || field.type === 'insurance_card' || field.type === 'signature' || field.type === 'content') {
+        skip.add(field.id)
+      }
+    }
+  }
+  const out: FormSubmissionData = {}
+  for (const [key, value] of Object.entries(priorData ?? {})) {
+    if (skip.has(key)) continue
+    if (value === null || value === undefined) continue
+    out[key] = value as FormFieldValue
+  }
+  return out
+}
+
+/**
  * Server-side cleanup of a submission before persistence. For file/insurance
  * fields it clamps the value to clean `FormFileRef[]` (the trust boundary —
  * a client could POST arbitrary URLs); other field values pass through. Pure.

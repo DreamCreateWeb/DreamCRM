@@ -9,6 +9,7 @@ import {
   type FormTemplateSchema,
   type FormSubmissionData,
   DEFAULT_INTAKE_TEMPLATE,
+  prefillFromPriorData,
 } from '@/lib/types/forms'
 
 /**
@@ -288,6 +289,34 @@ export async function listSubmissionsForPatient(
       ),
     )
     .orderBy(desc(formSubmission.submittedAt))
+}
+
+/**
+ * Pre-fill values for a returning patient — the data from their most recent
+ * submission of this template, minus file/insurance uploads (a fresh photo
+ * should always be taken). Returns {} when there's no prior submission. The
+ * returning patient then just confirms/updates instead of re-typing.
+ */
+export async function getReturnVisitPrefill(
+  organizationId: string,
+  patientId: string,
+  formTemplateId: string,
+): Promise<FormSubmissionData> {
+  const [prior] = await db
+    .select({ data: formSubmission.data, schema: formTemplate.schema })
+    .from(formSubmission)
+    .innerJoin(formTemplate, eq(formSubmission.formTemplateId, formTemplate.id))
+    .where(
+      and(
+        eq(formSubmission.organizationId, organizationId),
+        eq(formSubmission.patientId, patientId),
+        eq(formSubmission.formTemplateId, formTemplateId),
+      ),
+    )
+    .orderBy(desc(formSubmission.submittedAt))
+    .limit(1)
+  if (!prior) return {}
+  return prefillFromPriorData(prior.schema as FormTemplateSchema, prior.data as FormSubmissionData)
 }
 
 export async function listSubmissionsForTemplate(

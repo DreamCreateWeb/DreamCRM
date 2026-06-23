@@ -6,6 +6,7 @@ import {
   isFieldVisible,
   firstMissingRequiredField,
   sanitizeSubmissionData,
+  prefillFromPriorData,
   type FormTemplateSchema,
 } from '@/lib/types/forms'
 
@@ -111,6 +112,28 @@ describe('firstMissingRequiredField (new types)', () => {
   it('requires the conditional field once its trigger is met', () => {
     const data = { name: 'Mia', card: [{ url: 'https://cdn/f.jpg', name: 'f', contentType: 'image/jpeg' }], has_allergy: true }
     expect(firstMissingRequiredField(schema, data)).toBe('Which?')
+  })
+})
+
+describe('prefillFromPriorData (return-visit)', () => {
+  it('copies prior text/choice answers but drops uploads + signature + content', () => {
+    const prior = {
+      note: 'ignored',
+      name: 'Mia',
+      has_allergy: true,
+      card: [{ url: 'https://cdn/f.jpg', name: 'f', contentType: 'image/jpeg' }],
+    }
+    const out = prefillFromPriorData(schema, prior)
+    expect(out.name).toBe('Mia')
+    expect(out.has_allergy).toBe(true)
+    expect(out.card).toBeUndefined() // insurance_card upload re-taken
+    expect(out.note).toBeUndefined() // content carries no value
+  })
+
+  it('drops null/undefined prior values', () => {
+    const out = prefillFromPriorData(schema, { name: null, has_allergy: false })
+    expect(out.name).toBeUndefined()
+    expect(out.has_allergy).toBe(false)
   })
 })
 

@@ -52,10 +52,13 @@ interface Props {
   /** Optional insurance-card OCR action — when present, an insurance_card field
    *  offers "Read my card" to auto-fill the insurance fields. */
   ocrAction?: OcrAction
+  /** Return-visit pre-fill — a known patient's prior answers (portal). */
+  initialValues?: FormSubmissionData
 }
 
-export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction }: Props) {
-  const [values, setValues] = useState<FormSubmissionData>({})
+export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues }: Props) {
+  const [values, setValues] = useState<FormSubmissionData>(() => initialValues ?? {})
+  const prefilled = !!initialValues && Object.keys(initialValues).length > 0
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -188,6 +191,12 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {prefilled && (
+        <div className="rounded-xl px-4 py-3 text-sm" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}`, color: INK_MUTED }}>
+          <span style={{ color: INK, fontWeight: 600 }}>Welcome back.</span> We filled in what you told us last
+          time — just check everything is still right and update anything that&rsquo;s changed.
+        </div>
+      )}
       {schema.sections.map((section, si) => (
         <section
           key={section.id}
