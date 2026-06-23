@@ -6,8 +6,7 @@ import { aiUsageCounter } from '@/lib/db/schema/platform'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { newId } from '@/lib/utils'
 import {
-  isDisplayOnlyField,
-  isFileRefArray,
+  buildIntakeTranscript,
   type FormSubmissionData,
   type FormTemplateSchema,
 } from '@/lib/types/forms'
@@ -61,28 +60,6 @@ async function bump(orgId: string): Promise<void> {
       target: [aiUsageCounter.organizationId, aiUsageCounter.period, aiUsageCounter.kind],
       set: { count: sql`${aiUsageCounter.count} + 1`, updatedAt: new Date() },
     })
-}
-
-/** Render the answers as a "Label: value" transcript for the model, skipping
- *  display-only blocks, uploads, and signatures (no clinical signal). */
-export function buildIntakeTranscript(schemaObj: FormTemplateSchema, data: FormSubmissionData): string {
-  const lines: string[] = []
-  for (const section of schemaObj?.sections ?? []) {
-    for (const field of section.fields ?? []) {
-      if (isDisplayOnlyField(field) || field.type === 'signature' || field.type === 'file' || field.type === 'insurance_card') {
-        continue
-      }
-      const v = data?.[field.id]
-      if (v === undefined || v === null || v === '' || isFileRefArray(v)) continue
-      let text: string
-      if (Array.isArray(v)) text = v.join(', ')
-      else if (typeof v === 'boolean') text = v ? 'Yes' : 'No'
-      else text = String(v)
-      if (text.trim() === '') continue
-      lines.push(`${field.label}: ${text}`)
-    }
-  }
-  return lines.join('\n')
 }
 
 /** Read the cached summary, if any. */

@@ -221,6 +221,36 @@ export function isFieldVisible(
 }
 
 /**
+ * Render a submission's answers as a "Label: value" transcript — used for the
+ * AI summary input and the Open Dental chart mirror. Skips display-only blocks,
+ * uploads, and signatures (no transcribable clinical signal). Pure.
+ */
+export function buildIntakeTranscript(schema: FormTemplateSchema, data: FormSubmissionData): string {
+  const lines: string[] = []
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) {
+      if (
+        isDisplayOnlyField(field) ||
+        field.type === 'signature' ||
+        field.type === 'file' ||
+        field.type === 'insurance_card'
+      ) {
+        continue
+      }
+      const v = data?.[field.id]
+      if (v === undefined || v === null || v === '' || isFileRefArray(v)) continue
+      let text: string
+      if (Array.isArray(v)) text = v.join(', ')
+      else if (typeof v === 'boolean') text = v ? 'Yes' : 'No'
+      else text = String(v)
+      if (text.trim() === '') continue
+      lines.push(`${field.label}: ${text}`)
+    }
+  }
+  return lines.join('\n')
+}
+
+/**
  * Build return-visit pre-fill values from a patient's prior submission. Copies
  * every answer EXCEPT the ones that should always be re-done in person:
  * file/insurance uploads (a fresh photo) and signatures (re-signed each visit).

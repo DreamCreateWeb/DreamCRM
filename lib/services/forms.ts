@@ -10,6 +10,7 @@ import {
   type FormSubmissionData,
   DEFAULT_INTAKE_TEMPLATE,
   prefillFromPriorData,
+  buildIntakeTranscript,
 } from '@/lib/types/forms'
 
 /**
@@ -270,6 +271,30 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
     )
   } catch (err) {
     console.warn('[forms.submitForm] notification failed', err)
+  }
+
+  // Mirror the completed form into the patient's Open Dental chart as a CommLog
+  // note — the REAL answers as text, framed honestly as "a copy in your chart"
+  // (NOT a fabricated structured field sync; uploads/signature live in DreamCRM).
+  // Best-effort + only for a known patient + a two-way PMS connection (the
+  // guard lives inside queueCommLogWriteBack).
+  if (patientId) {
+    try {
+      const [tpl] = await db
+        .select({ title: formTemplate.title, schema: formTemplate.schema })
+        .from(formTemplate)
+        .where(and(eq(formTemplate.organizationId, input.organizationId), eq(formTemplate.id, input.formTemplateId)))
+        .limit(1)
+      if (tpl) {
+        const transcript = buildIntakeTranscript(tpl.schema as FormTemplateSchema, input.data)
+        const header = `Patient completed the "${tpl.title}" intake form via DreamCRM.`
+        const note = (transcript ? `${header}\n\n${transcript}` : `${header} Full responses + any uploaded photos are on file in DreamCRM.`).slice(0, 4000)
+        const { queueCommLogWriteBack } = await import('@/lib/services/pms/sync')
+        await queueCommLogWriteBack(input.organizationId, patientId, { note, mode: 'Email', sentOrReceived: 'Received' })
+      }
+    } catch (err) {
+      console.warn('[forms.submitForm] OD chart mirror failed', err)
+    }
   }
 
   return row

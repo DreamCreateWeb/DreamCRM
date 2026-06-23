@@ -38,8 +38,8 @@ vi.mock('@/lib/db', () => {
   }
 })
 
-import { buildIntakeTranscript, summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
-import type { FormTemplateSchema } from '@/lib/types/forms'
+import { summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
+import { buildIntakeTranscript, type FormTemplateSchema } from '@/lib/types/forms'
 
 const schema: FormTemplateSchema = {
   sections: [
