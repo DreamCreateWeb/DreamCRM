@@ -215,13 +215,6 @@ export async function getNewLeadsSince(organizationId: string, since: Date): Pro
   return Number(row?.count ?? 0)
 }
 
-// ----- Detail (drawer) --------------------------------------------------
-
-export async function getLeadDetail(organizationId: string, id: string): Promise<LeadRow | null> {
-  const rows = await listLeads(organizationId, {})
-  return rows.find((r) => r.id === id) ?? null
-}
-
 // ----- Mutations --------------------------------------------------------
 
 export async function markLeadContacted(organizationId: string, id: string) {
