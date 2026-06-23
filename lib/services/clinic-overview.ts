@@ -7,6 +7,7 @@ import { getInboxStats } from '@/lib/services/patient-messaging'
 import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient-followups'
 import { getTagsForPatients } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
+import { startOfDay, endOfDay, startOfMonth, isBirthdayThisWeek } from '@/lib/dates'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -128,40 +129,6 @@ export interface ActivityRow {
   href: string | null
 }
 
-function startOfDay(d: Date): Date {
-  const r = new Date(d)
-  r.setHours(0, 0, 0, 0)
-  return r
-}
-function endOfDay(d: Date): Date {
-  const r = new Date(d)
-  r.setHours(23, 59, 59, 999)
-  return r
-}
-function startOfMonth(d: Date): Date {
-  const r = new Date(d.getFullYear(), d.getMonth(), 1)
-  r.setHours(0, 0, 0, 0)
-  return r
-}
-
-function isBirthdayThisWeek(dob: string | null): boolean {
-  if (!dob) return false
-  const parsed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob)
-  if (!parsed) return false
-  const month = parseInt(parsed[2], 10) - 1
-  const day = parseInt(parsed[3], 10)
-  const today = new Date()
-  // Build this year's birthday + check if within today..today+6
-  const candidate = new Date(today.getFullYear(), month, day)
-  if (candidate < startOfDay(today)) {
-    // Already passed this year — check next year's date too (Dec→Jan rollover)
-    candidate.setFullYear(today.getFullYear() + 1)
-  }
-  const sixDaysOut = new Date(today)
-  sixDaysOut.setDate(sixDaysOut.getDate() + 6)
-  return candidate >= startOfDay(today) && candidate <= endOfDay(sixDaysOut)
-}
-
 export async function getClinicOverview(organizationId: string): Promise<ClinicOverviewData> {
   const now = new Date()
   const todayStart = startOfDay(now)
@@ -259,7 +226,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     status: a.status,
     flags: {
       newPatient: newPatientSet.has(a.patientId),
-      birthdayThisWeek: isBirthdayThisWeek(a.dateOfBirth),
+      birthdayThisWeek: isBirthdayThisWeek(a.dateOfBirth, now),
       hasOutstandingBalance: balanceSet.has(a.patientId),
       hasIntakeOnFile: intakeSet.has(a.patientId),
     },

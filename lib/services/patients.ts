@@ -6,6 +6,15 @@ import { derivePatientRecallStatus } from '@/lib/services/recall-status'
 import { getTagsForPatients, listPatientTags } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
+import {
+  startOfDay,
+  startOfMonth,
+  endOfMonth,
+  ageFromDob,
+  isBirthdayThisWeek,
+  isBirthdayThisMonth,
+  LAPSED_THRESHOLD_MS,
+} from '@/lib/dates'
 
 /**
  * Patients service — the CRM-side relationship view.
@@ -129,44 +138,6 @@ export interface PatientFilterMeta {
 
 // ----- Helpers ----------------------------------------------------------
 
-function startOfDay(d: Date): Date { const r = new Date(d); r.setHours(0, 0, 0, 0); return r }
-function startOfMonth(d: Date): Date { const r = new Date(d.getFullYear(), d.getMonth(), 1); r.setHours(0, 0, 0, 0); return r }
-function endOfMonth(d: Date): Date { const r = new Date(d.getFullYear(), d.getMonth() + 1, 0); r.setHours(23, 59, 59, 999); return r }
-
-function ageFromDob(dob: string | null): number | null {
-  if (!dob) return null
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob)
-  if (!m) return null
-  const birth = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10))
-  const today = new Date()
-  let years = today.getFullYear() - birth.getFullYear()
-  const beforeBirthday =
-    today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
-  if (beforeBirthday) years -= 1
-  return years
-}
-
-function isBirthdayThisWeek(dob: string | null, today: Date): boolean {
-  if (!dob) return false
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob)
-  if (!m) return false
-  const month = parseInt(m[2], 10) - 1
-  const day = parseInt(m[3], 10)
-  const candidate = new Date(today.getFullYear(), month, day)
-  if (candidate < startOfDay(today)) candidate.setFullYear(today.getFullYear() + 1)
-  const sixOut = new Date(today)
-  sixOut.setDate(sixOut.getDate() + 6)
-  return candidate >= startOfDay(today) && candidate <= sixOut
-}
-
-function isBirthdayThisMonth(dob: string | null, today: Date): boolean {
-  if (!dob) return false
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob)
-  if (!m) return false
-  return parseInt(m[2], 10) - 1 === today.getMonth()
-}
-
 export function newPatientId(): string {
   return `pat_${randomBytes(10).toString('hex')}`
 }
@@ -174,10 +145,6 @@ export function newPatientId(): string {
 export function newPatientNoteId(): string {
   return `pnote_${randomBytes(10).toString('hex')}`
 }
-
-// Lapsed = last visit more than 9 months ago AND no future booking. Used
-// both for the 💤 glyph and the `lifecycle = 'lapsed'` denormalization.
-const LAPSED_THRESHOLD_MS = 9 * 30 * 24 * 60 * 60 * 1000 // ~9 months
 
 /** Read the clinic's default recall cadence in months (null when unset). The
  *  recall helper falls through to RECALL_DEFAULT_MONTHS when this is null. */

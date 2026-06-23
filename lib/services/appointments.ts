@@ -7,6 +7,7 @@ import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-ta
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
 import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
+import { startOfDay, startOfWeek, isBirthdayThisWeek, LAPSED_THRESHOLD_MS } from '@/lib/dates'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -124,29 +125,6 @@ export function newProviderId(): string {
   return `prov_${randomBytes(10).toString('hex')}`
 }
 
-function startOfDay(d: Date): Date { const r = new Date(d); r.setHours(0, 0, 0, 0); return r }
-function startOfWeek(d: Date): Date {
-  const r = startOfDay(d)
-  const dow = r.getDay() // 0=Sun
-  r.setDate(r.getDate() - dow)
-  return r
-}
-
-function isBirthdayThisWeek(dob: string | null, today: Date): boolean {
-  if (!dob) return false
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob)
-  if (!m) return false
-  const month = parseInt(m[2], 10) - 1
-  const day = parseInt(m[3], 10)
-  const candidate = new Date(today.getFullYear(), month, day)
-  if (candidate < startOfDay(today)) candidate.setFullYear(today.getFullYear() + 1)
-  const sixOut = new Date(today)
-  sixOut.setDate(sixOut.getDate() + 6)
-  return candidate >= startOfDay(today) && candidate <= sixOut
-}
-
-// 9 months in ms — matches the Patients module lapsed threshold.
-const LAPSED_THRESHOLD_MS = 9 * 30 * 24 * 60 * 60 * 1000
 // Treat reminders sent in last 24h as "recently" → triggers ⏱ glyph.
 const REMINDER_RECENT_MS = 24 * 60 * 60 * 1000
 // Booked-just-now glyph window: 1 hour.
