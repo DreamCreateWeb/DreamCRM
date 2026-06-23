@@ -2,18 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
  * runDueFormReminders — nudge patients with an upcoming LIVE visit who haven't
- * finished their intake. db is mocked by `from(table)`:
+ * finished their intake. The submission + dedup checks are now BATCHED (one
+ * query per org each, not per candidate), so the mock returns whole sets keyed
+ * by `from(table)`:
  *   clinic_profile -> orgs, appointment -> candidates,
- *   form_submission -> "has the patient submitted?" (subQueue, candidate order),
- *   appointment_reminder_log -> cross-run dedup (idemQueue).
+ *   form_submission -> patients who already submitted (submittedPatientIds),
+ *   appointment_reminder_log -> appts already reminded (remindedAppointmentIds).
  */
 
 const state = {
   profiles: [] as Array<{ organizationId: string; reminderSettings: unknown }>,
   candidates: [] as Array<{ appointmentId: string; patientId: string }>,
+  submittedPatientIds: [] as string[],
+  remindedAppointmentIds: [] as string[],
 }
-let subQueue: boolean[] = [] // per form_submission check: true = already submitted
-let idemQueue: boolean[] = [] // per dedup check: true = already reminded
 
 function makeThenable(resolve: () => unknown) {
   const chain: Record<string, unknown> = {
@@ -25,17 +27,20 @@ function makeThenable(resolve: () => unknown) {
   return chain
 }
 
+const from = (table: unknown) => {
+  if (table === 'clinic_profile') return makeThenable(() => state.profiles)
+  if (table === 'appointment') return makeThenable(() => state.candidates)
+  if (table === 'form_submission')
+    return makeThenable(() => state.submittedPatientIds.map((patientId) => ({ patientId })))
+  if (table === 'appointment_reminder_log')
+    return makeThenable(() => state.remindedAppointmentIds.map((appointmentId) => ({ appointmentId })))
+  return makeThenable(() => [])
+}
+
 vi.mock('@/lib/db', () => ({
   db: {
-    select: () => ({
-      from: (table: unknown) => {
-        if (table === 'clinic_profile') return makeThenable(() => state.profiles)
-        if (table === 'appointment') return makeThenable(() => state.candidates)
-        if (table === 'form_submission') return makeThenable(() => (subQueue.shift() ? [{ id: 'sub' }] : []))
-        if (table === 'appointment_reminder_log') return makeThenable(() => (idemQueue.shift() ? [{ id: 'log' }] : []))
-        return makeThenable(() => [])
-      },
-    }),
+    select: () => ({ from }),
+    selectDistinct: () => ({ from }),
   },
   schema: {
     clinicProfile: 'clinic_profile',
@@ -71,8 +76,8 @@ import { runDueFormReminders } from '@/lib/services/reminder-automation'
 beforeEach(() => {
   state.profiles = [{ organizationId: 'org_1', reminderSettings: { formsReminder: true } }]
   state.candidates = []
-  subQueue = []
-  idemQueue = []
+  state.submittedPatientIds = []
+  state.remindedAppointmentIds = []
   vi.clearAllMocks()
 })
 
@@ -86,8 +91,6 @@ describe('runDueFormReminders', () => {
 
   it('sends to a patient with no submission + logs a forms_intake row', async () => {
     state.candidates = [{ appointmentId: 'a1', patientId: 'p1' }]
-    subQueue = [false] // no submission
-    idemQueue = [false] // not yet reminded
     const r = await runDueFormReminders()
     expect(r.sent).toBe(1)
     expect(sendIntakeRequestToPatient).toHaveBeenCalledWith('org_1', 'p1')
@@ -96,7 +99,7 @@ describe('runDueFormReminders', () => {
 
   it('skips a patient who already submitted a form', async () => {
     state.candidates = [{ appointmentId: 'a1', patientId: 'p1' }]
-    subQueue = [true] // already submitted
+    state.submittedPatientIds = ['p1'] // already submitted
     const r = await runDueFormReminders()
     expect(r.sent).toBe(0)
     expect(r.skipped).toBe(1)
@@ -105,8 +108,7 @@ describe('runDueFormReminders', () => {
 
   it('dedups via a recent forms_intake log', async () => {
     state.candidates = [{ appointmentId: 'a1', patientId: 'p1' }]
-    subQueue = [false]
-    idemQueue = [true] // already reminded within the window
+    state.remindedAppointmentIds = ['a1'] // already reminded within the window
     const r = await runDueFormReminders()
     expect(r.sent).toBe(0)
     expect(r.alreadyReminded).toBe(1)
@@ -118,8 +120,6 @@ describe('runDueFormReminders', () => {
       { appointmentId: 'a1', patientId: 'p1' },
       { appointmentId: 'a2', patientId: 'p1' },
     ]
-    subQueue = [false] // only the first reaches the submission check; the 2nd short-circuits on the per-run set
-    idemQueue = [false]
     const r = await runDueFormReminders()
     expect(r.sent).toBe(1)
     expect(sendIntakeRequestToPatient).toHaveBeenCalledTimes(1)

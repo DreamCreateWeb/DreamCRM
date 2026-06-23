@@ -290,6 +290,45 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
       )
       .limit(500)
 
+    // Two batched set-membership queries instead of a per-candidate N+1 that
+    // hit the (previously unindexed) form_submission table on every single
+    // candidate, every 30 min, across every org.
+    const patientIds = Array.from(
+      new Set(candidates.map((c) => c.patientId).filter((id): id is string => !!id)),
+    )
+    const appointmentIds = candidates.map((c) => c.appointmentId)
+
+    // Patients who have ever submitted any form → nothing to chase.
+    const submittedRows = patientIds.length
+      ? await db
+          .selectDistinct({ patientId: schema.formSubmission.patientId })
+          .from(schema.formSubmission)
+          .where(
+            and(
+              eq(schema.formSubmission.organizationId, profile.organizationId),
+              inArray(schema.formSubmission.patientId, patientIds),
+            ),
+          )
+      : []
+    const submittedSet = new Set(
+      submittedRows.map((r) => r.patientId).filter((id): id is string => !!id),
+    )
+
+    // Appointments that already got a forms reminder within the window.
+    const recentRows = appointmentIds.length
+      ? await db
+          .select({ appointmentId: schema.appointmentReminderLog.appointmentId })
+          .from(schema.appointmentReminderLog)
+          .where(
+            and(
+              inArray(schema.appointmentReminderLog.appointmentId, appointmentIds),
+              eq(schema.appointmentReminderLog.template, FORMS_REMINDER_TEMPLATE),
+              gte(schema.appointmentReminderLog.sentAt, remindedSince),
+            ),
+          )
+      : []
+    const recentSet = new Set(recentRows.map((r) => r.appointmentId))
+
     const remindedPatients = new Set<string>()
 
     for (const c of candidates) {
@@ -304,30 +343,14 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
       }
 
       // Already completed a form? Then nothing to chase.
-      const [submission] = await db
-        .select({ id: schema.formSubmission.id })
-        .from(schema.formSubmission)
-        .where(and(eq(schema.formSubmission.organizationId, profile.organizationId), eq(schema.formSubmission.patientId, c.patientId)))
-        .limit(1)
-      if (submission) {
+      if (submittedSet.has(c.patientId)) {
         result.skipped++
         continue
       }
 
       // Cross-run dedup: a forms reminder already went out for this appointment
       // within the window.
-      const [recent] = await db
-        .select({ id: schema.appointmentReminderLog.id })
-        .from(schema.appointmentReminderLog)
-        .where(
-          and(
-            eq(schema.appointmentReminderLog.appointmentId, c.appointmentId),
-            eq(schema.appointmentReminderLog.template, FORMS_REMINDER_TEMPLATE),
-            gte(schema.appointmentReminderLog.sentAt, remindedSince),
-          ),
-        )
-        .limit(1)
-      if (recent) {
+      if (recentSet.has(c.appointmentId)) {
         result.alreadyReminded++
         continue
       }
