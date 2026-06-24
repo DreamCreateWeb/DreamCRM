@@ -4,6 +4,7 @@ import {
   getGoogleBusinessSearchKeywords,
 } from '@/lib/zernio'
 import { resolveGbpAccount } from '@/lib/services/zernio'
+import { normalizeMetricsWindow, scaleToWindow } from '@/lib/services/metrics-window'
 
 /**
  * Google Business *local metrics* service. The Phase-1-final Zernio surface:
@@ -50,7 +51,6 @@ export interface GbpLocalMetrics {
   error?: string
 }
 
-const DEFAULT_WINDOW_DAYS = 30
 /** Top-keyword cap surfaced in the UI list. */
 const KEYWORD_LIMIT = 8
 
@@ -77,7 +77,7 @@ export async function getGbpLocalMetrics(
   orgId: string,
   opts: { days?: number } = {},
 ): Promise<GbpLocalMetrics> {
-  const windowDays = opts.days === 90 ? 90 : opts.days && opts.days > 0 ? Math.floor(opts.days) : DEFAULT_WINDOW_DAYS
+  const windowDays = normalizeMetricsWindow(opts.days)
 
   const account = await resolveGbpAccount(orgId)
   if (!account) return emptyMetrics(false, windowDays)
@@ -151,8 +151,7 @@ const DEMO_KEYWORDS_30D: Array<{ term: string; count: number }> = [
 ]
 
 function demoMetrics(windowDays: number): GbpLocalMetrics {
-  const scale = windowDays / 30
-  const s = (n: number) => Math.round(n * scale)
+  const s = (n: number) => scaleToWindow(n, windowDays)
   return {
     connected: true,
     impressions: s(DEMO_30D.impressions),

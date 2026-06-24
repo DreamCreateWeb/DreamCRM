@@ -7,6 +7,7 @@ import {
   platformIcon,
   type SocialChannelPlatform,
 } from '@/lib/types/zernio'
+import { normalizeMetricsWindow, scaleToWindow } from '@/lib/services/metrics-window'
 
 /**
  * Per-platform social analytics service (Phase 3 PR 4 — the FINAL Zernio
@@ -28,8 +29,6 @@ import {
  * Only the shortlisted social platforms (IG / FB / TikTok / YouTube / LinkedIn)
  * are surfaced; Google Business has its own metrics surface (gbp-metrics.ts).
  */
-
-const DEFAULT_WINDOW_DAYS = 30
 
 /** One connected platform's normalized analytics, for the UI tiles. */
 export interface SocialPlatformMetrics {
@@ -62,10 +61,6 @@ export interface SocialMetrics {
   windowDays: number
 }
 
-function normalizeWindow(days?: number): number {
-  return days === 90 ? 90 : days && days > 0 ? Math.floor(days) : DEFAULT_WINDOW_DAYS
-}
-
 /**
  * Per-platform social metrics for the org over the window. Best-effort +
  * demo-safe (see the module doc). `days` defaults to 30; the Analytics page
@@ -76,7 +71,7 @@ export async function getSocialMetrics(
   orgId: string,
   opts: { days?: number } = {},
 ): Promise<SocialMetrics> {
-  const windowDays = normalizeWindow(opts.days)
+  const windowDays = normalizeMetricsWindow(opts.days)
 
   const conn = await getZernioConnection(orgId)
   // Connected social accounts limited to the shortlist (the only ones we surface
@@ -171,8 +166,7 @@ const DEMO_SOCIAL_FALLBACK = { followers: 600, reach: 2500, impressions: 3800, e
 
 function demoPlatformMetrics(platform: string, handle: string | null, windowDays: number): SocialPlatformMetrics {
   const base = DEMO_SOCIAL_30D[platform] ?? DEMO_SOCIAL_FALLBACK
-  const scale = windowDays / 30
-  const s = (n: number) => Math.round(n * scale)
+  const s = (n: number) => scaleToWindow(n, windowDays)
   return {
     platform,
     label: platformLabel(platform),
