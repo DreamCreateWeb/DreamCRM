@@ -5,6 +5,7 @@ import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
 import ModuleHint from '@/components/onboarding/module-hint'
 import Composer from './composer'
 import PostsView from './posts-view'
@@ -57,6 +58,17 @@ export default async function SocialPostsPage() {
         eyebrow="Growth · Social"
         title="Social Posts"
         subtitle="Compose once and publish — or schedule — to Google Business and your social channels at the same time. See everything on a content calendar."
+        legend={
+          <EncodingLegend
+            label="What the statuses mean"
+            pills={[
+              { tone: 'ok', label: 'Published', meaning: 'Live on the channel' },
+              { tone: 'info', label: 'Scheduled', meaning: 'Queued to publish at a future time' },
+              { tone: 'neutral', label: 'Draft', meaning: 'Saved, not yet sent' },
+              { tone: 'urgent', label: 'Failed', meaning: "Didn't post — check the error and retry" },
+            ]}
+          />
+        }
         actions={
           <>
             <ActionButton variant="secondary" size="sm" href="/integrations">

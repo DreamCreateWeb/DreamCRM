@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
 
 export const metadata = {
   title: 'Outreach Queue - DreamCRM',
@@ -153,6 +154,19 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           totalCount === 0
             ? 'Nobody needs outreach right now. Healthy roster.'
             : `${totalCount} ${totalCount === 1 ? 'patient' : 'patients'} across ${activeTierCount} ${activeTierCount === 1 ? 'tier' : 'tiers'} — pick a tier and send.`
+        }
+        legend={
+          <EncodingLegend
+            label="What the tiers mean"
+            pills={[
+              { tone: 'warn', label: 'Recall due', meaning: 'Last cleaning over 6 months ago, no future booking' },
+              { tone: 'urgent', label: 'Lapsed', meaning: 'The cold ones — well past their recall window' },
+              { tone: 'ok', label: 'New patient', meaning: 'Joined in the past 60 days — first-visit follow-up' },
+              { tone: 'special', label: 'Birthday', meaning: 'Celebrating a birthday this calendar month' },
+              { tone: 'neutral', label: 'Opted out', meaning: 'Opted out of marketing email (transactional still sends)' },
+              { tone: 'warn', label: 'No email', meaning: 'No email on file — add one to include them' },
+            ]}
+          />
         }
         actions={
           <ActionButton variant="ghost" href="/marketing">

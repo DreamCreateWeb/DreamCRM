@@ -20,6 +20,7 @@ import FacebookReviewsSection from './facebook-reviews-section'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
 
 export const metadata = {
   title: 'Reviews received — DreamCRM',
@@ -100,6 +101,17 @@ export default async function ReviewsReceivedPage() {
         eyebrow={`Growth · ${ctx.organizationName}`}
         title="Reviews received"
         subtitle="Every review your patients have left. Read them, then pick which to feature on your public website. You can't edit the patient's words — only the patient owns those."
+        legend={
+          <EncodingLegend
+            label="What the tags mean"
+            pills={[
+              { tone: 'special', label: '✓ Featured', meaning: 'Showing on your public website' },
+              { tone: 'ok', label: 'Recommends', meaning: 'A positive Facebook recommendation' },
+              { tone: 'urgent', label: "Doesn't recommend", meaning: 'A negative Facebook recommendation' },
+              { tone: 'info', label: 'Google / Facebook', meaning: 'Synced from your connected profile' },
+            ]}
+          />
+        }
         actions={
           <div className="flex items-center gap-4">
             {totalCount > 0 && (

@@ -120,11 +120,15 @@ export default async function ReviewsPage() {
         legend={
           <EncodingLegend
             label="What the statuses mean"
-            pills={STATUS_ORDER.map((s) => ({
-              tone: STATUS_TONE[s],
-              label: STATUS_LABEL[s],
-              meaning: STATUS_MEANING[s],
-            }))}
+            pills={[
+              ...STATUS_ORDER.map((s) => ({
+                tone: STATUS_TONE[s],
+                label: STATUS_LABEL[s],
+                meaning: STATUS_MEANING[s],
+              })),
+              // The activity table also renders this pill — keep it in the key.
+              { tone: 'special' as const, label: '✓ Featured', meaning: 'This patient is featured on your public website' },
+            ]}
           />
         }
         actions={
