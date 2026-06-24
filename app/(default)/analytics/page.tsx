@@ -106,6 +106,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               <div>
                 <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">New patients</p>
                 <p className="text-4xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">{a.acquisition.newPatients}</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">won through your channels · bulk imports excluded</p>
               </div>
               <DeltaBadge value={newPatientsDelta} />
             </div>

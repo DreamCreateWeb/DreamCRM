@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, count, eq, gte, inArray, isNotNull, lt, lte, ne, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getReviewStats } from '@/lib/services/reviews'
 import { listPatients } from '@/lib/services/patients'
@@ -23,6 +23,17 @@ const WEEK_MS = 7 * DAY_MS
 
 // Industry reference points (labeled as benchmarks in the UI, not clinic data).
 export const BENCHMARK_NO_SHOW_RATE = 0.135 // ~12-18% typical dental no-show
+
+/**
+ * Patient sources that are a BULK BACKFILL, not a fresh acquisition. Both import
+ * paths stamp `firstSeenAt` with the IMPORT time (the PMS adapter doesn't expose
+ * a real first-visit date yet), so a clinic that connects its PMS or uploads a
+ * CSV would otherwise see "New patients" spike by their whole roster the day
+ * they onboard. Acquisition means patients newly WON through your channels, so
+ * we exclude these from the new-patient count / source mix / trend. (Deeper fix:
+ * read the PMS's real first-visit date — tracked separately.)
+ */
+export const BACKFILL_PATIENT_SOURCES: ReadonlySet<string> = new Set(['pms_import', 'import'])
 
 export interface TrendPoint {
   label: string
@@ -115,7 +126,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     )
 
   const [prevNewPatients] = await db
-    .select({ c: count() })
+    .select({ source: schema.patient.source })
     .from(schema.patient)
     .where(
       and(
@@ -126,9 +137,14 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
         ne(schema.patient.lifecycle, 'archived'),
       ),
     )
+    .then((rows) => [rows.filter((r) => !BACKFILL_PATIENT_SOURCES.has(r.source ?? '')).length])
+
+  // Exclude bulk backfills (PMS/CSV import) — their firstSeenAt is the import
+  // time, not a real acquisition date, so they'd otherwise inflate "new patients".
+  const acquiredRows = newPatientRows.filter((r) => !BACKFILL_PATIENT_SOURCES.has(r.source ?? ''))
 
   const sourceCounts = new Map<string, number>()
-  for (const r of newPatientRows) {
+  for (const r of acquiredRows) {
     const key = r.source ?? 'unknown'
     sourceCounts.set(key, (sourceCounts.get(key) ?? 0) + 1)
   }
@@ -241,10 +257,10 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     windowDays,
     generatedAt: now,
     acquisition: {
-      newPatients: newPatientRows.length,
-      newPatientsPrev: Number(prevNewPatients?.c ?? 0),
+      newPatients: acquiredRows.length,
+      newPatientsPrev: prevNewPatients ?? 0,
       trend: weeklyTrend(
-        newPatientRows.map((r) => r.firstSeenAt!).filter(Boolean),
+        acquiredRows.map((r) => r.firstSeenAt!).filter(Boolean),
         windowDays,
         now,
       ),

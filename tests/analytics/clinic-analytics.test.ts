@@ -68,7 +68,7 @@ beforeEach(() => {
  *  runs end-to-end. Order matches the service's query sequence. */
 function seedHappyPath() {
   q.queue.push([]) // 1. newPatientRows
-  q.queue.push([{ c: 0 }]) // 2. prevNewPatients
+  q.queue.push([]) // 2. prevNewPatients (rows, filtered in JS)
   q.queue.push([]) // 3. leadRows
   q.queue.push([]) // 4. apptRows
   q.queue.push([{ id: 1 }]) // 5. patientCampaigns
@@ -101,7 +101,7 @@ describe('getClinicAnalytics', () => {
       { firstSeenAt: recent, source: 'lead_form' },
       { firstSeenAt: recent, source: 'booking_widget' },
     ]) // 1. newPatientRows
-    q.queue.push([{ c: 1 }]) // 2. prevNewPatients
+    q.queue.push([{ source: 'booking_widget' }]) // 2. prevNewPatients (1 acquired)
     q.queue.push([
       { status: 'converted', contactedAt: recent, convertedAt: recent },
       { status: 'contacted', contactedAt: recent, convertedAt: null },
@@ -151,6 +151,37 @@ describe('getClinicAnalytics', () => {
     // by coincidence. Prove it tracks clicked30d, not the reconstruction, by
     // also asserting it equals the mock's clicked30d exactly.
     expect(a.reputation.opened).toBe(5)
+  })
+})
+
+describe('getClinicAnalytics — acquisition excludes bulk imports', () => {
+  it('does NOT count PMS/CSV-imported patients as "new" (their firstSeenAt is the import time)', async () => {
+    const recent = new Date(Date.now() - 3 * 86400000)
+    q.queue.push([
+      { firstSeenAt: recent, source: 'booking_widget' },
+      { firstSeenAt: recent, source: 'pms_import' }, // bulk PMS backfill — excluded
+      { firstSeenAt: recent, source: 'import' }, // CSV backfill — excluded
+      { firstSeenAt: recent, source: null }, // unknown source — still counted
+    ]) // 1. newPatientRows
+    q.queue.push([
+      { source: 'pms_import' },
+      { source: 'lead_form' },
+    ]) // 2. prevNewPatients → only lead_form counts (1)
+    q.queue.push([]) // 3. leadRows
+    q.queue.push([]) // 4. apptRows
+    q.queue.push([{ id: 1 }]) // 5. patientCampaigns
+    q.queue.push([]) // 6. eventRows
+
+    const a = await getClinicAnalytics('org_1', 30)
+    // 4 rows in window, but the 2 import rows are excluded → 2 acquired.
+    expect(a.acquisition.newPatients).toBe(2)
+    expect(a.acquisition.newPatientsPrev).toBe(1)
+    // The source mix never shows a bulk-import source.
+    const sources = a.acquisition.sourceMix.map((s) => s.source)
+    expect(sources).not.toContain('pms_import')
+    expect(sources).not.toContain('import')
+    expect(sources).toContain('booking_widget')
+    expect(sources).toContain('unknown') // the null-source row
   })
 })
 
