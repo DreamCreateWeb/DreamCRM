@@ -20,6 +20,14 @@ import {
 import { createSocialPostAction } from './actions'
 import PostPreviews, { type PreviewChannel } from '@/components/social-posts/post-preview'
 import { BrandLogo, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
+import {
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
+  MAX_IMAGE_MB,
+  MAX_VIDEO_MB,
+  isVideoFile,
+  isVideoUrl,
+} from '@/lib/media'
 
 /** Platform slugs that have a brand-accurate logo (the connectable shortlist). */
 const BRAND_IDS: Record<string, BrandLogoId> = {
@@ -121,12 +129,17 @@ export default function Composer({
 
   async function handleFile(file: File) {
     setUploadError(null)
-    if (!file.type.startsWith('image/')) {
-      setUploadError('Pick an image file (JPEG or PNG).')
+    const video = isVideoFile(file)
+    const image = file.type.startsWith('image/')
+    if (!image && !video) {
+      setUploadError('Pick an image (JPEG, PNG) or a video (MP4, MOV, WebM).')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image too large — up to 5MB.')
+    const cap = video ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES
+    if (file.size > cap) {
+      setUploadError(
+        video ? `Video too large — up to ${MAX_VIDEO_MB}MB.` : `Image too large — up to ${MAX_IMAGE_MB}MB.`,
+      )
       return
     }
     setUploading(true)
@@ -405,17 +418,21 @@ export default function Composer({
         </div>
       )}
 
-      {/* Image uploader */}
+      {/* Media uploader — photo or video */}
       <div className="mt-4">
-        <Label>Photo (optional)</Label>
+        <Label>Photo or video (optional)</Label>
         {imageUrl ? (
-          <div className="relative w-full max-w-xs aspect-[4/3] rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+          <div className="relative w-full max-w-xs aspect-[4/3] rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)] bg-black/5">
+            {isVideoUrl(imageUrl) ? (
+              <video src={imageUrl} controls muted playsInline className="w-full h-full object-cover" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+            )}
             <button
               type="button"
               onClick={() => setImageUrl(null)}
-              className="absolute top-1.5 right-1.5 rounded-full bg-black/60 text-white text-xs px-2 py-0.5 hover:bg-black/80"
+              className="absolute top-1.5 right-1.5 rounded-full bg-black/60 text-white text-xs px-2 py-0.5 hover:bg-black/80 z-10"
             >
               Remove
             </button>
@@ -423,7 +440,7 @@ export default function Composer({
         ) : (
           <div className="flex items-center gap-2">
             <ActionButton variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? `Uploading… ${uploadPct}%` : 'Add a photo'}
+              {uploading ? `Uploading… ${uploadPct}%` : 'Add a photo or video'}
             </ActionButton>
             {uploading && (
               <button
@@ -437,7 +454,7 @@ export default function Composer({
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0]
@@ -447,7 +464,9 @@ export default function Composer({
             />
           </div>
         )}
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5">JPEG or PNG, up to 5MB.</p>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5">
+          Photos (JPEG/PNG) up to {MAX_IMAGE_MB}MB · video (MP4/MOV) up to {MAX_VIDEO_MB}MB.
+        </p>
         {uploadError && <p className="text-xs text-rose-600 mt-1" role="alert">{uploadError}</p>}
       </div>
 

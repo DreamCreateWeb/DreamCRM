@@ -1,26 +1,29 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/session'
 import { uploadBlob } from '@/lib/blob'
+import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_IMAGE_MB, MAX_VIDEO_MB } from '@/lib/media'
 
 /**
  * Authenticated upload endpoint. Used for clinic IMAGES (logo, hero, staff
- * headshots, office photos, shop product images, avatars) AND short intro
- * VIDEOS (the Website Studio's "difference" clip). Résumés ride a separate
- * server action (`app/site/[slug]/careers/actions.ts`), not this route.
+ * headshots, office photos, shop product images, avatars, social-post media)
+ * AND VIDEOS (the Website Studio's "difference" clip, social-post video).
+ * Résumés ride a separate server action (`app/site/[slug]/careers/actions.ts`),
+ * not this route.
  *
  * Server-side content validation is mandatory here: the destination S3 bucket
  * is public-read, so an attacker who can authenticate could otherwise PUT an
  * SVG (or HTML-ish) file and serve stored XSS from our own origin. We sniff the
  * real bytes (never trust the client `Content-Type` or filename), allow only a
  * fixed set of raster image + video formats, reject SVG outright, and cap
- * images far below the video limit.
+ * images below the (larger) video limit. The caps live in lib/media.ts so the
+ * client and server agree.
  */
 
-// Allowed raster image formats — sniffed by magic bytes. SVG is deliberately
-// excluded (it's XML/script-capable → stored-XSS in a public bucket).
-const IMAGE_MAX_BYTES = 8 * 1024 * 1024 // 8MB
-// Videos are larger; the Studio caps client-side at 50MB and we mirror it.
-const VIDEO_MAX_BYTES = 50 * 1024 * 1024 // 50MB
+// Caps come from lib/media.ts (shared with the client). Images are sniffed by
+// magic bytes; SVG is excluded (XML/script-capable → stored-XSS in a public
+// bucket). Videos get the larger ceiling.
+const IMAGE_MAX_BYTES = MAX_IMAGE_BYTES
+const VIDEO_MAX_BYTES = MAX_VIDEO_BYTES
 
 export type SniffResult =
   | { kind: 'image' | 'video'; type: string }
@@ -90,7 +93,7 @@ export async function POST(request: Request) {
   }
   // Hard upper bound before we even read bytes (videos are the largest case).
   if (file.size > VIDEO_MAX_BYTES) {
-    return NextResponse.json({ error: 'File too large (max 50MB).' }, { status: 413 })
+    return NextResponse.json({ error: `File too large (max ${MAX_VIDEO_MB}MB).` }, { status: 413 })
   }
 
   // Sniff the real content from the leading bytes — never trust file.type.
@@ -102,7 +105,7 @@ export async function POST(request: Request) {
   // Per-kind size cap: images must stay small (the XSS/abuse surface); videos
   // get the full 50MB.
   if (sniff.kind === 'image' && file.size > IMAGE_MAX_BYTES) {
-    return NextResponse.json({ error: 'Image too large (max 8MB).' }, { status: 413 })
+    return NextResponse.json({ error: `Image too large (max ${MAX_IMAGE_MB}MB).` }, { status: 413 })
   }
 
   const name = (file as File).name || 'upload.bin'

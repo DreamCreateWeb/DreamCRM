@@ -1,6 +1,7 @@
 'use client'
 
 import { BrandLogo, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
+import { isVideoUrl } from '@/lib/media'
 
 /**
  * Live multi-platform post preview — the "broadcast studio" centerpiece of the
@@ -144,8 +145,12 @@ function Avatar({ accent, label, ring = false, size = 32 }: { accent: string; la
   )
 }
 
-/** The photo, or a tasteful brand-tinted placeholder so the layout reads whole. */
+/** The photo or video, or a tasteful brand-tinted placeholder so the layout
+ *  reads whole. Video silently autoplay-loops — the real social-feed feel. */
 function Media({ url, accent, aspect = 'aspect-square' }: { url: string | null; accent: string; aspect?: string }) {
+  if (url && isVideoUrl(url)) {
+    return <video src={url} muted playsInline loop autoPlay preload="metadata" className={`w-full ${aspect} object-cover`} />
+  }
   if (url) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={url} alt="" className={`w-full ${aspect} object-cover`} />
@@ -287,7 +292,9 @@ function GoogleBusinessCard({ channel, content }: { channel: PreviewChannel; con
 function TikTokCard({ channel, content }: { channel: PreviewChannel; content: PreviewContent }) {
   return (
     <div className="relative rounded-xl overflow-hidden bg-black text-white aspect-[4/5] ring-1 ring-black/20">
-      {content.imageUrl ? (
+      {content.imageUrl && isVideoUrl(content.imageUrl) ? (
+        <video src={content.imageUrl} muted playsInline loop autoPlay preload="metadata" className="absolute inset-0 w-full h-full object-cover opacity-90" />
+      ) : content.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={content.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-90" />
       ) : (

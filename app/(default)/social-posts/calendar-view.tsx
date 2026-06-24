@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { GBP_POST_TYPE_LABELS, type SocialPostView, type GbpPostStatus } from '@/lib/types/zernio'
+import { isVideoUrl } from '@/lib/media'
 
 /**
  * Content calendar — a CSS-grid month view of scheduled + published posts (no
@@ -188,9 +189,13 @@ function DetailPopover({ post, onClose }: { post: SocialPostView; onClose: () =>
           <StatusPill tone={STATUS_TONE[post.status]} label={STATUS_LABEL[post.status]} />
         </div>
         {post.imageUrl && (
-          <div className="w-full max-w-xs aspect-[4/3] rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)] mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={post.imageUrl} alt="" className="w-full h-full object-cover" />
+          <div className="w-full max-w-xs aspect-[4/3] rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)] mb-3 bg-black/5">
+            {isVideoUrl(post.imageUrl) ? (
+              <video src={post.imageUrl} muted playsInline controls preload="metadata" className="w-full h-full object-cover" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={post.imageUrl} alt="" className="w-full h-full object-cover" />
+            )}
           </div>
         )}
         {post.postType === 'event' && post.eventTitle && (

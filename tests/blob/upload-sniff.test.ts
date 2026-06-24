@@ -116,20 +116,21 @@ describe('upload route gate', () => {
     expect(uploaded).toHaveLength(0)
   })
 
-  it('rejects an oversize image (>8MB) with 413', async () => {
-    const res = await post(fileFrom(PNG, 'huge.png', 'image/png', 9 * 1024 * 1024))
-    expect(res.status).toBe(413)
-    expect(uploaded).toHaveLength(0)
+  it('accepts a generous image (20MB) but rejects one over the 25MB cap', async () => {
+    const ok = await post(fileFrom(PNG, 'big.png', 'image/png', 20 * 1024 * 1024))
+    expect(ok.status).toBe(200)
+    const tooBig = await post(fileFrom(PNG, 'huge.png', 'image/png', 26 * 1024 * 1024))
+    expect(tooBig.status).toBe(413)
   })
 
-  it('still accepts a video up to the 50MB cap (Studio intro clip path)', async () => {
-    const res = await post(fileFrom(mp4(), 'intro.mp4', 'video/mp4', 20 * 1024 * 1024), 'clinic-video')
+  it('accepts a video well past the old 50MB cap (now up to 100MB)', async () => {
+    const res = await post(fileFrom(mp4(), 'clip.mp4', 'video/mp4', 80 * 1024 * 1024), 'social-posts')
     expect(res.status).toBe(200)
-    expect(uploaded[0].contentType).toBe('video/mp4')
+    expect(uploaded[uploaded.length - 1].contentType).toBe('video/mp4')
   })
 
-  it('rejects a video over 50MB with 413', async () => {
-    const res = await post(fileFrom(mp4(), 'big.mp4', 'video/mp4', 51 * 1024 * 1024), 'clinic-video')
+  it('rejects a video over the 100MB cap with 413', async () => {
+    const res = await post(fileFrom(mp4(), 'big.mp4', 'video/mp4', 101 * 1024 * 1024), 'social-posts')
     expect(res.status).toBe(413)
   })
 

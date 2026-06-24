@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { GBP_POST_TYPE_LABELS, type SocialPostView, type SocialPostTargetView, type GbpPostStatus } from '@/lib/types/zernio'
+import { isVideoUrl } from '@/lib/media'
 import { deleteSocialPostAction } from './actions'
 
 /**
@@ -70,9 +71,16 @@ function PostCard({ post }: { post: SocialPostView }) {
     <div className="v2-card p-4">
       <div className="flex gap-3">
         {post.imageUrl && (
-          <div className="shrink-0 w-16 h-16 rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={post.imageUrl} alt="" className="w-full h-full object-cover" />
+          <div className="relative shrink-0 w-16 h-16 rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)] bg-black/5">
+            {isVideoUrl(post.imageUrl) ? (
+              <>
+                <video src={post.imageUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                <span className="absolute inset-0 flex items-center justify-center text-white/90 text-lg drop-shadow" aria-hidden="true">▶</span>
+              </>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={post.imageUrl} alt="" className="w-full h-full object-cover" />
+            )}
           </div>
         )}
         <div className="flex-1 min-w-0">
