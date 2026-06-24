@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { deliver } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { getGoogleReviewStats } from '@/lib/services/google-reviews'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 
 /**
@@ -1088,6 +1089,42 @@ export async function listFeaturedTestimonialPatientIds(
     if (t.patientId) out.add(t.patientId)
   }
   return out
+}
+
+/** The "proof" your review program puts on your public website — the
+ *  testimonials currently showcased (drillable to each patient) + the live
+ *  Google star snippet. Current-state, not windowed: featuring + the rating
+ *  are an ongoing presence, not a 30-day event. Feeds the Analytics Reputation
+ *  band so a clinic can see reviews → public credibility → acquisition. */
+export interface ReviewsProof {
+  featuredCount: number
+  /** Capped sample of testimonials live on the site, for drill chips. */
+  featured: Array<{ patientId: string | null; label: string }>
+  /** The star snippet patients see on the site + in search (Google). */
+  googleRating: number | null
+  googleCount: number
+}
+
+export async function getReviewsProof(organizationId: string): Promise<ReviewsProof> {
+  const [profileRows, google] = await Promise.all([
+    db
+      .select({ testimonials: schema.clinicProfile.testimonials })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1),
+    getGoogleReviewStats(organizationId),
+  ])
+  const list = (profileRows[0]?.testimonials ?? []) as ClinicTestimonial[]
+  const featured = list.map((t) => ({
+    patientId: t.patientId ?? null,
+    label: t.authorLocation ? `${t.authorName} · ${t.authorLocation}` : t.authorName,
+  }))
+  return {
+    featuredCount: featured.length,
+    featured: featured.slice(0, 8),
+    googleRating: google.averageRating,
+    googleCount: google.count,
+  }
 }
 
 export interface FeatureReviewInput {

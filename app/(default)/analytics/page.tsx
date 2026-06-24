@@ -5,6 +5,7 @@ import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
 import { getSiteTraffic } from '@/lib/services/site-analytics'
 import { getSocialMetrics } from '@/lib/services/social-metrics'
 import { getRetentionAttribution, type RetentionAttribution } from '@/lib/services/retention-attribution'
+import { getReviewsProof, type ReviewsProof } from '@/lib/services/reviews'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -39,11 +40,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   const { days } = await searchParams
   const windowDays = days === '90' ? 90 : 30
-  const [a, traffic, social, wonBack] = await Promise.all([
+  const [a, traffic, social, wonBack, reviewsProof] = await Promise.all([
     getClinicAnalytics(ctx.organizationId, windowDays),
     getSiteTraffic(ctx.organizationId, windowDays),
     getSocialMetrics(ctx.organizationId, { days: windowDays }),
     getRetentionAttribution(ctx.organizationId, { days: windowDays }),
+    getReviewsProof(ctx.organizationId),
   ])
   const trafficDelta = traffic.total - traffic.totalPrev
 
@@ -378,6 +380,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               compact
               emptyNote="No reviews left yet in this window."
             />
+            {/* The proof those reviews become public credibility: testimonials
+                live on the site + the Google star snippet. Current-state, not
+                windowed — it's what a prospect sees right now. */}
+            <div className="mt-5 pt-4 border-t border-[color:var(--color-hairline)]">
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                On your website now
+              </p>
+              <OnSite proof={reviewsProof} />
+            </div>
           </Card>
         </Section>
       </div>
@@ -513,6 +524,52 @@ function Funnel({ steps }: { steps: { label: string; value: number | null; note?
           <div key={s.label}>{inner}</div>
         )
       })}
+    </div>
+  )
+}
+
+/** The reputation "proof" — what the review program puts on the public site:
+ *  testimonials showcased (drill to each) + the live Google star snippet. */
+function OnSite({ proof }: { proof: ReviewsProof }) {
+  const hasRating = proof.googleRating != null && proof.googleCount > 0
+  if (proof.featuredCount === 0 && !hasRating) {
+    return <Empty>No reviews are showcased on your site yet — feature one from Reviews received.</Empty>
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-700 dark:text-gray-200">
+        <span>
+          <span className="font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">{proof.featuredCount}</span>{' '}
+          {proof.featuredCount === 1 ? 'testimonial' : 'testimonials'} live on your site
+        </span>
+        {hasRating && (
+          <span>
+            <span className="font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">
+              {proof.googleRating!.toFixed(1)}★
+            </span>{' '}
+            Google rating across {proof.googleCount} {proof.googleCount === 1 ? 'review' : 'reviews'}
+          </span>
+        )}
+      </div>
+      {proof.featured.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {proof.featured.map((f, i) => (
+            <Link
+              key={f.patientId ?? `t-${i}`}
+              href="/reviews/received"
+              className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700/40 px-2 py-0.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              title="Manage featured testimonials"
+            >
+              {f.label}
+            </Link>
+          ))}
+          {proof.featuredCount > proof.featured.length && (
+            <span className="inline-flex items-center px-1.5 py-0.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+              +{proof.featuredCount - proof.featured.length} more
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

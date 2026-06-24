@@ -213,9 +213,19 @@ export default async function ReviewsPage() {
       {/* ── Platform mix ──────────────────────────────────────────── */}
       {stats.completed30d > 0 && (
         <section className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
-            Where they reviewed · last 30 days
-          </h2>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              Where they reviewed · last 30 days
+            </h2>
+            {/* Drill into the proof: what these reviews became on your site
+                (testimonials + rating) lives in Analytics, the deeper layer. */}
+            <Link
+              href="/analytics"
+              className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 whitespace-nowrap"
+            >
+              See the impact →
+            </Link>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(['google', 'healthgrades', 'facebook', 'yelp'] as ReviewSite[]).map((site) => (
               <KpiStat key={site} label={PLATFORM_LABEL[site]} value={stats.byPlatform[site]} />

@@ -16,7 +16,7 @@ import React from 'react'
 import type { ClinicAnalytics } from '@/lib/services/analytics'
 
 const getClinicAnalyticsMock = vi.fn<(org: string, windowDays?: number) => Promise<ClinicAnalytics>>()
-const { wonBackMock } = vi.hoisted(() => ({ wonBackMock: vi.fn() }))
+const { wonBackMock, reviewsProofMock } = vi.hoisted(() => ({ wonBackMock: vi.fn(), reviewsProofMock: vi.fn() }))
 
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: vi.fn(async () => ({
@@ -60,6 +60,10 @@ vi.mock('@/lib/services/social-metrics', () => ({
 
 vi.mock('@/lib/services/retention-attribution', () => ({
   getRetentionAttribution: (org: string, opts?: { days?: number }) => wonBackMock(org, opts),
+}))
+
+vi.mock('@/lib/services/reviews', () => ({
+  getReviewsProof: (org: string) => reviewsProofMock(org),
 }))
 
 vi.mock('@/components/onboarding/module-hint', () => ({
@@ -135,6 +139,31 @@ beforeEach(() => {
   socialMetricsMock.mockResolvedValue({ connected: false, isDemo: false, platforms: [], windowDays: 30 })
   wonBackMock.mockReset()
   wonBackMock.mockResolvedValue({ windowDays: 30, totalWonBack: 0, buckets: [] })
+  reviewsProofMock.mockReset()
+  reviewsProofMock.mockResolvedValue({ featuredCount: 0, featured: [], googleRating: null, googleCount: 0 })
+})
+
+describe('Reputation proof — what reviews put on the site', () => {
+  it('shows featured testimonials + the Google rating, drillable', async () => {
+    reviewsProofMock.mockResolvedValue({
+      featuredCount: 3,
+      featured: [
+        { patientId: 'p1', label: 'Mia H. · Austin' },
+        { patientId: 'p2', label: 'Liam F.' },
+      ],
+      googleRating: 4.8,
+      googleCount: 21,
+    })
+    await renderPage('30', baseAnalytics())
+    expect(screen.getByText(/testimonials live on your site/i)).toBeInTheDocument()
+    expect(screen.getByText(/4\.8★/)).toBeInTheDocument()
+    expect(hrefOf(/Mia H\./)).toContain('/reviews/received')
+  })
+
+  it('shows the empty state when nothing is showcased yet', async () => {
+    await renderPage('30', baseAnalytics())
+    expect(screen.getByText(/No reviews are showcased on your site yet/i)).toBeInTheDocument()
+  })
 })
 
 describe('Won-back retention proof band', () => {
