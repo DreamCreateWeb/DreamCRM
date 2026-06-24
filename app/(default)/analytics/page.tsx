@@ -12,7 +12,17 @@ import { PageHeader } from '@/components/ui/page-header'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
+import { BrandLogo, type BrandLogoId } from '@/components/integrations/brand-logos'
 import { TONE_TEXT } from '@/lib/ui/encodings'
+
+/** Social platform slug → brand-logo id (the rest of the app uses real marks). */
+const SOCIAL_BRAND_IDS: Record<string, BrandLogoId> = {
+  instagram: 'instagram',
+  facebook: 'facebook',
+  tiktok: 'tiktok',
+  youtube: 'youtube',
+  linkedin: 'linkedin',
+}
 
 export const metadata = { title: 'Practice Analytics - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -97,6 +107,44 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           </div>
         }
       />
+
+      {/* ── Scorecard — the headline numbers, at a glance ───────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <KpiStat
+          label="New patients"
+          value={a.acquisition.newPatients}
+          sub={<DeltaBadge value={newPatientsDelta} />}
+          href="/patients?status=new"
+        />
+        <KpiStat
+          label="Appointments"
+          value={a.schedule.total}
+          sub={<VolumeTrend cur={a.schedule.total} prev={a.schedule.prev.total} />}
+          href="/appointments?window=past_30d"
+        />
+        <KpiStat
+          label="No-show rate"
+          value={a.schedule.attended === 0 ? '—' : lowVolAttended ? `${a.schedule.noShow}/${a.schedule.attended}` : pct(a.schedule.noShowRate)}
+          tone={lowVolAttended || a.schedule.noShowRate == null ? undefined : a.schedule.noShowRate > a.schedule.benchmarkNoShowRate ? 'urgent' : 'ok'}
+          sub={
+            lowVolAttended || a.schedule.noShowRate == null ? (
+              'building history'
+            ) : (
+              <>
+                vs benchmark {pct(a.schedule.benchmarkNoShowRate)}
+                <RateTrend cur={a.schedule.noShowRate} prev={a.schedule.prev.noShowRate} lowerIsBetter />
+              </>
+            )
+          }
+          href="/appointments?window=past_30d&attention=no_show"
+        />
+        <KpiStat
+          label="Reviews left"
+          value={a.reputation.completed}
+          sub={`of ${a.reputation.sent} ${a.reputation.sent === 1 ? 'request' : 'requests'} sent`}
+          href="/reviews/received"
+        />
+      </div>
 
       {/* ── Acquisition ─────────────────────────────────────────────────── */}
       <Section title="Acquisition" subtitle={`New patients + where they came from · last ${windowDays} days`}>
@@ -227,7 +275,11 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             {social.platforms.map((p) => (
               <Card key={p.platform}>
                 <div className="flex items-center gap-2 mb-3">
-                  <span aria-hidden="true" className="text-lg">{p.icon}</span>
+                  {SOCIAL_BRAND_IDS[p.platform] ? (
+                    <BrandLogo id={SOCIAL_BRAND_IDS[p.platform]} size={22} />
+                  ) : (
+                    <span aria-hidden="true" className="text-lg">{p.icon}</span>
+                  )}
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{p.label}</p>
                     {p.handle && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{p.handle}</p>}
@@ -541,20 +593,47 @@ function convNote(numerator: number | null, denominator: number, ofLabel: string
 
 function Bars({ points, className = '' }: { points: TrendPoint[]; className?: string }) {
   const max = Math.max(1, ...points.map((p) => p.count))
+  const total = points.reduce((s, p) => s + p.count, 0)
+  const avg = points.length ? total / points.length : 0
+  // Thin the x-axis labels so a 30/90-day daily chart doesn't crush (≤~12 shown).
+  const labelEvery = Math.max(1, Math.ceil(points.length / 12))
   return (
-    <div className={`flex items-end gap-1 h-24 ${className}`}>
-      {points.map((p, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group">
-          <span className="text-xs tabular-nums font-mono-num text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100">{p.count}</span>
-          {/* Chart series 1 = teal (identity; the only teal allowed in data). */}
+    <div className={className}>
+      <div className="relative h-32">
+        {/* Average reference line — instant "is this bar above or below normal". */}
+        {avg > 0 && (
           <div
-            className="w-full rounded-t bg-teal-500/80 dark:bg-teal-400/70 min-h-[2px]"
-            style={{ height: `${(p.count / max) * 100}%` }}
-            title={`${p.label}: ${p.count}`}
-          />
-          <span className="text-xs text-gray-500 dark:text-gray-400 truncate w-full text-center">{p.label}</span>
+            className="absolute inset-x-0 z-10 border-t border-dashed border-gray-300/80 dark:border-gray-600/70 pointer-events-none"
+            style={{ bottom: `${(avg / max) * 100}%` }}
+          >
+            <span className="absolute -top-2 right-0 text-[10px] text-gray-400 dark:text-gray-500 bg-[color:var(--color-surface-1)] px-1">
+              avg {Math.round(avg)}
+            </span>
+          </div>
+        )}
+        <div className="flex items-end gap-1 h-full border-b border-[color:var(--color-hairline)]">
+          {points.map((p, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group">
+              <span className="text-[10px] tabular-nums font-mono-num text-gray-600 dark:text-gray-300 mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {p.count}
+              </span>
+              {/* Chart series 1 = teal (identity; the only teal allowed in data). */}
+              <div
+                className="w-full rounded-t bg-gradient-to-t from-teal-500/65 to-teal-400/90 dark:from-teal-500/55 dark:to-teal-300/80 group-hover:from-teal-500 group-hover:to-teal-400 transition-colors min-h-[2px]"
+                style={{ height: `${(p.count / max) * 100}%` }}
+                title={`${p.label}: ${p.count}`}
+              />
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+      <div className="flex gap-1 mt-1">
+        {points.map((p, i) => (
+          <span key={i} className="flex-1 text-[10px] text-gray-400 dark:text-gray-500 truncate text-center">
+            {i % labelEvery === 0 ? p.label : ''}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }

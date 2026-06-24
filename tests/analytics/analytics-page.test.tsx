@@ -140,6 +140,12 @@ function hrefOf(text: RegExp): string[] {
     .filter((h): h is string => !!h)
 }
 
+/** The Schedule-health section (some KPI labels also appear in the top
+ *  scorecard, so detail-tile assertions scope to here to stay unambiguous). */
+function scheduleSection(): HTMLElement {
+  return screen.getByRole('heading', { name: 'Schedule health' }).closest('section') as HTMLElement
+}
+
 beforeEach(() => {
   getClinicAnalyticsMock.mockReset()
   socialMetricsMock.mockReset()
@@ -348,11 +354,12 @@ describe('cancellation low-volume guard keys on its own denominator', () => {
       },
     })
     await renderPage('30', a)
-    const cancelTile = screen.getByText(/Cancellation rate/i).closest('a')!
+    const sched = within(scheduleSection())
+    const cancelTile = sched.getByText(/Cancellation rate/i).closest('a')!
     // 4/20 = 20.0% — a percentage, NOT a "4/20" count fallback.
     expect(within(cancelTile).getByText('20.0%')).toBeTruthy()
     // No-show stays a count fallback because attended (4) is thin.
-    const noShowTile = screen.getByText(/No-show rate/i).closest('a')!
+    const noShowTile = sched.getByText(/No-show rate/i).closest('a')!
     expect(within(noShowTile).getByText(/2 of 4/)).toBeTruthy()
   })
 
@@ -372,7 +379,7 @@ describe('cancellation low-volume guard keys on its own denominator', () => {
       },
     })
     await renderPage('30', a)
-    const cancelTile = screen.getByText(/Cancellation rate/i).closest('a')!
+    const cancelTile = within(scheduleSection()).getByText(/Cancellation rate/i).closest('a')!
     expect(within(cancelTile).getByText('1/3')).toBeTruthy()
   })
 })
