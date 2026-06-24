@@ -1,6 +1,9 @@
 import 'server-only'
-import { and, count, eq, gte, inArray, lte, ne, or, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { lapsedCutoff as lapsedCutoffDate, startOfMonth } from '@/lib/dates'
 
 /**
  * Recall & Outreach dashboard service. Returns the morning-huddle-style
@@ -19,7 +22,8 @@ export interface RecallStats {
   recallDueCount: number
   /** Subset of recallDueCount that have email opt-in (i.e. reachable). */
   recallDueReachableCount: number
-  /** Patients with lifecycle='lapsed' (>9mo no visit + no future booking). */
+  /** Patients lapsed (no visit for the clinic's lapsed-after-months, default
+   *  18, + no future booking). Matches the Patients list 💤 derivation. */
   lapsedCount: number
   lapsedReachableCount: number
   /** Patients with lifecycle='new' AND first visit in the last 60 days
@@ -86,22 +90,20 @@ export interface RecallActivityRow {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const SIX_MONTHS_MS = 6 * 30 * DAY_MS
-const NINE_MONTHS_MS = 9 * 30 * DAY_MS
-
-function startOfMonth(d: Date): Date {
-  const r = new Date(d.getFullYear(), d.getMonth(), 1)
-  r.setHours(0, 0, 0, 0)
-  return r
-}
 
 export async function getRecallStats(organizationId: string): Promise<RecallStats> {
   const now = new Date()
   const monthStart = startOfMonth(now)
-  const sixMonthsAgo = new Date(now.getTime() - SIX_MONTHS_MS)
-  const nineMonthsAgo = new Date(now.getTime() - NINE_MONTHS_MS)
   const thirtyDaysAgo = new Date(now.getTime() - 30 * DAY_MS)
   const fourteenDaysAhead = new Date(now.getTime() + 14 * DAY_MS)
+
+  // Recall "due"/"lapsed" must match what the Patients list + Analytics show:
+  // honor the clinic's configured recall + lapsed cadence (Settings → Practice)
+  // AND prefer the PMS-synced recall date when present. Reading the cadence
+  // once and routing every patient through derivePatientRecallStatus keeps the
+  // "who's due?" number identical across /marketing, /patients, and /analytics.
+  const cadence = await getClinicCadence(organizationId)
+  const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
 
   // Pull patients with the fields we need to derive recall status. We
   // group + bucket in JS rather than as 5 separate SQL queries to keep
@@ -115,6 +117,8 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
       isActive: schema.patient.isActive,
       firstSeenAt: schema.patient.firstSeenAt,
       marketingEmailOptIn: schema.patient.marketingEmailOptIn,
+      pmsRecallDueAt: schema.patient.pmsRecallDueAt,
+      recallIntervalMonths: schema.patient.recallIntervalMonths,
     })
     .from(schema.patient)
     .where(eq(schema.patient.organizationId, organizationId))
@@ -232,15 +236,28 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
     const lastVisit = lastVisitMap.get(p.id) ?? null
     const hasFuture = nextVisitSet.has(p.id)
 
-    // Recall status mirrors patients.ts derivation
-    const lapsed = !!lastVisit && lastVisit < nineMonthsAgo && !hasFuture
-    const due = !!lastVisit && lastVisit < sixMonthsAgo && !hasFuture && !lapsed
+    // Recall status + lapsed both come from the SAME shared derivation the
+    // Patients list + Analytics use, so the counts can't diverge. recallStatus
+    // honors the PMS recall date + the clinic's recall interval; lapsed honors
+    // the clinic's lapsed-after-months. (A future booking suppresses both.)
+    const recallStatus = derivePatientRecallStatus({
+      pmsRecallDueAt: p.pmsRecallDueAt,
+      hasUpcomingAppt: hasFuture,
+      hasAnyFutureAppt: hasFuture,
+      lastVisitAt: lastVisit,
+      now,
+      intervalMonths: p.recallIntervalMonths ?? cadence.recallMonths,
+    })
+    const isRecallDue = recallStatus === 'due' || recallStatus === 'overdue'
+    const lapsed = !!lastVisit && lastVisit < lapsedCutoff && !hasFuture
 
     if (lapsed) {
       lapsedCount++
       if (p.marketingEmailOptIn === 1 && p.email) lapsedReachable++
     }
-    if (due || lapsed) {
+    // recallDueCount keeps its original "due ∪ lapsed" contract (a lapsed
+    // patient counts as needing recall even in an odd cadence config).
+    if (isRecallDue || lapsed) {
       recallDueCount++
       if (p.marketingEmailOptIn === 1 && p.email) recallDueReachable++
     }
