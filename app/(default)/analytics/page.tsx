@@ -4,6 +4,7 @@ import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
 import { getSiteTraffic } from '@/lib/services/site-analytics'
 import { getSocialMetrics } from '@/lib/services/social-metrics'
+import { getRetentionAttribution, type RetentionAttribution } from '@/lib/services/retention-attribution'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -38,10 +39,11 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   const { days } = await searchParams
   const windowDays = days === '90' ? 90 : 30
-  const [a, traffic, social] = await Promise.all([
+  const [a, traffic, social, wonBack] = await Promise.all([
     getClinicAnalytics(ctx.organizationId, windowDays),
     getSiteTraffic(ctx.organizationId, windowDays),
     getSocialMetrics(ctx.organizationId, { days: windowDays }),
+    getRetentionAttribution(ctx.organizationId, { days: windowDays }),
   ])
   const trafficDelta = traffic.total - traffic.totalPrev
 
@@ -335,6 +337,19 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                 { label: 'Booked', value: a.recall.outreach.booked, href: '/marketing' },
               ]}
             />
+            {/* The proof under the funnel: who actually came back, and what
+                brought each of them back. Honest — only campaign-attributed
+                rebookings, drillable down to the patient + the visit. */}
+            <div className="mt-5 pt-4 border-t border-[color:var(--color-hairline)]">
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                Patients won back · last {windowDays} days
+              </p>
+              {wonBack.totalWonBack === 0 ? (
+                <Empty>No campaign has rebooked a patient in this window yet.</Empty>
+              ) : (
+                <WonBack data={wonBack} />
+              )}
+            </div>
           </Card>
         </Section>
 
@@ -489,6 +504,46 @@ function Funnel({ steps }: { steps: { label: string; value: number | null; note?
           <div key={s.label}>{inner}</div>
         )
       })}
+    </div>
+  )
+}
+
+/** The retention "proof" — distinct patients a campaign provably rebooked, by
+ *  outreach type, each chip drilling to that patient's rebooked visit. */
+function WonBack({ data }: { data: RetentionAttribution }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-700 dark:text-gray-200">
+        <span className="font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">{data.totalWonBack}</span>{' '}
+        {data.totalWonBack === 1 ? 'patient' : 'patients'} rebooked from outreach
+      </p>
+      <ul className="space-y-2.5">
+        {data.buckets.map((b) => (
+          <li key={b.key}>
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="font-medium text-gray-700 dark:text-gray-200">{b.label}</span>
+              <span className="tabular-nums font-mono-num font-semibold text-gray-900 dark:text-gray-100">{b.count}</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {b.patients.map((p) => (
+                <Link
+                  key={p.patientId}
+                  href={p.appointmentId ? `/appointments?appt=${p.appointmentId}` : `/patients/${p.patientId}`}
+                  className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700/40 px-2 py-0.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title={`Open ${p.name}'s rebooked visit`}
+                >
+                  {p.name}
+                </Link>
+              ))}
+              {b.count > b.patients.length && (
+                <span className="inline-flex items-center px-1.5 py-0.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                  +{b.count - b.patients.length} more
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

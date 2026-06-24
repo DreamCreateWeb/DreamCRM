@@ -16,6 +16,7 @@ import React from 'react'
 import type { ClinicAnalytics } from '@/lib/services/analytics'
 
 const getClinicAnalyticsMock = vi.fn<(org: string, windowDays?: number) => Promise<ClinicAnalytics>>()
+const { wonBackMock } = vi.hoisted(() => ({ wonBackMock: vi.fn() }))
 
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: vi.fn(async () => ({
@@ -55,6 +56,10 @@ const socialMetricsMock = vi.fn(async (_org: string, opts?: { days?: number }) =
 }))
 vi.mock('@/lib/services/social-metrics', () => ({
   getSocialMetrics: (org: string, opts?: { days?: number }) => socialMetricsMock(org, opts),
+}))
+
+vi.mock('@/lib/services/retention-attribution', () => ({
+  getRetentionAttribution: (org: string, opts?: { days?: number }) => wonBackMock(org, opts),
 }))
 
 vi.mock('@/components/onboarding/module-hint', () => ({
@@ -128,6 +133,39 @@ beforeEach(() => {
   getClinicAnalyticsMock.mockReset()
   socialMetricsMock.mockReset()
   socialMetricsMock.mockResolvedValue({ connected: false, isDemo: false, platforms: [], windowDays: 30 })
+  wonBackMock.mockReset()
+  wonBackMock.mockResolvedValue({ windowDays: 30, totalWonBack: 0, buckets: [] })
+})
+
+describe('Won-back retention proof band', () => {
+  it('shows the empty state when no campaign rebooked anyone', async () => {
+    await renderPage('30', baseAnalytics())
+    expect(screen.getByText(/No campaign has rebooked a patient/i)).toBeInTheDocument()
+  })
+
+  it('renders the per-source breakdown with drillable patient chips', async () => {
+    wonBackMock.mockResolvedValue({
+      windowDays: 30,
+      totalWonBack: 3,
+      buckets: [
+        { key: 'recall', label: 'Recall reminders', count: 2, patients: [
+          { patientId: 'p1', name: 'Mia Hayes', appointmentId: 'a1', occurredAt: new Date() },
+          { patientId: 'p2', name: 'Liam Ford', appointmentId: null, occurredAt: new Date() },
+        ] },
+        { key: 'birthday', label: 'Birthday messages', count: 1, patients: [
+          { patientId: 'p3', name: 'Ava Cole', appointmentId: 'a3', occurredAt: new Date() },
+        ] },
+      ],
+    })
+    await renderPage('30', baseAnalytics())
+    expect(screen.getByText(/rebooked from outreach/i)).toBeInTheDocument()
+    expect(screen.getByText('Recall reminders')).toBeInTheDocument()
+    expect(screen.getByText('Birthday messages')).toBeInTheDocument()
+    // A patient with a rebooked appointment drills to that visit; without one,
+    // to the patient record.
+    expect(hrefOf(/Mia Hayes/)).toContain('/appointments?appt=a1')
+    expect(hrefOf(/Liam Ford/)).toContain('/patients/p2')
+  })
 })
 
 describe('Schedule-health KPIs are drillable', () => {

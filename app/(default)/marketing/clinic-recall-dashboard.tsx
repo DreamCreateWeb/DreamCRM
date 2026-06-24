@@ -194,13 +194,23 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
         </div>
 
         <div className="v2-card p-5">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Recent performance · last 30 days</h2>
-            {stats.openRate30d != null && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
-                {stats.openRate30d}% open · {stats.clickRate30d}% click
-              </span>
-            )}
+            <div className="flex items-center gap-3 shrink-0">
+              {stats.openRate30d != null && (
+                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
+                  {stats.openRate30d}% open · {stats.clickRate30d}% click
+                </span>
+              )}
+              {/* Drill from the operational funnel into the proof: who actually
+                  came back, and what brought them (Analytics, the deeper layer). */}
+              <Link
+                href="/analytics"
+                className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 whitespace-nowrap"
+              >
+                Who came back →
+              </Link>
+            </div>
           </div>
           {stats.recentSends.length === 0 ? (
             <EmptyState
