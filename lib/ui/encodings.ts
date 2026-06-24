@@ -50,6 +50,18 @@ export const TONE_TEXT: Record<Tone, string> = {
   neutral: 'text-gray-500 dark:text-gray-400',
 }
 
+/** Solid swatch per tone — for a small status DOT beside a label (e.g. the
+ *  per-channel publish-status dots in Social Posts), where a full pill is too
+ *  heavy. Keep the saturated 500 fill so a 6px dot stays legible. */
+export const TONE_DOT: Record<Tone, string> = {
+  ok: 'bg-emerald-500',
+  warn: 'bg-amber-500',
+  urgent: 'bg-rose-500',
+  info: 'bg-indigo-500',
+  special: 'bg-violet-500',
+  neutral: 'bg-gray-400',
+}
+
 /* ------------------------------------------------------------------ */
 /* Flag glyphs                                                         */
 /* ------------------------------------------------------------------ */

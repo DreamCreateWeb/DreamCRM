@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
-import type { Tone } from '@/lib/ui/encodings'
+import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { GBP_POST_TYPE_LABELS, type SocialPostView, type GbpPostStatus } from '@/lib/types/zernio'
 
 /**
@@ -28,14 +28,6 @@ const STATUS_LABEL: Record<GbpPostStatus, string> = {
   scheduled: 'Scheduled',
   draft: 'Draft',
   failed: 'Failed',
-}
-const TONE_DOT: Record<Tone, string> = {
-  ok: 'bg-emerald-500',
-  warn: 'bg-amber-500',
-  urgent: 'bg-rose-500',
-  info: 'bg-indigo-500',
-  special: 'bg-violet-500',
-  neutral: 'bg-gray-400',
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

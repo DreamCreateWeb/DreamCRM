@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
-import type { Tone } from '@/lib/ui/encodings'
+import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { GBP_POST_TYPE_LABELS, type SocialPostView, type SocialPostTargetView, type GbpPostStatus } from '@/lib/types/zernio'
 import { deleteSocialPostAction } from './actions'
 
@@ -182,15 +182,6 @@ function TargetChip({ target }: { target: SocialPostTargetView }) {
       {inner}
     </span>
   )
-}
-
-const TONE_DOT: Record<Tone, string> = {
-  ok: 'bg-emerald-500',
-  warn: 'bg-amber-500',
-  urgent: 'bg-rose-500',
-  info: 'bg-indigo-500',
-  special: 'bg-violet-500',
-  neutral: 'bg-gray-400',
 }
 
 const CTA_DISPLAY: Record<string, string> = {
