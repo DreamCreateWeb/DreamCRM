@@ -5,6 +5,7 @@ import { getTenantContext } from '@/lib/auth/context'
 import { getInboxStats } from '@/lib/services/patient-messaging'
 import { getLeadCounts } from '@/lib/services/leads'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
+import { getGoogleReviewStats } from '@/lib/services/google-reviews'
 
 /**
  * GET /api/nav-badges
@@ -30,6 +31,9 @@ import { countFollowupsDue } from '@/lib/services/patient-followups'
  *   - appointments: unconfirmed scheduled visits in the next 48h — the most
  *               time-critical Daily signal (the first Overview attention card).
  *               A true state count that drops as visits get confirmed.
+ *   - reviews:  synced Google reviews still awaiting an owner reply — a true
+ *               state count that drops as the clinic replies (like followups,
+ *               no `*Since` model). 0 when no Google Business Profile is linked.
  *
  * The `*Since` params let the sidebar reset the leads/shop badge the moment you
  * open that module, then tick it back up only for genuinely new arrivals —
@@ -41,9 +45,10 @@ export interface NavBadgeCounts {
   shop: number
   followups: number
   appointments: number
+  reviews: number
 }
 
-const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0 }
+const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0, reviews: 0 }
 
 /** Parse an epoch-ms query param into a Date, or null if absent/invalid. */
 function parseSince(raw: string | null): Date | null {
@@ -70,7 +75,7 @@ export async function GET(req: Request) {
 
   // Each count is independent + best-effort — one failing query (e.g. shop
   // tables absent) must not blank out the others. Settle all, default to 0.
-  const [messages, leads, shop, followups, appointments] = await Promise.all([
+  const [messages, leads, shop, followups, appointments, reviews] = await Promise.all([
     getInboxStats(orgId, ctx.userId)
       .then((s) => s.unread)
       .catch(() => 0),
@@ -78,9 +83,12 @@ export async function GET(req: Request) {
     countUnfulfilledPaidOrders(orgId, shopSince).catch(() => 0),
     countFollowupsDue(orgId).catch(() => 0),
     countUnconfirmedNext48h(orgId).catch(() => 0),
+    getGoogleReviewStats(orgId)
+      .then((s) => s.needsReply)
+      .catch(() => 0),
   ])
 
-  const body: NavBadgeCounts = { messages, leads, shop, followups, appointments }
+  const body: NavBadgeCounts = { messages, leads, shop, followups, appointments, reviews }
   return NextResponse.json(body, { headers: { 'Cache-Control': 'no-store' } })
 }
 

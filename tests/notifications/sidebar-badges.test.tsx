@@ -31,6 +31,7 @@ const MODULES: ModuleDef[] = [
   { id: 'followups', path: '/followups', label: 'Follow-ups', section: 'Daily', icon: 'check', status: 'live' },
   { id: 'leads', path: '/leads', label: 'Leads', section: 'Daily', icon: 'megaphone', status: 'live' },
   { id: 'shop', path: '/shop', label: 'Shop', section: 'Business', icon: 'bag', status: 'live' },
+  { id: 'reviews', path: '/reviews', label: 'Reviews', section: 'Growth', icon: 'star', status: 'live' },
 ]
 
 const fetchMock = vi.fn()
@@ -65,6 +66,14 @@ describe('TenantSidebar badges', () => {
     render(<TenantSidebar modules={MODULES} tenantType="clinic" />)
     await waitFor(() => {
       expect(screen.getByLabelText(/6 items need attention/i)).toHaveTextContent('6')
+    })
+  })
+
+  it('renders a Reviews pill from the reviews-need-reply count', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ messages: 0, leads: 0, shop: 0, reviews: 4 }))
+    render(<TenantSidebar modules={MODULES} tenantType="clinic" />)
+    await waitFor(() => {
+      expect(screen.getByLabelText(/4 items need attention/i)).toHaveTextContent('4')
     })
   })
 
