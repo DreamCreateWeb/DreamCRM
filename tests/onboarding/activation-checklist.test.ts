@@ -13,6 +13,7 @@ const state = {
   hasReviewConfig: false,
   hasPms: false,
   hasProduct: false,
+  hasChannel: false,
   memberCount: 1,
   onboardingRow: null as Record<string, unknown> | null,
 }
@@ -21,7 +22,7 @@ const upserts: Array<Record<string, unknown>> = []
 
 vi.mock('@/lib/db', async () => {
   const { clinicProfile } = await import('@/lib/db/schema/platform')
-  const { patient, clinicReviewConfig, pmsConnection, shopProduct, staffOnboarding } =
+  const { patient, clinicReviewConfig, pmsConnection, shopProduct, staffOnboarding, zernioAccount } =
     await import('@/lib/db/schema/clinic')
   const { emailAccount } = await import('@/lib/db/schema/email')
   const { member } = await import('@/lib/db/schema/auth')
@@ -34,6 +35,7 @@ vi.mock('@/lib/db', async () => {
     if (table === clinicReviewConfig) return state.hasReviewConfig ? [{ id: 'org' }] : []
     if (table === pmsConnection) return state.hasPms ? [{ id: 'org' }] : []
     if (table === shopProduct) return state.hasProduct ? [{ id: 's1' }] : []
+    if (table === zernioAccount) return state.hasChannel ? [{ id: 'z1' }] : []
     if (table === member) return [{ count: state.memberCount }]
     if (table === staffOnboarding) return state.onboardingRow ? [state.onboardingRow] : []
     return []
@@ -73,6 +75,7 @@ beforeEach(() => {
   state.hasReviewConfig = false
   state.hasPms = false
   state.hasProduct = false
+  state.hasChannel = false
   state.memberCount = 1
   state.onboardingRow = null
   upserts.length = 0
@@ -86,6 +89,7 @@ describe('getActivationChecklist', () => {
     const ids = list.tasks.map((t) => t.id)
     expect(ids).toContain('brand_website')
     expect(ids).toContain('invite_team')
+    expect(ids).toContain('connect_social') // no minPlan — every clinic gets nudged
     expect(ids).not.toContain('add_patients') // pro task
     expect(ids).not.toContain('connect_pms') // premium task
   })
@@ -117,10 +121,17 @@ describe('getActivationChecklist', () => {
     expect(byId.portal_setup).toBe(true)
     expect(byId.reviews_setup).toBe(true)
     expect(byId.connect_inbox).toBe(false)
+    expect(byId.connect_social).toBe(false) // no channel connected
     expect(byId.connect_pms).toBe(false)
     expect(byId.open_shop).toBe(false)
     expect(list.doneCount).toBe(7)
     expect(list.allDone).toBe(false)
+  })
+
+  it('connect_social ticks once any channel (GBP or social) is connected', async () => {
+    state.hasChannel = true
+    const list = await getActivationChecklist('org_1', 'premium')
+    expect(list.tasks.find((t) => t.id === 'connect_social')?.done).toBe(true)
   })
 
   it('allDone flips when every signal is present', async () => {
@@ -136,6 +147,7 @@ describe('getActivationChecklist', () => {
     state.hasReviewConfig = true
     state.hasPms = true
     state.hasProduct = true
+    state.hasChannel = true
     state.memberCount = 2
     const list = await getActivationChecklist('org_1', 'premium')
     expect(list.allDone).toBe(true)

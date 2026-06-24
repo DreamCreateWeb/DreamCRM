@@ -57,3 +57,24 @@ export async function deleteSocialPostAction(postId: string): Promise<{ ok: bool
     return { ok: false, error: (e as Error).message }
   }
 }
+
+/**
+ * Re-pull the org's connected Zernio accounts (all platforms) and persist them,
+ * then refresh /social-posts. The in-place Connect-channels cards call this on
+ * window focus after a connect attempt + via a Refresh button, so a connection
+ * completed on the platform's own page (Zernio's default return target) is
+ * detected when the clinic tabs back here — without sending them to
+ * /integrations. Demo-safe (the service short-circuits on a demo connection).
+ */
+export async function refreshChannelsAction(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const ctx = await requireTenant()
+    ensureSocialPostAdmin(ctx)
+    const { syncConnectedAccounts } = await import('@/lib/services/zernio')
+    await syncConnectedAccounts(ctx.organizationId)
+    revalidatePath('/social-posts')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}

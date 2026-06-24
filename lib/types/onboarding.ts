@@ -71,6 +71,12 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
     href: '/settings/team',
   },
   {
+    id: 'connect_social',
+    label: 'Connect your social channels',
+    body: 'Link your Google Business and social accounts, then one post reaches them all.',
+    href: '/social-posts',
+  },
+  {
     id: 'add_patients',
     label: 'Add your first patients',
     body: 'Add a few by hand, or connect your PMS later and they sync in on their own.',

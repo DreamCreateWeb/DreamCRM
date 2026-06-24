@@ -144,6 +144,7 @@ export async function getActivationChecklist(
     hasReviewConfig,
     hasPms,
     hasProduct,
+    hasChannel,
     memberCountRow,
   ] = await Promise.all([
     exists(
@@ -181,6 +182,16 @@ export async function getActivationChecklist(
         .where(eq(schema.shopProduct.organizationId, organizationId))
         .limit(1),
     ),
+    // Any connected channel (Google Business OR a social account) ticks the
+    // "connect your social channels" task — it derives from real data, so it
+    // can't lie and self-completes the moment a connection lands.
+    exists(
+      db
+        .select({ id: schema.zernioAccount.id })
+        .from(schema.zernioAccount)
+        .where(eq(schema.zernioAccount.organizationId, organizationId))
+        .limit(1),
+    ),
     db
       .select({ count: sql<number>`count(*)` })
       .from(schema.member)
@@ -195,6 +206,7 @@ export async function getActivationChecklist(
     add_team: staffArr.length > 0,
     set_hours: profileRow?.hours != null,
     invite_team: memberCount > 1,
+    connect_social: hasChannel,
     add_patients: hasPatient,
     connect_inbox: hasInbox,
     portal_setup: profileRow?.portalSettings != null,

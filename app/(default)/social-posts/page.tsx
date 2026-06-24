@@ -1,14 +1,21 @@
 import { redirect } from 'next/navigation'
+import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
+import { db, schema } from '@/lib/db'
 import { getComposerChannels, listSocialPosts } from '@/lib/services/social-posts'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
+import { canConnectSocialPlatform } from '@/lib/services/social-billing'
+import { zernioConfigured } from '@/lib/zernio'
+import { getPlanById, socialAddonConfigured } from '@/lib/stripe-config'
+import { socialAddonAvailable, socialAddonPriceCents } from '@/lib/types/social-entitlements'
+import type { PlanTier } from '@/lib/modules/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
-import { EmptyState } from '@/components/ui/empty-state'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import ModuleHint from '@/components/onboarding/module-hint'
 import Composer from './composer'
 import PostsView from './posts-view'
+import ConnectChannels, { type ConnectChannelsProps } from './connect-channels'
 
 export const metadata = {
   title: 'Social Posts - DreamCRM',
@@ -23,7 +30,8 @@ export const dynamic = 'force-dynamic'
  * (Instagram / Facebook / TikTok / YouTube / LinkedIn), with a content calendar.
  * Clinic + owner/admin on ANY plan — posting to a channel just requires it to be
  * CONNECTED (the social-connection cap is enforced at connect-time on
- * /integrations). No channels connected → a calm connect-prompt to /integrations.
+ * /integrations). Nothing connected → an in-place connect surface right here so
+ * a new clinic links its real accounts without hunting through the marketplace.
  *
  * Honest by design: per-post insights are deprecated on Google and not yet
  * pulled for the socials, so the history/calendar show publish STATUS +
@@ -36,9 +44,19 @@ export default async function SocialPostsPage() {
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   // NO plan gate — posting is gated by what's connected (owner/admin + clinic).
 
-  const [channels, posts] = await Promise.all([
+  const planTier = ctx.planTier as PlanTier
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin'
+
+  const [channels, posts, cap, profileRow] = await Promise.all([
     getComposerChannels(ctx.organizationId),
     listSocialPosts(ctx.organizationId),
+    canConnectSocialPlatform(ctx.organizationId),
+    db
+      .select({ socialAddon: schema.clinicProfile.socialAddon })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, ctx.organizationId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
   ])
 
   // Resolve the clinic's /book URL so the composer can default the Book CTA.
@@ -49,6 +67,22 @@ export default async function SocialPostsPage() {
   }
 
   const connected = channels.length > 0
+
+  // Props for the in-place connect surface (cap + add-on + which platforms are
+  // already linked, with their handles).
+  const addonCents = socialAddonPriceCents(planTier)
+  const connectProps: Omit<ConnectChannelsProps, 'variant'> = {
+    connected: channels.map((c) => c.platform),
+    handles: Object.fromEntries(channels.map((c) => [c.platform, c.handle])),
+    cap: { allowed: cap.allowed, limit: cap.limit, current: cap.current },
+    planName: getPlanById(planTier)?.name ?? planTier,
+    addonAvailable: socialAddonAvailable(planTier),
+    addonActive: profileRow?.socialAddon === 1,
+    addonPriceDollars: addonCents != null ? Math.round(addonCents / 100) : null,
+    addonConfigured: socialAddonConfigured(),
+    zernioConfigured: zernioConfigured(),
+    canManage,
+  }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
@@ -86,18 +120,10 @@ export default async function SocialPostsPage() {
       />
 
       {!connected ? (
-        <EmptyState
-          icon="📣"
-          title="Connect a channel to start posting"
-          body="Link your Google Business Profile and social channels, and you can publish Updates, Offers, and Events to all of them from here."
-          action={
-            <ActionButton variant="primary" size="sm" href="/integrations">
-              Connect channels
-            </ActionButton>
-          }
-        />
+        <ConnectChannels variant="hero" {...connectProps} />
       ) : (
         <div className="space-y-6">
+          <ConnectChannels variant="add" {...connectProps} />
           <Composer channels={channels} bookUrl={bookUrl} clinicName={ctx.organizationName} />
           <PostsView posts={posts} channels={channels} clinicName={ctx.organizationName} />
         </div>
