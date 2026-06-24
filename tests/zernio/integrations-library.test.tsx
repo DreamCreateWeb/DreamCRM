@@ -21,11 +21,13 @@ import { render, screen, within, fireEvent } from '@testing-library/react'
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }))
+const simulateConnect = vi.fn(async () => ({ ok: true }))
 vi.mock('@/app/(default)/integrations/actions', () => ({
   syncZernioAccountsAction: vi.fn(async () => ({ ok: true })),
   disconnectChannelAction: vi.fn(async () => ({ ok: true })),
   buySocialAddonAction: vi.fn(async () => ({ ok: true })),
   cancelSocialAddonAction: vi.fn(async () => ({ ok: true })),
+  simulateDemoConnectAction: (...a: unknown[]) => simulateConnect(...(a as [])),
 }))
 
 import IntegrationsLibrary, { type IntegrationsLibraryProps } from '@/app/(default)/integrations/integrations-library'
@@ -70,6 +72,7 @@ function props(
     justConnected: null,
     atLimit: null,
     routeError: null,
+    isDemo: false,
     ...overrides,
   }
 }
@@ -470,5 +473,15 @@ describe('IntegrationsLibrary — flashes + config', () => {
     render(<IntegrationsLibrary {...props({ zernioConfigured: false }, state)} />)
     expect(screen.getByText(/aren.t enabled on this DreamCRM instance/i)).toBeTruthy()
     expect(screen.queryByRole('link', { name: /Connect Google Business/i })).toBeNull()
+  })
+})
+
+describe('IntegrationsLibrary — demo mode simulates connect in place', () => {
+  it('Google Business connect is an in-place button that simulates (no new-tab OAuth link)', () => {
+    render(<IntegrationsLibrary {...props({ isDemo: true })} />)
+    // No real-OAuth link in demo — the control is an in-place button.
+    expect(screen.queryByRole('link', { name: /Connect Google Business/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Connect Google Business/i }))
+    expect(simulateConnect).toHaveBeenCalledWith('googlebusiness')
   })
 })

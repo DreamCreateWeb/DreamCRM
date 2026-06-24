@@ -161,6 +161,29 @@ export async function syncZernioAccountsAction(): Promise<ZernioSyncResult> {
  *  re-sync. */
 export const refreshChannelsAction = syncZernioAccountsAction
 
+/**
+ * DEMO-ONLY: "connect" a channel in the demo by seeding its synthetic connected
+ * account — no real OAuth, no network. A platform admin exploring the demo can't
+ * authorize a real Google/social account into the synthetic demo clinic, so the
+ * connect buttons simulate the result instead of bouncing off a dead OAuth.
+ * Refuses outside demo mode and never touches a real connection.
+ */
+export async function simulateDemoConnectAction(platform: string): Promise<ZernioSyncResult> {
+  try {
+    const ctx = await requireTenant()
+    ensureClinicChannelsAdmin(ctx)
+    if (!ctx.isDemo) return { ok: false, error: 'This is only available while viewing the demo.' }
+    if (!isConnectablePlatform(platform)) return { ok: false, error: 'That platform can’t be connected.' }
+    const { simulateDemoConnect } = await import('@/lib/services/zernio')
+    await simulateDemoConnect(ctx.organizationId, platform as ZernioPlatform)
+    revalidatePath('/integrations')
+    revalidatePath('/social-posts')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
 /** Disconnect Google Business for this clinic (best-effort at Zernio, always
  *  drops our rows). Thin wrapper over the generic per-platform disconnect. */
 export async function disconnectZernioGoogleAction(): Promise<ZernioSyncResult> {

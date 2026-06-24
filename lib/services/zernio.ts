@@ -437,3 +437,43 @@ export async function seedDemoZernio(organizationId: string, displayName = 'Drea
 /** The query-string flag the connect-return path / callback uses. Re-exported
  *  here so route + UI code import it from one place. */
 export { ZERNIO_CONNECTED_QS }
+
+/** Synthetic connected account per platform for the demo (never real Zernio ids).
+ *  GBP + the two pre-seeded socials reuse their seeded identities; any other
+ *  shortlisted platform the admin "connects" in the demo gets a stable synthetic. */
+function demoAccountFor(platform: ZernioPlatform): { id: string; username: string; displayName: string } {
+  if (platform === GOOGLE_BUSINESS) {
+    return { id: DEMO_GBP_ACCOUNT_ID, username: 'dream-dental-austin', displayName: 'Dream Dental' }
+  }
+  const seeded = DEMO_SOCIAL_ACCOUNTS.find((a) => a.platform === platform)
+  if (seeded) return { id: seeded.id, username: seeded.username, displayName: seeded.displayName }
+  return { id: `demo_${platform}_dream_dental`, username: '@dreamdental', displayName: 'Dream Dental' }
+}
+
+/**
+ * Simulate connecting a platform in DEMO mode. A platform admin exploring the
+ * demo can't run a real OAuth (the demo clinic is synthetic + "demo connections
+ * never touch the network"), so a real connect attempt bounces. Instead we seed
+ * the synthetic CONNECTED account for that platform — no network — so the demo
+ * instantly shows the connected state, exactly as if they'd authorized.
+ *
+ * GUARD: only ever acts on a DEMO connection (isDemo). It refuses to touch a real
+ * connection, so it can never fabricate a real clinic's channel. Idempotent.
+ */
+export async function simulateDemoConnect(orgId: string, platform: ZernioPlatform): Promise<void> {
+  const conn = await getConnectionRow(orgId)
+  if (conn && conn.isDemo !== 1) return // a REAL connection — never simulate
+  if (!conn) {
+    await db
+      .insert(schema.zernioConnection)
+      .values({ organizationId: orgId, zernioProfileId: 'demo_profile', status: 'connected', isDemo: 1 })
+      .onConflictDoNothing()
+  } else if (conn.status !== 'connected') {
+    await upsertConnection(orgId, { status: 'connected', lastError: null, isDemo: 1 })
+  }
+  const a = demoAccountFor(platform)
+  await db
+    .insert(schema.zernioAccount)
+    .values({ id: a.id, organizationId: orgId, platform, accountId: a.id, username: a.username, displayName: a.displayName })
+    .onConflictDoNothing()
+}

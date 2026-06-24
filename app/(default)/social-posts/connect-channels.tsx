@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
 import { BrandLogoWell, type BrandLogoId } from '@/components/integrations/brand-logos'
 import { refreshChannelsAction } from './actions'
-import { buySocialAddonAction } from '@/app/(default)/integrations/actions'
+import { buySocialAddonAction, simulateDemoConnectAction } from '@/app/(default)/integrations/actions'
 
 /**
  * In-place "connect your channels" surface for the Social Posts module — so a
@@ -55,6 +55,8 @@ export interface ConnectChannelsProps {
   zernioConfigured: boolean
   /** Owner/admin — only they can connect. */
   canManage: boolean
+  /** Viewing the demo clinic — connect is SIMULATED (no real OAuth). */
+  isDemo: boolean
 }
 
 export default function ConnectChannels(props: ConnectChannelsProps) {
@@ -88,6 +90,17 @@ export default function ConnectChannels(props: ConnectChannelsProps) {
     awaiting.current = true
   }
 
+  // Demo: "connect" simulates (seeds the synthetic connected account) in place —
+  // no new tab, no network — so the showcase flips to connected instantly.
+  function simulate(platform: string) {
+    setError(null)
+    start(async () => {
+      const r = await simulateDemoConnectAction(platform)
+      if (!r.ok) setError(r.error ?? 'Could not connect.')
+      router.refresh()
+    })
+  }
+
   useEffect(() => {
     function onFocus() {
       if (awaiting.current && !pending) {
@@ -100,7 +113,7 @@ export default function ConnectChannels(props: ConnectChannelsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending])
 
-  const handlers: CardHandlers = { ...props, pending, onConnectClick, onBuyAddon: buyAddon, onRefresh: refresh }
+  const handlers: CardHandlers = { ...props, pending, onConnectClick, onBuyAddon: buyAddon, onRefresh: refresh, onSimulate: simulate }
 
   // ── "add" variant: a slim strip that expands the connect grid ──────────────
   if (variant === 'add') {
@@ -187,6 +200,8 @@ interface CardHandlers extends ConnectChannelsProps {
   onConnectClick: () => void
   onBuyAddon: () => void
   onRefresh: () => void
+  /** Demo-only: simulate connecting the platform (no real OAuth). */
+  onSimulate: (platform: string) => void
 }
 
 function ChannelGrid({
@@ -265,6 +280,20 @@ function ConnectButton({
   // Members can't connect — surface a calm note instead of a dead button.
   if (!handlers.canManage) {
     return <span className="text-[11px] text-gray-400 mt-1">Owner/admin only</span>
+  }
+  // Demo: simulate in place (no new tab / no real OAuth).
+  if (handlers.isDemo) {
+    return (
+      <button
+        type="button"
+        onClick={() => handlers.onSimulate(channel.id)}
+        disabled={handlers.pending}
+        aria-label={`Connect ${channel.name}`}
+        className={`${primary ? BTN_PRIMARY : BTN_SECONDARY} mt-1`}
+      >
+        {handlers.pending ? 'Connecting…' : 'Connect'}
+      </button>
+    )
   }
   return (
     <a

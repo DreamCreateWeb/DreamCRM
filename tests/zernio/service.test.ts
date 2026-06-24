@@ -167,6 +167,7 @@ import {
   getZernioConnection,
   disconnectPlatform,
   seedDemoZernio,
+  simulateDemoConnect,
 } from '@/lib/services/zernio'
 
 beforeEach(() => {
@@ -461,5 +462,38 @@ describe('seedDemoZernio', () => {
     await seedDemoZernio('org_demo')
     expect(store.connections['org_demo'].zernioProfileId).toBe('real')
     expect(store.accounts).toHaveLength(0)
+  })
+})
+
+describe('simulateDemoConnect', () => {
+  it('seeds the synthetic connected account for the platform (no network)', async () => {
+    store.connections['org_demo'] = { organizationId: 'org_demo', isDemo: 1, status: 'connected', zernioProfileId: 'demo_profile' }
+    await simulateDemoConnect('org_demo', 'youtube')
+    const yt = store.accounts.find((a) => a.platform === 'youtube')
+    expect(yt).toBeTruthy()
+    expect(store.connections['org_demo'].status).toBe('connected')
+    expect(z.getConnectUrl).not.toHaveBeenCalled()
+    expect(z.createProfile).not.toHaveBeenCalled()
+  })
+
+  it('re-connects a demo connection that was disconnected, then seeds the account', async () => {
+    store.connections['org_demo'] = { organizationId: 'org_demo', isDemo: 1, status: 'disconnected', zernioProfileId: 'demo_profile' }
+    await simulateDemoConnect('org_demo', 'linkedin')
+    expect(store.connections['org_demo'].status).toBe('connected')
+    expect(store.accounts.find((a) => a.platform === 'linkedin')).toBeTruthy()
+  })
+
+  it('reuses the pre-seeded GBP identity (idempotent — no duplicate)', async () => {
+    store.connections['org_demo'] = { organizationId: 'org_demo', isDemo: 1, status: 'connected', zernioProfileId: 'demo_profile' }
+    await simulateDemoConnect('org_demo', 'googlebusiness')
+    await simulateDemoConnect('org_demo', 'googlebusiness')
+    expect(store.accounts.filter((a) => a.platform === 'googlebusiness')).toHaveLength(1)
+  })
+
+  it('REFUSES to touch a real (non-demo) connection — never fabricates a real channel', async () => {
+    store.connections['org_real'] = { organizationId: 'org_real', isDemo: 0, status: 'disconnected', zernioProfileId: 'real' }
+    await simulateDemoConnect('org_real', 'instagram')
+    expect(store.accounts).toHaveLength(0)
+    expect(store.connections['org_real'].status).toBe('disconnected')
   })
 })

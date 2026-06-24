@@ -22,6 +22,7 @@ import {
   disconnectChannelAction,
   buySocialAddonAction,
   cancelSocialAddonAction,
+  simulateDemoConnectAction,
 } from './actions'
 
 /**
@@ -80,6 +81,8 @@ export interface IntegrationsLibraryProps {
   atLimit: ZernioPlatform | null
   /** A connect/sync error message surfaced by the route, or null. */
   routeError: string | null
+  /** Viewing the demo clinic — connect is SIMULATED (no real OAuth / new tab). */
+  isDemo: boolean
 }
 
 export default function IntegrationsLibrary({
@@ -92,6 +95,7 @@ export default function IntegrationsLibrary({
   justConnected,
   atLimit,
   routeError,
+  isDemo,
 }: IntegrationsLibraryProps) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -143,6 +147,17 @@ export default function IntegrationsLibrary({
     awaitingConnect.current = true
   }
 
+  // Demo: "connect" simulates the connection in place (no real OAuth / new tab)
+  // by seeding the synthetic connected account, then refreshes to show it.
+  function simulateConnect(platform: string) {
+    setError(null)
+    start(async () => {
+      const r = await simulateDemoConnectAction(platform)
+      if (!r.ok) setError(r.error ?? 'Could not connect.')
+      router.refresh()
+    })
+  }
+
   // Re-sync when the tab regains focus after a connect attempt. Cheap + best-effort.
   useEffect(() => {
     function onFocus() {
@@ -162,6 +177,8 @@ export default function IntegrationsLibrary({
     onRefresh: refresh,
     onDisconnect: disconnect,
     onBuyAddon: buyAddon,
+    onSimulateConnect: simulateConnect,
+    isDemo,
     oauthConnectHrefs,
     capAllowed: cap.allowed,
     addonAvailable: entitlement.addonAvailable,
@@ -587,6 +604,10 @@ interface CardHandlers {
   onRefresh: () => void
   onDisconnect: (platform: string) => void
   onBuyAddon: () => void
+  /** Demo-only: simulate connecting the platform (no real OAuth). */
+  onSimulateConnect: (platform: string) => void
+  /** Viewing the demo clinic. */
+  isDemo: boolean
   /** First-party OAuth connect URLs (Gmail / Stripe Connect) keyed by def id. */
   oauthConnectHrefs: Record<string, string>
   capAllowed: boolean
@@ -779,6 +800,20 @@ function DisconnectedActions({
     // Available — connect via hosted OAuth in a new tab. GBP gets the louder
     // primary; social channels get a secondary (cap-bounded).
     const isGbp = def.id === 'googlebusiness'
+    // Demo: connect is SIMULATED in place (no new tab / OAuth) — clicking it just
+    // seeds the synthetic connected account so the demo flips to connected.
+    if (handlers.isDemo) {
+      return (
+        <ActionButton
+          variant={isGbp ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={() => handlers.onSimulateConnect(def.id)}
+          disabled={handlers.pending}
+        >
+          {handlers.pending ? 'Connecting…' : isGbp ? 'Connect Google Business' : 'Connect'}
+        </ActionButton>
+      )
+    }
     return (
       <div className="flex flex-wrap items-center gap-2">
         <ActionButton

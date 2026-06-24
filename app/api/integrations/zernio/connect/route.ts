@@ -69,6 +69,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // DEMO mode: a platform admin exploring the demo can't run a real OAuth into
+  // the synthetic demo clinic, so simulate the connection (seed the synthetic
+  // connected account — no network) and return to where they clicked. Without
+  // this the real-OAuth attempt below bounces off the demo's fake profile and
+  // "nothing happens".
+  if (ctx.isDemo) {
+    const { simulateDemoConnect } = await import('@/lib/services/zernio')
+    await simulateDemoConnect(ctx.organizationId, requested)
+    const referer = req.headers.get('referer') ?? ''
+    const backPath = referer.includes('/social-posts') ? '/social-posts' : '/integrations'
+    const url = new URL(backPath, appBase(req))
+    url.searchParams.set('connected', requested)
+    return NextResponse.redirect(url)
+  }
+
   const redirectUrl = `${appBase(req)}/api/integrations/zernio/callback?platform=${requested}`
   try {
     const authUrl = await getPlatformConnectUrl(ctx.organizationId, ctx.organizationName, requested, redirectUrl)

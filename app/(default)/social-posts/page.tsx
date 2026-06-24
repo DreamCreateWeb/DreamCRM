@@ -82,6 +82,7 @@ export default async function SocialPostsPage() {
     addonConfigured: socialAddonConfigured(),
     zernioConfigured: zernioConfigured(),
     canManage,
+    isDemo: ctx.isDemo,
   }
 
   return (

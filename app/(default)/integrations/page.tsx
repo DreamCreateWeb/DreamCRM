@@ -199,6 +199,7 @@ export default async function IntegrationsPage({
         justConnected={justConnected}
         atLimit={atLimit}
         routeError={one(sp.zernioError)}
+        isDemo={ctx.isDemo}
       />
     </div>
   )

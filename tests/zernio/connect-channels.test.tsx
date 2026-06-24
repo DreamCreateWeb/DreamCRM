@@ -4,11 +4,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }))
 const refreshAction = vi.fn(async () => ({ ok: true }))
 const buyAddon = vi.fn(async () => ({ ok: true }))
+const simulate = vi.fn(async () => ({ ok: true }))
 vi.mock('@/app/(default)/social-posts/actions', () => ({
   refreshChannelsAction: (...a: unknown[]) => refreshAction(...(a as [])),
 }))
 vi.mock('@/app/(default)/integrations/actions', () => ({
   buySocialAddonAction: (...a: unknown[]) => buyAddon(...(a as [])),
+  simulateDemoConnectAction: (...a: unknown[]) => simulate(...(a as [])),
 }))
 
 import ConnectChannels, { type ConnectChannelsProps } from '@/app/(default)/social-posts/connect-channels'
@@ -26,6 +28,7 @@ function props(over: Partial<ConnectChannelsProps> = {}): ConnectChannelsProps {
     addonConfigured: true,
     zernioConfigured: true,
     canManage: true,
+    isDemo: false,
     ...over,
   }
 }
@@ -33,6 +36,7 @@ function props(over: Partial<ConnectChannelsProps> = {}): ConnectChannelsProps {
 beforeEach(() => {
   refreshAction.mockClear()
   buyAddon.mockClear()
+  simulate.mockClear()
 })
 
 describe('ConnectChannels — hero (nothing connected)', () => {
@@ -86,6 +90,17 @@ describe('ConnectChannels — plan cap', () => {
     expect(screen.getByText(/Social posting is on Pro/)).toBeTruthy()
     // Even Basic can post to Google Business.
     expect(screen.getByRole('link', { name: 'Connect Google Business' })).toBeTruthy()
+  })
+})
+
+describe('ConnectChannels — demo mode simulates in place', () => {
+  it('renders Connect as a button (not a new-tab link) and simulates the connection', () => {
+    render(<ConnectChannels {...props({ isDemo: true })} />)
+    // No real-OAuth links in demo — the connect controls are in-place buttons.
+    expect(screen.queryByRole('link', { name: 'Connect Instagram' })).toBeNull()
+    const ig = screen.getByRole('button', { name: 'Connect Instagram' })
+    fireEvent.click(ig)
+    expect(simulate).toHaveBeenCalledWith('instagram')
   })
 })
 

@@ -9,7 +9,7 @@ import { NextRequest } from 'next/server'
  */
 
 const ctx = {
-  value: null as null | { tenantType: string; role: string; planTier: string; organizationId: string; organizationName: string },
+  value: null as null | { tenantType: string; role: string; planTier: string; organizationId: string; organizationName: string; isDemo?: boolean },
 }
 vi.mock('@/lib/auth/context', () => ({
   getTenantContext: vi.fn(async () => ctx.value),
@@ -19,6 +19,7 @@ const env = { configured: true }
 const svc = {
   getPlatformConnectUrl: vi.fn(),
   syncConnectedAccounts: vi.fn(),
+  simulateDemoConnect: vi.fn(),
 }
 const cap = {
   canConnectSocialPlatform: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/lib/zernio', () => ({
 vi.mock('@/lib/services/zernio', () => ({
   getPlatformConnectUrl: (...a: unknown[]) => svc.getPlatformConnectUrl(...a),
   syncConnectedAccounts: (...a: unknown[]) => svc.syncConnectedAccounts(...a),
+  simulateDemoConnect: (...a: unknown[]) => svc.simulateDemoConnect(...a),
 }))
 vi.mock('@/lib/services/social-billing', () => ({
   canConnectSocialPlatform: (...a: unknown[]) => cap.canConnectSocialPlatform(...a),
@@ -47,6 +49,7 @@ beforeEach(() => {
   env.configured = true
   svc.getPlatformConnectUrl.mockReset()
   svc.syncConnectedAccounts.mockReset()
+  svc.simulateDemoConnect.mockReset()
   cap.canConnectSocialPlatform.mockReset()
   // Default: cap allows (overridden per test).
   cap.canConnectSocialPlatform.mockResolvedValue({ allowed: true, limit: 5, current: 2 })
@@ -208,5 +211,18 @@ describe('GET /api/integrations/zernio/callback', () => {
     const res = await callbackGET(req('/api/integrations/zernio/callback'))
     const loc = res.headers.get('location') ?? ''
     expect(loc).toContain('zernioError=')
+  })
+})
+
+describe('GET /api/integrations/zernio/connect — demo mode', () => {
+  it('SIMULATES the connection (no real OAuth) and redirects back connected', async () => {
+    ctx.value = { tenantType: 'clinic', role: 'owner', planTier: 'premium', organizationId: 'org_demo', organizationName: 'Dream Dental', isDemo: true }
+    const res = await connectGET(req('/api/integrations/zernio/connect?platform=googlebusiness'))
+    expect(svc.simulateDemoConnect).toHaveBeenCalledWith('org_demo', 'googlebusiness')
+    // No real OAuth URL is requested in demo.
+    expect(svc.getPlatformConnectUrl).not.toHaveBeenCalled()
+    const loc = res.headers.get('location') ?? ''
+    expect(loc).toContain('/integrations')
+    expect(loc).toContain('connected=googlebusiness')
   })
 })
