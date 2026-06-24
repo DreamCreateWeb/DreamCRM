@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { sendReviewRequestAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
+import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 
 interface EligibleRow {
   patientId: string
@@ -88,13 +90,11 @@ export default function EligibleList({ rows }: Props) {
                   completed {fmtCompletedAt(r.appointmentCompletedAt)}
                 </p>
                 {err && (
-                  <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">{err}</p>
+                  <p className={`text-xs mt-1 ${TONE_TEXT.urgent}`}>{err}</p>
                 )}
               </div>
               {sent ? (
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
-                  ✓ Sent
-                </span>
+                <StatusPill tone="ok" label="✓ Sent" />
               ) : (
                 <ActionButton
                   variant="primary"

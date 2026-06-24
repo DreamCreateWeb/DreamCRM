@@ -208,20 +208,13 @@ export default async function ReviewsPage() {
 
       {/* ── Platform mix ──────────────────────────────────────────── */}
       {stats.completed30d > 0 && (
-        <section className="v2-card mb-8 p-5">
+        <section className="mb-8">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
             Where they reviewed · last 30 days
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(['google', 'healthgrades', 'facebook', 'yelp'] as ReviewSite[]).map((site) => (
-              <div key={site} className="v2-well px-3 py-2">
-                <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
-                  {PLATFORM_LABEL[site]}
-                </p>
-                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 tabular-nums font-mono-num mt-0.5">
-                  {stats.byPlatform[site]}
-                </p>
-              </div>
+              <KpiStat key={site} label={PLATFORM_LABEL[site]} value={stats.byPlatform[site]} />
             ))}
           </div>
         </section>

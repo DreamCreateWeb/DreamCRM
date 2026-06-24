@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { EmptyState } from '@/components/ui/empty-state'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 import { syncFacebookReviewsAction } from '../actions'
 
 export interface FacebookReviewClientRow {
@@ -137,16 +139,18 @@ export default function FacebookReviewsSection({
           {refreshing ? 'Refreshing…' : 'Refresh from Facebook'}
         </ActionButton>
       </div>
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-2">{error}</p>}
+      {error && <p className={`text-xs mb-2 ${TONE_TEXT.urgent}`}>{error}</p>}
       {rows.length === 0 ? (
-        <div className="v2-card p-5">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            No Facebook recommendations synced yet. Click{' '}
-            <span className="font-semibold">Refresh from Facebook</span> to pull the latest, or wait for the hourly
-            sync. Facebook uses a recommend / don&apos;t-recommend model rather than star ratings, so these don&apos;t
-            affect your website&apos;s Google star rating.
-          </p>
-        </div>
+        <EmptyState
+          icon="👍"
+          title="No Facebook recommendations synced yet"
+          body="Pull the latest from Facebook, or wait for the hourly sync. Facebook uses a recommend / don't-recommend model rather than star ratings, so these don't affect your website's Google star rating."
+          action={
+            <ActionButton variant="secondary" size="sm" onClick={refresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing…' : 'Refresh from Facebook'}
+            </ActionButton>
+          }
+        />
       ) : (
         <ul className="space-y-3">
           {rows.map((r) => (

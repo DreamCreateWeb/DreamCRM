@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { EmptyState } from '@/components/ui/empty-state'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   syncGoogleReviewsAction,
   replyToGoogleReviewAction,
@@ -81,19 +83,16 @@ export function GoogleConnectPrompt() {
   return (
     <section className="mb-10">
       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">From Google</h2>
-      <div className="v2-card p-5">
-        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
-          Connect your Google Business Profile to pull in real Google reviews
-        </p>
-        <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 max-w-prose">
-          Once connected, the reviews patients leave on Google show up here — with their star rating and
-          comment — and you can reply right from this page. The rating also powers the star snippet on your
-          public website.
-        </p>
-        <ActionButton variant="primary" size="sm" href="/integrations">
-          Connect Google Business
-        </ActionButton>
-      </div>
+      <EmptyState
+        icon="🔌"
+        title="Connect your Google Business Profile to pull in real Google reviews"
+        body="Once connected, the reviews patients leave on Google show up here — with their star rating and comment — and you can reply right from this page. The rating also powers the star snippet on your public website."
+        action={
+          <ActionButton variant="primary" size="sm" href="/integrations">
+            Connect Google Business
+          </ActionButton>
+        }
+      />
     </section>
   )
 }
@@ -211,7 +210,7 @@ function ReviewCard({ row }: { row: GoogleReviewClientRow }) {
           )}
         </div>
 
-        {error && <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{error}</p>}
+        {error && <p className={`text-xs mt-2 ${TONE_TEXT.urgent}`}>{error}</p>}
       </div>
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </li>
@@ -246,14 +245,18 @@ export default function GoogleReviewsSection({
   return (
     <section className="mb-10">
       <SectionHeader count={count} averageRating={averageRating} onRefresh={refresh} refreshing={refreshing} />
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-2">{error}</p>}
+      {error && <p className={`text-xs mb-2 ${TONE_TEXT.urgent}`}>{error}</p>}
       {rows.length === 0 ? (
-        <div className="v2-card p-5">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            No Google reviews synced yet. Click <span className="font-semibold">Refresh from Google</span> to pull
-            the latest, or wait for the hourly sync.
-          </p>
-        </div>
+        <EmptyState
+          icon="⭐"
+          title="No Google reviews synced yet"
+          body="Pull the latest from Google, or wait for the hourly sync."
+          action={
+            <ActionButton variant="secondary" size="sm" onClick={refresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing…' : 'Refresh from Google'}
+            </ActionButton>
+          }
+        />
       ) : (
         <ul className="space-y-3">
           {rows.map((r) => (
