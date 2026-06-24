@@ -104,7 +104,7 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
 async function searchClinicEntities(orgId: string, q: string): Promise<SearchGroup[]> {
   const pattern = likePattern(q)
 
-  const [patients, leads, visits, threads, shopOrders, applicants, products, reviews] = await Promise.all([
+  const [patients, leads, visits, threads, shopOrders, applicants, products, reviews, campaigns] = await Promise.all([
     db
       .select({
         id: schema.patient.id,
@@ -249,6 +249,23 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         ),
       )
       .limit(3),
+    // Marketing campaigns — by campaign name or email subject line.
+    db
+      .select({
+        id: schema.campaigns.id,
+        name: schema.campaigns.name,
+        subject: schema.campaigns.subject,
+        status: schema.campaigns.status,
+      })
+      .from(schema.campaigns)
+      .where(
+        and(
+          eq(schema.campaigns.organizationId, orgId),
+          or(ilike(schema.campaigns.name, pattern), ilike(schema.campaigns.subject, pattern)),
+        ),
+      )
+      .orderBy(desc(schema.campaigns.createdAt))
+      .limit(4),
   ])
 
   const fmtWhen = (d: Date) =>
@@ -353,6 +370,18 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         sublabel: r.comment ? r.comment.slice(0, 60) : null,
         href: '/reviews/received',
         kind: 'review',
+      })),
+    })
+  }
+  if (campaigns.length > 0) {
+    groups.push({
+      label: 'Campaigns',
+      results: campaigns.map((c) => ({
+        id: `camp-${c.id}`,
+        label: c.name,
+        sublabel: c.subject ? `${c.status} · ${c.subject}` : c.status,
+        href: `/marketing/campaigns/${c.id}`,
+        kind: 'campaign',
       })),
     })
   }

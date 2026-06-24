@@ -19,12 +19,14 @@ const state = {
   applicants: [] as Array<Record<string, unknown>>,
   products: [] as Array<Record<string, unknown>>,
   reviews: [] as Array<Record<string, unknown>>,
+  campaigns: [] as Array<Record<string, unknown>>,
 }
 
 vi.mock('@/lib/db', async () => {
   const { patient, lead, appointment, patientThread, shopOrder, patientView, jobApplication, shopProduct, platformReview } =
     await import('@/lib/db/schema/clinic')
   const { organization } = await import('@/lib/db/schema/auth')
+  const { campaigns } = await import('@/lib/db/schema/domain')
   const schema = await import('@/lib/db/schema')
 
   function rowsFor(table: unknown): unknown[] {
@@ -38,6 +40,7 @@ vi.mock('@/lib/db', async () => {
     if (table === jobApplication) return state.applicants
     if (table === shopProduct) return state.products
     if (table === platformReview) return state.reviews
+    if (table === campaigns) return state.campaigns
     return []
   }
 
@@ -87,6 +90,7 @@ beforeEach(() => {
   state.applicants = []
   state.products = []
   state.reviews = []
+  state.campaigns = []
 })
 
 describe('likePattern', () => {
@@ -169,10 +173,11 @@ describe('globalSearch — querying', () => {
     expect(threads.results[0].href).toBe('/messages?thread=t1')
   })
 
-  it('searches applicants, products, and reviews (new ⌘K coverage)', async () => {
+  it('searches applicants, products, reviews, and campaigns (new ⌘K coverage)', async () => {
     state.applicants = [{ id: 'a1', name: 'Jordan Lee', email: 'jordan@x.com', status: 'new' }]
     state.products = [{ id: 'pr1', name: 'Whitening Kit', status: 'active' }]
     state.reviews = [{ id: 'rv1', reviewerName: 'Happy Patient', comment: 'Great visit and friendly staff.' }]
+    state.campaigns = [{ id: 7, name: 'Reactivation March', subject: 'We miss you', status: 'completed' }]
     const groups = await globalSearch(ctx(), 'jordan')
 
     expect(groups.find((g) => g.label === 'Applicants')!.results[0]).toMatchObject({
@@ -189,6 +194,11 @@ describe('globalSearch — querying', () => {
       label: 'Happy Patient',
       href: '/reviews/received',
       kind: 'review',
+    })
+    expect(groups.find((g) => g.label === 'Campaigns')!.results[0]).toMatchObject({
+      label: 'Reactivation March',
+      href: '/marketing/campaigns/7',
+      kind: 'campaign',
     })
   })
 

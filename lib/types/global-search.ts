@@ -11,6 +11,7 @@ export type SearchResultKind =
   | 'applicant'
   | 'product'
   | 'review'
+  | 'campaign'
 
 export interface SearchResult {
   id: string
