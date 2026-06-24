@@ -106,7 +106,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             {a.acquisition.sourceMix.length === 0 ? (
               <Empty>No new patients in this window.</Empty>
             ) : (
-              <RankBars rows={a.acquisition.sourceMix.map((s) => ({ label: humanize(s.source), value: s.count }))} />
+              <RankBars rows={a.acquisition.sourceMix.map((s) => ({ label: humanize(s.source), value: s.count, href: `/patients?source=${encodeURIComponent(s.source)}` }))} />
             )}
           </Card>
         </div>
@@ -300,7 +300,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             <Card>
               <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">By booking source</p>
               {a.schedule.bySource.length === 0 ? <Empty>No appointments.</Empty> : (
-                <RankBars rows={a.schedule.bySource.map((s) => ({ label: humanize(s.source), value: s.count }))} compact />
+                <RankBars rows={a.schedule.bySource.map((s) => ({ label: humanize(s.source), value: s.count, href: `/appointments?source=${encodeURIComponent(s.source)}` }))} compact />
               )}
             </Card>
             <Card>
@@ -458,22 +458,31 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
   )
 }
 
-function RankBars({ rows, compact, emptyNote }: { rows: { label: string; value: number }[]; compact?: boolean; emptyNote?: string }) {
+function RankBars({ rows, compact, emptyNote }: { rows: { label: string; value: number; href?: string }[]; compact?: boolean; emptyNote?: string }) {
   if (rows.length === 0) return <Empty>{emptyNote ?? 'Nothing to show yet.'}</Empty>
   const max = Math.max(1, ...rows.map((r) => r.value))
   return (
     <div className={compact ? 'space-y-1.5' : 'space-y-2.5'}>
-      {rows.map((r) => (
-        <div key={r.label}>
-          <div className="flex items-center justify-between text-xs mb-0.5">
-            <span className="text-gray-700 dark:text-gray-200 truncate">{r.label}</span>
-            <span className="tabular-nums font-mono-num font-medium text-gray-500 dark:text-gray-400">{r.value}</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-            <div className="h-full rounded-full bg-teal-500/70 dark:bg-teal-400/60" style={{ width: `${(r.value / max) * 100}%` }} />
-          </div>
-        </div>
-      ))}
+      {rows.map((r) => {
+        const inner = (
+          <>
+            <div className="flex items-center justify-between text-xs mb-0.5">
+              <span className="text-gray-700 dark:text-gray-200 truncate">{r.label}</span>
+              <span className="tabular-nums font-mono-num font-medium text-gray-500 dark:text-gray-400">{r.value}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+              <div className="h-full rounded-full bg-teal-500/70 dark:bg-teal-400/60" style={{ width: `${(r.value / max) * 100}%` }} />
+            </div>
+          </>
+        )
+        return r.href ? (
+          <Link key={r.label} href={r.href} className="block hover:opacity-80 transition-opacity" title={`See the ${r.label} patients`}>
+            {inner}
+          </Link>
+        ) : (
+          <div key={r.label}>{inner}</div>
+        )
+      })}
     </div>
   )
 }

@@ -168,6 +168,19 @@ describe('Won-back retention proof band', () => {
   })
 })
 
+describe('Acquisition + schedule source bars drill to the patients/visits behind them', () => {
+  it('the acquisition source mix links to those patients', async () => {
+    await renderPage('30', baseAnalytics())
+    // "Booking widget" (4 new patients) → the patients filtered by that source.
+    expect(hrefOf(/Booking widget/i)).toContain('/patients?source=booking_widget')
+  })
+
+  it('the schedule by-source bars link to those appointments', async () => {
+    await renderPage('30', baseAnalytics())
+    expect(hrefOf(/Booking widget/i)).toContain('/appointments?source=booking_widget')
+  })
+})
+
 describe('Schedule-health KPIs are drillable', () => {
   it('confirmation rate links to the unconfirmed appointments queue', async () => {
     await renderPage('30', baseAnalytics())
