@@ -18,6 +18,18 @@ import {
   type CreateSocialPostFormInput,
 } from '@/lib/types/zernio'
 import { createSocialPostAction } from './actions'
+import PostPreviews, { type PreviewChannel } from '@/components/social-posts/post-preview'
+import { BrandLogo, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
+
+/** Platform slugs that have a brand-accurate logo (the connectable shortlist). */
+const BRAND_IDS: Record<string, BrandLogoId> = {
+  googlebusiness: 'googlebusiness',
+  instagram: 'instagram',
+  facebook: 'facebook',
+  tiktok: 'tiktok',
+  youtube: 'youtube',
+  linkedin: 'linkedin',
+}
 
 /**
  * Unified multi-platform post composer. Compose once → publish/schedule to one
@@ -33,7 +45,17 @@ import { createSocialPostAction } from './actions'
  * Honest: no per-post metrics are promised (deprecated on Google, not yet
  * pulled for the socials) — the page points to /seo for local GBP performance.
  */
-export default function Composer({ channels, bookUrl }: { channels: ComposerChannel[]; bookUrl: string | null }) {
+export default function Composer({
+  channels,
+  bookUrl,
+  clinicName = '',
+}: {
+  channels: ComposerChannel[]
+  bookUrl: string | null
+  /** Org name — used for the live-preview avatar + Google Business name. Falls
+   *  back to each channel's handle/label when absent (e.g. in tests). */
+  clinicName?: string
+}) {
   const router = useRouter()
   const [pending, start] = useTransition()
 
@@ -189,9 +211,28 @@ export default function Composer({ channels, bookUrl }: { channels: ComposerChan
       ? 'text-amber-600 dark:text-amber-400'
       : 'text-gray-400'
 
+  // The live-preview feed reads the same state the form edits — true WYSIWYG.
+  const previewChannels: PreviewChannel[] = channels
+    .filter((c) => selected.has(c.accountId))
+    .map((c) => ({ accountId: c.accountId, platform: c.platform, label: c.label, handle: c.handle }))
+  const previewContent = {
+    summary,
+    imageUrl,
+    clinicName,
+    postType: (targetsGbp ? postType : 'standard') as GbpPostType,
+    ctaLabel: targetsGbp && ctaType ? GBP_CTA_LABELS[ctaType] : null,
+    eventTitle,
+    eventStartLabel: targetsGbp && postType === 'event' && eventStartAt ? fmtEventStart(eventStartAt) : null,
+    offerCouponCode,
+  }
+
   return (
     <div className="v2-panel p-5">
       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Compose a post</h2>
+
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] gap-6 lg:gap-8 items-start">
+        {/* ── Compose (left) ─────────────────────────────────────────────── */}
+        <div className="min-w-0">
 
       {/* Channel picker */}
       <div className="mb-4">
@@ -199,6 +240,8 @@ export default function Composer({ channels, bookUrl }: { channels: ComposerChan
         <div className="flex flex-wrap gap-2" role="group" aria-label="Channels">
           {channels.map((ch) => {
             const on = selected.has(ch.accountId)
+            const logoId = BRAND_IDS[ch.platform]
+            const accent = logoId ? BRAND_ACCENTS[logoId] : null
             return (
               <button
                 key={ch.accountId}
@@ -206,14 +249,38 @@ export default function Composer({ channels, bookUrl }: { channels: ComposerChan
                 onClick={() => toggleChannel(ch.accountId)}
                 aria-pressed={on}
                 title={ch.handle ?? ch.label}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium transition border ${
+                className={`group inline-flex items-center gap-2 rounded-full pl-2.5 pr-3 py-1.5 text-[13px] font-medium transition border ${
                   on
-                    ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                    ? 'text-gray-900 dark:text-gray-50 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
+                style={on && accent ? { borderColor: accent, backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)` } : undefined}
               >
-                <span aria-hidden="true">{ch.icon}</span>
+                {logoId ? (
+                  <BrandLogo
+                    id={logoId}
+                    size={18}
+                    className={on ? '' : 'opacity-50 grayscale transition group-hover:opacity-90 group-hover:grayscale-0'}
+                  />
+                ) : (
+                  <span aria-hidden="true">{ch.icon}</span>
+                )}
                 {ch.label}
+                {on && (
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 16 16"
+                    className="shrink-0"
+                    style={{ color: accent ?? undefined }}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
               </button>
             )
           })}
@@ -456,6 +523,13 @@ export default function Composer({ channels, bookUrl }: { channels: ComposerChan
           {success}
         </p>
       )}
+        </div>
+
+        {/* ── Live preview (right) ───────────────────────────────────────── */}
+        <div className="lg:sticky lg:top-4">
+          <PostPreviews channels={previewChannels} content={previewContent} />
+        </div>
+      </div>
     </div>
   )
 }
@@ -479,4 +553,11 @@ function toIso(local: string): string | null {
   if (!local) return null
   const d = new Date(local)
   return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+/** Friendly label for the GBP event-start preview ("Jun 20, 2:00 PM"). */
+function fmtEventStart(local: string): string | null {
+  const d = new Date(local)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }

@@ -98,7 +98,7 @@ export default async function SocialPostsPage() {
         />
       ) : (
         <div className="space-y-6">
-          <Composer channels={channels} bookUrl={bookUrl} />
+          <Composer channels={channels} bookUrl={bookUrl} clinicName={ctx.organizationName} />
           <PostsView posts={posts} />
         </div>
       )}
