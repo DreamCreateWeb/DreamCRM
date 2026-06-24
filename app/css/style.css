@@ -532,6 +532,34 @@
   }
 }
 
+/* Right-side drawer motion, matched to the shared <Drawer> (Headless) so the
+   hand-rolled detail drawers feel identical: panel slides in from the right on
+   --ease-ios; the backdrop fades. Enter is on first paint via @starting-style;
+   exit is driven by a `.is-closing` class the component toggles before it
+   unmounts (see useDrawerExit). */
+.drawer-enter-right {
+  transition: transform var(--dur-base) var(--ease-ios);
+}
+@starting-style {
+  .drawer-enter-right {
+    transform: translateX(100%);
+  }
+}
+.drawer-enter-right.is-closing {
+  transform: translateX(100%);
+}
+.drawer-backdrop-enter {
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+@starting-style {
+  .drawer-backdrop-enter {
+    opacity: 0;
+  }
+}
+.drawer-backdrop-enter.is-closing {
+  opacity: 0;
+}
+
 /* Ambient breath: ~6s compositor-only gradient drift. The brand alive at
    rest — applied to the page's single primary button + the active nav item
    only. Subliminal. Killed under reduced-motion. */
@@ -570,6 +598,18 @@
     .section-enter,
     .slide-up-fast,
     .pop-in {
+      transform: none;
+    }
+  }
+  /* Drawers: no slide under reduced-motion — the panel just appears (the
+     backdrop opacity fade is allowed to stay). */
+  .drawer-enter-right,
+  .drawer-enter-right.is-closing {
+    transition: none;
+    transform: none;
+  }
+  @starting-style {
+    .drawer-enter-right {
       transform: none;
     }
   }

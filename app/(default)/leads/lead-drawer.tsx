@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus } from '@/lib/services/leads'
 import { ActionButton } from '@/components/ui/action-button'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useDrawerExit } from '@/components/ui/use-drawer-exit'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { Tone } from '@/lib/ui/encodings'
@@ -58,6 +59,9 @@ export default function LeadDrawer({
   const router = useRouter()
   const dialogRef = useRef<HTMLDivElement>(null)
   useFocusTrap(true, dialogRef, {}) // keeps the component's own Escape handler
+  // Slide-in/out motion matched to the shared <Drawer>. requestClose plays the
+  // exit before the parent unmounts; ✕ / backdrop / Esc route through it.
+  const { closing, requestClose } = useDrawerExit(onClose)
   const [pending, startTransition] = useTransition()
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
@@ -76,11 +80,11 @@ export default function LeadDrawer({
   // with backdrop-click below for the two standard "dismiss" gestures.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') requestClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [requestClose])
 
   // Run the dedupe dry-run when the drawer opens for an actionable lead
   // (new / contacted). Converted leads already link to their patient; the
@@ -154,8 +158,8 @@ export default function LeadDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px]"
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] drawer-backdrop-enter ${closing ? 'is-closing' : ''}`}
+      onClick={requestClose}
     >
       <div
         ref={dialogRef}
@@ -163,11 +167,11 @@ export default function LeadDrawer({
         aria-modal="true"
         aria-label="Lead"
         onClick={(e) => e.stopPropagation()}
-        className="section-enter bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col"
+        className={`drawer-enter-right ${closing ? 'is-closing' : ''} bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col`}
       >
         <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Lead</h2>
-          <button onClick={onClose} aria-label="Close" title="Close (Esc)" className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors">✕</button>
+          <button onClick={requestClose} aria-label="Close" title="Close (Esc)" className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors">✕</button>
         </div>
 
         <div className="px-5 py-5 space-y-4 flex-1">

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import type { AppointmentDetail } from '@/lib/services/appointments'
 import { appointmentFlagGlyphs, type Tone } from '@/lib/ui/encodings'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useDrawerExit } from '@/components/ui/use-drawer-exit'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
@@ -92,6 +93,9 @@ export default function AppointmentDrawer({
   // captures Tab. Esc stays on the drawer's own handler below.
   const dialogRef = useRef<HTMLDivElement>(null)
   useFocusTrap(!reschedOpen && !rebookOpen, dialogRef)
+  // Slide-in/out motion matched to the shared <Drawer>; ✕ / backdrop / Esc
+  // route through requestClose so the exit plays before the parent unmounts.
+  const { closing, requestClose } = useDrawerExit(onClose)
 
   async function loadDetail() {
     setLoading(true)
@@ -138,11 +142,11 @@ export default function AppointmentDrawer({
   // a sub-drawer is open so Esc dismisses that first.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !reschedOpen && !rebookOpen) onClose()
+      if (e.key === 'Escape' && !reschedOpen && !rebookOpen) requestClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose, reschedOpen, rebookOpen])
+  }, [requestClose, reschedOpen, rebookOpen])
 
   function refresh() {
     router.refresh()
@@ -227,8 +231,8 @@ export default function AppointmentDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px]"
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex justify-end bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] drawer-backdrop-enter ${closing ? 'is-closing' : ''}`}
+      onClick={requestClose}
     >
       <div
         ref={dialogRef}
@@ -236,12 +240,12 @@ export default function AppointmentDrawer({
         aria-modal="true"
         aria-label="Appointment"
         onClick={(e) => e.stopPropagation()}
-        className="bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col"
+        className={`drawer-enter-right ${closing ? 'is-closing' : ''} bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col`}
       >
         <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur px-5 py-3 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
           <h2 className="text-[14px] font-medium text-gray-900 dark:text-gray-100">Appointment</h2>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             title="Close (Esc)"
             aria-label="Close"
             className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"

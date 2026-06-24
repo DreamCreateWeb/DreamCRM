@@ -91,12 +91,14 @@ describe('LeadDrawer — existing-patient hint on open', () => {
 describe('LeadDrawer — dismiss gestures', () => {
   beforeEach(() => previewLeadConvertAction.mockResolvedValue({ ok: false, error: 'n/a' }))
 
-  it('closes on backdrop click', () => {
+  // Closing now plays the slide-out, then calls onClose (a short defer) — so
+  // these await the call rather than asserting it synchronously.
+  it('closes on backdrop click', async () => {
     const onClose = vi.fn()
     const { container } = render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     // The backdrop is the outer fixed-inset overlay.
     fireEvent.click(container.querySelector('.fixed.inset-0')!)
-    expect(onClose).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
   it('does NOT close when clicking inside the panel', () => {
@@ -106,10 +108,10 @@ describe('LeadDrawer — dismiss gestures', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('closes on Escape', () => {
+  it('closes on Escape', async () => {
     const onClose = vi.fn()
     render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(onClose).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 })
