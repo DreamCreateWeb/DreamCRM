@@ -8,7 +8,10 @@ import { useEffect } from 'react'
  */
 const TONE_EDGE = {
   ok: 'border-l-emerald-500',
+  warn: 'border-l-amber-500',
   urgent: 'border-l-rose-500',
+  info: 'border-l-indigo-500',
+  special: 'border-l-violet-500',
   neutral: 'border-l-gray-400 dark:border-l-gray-500',
 } as const
 

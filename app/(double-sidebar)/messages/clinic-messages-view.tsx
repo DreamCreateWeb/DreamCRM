@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { TenantContext } from '@/lib/auth/context'
 import {
@@ -20,6 +19,7 @@ import { listAssignableStaff } from '@/lib/services/patient-followups'
 import { listScheduledForPatient, type ScheduledMessageView } from '@/lib/services/scheduled-messages'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { CHANNEL_LEGEND } from './channel-meta'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
 import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
@@ -163,44 +163,47 @@ export default async function ClinicMessagesView({
           const active = (filters.status ?? 'open') === f.key
           const count = f.key === 'open' ? stats.open : f.key === 'archived' ? stats.archived : null
           return (
-            <NavFilterChip
+            <FilterChip
               key={f.key ?? 'all'}
               href={buildHref(searchParams, { status: f.key, thread: undefined })}
-              label={f.label}
               active={active}
-              count={count}
+              count={count != null && count > 0 ? count : undefined}
               title={STATUS_FILTER_TITLES[f.key ?? 'all']}
-            />
+            >
+              {f.label}
+            </FilterChip>
           )
         })}
         <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" aria-hidden="true" />
         {ASSIGN_FILTERS.map((f) => {
           const active = (filters.assignedTo ?? 'all') === f.key
           return (
-            <NavFilterChip
+            <FilterChip
               key={f.key ?? 'all-assign'}
               href={buildHref(searchParams, { assignedTo: f.key, thread: undefined })}
-              label={f.label}
               active={active}
               title={ASSIGN_FILTER_TITLES[f.key ?? 'all']}
-            />
+            >
+              {f.label}
+            </FilterChip>
           )
         })}
         <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" aria-hidden="true" />
-        <NavFilterChip
+        <FilterChip
           href={buildHref(searchParams, { unread: searchParams.unread === '1' ? undefined : '1', thread: undefined })}
-          label="Unread only"
           active={searchParams.unread === '1'}
-          count={stats.unread || null}
+          count={stats.unread > 0 ? stats.unread : undefined}
           title="Show only threads with messages you haven't read yet"
-        />
-        <NavFilterChip
+        >
+          Unread only
+        </FilterChip>
+        <FilterChip
           href={buildHref(searchParams, { starred: searchParams.starred === '1' ? undefined : '1', thread: undefined })}
-          label="★ Starred"
           active={searchParams.starred === '1'}
-          count={null}
           title="Show only threads you've starred for priority"
-        />
+        >
+          ★ Starred
+        </FilterChip>
         {/* Key affordance — explains the rot border + channel hues. */}
         <div className="ml-auto shrink-0">
           <EncodingLegend
@@ -317,46 +320,6 @@ export default async function ClinicMessagesView({
         </section>
       </div>
     </div>
-  )
-}
-
-/**
- * Link-based filter chip for the navigation-driven thread filters. Mirrors the
- * shared <FilterChip> recipe (components/ui/filter-chip.tsx) visually — same
- * active/inactive treatment, ≥ text-xs, tabular-nums counts — but renders an
- * <a> because filtering here is a server navigation (the page is RSC), not an
- * onClick toggle. Carries `title` so each chip's meaning is hoverable.
- */
-function NavFilterChip({
-  href,
-  label,
-  active,
-  count,
-  title,
-}: {
-  href: string
-  label: string
-  active: boolean
-  count?: number | null
-  title?: string
-}) {
-  // Mirrors the shared <FilterChip> recipe (components/ui/filter-chip.tsx) but
-  // renders an <a> because filtering here is a server navigation, not onClick.
-  // Selection ≠ status: teal tint + teal text + a hairline-strong ring.
-  return (
-    <Link
-      href={href}
-      aria-current={active ? 'true' : undefined}
-      title={title}
-      className={`inline-flex items-center gap-1 rounded-[var(--r-xs)] px-2.5 py-1 text-xs font-medium transition-colors ${
-        active
-          ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
-          : 'bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-      }`}
-    >
-      {label}
-      {count != null && count > 0 && <span className="tabular-nums opacity-70">{count}</span>}
-    </Link>
   )
 }
 
