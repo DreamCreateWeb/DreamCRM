@@ -92,6 +92,7 @@ export async function getRetentionAttribution(
     })
     .from(schema.campaignEvents)
     .innerJoin(schema.campaigns, eq(schema.campaignEvents.campaignId, schema.campaigns.id))
+    .innerJoin(schema.patient, eq(schema.campaignEvents.patientId, schema.patient.id))
     .leftJoin(schema.campaignTemplates, eq(schema.campaigns.templateId, schema.campaignTemplates.id))
     .where(
       and(

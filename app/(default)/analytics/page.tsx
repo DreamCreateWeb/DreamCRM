@@ -45,9 +45,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     getClinicAnalytics(ctx.organizationId, windowDays),
     getSiteTraffic(ctx.organizationId, windowDays),
     getSocialMetrics(ctx.organizationId, { days: windowDays }),
-    getRetentionAttribution(ctx.organizationId, { days: windowDays }),
-    getReviewsProof(ctx.organizationId),
-    getPublishedPostCounts(ctx.organizationId, { days: windowDays }),
+    // The "proof" panels are secondary — if one query fails it degrades to its
+    // empty state rather than taking down the whole dashboard.
+    getRetentionAttribution(ctx.organizationId, { days: windowDays }).catch(
+      () => ({ windowDays, totalWonBack: 0, buckets: [] }),
+    ),
+    getReviewsProof(ctx.organizationId).catch(
+      () => ({ featuredCount: 0, featured: [], googleRating: null, googleCount: 0 }),
+    ),
+    getPublishedPostCounts(ctx.organizationId, { days: windowDays }).catch((): Record<string, number> => ({})),
   ])
   const trafficDelta = traffic.total - traffic.totalPrev
 

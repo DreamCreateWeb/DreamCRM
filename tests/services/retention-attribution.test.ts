@@ -7,10 +7,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  */
 
 let bookedRows: Array<Record<string, unknown>> = []
+// Capture which tables the query touches (from + joins) so we can assert every
+// SELECTed table is actually joined — the mock can't run SQL, but a column
+// selected from an un-joined table (the bug that crashed Analytics) shows up
+// here as a missing entry.
+let tablesUsed: string[] = []
 
 function chain() {
   const c: Record<string, unknown> = {}
-  for (const m of ['from', 'innerJoin', 'leftJoin', 'where', 'orderBy']) c[m] = () => c
+  const track = (t: { _t?: string }) => { if (t?._t) tablesUsed.push(t._t); return c }
+  c.from = track
+  c.innerJoin = track
+  c.leftJoin = track
+  for (const m of ['where', 'orderBy']) c[m] = () => c
   c.then = (resolve: (v: unknown) => unknown) => resolve(bookedRows)
   return c
 }
@@ -18,10 +27,10 @@ function chain() {
 vi.mock('@/lib/db', () => ({
   db: { select: () => chain() },
   schema: {
-    campaignEvents: { patientId: 'p', bookedAppointmentId: 'a', occurredAt: 'o', type: 't', campaignId: 'c' },
-    campaigns: { id: 'id', organizationId: 'org', automationKey: 'ak', templateId: 'tid' },
-    campaignTemplates: { id: 'id', category: 'cat' },
-    patient: { firstName: 'f', lastName: 'l' },
+    campaignEvents: { _t: 'campaignEvents', patientId: 'p', bookedAppointmentId: 'a', occurredAt: 'o', type: 't', campaignId: 'c' },
+    campaigns: { _t: 'campaigns', id: 'id', organizationId: 'org', automationKey: 'ak', templateId: 'tid' },
+    campaignTemplates: { _t: 'campaignTemplates', id: 'id', category: 'cat' },
+    patient: { _t: 'patient', id: 'id', firstName: 'f', lastName: 'l' },
   },
 }))
 vi.mock('drizzle-orm', () => ({
@@ -39,7 +48,7 @@ function row(patientId: string, over: Record<string, unknown> = {}) {
   }
 }
 
-beforeEach(() => { bookedRows = [] })
+beforeEach(() => { bookedRows = []; tablesUsed = [] })
 
 describe('bucketForCampaign', () => {
   it('reads the retention automations off the automationKey first', () => {
@@ -58,6 +67,16 @@ describe('bucketForCampaign', () => {
 })
 
 describe('getRetentionAttribution', () => {
+  it('joins every table it selects from — incl. patient (regression: missing patient JOIN crashed Analytics)', async () => {
+    bookedRows = [row('a')]
+    await getRetentionAttribution('org_1', { days: 30 })
+    // It selects patient.first_name / .last_name, so patient MUST be joined or
+    // the SQL references an un-joined table and throws at runtime.
+    expect(tablesUsed).toContain('patient')
+    expect(tablesUsed).toContain('campaigns')
+    expect(tablesUsed).toContain('campaignTemplates')
+  })
+
   it('buckets won-back patients and sums distinct patients', async () => {
     bookedRows = [
       row('a', { automationKey: 'reactivation:org_1:2026-06' }),
