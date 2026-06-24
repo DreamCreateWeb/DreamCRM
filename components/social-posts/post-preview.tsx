@@ -81,7 +81,7 @@ export default function PostPreviews({
       ) : (
         <div className="space-y-4">
           {ordered.map((ch) => (
-            <PlatformCard key={ch.platform} channel={ch} content={content} />
+            <PlatformPostCard key={ch.platform} channel={ch} content={content} />
           ))}
         </div>
       )}
@@ -89,7 +89,9 @@ export default function PostPreviews({
   )
 }
 
-function PlatformCard({ channel, content }: { channel: PreviewChannel; content: PreviewContent }) {
+/** Renders one post in a single platform's native card style. Exported so the
+ *  post-history "feed" can stack these into a scrollable platform timeline. */
+export function PlatformPostCard({ channel, content }: { channel: PreviewChannel; content: PreviewContent }) {
   switch (channel.platform) {
     case 'instagram':
       return <InstagramCard channel={channel} content={content} />
