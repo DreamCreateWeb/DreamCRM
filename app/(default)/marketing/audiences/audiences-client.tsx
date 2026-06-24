@@ -113,13 +113,21 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
                 </p>
               )}
               <AudienceFilterSummary audience={a} stages={stages} />
-              <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
-                <ActionButton variant="ghost" size="sm" onClick={() => setEditing(a)}>
-                  Edit
+              <div className="flex items-center justify-between gap-1 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
+                {/* The whole point of a segment: launch a campaign to it. Reuses
+                    the ?prefill_audience param the recall dashboard already
+                    uses to open the new-campaign modal pre-seeded with it. */}
+                <ActionButton variant="secondary" size="sm" href={`/marketing/campaigns?prefill_audience=${a.id}`}>
+                  Send campaign →
                 </ActionButton>
-                <ActionButton variant="danger" size="sm" onClick={() => handleDelete(a.id)} disabled={pending}>
-                  Delete
-                </ActionButton>
+                <div className="flex gap-1">
+                  <ActionButton variant="ghost" size="sm" onClick={() => setEditing(a)}>
+                    Edit
+                  </ActionButton>
+                  <ActionButton variant="danger" size="sm" onClick={() => handleDelete(a.id)} disabled={pending}>
+                    Delete
+                  </ActionButton>
+                </div>
               </div>
             </div>
           ))}

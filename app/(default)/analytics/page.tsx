@@ -210,6 +210,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         subtitle={`Reach + engagement from your connected social channels · last ${windowDays} days`}
       >
         {social.connected ? (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {social.platforms.map((p) => (
               <Card key={p.platform}>
@@ -235,6 +236,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               </Card>
             ))}
           </div>
+          <div className="mt-3 text-right">
+            <Link href="/social-posts" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+              Create or schedule a post →
+            </Link>
+          </div>
+          </>
         ) : (
           <Card>
             <p className="text-sm text-gray-600 dark:text-gray-300">

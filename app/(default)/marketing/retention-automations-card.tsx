@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { Toggle } from '@/components/ui/toggle'
 import { setRetentionAutomationAction } from './actions'
 import type { RetentionKind } from '@/lib/services/retention-automation'
@@ -32,7 +33,7 @@ export function RetentionAutomationsCard({
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
           Automations
         </h2>
-        <span className="text-[11px] font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 rounded-full px-2 py-0.5">
+        <span className="text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 rounded-full px-2 py-0.5">
           Set &amp; forget
         </span>
       </div>
@@ -53,6 +54,7 @@ export function RetentionAutomationsCard({
               ? `${preview.birthdaysThisMonth} birthday${preview.birthdaysThisMonth === 1 ? '' : 's'} this month`
               : 'No birthdays this month'
           }
+          countHref={preview.birthdaysThisMonth > 0 ? '/marketing/outreach?tier=birthday' : null}
           initialOn={initial.birthdayAutoSend}
           canManage={canManage}
         />
@@ -67,6 +69,7 @@ export function RetentionAutomationsCard({
               ? `${preview.newlyLapsed} patient${preview.newlyLapsed === 1 ? '' : 's'} in the window now`
               : 'Nobody in the window right now'
           }
+          countHref={preview.newlyLapsed > 0 ? '/marketing/outreach?tier=lapsed' : null}
           initialOn={initial.lapsedReactivation}
           canManage={canManage}
         />
@@ -88,6 +91,7 @@ function AutomationRow({
   description,
   cadence,
   countLabel,
+  countHref,
   initialOn,
   canManage,
 }: {
@@ -97,6 +101,7 @@ function AutomationRow({
   description: string
   cadence: string
   countLabel: string
+  countHref: string | null
   initialOn: boolean
   canManage: boolean
 }) {
@@ -126,16 +131,23 @@ function AutomationRow({
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{title}</p>
           {on && (
-            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
               On
             </span>
           )}
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
-        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 tabular-nums">
-          {cadence} · {countLabel}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 tabular-nums">
+          {cadence} ·{' '}
+          {countHref ? (
+            <Link href={countHref} className="text-teal-700 dark:text-teal-400 hover:underline">
+              {countLabel} →
+            </Link>
+          ) : (
+            countLabel
+          )}
         </p>
-        {error && <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">{error}</p>}
+        {error && <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">{error}</p>}
       </div>
       <div className="shrink-0 pt-0.5">
         <Toggle

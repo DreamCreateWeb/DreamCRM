@@ -133,9 +133,9 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
             </p>
             {fmtVisitDate(row.appointmentDateIso) && (
               <Link
-                href={`/patients/${row.patientId}#timeline`}
+                href={row.appointmentId ? `/appointments?appt=${row.appointmentId}` : `/patients/${row.patientId}#timeline`}
                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-teal-700 dark:hover:text-teal-300 hover:underline"
-                title="See this visit on the patient timeline"
+                title={row.appointmentId ? 'Open this visit on the schedule' : 'See this visit on the patient timeline'}
               >
                 After their {fmtVisitDate(row.appointmentDateIso)} visit
               </Link>
