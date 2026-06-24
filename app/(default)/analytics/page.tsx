@@ -6,8 +6,9 @@ import { getSiteTraffic } from '@/lib/services/site-analytics'
 import { getSocialMetrics } from '@/lib/services/social-metrics'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
-import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 
 export const metadata = { title: 'Practice Analytics - DreamCRM' }
@@ -68,24 +69,18 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         eyebrow={
           <span className="inline-flex items-center gap-2">
             Practice · {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            <span className="text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-              Premium
-            </span>
+            <StatusPill tone="warn" label="Premium" />
           </span>
         }
         title="Analytics"
         subtitle="The numbers a CRM can honestly measure — acquisition, schedule health, recall and reputation. Clinical production stays in your PMS; we don't fake it."
         actions={
+          // Window is a FILTER, not the page's primary action — chips, not buttons.
           <div className="flex items-center gap-1.5">
             {[30, 90].map((d) => (
-              <ActionButton
-                key={d}
-                href={`/analytics?days=${d}`}
-                variant={windowDays === d ? 'primary' : 'secondary'}
-                size="sm"
-              >
+              <FilterChip key={d} href={`/analytics?days=${d}`} active={windowDays === d}>
                 {d} days
-              </ActionButton>
+              </FilterChip>
             ))}
           </div>
         }
@@ -449,7 +444,7 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
 }
 
 function RankBars({ rows, compact, emptyNote }: { rows: { label: string; value: number }[]; compact?: boolean; emptyNote?: string }) {
-  if (rows.length === 0) return <Empty>{emptyNote ?? 'No data.'}</Empty>
+  if (rows.length === 0) return <Empty>{emptyNote ?? 'Nothing to show yet.'}</Empty>
   const max = Math.max(1, ...rows.map((r) => r.value))
   return (
     <div className={compact ? 'space-y-1.5' : 'space-y-2.5'}>
