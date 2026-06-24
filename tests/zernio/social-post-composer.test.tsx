@@ -88,7 +88,8 @@ describe('Composer — submit', () => {
   it('submits the composed post with the selected account ids', async () => {
     render(<Composer channels={[GBP, IG]} bookUrl={null} />)
     fireEvent.change(screen.getByLabelText('Post text'), { target: { value: 'Same-week cleanings' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Post now' }))
+    // Two channels selected → the primary reflects the broadcast count.
+    fireEvent.click(screen.getByRole('button', { name: 'Post to 2 channels' }))
     await waitFor(() => expect(createAction).toHaveBeenCalledTimes(1))
     const arg = createAction.mock.calls[0][0] as { summary: string; accountIds: string[] }
     expect(arg.summary).toBe('Same-week cleanings')
@@ -96,10 +97,10 @@ describe('Composer — submit', () => {
     await screen.findByText('Posted to your channels.')
   })
 
-  it('the primary button reads "Schedule" once schedule-for-later is on', () => {
+  it('the primary button reads "Schedule post" once schedule-for-later is on', () => {
     render(<Composer channels={[IG]} bookUrl={null} />)
     fireEvent.change(screen.getByLabelText('Post text'), { target: { value: 'hi' } })
     fireEvent.click(screen.getByLabelText('Schedule for later'))
-    expect(screen.getByRole('button', { name: 'Schedule' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Schedule post' })).toBeTruthy()
   })
 })

@@ -7,7 +7,18 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { GBP_POST_TYPE_LABELS, type SocialPostView, type SocialPostTargetView, type GbpPostStatus } from '@/lib/types/zernio'
 import { isVideoUrl } from '@/lib/media'
+import { BrandLogo, type BrandLogoId } from '@/components/integrations/brand-logos'
 import { deleteSocialPostAction } from './actions'
+
+/** Platform slugs with a brand-accurate logo (mirrors the composer). */
+const BRAND_IDS: Record<string, BrandLogoId> = {
+  googlebusiness: 'googlebusiness',
+  instagram: 'instagram',
+  facebook: 'facebook',
+  tiktok: 'tiktok',
+  youtube: 'youtube',
+  linkedin: 'linkedin',
+}
 
 /**
  * Social-post history. Each card shows the post type badge (for GBP posts), the
@@ -69,9 +80,9 @@ function PostCard({ post }: { post: SocialPostView }) {
 
   return (
     <div className="v2-card p-4">
-      <div className="flex gap-3">
+      <div className="flex gap-3.5">
         {post.imageUrl && (
-          <div className="relative shrink-0 w-16 h-16 rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)] bg-black/5">
+          <div className="relative shrink-0 w-20 h-20 rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)] bg-black/5">
             {isVideoUrl(post.imageUrl) ? (
               <>
                 <video src={post.imageUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
@@ -84,18 +95,20 @@ function PostCard({ post }: { post: SocialPostView }) {
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            {targetsGbp && post.postType !== 'standard' && (
-              <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
-                {GBP_POST_TYPE_LABELS[post.postType]}
-              </span>
-            )}
-            <StatusPill tone={STATUS_TONE[post.status]} label={STATUS_LABEL[post.status]} />
-            <span className="text-[11px] text-gray-400 font-mono-num">{dateLabel}</span>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              {targetsGbp && post.postType !== 'standard' && (
+                <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                  {GBP_POST_TYPE_LABELS[post.postType]}
+                </span>
+              )}
+              <StatusPill tone={STATUS_TONE[post.status]} label={STATUS_LABEL[post.status]} />
+            </div>
+            <span className="text-[11px] text-gray-400 font-mono-num shrink-0">{dateLabel}</span>
           </div>
 
           {/* Per-channel target chips */}
-          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 mb-2">
             {post.targets.map((t) => (
               <TargetChip key={t.id} target={t} />
             ))}
@@ -160,36 +173,39 @@ function PostCard({ post }: { post: SocialPostView }) {
   )
 }
 
-/** One channel's chip: platform icon + label + a tone dot + optional permalink. */
+/** One channel's chip: brand logo + label + a status dot + optional permalink. */
 function TargetChip({ target }: { target: SocialPostTargetView }) {
   const tone = STATUS_TONE[target.status]
   const dot = TONE_DOT[tone]
+  const logoId = BRAND_IDS[target.platform]
   const inner = (
     <>
-      <span aria-hidden="true">{target.icon}</span>
+      {logoId ? (
+        <BrandLogo id={logoId} size={14} className="shrink-0" />
+      ) : (
+        <span aria-hidden="true">{target.icon}</span>
+      )}
       <span>{target.label}</span>
       <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} title={STATUS_LABEL[target.status]} aria-label={STATUS_LABEL[target.status]} />
     </>
   )
+  const base =
+    'inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-inset ring-[color:var(--color-hairline)] pl-1.5 pr-2 py-1 text-[11px] font-medium text-gray-700 dark:text-gray-200'
   if (target.url) {
     return (
       <a
         href={target.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:ring-teal-400"
+        className={`${base} hover:ring-teal-400`}
         title={`View on ${target.label} ↗`}
       >
         {inner}
-        <span aria-hidden="true">↗</span>
+        <span aria-hidden="true" className="text-gray-400">↗</span>
       </a>
     )
   }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:text-gray-300">
-      {inner}
-    </span>
-  )
+  return <span className={base}>{inner}</span>
 }
 
 const CTA_DISPLAY: Record<string, string> = {

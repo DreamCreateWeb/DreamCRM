@@ -78,6 +78,7 @@ export default function Composer({
   const [uploading, setUploading] = useState(false)
   const [uploadPct, setUploadPct] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const handleRef = useRef<UploadHandle | null>(null)
 
@@ -247,9 +248,16 @@ export default function Composer({
         {/* ── Compose (left) ─────────────────────────────────────────────── */}
         <div className="min-w-0">
 
-      {/* Channel picker */}
-      <div className="mb-4">
-        <Label>Post to</Label>
+      {/* Channel selector — tap an account to broadcast to it */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="mb-0">Post to</Label>
+          <span className={`text-[11px] font-medium ${selected.size === 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+            {selected.size === 0
+              ? 'Pick at least one'
+              : `${selected.size} of ${channels.length} selected`}
+          </span>
+        </div>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Channels">
           {channels.map((ch) => {
             const on = selected.has(ch.accountId)
@@ -262,68 +270,76 @@ export default function Composer({
                 onClick={() => toggleChannel(ch.accountId)}
                 aria-pressed={on}
                 title={ch.handle ?? ch.label}
-                className={`group inline-flex items-center gap-2 rounded-full pl-2.5 pr-3 py-1.5 text-[13px] font-medium transition border ${
+                className={`group relative inline-flex items-center gap-2.5 rounded-[var(--r-md)] border px-3 py-2 text-left transition ${
                   on
-                    ? 'text-gray-900 dark:text-gray-50 shadow-sm'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200'
+                    ? 'shadow-sm'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300'
                 }`}
-                style={on && accent ? { borderColor: accent, backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)` } : undefined}
+                style={on && accent ? { borderColor: accent, backgroundColor: `color-mix(in srgb, ${accent} 9%, transparent)` } : undefined}
               >
-                {logoId ? (
-                  <BrandLogo
-                    id={logoId}
-                    size={18}
-                    className={on ? '' : 'opacity-50 grayscale transition group-hover:opacity-90 group-hover:grayscale-0'}
-                  />
-                ) : (
-                  <span aria-hidden="true">{ch.icon}</span>
-                )}
-                {ch.label}
-                {on && (
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 16 16"
-                    className="shrink-0"
-                    style={{ color: accent ?? undefined }}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    aria-hidden="true"
-                  >
-                    <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
+                <span className="relative inline-flex shrink-0">
+                  {logoId ? (
+                    <BrandLogo
+                      id={logoId}
+                      size={26}
+                      className={on ? '' : 'opacity-45 grayscale transition group-hover:opacity-90 group-hover:grayscale-0'}
+                    />
+                  ) : (
+                    <span className="text-xl" aria-hidden="true">{ch.icon}</span>
+                  )}
+                  {on && (
+                    <span
+                      className="absolute -bottom-1 -right-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-white ring-2 ring-white dark:ring-gray-800"
+                      style={{ backgroundColor: accent ?? '#14b8a6' }}
+                    >
+                      <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="3.5" aria-hidden="true">
+                        <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-[13px] font-medium leading-tight ${on ? 'text-gray-900 dark:text-gray-50' : 'text-gray-600 dark:text-gray-300'}`}>
+                    {ch.label}
+                  </span>
+                  {ch.handle && (
+                    <span className="block text-[11px] text-gray-400 truncate max-w-[130px]">{ch.handle}</span>
+                  )}
+                </span>
               </button>
             )
           })}
         </div>
-        {selected.size === 0 && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5">Pick at least one channel.</p>
-        )}
       </div>
 
-      {/* Post type selector — GBP only */}
+      {/* Post type selector — GBP only — a segmented control */}
       {targetsGbp && (
-        <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Post type">
-          {GBP_POST_TYPES.map((t) => {
-            const active = postType === t
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setPostType(t)}
-                aria-pressed={active}
-                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition border ${
-                  active
-                    ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
-                }`}
-              >
-                {GBP_POST_TYPE_LABELS[t]}
-              </button>
-            )
-          })}
+        <div className="mb-4">
+          <Label>Google post type</Label>
+          <div
+            className="inline-flex rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] p-0.5"
+            role="group"
+            aria-label="Post type"
+          >
+            {GBP_POST_TYPES.map((t) => {
+              const active = postType === t
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setPostType(t)}
+                  aria-pressed={active}
+                  className={`rounded-[calc(var(--r-md)-2px)] px-4 py-1.5 text-[13px] font-medium transition ${
+                    active
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {GBP_POST_TYPE_LABELS[t]}
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -438,18 +454,66 @@ export default function Composer({
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <ActionButton variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? `Uploading… ${uploadPct}%` : 'Add a photo or video'}
-            </ActionButton>
-            {uploading && (
-              <button
-                type="button"
-                onClick={() => handleRef.current?.cancel()}
-                className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600"
-              >
-                Cancel
-              </button>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => fileRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                fileRef.current?.click()
+              }
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              if (!dragging) setDragging(true)
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              setDragging(false)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragging(false)
+              const f = e.dataTransfer.files?.[0]
+              if (f) handleFile(f)
+            }}
+            className={`flex flex-col items-center justify-center gap-1.5 rounded-[var(--r-lg)] border-2 border-dashed px-4 py-7 text-center cursor-pointer transition ${
+              dragging
+                ? 'border-teal-400 bg-teal-500/5'
+                : 'border-[color:var(--color-hairline-strong)] hover:border-teal-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'
+            }`}
+          >
+            {uploading ? (
+              <>
+                <div className="w-full max-w-[200px] h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                  <div className="h-full bg-teal-500 dark:bg-teal-400 transition-[width]" style={{ width: `${uploadPct}%` }} />
+                </div>
+                <p className="text-[12px] text-gray-500 dark:text-gray-400 font-mono-num">Uploading… {uploadPct}%</p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRef.current?.cancel()
+                  }}
+                  className="text-[11px] text-gray-400 underline underline-offset-2 hover:text-gray-600"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 dark:text-gray-500" aria-hidden="true">
+                  <path d="M7 18a4 4 0 01-.9-7.9 5 5 0 019.7-1.6A3.5 3.5 0 0117 18" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M12 12.5v5m0-5l-2 2m2-2l2 2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="text-[13px] font-medium text-gray-700 dark:text-gray-200">
+                  Drag a photo or video here, or <span className="text-teal-700 dark:text-teal-400">browse</span>
+                </p>
+                <p className="text-[11px] text-gray-400">
+                  Photos up to {MAX_IMAGE_MB}MB · video up to {MAX_VIDEO_MB}MB
+                </p>
+              </>
             )}
             <input
               ref={fileRef}
@@ -464,9 +528,6 @@ export default function Composer({
             />
           </div>
         )}
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5">
-          Photos (JPEG/PNG) up to {MAX_IMAGE_MB}MB · video (MP4/MOV) up to {MAX_VIDEO_MB}MB.
-        </p>
         {uploadError && <p className="text-xs text-rose-600 mt-1" role="alert">{uploadError}</p>}
       </div>
 
@@ -525,7 +586,13 @@ export default function Composer({
       {/* Submit */}
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <ActionButton variant="primary" size="md" onClick={submit} disabled={!canSubmit}>
-          {pending ? 'Posting…' : scheduleOn ? 'Schedule' : 'Post now'}
+          {pending
+            ? 'Posting…'
+            : scheduleOn
+              ? 'Schedule post'
+              : selected.size > 1
+                ? `Post to ${selected.size} channels`
+                : 'Post now'}
         </ActionButton>
         <p className="text-[11px] text-gray-400">
           Posts go out through your connected channels. Google Updates expire after ~7 days on Google.
