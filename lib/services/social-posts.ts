@@ -1,7 +1,8 @@
 import 'server-only'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getZernioConnection } from '@/lib/services/zernio'
+import { normalizeMetricsWindow } from '@/lib/services/metrics-window'
 import {
   createGbpPost as zernioCreateGbpPost,
   createSocialPost as zernioCreateSocialPost,
@@ -249,6 +250,35 @@ export async function getComposerChannels(orgId: string): Promise<ComposerChanne
  *  composer vs connect-prompt empty state. */
 export async function hasAnyChannelConnected(orgId: string): Promise<boolean> {
   return (await getComposerChannels(orgId)).length > 0
+}
+
+/**
+ * Published posts per platform in the window — the activity behind the social
+ * reach numbers on Analytics. Honest: a count of what you put out, NOT
+ * per-post reach (Zernio + Google deprecated per-post insights, so we never
+ * fabricate that). Keyed by platform slug. A plain local read — demo-safe,
+ * since demos seed real `social_post_target` rows.
+ */
+export async function getPublishedPostCounts(
+  orgId: string,
+  opts: { days?: number } = {},
+): Promise<Record<string, number>> {
+  const windowDays = normalizeMetricsWindow(opts.days)
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
+  const rows = await db
+    .select({ platform: schema.socialPostTarget.platform, c: count() })
+    .from(schema.socialPostTarget)
+    .where(
+      and(
+        eq(schema.socialPostTarget.organizationId, orgId),
+        eq(schema.socialPostTarget.status, 'published'),
+        gte(schema.socialPostTarget.publishedAt, since),
+      ),
+    )
+    .groupBy(schema.socialPostTarget.platform)
+  const out: Record<string, number> = {}
+  for (const r of rows) out[r.platform] = Number(r.c)
+  return out
 }
 
 // ── Create ──────────────────────────────────────────────────────────────────

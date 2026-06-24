@@ -74,6 +74,10 @@ export default async function SocialPostsPage() {
             <ActionButton variant="secondary" size="sm" href="/integrations">
               Channels
             </ActionButton>
+            {/* Drill into the proof: per-platform reach + what you've published. */}
+            <ActionButton variant="secondary" size="sm" href="/analytics">
+              Social reach
+            </ActionButton>
             <ActionButton variant="secondary" size="sm" href="/seo">
               Local performance
             </ActionButton>

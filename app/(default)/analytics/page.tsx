@@ -4,6 +4,7 @@ import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
 import { getSiteTraffic } from '@/lib/services/site-analytics'
 import { getSocialMetrics } from '@/lib/services/social-metrics'
+import { getPublishedPostCounts } from '@/lib/services/social-posts'
 import { getRetentionAttribution, type RetentionAttribution } from '@/lib/services/retention-attribution'
 import { getReviewsProof, type ReviewsProof } from '@/lib/services/reviews'
 import ModuleHint from '@/components/onboarding/module-hint'
@@ -40,12 +41,13 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   const { days } = await searchParams
   const windowDays = days === '90' ? 90 : 30
-  const [a, traffic, social, wonBack, reviewsProof] = await Promise.all([
+  const [a, traffic, social, wonBack, reviewsProof, postCounts] = await Promise.all([
     getClinicAnalytics(ctx.organizationId, windowDays),
     getSiteTraffic(ctx.organizationId, windowDays),
     getSocialMetrics(ctx.organizationId, { days: windowDays }),
     getRetentionAttribution(ctx.organizationId, { days: windowDays }),
     getReviewsProof(ctx.organizationId),
+    getPublishedPostCounts(ctx.organizationId, { days: windowDays }),
   ])
   const trafficDelta = traffic.total - traffic.totalPrev
 
@@ -232,6 +234,20 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                     <KpiStat label="Engagement" value={p.engagement.toLocaleString()} />
                   </div>
                 )}
+                {/* The activity behind the reach: what you actually published.
+                    Honest — no per-post numbers (those are deprecated). */}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
+                  {postCounts[p.platform] ? (
+                    <>
+                      <span className="font-semibold tabular-nums font-mono-num text-gray-700 dark:text-gray-200">
+                        {postCounts[p.platform]}
+                      </span>{' '}
+                      {postCounts[p.platform] === 1 ? 'post' : 'posts'} published · last {windowDays} days
+                    </>
+                  ) : (
+                    'No posts published this period'
+                  )}
+                </p>
               </Card>
             ))}
           </div>

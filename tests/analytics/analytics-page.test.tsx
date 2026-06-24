@@ -16,7 +16,9 @@ import React from 'react'
 import type { ClinicAnalytics } from '@/lib/services/analytics'
 
 const getClinicAnalyticsMock = vi.fn<(org: string, windowDays?: number) => Promise<ClinicAnalytics>>()
-const { wonBackMock, reviewsProofMock } = vi.hoisted(() => ({ wonBackMock: vi.fn(), reviewsProofMock: vi.fn() }))
+const { wonBackMock, reviewsProofMock, postCountsMock } = vi.hoisted(() => ({
+  wonBackMock: vi.fn(), reviewsProofMock: vi.fn(), postCountsMock: vi.fn(),
+}))
 
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: vi.fn(async () => ({
@@ -64,6 +66,10 @@ vi.mock('@/lib/services/retention-attribution', () => ({
 
 vi.mock('@/lib/services/reviews', () => ({
   getReviewsProof: (org: string) => reviewsProofMock(org),
+}))
+
+vi.mock('@/lib/services/social-posts', () => ({
+  getPublishedPostCounts: (org: string, opts?: { days?: number }) => postCountsMock(org, opts),
 }))
 
 vi.mock('@/components/onboarding/module-hint', () => ({
@@ -141,6 +147,8 @@ beforeEach(() => {
   wonBackMock.mockResolvedValue({ windowDays: 30, totalWonBack: 0, buckets: [] })
   reviewsProofMock.mockReset()
   reviewsProofMock.mockResolvedValue({ featuredCount: 0, featured: [], googleRating: null, googleCount: 0 })
+  postCountsMock.mockReset()
+  postCountsMock.mockResolvedValue({})
 })
 
 describe('Reputation proof — what reviews put on the site', () => {
@@ -163,6 +171,28 @@ describe('Reputation proof — what reviews put on the site', () => {
   it('shows the empty state when nothing is showcased yet', async () => {
     await renderPage('30', baseAnalytics())
     expect(screen.getByText(/No reviews are showcased on your site yet/i)).toBeInTheDocument()
+  })
+})
+
+describe('Social proof — the posts behind the reach', () => {
+  const connectedSocial = {
+    connected: true, isDemo: false, windowDays: 30,
+    platforms: [{ platform: 'instagram', label: 'Instagram', icon: '📷', handle: '@acme', followers: 100, reach: 500, impressions: 600, engagement: 50, error: null }],
+  }
+
+  it('shows how many posts were published per platform', async () => {
+    socialMetricsMock.mockResolvedValue(connectedSocial)
+    postCountsMock.mockResolvedValue({ instagram: 4 })
+    await renderPage('30', baseAnalytics())
+    const line = screen.getByText(/posts published/i)
+    expect(line.textContent).toMatch(/4\s*posts published/)
+  })
+
+  it('says so plainly when nothing was published in the window', async () => {
+    socialMetricsMock.mockResolvedValue(connectedSocial)
+    postCountsMock.mockResolvedValue({})
+    await renderPage('30', baseAnalytics())
+    expect(screen.getByText(/No posts published this period/i)).toBeInTheDocument()
   })
 })
 
