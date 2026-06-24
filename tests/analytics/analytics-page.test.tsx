@@ -107,6 +107,7 @@ function baseAnalytics(over: Partial<ClinicAnalytics> = {}): ClinicAnalytics {
       cancellationRate: 6 / 40,
       confirmationRate: 28 / 34,
       benchmarkNoShowRate: 0.135,
+      prev: { total: 30, noShowRate: 6 / 30, cancellationRate: 5 / 30, confirmationRate: 22 / 30 },
       bySource: [{ source: 'booking_widget', count: 40 }],
       byProvider: [{ provider: 'Dr. Reyes', count: 40 }],
       volumeTrend: [{ label: 'May 1', count: 40 }],

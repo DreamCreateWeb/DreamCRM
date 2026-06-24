@@ -185,6 +185,35 @@ describe('getClinicAnalytics — acquisition excludes bulk imports', () => {
   })
 })
 
+describe('getClinicAnalytics — prior-window schedule comparison', () => {
+  it('splits the appointment pull into current + prior windows for the "vs previous" deltas', async () => {
+    const now = Date.now()
+    const cur = new Date(now - 5 * 86400000) // in the current 30-day window
+    const prior = new Date(now - 40 * 86400000) // in the prior window (30–60d)
+
+    q.queue.push([]) // 1. newPatientRows
+    q.queue.push([]) // 2. prevNewPatients
+    q.queue.push([]) // 3. leadRows
+    q.queue.push([
+      // Current window: 1 completed + 1 no-show → no-show rate 0.5
+      { status: 'completed', source: null, providerId: null, startTime: cur, confirmedAt: cur },
+      { status: 'no_show', source: null, providerId: null, startTime: cur, confirmedAt: null },
+      // Prior window: 4 completed, 0 no-show → no-show rate 0
+      ...Array(4).fill({ status: 'completed', source: null, providerId: null, startTime: prior, confirmedAt: prior }),
+    ]) // 4. apptRows (current + prior, split in JS)
+    q.queue.push([{ id: 1 }]) // 5. patientCampaigns (no provider query — providerId null)
+    q.queue.push([]) // 6. eventRows
+
+    const a = await getClinicAnalytics('org_1', 30)
+    // Current window only for the headline numbers.
+    expect(a.schedule.total).toBe(2)
+    expect(a.schedule.noShowRate).toBeCloseTo(0.5)
+    // Prior window computed separately for the comparison.
+    expect(a.schedule.prev.total).toBe(4)
+    expect(a.schedule.prev.noShowRate).toBe(0)
+  })
+})
+
 describe('getClinicAnalytics — reputation window + honesty', () => {
   it('threads windowDays into getReviewStats (30 and 90 produce different scoped reads)', async () => {
     seedHappyPath()

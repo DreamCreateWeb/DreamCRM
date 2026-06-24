@@ -130,7 +130,11 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               { label: 'Clicks from search', value: a.acquisition.websiteFunnel.clicks, note: a.acquisition.websiteFunnel.clicks == null ? 'Connect Search Console' : undefined, href: '/seo' },
               { label: 'Website leads', value: a.acquisition.websiteFunnel.leads, href: '/leads' },
               { label: 'Contacted', value: a.acquisition.websiteFunnel.contacted },
-              { label: 'Converted to patient', value: a.acquisition.websiteFunnel.converted },
+              {
+                label: 'Converted to patient',
+                value: a.acquisition.websiteFunnel.converted,
+                note: convNote(a.acquisition.websiteFunnel.converted, a.acquisition.websiteFunnel.leads, 'leads'),
+              },
             ]}
           />
         </Card>
@@ -285,12 +289,18 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <KpiStat
             label="Appointments"
             value={a.schedule.total}
+            sub={<VolumeTrend cur={a.schedule.total} prev={a.schedule.prev.total} />}
             href="/appointments?window=past_30d"
           />
           <KpiStat
             label="Confirmation rate"
             value={confirmableDenom === 0 ? '—' : lowVolConfirmation ? `${a.schedule.confirmed}/${confirmableDenom}` : pct(a.schedule.confirmationRate)}
-            sub="who still need a text →"
+            sub={
+              <>
+                who still need a text →
+                {!lowVolConfirmation && <RateTrend cur={a.schedule.confirmationRate} prev={a.schedule.prev.confirmationRate} />}
+              </>
+            }
             tone={lowVolConfirmation || a.schedule.confirmationRate == null ? undefined : 'ok'}
             href="/appointments?attention=unconfirmed"
           />
@@ -298,13 +308,27 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             label="No-show rate"
             value={a.schedule.attended === 0 ? '—' : lowVolAttended ? `${a.schedule.noShow} of ${a.schedule.attended}` : pct(a.schedule.noShowRate)}
             tone={lowVolAttended || a.schedule.noShowRate == null ? undefined : a.schedule.noShowRate > a.schedule.benchmarkNoShowRate ? 'urgent' : 'ok'}
-            sub={a.schedule.attended === 0 ? 'no visits yet' : lowVolAttended ? 'visits so far' : `benchmark ${pct(a.schedule.benchmarkNoShowRate)}`}
+            sub={
+              a.schedule.attended === 0 ? 'no visits yet' : lowVolAttended ? 'visits so far' : (
+                <>
+                  benchmark {pct(a.schedule.benchmarkNoShowRate)}
+                  <RateTrend cur={a.schedule.noShowRate} prev={a.schedule.prev.noShowRate} lowerIsBetter />
+                </>
+              )
+            }
             href="/appointments?window=past_30d&attention=no_show"
           />
           <KpiStat
             label="Cancellation rate"
             value={a.schedule.total === 0 ? '—' : lowVolCancellation ? `${a.schedule.cancelled}/${a.schedule.total}` : pct(a.schedule.cancellationRate)}
-            sub={a.schedule.total === 0 ? undefined : lowVolCancellation ? 'booked so far' : `${a.schedule.cancelled} of ${a.schedule.total} booked`}
+            sub={
+              a.schedule.total === 0 ? undefined : lowVolCancellation ? 'booked so far' : (
+                <>
+                  {a.schedule.cancelled} of {a.schedule.total} booked
+                  <RateTrend cur={a.schedule.cancellationRate} prev={a.schedule.prev.cancellationRate} lowerIsBetter />
+                </>
+              )
+            }
             href="/appointments?window=past_30d&attention=cancelled"
           />
         </div>
@@ -359,7 +383,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                 { label: 'Sent', value: a.recall.outreach.sent },
                 { label: 'Opened', value: a.recall.outreach.opened },
                 { label: 'Clicked', value: a.recall.outreach.clicked },
-                { label: 'Booked', value: a.recall.outreach.booked, href: '/marketing' },
+                {
+                  label: 'Booked',
+                  value: a.recall.outreach.booked,
+                  note: convNote(a.recall.outreach.booked, a.recall.outreach.sent, 'sent'),
+                  href: '/marketing',
+                },
               ]}
             />
             {/* The proof under the funnel: who actually came back, and what
@@ -389,7 +418,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               steps={[
                 { label: 'Requests sent', value: a.reputation.sent },
                 { label: 'Opened the link', value: a.reputation.opened, note: a.reputation.clickRate != null ? pct(a.reputation.clickRate) : undefined },
-                { label: 'Reviews left', value: a.reputation.completed, href: '/reviews/received' },
+                {
+                  label: 'Reviews left',
+                  value: a.reputation.completed,
+                  note: convNote(a.reputation.completed, a.reputation.sent, 'sent'),
+                  href: '/reviews/received',
+                },
               ]}
             />
             <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mt-4 mb-2">Platform mix</p>
@@ -470,6 +504,39 @@ function DeltaBadge({ value }: { value: number }) {
       {up ? '▲' : '▼'} {Math.abs(value)} vs prev
     </span>
   )
+}
+
+/** A self-colored "vs previous period" delta in percentage points, tone-aware:
+ *  improvement = ok (green), regression = urgent. `lowerIsBetter` flips which
+ *  direction counts as improvement (no-show / cancellation = down is good). */
+function RateTrend({ cur, prev, lowerIsBetter = false }: { cur: number | null; prev: number | null; lowerIsBetter?: boolean }) {
+  if (cur == null || prev == null) return null
+  const pts = Math.round((cur - prev) * 1000) / 10
+  if (pts === 0) return <span className="text-gray-400 dark:text-gray-500"> · flat vs prev</span>
+  const improved = lowerIsBetter ? pts < 0 : pts > 0
+  return (
+    <span className={`font-medium ${improved ? TONE_TEXT.ok : TONE_TEXT.urgent}`}>
+      {' '}· {pts > 0 ? '▲' : '▼'} {Math.abs(pts)} pts vs prev
+    </span>
+  )
+}
+
+/** A neutral count delta (volume isn't "good" or "bad", just up/down). */
+function VolumeTrend({ cur, prev }: { cur: number; prev: number }) {
+  const d = cur - prev
+  if (d === 0) return <span className="text-gray-400 dark:text-gray-500">flat vs previous period</span>
+  return (
+    <span className="text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
+      {d > 0 ? '▲' : '▼'} {Math.abs(d)} vs previous period
+    </span>
+  )
+}
+
+/** Conversion-rate caption for a funnel's final step ("X% of Y"). Null when the
+ *  denominator is zero — no fake 0%. */
+function convNote(numerator: number | null, denominator: number, ofLabel: string): string | undefined {
+  if (numerator == null || denominator <= 0) return undefined
+  return `${((numerator / denominator) * 100).toFixed(0)}% of ${ofLabel}`
 }
 
 function Bars({ points, className = '' }: { points: TrendPoint[]; className?: string }) {

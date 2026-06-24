@@ -65,6 +65,14 @@ export interface ClinicAnalytics {
     cancellationRate: number | null
     confirmationRate: number | null
     benchmarkNoShowRate: number
+    /** The SAME metrics over the immediately-prior equal-length window, so the
+     *  UI can show "vs previous" deltas. Rates are null on a thin prior sample. */
+    prev: {
+      total: number
+      noShowRate: number | null
+      cancellationRate: number | null
+      confirmationRate: number | null
+    }
     bySource: { source: string; count: number }[]
     byProvider: { provider: string; count: number }[]
     volumeTrend: TrendPoint[]
@@ -105,6 +113,28 @@ export function weeklyTrend(dates: Date[], windowDays: number, now: Date): Trend
     })
   }
   return out
+}
+
+/** Schedule rates over a set of appointment rows — shared by the current and
+ *  prior window so the comparison can't drift from the headline computation. */
+function scheduleRatesOf(rows: { status: string; confirmedAt: Date | null }[]): {
+  total: number
+  noShowRate: number | null
+  cancellationRate: number | null
+  confirmationRate: number | null
+} {
+  const noShow = rows.filter((a) => a.status === 'no_show').length
+  const completed = rows.filter((a) => a.status === 'completed').length
+  const cancelled = rows.filter((a) => a.status === 'cancelled').length
+  const confirmedOrDone = rows.filter((a) => a.confirmedAt || a.status === 'completed').length
+  const attendedDenom = completed + noShow
+  const confirmableDenom = rows.length - cancelled
+  return {
+    total: rows.length,
+    noShowRate: attendedDenom > 0 ? noShow / attendedDenom : null,
+    cancellationRate: rows.length > 0 ? cancelled / rows.length : null,
+    confirmationRate: confirmableDenom > 0 ? confirmedOrDone / confirmableDenom : null,
+  }
 }
 
 export async function getClinicAnalytics(organizationId: string, windowDays = 30): Promise<ClinicAnalytics> {
@@ -184,7 +214,9 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     : null
 
   // ── Schedule health (appointments with startTime in window) ─────────────
-  const apptRows = await db
+  // Pull the current AND prior window in one query (startTime ≥ prevSince), then
+  // split in JS so the schedule rates carry a "vs previous" comparison.
+  const allApptRows = await db
     .select({
       status: schema.appointment.status,
       source: schema.appointment.source,
@@ -193,7 +225,10 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
       confirmedAt: schema.appointment.confirmedAt,
     })
     .from(schema.appointment)
-    .where(and(eq(schema.appointment.organizationId, organizationId), gte(schema.appointment.startTime, since), lte(schema.appointment.startTime, now)))
+    .where(and(eq(schema.appointment.organizationId, organizationId), gte(schema.appointment.startTime, prevSince), lte(schema.appointment.startTime, now)))
+
+  const apptRows = allApptRows.filter((a) => a.startTime >= since)
+  const prevSchedule = scheduleRatesOf(allApptRows.filter((a) => a.startTime < since))
 
   const completed = apptRows.filter((a) => a.status === 'completed').length
   const noShow = apptRows.filter((a) => a.status === 'no_show').length
@@ -281,6 +316,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
       cancellationRate: apptRows.length > 0 ? cancelled / apptRows.length : null,
       confirmationRate: confirmableDenom > 0 ? confirmedOrDone / confirmableDenom : null,
       benchmarkNoShowRate: BENCHMARK_NO_SHOW_RATE,
+      prev: prevSchedule,
       bySource: Array.from(apptSourceCounts.entries())
         .map(([source, c]) => ({ source, count: c }))
         .sort((a, b) => b.count - a.count),
