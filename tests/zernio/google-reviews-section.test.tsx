@@ -105,6 +105,8 @@ describe('GoogleReviewsSection', () => {
   it('renders the empty "no reviews synced yet" state with Refresh still available', () => {
     render(<GoogleReviewsSection rows={[]} count={0} averageRating={null} />)
     expect(screen.getByText(/No Google reviews synced yet/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Refresh from Google/i })).toBeTruthy()
+    // Refresh is available both in the section header and as the EmptyState's
+    // lead action (the empty state leads with its next step, per DS v2).
+    expect(screen.getAllByRole('button', { name: /Refresh from Google/i }).length).toBeGreaterThanOrEqual(1)
   })
 })
