@@ -204,11 +204,11 @@ export default async function ClinicMessagesView({
         >
           ★ Starred
         </FilterChip>
-        {/* Key affordance — explains the rot border + channel hues. */}
+        {/* Key affordance — explains the rot border + the channel chips. */}
         <div className="ml-auto shrink-0">
           <EncodingLegend
             aging="messages"
-            pills={CHANNEL_LEGEND}
+            channels={CHANNEL_LEGEND}
           />
         </div>
       </div>

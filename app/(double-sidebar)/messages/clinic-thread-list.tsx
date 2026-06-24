@@ -212,9 +212,10 @@ export default function ClinicThreadList({
                     </p>
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <span
-                        className={`text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
+                        className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
                         title={ch.title}
                       >
+                        <span aria-hidden="true">{ch.icon}</span>
                         {ch.label}
                       </span>
                       {unread && (

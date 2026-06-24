@@ -48,6 +48,23 @@ describe('EncodingLegend', () => {
     expect(screen.getByText('Confirmed')).toBeInTheDocument()
   })
 
+  it('documents channels in their own (non-status) section', () => {
+    render(
+      <EncodingLegend
+        aging="messages"
+        channels={[
+          { icon: '✉️', label: 'Email', meaning: 'Message sent by email' },
+          { icon: '📱', label: 'SMS', meaning: 'Message sent by text' },
+        ]}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /key/i }))
+    expect(screen.getByText('Channels')).toBeInTheDocument()
+    expect(screen.getByText('Email')).toBeInTheDocument()
+    expect(screen.getByText('Message sent by email')).toBeInTheDocument()
+    expect(screen.getByText('SMS')).toBeInTheDocument()
+  })
+
   it('closes on Escape', () => {
     render(<EncodingLegend glyphs={['newPatient']} />)
     fireEvent.click(screen.getByRole('button', { name: /key/i }))

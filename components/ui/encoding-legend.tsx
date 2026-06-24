@@ -23,6 +23,7 @@ export function EncodingLegend({
   glyphs = [],
   aging,
   pills = [],
+  channels = [],
   label = 'Key',
   align = 'right',
   className = '',
@@ -33,6 +34,9 @@ export function EncodingLegend({
   aging?: AgingLegendId
   /** Status-pill meanings, when the page color-codes statuses. */
   pills?: PillLegendRow[]
+  /** Communication channels (medium, not status) — rendered neutral + icon so
+   *  they never collide with the semantic-tone palette. */
+  channels?: Array<{ icon: string; label: string; meaning: string }>
   label?: string
   align?: 'left' | 'right'
   className?: string
@@ -57,7 +61,7 @@ export function EncodingLegend({
   }, [open])
 
   const agingPreset = aging ? AGING_LEGENDS[aging] : null
-  if (glyphs.length === 0 && !agingPreset && pills.length === 0) return null
+  if (glyphs.length === 0 && !agingPreset && pills.length === 0 && channels.length === 0) return null
 
   return (
     <span ref={rootRef} className={`relative inline-flex ${className}`}>
@@ -143,6 +147,25 @@ export function EncodingLegend({
                     <span
                       className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TONE_PILL[row.tone]}`}
                     >
+                      {row.label}
+                    </span>
+                    <span className="min-w-0 text-xs text-gray-500 dark:text-gray-400 pt-0.5">{row.meaning}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {channels.length > 0 && (
+            <div className="mb-4 last:mb-0">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                Channels
+              </div>
+              <ul className="space-y-2">
+                {channels.map((row) => (
+                  <li key={row.label} className="flex items-start gap-2.5">
+                    <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700/40 px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-300">
+                      <span aria-hidden="true">{row.icon}</span>
                       {row.label}
                     </span>
                     <span className="min-w-0 text-xs text-gray-500 dark:text-gray-400 pt-0.5">{row.meaning}</span>

@@ -933,9 +933,10 @@ export default function ThreadDetailPanel({
                               {senderLabel}
                             </span>
                             <span
-                              className={`shrink-0 font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
+                              className={`shrink-0 inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
                               title={ch.title}
                             >
+                              <span aria-hidden="true">{ch.icon}</span>
                               {ch.label}
                             </span>
                           </div>
