@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   boolean,
   date,
+  index,
   integer,
   jsonb,
   numeric,
@@ -259,6 +260,10 @@ export const campaigns = pgTable('campaigns', {
   uniqueIndex('campaigns_org_automation_key_idx')
     .on(t.organizationId, t.automationKey)
     .where(sql`${t.automationKey} is not null`),
+  // Every marketing/recall/analytics page filters campaigns by org (often by
+  // status too: the scheduled/completed scans). Without this the table was
+  // seq-scanned on every dashboard load.
+  index('campaigns_org_status_idx').on(t.organizationId, t.status),
 ])
 
 export const campaignMembers = pgTable(
@@ -298,7 +303,11 @@ export const audiences = pgTable('audiences', {
   createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => [
+  // Listed by org on every marketing page (audience list, campaign editor,
+  // outreach). Was an unindexed FK → seq scan per render.
+  index('audiences_org_idx').on(t.organizationId),
+])
 
 // One row per staff member per day a morning digest went out — the idempotency
 // guard so the daily-digest cron never double-sends (a retry finds the row and
@@ -392,6 +401,11 @@ export const campaignEvents = pgTable(
     // Per-patient timeline lookup ("show me all marketing events for Sophia")
     // — used by patient-timeline.ts.
     uniqueIndex('campaign_events_campaign_patient_type_idx').on(t.campaignId, t.patientId, t.type, t.occurredAt),
+    // The recall/analytics funnels scan events by campaign set + occurredAt
+    // window (inArray(campaignId) AND occurredAt >= since). The unique indexes
+    // above lead with campaignId but bury occurredAt behind type; this one
+    // makes the time-range its own usable boundary on the highest-volume table.
+    index('campaign_events_campaign_occurred_idx').on(t.campaignId, t.occurredAt),
   ]
 )
 
