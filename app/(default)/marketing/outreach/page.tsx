@@ -8,6 +8,7 @@ import { listTemplates } from '@/lib/services/marketing-templates'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 
@@ -178,19 +179,21 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
       {/* ── Tier filter chips (server-rendered Links — navigation, not local
           toggle state — styled to the shared chip recipe) ──────────────── */}
       <div className="mb-6 flex flex-wrap gap-1.5">
-        <TierChip href="/marketing/outreach" active={selectedTier === null} label="All tiers" count={totalCount} />
+        <FilterChip href="/marketing/outreach" active={selectedTier === null} count={totalCount}>
+          All tiers
+        </FilterChip>
         {TIER_DEFS.map((tier) => {
           const count = sections.find((s) => s.tier.key === tier.key)?.recipients.length
             ?? (selectedTier !== null && selectedTier !== tier.key ? null : 0)
           return (
-            <TierChip
+            <FilterChip
               key={tier.key}
               href={`/marketing/outreach?tier=${tier.key}`}
               active={selectedTier === tier.key}
-              label={tier.label}
-              count={count}
-              accent={tier.accent}
-            />
+              count={count ?? undefined}
+            >
+              {tier.label}
+            </FilterChip>
           )
         })}
       </div>
@@ -269,37 +272,3 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
   )
 }
 
-function TierChip({
-  href,
-  active,
-  label,
-  count,
-  accent,
-}: {
-  href: string
-  active: boolean
-  label: string
-  count: number | null
-  accent?: 'amber' | 'rose' | 'emerald' | 'violet'
-}) {
-  // Active "All tiers" = teal selection (selection ≠ status, per Part 2);
-  // the accent-tier chips carry their own tone band when active.
-  const activeAccent = accent ? TIER_ACCENT_BG[accent] : 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-[color:var(--color-hairline-strong)]'
-  return (
-    <Link
-      href={href}
-      className={
-        active
-          ? `text-xs font-semibold px-3 py-1.5 rounded-full border ${activeAccent}`
-          : 'text-xs font-medium px-3 py-1.5 rounded-full bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] hover:border-[color:var(--color-hairline-strong)] text-gray-700 dark:text-gray-200 transition-colors'
-      }
-    >
-      {label}
-      {count != null && (
-        <span className={active ? 'ml-1.5 opacity-80 tabular-nums font-mono-num' : 'ml-1.5 text-gray-500 dark:text-gray-400 tabular-nums font-mono-num'}>
-          {count}
-        </span>
-      )}
-    </Link>
-  )
-}
