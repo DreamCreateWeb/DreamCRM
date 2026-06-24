@@ -444,3 +444,73 @@ export function platformLabel(platform: string): string {
 export function platformIcon(platform: string): string {
   return (ZERNIO_PLATFORM_ICONS as Record<string, string>)[platform] ?? '🔗'
 }
+
+// ── Post comments + engagement (the "manage your post" surface) ──────────────
+//
+// Of the shortlist, the Zernio comments API exposes comments for these four
+// (NOT Google Business — that's reviews, in the Reviews module — and NOT
+// TikTok). The per-comment can* flags still gate the individual actions; this
+// set just decides whether to show the comments surface at all.
+export const POST_COMMENT_PLATFORMS: ReadonlySet<string> = new Set([
+  'instagram',
+  'facebook',
+  'youtube',
+  'linkedin',
+])
+
+/** Whether a clinic can read/manage comments for a post on this platform. */
+export function commentsSupportedForPlatform(platform: string): boolean {
+  return POST_COMMENT_PLATFORMS.has(platform)
+}
+
+/** A single comment on a published post (client-safe). Mirrors the normalized
+ *  `ZernioComment` from `lib/zernio.ts` with an ISO time string. */
+export interface PostCommentView {
+  id: string
+  message: string
+  createdTimeIso: string | null
+  authorName: string
+  authorHandle: string | null
+  authorPicture: string | null
+  isOwner: boolean
+  likeCount: number
+  replyCount: number
+  url: string | null
+  canReply: boolean
+  canDelete: boolean
+  canHide: boolean
+  canLike: boolean
+  isHidden: boolean
+  isLiked: boolean
+  likeUri: string | null
+  cid: string | null
+  replies: PostCommentView[]
+}
+
+/** Per-post engagement counts (client-safe). */
+export interface PostEngagementView {
+  likes: number
+  comments: number
+  shares: number
+  saves: number
+  impressions: number
+  reach: number
+  views: number
+  clicks: number
+}
+
+/** Everything the post-detail panel needs for one post on one platform. */
+export interface PostEngagementBundle {
+  platform: string
+  /** Whether the platform supports comments at all (false → GBP/TikTok). */
+  supported: boolean
+  /** When unsupported, a short reason key the UI can phrase ('googlebusiness' | 'tiktok' | 'not_published' | 'not_connected'). */
+  reason: string | null
+  /** Inbox add-on present (comments readable). Demo connections report true. */
+  commentsAvailable: boolean
+  /** Analytics add-on present (engagement counts readable). Demo reports true. */
+  analyticsAvailable: boolean
+  isDemo: boolean
+  engagement: PostEngagementView | null
+  comments: PostCommentView[]
+}

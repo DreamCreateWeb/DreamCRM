@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { BrandLogo, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
-import { GBP_CTA_LABELS, type SocialPostView } from '@/lib/types/zernio'
+import { GBP_CTA_LABELS, commentsSupportedForPlatform, type SocialPostView } from '@/lib/types/zernio'
 import { PlatformPostCard, type PreviewChannel, type PreviewContent } from '@/components/social-posts/post-preview'
+import PostCommentsPanel from '@/components/social-posts/post-comments-panel'
 
 /**
  * "Showcase" view of the post history — a device frame standing in for a social
@@ -67,6 +68,8 @@ export default function PostFeed({
 
   const [active, setActive] = useState<string>(() => platforms[0] ?? 'instagram')
   const current = platforms.includes(active) ? active : platforms[0]
+  // The post whose comment/engagement manager is open (over the whole page).
+  const [openPost, setOpenPost] = useState<{ id: string; platform: string; summary: string } | null>(null)
 
   if (!current) {
     // Posts exist, but none on a platform we render a feed for yet.
@@ -122,7 +125,13 @@ export default function PostFeed({
             <div className={`flex-1 overflow-y-auto ${FEED_BG[current]}`}>
               <div className="px-3 py-3 space-y-3">
                 {feedPosts.map((post) => (
-                  <PlatformPostCard key={post.id} channel={channel} content={contentFor(post, clinicName)} />
+                  <div key={post.id}>
+                    <PlatformPostCard channel={channel} content={contentFor(post, clinicName)} />
+                    <ManageBar
+                      platform={current}
+                      onOpen={() => setOpenPost({ id: post.id, platform: current, summary: post.summary })}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -130,6 +139,15 @@ export default function PostFeed({
           </div>
         </div>
       </div>
+
+      {openPost && (
+        <PostCommentsPanel
+          socialPostId={openPost.id}
+          platform={openPost.platform}
+          summary={openPost.summary}
+          onClose={() => setOpenPost(null)}
+        />
+      )}
       <p className="text-center text-[11px] text-gray-400 mt-3">
         Your {feedPosts.length} {TAB_NAME[current]} {feedPosts.length === 1 ? 'post' : 'posts'}, shown the way {TAB_NAME[current]} displays them.
       </p>
@@ -229,6 +247,41 @@ function BottomNav({ platform }: { platform: string }) {
       ))}
     </div>
   )
+}
+
+// ── Per-card management bar — opens the comment/engagement manager ──────────
+// Visually a DreamCRM control (teal), distinct from the native-looking card, so
+// staff know it's our tooling. Honest per platform: comment platforms get the
+// manager; Google Business points at Reviews; TikTok has no comments API.
+
+function ManageBar({ platform, onOpen }: { platform: string; onOpen: () => void }) {
+  if (commentsSupportedForPlatform(platform)) {
+    return (
+      <div className="mt-1.5 flex justify-center">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex items-center gap-1.5 rounded-full bg-teal-600 text-white px-3 py-1.5 text-[12px] font-medium shadow-sm hover:bg-teal-700 transition"
+        >
+          <span aria-hidden="true">💬</span> Comments &amp; stats
+        </button>
+      </div>
+    )
+  }
+  if (platform === 'googlebusiness') {
+    return (
+      <div className="mt-1.5 flex justify-center">
+        <a
+          href="/reviews/received"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white ring-1 ring-gray-200 text-gray-700 px-3 py-1.5 text-[12px] font-medium hover:ring-gray-300 transition"
+        >
+          <span aria-hidden="true">★</span> Manage reviews →
+        </a>
+      </div>
+    )
+  }
+  // TikTok (and any other no-comments platform) — honest muted note on the dark feed.
+  return <p className="mt-1.5 text-center text-[11px] text-white/55">Manage comments in the {TAB_NAME[platform] ?? 'platform'} app</p>
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────

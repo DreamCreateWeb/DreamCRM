@@ -752,3 +752,50 @@ reply support (no Zernio endpoint today — read-only + link-out for now).
   surfaces still showcase populated (per the no-fake-content rule, demo-only).
 - Native Google Business Profile API as a later add for true hours/address
   write-back (separate OAuth + Google verification) — only if clinics ask.
+
+---
+
+## Post comments + per-post engagement (the "manage your post" surface, 2026-06-24)
+
+Built on the Social Posts tablet "Showcase" feed: clicking a post opens a
+manager (`components/social-posts/post-comments-panel.tsx`) that shows the
+post's real engagement counts and comment thread and lets staff reply / like /
+hide / delete — each action gated by the per-comment `can*` flags the API
+returns (so buttons appear only where the platform allows them).
+
+**Confirmed Zernio shapes (OpenAPI 1.0.4):**
+- Comments (require the **Inbox add-on** → 403 when absent):
+  - `GET /v1/inbox/comments/{postId}?accountId=&limit=&cursor=` →
+    `{ comments:[{ id, message, createdTime, from:{name,username,picture,isOwner},
+    likeCount, replyCount, url, replies[], canReply, canDelete, canHide, canLike,
+    isHidden, isLiked, likeUri, cid }], pagination }`
+  - `POST /v1/inbox/comments/{postId}` body `{ accountId, message, commentId? }`
+  - `DELETE /v1/inbox/comments/{postId}?accountId=&commentId=`
+  - `POST|DELETE /v1/inbox/comments/{postId}/{commentId}/hide` body `{ accountId }`
+  - `POST|DELETE /v1/inbox/comments/{postId}/{commentId}/like` body `{ accountId, cid? }`
+- Engagement (requires the **Analytics add-on** → 402): `GET /v1/analytics/post-timeline?postId=`
+  → daily CUMULATIVE rows `{ date, platform, likes, comments, shares, saves,
+  impressions, reach, views, clicks }`; take the latest row per platform = current totals.
+
+**Platform reality (shortlist):** comments exist for **Instagram / Facebook /
+YouTube / LinkedIn** — NOT Google Business (that's reviews → the Reviews module)
+and NOT TikTok. `like` = Facebook only; `hide` = Facebook + Instagram (of the
+shortlist). `POST_COMMENT_PLATFORMS` gates the surface; the `can*` flags gate
+each button.
+
+**Editing a published post is platform-forbidden almost everywhere.** Zernio
+exposes `POST /v1/posts/{postId}/edit` (**Twitter only**, Premium, <1h, text) and
+`POST /v1/posts/{postId}/update-metadata` (**YouTube only** — title/description/
+tags/privacy/thumbnail). Instagram / Facebook / TikTok / Google Business have NO
+edit-after-publish API (the platforms don't allow it). So we did NOT add a
+generic "edit post" control — that would be fake. YouTube "Edit details"
+(update-metadata) is the one real edit and is a clean follow-up.
+
+Wiring: client wrappers + `isInboxAddonError`/`isAnalyticsAddonError` in
+`lib/zernio.ts`; service `lib/services/social-comments.ts` (resolves the
+target's accountId+zernioPostId from `social_post_target`; demo-safe synthetic
+thread/counts; best-effort add-on gating); actions in
+`app/(default)/social-posts/comment-actions.ts`. NO migration (comments live on
+the platform; we read/act through Zernio). Demo: the synthetic thread/counts are
+generated live whenever the connection is `isDemo` (the demo posts already carry
+a `zernioPostId`), so `seedDemoPostComments` is a documented no-op.

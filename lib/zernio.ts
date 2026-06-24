@@ -1080,6 +1080,261 @@ export async function deletePost(postId: string): Promise<void> {
   await zernioFetch(`/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' })
 }
 
+// ── Post comments + per-post engagement (the "manage your post" surface) ──────
+//
+// Confirmed against the Zernio OpenAPI (v1.0.4, 2026-06-24):
+//   COMMENTS (require the INBOX add-on → a 403 when absent):
+//     GET    /v1/inbox/comments/{postId}?accountId=…&limit=&cursor=
+//            → { status, comments:[{ id, message, createdTime, from:{name,username,
+//              picture,isOwner}, likeCount, replyCount, url, replies[], canReply,
+//              canDelete, canHide, canLike, isHidden, isLiked, likeUri, cid }], pagination }
+//     POST   /v1/inbox/comments/{postId}          body { accountId, message, commentId? }
+//     DELETE /v1/inbox/comments/{postId}?accountId=…&commentId=…
+//     POST   /v1/inbox/comments/{postId}/{commentId}/hide   body { accountId }
+//     DELETE /v1/inbox/comments/{postId}/{commentId}/hide?accountId=…           (unhide)
+//     POST   /v1/inbox/comments/{postId}/{commentId}/like   body { accountId, cid? }
+//     DELETE /v1/inbox/comments/{postId}/{commentId}/like?accountId=…&likeUri=  (unlike)
+//   ENGAGEMENT (requires the ANALYTICS add-on → a 402 when absent):
+//     GET /v1/analytics/post-timeline?postId=…  → daily cumulative totals per platform
+//       row: { date, platform, platformPostId, impressions, reach, likes, comments,
+//              shares, saves, clicks, views } — the LATEST row per platform = current totals.
+//
+// Comment capability is PER-PLATFORM and PER-COMMENT: the API returns can*
+// flags on every comment (canReply/canDelete/canHide/canLike) so the UI drives
+// its buttons off the data, not a hardcoded matrix. Of our shortlist, comments
+// exist for Instagram / Facebook / YouTube / LinkedIn (NOT Google Business —
+// that's reviews — and NOT TikTok). Parsed DEFENSIVELY against field drift.
+
+/** A normalized comment on a published post (client-safe shape). */
+export interface ZernioComment {
+  id: string
+  message: string
+  createdTime: string | null
+  authorName: string
+  authorHandle: string | null
+  authorPicture: string | null
+  isOwner: boolean
+  likeCount: number
+  replyCount: number
+  /** Permalink to the comment on the platform, when the API returns one. */
+  url: string | null
+  /** Per-comment capability flags (what THIS comment supports on its platform). */
+  canReply: boolean
+  canDelete: boolean
+  canHide: boolean
+  canLike: boolean
+  isHidden: boolean
+  isLiked: boolean
+  /** Bluesky-only handles carried through so like/unlike round-trips work. */
+  likeUri: string | null
+  cid: string | null
+  /** Nested replies (one level; same shape). */
+  replies: ZernioComment[]
+}
+
+interface RawComment {
+  id?: string
+  commentId?: string
+  message?: string | null
+  text?: string | null
+  createdTime?: string | null
+  createdAt?: string | null
+  from?: { name?: string | null; username?: string | null; picture?: string | null; isOwner?: boolean } | null
+  author?: { name?: string | null; username?: string | null; picture?: string | null } | null
+  likeCount?: number | null
+  replyCount?: number | null
+  url?: string | null
+  permalink?: string | null
+  canReply?: boolean
+  canDelete?: boolean
+  canHide?: boolean
+  canLike?: boolean
+  isHidden?: boolean
+  isLiked?: boolean
+  likeUri?: string | null
+  cid?: string | null
+  replies?: RawComment[] | null
+}
+
+function normalizeComment(raw: RawComment): ZernioComment | null {
+  const id = raw.id ?? raw.commentId
+  if (!id) return null
+  const from = raw.from ?? raw.author ?? null
+  return {
+    id: String(id),
+    message: raw.message ?? raw.text ?? '',
+    createdTime: raw.createdTime ?? raw.createdAt ?? null,
+    authorName: from?.name ?? from?.username ?? 'Someone',
+    authorHandle: from?.username ?? null,
+    authorPicture: from?.picture ?? null,
+    isOwner: Boolean(raw.from?.isOwner),
+    likeCount: Number(raw.likeCount ?? 0) || 0,
+    replyCount: Number(raw.replyCount ?? 0) || 0,
+    url: [raw.url, raw.permalink].find((u) => typeof u === 'string' && u.startsWith('http')) ?? null,
+    canReply: Boolean(raw.canReply),
+    canDelete: Boolean(raw.canDelete),
+    canHide: Boolean(raw.canHide),
+    canLike: Boolean(raw.canLike),
+    isHidden: Boolean(raw.isHidden),
+    isLiked: Boolean(raw.isLiked),
+    likeUri: raw.likeUri ?? null,
+    cid: raw.cid ?? null,
+    replies: Array.isArray(raw.replies)
+      ? raw.replies.map(normalizeComment).filter((c): c is ZernioComment => c !== null)
+      : [],
+  }
+}
+
+/** `GET /inbox/comments/{postId}` — the comment thread for a published post.
+ *  Requires the Inbox add-on (a 403 throws — the service treats that as
+ *  "add-on off"). */
+export async function listPostComments(
+  postId: string,
+  accountId: string,
+  opts?: { limit?: number; cursor?: string },
+): Promise<{ comments: ZernioComment[]; hasMore: boolean; cursor: string | null }> {
+  const qs = new URLSearchParams({ accountId })
+  if (opts?.limit) qs.set('limit', String(opts.limit))
+  if (opts?.cursor) qs.set('cursor', opts.cursor)
+  const data = await zernioFetch<{
+    comments?: RawComment[]
+    pagination?: { hasMore?: boolean; cursor?: string | null } | null
+  }>(`/inbox/comments/${encodeURIComponent(postId)}?${qs.toString()}`)
+  const comments = (data.comments ?? []).map(normalizeComment).filter((c): c is ZernioComment => c !== null)
+  return { comments, hasMore: Boolean(data.pagination?.hasMore), cursor: data.pagination?.cursor ?? null }
+}
+
+/** `POST /inbox/comments/{postId}` — reply to the post, or to a specific comment
+ *  when `commentId` is set. Returns the new comment id. */
+export async function replyToPostComment(
+  postId: string,
+  input: { accountId: string; message: string; commentId?: string },
+): Promise<{ commentId: string | null }> {
+  const data = await zernioFetch<{ data?: { commentId?: string } | null }>(
+    `/inbox/comments/${encodeURIComponent(postId)}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        accountId: input.accountId,
+        message: input.message,
+        ...(input.commentId ? { commentId: input.commentId } : {}),
+      }),
+    },
+  )
+  return { commentId: data.data?.commentId ?? null }
+}
+
+/** `DELETE /inbox/comments/{postId}?accountId&commentId` — delete a comment. */
+export async function deletePostComment(postId: string, accountId: string, commentId: string): Promise<void> {
+  const qs = new URLSearchParams({ accountId, commentId })
+  await zernioFetch(`/inbox/comments/${encodeURIComponent(postId)}?${qs.toString()}`, { method: 'DELETE' })
+}
+
+/** Hide (POST) or unhide (DELETE) a comment. */
+export async function setPostCommentHidden(
+  postId: string,
+  commentId: string,
+  accountId: string,
+  hidden: boolean,
+): Promise<void> {
+  const path = `/inbox/comments/${encodeURIComponent(postId)}/${encodeURIComponent(commentId)}/hide`
+  if (hidden) {
+    await zernioFetch(path, { method: 'POST', body: JSON.stringify({ accountId }) })
+  } else {
+    await zernioFetch(`${path}?${new URLSearchParams({ accountId }).toString()}`, { method: 'DELETE' })
+  }
+}
+
+/** Like (POST) or unlike (DELETE) a comment. Returns the Bluesky likeUri when
+ *  liking (needed to unlike later); null otherwise. */
+export async function setPostCommentLiked(
+  postId: string,
+  commentId: string,
+  accountId: string,
+  liked: boolean,
+  opts?: { cid?: string | null; likeUri?: string | null },
+): Promise<{ likeUri: string | null }> {
+  const path = `/inbox/comments/${encodeURIComponent(postId)}/${encodeURIComponent(commentId)}/like`
+  if (liked) {
+    const data = await zernioFetch<{ likeUri?: string | null }>(path, {
+      method: 'POST',
+      body: JSON.stringify({ accountId, ...(opts?.cid ? { cid: opts.cid } : {}) }),
+    })
+    return { likeUri: data.likeUri ?? null }
+  }
+  const qs = new URLSearchParams({ accountId })
+  if (opts?.likeUri) qs.set('likeUri', opts.likeUri)
+  await zernioFetch(`${path}?${qs.toString()}`, { method: 'DELETE' })
+  return { likeUri: null }
+}
+
+/** Per-post engagement totals (one platform). All fields are counts. */
+export interface ZernioPostEngagement {
+  likes: number
+  comments: number
+  shares: number
+  saves: number
+  impressions: number
+  reach: number
+  views: number
+  clicks: number
+}
+
+interface RawTimelineRow {
+  date?: string
+  platform?: string
+  likes?: number
+  comments?: number
+  shares?: number
+  saves?: number
+  impressions?: number
+  reach?: number
+  views?: number
+  clicks?: number
+}
+
+/** `GET /analytics/post-timeline?postId=…` — daily cumulative totals per
+ *  platform. We reduce to the LATEST row per platform (current totals) and
+ *  return a per-platform map. Requires the Analytics add-on (a 402 throws — the
+ *  service treats that as "analytics off"). */
+export async function getPostEngagement(postId: string): Promise<Record<string, ZernioPostEngagement>> {
+  const data = await zernioFetch<{ timeline?: RawTimelineRow[] }>(
+    `/analytics/post-timeline?${new URLSearchParams({ postId }).toString()}`,
+  )
+  const latestByPlatform = new Map<string, RawTimelineRow>()
+  for (const row of data.timeline ?? []) {
+    const platform = row.platform ?? 'unknown'
+    const prev = latestByPlatform.get(platform)
+    // Rows are daily cumulative; the latest date wins.
+    if (!prev || String(row.date ?? '') >= String(prev.date ?? '')) latestByPlatform.set(platform, row)
+  }
+  const out: Record<string, ZernioPostEngagement> = {}
+  latestByPlatform.forEach((row, platform) => {
+    out[platform] = {
+      likes: Number(row.likes ?? 0) || 0,
+      comments: Number(row.comments ?? 0) || 0,
+      shares: Number(row.shares ?? 0) || 0,
+      saves: Number(row.saves ?? 0) || 0,
+      impressions: Number(row.impressions ?? 0) || 0,
+      reach: Number(row.reach ?? 0) || 0,
+      views: Number(row.views ?? 0) || 0,
+      clicks: Number(row.clicks ?? 0) || 0,
+    }
+  })
+  return out
+}
+
+/** True when a non-2xx Zernio error is a 403 (Inbox add-on) — used by the
+ *  service to degrade gracefully instead of throwing. */
+export function isInboxAddonError(e: unknown): boolean {
+  return e instanceof Error && /\b403\b/.test(e.message)
+}
+
+/** True when a Zernio error is a 402 (Analytics add-on required). */
+export function isAnalyticsAddonError(e: unknown): boolean {
+  return e instanceof Error && (/\b402\b/.test(e.message) || /analytics_addon_required/i.test(e.message))
+}
+
 // ── Facebook reviews / recommendations (Phase 3 PR 4) ─────────────────────────
 //
 // Confirmed against the Zernio docs (llms.txt + llms-full.txt + the OpenAPI

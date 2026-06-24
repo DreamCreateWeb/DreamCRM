@@ -104,3 +104,15 @@ describe('PostFeed — tablet showcase of the post history', () => {
     expect(within(container).getAllByText('@dream').length).toBeGreaterThanOrEqual(1)
   })
 })
+
+describe('PostFeed — per-post management bar (honest per platform)', () => {
+  it('Google posts point at Reviews; comment-capable posts open the manager', () => {
+    render(<PostFeed posts={[gbpPost, igPost, bothPost]} channels={channels} clinicName="Dream Dental" />)
+    // Default tab is Google → the bar routes to the Reviews module (no comments API).
+    expect(screen.getAllByRole('link', { name: /Manage reviews/ }).length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByRole('button', { name: /Comments & stats/ })).toBeNull()
+    // Instagram → the comments + stats manager.
+    fireEvent.click(screen.getByRole('tab', { name: /Instagram/ }))
+    expect(screen.getAllByRole('button', { name: /Comments & stats/ }).length).toBeGreaterThanOrEqual(1)
+  })
+})
