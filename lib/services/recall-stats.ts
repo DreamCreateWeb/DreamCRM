@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { lapsedCutoff as lapsedCutoffDate, startOfMonth } from '@/lib/dates'
+import { tallyCampaignFunnel, tallyCampaignFunnelByCampaign } from '@/lib/services/campaign-funnel'
 
 /**
  * Recall & Outreach dashboard service. Returns the morning-huddle-style
@@ -274,22 +275,18 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
     }
   }
 
-  // Roll up campaign event counts.
-  let sentThisMonthCount = 0
-  let openedLast30 = 0
-  let clickedLast30 = 0
-  let sentLast30 = 0
-  let bookedFromRecallCount = 0
-  for (const e of campaignEventsLast30) {
-    if (e.type === 'sent' && e.occurredAt >= monthStart) sentThisMonthCount++
-    if (e.type === 'sent') sentLast30++
-    if (e.type === 'open') openedLast30++
-    if (e.type === 'click') clickedLast30++
-    if (e.type === 'booked') bookedFromRecallCount++
-  }
+  // Roll up campaign event counts through the shared funnel reducer (the
+  // event-type→counter contract lives in one place now). sentThisMonthCount
+  // carries an extra time bound, so it stays a direct count.
+  const funnel30d = tallyCampaignFunnel(campaignEventsLast30)
+  const sentLast30 = funnel30d.sent
+  const bookedFromRecallCount = funnel30d.booked
+  const sentThisMonthCount = campaignEventsLast30.filter(
+    (e) => e.type === 'sent' && e.occurredAt >= monthStart,
+  ).length
 
-  const openRate30d = sentLast30 > 0 ? Math.round((openedLast30 / sentLast30) * 100) : null
-  const clickRate30d = sentLast30 > 0 ? Math.round((clickedLast30 / sentLast30) * 100) : null
+  const openRate30d = sentLast30 > 0 ? Math.round((funnel30d.opened / sentLast30) * 100) : null
+  const clickRate30d = sentLast30 > 0 ? Math.round((funnel30d.clicked / sentLast30) * 100) : null
 
   // Audience names for upcoming + recent send rows. Single query, fan out
   // to whichever campaigns reference them.
@@ -310,16 +307,8 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
         )
   const audienceNameById = new Map(audienceRows.map((a) => [a.id, a.name]))
 
-  // Per-campaign event aggregation for recent sends.
-  const eventsByCampaign = new Map<number, { sent: number; opened: number; clicked: number; booked: number }>()
-  for (const e of campaignEventsLast30) {
-    const cur = eventsByCampaign.get(e.campaignId) ?? { sent: 0, opened: 0, clicked: 0, booked: 0 }
-    if (e.type === 'sent') cur.sent++
-    else if (e.type === 'open') cur.opened++
-    else if (e.type === 'click') cur.clicked++
-    else if (e.type === 'booked') cur.booked++
-    eventsByCampaign.set(e.campaignId, cur)
-  }
+  // Per-campaign event aggregation for recent sends (same shared reducer).
+  const eventsByCampaign = tallyCampaignFunnelByCampaign(campaignEventsLast30)
 
   const upcomingSends: UpcomingSendRow[] = upcomingCampaigns
     .filter((c): c is typeof c & { scheduledAt: Date } => !!c.scheduledAt)

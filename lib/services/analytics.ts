@@ -5,6 +5,7 @@ import { getReviewStats } from '@/lib/services/reviews'
 import { listPatients } from '@/lib/services/patients'
 import { getClinicSeoPerformance } from '@/lib/services/gsc'
 import { getGbpLocalMetrics } from '@/lib/services/gbp-metrics'
+import { tallyCampaignFunnel, emptyFunnel } from '@/lib/services/campaign-funnel'
 
 /**
  * Clinic Analytics. The honest split: a CRM can measure the *relationship,
@@ -223,18 +224,13 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     .where(and(eq(schema.campaigns.organizationId, organizationId), eq(schema.campaigns.recipientSource, 'patients')))
   const campaignIds = patientCampaigns.map((c) => c.id)
 
-  const outreach = { sent: 0, opened: 0, clicked: 0, booked: 0 }
+  let outreach = emptyFunnel()
   if (campaignIds.length > 0) {
     const eventRows = await db
       .select({ type: schema.campaignEvents.type })
       .from(schema.campaignEvents)
       .where(and(inArray(schema.campaignEvents.campaignId, campaignIds), gte(schema.campaignEvents.occurredAt, since)))
-    for (const e of eventRows) {
-      if (e.type === 'sent') outreach.sent++
-      else if (e.type === 'open') outreach.opened++
-      else if (e.type === 'click') outreach.clicked++
-      else if (e.type === 'booked') outreach.booked++
-    }
+    outreach = tallyCampaignFunnel(eventRows)
   }
 
   // ── Reputation (reuse getReviewStats, scoped to the SAME window) ────────
