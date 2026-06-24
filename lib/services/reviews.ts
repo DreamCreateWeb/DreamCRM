@@ -814,7 +814,13 @@ export async function getCompletedReviewCount(organizationId: string): Promise<n
 export async function getReviewStats(
   organizationId: string,
   windowDays = 30,
+  opts: { includeEligible?: boolean } = {},
 ): Promise<ReviewStats> {
+  // The eligible-patients scan (3 queries, up to 1000 rows) is only for the
+  // "Ready to ask" KPI on the Reviews dashboard. Analytics never reads it, and
+  // the dashboard page now computes the eligible LIST itself (and passes the
+  // count down) — so both callers pass includeEligible:false to skip it.
+  const { includeEligible = true } = opts
   const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
 
   const [sentAgg, clickAgg, completedAgg, pendingAgg, byPlatformRows] = await Promise.all([
@@ -885,7 +891,9 @@ export async function getReviewStats(
     else if (r.selectedSite === 'yelp') byPlatform.yelp = Number(r.c)
   }
 
-  const eligibleCount = (await listEligiblePatients(organizationId, 1000)).length
+  const eligibleCount = includeEligible
+    ? (await listEligiblePatients(organizationId, 1000)).length
+    : 0
 
   return {
     windowDays,

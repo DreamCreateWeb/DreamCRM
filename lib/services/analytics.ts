@@ -234,7 +234,8 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
   }
 
   // ── Reputation (reuse getReviewStats, scoped to the SAME window) ────────
-  const reviews = await getReviewStats(organizationId, windowDays)
+  // Analytics never reads eligibleCount, so skip its eligible-patients scan.
+  const reviews = await getReviewStats(organizationId, windowDays, { includeEligible: false })
 
   return {
     windowDays,

@@ -129,4 +129,12 @@ describe('getReviewStats — windowDays', () => {
     expect(stats.clickRate30d).toBe(100) // clamped from 250
     expect(stats.completionRate30d).toBe(60) // 3/5, not clamped
   })
+
+  it('reports eligibleCount 0 when includeEligible is false (caller supplies it)', async () => {
+    // Analytics + the dashboard page pass this to avoid a redundant eligible
+    // scan; the count comes back 0 and the caller fills it in from its own
+    // single scan.
+    const stats = await getReviewStats('org_1', 30, { includeEligible: false })
+    expect(stats.eligibleCount).toBe(0)
+  })
 })

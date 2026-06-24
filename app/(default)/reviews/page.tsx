@@ -97,15 +97,19 @@ export default async function ReviewsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [config, stats, eligible, recent, featuredIds, googleStats, googleConnected] = await Promise.all([
+  // One eligible scan serves both the "Ready to ask" count and the list —
+  // getReviewStats skips its own (includeEligible:false) so we don't scan twice.
+  const [config, stats, eligibleAll, recent, featuredIds, googleStats, googleConnected] = await Promise.all([
     getReviewConfig(ctx.organizationId),
-    getReviewStats(ctx.organizationId),
-    listEligiblePatients(ctx.organizationId, 25),
+    getReviewStats(ctx.organizationId, 30, { includeEligible: false }),
+    listEligiblePatients(ctx.organizationId, 1000),
     listReviewRequests(ctx.organizationId, 30),
     listFeaturedTestimonialPatientIds(ctx.organizationId),
     getGoogleReviewStats(ctx.organizationId),
     hasGoogleBusinessConnection(ctx.organizationId),
   ])
+  const eligibleCount = eligibleAll.length
+  const eligible = eligibleAll.slice(0, 25)
 
   const configured = isReviewConfigComplete(config)
   const now = new Date()
@@ -175,9 +179,9 @@ export default async function ReviewsPage() {
         />
         <KpiStat
           label="Ready to ask"
-          value={stats.eligibleCount}
-          sub={stats.eligibleCount > 0 ? 'Visits completed, no recent request' : 'Nobody eligible right now'}
-          tone={stats.eligibleCount > 0 ? 'warn' : undefined}
+          value={eligibleCount}
+          sub={eligibleCount > 0 ? 'Visits completed, no recent request' : 'Nobody eligible right now'}
+          tone={eligibleCount > 0 ? 'warn' : undefined}
         />
       </div>
 
