@@ -215,34 +215,29 @@ describe('ModernTemplate', () => {
 
   // ── Sign-in links + section nav ─────────────────────────────────────
 
-  it('exposes sign-in links pointing to the absolute app sign-in URL', () => {
-    render(
-      <ModernTemplate data={makeData()} basePath="/site/test" signInUrl="https://app.example.com/signin" />,
-    )
-    const signinLinks = screen
-      .getAllByRole('link')
-      .filter((a) => a.getAttribute('href') === 'https://app.example.com/signin')
-    // header Patient Login + footer Patient Login + footer Staff login
-    expect(signinLinks.length).toBeGreaterThanOrEqual(3)
+  it('points the patient "Login" links at the clinic portal (the passed signInUrl)', () => {
+    const portal = 'https://app.example.com/site/test/portal'
+    render(<ModernTemplate data={makeData()} basePath="/site/test" signInUrl={portal} />)
+    const portalLinks = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === portal)
+    // header "Login" + (mobile) "Patient Login" + footer "Patient Login"
+    expect(portalLinks.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('renders a discreet "Staff login" link in the footer → app sign-in', () => {
-    render(
-      <ModernTemplate data={makeData()} basePath="/site/test" signInUrl="https://app.example.com/signin" />,
-    )
-    expect(screen.getByRole('link', { name: /Staff login/i })).toHaveAttribute(
-      'href',
-      'https://app.example.com/signin',
-    )
+  it('keeps the footer "Staff login" pointing at the PLATFORM sign-in (never the patient portal)', () => {
+    const portal = 'https://app.example.com/site/test/portal'
+    render(<ModernTemplate data={makeData()} basePath="/site/test" signInUrl={portal} />)
+    const staff = screen.getByRole('link', { name: /Staff login/i })
+    expect(staff.getAttribute('href')).toMatch(/\/signin$/)
+    expect(staff.getAttribute('href')).not.toBe(portal)
   })
 
-  it('falls back to the canonical app host when no signInUrl prop is given', () => {
+  it('falls back to the clinic patient portal for "Login" when no signInUrl prop is given', () => {
     render(<ModernTemplate data={makeData()} basePath="/site/test" />)
-    const signinLinks = screen
+    const portalLinks = screen
       .getAllByRole('link')
-      .filter((a) => (a.getAttribute('href') ?? '').endsWith('/signin'))
-    expect(signinLinks.length).toBeGreaterThan(0)
-    expect(signinLinks[0].getAttribute('href')).toMatch(/^https?:\/\/.+\/signin$/)
+      .filter((a) => (a.getAttribute('href') ?? '').endsWith('/portal'))
+    expect(portalLinks.length).toBeGreaterThan(0)
+    expect(portalLinks[0].getAttribute('href')).toMatch(/^https?:\/\/.+\/site\/.+\/portal$/)
   })
 
   it('renders header nav using page paths (services + about + faq) plus #contact anchor', () => {

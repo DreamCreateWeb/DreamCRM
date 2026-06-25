@@ -1,4 +1,5 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import { appBaseUrl } from '@/lib/services/clinic-site'
 import type { ClinicService } from '@/lib/types/clinic-content'
 import {
   DAYS,
@@ -39,6 +40,10 @@ export default function SiteFooter({
 }: Props) {
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
+  // "Staff login" is for the CLINIC's own team → the platform sign-in (where
+  // staff/owners log into the dashboard). Distinct from the patient "Login"
+  // (signInUrl), which goes to this clinic's patient portal.
+  const staffSignInUrl = `${appBaseUrl()}/signin`
   const brand = profile.brandColor ?? '#9CAF9F'
   const logoUrl = profile.logoUrl ?? null
   const hours = profile.hours as Record<string, { open?: string; close?: string; closed?: boolean }> | null
@@ -295,7 +300,7 @@ export default function SiteFooter({
             style={{ color: FOOTER_MUTED }}
           >
             <li>
-              <a href={signInUrl} className="hover:underline" style={{ color: FOOTER_MUTED }}>
+              <a href={staffSignInUrl} className="hover:underline" style={{ color: FOOTER_MUTED }}>
                 Staff login
               </a>
             </li>

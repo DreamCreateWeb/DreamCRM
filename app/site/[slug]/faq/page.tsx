@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   resolveSiteBasePath,
   appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -100,7 +101,7 @@ export default async function FaqPage({ params }: Props) {
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
-  const signIn = `${appBaseUrl()}/signin`
+  const signIn = clinicPortalSignInUrl(slug)
 
   const navLinks = buildClinicNavLinks({
     basePath,

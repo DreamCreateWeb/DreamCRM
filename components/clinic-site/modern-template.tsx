@@ -1,5 +1,5 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
-import { appBaseUrl } from '@/lib/services/clinic-site'
+import { appBaseUrl, clinicPortalSignInUrl } from '@/lib/services/clinic-site'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 import type {
   ClinicService,
@@ -177,9 +177,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const mapDirectionsHref = `https://www.google.com/maps/dir/?api=1&destination=${mapQuery}`
   const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
   const bookLabel = 'Book a Visit'
-  const signIn =
-    signInUrl ??
-    `${(process.env.NEXT_PUBLIC_APP_URL || 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')}/signin`
+  // Patient "Login" → THIS clinic's patient portal, never the platform staff
+  // sign-in (the page passes signInUrl; this is just a safe fallback).
+  const signIn = signInUrl ?? clinicPortalSignInUrl(data.slug)
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,

@@ -5,6 +5,7 @@ import {
   clinicJsonLd,
   resolveSiteBasePath,
   appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -108,7 +109,7 @@ export default async function ClinicSitePage({ params }: Props) {
       <ModernTemplate
         data={data}
         basePath={basePath}
-        signInUrl={`${appBaseUrl()}/signin`}
+        signInUrl={clinicPortalSignInUrl(slug)}
         hasBlog={publishedPosts.length > 0}
         recentPosts={publishedPosts}
         reviewCount={reviewCount}

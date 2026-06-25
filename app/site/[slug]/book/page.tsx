@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   resolveSiteBasePath,
   appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -157,7 +158,7 @@ export default async function BookPage({ params }: Props) {
   const hasDentalPlans = membershipPlans.length > 0
   const hasCareers = openJobs.length > 0
   const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
-  const signIn = `${appBaseUrl()}/signin`
+  const signIn = clinicPortalSignInUrl(slug)
   // On the /book page itself, the Book CTA in the nav links should also
   // route to /book (we're already here, but the nav should remain consistent
   // across the rest of the site).

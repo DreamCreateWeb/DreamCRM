@@ -8,6 +8,9 @@ interface Props {
   orgId: string
   clinicName: string
   brand: string
+  /** 'intake' (default) lands on the intake form; 'portal' is the general
+   *  patient-portal login and lands on the portal dashboard. */
+  purpose?: 'intake' | 'portal'
 }
 
 type Mode = 'signup' | 'signin'
@@ -24,7 +27,9 @@ const BORDER = 'var(--c-border, #E8E2D9)'
  * `/patient/intake` so middleware + tenant context see the new session
  * state on the next request.
  */
-export default function IntakeStartForm({ orgId, clinicName, brand }: Props) {
+export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'intake' }: Props) {
+  const isPortal = purpose === 'portal'
+  const destination = isPortal ? '/patient/dashboard' : '/patient/intake'
   const [mode, setMode] = useState<Mode>('signup')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -81,7 +86,7 @@ export default function IntakeStartForm({ orgId, clinicName, brand }: Props) {
       // Hard navigate so middleware + tenant context pick up the new
       // session.activeOrganizationId on the next request. Soft router push
       // doesn't re-run middleware on session cookie changes.
-      window.location.assign('/patient/intake')
+      window.location.assign(destination)
     } catch (err) {
       setErrorMsg(
         err instanceof Error ? err.message : 'Something went wrong. Please try again.',
@@ -203,12 +208,18 @@ export default function IntakeStartForm({ orgId, clinicName, brand }: Props) {
             ? 'Just a moment…'
             : isSignIn
               ? `Sign in to ${clinicName}`
-              : `Create account & start intake`}
+              : isPortal
+                ? 'Create your account'
+                : `Create account & start intake`}
         </button>
         <p className="text-xs text-center mt-2" style={{ color: INK_MUTED }}>
-          {isSignIn
-            ? 'Welcome back. We’ll take you straight to the intake form.'
-            : 'After you sign up, we’ll take you to the intake form. Submissions save to your account so you can review later.'}
+          {isPortal
+            ? isSignIn
+              ? 'Welcome back — we’ll take you to your patient portal.'
+              : 'Create your account to see your visits, forms, and messages in one place.'
+            : isSignIn
+              ? 'Welcome back. We’ll take you straight to the intake form.'
+              : 'After you sign up, we’ll take you to the intake form. Submissions save to your account so you can review later.'}
         </p>
       </form>
     </div>

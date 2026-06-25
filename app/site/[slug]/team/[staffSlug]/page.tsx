@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   resolveSiteBasePath,
   appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -130,7 +131,7 @@ export default async function StaffDetailPage({ params }: Props) {
   const bookHref = staff.bookHref?.trim() || defaultBookHref
   const bookLabel = `Book with ${firstName(staff.name)}`
   const pageBookLabel = 'Book a Visit'
-  const signIn = `${appBaseUrl()}/signin`
+  const signIn = clinicPortalSignInUrl(slug)
 
   const staffArr = (profile.staff as ClinicStaff[] | null) ?? []
   const hasTeam = staffArr.length > 0

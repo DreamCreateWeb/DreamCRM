@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   resolveSiteBasePath,
   appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -99,7 +100,7 @@ export default async function TeamPage({ params }: Props) {
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
-  const signIn = `${appBaseUrl()}/signin`
+  const signIn = clinicPortalSignInUrl(slug)
 
   const staff: ClinicStaff[] = (profile.staff as ClinicStaff[] | null) ?? []
   const hasTeam = staff.length > 0

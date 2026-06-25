@@ -1,5 +1,5 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
-import { appBaseUrl } from '@/lib/services/clinic-site'
+import { clinicPortalSignInUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
@@ -39,7 +39,7 @@ export default async function BlogChrome({
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
-  const signIn = `${appBaseUrl()}/signin`
+  const signIn = clinicPortalSignInUrl(data.slug)
 
   const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),

@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   resolveSiteBasePath,
   appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -97,7 +98,7 @@ export default async function ServicesPage({ params }: Props) {
   // homepage's #contact anchor since there is no /services#contact section.
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
-  const signIn = `${appBaseUrl()}/signin`
+  const signIn = clinicPortalSignInUrl(slug)
 
   // Resolve the clinic's services into library-enriched rows, then split by
   // category. Show ALL configured services on the index — no 6-cap (the

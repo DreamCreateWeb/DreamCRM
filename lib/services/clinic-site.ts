@@ -18,6 +18,19 @@ export function appBaseUrl(): string {
 }
 
 /**
+ * The clinic-scoped PATIENT-portal sign-in / sign-up URL — where a clinic's
+ * public-site "Login" sends patients: to log into (or create) their account at
+ * THIS clinic and land in this clinic's portal. NEVER the platform staff
+ * sign-in (which would offer clinic onboarding — a patient could accidentally
+ * create a whole new clinic). Absolute www URL so the better-auth POST is
+ * same-origin: a subdomain `/portal` would rewrite to `/site/<slug>/portal` and
+ * break the relative `/api/auth/*` call.
+ */
+export function clinicPortalSignInUrl(slug: string): string {
+  return `${appBaseUrl()}/site/${encodeURIComponent(slug)}/portal`
+}
+
+/**
  * Resolve a clinic org id from its PUBLIC slug.
  *
  * The public form actions (contact / booking / insurance verifier) use this

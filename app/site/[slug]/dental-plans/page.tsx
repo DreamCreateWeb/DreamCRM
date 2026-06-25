@@ -4,6 +4,7 @@ import {
   publicSiteUrl,
   resolveSiteBasePath,
   appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { getOpenJobs } from '@/lib/services/careers'
@@ -122,7 +123,7 @@ export default async function DentalPlansPage({ params }: Props) {
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
-  const signIn = `${appBaseUrl()}/signin`
+  const signIn = clinicPortalSignInUrl(slug)
 
   // Offer JSON-LD — each active membership plan as a recurring Offer.
   const plansLd = dentalPlansJsonLd({
