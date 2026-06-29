@@ -165,7 +165,7 @@ export default function SubscriptionPanel({
       {upgradeModuleLabel && (
         <div className="rounded-[var(--r-sm)] bg-indigo-500/10 px-4 py-3 text-sm text-indigo-900 ring-1 ring-inset ring-indigo-500/30 dark:text-indigo-200">
           <span className="font-semibold">{upgradeModuleLabel} is on a higher plan.</span>{' '}
-          Pick a plan below to unlock it — your current data stays exactly as it is.
+          Pick a plan below to turn it on — your current data stays exactly as it is.
         </div>
       )}
 

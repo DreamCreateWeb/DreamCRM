@@ -109,7 +109,7 @@ export default function FeedbackPanel() {
             <div className="flex self-end gap-3">
               <ActionButton variant="secondary" onClick={() => { setMessage(''); setRating(3); setFeedback(null) }}>Cancel</ActionButton>
               <ActionButton variant="primary" type="submit" disabled={pending}>
-                {pending ? 'Sending…' : 'Send Feedback'}
+                {pending ? 'Sending…' : 'Send feedback'}
               </ActionButton>
             </div>
           </div>

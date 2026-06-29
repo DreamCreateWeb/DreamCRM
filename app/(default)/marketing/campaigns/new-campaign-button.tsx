@@ -64,7 +64,7 @@ export default function NewCampaignButton({ campaignTypes, prefillAudienceId }: 
             </h2>
             {prefillAudienceId && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 -mt-1">
-                This campaign will target the recall audience you selected — name it and pick a starting point.
+                This campaign goes to the recall group you picked — give it a name and choose a starting point.
               </p>
             )}
             <label className="block mb-3">

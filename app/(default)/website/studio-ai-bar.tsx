@@ -254,7 +254,7 @@ export default function StudioAiBar({
           <div className="shrink-0 flex items-center gap-1.5">
             {/* Monthly AI-edit allowance — AI edits spend tokens, so they're metered. */}
             <span
-              title="AI edits use AI and are metered monthly — they reset on the 1st. Editing by hand is always free."
+              title="You get a set number of AI edits each month — they reset on the 1st. Editing by hand is always free."
               className={`inline-flex items-center gap-1 rounded-full bg-gray-900/85 backdrop-blur-xl border px-2.5 py-1 text-xs font-medium ${
                 outOfEdits ? 'border-amber-400/40 text-amber-300' : 'border-white/10 text-gray-300'
               }`}
@@ -267,8 +267,8 @@ export default function StudioAiBar({
               onClick={toggleFollow}
               title={
                 follow
-                  ? 'Following — the viewport jumps to each change'
-                  : 'Background — edits apply without moving the viewport'
+                  ? 'Following — the page jumps to each change as it happens'
+                  : 'Off — changes apply without moving the page'
               }
               className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/85 backdrop-blur-xl border border-white/10 pl-2.5 pr-1.5 py-1 text-xs font-medium text-gray-300 hover:text-white transition"
             >

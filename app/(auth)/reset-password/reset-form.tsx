@@ -64,7 +64,7 @@ export default function ResetForm() {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="email">
-            Email Address <span className="text-red-500">*</span>
+            Email <span className="text-red-500">*</span>
           </label>
           <input
             id="email"

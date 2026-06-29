@@ -56,14 +56,14 @@ export default function ReviewConfigPanel({ config }: Props) {
       />
       <Field
         label="Healthgrades URL"
-        help="The full URL to your practice's Healthgrades page. Healthgrades > Facebook for dental healthcare reputation."
+        help="The full link to your practice's Healthgrades page. Healthgrades carries more weight than Facebook for dental reputation."
         value={draft.healthgradesUrl}
         onChange={(v) => update('healthgradesUrl', v)}
         placeholder="https://www.healthgrades.com/dental-practice/..."
       />
       <Field
         label="Facebook Page ID or username"
-        help="The page slug from your Facebook page URL (facebook.com/{this-part}). Captures older patient demographics."
+        help="The page name from your Facebook page link (facebook.com/{this-part}). Good for reaching a slightly older crowd."
         value={draft.facebookPageId}
         onChange={(v) => update('facebookPageId', v)}
         placeholder="acme-dental-austin"
@@ -115,7 +115,7 @@ export default function ReviewConfigPanel({ config }: Props) {
           <option value={730}>2 years</option>
         </select>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Spam-prevention rate limit. 365 days matches dental visit cadence — most patients come in 1-2× a year.
+          Keeps you from over-asking. 365 days fits how often most patients visit — once or twice a year.
         </p>
       </div>
 

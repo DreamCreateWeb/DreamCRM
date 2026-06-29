@@ -98,7 +98,7 @@ export default async function SocialPostsPage() {
             label="What the statuses mean"
             pills={[
               { tone: 'ok', label: 'Published', meaning: 'Live on the channel' },
-              { tone: 'info', label: 'Scheduled', meaning: 'Queued to publish at a future time' },
+              { tone: 'info', label: 'Scheduled', meaning: 'Waiting to publish at the time you set' },
               { tone: 'neutral', label: 'Draft', meaning: 'Saved, not yet sent' },
               { tone: 'urgent', label: 'Failed', meaning: "Didn't post — check the error and retry" },
             ]}

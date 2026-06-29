@@ -81,7 +81,8 @@ export default function Onboarding02() {
                   Where do patients find you?
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                  Your address goes on your website, your Google listing data, and directions links.
+                  This shows on your website and your Google listing, and powers the directions link
+                  patients tap to find you.
                 </p>
                 <form onSubmit={onSubmit}>
                   <div className="space-y-4 mb-8">

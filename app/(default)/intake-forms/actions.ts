@@ -97,7 +97,7 @@ export async function translateFormAction(
       res.reason === 'no_allowance'
         ? "You've used this month's AI translations."
         : res.reason === 'not_configured'
-          ? 'AI translation isn’t configured.'
+          ? 'AI translation isn’t available yet.'
           : res.reason === 'empty'
             ? 'Add some questions first.'
             : 'Could not translate — please try again.',
@@ -125,7 +125,7 @@ export async function summarizeSubmissionAction(
         : res.reason === 'empty'
           ? 'Nothing to summarize on this form.'
           : res.reason === 'not_configured'
-            ? 'AI summaries aren’t configured.'
+            ? 'AI summaries aren’t available yet.'
             : 'Could not summarize — please try again.',
   }
 }

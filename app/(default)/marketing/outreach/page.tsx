@@ -55,7 +55,7 @@ const TIER_DEFS = [
   {
     key: 'lapsed',
     label: 'Lapsed',
-    description: 'Lifecycle = lapsed — over 9 months, the cold ones',
+    description: "Haven't been in for over 9 months — the cold ones",
     audienceName: 'Lapsed (lifecycle = lapsed)',
     templateCategory: 'reactivation' as const,
     accent: 'rose' as const,
@@ -69,7 +69,7 @@ const TIER_DEFS = [
   {
     key: 'new_patient',
     label: 'New patient welcome',
-    description: 'Joined in the past 60 days — first-visit follow-up window',
+    description: 'Joined in the past 60 days — a good time to check in after their first visit',
     audienceName: 'New patients (past 60 days)',
     templateCategory: 'welcome' as const,
     accent: 'emerald' as const,
@@ -164,7 +164,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
               { tone: 'urgent', label: 'Lapsed', meaning: 'The cold ones — well past their recall window' },
               { tone: 'ok', label: 'New patient', meaning: 'Joined in the past 60 days — first-visit follow-up' },
               { tone: 'special', label: 'Birthday', meaning: 'Celebrating a birthday this calendar month' },
-              { tone: 'neutral', label: 'Opted out', meaning: 'Opted out of marketing email (transactional still sends)' },
+              { tone: 'neutral', label: 'Opted out', meaning: 'Opted out of marketing email — appointment reminders and receipts still go out' },
               { tone: 'warn', label: 'No email', meaning: 'No email on file — add one to include them' },
             ]}
           />
@@ -248,7 +248,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
                           </p>
                         </div>
                         {!r.emailOptIn && (
-                          <StatusPill tone="neutral" label="Opted out" title="Opted out of marketing email — transactional messages still send" />
+                          <StatusPill tone="neutral" label="Opted out" title="Opted out of marketing email — appointment reminders and receipts still go out" />
                         )}
                         {!r.email && (
                           <StatusPill tone="warn" label="No email" title="No email on file — add one to include them in email sends" />

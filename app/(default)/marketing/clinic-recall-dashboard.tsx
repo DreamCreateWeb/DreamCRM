@@ -128,7 +128,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
             href={stats.birthdayThisMonthCount > 0 ? '/marketing/outreach?tier=birthday' : undefined}
             sub={
               stats.birthdayThisMonthCount > 0
-                ? 'A low-key warm touchpoint.'
+                ? 'A warm, low-key hello.'
                 : 'No birthdays this month.'
             }
             tone={stats.birthdayThisMonthCount > 0 ? 'special' : 'neutral'}
@@ -267,7 +267,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
             <EmptyState
               icon="🎯"
               title="No patient segments yet."
-              body="Save a segment to slice your roster into reusable lists for campaign sends."
+              body="Save a segment to turn your patient list into reusable groups you can send a campaign to."
               action={
                 <ActionButton variant="secondary" size="sm" href="/marketing/audiences">
                   Create a segment

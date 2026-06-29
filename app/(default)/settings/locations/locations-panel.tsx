@@ -58,7 +58,7 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
           <form onSubmit={handleAdd} className="p-5 bg-gray-50 dark:bg-gray-900/30 rounded-lg space-y-4">
             <div className="flex space-x-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium mb-1" htmlFor="name">Location Name <span className="text-rose-500">*</span></label>
+                <label className="block text-sm font-medium mb-1" htmlFor="name">Location name <span className="text-rose-500">*</span></label>
                 <input id="name" name="name" type="text" required className="form-input w-full" placeholder="e.g. Main Office, Downtown" />
               </div>
               <div className="w-48">
@@ -95,7 +95,7 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
             {error && <div className="text-sm text-rose-700 dark:text-rose-300">{error}</div>}
             <div className="flex items-center gap-2">
               <ActionButton variant="primary" type="submit">
-                Save Location
+                Save location
               </ActionButton>
               <ActionButton variant="secondary" onClick={() => { setShowForm(false); setError(null) }}>
                 Cancel
@@ -112,7 +112,7 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
             action={
               canEdit && !showForm ? (
                 <ActionButton variant="primary" onClick={() => setShowForm(true)}>
-                  + Add Location
+                  + Add location
                 </ActionButton>
               ) : undefined
             }
@@ -143,7 +143,7 @@ export default function LocationsPanel({ locations, canEdit }: Props) {
                         onClick={() => startTransition(() => setPrimaryLocation(loc.id))}
                         disabled={pending}
                       >
-                        Make Primary
+                        Make primary
                       </ActionButton>
                     )}
                     <ActionButton

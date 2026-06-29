@@ -120,7 +120,7 @@ export default async function ReviewsPage() {
       <PageHeader
         eyebrow={`Growth · ${ctx.organizationName}`}
         title="Reviews & Reputation"
-        subtitle="Post-visit review requests sent to your real patients on Google, Healthgrades, and Facebook. Same outcome as Birdeye / Weave / Podium, without the $300/mo separate subscription or the gating the FTC just banned."
+        subtitle="Ask your real patients for a review after their visit — on Google, Healthgrades, and Facebook. Same results as Birdeye, Weave, or Podium, without the separate $300/mo bill or the review-gating the FTC just banned."
         legend={
           <EncodingLegend
             label="What the statuses mean"
@@ -357,11 +357,10 @@ export default async function ReviewsPage() {
             Coming next
           </p>
           <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Auto-trigger 24h after appointment completion (cron-driven; toggle in Settings)</li>
-            <li>· SMS channel via Twilio (Phase B — schema in place)</li>
-            <li>· Read live reviews into the dashboard via Google Business Profile API + reply from inside DreamCRM</li>
-            <li>· Optional private-feedback path on the landing page (FTC-clean: never branches by rating)</li>
-            <li>· Per-patient &quot;don&apos;t ask for reviews&quot; flag (current rate-limit is org-wide via minDaysBetweenRequests)</li>
+            <li>· Send a request automatically a day after a visit is marked complete (you turn it on in Settings)</li>
+            <li>· Text message requests, not just email</li>
+            <li>· An optional private-feedback path on the request page (still FTC-clean — we never change the ask based on the rating)</li>
+            <li>· A per-patient &quot;don&apos;t ask for reviews&quot; setting (today the limit applies to the whole practice)</li>
           </ul>
         </div>
       </section>

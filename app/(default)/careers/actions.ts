@@ -19,7 +19,7 @@ import {
 
 async function ensureClinicAdmin() {
   const ctx = await requireTenant()
-  if (ctx.tenantType !== 'clinic') throw new Error('Careers is only available for clinic tenants.')
+  if (ctx.tenantType !== 'clinic') throw new Error('Careers is only available for clinics.')
   if (ctx.role === 'patient') throw new Error('Patients cannot manage careers.')
   // Careers is Premium-tier (lib/modules/clinic.ts) — block below-tier clinics
   // from firing the action even if they reach it by deep-link. Platform-admin

@@ -312,7 +312,7 @@ export default async function ClinicMessagesView({
                 body={
                   threads.length === 0
                     ? 'Every patient who messages you — in-app, by email, or by text — lands here, threaded by patient. One row per relationship, across every channel.'
-                    : 'Choose a patient from the list to see the full thread and reply. Conversations waiting on you carry a coloured edge so nothing slips.'
+                    : 'Pick a patient from the list to see the full thread and reply. Conversations waiting on you have a colored edge so nothing slips.'
                 }
               />
             </div>

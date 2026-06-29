@@ -107,7 +107,7 @@ export default async function CampaignsPage({
         <EmptyState
           icon="✉️"
           title="No campaigns yet."
-          body='Use "+ New campaign" above to write your first email — name it, pick an audience, and write.'
+          body='Use "+ New campaign" above to start your first email — name it, pick who it goes to, and write.'
         />
       ) : (
         <div className="v2-card overflow-hidden">

@@ -55,7 +55,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
     if (
       !(await confirm({
         title: 'Delete this audience?',
-        message: 'Campaigns referencing it will lose their target list.',
+        message: 'Any campaign using it will lose its recipient list.',
         confirmLabel: 'Delete',
         danger: true,
       }))
@@ -73,7 +73,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
       <PageHeader
         eyebrow={`Growth · ${orgName}`}
         title="Audiences"
-        subtitle={`Saved segments of ${leadsLabel} you can target with a campaign send.`}
+        subtitle={`Saved groups of ${leadsLabel} you can send a campaign to.`}
         actions={
           <>
             <ActionButton variant="secondary" href="/marketing">
@@ -90,7 +90,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
         <EmptyState
           icon="🎯"
           title="No saved segments yet."
-          body='Use "+ New audience" above to slice your roster into a reusable list for campaign sends.'
+          body='Use "+ New audience" above to turn your patient list into a reusable group you can send a campaign to.'
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -554,7 +554,7 @@ function PatientAudienceEditor({
             {audience ? 'Edit patient segment' : 'New patient segment'}
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Filter the patient roster into a reusable list for campaign sends.
+            Filter your patient list into a reusable group you can send a campaign to.
           </p>
         </div>
 
@@ -601,7 +601,7 @@ function PatientAudienceEditor({
 
           <ChipRow
             label="Where they came from"
-            help="Acquisition source from the patient row"
+            help="How this patient first reached you"
             options={PATIENT_SOURCES}
             selected={filter.sources ?? []}
             onToggle={(v) => toggleInArray('sources', v)}
@@ -647,7 +647,7 @@ function PatientAudienceEditor({
             />
             <ToggleField
               label="Birthday this month"
-              help="DOB month matches current month"
+              help="Their birthday falls in the current month"
               checked={filter.birthdayThisMonth === true}
               onChange={(v) => setFilter((f) => ({ ...f, birthdayThisMonth: v ? true : undefined }))}
             />
@@ -665,7 +665,7 @@ function PatientAudienceEditor({
             />
             <ToggleField
               label="Require SMS opt-in"
-              help="Required for SMS sends (Phase B). Excludes patients without explicit TCPA opt-in"
+              help="For text sends (coming soon). Leaves out patients who haven't agreed to texts"
               checked={filter.requireSmsOptIn === true}
               onChange={(v) => setFilter((f) => ({ ...f, requireSmsOptIn: v }))}
             />
@@ -751,7 +751,7 @@ function ChipRow({
         ))}
       </div>
       {selected.length === 0 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Empty = no filter on this dimension</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty to include everyone</p>
       )}
     </div>
   )

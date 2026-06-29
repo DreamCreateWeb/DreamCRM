@@ -40,7 +40,7 @@ export async function readInsuranceCardAction(
   orgId: string,
   imageUrls: string[],
 ): Promise<InsuranceOcrActionResult> {
-  if (!orgId) return { ok: false, error: 'Missing form context' }
+  if (!orgId) return { ok: false, error: 'Something went wrong. Please refresh and try again.' }
   const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(isOwnUploadUrl).slice(0, 2)
   if (urls.length === 0) return { ok: false, error: 'Add a photo of your card first.' }
   const result = await readInsuranceCard({ organizationId: orgId, imageUrls: urls })
@@ -71,9 +71,9 @@ interface Input {
  * curious user can't post against an arbitrary org's templates.
  */
 export async function submitIntakeForm(input: Input) {
-  if (!input.orgId || !input.templateId) throw new Error('Missing form context')
+  if (!input.orgId || !input.templateId) throw new Error('Something went wrong. Please refresh and try again.')
   const template = await getFormTemplate(input.orgId, input.templateId)
-  if (!template || template.archivedAt) throw new Error('Form is no longer accepting submissions')
+  if (!template || template.archivedAt) throw new Error('This form is no longer accepting responses.')
 
   // Clamp file/insurance fields to clean refs (client could POST arbitrary
   // URLs) + drop display-only values, then re-validate required fields

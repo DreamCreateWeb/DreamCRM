@@ -1,6 +1,6 @@
 export const metadata = {
   title: 'Leads - DreamCRM',
-  description: 'Inbound contact-form submissions from your public website',
+  description: 'People who reached out through the contact form on your website',
 }
 
 export const dynamic = 'force-dynamic'

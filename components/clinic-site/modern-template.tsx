@@ -264,22 +264,22 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const teamCallouts: Array<{ icon: string; title: string; copy: string }> = [
     {
       icon: 'experience',
-      title: 'Experienced clinicians',
-      copy: 'Led by a team that puts your comfort first, every visit.',
+      title: 'A team you can trust',
+      copy: 'We put your comfort first, every visit.',
     },
     {
       icon: 'science',
-      title: 'Science-based care',
-      copy: 'Modern technology and proven techniques, no upsells.',
+      title: 'Modern, proven care',
+      copy: 'Up-to-date technology and gentle techniques. No upsells.',
     },
     {
       icon: 'outcomes',
-      title: 'Outcomes, not quotas',
-      copy: 'We recommend what you need — and tell you why.',
+      title: 'Only what you need',
+      copy: 'We recommend what makes sense for you — and tell you why.',
     },
     {
       icon: 'safety',
-      title: 'Modern infection control',
+      title: 'Clean and careful',
       copy: 'Spotless, sterilized, single-use where it counts.',
     },
   ]
@@ -980,8 +980,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             >
               {copyOverride(copyOverrides, 'home.insuranceIntro', '') || (
                 <>
-                  We want to make accessing dental care easy. We work with most major dental
-                  insurance carriers and are here to help you navigate your benefits.
+                  We want dental care to feel easy. We work with most major dental
+                  insurance plans and are happy to help you make the most of your benefits.
                 </>
               )}
             </p>
@@ -1005,8 +1005,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     className="text-sm sm:text-base leading-[1.55] mb-5"
                     style={{ color: 'rgba(255, 255, 255, 0.8)' }}
                   >
-                    We are happy to accept most major PPO dental insurance plans, including
-                    (but not limited to):
+                    We accept most major PPO dental plans, including these and more:
                   </p>
                   <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
                     {insuranceCarriers.map((carrier) => (
@@ -1163,8 +1162,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 >
                   {copyOverride(copyOverrides, 'home.teamBlurb', '') || (
                     <>
-                      Modern dentistry meets a gentler chairside touch — exactly what you've been
-                      looking for in a dental practice.
+                      Modern dentistry with a gentler touch — the kind of dental visit
+                      you&rsquo;ve been hoping for.
                     </>
                   )}
                 </p>

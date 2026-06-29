@@ -74,7 +74,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
         <Section
           title="Ideas to draft"
           count={ideasToDraft.length}
-          empty="No idea stubs right now. Hit “Generate ideas” to fill your queue."
+          empty="No ideas yet. Hit “Generate ideas” to fill your queue."
         >
           {ideasToDraft.map((i) => (
             <Row key={i.id} item={i}>
@@ -92,7 +92,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
                 <ScheduleControl id={i.id} onDone={() => router.refresh()} />
               ) : (
                 <span className="text-xs text-gray-500 dark:text-gray-400 italic">
-                  Add content + an author to schedule
+                  Add content and an author to schedule
                 </span>
               )}
             </Row>

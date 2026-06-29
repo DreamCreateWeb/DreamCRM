@@ -71,7 +71,7 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
           </svg>
         </div>
         <h3 className="text-xl font-bold text-gray-900 mb-2">Request received!</h3>
-        <p className="text-gray-500">We'll be in touch within 1 business day to confirm your appointment.</p>
+        <p className="text-gray-500">We'll be in touch within one business day to confirm your visit.</p>
       </div>
     )
   }

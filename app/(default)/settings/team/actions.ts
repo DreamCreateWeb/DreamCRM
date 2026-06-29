@@ -16,10 +16,10 @@ import { sendInvitationEmail } from '@/lib/email'
 async function requireTeamAdmin() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') {
-    throw new Error('Forbidden: team management is not available to patients.')
+    throw new Error('Team management is not available to patients.')
   }
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-    throw new Error('Forbidden: only owners and admins can manage the team.')
+    throw new Error('Only owners and admins can manage the team.')
   }
   return ctx
 }

@@ -292,7 +292,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               ✨ Draft with AI
             </button>
             <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
-              {aiBusy ? 'AI working…' : 'AI drafts are never auto-published'}
+              {aiBusy ? 'AI is working…' : 'AI drafts are never published on their own'}
             </span>
           </div>
 
@@ -311,7 +311,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 value={draft.excerpt}
                 onChange={(e) => field('excerpt', e.target.value)}
                 rows={2}
-                placeholder={derivedExcerpt || 'One or two sentences shown on the blog index + used as the search description.'}
+                placeholder={derivedExcerpt || 'One or two sentences shown on your blog list and as the search description.'}
                 className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 resize-none"
               />
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -409,7 +409,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 />
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
-                  No staff directory on this org — type the byline directly (required to publish).
+                  No team members added yet — type the byline here (you need one to publish).
                 </p>
               </>
             ) : (
@@ -428,7 +428,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   ))}
                 </select>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
-                  Real bylines with credentials are how Google trusts health content.
+                  A real name and credentials help Google trust health content.
                 </p>
               </>
             )}
@@ -500,7 +500,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               folder="blog-covers"
               label="Cover image"
               previewClass="aspect-[16/9]"
-              hint="Shown at the top of the post + as the social share image."
+              hint="Shown at the top of the post, and as the share image on social."
               onChange={(url) => field('coverImageUrl', url ?? '')}
             />
             {draft.coverImageUrl && (
@@ -515,7 +515,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 />
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Describe the photo for screen readers + image search.
+                  Describe the photo for screen readers and image search.
                 </p>
               </label>
             )}
@@ -866,8 +866,8 @@ function FaqEditor({
         </button>
       </div>
       <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-        Common questions about this topic. Shown on the post + added as FAQ structured data — helps you appear in
-        Google and AI answers.
+        Common questions about this topic, shown on the post. They also help your post show up in Google and AI
+        answers.
       </p>
       {faq.length === 0 ? (
         <p className="text-xs text-gray-400 dark:text-gray-500 italic mb-3">

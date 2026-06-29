@@ -290,7 +290,7 @@ export default function AppointmentDrawer({
                 <p className="text-gray-800 dark:text-gray-100 font-medium capitalize">{detail.type.replace(/_/g, ' ')}</p>
                 <p className="text-gray-700 dark:text-gray-200">{fmtFull(detail.startTime)}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {detail.durationMinutes ? `${detail.durationMinutes} min` : 'duration unspecified'}
+                  {detail.durationMinutes ? `${detail.durationMinutes} min` : 'length not set'}
                   {detail.providerName && ` · with ${detail.providerName}`}
                   {detail.locationName && ` · at ${detail.locationName}`}
                 </p>
@@ -534,7 +534,7 @@ function RescheduleSubDrawer({
       <div className="px-5 py-5 space-y-3 flex-1">
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Moves <strong>{detail.patient.fullName}</strong> from{' '}
-          <strong>{fmtFull(detail.startTime)}</strong> to a new slot. The original row stays in the audit trail as cancelled.
+          <strong>{fmtFull(detail.startTime)}</strong> to a new time. The old time stays on file, marked cancelled.
         </p>
         <label className="block">
           <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">New date</span>

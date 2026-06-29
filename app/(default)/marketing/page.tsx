@@ -190,7 +190,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
             <EmptyState
               icon="🎯"
               title="No saved segments yet."
-              body="Save a segment to slice the pipeline into reusable lists for campaign sends."
+              body="Save a segment to turn the pipeline into reusable lists you can send a campaign to."
               action={
                 <ActionButton variant="secondary" size="sm" href="/marketing/audiences">
                   Create a segment

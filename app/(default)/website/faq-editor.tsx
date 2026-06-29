@@ -59,8 +59,8 @@ export default function FaqEditor({ name, defaultValue }: Props) {
       {items.length === 0 && (
         <div className="v2-well p-5 text-center">
           <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400 mb-4">
-            No questions yet. Patients with questions about insurance, anxiety, or their first
-            visit convert better when you answer them up front.
+            No questions yet. Patients are more likely to book when you answer their questions about
+            insurance, anxiety, or a first visit up front.
           </p>
           <div className="flex items-center justify-center gap-2">
             <button

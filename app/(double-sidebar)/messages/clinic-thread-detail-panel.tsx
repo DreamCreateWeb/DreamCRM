@@ -483,7 +483,7 @@ export default function ThreadDetailPanel({
     runAction(
       () => snoozeThreadAction(thread.id, hours),
       () => {
-        setToast('Thread snoozed')
+        setToast('Conversation snoozed')
         router.refresh()
       },
     )
@@ -500,7 +500,7 @@ export default function ThreadDetailPanel({
     runAction(
       () => reopenThreadAction(thread.id),
       () => {
-        setToast('Thread reopened')
+        setToast('Conversation reopened')
         router.refresh()
       },
     )
@@ -565,7 +565,7 @@ export default function ThreadDetailPanel({
               : res.reason === 'no_messages'
                 ? 'Add a message first, then AI can draft a reply.'
                 : res.reason === 'not_configured'
-                  ? 'AI drafting is not configured yet.'
+                  ? 'AI drafting isn’t available yet.'
                   : "Couldn't draft a reply just now. Please try again.",
           )
         }
@@ -734,7 +734,7 @@ export default function ThreadDetailPanel({
                   disabled={pending}
                   active={showSnooze}
                   aria-expanded={showSnooze}
-                  title="Snooze this thread to resurface it later"
+                  title="Snooze this conversation — it'll come back later"
                 >
                   Snooze
                 </ToolButton>
@@ -753,7 +753,7 @@ export default function ThreadDetailPanel({
                   </div>
                 )}
               </div>
-              <ToolButton icon={<IconArchive />} onClick={handleArchive} disabled={pending} title="Close and tuck this thread away">
+              <ToolButton icon={<IconArchive />} onClick={handleArchive} disabled={pending} title="Close this conversation and tuck it away">
                 Archive
               </ToolButton>
             </>

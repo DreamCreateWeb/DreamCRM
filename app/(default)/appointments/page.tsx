@@ -1,6 +1,6 @@
 export const metadata = {
   title: 'Appointments - DreamCRM',
-  description: 'Confirm, reschedule, and follow up on the bookings on your books',
+  description: 'Confirm, reschedule, and follow up on your upcoming visits',
 }
 
 export const dynamic = 'force-dynamic'

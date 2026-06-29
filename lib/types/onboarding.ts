@@ -157,7 +157,7 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
   },
   analytics: {
     title: 'Your practice trends, minus the PMS noise',
-    body: 'Acquisition, schedule health, recall, and reputation — built from the data this system already captures. Production dollars and clinical KPIs stay in your PMS, where they belong.',
+    body: 'New patients, schedule health, recall, and reputation — built from the data this system already captures. Production dollars and clinical numbers stay in your PMS, where they belong.',
   },
   blog: {
     title: 'Posts that bring patients from Google',

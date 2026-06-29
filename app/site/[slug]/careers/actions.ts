@@ -23,7 +23,7 @@ export async function submitApplication(formData: FormData) {
   const linkedinUrl = formData.get('linkedinUrl')?.toString().trim() || null
   const coverNote = formData.get('coverNote')?.toString().trim() || null
 
-  if (!orgId || !jobPostingId) throw new Error('Missing job reference')
+  if (!orgId || !jobPostingId) throw new Error('Something went wrong. Please refresh and try again.')
   if (!name) throw new Error('Please enter your name')
   if (!email) throw new Error('Please enter your email')
 

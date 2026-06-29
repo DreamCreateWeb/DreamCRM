@@ -158,7 +158,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                     : 'text-amber-900 dark:text-amber-200',
                 ].join(' ')}
               >
-                Integrations: sync needs attention
+                A sync needs your attention
               </p>
               <p
                 className={[
@@ -221,7 +221,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                 ? { label: 'Review submissions', href: `/intake-forms/submissions/${data.intakeSubmissions.preview[0]?.id ?? ''}` }
                 : null
             }
-            emptyCopy="No intake submissions this week. Send the link to new bookings to drive volume."
+            emptyCopy="No intake submissions this week. Send the form link with new bookings to get more."
           >
             {data.intakeSubmissions.preview.map((r) => (
               <li key={r.id} className="py-1.5">
@@ -265,7 +265,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             countSuffix={
               data.newLeads.count === 1 ? 'untouched website inquiry' : 'untouched website inquiries'
             }
-            cta={data.newLeads.count > 0 ? { label: 'Triage leads', href: '/leads?status=new' } : null}
+            cta={data.newLeads.count > 0 ? { label: 'See new leads', href: '/leads?status=new' } : null}
             emptyCopy="No new website leads waiting. Anyone who fills out your contact form lands here."
           >
             {data.newLeads.preview.map((l) => (

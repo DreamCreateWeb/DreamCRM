@@ -14,7 +14,7 @@ import { ActionButton } from '@/components/ui/action-button'
 const TRIAL_PERKS = [
   'Your branded website, online booking & patient portal',
   'Patients, appointments, messaging & reviews',
-  'Marketing, social, shop & integrations — everything, unlocked',
+  'Marketing, social, shop & integrations — all of it included',
 ]
 
 export default function Onboarding04() {

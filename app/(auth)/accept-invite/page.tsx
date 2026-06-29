@@ -50,7 +50,7 @@ function AcceptInviteInner() {
 
   useEffect(() => {
     if (!token) {
-      setStep({ type: 'error', message: 'Invalid invitation link — no token found.' })
+      setStep({ type: 'error', message: 'This invitation link looks incomplete. Ask your clinic to send it again.' })
       return
     }
 
@@ -69,7 +69,7 @@ function AcceptInviteInner() {
           setStep({
             type: 'error',
             expired: true,
-            message: 'This invitation has expired. Ask to be re-invited.',
+            message: 'This invitation has expired. Ask your clinic to send a new one.',
           })
           return
         }
@@ -394,7 +394,7 @@ function AcceptInviteInner() {
             {!isSignIn && (
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="ai-name">
-                  Your Full Name <span className="text-red-500">*</span>
+                  Your full name <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="ai-name"
@@ -443,8 +443,8 @@ function AcceptInviteInner() {
                   ? 'Signing in…'
                   : 'Creating account…'
                 : isSignIn
-                  ? 'Sign In & Accept Invite'
-                  : 'Create Account & Accept Invite'}
+                  ? 'Sign in & accept'
+                  : 'Create account & accept'}
             </button>
 
             {/* Magic-link escape hatch — a forgotten password or magic-link-only

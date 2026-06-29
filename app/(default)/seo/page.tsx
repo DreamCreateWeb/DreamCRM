@@ -246,7 +246,7 @@ export default async function SeoPage({ searchParams }: Props) {
           </p>
         ) : !gscOAuthConfigured() ? (
           <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-            Google OAuth isn&apos;t configured on this environment yet.
+            Google sign-in isn&apos;t set up on this environment yet.
           </p>
         ) : isManage ? (
           /* ── Platform admin: manage the one shared connection ── */
@@ -366,9 +366,9 @@ export default async function SeoPage({ searchParams }: Props) {
           )}
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-2xl">
-          Your Google Business Profile is the single biggest driver of the local map pack — where most new dental
+          Your Google Business Profile is the single biggest driver of the local map results — where most new dental
           patients find you. {gbp?.connected
-            ? `How your listing performed in the last ${gbp.windowDays} days.`
+            ? `How your listing did in the last ${gbp.windowDays} days.`
             : 'Connect it to see how many people find and act on your listing.'}
         </p>
 
@@ -393,8 +393,8 @@ export default async function SeoPage({ searchParams }: Props) {
           <>
             {gbp.error ? (
               <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-                Connected, but we couldn&apos;t load metrics this time ({gbp.error}). The figures below will fill in on
-                the next load.
+                Connected, but we couldn&apos;t load metrics this time ({gbp.error}). The numbers below will fill in
+                next time you open this page.
               </p>
             ) : null}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
@@ -428,8 +428,7 @@ export default async function SeoPage({ searchParams }: Props) {
                   </tbody>
                 </table>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Aggregated monthly by Google; terms below its minimum-impression threshold are hidden. Data lags ~2-3
-                  days.
+                  Grouped by month by Google; terms with very few impressions are hidden. Data lags ~2-3 days.
                 </p>
               </div>
             ) : !gbp.error ? (
@@ -495,7 +494,7 @@ function PerfBlock({ perf, subtitle }: { perf: GscPerformance; subtitle: string 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <MiniStat label="Clicks" value={perf.clicks.toLocaleString()} tone="ok" />
         <MiniStat label="Impressions" value={perf.impressions.toLocaleString()} />
-        <MiniStat label="Avg. CTR" value={`${(perf.ctr * 100).toFixed(1)}%`} />
+        <MiniStat label="Avg. click rate" value={`${(perf.ctr * 100).toFixed(1)}%`} />
         <MiniStat label="Avg. position" value={perf.position.toFixed(1)} />
       </div>
       {perf.topQueries.length > 0 && (

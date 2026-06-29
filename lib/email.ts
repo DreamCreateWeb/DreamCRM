@@ -194,11 +194,11 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
     html: authEmailShell({
       heading: 'Reset your password',
       introHtml:
-        'You requested a password reset for your DreamCRM account. Click below to choose a new password. This link expires in 1 hour.',
+        'You asked to reset the password on your DreamCRM account. Click below to pick a new one. This link works for 1 hour.',
       buttonUrl: resetUrl,
       buttonLabel: 'Reset password',
       footnoteHtml:
-        "If you didn't request this, you can safely ignore this email — your password won't change until you click the link above.",
+        "Didn't ask for this? You can ignore this email — your password stays the same until you click the link above.",
     }),
   })
 }
@@ -258,16 +258,16 @@ export async function sendChangeEmailVerification(toOldEmail: string, newEmail: 
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <h2 style="margin:0 0 16px;font-size:20px;color:#111">Confirm your email change</h2>
         <p style="margin:0 0 16px;color:#444;line-height:1.5">
-          We received a request to change the email on your DreamCRM account to
-          <strong>${escapeHtml(newEmail)}</strong>. To keep your account secure,
-          confirm this change from your current email address.
+          Someone asked to change the email on your DreamCRM account to
+          <strong>${escapeHtml(newEmail)}</strong>. To keep your account safe,
+          confirm the change from your current email address.
         </p>
         <a href="${confirmUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
           Confirm email change
         </a>
         <p style="margin:24px 0 0;font-size:12px;color:#888">
-          If you didn't request this, you can safely ignore this email — your
-          sign-in email won't change unless you click the button above.
+          Didn't ask for this? You can ignore this email — your sign-in
+          email stays the same until you click the button above.
         </p>
       </div>
     `,
@@ -290,10 +290,10 @@ export async function sendInvitationEmail(to: string, data: InvitationEmailData)
     subject: `${data.inviterName} invited you to join ${data.orgName} on DreamCRM`,
     html: authEmailShell({
       heading: `You're invited to join ${data.orgName}`,
-      introHtml: `<strong>${inviter}</strong> has invited you to join <strong>${org}</strong> on DreamCRM as a <strong>${escapeHtml(roleLabel)}</strong>. Click below to set up your account and get started.`,
+      introHtml: `<strong>${inviter}</strong> invited you to join <strong>${org}</strong> on DreamCRM as a <strong>${escapeHtml(roleLabel)}</strong>. Click below to set up your account.`,
       buttonUrl: data.inviteUrl,
       buttonLabel: 'Accept invitation',
-      footnoteHtml: `If you weren't expecting this, you can safely ignore this email.`,
+      footnoteHtml: `Weren't expecting this? You can ignore this email.`,
     }),
   })
 }
@@ -317,15 +317,15 @@ export async function sendPatientPortalInviteEmail(
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
         <h2 style="margin:0 0 16px;font-size:20px">Hi ${escapeHtml(data.patientFirstName)},</h2>
         <p style="margin:0 0 20px;line-height:1.55">
-          ${escapeHtml(data.clinicName)} invited you to set up your patient portal —
-          where you can see upcoming appointments, book a visit, message the office,
+          ${escapeHtml(data.clinicName)} set up a patient portal for you —
+          where you can see your upcoming appointments, book a visit, message the office,
           and fill out forms ahead of time.
         </p>
         <a href="${data.inviteUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
           Set up my portal
         </a>
         <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">
-          If you weren't expecting this, you can safely ignore this email.
+          Weren't expecting this? You can ignore this email.
         </p>
       </div>
     `,
@@ -347,8 +347,8 @@ export async function sendContactRequestEmail(to: string, data: ContactRequestDa
     subject: `New appointment request from ${data.patientName}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
-        <h2 style="margin:0 0 8px;font-size:20px;color:#111">New Appointment Request</h2>
-        <p style="margin:0 0 24px;font-size:13px;color:#888">via ${data.clinicName}'s website</p>
+        <h2 style="margin:0 0 8px;font-size:20px;color:#111">New appointment request</h2>
+        <p style="margin:0 0 24px;font-size:13px;color:#888">From ${data.clinicName}'s website</p>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
           <tr><td style="padding:8px 0;color:#555;width:140px">Name</td><td style="padding:8px 0;color:#111;font-weight:600">${data.patientName}</td></tr>
           <tr><td style="padding:8px 0;color:#555">Phone</td><td style="padding:8px 0;color:#111">${data.phone}</td></tr>
@@ -408,10 +408,10 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
     subject: `Appointment confirmed at ${data.clinicName}`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Appointment Confirmed</h2>
+        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Your appointment is set</h2>
         <p style="margin:0 0 24px;color:#444;line-height:1.5">
-          Hi ${data.patientName}, your <strong>${typeLabel}</strong> appointment at
-          <strong>${data.clinicName}</strong> has been scheduled.
+          Hi ${data.patientName}, your <strong>${typeLabel}</strong> visit at
+          <strong>${data.clinicName}</strong> is booked.
         </p>
         <div style="padding:16px 20px;background:#f9fafb;border-radius:8px;margin-bottom:24px">
           <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
@@ -419,7 +419,7 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
         </div>
         ${intakeBlock}
         <p style="margin:0;font-size:13px;color:#888">
-          We'll be in touch to confirm. If you need to reschedule, please call us directly.
+          We'll be in touch to confirm. Need to change your time? Just give us a call.
         </p>
       </div>
     `,
@@ -541,13 +541,13 @@ export async function sendVerificationEmail(to: string, verifyUrl: string) {
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <h2 style="margin:0 0 16px;font-size:20px;color:#111">Verify your email</h2>
         <p style="margin:0 0 24px;color:#444;line-height:1.5">
-          Welcome to DreamCRM! Click the button below to verify your email address.
+          Welcome to DreamCRM! Click below to confirm your email address.
         </p>
         <a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">
           Verify email
         </a>
         <p style="margin:24px 0 0;font-size:12px;color:#888">
-          If you didn't create a DreamCRM account, you can safely ignore this email.
+          Didn't create a DreamCRM account? You can ignore this email.
         </p>
       </div>
     `,
@@ -616,11 +616,11 @@ export async function sendBillingPastDueEmail(
       heading: "Your payment didn't go through",
       introHtml: `${hi}<br><br>We couldn't process ${escapeHtml(
         data.amountLabel,
-      )} for your DreamCRM subscription. Update your card and we'll retry right away so your access continues without interruption.`,
+      )} for your DreamCRM subscription. Update your card and we'll try again right away, so nothing stops working.`,
       buttonUrl: data.billingUrl,
       buttonLabel: 'Update payment method',
       accent: '#e11d48',
-      footnoteHtml: "If you've already updated your card you can ignore this — Stripe retries automatically.",
+      footnoteHtml: "Already updated your card? You can ignore this — Stripe tries again automatically.",
     }),
   })
 }

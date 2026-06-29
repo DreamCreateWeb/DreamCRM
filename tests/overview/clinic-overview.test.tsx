@@ -154,7 +154,7 @@ describe('Integrations sync-health banner', () => {
     mockGetOverview.mockResolvedValueOnce(makeData({ integrationsHealth: null }))
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.queryByText(/Integrations: sync needs attention/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/A sync needs your attention/)).not.toBeInTheDocument()
   })
 
   it("renders nothing when health is 'ok'/'info' severity", async () => {
@@ -176,7 +176,7 @@ describe('Integrations sync-health banner', () => {
     )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.queryByText(/Integrations: sync needs attention/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/A sync needs your attention/)).not.toBeInTheDocument()
   })
 
   it("renders the alert banner with the helper's message + an Open Integrations link when warn/error", async () => {
@@ -198,7 +198,7 @@ describe('Integrations sync-health banner', () => {
     )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByText(/Integrations: sync needs attention/)).toBeInTheDocument()
+    expect(screen.getByText(/A sync needs your attention/)).toBeInTheDocument()
     expect(screen.getByText(/No successful sync in the last 48 hours/)).toBeInTheDocument()
     const cta = screen.getByRole('link', { name: /Open Integrations/i })
     expect(cta).toHaveAttribute('href', '/integrations')

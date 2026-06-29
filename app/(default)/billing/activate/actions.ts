@@ -8,7 +8,7 @@ import { createActivationCheckout } from '@/lib/services/clinic-provisioning'
 export async function startActivationCheckout() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic' || (ctx.role !== 'owner' && ctx.role !== 'admin')) {
-    throw new Error('Only the clinic owner or an admin can activate billing.')
+    throw new Error('Only the clinic owner or an admin can add billing.')
   }
   const { url } = await createActivationCheckout({
     organizationId: ctx.organizationId,

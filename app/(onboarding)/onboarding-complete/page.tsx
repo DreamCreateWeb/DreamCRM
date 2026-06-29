@@ -40,9 +40,9 @@ export default async function OnboardingComplete() {
                     {orgName ? `Welcome, ${orgName}!` : "You're all set!"}
                   </h1>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
-                    Your subscription is active. Let&apos;s build your website — answer a few
-                    quick questions and we&apos;ll draft the whole thing for you, then you can
-                    edit anything live.
+                    Your account is ready. Now let&apos;s build your website — answer a few quick
+                    questions and we&apos;ll write the whole thing for you. You can edit anything
+                    afterward, live.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2 justify-center">
                     <Link

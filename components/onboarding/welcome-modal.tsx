@@ -15,8 +15,8 @@ const SECTIONS: Array<{ name: string; blurb: string; tint: string }> = [
   { name: 'Daily', blurb: 'Your every-morning cockpit — patients, schedule, leads, messages.', tint: 'bg-sky-500' },
   { name: 'Growth', blurb: 'Weekly rhythm — recall campaigns, reviews, analytics.', tint: 'bg-emerald-500' },
   { name: 'Website', blurb: 'Your storefront — edit it live, post to the blog, watch search.', tint: 'bg-violet-500' },
-  { name: 'Business', blurb: 'Money + machinery — shop, memberships, PMS sync.', tint: 'bg-amber-500' },
-  { name: 'Settings', blurb: 'Rare-touch config — team, portal, billing.', tint: 'bg-gray-400' },
+  { name: 'Business', blurb: 'Your shop, memberships, and PMS sync.', tint: 'bg-amber-500' },
+  { name: 'Settings', blurb: 'The set-once things — team, portal, billing.', tint: 'bg-gray-400' },
 ]
 
 export default function WelcomeModal({ clinicName }: { clinicName: string }) {

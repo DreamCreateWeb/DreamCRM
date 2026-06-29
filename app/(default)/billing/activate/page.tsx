@@ -33,7 +33,7 @@ export default async function BillingActivatePage() {
       <PageHeader
         eyebrow={`Billing · ${ctx.organizationName}`}
         title="Finish setting up your plan"
-        subtitle="We reserved your plan when your account was set up — review it and add billing to unlock everything."
+        subtitle="We saved your plan when your account was set up. Review it and add billing to turn on everything."
       />
 
       <div className="v2-card p-6">

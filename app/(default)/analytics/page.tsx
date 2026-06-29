@@ -214,7 +214,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               <Link href="/integrations" className="text-teal-700 dark:text-teal-400 hover:underline">
                 Google Business Profile
               </Link>{' '}
-              to see calls, direction requests, and bookings from your map-pack listing here.
+              to see calls, direction requests, and bookings from your Google listing here.
             </p>
           )}
         </Card>

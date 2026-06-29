@@ -226,7 +226,7 @@ export default function CampaignEditor({
             ✨ Rewrite selection
           </button>
           <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-            {aiBusy ? 'AI working…' : 'AI is tenant-aware (platform / clinic voice)'}
+            {aiBusy ? 'AI working…' : 'AI writes in your voice'}
           </span>
         </div>
 
@@ -295,8 +295,8 @@ export default function CampaignEditor({
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
             {draft.sendChannel === 'resend'
-              ? `Branded email from ${defaultFromEmail || 'a verified sender'}. Best deliverability at volume; requires DNS verification on your domain.`
-              : 'From your connected Gmail / Workspace mailbox. Patients see a familiar address; replies land in your inbox. Lower daily volume cap (~500/day).'}
+              ? `Branded email from ${defaultFromEmail || 'a verified sender'}. Best for large sends; needs DNS records set up on your domain.`
+              : 'From your connected Gmail / Workspace mailbox. Patients see a familiar address and replies land in your inbox. Lower daily limit (~500/day).'}
           </p>
         </div>
 
@@ -656,8 +656,8 @@ function AiDraftModal({
           ✨ Draft with AI
         </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          One short brief — Claude writes a tenant-appropriate subject, preheader, and body.
-          You can edit everything afterwards.
+          One short brief — Claude writes a subject, preview text, and body in your voice.
+          You can edit everything afterward.
         </p>
         <textarea
           value={brief}
@@ -667,7 +667,7 @@ function AiDraftModal({
           className="form-textarea w-full resize-none"
         />
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          This replaces the current subject, preheader, and body.
+          This replaces the current subject, preview text, and body.
         </p>
         <div className="flex justify-end gap-2 mt-4">
           <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={busy}>

@@ -31,7 +31,7 @@ export default async function EditFormPage({ params }: Props) {
         </h2>
         {submissions.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            No submissions yet. Send this form to a patient from their detail page or the appointment drawer.
+            No submissions yet. Send this form to a patient from their profile or when you open an appointment.
           </p>
         ) : (
           <ul className="v2-card divide-y divide-[color:var(--color-hairline)] overflow-hidden">

@@ -228,11 +228,11 @@ export default function ShopClient({
             <StatusPill
               tone="neutral"
               label="Setup pending"
-              title="Card payments are being finalized at the platform level"
+              title="We're still setting up card payments on our end"
             />
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
-            Card payments are being finalized at the platform level. Your &ldquo;Connect Stripe&rdquo; button appears
+            We&apos;re still setting up card payments on our end. Your &ldquo;Connect Stripe&rdquo; button shows up
             here once it&apos;s ready — then payouts go straight to your bank.
           </p>
         </div>

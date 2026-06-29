@@ -233,7 +233,7 @@ export default function BookFromPatientDrawer({
             <label className="block">
               <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Time</span>
               <input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} className="form-input w-full mt-1 text-sm" />
-              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">Walk-ins can use a now/earlier time — the slot check is skipped.</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">Walk-ins can use right now or an earlier time today — we won't check for an open slot.</span>
             </label>
           ) : (
             <div>
@@ -242,7 +242,7 @@ export default function BookFromPatientDrawer({
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Loading openings…</p>
               ) : availableSlots.length === 0 && selectedTime !== MANUAL_TIME ? (
                 <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
-                  No open slots for this date + duration.{' '}
+                  No open times for this date and length.{' '}
                   <button type="button" onClick={() => setSelectedTime(MANUAL_TIME)} className="underline">Use a custom time</button>
                 </p>
               ) : (

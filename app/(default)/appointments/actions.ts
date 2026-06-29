@@ -194,7 +194,7 @@ async function sendReminderForOrg(
   if (channel === 'sms') {
     // Twilio isn't live yet — log the intent so the audit trail is complete,
     // and let the UI surface the "not yet" message.
-    return { ok: false, error: 'SMS reminders ship with the Twilio integration in the SMS-replies module' }
+    return { ok: false, error: "Text reminders aren't available yet — we're working on it." }
   }
   const detail = await getAppointmentDetail(ctx.organizationId, appointmentId)
   if (!detail) return { ok: false, error: 'Appointment not found' }

@@ -200,7 +200,7 @@ export default function LeadsView({
       <PageHeader
         eyebrow={`Daily · ${orgName}`}
         title="Website inquiries"
-        subtitle="Inbound contact-form submissions from your public site. Triage, follow up, and convert into patients."
+        subtitle="People who reached out through the contact form on your website. Follow up, then turn them into patients."
         legend={
           <EncodingLegend
             aging="leads"

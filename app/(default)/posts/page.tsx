@@ -82,7 +82,7 @@ export default async function BlogPage() {
       <PageHeader
         eyebrow={`Website · ${ctx.organizationName}`}
         title="Blog"
-        subtitle="Original posts on your own website — written by your team (with AI help), reviewed before they go live. Not the recycled content library every other dental site ships, which Google quietly discounts."
+        subtitle="Original posts on your own website — written by your team (with AI help) and reviewed before they go live. Not the recycled content library most dental sites use, which Google quietly discounts."
         legend={<EncodingLegend pills={PILL_LEGEND} />}
         actions={
           <>
@@ -120,7 +120,7 @@ export default async function BlogPage() {
         <KpiStat
           label="AI drafts to review"
           value={stats.aiDraftsPending}
-          sub={stats.aiDraftsPending > 0 ? 'Read + publish or edit' : undefined}
+          sub={stats.aiDraftsPending > 0 ? 'Read, then publish or edit' : undefined}
           tone={stats.aiDraftsPending > 0 ? 'warn' : undefined}
         />
         <KpiStat

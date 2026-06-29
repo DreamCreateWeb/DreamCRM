@@ -36,7 +36,7 @@ const LinkInput = z.object({
 export async function linkUserToClinicAsPatient(input: z.infer<typeof LinkInput>) {
   const data = LinkInput.parse(input)
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) throw new Error('Not signed in')
+  if (!session?.user) throw new Error('Please sign in and try again.')
 
   // Confirm the org exists and is a clinic (defensive — the caller pulled
   // orgId from the SSR'd page, but never trust client input on writes).
@@ -45,7 +45,7 @@ export async function linkUserToClinicAsPatient(input: z.infer<typeof LinkInput>
     .from(schema.organization)
     .where(eq(schema.organization.id, data.orgId))
     .limit(1)
-  if (!org || org.type !== 'clinic') throw new Error('Clinic not found')
+  if (!org || org.type !== 'clinic') throw new Error('We couldn’t find this clinic. Please refresh and try again.')
 
   // Ensure member row.
   const [existingMember] = await db

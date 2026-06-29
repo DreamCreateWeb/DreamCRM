@@ -167,7 +167,7 @@ function ReviewCard({ row }: { row: ReceivedRow }) {
             {featured.value
               ? 'Showing as a testimonial on your public site.'
               : row.reviewText
-                ? 'Privacy-safe display label is set from this patient — "First L." + city.'
+                ? 'To protect privacy, we show only their first name, last initial, and city.'
                 : ''}
           </p>
           {row.reviewText && (

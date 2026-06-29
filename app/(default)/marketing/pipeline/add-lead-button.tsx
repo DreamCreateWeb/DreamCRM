@@ -51,7 +51,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
         setToast('Lead added.')
         router.refresh()
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create')
+        setError(err instanceof Error ? err.message : "Couldn't add the lead. Try again.")
       }
     })
   }

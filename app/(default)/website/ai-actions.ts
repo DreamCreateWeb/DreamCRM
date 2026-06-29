@@ -48,10 +48,10 @@ function hoursSummary(hours: unknown): string | null {
 export async function aiRewriteSection(section: AiWebsiteSection): Promise<AiRewriteResult> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
-    return { ok: false, reason: 'gate', error: 'Only clinic tenants can use AI assist' }
+    return { ok: false, reason: 'gate', error: 'Only clinics can use AI help' }
   }
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-    return { ok: false, reason: 'gate', error: 'Only owners and admins can use AI assist' }
+    return { ok: false, reason: 'gate', error: 'Only owners and admins can use AI help' }
   }
   if (!AI_WEBSITE_SECTIONS.includes(section)) {
     return { ok: false, reason: 'error', error: 'Unsupported section' }

@@ -207,7 +207,7 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
         throw err
       }
     }
-    if (!created) throw new Error('Could not reserve your web address — please pick a different one.')
+    if (!created) throw new Error('We couldn’t reserve that web address — please pick a different one.')
     orgId = newOrgId
   }
 

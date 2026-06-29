@@ -814,7 +814,7 @@ function StudioModal({
           {modal.kind === 'section' && modal.field === 'stats' && (
             <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Three short trust signals shown under your hero — “8,000+ five-star reviews,”
+                Three short proof points shown under your hero — “8,000+ five-star reviews,”
                 “Same-week appointments,” “Most insurance accepted.”
               </p>
               <div className="mb-3">
@@ -904,8 +904,8 @@ function StudioModal({
           {modal.kind === 'section' && modal.field === 'differenceChips' && (
             <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                The short “Why us” highlight chips next to your homepage intro. Leave blank to
-                auto-build from your top services + standard reassurances (“No judgment, ever,”
+                The short “Why us” highlight chips next to your homepage intro. Leave blank and
+                we’ll build them from your top services plus a few reassurances (“No judgment, ever,”
                 “Same-week visits,” …).
               </p>
               <TagListEditor

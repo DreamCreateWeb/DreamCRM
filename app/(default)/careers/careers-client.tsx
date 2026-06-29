@@ -132,7 +132,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
       <PageHeader
         eyebrow={`Website · ${orgName}`}
         title="Careers"
-        subtitle="Post openings on your own site — they get picked up by Google for Jobs + Indeed for free. Applications land here in a triage pipeline."
+        subtitle="Post openings on your own site — they get picked up by Google for Jobs and Indeed for free. Applications land here, ready to sort through."
         legend={<EncodingLegend aging="applicants" pills={APP_PILL_LEGEND} />}
         actions={
           <ActionButton variant="primary" breath size="sm" href="/careers/new">
@@ -176,7 +176,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
             <EmptyState
               icon="📣"
               title="No roles yet"
-              body="Post your first opening — it goes live on your site and gets indexed by Google for Jobs and Indeed for free."
+              body="Post your first opening — it goes live on your site and shows up on Google for Jobs and Indeed for free."
               action={
                 <ActionButton variant="primary" size="sm" href="/careers/new">
                   + New role

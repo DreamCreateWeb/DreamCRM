@@ -42,7 +42,7 @@ async function gate(): Promise<
 > {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
-    return { ok: false, error: 'Only clinic tenants can edit the website' }
+    return { ok: false, error: 'Only clinics can edit the website' }
   }
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
     return { ok: false, error: 'Only owners and admins can edit the website' }

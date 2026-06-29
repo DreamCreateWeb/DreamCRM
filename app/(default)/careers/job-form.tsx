@@ -108,7 +108,7 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
           <label className={LABEL}>Status</label>
           <select name="status" defaultValue={job?.status ?? 'draft'} className={FIELD}>
             <option value="draft">Draft (not public)</option>
-            <option value="open">Open (live + indexable)</option>
+            <option value="open">Open (live and searchable)</option>
             <option value="closed">Closed</option>
             <option value="filled">Filled</option>
           </select>

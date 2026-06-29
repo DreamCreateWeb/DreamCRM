@@ -75,7 +75,7 @@ export default function PayBalanceForm({
         </p>
       )}
       <p className="mt-2 text-[0.78rem]" style={{ color: '#6B635A' }}>
-        Card payments are processed securely by Stripe. Want to pay a different way? Just call.
+        Card payments are processed securely by Stripe. Want to pay a different way? Call us.
       </p>
     </div>
   )

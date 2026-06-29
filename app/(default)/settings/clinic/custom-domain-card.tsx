@@ -32,7 +32,7 @@ const STATE_META: Record<CustomDomainState, { tone: Tone; label: string; title: 
   failed: {
     tone: 'urgent',
     label: 'Needs attention',
-    title: 'Provisioning failed — check the records, or remove and try again.',
+    title: 'Setup didn’t finish — check the records, or remove and try again.',
   },
 }
 
@@ -191,7 +191,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
             </div>
             {status.error === 'manual' && (
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                We’ll finish provisioning shortly — the certificate value above is a placeholder
+                We’ll finish setting this up shortly — the certificate value above is a placeholder
                 until then. Add the routing record now; we’ll email you if anything else is needed.
               </p>
             )}

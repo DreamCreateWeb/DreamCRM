@@ -24,6 +24,6 @@ export async function startMembershipCheckout(
     return { url: '' }
   }
   const site = await getClinicSiteBySlug(slug)
-  if (!site) throw new Error('Clinic not found')
+  if (!site) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
   return createMembershipCheckout(site.orgId, publicSiteUrl(site), input)
 }

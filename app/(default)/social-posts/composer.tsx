@@ -595,7 +595,7 @@ export default function Composer({
                 : 'Post now'}
         </ActionButton>
         <p className="text-[11px] text-gray-400">
-          Posts go out through your connected channels. Google Updates expire after ~7 days on Google.
+          Posts go out through your connected channels. Google Updates drop off your listing after about 7 days.
         </p>
       </div>
 

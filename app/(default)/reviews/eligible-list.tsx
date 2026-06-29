@@ -60,7 +60,7 @@ export default function EligibleList({ rows }: Props) {
         setToast({ message: `Review request sent to ${row.patientName.split(' ')[0]}.`, tone: 'ok' })
         router.refresh()
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Send failed'
+        const message = err instanceof Error ? err.message : "Couldn't send the request. Try again."
         setErrorByPatient((e) => ({ ...e, [row.patientId]: message }))
         setToast({ message, tone: 'urgent' })
       }

@@ -59,10 +59,10 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
         </div>
-        <div className="text-xs font-medium text-gray-700 dark:text-gray-200">Not in CRM yet</div>
+        <div className="text-xs font-medium text-gray-700 dark:text-gray-200">Not in your records yet</div>
       </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-        Add <span className="text-gray-700 dark:text-gray-300">{fromEmail}</span> as a {terminology.contact} so future emails from them link to a record.
+        Add <span className="text-gray-700 dark:text-gray-300">{fromEmail}</span> as a {terminology.contact} so future emails from them link to their record.
       </p>
 
       <div className="space-y-1.5">

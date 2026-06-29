@@ -131,7 +131,7 @@ export default function SignInForm() {
     <form onSubmit={magicMode ? onSendMagicLink : onSubmit}>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="email">Email Address</label>
+          <label className="block text-sm font-medium mb-1" htmlFor="email">Email</label>
           <input
             id="email"
             className="form-input w-full"
