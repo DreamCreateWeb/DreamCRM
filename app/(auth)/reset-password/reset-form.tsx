@@ -82,13 +82,13 @@ export default function ResetForm() {
           {error}
         </div>
       )}
-      <div className="flex justify-end mt-6">
+      <div className="mt-6">
         <button
           type="submit"
           disabled={loading}
-          className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white whitespace-nowrap disabled:opacity-60"
+          className="btn w-full bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400 disabled:opacity-60"
         >
-          {loading ? 'Sending…' : 'Send Reset Link'}
+          {loading ? 'Sending…' : 'Send reset link'}
         </button>
       </div>
     </form>

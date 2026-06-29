@@ -8,8 +8,7 @@ import { getInvitationDetails, type InvitationDetails } from './invite-details'
 import { linkPatientRecord } from './link-patient'
 import { acceptPatientPortalInvite } from './patient-invite'
 import { acceptTeamInvite } from './team-invite'
-import AuthHeader from '../auth-header'
-import AuthImage from '../auth-image'
+import AuthShell from '@/components/auth/auth-shell'
 
 type ClinicBrand = NonNullable<InvitationDetails['brand']>
 
@@ -259,7 +258,7 @@ function AcceptInviteInner() {
 
   if (step.type === 'loading' || step.type === 'accepting' || step.type === 'refreshing') {
     return (
-      <div className="max-w-sm mx-auto w-full px-4 py-8">
+      <div className="w-full">
         <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-4">
           {step.type === 'accepting' ? 'Joining your clinic…' : step.type === 'refreshing' ? 'Refreshing…' : 'Loading…'}
         </h1>
@@ -273,7 +272,7 @@ function AcceptInviteInner() {
   if (step.type === 'wrongUser') {
     const { details, signedInAs } = step
     return (
-      <div className="max-w-sm mx-auto w-full px-4 py-8">
+      <div className="w-full">
         <div className="mb-6">
           {isClinic && brand?.logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -288,7 +287,7 @@ function AcceptInviteInner() {
         <button
           onClick={handleSignOut}
           disabled={submitting}
-          className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-gray-900 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+          className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
           style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
         >
           {submitting ? 'Signing out…' : `Sign out & continue as ${details.email}`}
@@ -299,7 +298,7 @@ function AcceptInviteInner() {
 
   if (step.type === 'magicSent') {
     return (
-      <div className="max-w-sm mx-auto w-full px-4 py-8 text-center">
+      <div className="w-full text-center">
         <p className="text-3xl mb-3">📬</p>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Check your inbox</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -324,7 +323,7 @@ function AcceptInviteInner() {
     const isMagic = authMode === 'magic'
 
     return (
-      <div className="max-w-sm mx-auto w-full px-4 py-8">
+      <div className="w-full">
         <div className="mb-6">
           {/* Clinic logo when this is a clinic invite — the patient should feel
               they're joining THEIR dentist, not generic software. */}
@@ -374,7 +373,7 @@ function AcceptInviteInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-gray-900 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
               style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
             >
               {submitting ? 'Sending…' : 'Email me a sign-in link'}
@@ -436,7 +435,7 @@ function AcceptInviteInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-gray-900 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
               style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
             >
               {submitting
@@ -523,7 +522,7 @@ function AcceptInviteInner() {
 
   if (step.type === 'success') {
     return (
-      <div className="max-w-sm mx-auto w-full px-4 py-8">
+      <div className="w-full">
         <div className="flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/20 mb-6">
           <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -541,7 +540,7 @@ function AcceptInviteInner() {
         </p>
         <button
           onClick={() => window.location.assign(step.toWelcome ? '/welcome' : '/')}
-          className="btn w-full text-white hover:opacity-90 bg-gray-900 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+          className="btn w-full text-white hover:opacity-90 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
           style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
         >
           {step.toWelcome ? 'Build my website with AI →' : step.isClinic ? 'Go to my portal' : 'Go to dashboard'}
@@ -551,7 +550,7 @@ function AcceptInviteInner() {
   }
 
   return (
-    <div className="max-w-sm mx-auto w-full px-4 py-8">
+    <div className="w-full">
       <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 mb-6">
         <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -563,7 +562,7 @@ function AcceptInviteInner() {
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">{step.message}</p>
       <button
         onClick={() => router.push('/signin')}
-        className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+        className="btn w-full bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
       >
         Back to sign in
       </button>
@@ -580,24 +579,10 @@ function isExistingUserError(message?: string): boolean {
 
 export default function AcceptInvitePage() {
   return (
-    <main className="bg-white dark:bg-gray-900">
-      <div className="relative md:flex">
-        <div className="md:w-1/2">
-          <div className="min-h-[100dvh] h-full flex flex-col after:flex-1">
-            <AuthHeader />
-            <Suspense
-              fallback={
-                <div className="max-w-sm mx-auto w-full px-4 py-8 text-sm text-gray-400">
-                  Loading…
-                </div>
-              }
-            >
-              <AcceptInviteInner />
-            </Suspense>
-          </div>
-        </div>
-        <AuthImage />
-      </div>
-    </main>
+    <AuthShell>
+      <Suspense fallback={<div className="w-full text-sm text-gray-400">Loading…</div>}>
+        <AcceptInviteInner />
+      </Suspense>
+    </AuthShell>
   )
 }

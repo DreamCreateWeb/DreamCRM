@@ -1,39 +1,34 @@
 export const metadata = {
   title: 'Reset Password - DreamCRM',
-  description: 'Page description',
+  description: 'Reset your Dream Create password.',
 }
 
 import { Suspense } from 'react'
-import AuthHeader from '../auth-header'
-import AuthImage from '../auth-image'
+import Link from 'next/link'
+import AuthShell from '@/components/auth/auth-shell'
 import ResetForm from './reset-form'
 
 export default function ResetPassword() {
   return (
-    <main className="bg-white dark:bg-gray-900">
-
-      <div className="relative md:flex">
-
-        {/* Content */}
-        <div className="md:w-1/2">
-          <div className="min-h-[100dvh] h-full flex flex-col after:flex-1">
-
-            <AuthHeader />
-
-            <div className="max-w-sm mx-auto w-full px-4 py-8">
-              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">Reset your Password</h1>
-              <Suspense fallback={null}>
-                <ResetForm />
-              </Suspense>
-            </div>
-
-          </div>
-        </div>
-
-        <AuthImage />
-
-      </div>
-
-    </main>
+    <AuthShell
+      eyebrow="Password reset"
+      title="Reset your password"
+      subtitle="Enter your email and we'll send you a link to set a new one."
+      footer={
+        <>
+          Remembered it?{' '}
+          <Link
+            className="font-semibold text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
+            href="/signin"
+          >
+            Back to sign in
+          </Link>
+        </>
+      }
+    >
+      <Suspense fallback={null}>
+        <ResetForm />
+      </Suspense>
+    </AuthShell>
   )
 }

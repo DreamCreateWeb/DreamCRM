@@ -163,40 +163,40 @@ export default function SignInForm() {
           {error}
         </div>
       )}
-      <div className="flex items-center justify-between mt-6">
-        <div className="mr-1">
-          {magicMode ? (
-            <button
-              type="button"
-              className="text-sm underline hover:no-underline"
-              onClick={() => setMode('password')}
-            >
-              Use a password instead
-            </button>
-          ) : (
-            <Link className="text-sm underline hover:no-underline" href="/reset-password">Forgot Password?</Link>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3 disabled:opacity-60"
-        >
-          {loading ? (magicMode ? 'Sending…' : 'Signing In…') : magicMode ? 'Email me a link' : 'Sign In'}
-        </button>
+      <button
+        type="submit"
+        disabled={loading}
+        className="btn w-full mt-6 bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400 disabled:opacity-60"
+      >
+        {loading ? (magicMode ? 'Sending…' : 'Signing In…') : magicMode ? 'Email me a link' : 'Sign In'}
+      </button>
+      <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+        {magicMode ? (
+          <button
+            type="button"
+            className="underline hover:no-underline text-gray-600 dark:text-gray-300"
+            onClick={() => setMode('password')}
+          >
+            Use a password instead
+          </button>
+        ) : (
+          <Link className="underline hover:no-underline text-gray-600 dark:text-gray-300" href="/reset-password">
+            Forgot password?
+          </Link>
+        )}
+        {!magicMode && (
+          <button
+            type="button"
+            className="font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400"
+            onClick={() => {
+              setError(null)
+              setMode('magic')
+            }}
+          >
+            Email me a link instead
+          </button>
+        )}
       </div>
-      {!magicMode && (
-        <button
-          type="button"
-          className="mt-4 w-full text-center text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
-          onClick={() => {
-            setError(null)
-            setMode('magic')
-          }}
-        >
-          No password? Email me a sign-in link instead
-        </button>
-      )}
     </form>
   )
 }
