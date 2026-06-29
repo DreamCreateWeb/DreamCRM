@@ -102,7 +102,7 @@ function queueCancelContext(opts: { email?: string | null; planTier?: string } =
 }
 
 describe('cancelAppointment notifications', () => {
-  it('pings owners/admins with a cancellation notice → /appointments', async () => {
+  it('pings owners/admins with a cancellation notice → the patient record', async () => {
     queueCancelContext()
     await cancelAppointment('org_1', 'appt_1')
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
@@ -110,7 +110,9 @@ describe('cancelAppointment notifications', () => {
       expect.objectContaining({
         type: 'appointment_cancelled',
         title: expect.stringContaining('Mia Hayes'),
-        linkPath: '/appointments',
+        // CTA opens the patient (richest follow-up surface), with a named label.
+        linkPath: '/patients/pat_1',
+        linkLabel: 'View Mia’s record →',
       }),
       { roles: ['owner', 'admin'] },
     )
@@ -165,7 +167,12 @@ describe('markNoShow notifications', () => {
     await markNoShow('org_1', 'appt_2')
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
-      expect.objectContaining({ type: 'appointment_no_show', title: expect.stringContaining('Aiden Brooks') }),
+      expect.objectContaining({
+        type: 'appointment_no_show',
+        title: expect.stringContaining('Aiden Brooks'),
+        linkPath: '/patients/pat_1',
+        linkLabel: 'View Aiden’s record →',
+      }),
       { roles: ['owner', 'admin'] },
     )
     // The whole point: no patient cancellation email on a no-show.

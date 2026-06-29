@@ -633,6 +633,12 @@ export interface NotificationEmailInput {
   body: string
   /** Path on dreamcreatestudio.com to deep-link to (e.g. /inbox?id=123). */
   linkPath?: string | null
+  /**
+   * Custom text for the action button (e.g. "View Sarah’s record →"). Lets a
+   * staff notification spell out exactly what tapping the button does, instead
+   * of the generic default. Falls back to "Open in DreamCRM" when absent.
+   */
+  linkLabel?: string | null
 }
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dreamcreatestudio.com'
@@ -664,6 +670,7 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
 
   // Staff-facing internal notification (default platform identity + chrome).
   const link = input.linkPath ? `${APP_URL}${input.linkPath}` : null
+  const linkLabel = input.linkLabel?.trim() || 'Open in DreamCRM'
   await deliver({
     to: input.to,
     subject: input.title,
@@ -672,7 +679,7 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
         <p style="margin:0 0 12px;color:#57534e">${greeting}</p>
         <h2 style="margin:0 0 12px;font-size:18px;color:#0c0a09">${escapeHtml(input.title)}</h2>
         ${input.body ? `<p style="margin:0 0 16px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(input.body)}</p>` : ''}
-        ${link ? `<a href="${link}" style="display:inline-block;padding:10px 20px;background:#0c0a09;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Open in DreamCRM</a>` : ''}
+        ${link ? `<a href="${link}" style="display:inline-block;padding:10px 20px;background:#0c0a09;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">${escapeHtml(linkLabel)}</a>` : ''}
         <p style="margin:24px 0 0;font-size:11px;color:#a8a29e">
           You're getting this because of your notification preferences. Manage them at
           <a href="${APP_URL}/settings/notifications" style="color:#57534e">settings → notifications</a>.

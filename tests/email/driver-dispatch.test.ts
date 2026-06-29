@@ -24,6 +24,7 @@ import {
   sendCancellationConfirmation,
   sendMagicLinkEmail,
   sendChangeEmailVerification,
+  sendNotificationEmail,
 } from '@/lib/email'
 
 const FROM = 'Dream Create <Hello@DreamCreateWeb.com>'
@@ -207,6 +208,42 @@ describe('sendMagicLinkEmail — clinic branding vs platform fallback', () => {
     expect(msg.subject).toBe('Your sign-in link')
     // Platform copy, not the clinic-branded headline.
     expect(msg.subject).not.toMatch(/Sign in to /)
+  })
+})
+
+describe('sendNotificationEmail — staff action CTA', () => {
+  it('renders a custom linkLabel button pointing at an absolute deep-link', async () => {
+    mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
+    await sendNotificationEmail({
+      to: 'staff@acmedental.com',
+      name: 'Dr. Reyes',
+      title: 'New online booking — Sarah Lee, Mar 5',
+      body: 'cleaning requested via your website.',
+      linkPath: '/patients/pat_42',
+      linkLabel: 'View Sarah’s record →',
+    })
+    expect(mocks.resendSend).toHaveBeenCalledOnce()
+    const msg = mocks.resendSend.mock.calls[0]![0] as { to: string; html: string }
+    expect(msg.to).toBe('staff@acmedental.com')
+    // The button text is the specific action, not the generic default …
+    expect(msg.html).toContain('View Sarah’s record →')
+    expect(msg.html).not.toContain('Open in DreamCRM')
+    // … and the href is the absolute patient-record URL.
+    expect(msg.html).toContain('href="https://dreamcreatestudio.com/patients/pat_42"')
+  })
+
+  it('falls back to the generic "Open in DreamCRM" label when none is given', async () => {
+    mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
+    await sendNotificationEmail({
+      to: 'staff@acmedental.com',
+      name: null,
+      title: 'A sync needs your attention',
+      body: '',
+      linkPath: '/integrations',
+    })
+    const msg = mocks.resendSend.mock.calls[0]![0] as { html: string }
+    expect(msg.html).toContain('Open in DreamCRM')
+    expect(msg.html).toContain('href="https://dreamcreatestudio.com/integrations"')
   })
 })
 

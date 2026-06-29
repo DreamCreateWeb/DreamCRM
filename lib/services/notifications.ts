@@ -35,6 +35,12 @@ export interface NotifyInput {
   body?: string | null
   /** Where clicking the notification should navigate the user. */
   linkPath?: string | null
+  /**
+   * Custom label for the email's action button (e.g. "View Sarah’s record →").
+   * Email-only — the in-app notification row reads its title/body, so this is
+   * not persisted; it just makes the emailed call-to-action specific.
+   */
+  linkLabel?: string | null
   /** Arbitrary structured data carried with the row. */
   meta?: Record<string, unknown>
   /** Set true to force-send the email even if `pushEmail` is off. */
@@ -111,6 +117,7 @@ export async function notify(input: NotifyInput): Promise<void> {
           title: input.title,
           body: input.body ?? '',
           linkPath: input.linkPath ?? null,
+          linkLabel: input.linkLabel ?? null,
         })
       }
     }

@@ -487,7 +487,10 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
         type: 'online_booking',
         title: `New online booking — ${firstName} ${lastName}, ${dateLabel}`,
         body: `${appointmentType.replace(/_/g, ' ')} requested via your website.`,
-        linkPath: '/appointments',
+        // Take them straight to the patient — their record shows this visit in
+        // the timeline plus every way to follow up (message, confirm, rebook).
+        linkPath: `/patients/${patientId}`,
+        linkLabel: `View ${firstName}’s record →`,
         meta: { appointmentId: apptId, patientId },
       },
       { roles: ['owner', 'admin'] },

@@ -399,7 +399,7 @@ describe('submitBookingRequest', () => {
     expect(sendBookingConfirmationEmail).not.toHaveBeenCalled()
   })
 
-  it('notifies org owners/admins of the new online booking → /appointments', async () => {
+  it('notifies org owners/admins of the new online booking → the patient record', async () => {
     selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
     await submitBookingRequest(form(baseFields))
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
@@ -407,7 +407,10 @@ describe('submitBookingRequest', () => {
       expect.objectContaining({
         type: 'online_booking',
         title: expect.stringContaining('Jane Doe'),
-        linkPath: '/appointments',
+        // Email/bell CTA opens the patient's record, not the agenda, with a
+        // clear named action label.
+        linkPath: expect.stringMatching(/^\/patients\/.+/),
+        linkLabel: expect.stringContaining('Jane'),
       }),
       { roles: ['owner', 'admin'] },
     )

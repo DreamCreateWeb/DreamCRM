@@ -200,4 +200,25 @@ describe('notify()', () => {
     expect(row.body).toBe('From Alice')
     expect(row.linkPath).toBe('/inbox')
   })
+
+  it('passes a custom linkLabel through to the email (but does NOT persist it on the row)', async () => {
+    state.selectQueue.push([
+      {
+        comments: true,
+        candidates: true,
+        offers: true,
+        pushEverything: false,
+        pushEmail: true,
+        pushNothing: false,
+      },
+    ])
+    state.selectQueue.push([{ email: 'alice@example.com', name: 'Alice' }])
+
+    await notify({ ...baseInput, linkPath: '/patients/p1', linkLabel: 'View Alice’s record →' })
+
+    // Reaches the email as the button label …
+    expect((state.emails[0] as { linkLabel?: string }).linkLabel).toBe('View Alice’s record →')
+    // … but it's email-only presentation, never written to the stored row.
+    expect(state.inserts[0].values as Record<string, unknown>).not.toHaveProperty('linkLabel')
+  })
 })

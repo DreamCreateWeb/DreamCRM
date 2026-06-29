@@ -823,6 +823,17 @@ async function loadAppointmentNotifyContext(organizationId: string, appointmentI
   }
 }
 
+/**
+ * Action label for a patient-bound staff notification email — e.g.
+ * "View Mia’s record →". Points the front desk straight at the person so they
+ * can follow up in one tap. Falls back to a generic label when we don't have a
+ * usable first name (the loader's "A patient" fallback).
+ */
+function patientRecordLinkLabel(patientName: string): string {
+  const first = patientName && patientName !== 'A patient' ? patientName.split(' ')[0] : ''
+  return first ? `View ${first}’s record →` : 'View patient record →'
+}
+
 export async function cancelAppointment(organizationId: string, appointmentId: string) {
   await assertAppointmentMutable(organizationId, appointmentId)
   // Capture patient/clinic context BEFORE the state write — the row is still
@@ -848,7 +859,8 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
           type: 'appointment_cancelled',
           title: `Visit cancelled — ${notifyCtx.patientName}`,
           body: `Their ${notifyCtx.type.replace(/_/g, ' ')} on ${dateLabel} was cancelled.`,
-          linkPath: '/appointments',
+          linkPath: `/patients/${notifyCtx.patientId}`,
+          linkLabel: patientRecordLinkLabel(notifyCtx.patientName),
           meta: { appointmentId, patientId: notifyCtx.patientId },
         },
         { roles: ['owner', 'admin'] },
@@ -955,7 +967,8 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
           type: 'appointment_no_show',
           title: `No-show — ${notifyCtx.patientName}`,
           body: `Their ${notifyCtx.type.replace(/_/g, ' ')} on ${dateLabel} was marked a no-show.`,
-          linkPath: '/appointments',
+          linkPath: `/patients/${notifyCtx.patientId}`,
+          linkLabel: patientRecordLinkLabel(notifyCtx.patientName),
           meta: { appointmentId, patientId: notifyCtx.patientId },
         },
         { roles: ['owner', 'admin'] },

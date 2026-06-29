@@ -5344,6 +5344,23 @@ export async function seedDemoNotificationsForUser(userId: string, orgId: string
 
   const now = Date.now()
   const minutesAgo = (m: number) => new Date(now - m * 60 * 1000)
+
+  // Link the booking bell item to the patient's record — matches the real
+  // online-booking notification (a staff email/bell item now opens the patient,
+  // not the agenda). Falls back to the agenda if the demo patient isn't seeded.
+  const [emma] = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, orgId),
+        eq(schema.patient.firstName, 'Emma'),
+        eq(schema.patient.lastName, 'Lopez'),
+      ),
+    )
+    .limit(1)
+  const bookingLinkPath = emma ? `/patients/${emma.id}` : '/appointments'
+
   await db.insert(schema.notifications).values([
     {
       userId,
@@ -5352,7 +5369,7 @@ export async function seedDemoNotificationsForUser(userId: string, orgId: string
       type: 'booking_created',
       title: 'New online booking — Emma Lopez, tomorrow 10:00 AM',
       body: 'Booked through the website widget (cleaning, 30 min).',
-      linkPath: '/appointments',
+      linkPath: bookingLinkPath,
       createdAt: minutesAgo(35),
     },
     {
