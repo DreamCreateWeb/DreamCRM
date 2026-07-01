@@ -8,27 +8,38 @@ import { PageHeader } from '@/components/ui/page-header'
  * server page shells and the client panels.
  */
 
-/** Per-page header. Pairs the page title with a surface eyebrow ("Clinic
- *  settings" / "Account"). Aura off — Settings headers sit inside a panel. */
-export function SettingsHeader({
-  eyebrow,
+/**
+ * The standard shell for a focused settings page: a calm `PageHeader` (aura OFF
+ * — settings are data surfaces, the one brand moment lives on the Settings home)
+ * above one consistent `.v2-panel`. Centralizes the eyebrow (defaults to
+ * "Settings") so it's no longer hardcoded per page.
+ */
+export function SettingsPage({
+  eyebrow = 'Settings',
   title,
   subtitle,
   actions,
+  padded = false,
+  panel = true,
+  children,
 }: {
   eyebrow?: ReactNode
   title: ReactNode
   subtitle?: ReactNode
   actions?: ReactNode
+  /** Add inner padding for pages that render form fields directly. Pages whose
+   *  content is SettingsSection cards / SettingsTabs self-pad, so leave it off. */
+  padded?: boolean
+  /** When false, render children bare (for pages like Automated emails that lay
+   *  out their own `.v2-card` grid and shouldn't sit inside one panel). */
+  panel?: boolean
+  children: ReactNode
 }) {
   return (
-    <PageHeader
-      eyebrow={eyebrow}
-      title={title}
-      subtitle={subtitle}
-      actions={actions}
-      aura={false}
-    />
+    <>
+      <PageHeader eyebrow={eyebrow} title={title} subtitle={subtitle} actions={actions} aura={false} />
+      {panel ? <div className={`v2-panel mb-8${padded ? ' p-6' : ''}`}>{children}</div> : children}
+    </>
   )
 }
 

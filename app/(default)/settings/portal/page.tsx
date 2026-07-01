@@ -11,7 +11,7 @@ import { getPortalSettings } from '@/lib/services/portal-settings'
 import { getShopConfig } from '@/lib/services/shop'
 import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import PortalSettingsForm from './portal-settings-form'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 
 export default async function PortalSettingsPage() {
   const ctx = await requireTenant()
@@ -25,13 +25,11 @@ export default async function PortalSettingsPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Clinic settings"
+      <SettingsPage
         title="Patient portal"
         subtitle="Your patients' portal, your rules — features, booking windows, and voice."
-      />
-
-      <div className="v2-panel mb-8 p-6">
+        padded
+      >
         <div className="max-w-2xl">
           <PortalSettingsForm
             initial={settings}
@@ -39,7 +37,7 @@ export default async function PortalSettingsPage() {
             storefrontEnabled={shopConfig.storefrontEnabled}
           />
         </div>
-      </div>
+      </SettingsPage>
     </>
   )
 }

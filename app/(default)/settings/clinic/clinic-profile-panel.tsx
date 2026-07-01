@@ -60,7 +60,7 @@ function Section({
   children: ReactNode
 }) {
   return (
-    <section id={id} className="scroll-mt-20">
+    <section id={id} className="scroll-mt-28">
       <div className="mb-3">
         <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
         {desc && <p className="mt-0.5 max-w-prose text-xs text-gray-500 dark:text-gray-400">{desc}</p>}

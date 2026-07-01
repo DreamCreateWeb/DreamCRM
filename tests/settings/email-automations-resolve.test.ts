@@ -37,7 +37,7 @@ describe('resolveEmailAutomations', () => {
     })
     expect(Object.keys(r).sort()).toEqual([...EMAIL_AUTOMATION_KEYS].sort())
     expect(r.booking_confirmation.subject).toBe('ok')
-    expect((r.booking_confirmation as Record<string, unknown>).bogusSlot).toBeUndefined()
+    expect((r.booking_confirmation as unknown as Record<string, unknown>).bogusSlot).toBeUndefined()
   })
 
   it('ignores a blank/whitespace slot (falls back to default) — never sends empty', () => {

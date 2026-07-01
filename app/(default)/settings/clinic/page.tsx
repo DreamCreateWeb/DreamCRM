@@ -18,7 +18,7 @@ import CustomDomainCard from './custom-domain-card'
 import GbpSyncCard from './gbp-sync-card'
 import CalendarFeedCard from './calendar-feed-card'
 import ClinicSettingsNav, { type NavGroup } from './clinic-settings-nav'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 import { ActionButton } from '@/components/ui/action-button'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 
@@ -101,8 +101,7 @@ export default async function ClinicSettings() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Clinic settings"
+      <SettingsPage
         title="Clinic profile"
         subtitle="Your clinic name, contact details, branding, and website content."
         actions={
@@ -110,10 +109,10 @@ export default async function ClinicSettings() {
             Preview your website ↗
           </ActionButton>
         }
-      />
-      <div className="mb-8 lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:items-start lg:gap-8">
+        panel={false}
+      >
         <ClinicSettingsNav groups={navGroups} />
-        <div className="v2-panel">
+        <div className="v2-panel mb-8">
           <ClinicProfilePanel
             profile={profile ?? null}
             orgName={ctx.organizationName}
@@ -122,11 +121,11 @@ export default async function ClinicSettings() {
             gmailAccounts={gmailAccounts}
           />
           {gbpState && (
-            <div id="google-sync" className="scroll-mt-20">
+            <div id="google-sync" className="scroll-mt-28">
               <GbpSyncCard state={gbpState} />
             </div>
           )}
-          <div id="calendar-feed" className="scroll-mt-20">
+          <div id="calendar-feed" className="scroll-mt-28">
             <CalendarFeedCard
               initialToken={profile?.calendarFeedToken ?? null}
               baseUrl={appBaseUrl}
@@ -135,12 +134,12 @@ export default async function ClinicSettings() {
           </div>
           <div
             id="custom-domain"
-            className="scroll-mt-20 border-t border-gray-200 dark:border-gray-700/60"
+            className="scroll-mt-28 border-t border-gray-200 dark:border-gray-700/60"
           >
             <CustomDomainCard initialStatus={customDomainStatus} subdomainUrl={subdomainUrl} />
           </div>
         </div>
-      </div>
+      </SettingsPage>
     </>
   )
 }

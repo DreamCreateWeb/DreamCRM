@@ -11,7 +11,7 @@ import { db } from '@/lib/db'
 import { clinicLocation } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
 import LocationsPanel from './locations-panel'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 
 export default async function LocationsSettings() {
   const ctx = await requireTenant()
@@ -25,13 +25,12 @@ export default async function LocationsSettings() {
 
   return (
     <>
-      <PageHeader eyebrow="Clinic settings" title="Locations" subtitle="Physical practice locations for your clinic." />
-      <div className="v2-panel mb-8">
+      <SettingsPage title="Locations" subtitle="Physical practice locations for your clinic.">
         <LocationsPanel
           locations={locations}
           canEdit={ctx.role === 'owner' || ctx.role === 'admin'}
         />
-      </div>
+      </SettingsPage>
     </>
   )
 }

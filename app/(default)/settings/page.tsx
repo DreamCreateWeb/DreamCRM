@@ -1,9 +1,13 @@
-import { redirect } from 'next/navigation'
-
 export const dynamic = 'force-dynamic'
 
-// Bare /settings → the user's own account (the personal surface). Clinic-wide
-// settings are reached from the org-switcher → "Clinic settings" (/settings/clinic).
-export default function SettingsIndex() {
-  redirect('/settings/account')
+import { redirect } from 'next/navigation'
+import { requireTenant } from '@/lib/auth/context'
+import SettingsHome from './settings-home'
+
+// `/settings` is the card-grid home (the settings navigation). Patient/partner
+// tenants don't have a settings surface → send them to their own home.
+export default async function SettingsIndex() {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') redirect('/')
+  return <SettingsHome tenantType={ctx.tenantType === 'platform' ? 'platform' : 'clinic'} />
 }

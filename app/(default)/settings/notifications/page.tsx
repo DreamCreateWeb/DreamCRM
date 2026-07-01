@@ -2,7 +2,7 @@ import NotificationsPanel from './notifications-panel'
 import { requireUser } from '@/lib/session'
 import { getTenantContext } from '@/lib/auth/context'
 import { getNotificationPrefs } from '@/lib/services/settings'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 
 export const metadata = {
   title: 'Notifications Settings - DreamCRM',
@@ -18,8 +18,7 @@ export default async function NotificationsSettings() {
 
   return (
     <>
-      <PageHeader eyebrow="Account" title="Notifications" subtitle="Email and push preferences." />
-      <div className="v2-panel mb-8">
+      <SettingsPage title="Notifications" subtitle="Email and push preferences.">
         <NotificationsPanel
           tenantType={
             ctx?.tenantType === 'platform' || ctx?.tenantType === 'patient'
@@ -35,7 +34,7 @@ export default async function NotificationsSettings() {
             pushNothing: prefs.pushNothing,
           }}
         />
-      </div>
+      </SettingsPage>
     </>
   )
 }

@@ -9,7 +9,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getEmailAutomations } from '@/lib/services/email-automations'
 import { getReminderSettings } from '@/lib/services/reminder-automation'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../../settings-kit'
 import EmailsHub from './emails-hub'
 
 export default async function AutomatedEmailsPage({
@@ -29,15 +29,15 @@ export default async function AutomatedEmailsPage({
 
   return (
     <>
-      <PageHeader
-        eyebrow="Clinic settings"
+      <SettingsPage
         title="Automated emails"
         subtitle="These are the emails your patients get automatically — confirmations, reminders, and more. Turn any of them on or off, and edit the wording so it sounds like you. The dates, buttons, and links are filled in and sent for you."
-      />
-
-      <div className="mb-8">
-        <EmailsHub config={config} reminder={reminder} canManage={canManage} focusKey={sp?.email ?? null} />
-      </div>
+        panel={false}
+      >
+        <div className="mb-8">
+          <EmailsHub config={config} reminder={reminder} canManage={canManage} focusKey={sp?.email ?? null} />
+        </div>
+      </SettingsPage>
     </>
   )
 }

@@ -50,7 +50,7 @@ describe('EmailsHub', () => {
     fireEvent.change(subj, { target: { value: 'New subject' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(saveEmail).toHaveBeenCalledTimes(1))
-    const [key, override] = saveEmail.mock.calls[0] as [string, Record<string, unknown>]
+    const [key, override] = saveEmail.mock.calls[0] as unknown as [string, Record<string, unknown>]
     expect(key).toBe('booking_confirmation')
     expect(override.subject).toBe('New subject')
     expect(override.enabled).toBe(true)

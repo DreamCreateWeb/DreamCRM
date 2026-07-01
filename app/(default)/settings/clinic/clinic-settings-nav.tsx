@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 /**
- * Sticky in-page section rail for the Clinic settings hub. Replaces the old
- * nested-tab maze (4 tabs → 15 hidden subtab panels): every section is listed
- * at once, so a clinic owner finds "Hours" or "Services" in a glance and jumps
- * straight there. Highlights the section currently in view (IntersectionObserver)
- * and honors the settings smart-search deep link (`?tab=&sub=`) by scrolling to
- * the matching section on load — so a search result still lands on the exact
- * setting even though the page no longer uses SettingsTabs.
+ * Sticky HORIZONTAL section nav for the Clinic profile hub. Replaces the old
+ * second left-rail (which stacked beside the main settings rail — three rails on
+ * one screen). Now it's a single scrollable chip bar pinned under the header:
+ * every section is one tap away, the current section highlights on scroll
+ * (IntersectionObserver), and the settings smart-search deep link (`?tab=&sub=`)
+ * still scrolls to the exact section on load.
  */
 
 export interface NavItem {
@@ -23,13 +22,12 @@ export interface NavGroup {
 }
 
 export default function ClinicSettingsNav({ groups }: { groups: NavGroup[] }) {
-  const ids = groups.flatMap((g) => g.items.map((i) => i.id))
+  const items = groups.flatMap((g) => g.items)
+  const ids = items.map((i) => i.id)
   const [active, setActive] = useState<string>(ids[0] ?? '')
   const params = useSearchParams()
 
-  // Smart-search deep link: the rail builds `?tab=&sub=` hrefs; the leaf id we
-  // want to land on is the sub (or the tab when a section has no sub). Scroll to
-  // it on load so search results stay precise.
+  // Smart-search deep link: land on the matching section on load.
   useEffect(() => {
     const target = params?.get('sub') || params?.get('tab')
     if (!target) return
@@ -40,7 +38,7 @@ export default function ClinicSettingsNav({ groups }: { groups: NavGroup[] }) {
     }
   }, [params])
 
-  // Scrollspy — highlight the section nearest the top of the viewport.
+  // Scrollspy — highlight the section nearest the top (below the sticky chrome).
   useEffect(() => {
     if (typeof IntersectionObserver !== 'function') return
     const els = ids
@@ -54,7 +52,7 @@ export default function ClinicSettingsNav({ groups }: { groups: NavGroup[] }) {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
         if (onscreen[0]?.target.id) setActive(onscreen[0].target.id)
       },
-      { rootMargin: '-80px 0px -55% 0px', threshold: 0 },
+      { rootMargin: '-120px 0px -55% 0px', threshold: 0 },
     )
     els.forEach((el) => obs.observe(el))
     return () => obs.disconnect()
@@ -71,36 +69,29 @@ export default function ClinicSettingsNav({ groups }: { groups: NavGroup[] }) {
   }
 
   return (
-    <nav aria-label="Clinic settings sections" className="hidden lg:block">
-      <div className="sticky top-20 space-y-5">
-        {groups.map((g) => (
-          <div key={g.label}>
-            <p className="px-2 mb-1.5 text-xs font-semibold uppercase tracking-wider text-ink-500">
-              {g.label}
-            </p>
-            <ul className="space-y-0.5">
-              {g.items.map((it) => {
-                const on = it.id === active
-                return (
-                  <li key={it.id}>
-                    <a
-                      href={`#${it.id}`}
-                      onClick={(e) => jump(e, it.id)}
-                      aria-current={on ? 'true' : undefined}
-                      className={`block rounded-md border-l-2 px-2 py-1.5 text-sm transition-colors ${
-                        on
-                          ? 'border-teal-500 bg-teal-500/10 font-medium text-teal-700 dark:text-teal-300'
-                          : 'border-transparent text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900 dark:hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      {it.label}
-                    </a>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        ))}
+    <nav
+      aria-label="Clinic settings sections"
+      className="sticky top-16 z-10 mb-6 -mx-1 border-b border-gray-100 dark:border-gray-800 bg-[color:var(--color-canvas)]/85 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--color-canvas)]/70"
+    >
+      <div className="flex gap-1 overflow-x-auto no-scrollbar px-1 py-2">
+        {items.map((it) => {
+          const on = it.id === active
+          return (
+            <a
+              key={it.id}
+              href={`#${it.id}`}
+              onClick={(e) => jump(e, it.id)}
+              aria-current={on ? 'true' : undefined}
+              className={`whitespace-nowrap rounded-[var(--r-pill)] px-3 py-1.5 text-sm transition-colors ${
+                on
+                  ? 'bg-teal-500/12 font-medium text-teal-700 dark:text-teal-300'
+                  : 'text-gray-600 hover:bg-gray-500/[0.08] dark:text-gray-300 dark:hover:bg-white/[0.06]'
+              }`}
+            >
+              {it.label}
+            </a>
+          )
+        })}
       </div>
     </nav>
   )

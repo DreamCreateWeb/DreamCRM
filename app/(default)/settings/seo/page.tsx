@@ -10,7 +10,7 @@ import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getSeoMeta } from '@/lib/services/site-analytics'
 import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
 import SeoMetaForm from './seo-meta-form'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 
 export default async function SearchAppearanceSettingsPage() {
   const ctx = await requireTenant()
@@ -34,13 +34,11 @@ export default async function SearchAppearanceSettingsPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Clinic settings"
+      <SettingsPage
         title="Search appearance"
         subtitle="Control the title + description that show in Google results for each page of your site. Leave a field blank to use the smart default we generate from your content."
-      />
-
-      <div className="v2-panel mb-8 p-6">
+        padded
+      >
         <div className="max-w-2xl">
           <SeoMetaForm
             initial={meta}
@@ -50,7 +48,7 @@ export default async function SearchAppearanceSettingsPage() {
             domain={domain}
           />
         </div>
-      </div>
+      </SettingsPage>
     </>
   )
 }

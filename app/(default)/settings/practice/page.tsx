@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 import { getPracticeSettings } from './actions'
 import PracticePanel from './practice-panel'
 
@@ -22,14 +22,12 @@ export default async function PracticeSettings() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Clinic settings"
+      <SettingsPage
         title="Practice setup"
         subtitle="Your providers, visit types, chairs, and recall cadence — the settings that drive booking + recall."
-      />
-      <div className="v2-panel mb-8">
+      >
         <PracticePanel initial={data} />
-      </div>
+      </SettingsPage>
     </>
   )
 }

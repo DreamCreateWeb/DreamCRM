@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import SubscriptionPanel from './subscription-panel'
 import SocialConnectionsCard from './social-connections-card'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 import { requireTenant } from '@/lib/auth/context'
 import { getModuleLabel } from '@/lib/modules'
 import { getOrgSubscriptionSummary, listOrgStripeInvoices } from '@/lib/services/billing'
@@ -64,13 +64,10 @@ export default async function BillingSettings({
 
   return (
     <>
-      <PageHeader
-        eyebrow="Clinic settings"
+      <SettingsPage
         title="Plan & billing"
         subtitle="What you have, what it costs, when it renews — change your plan and see past invoices."
-      />
-      <div className="v2-panel mb-8">
-        <div className="grow">
+      >
           <SubscriptionPanel
             planTier={ctx.planTier}
             subscriptionStatus={ctx.subscriptionStatus ?? summary?.status ?? null}
@@ -105,8 +102,7 @@ export default async function BillingSettings({
               managedBilling={managedBilling}
             />
           </div>
-        </div>
-      </div>
+      </SettingsPage>
     </>
   )
 }

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listMessageTemplates } from '@/lib/services/message-templates'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 import TemplatesEditor from './templates-editor'
 
 export default async function MessageTemplatesPage() {
@@ -20,17 +20,15 @@ export default async function MessageTemplatesPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Clinic settings"
+      <SettingsPage
         title="Message templates"
         subtitle="Saved replies your team can drop into a patient conversation in one click. Use {{firstName}} and it fills in the patient's name when sent."
-      />
-
-      <div className="v2-panel mb-8 p-6">
+        padded
+      >
         <div className="max-w-2xl">
           <TemplatesEditor initial={templates} canManage={canManage} />
         </div>
-      </div>
+      </SettingsPage>
     </>
   )
 }

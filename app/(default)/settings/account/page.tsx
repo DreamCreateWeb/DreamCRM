@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import AccountPanel from './account-panel'
 import { requireUser } from '@/lib/session'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 
 export const metadata = {
   title: 'Account Settings - DreamCRM',
@@ -22,8 +22,7 @@ export default async function AccountSettings() {
 
   return (
     <>
-      <PageHeader eyebrow="Account" title="Profile" subtitle="Your name, photo, bio, and sign-in email." />
-      <div className="v2-panel mb-8">
+      <SettingsPage title="Profile" subtitle="Your name, photo, bio, and sign-in email.">
         <AccountPanel
           initialUser={{
             id: user.id,
@@ -33,7 +32,7 @@ export default async function AccountSettings() {
             bio: row?.bio ?? null,
           }}
         />
-      </div>
+      </SettingsPage>
     </>
   )
 }

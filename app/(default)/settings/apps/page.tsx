@@ -1,5 +1,5 @@
 import IntegrationsPanel, { type Integration } from './integrations-panel'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 import { requireUser } from '@/lib/session'
 import { getTenantContext } from '@/lib/auth/context'
 import { listOrgEmailAccounts } from '@/lib/services/mailbox'
@@ -135,10 +135,9 @@ export default async function AppsSettings() {
 
   return (
     <>
-      <PageHeader eyebrow="Clinic settings" title="Connected accounts" subtitle="External services connected to your workspace." />
-      <div className="v2-panel mb-8">
+      <SettingsPage title="Connected accounts" subtitle="External services connected to your workspace.">
         <IntegrationsPanel integrations={integrations} tenantType={tenantType} />
-      </div>
+      </SettingsPage>
     </>
   )
 }

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import TeamPanel from './team-panel'
 import { listPendingInvitations, listTeamMembers } from '@/lib/services/messages'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 
 export const metadata = {
   title: 'Team - DreamCRM',
@@ -24,12 +24,10 @@ export default async function TeamSettings() {
 
   return (
     <>
-      <PageHeader
-        eyebrow={ctx.tenantType === 'platform' ? 'Platform settings' : 'Clinic settings'}
+      <SettingsPage
         title="Team"
         subtitle="Invite teammates and manage access. Everyone in your clinic can see this; owners and admins can make changes."
-      />
-      <div className="v2-panel mb-8">
+      >
         <TeamPanel
           canManage={ctx.role === 'owner' || ctx.role === 'admin'}
           members={members.map((m) => ({
@@ -42,7 +40,7 @@ export default async function TeamSettings() {
           }))}
           invitations={invitations}
         />
-      </div>
+      </SettingsPage>
     </>
   )
 }

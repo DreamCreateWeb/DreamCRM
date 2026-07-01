@@ -2,7 +2,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getServerSession, requireUser } from '@/lib/session'
 import SecurityPanel, { type SessionRow } from './security-panel'
-import { PageHeader } from '@/components/ui/page-header'
+import { SettingsPage } from '../settings-kit'
 
 export const metadata = {
   title: 'Security - DreamCRM',
@@ -40,10 +40,9 @@ export default async function SecuritySettings() {
 
   return (
     <>
-      <PageHeader eyebrow="Account" title="Security" subtitle="Active sessions and your password." />
-      <div className="v2-panel mb-8">
+      <SettingsPage title="Security" subtitle="Active sessions and your password.">
         <SecurityPanel sessions={sessions} />
-      </div>
+      </SettingsPage>
     </>
   )
 }
