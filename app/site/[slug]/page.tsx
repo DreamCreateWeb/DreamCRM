@@ -10,7 +10,7 @@ import {
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getCompletedReviewCount } from '@/lib/services/reviews'
-import { getGoogleReviewStats } from '@/lib/services/google-reviews'
+import { getGoogleReviewStats, listFeaturableGoogleReviews } from '@/lib/services/google-reviews'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
@@ -71,7 +71,7 @@ export default async function ClinicSitePage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
-  const [publishedPosts, reviewCount, membershipPlans, openJobs, googleReviewStats] = await Promise.all([
+  const [publishedPosts, reviewCount, membershipPlans, openJobs, googleReviewStats, featuredGoogleReviews] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 3 }),
     getCompletedReviewCount(data.orgId),
     listActivePlans(data.orgId),
@@ -81,6 +81,9 @@ export default async function ClinicSitePage({ params }: Props) {
     // server is already serving but db-migrate hasn't finished) must NEVER 500
     // the clinic's public homepage — degrade to the zero-state (no rating).
     getGoogleReviewStats(data.orgId).catch(() => ({ count: 0, averageRating: null, needsReply: 0 })),
+    // 4★+ Google reviews that auto-feature in the testimonials carousel. Same
+    // best-effort discipline — a pull failure just shows the manual testimonials.
+    listFeaturableGoogleReviews(data.orgId).catch(() => []),
   ])
   // Emit a legit AggregateRating ONLY from real synced Google reviews.
   const jsonLd = clinicJsonLd(data, {
@@ -116,6 +119,7 @@ export default async function ClinicSitePage({ params }: Props) {
         hasDentalPlans={membershipPlans.length > 0}
         hasCareers={openJobs.length > 0}
         hasTeam={hasTeam}
+        featuredGoogleReviews={featuredGoogleReviews}
       />
     </>
   )

@@ -11,6 +11,7 @@ const { bulkStatusMock, bulkFollowupMock } = vi.hoisted(() => ({
 }))
 vi.mock('@/app/(default)/appointments/actions', () => ({
   confirmAppointmentAction: vi.fn(async () => ({ ok: true })),
+  markCompletedAction: vi.fn(async () => ({ ok: true, reviewSent: true })),
   bulkSendRemindersAction: vi.fn(async () => ({ attempted: 0, sent: 0, skipped: 0, errors: [] })),
   bulkSetAppointmentStatusAction: bulkStatusMock,
 }))
@@ -223,13 +224,16 @@ describe('AgendaView', () => {
     expect(screen.getByText(/3 booked · 1 confirmed · 2 still need a text/)).toBeInTheDocument()
   })
 
-  it('shows the inline Confirm button only on scheduled rows', () => {
+  it('shows the inline Confirm button only on a future scheduled row (not confirmed)', () => {
+    // Confirm is for upcoming unconfirmed visits — use a future time so the row
+    // isn't treated as a past-open "Mark done" candidate.
+    const future = new Date(Date.now() + 3 * 86_400_000)
     const group: AppointmentDayGroup = {
       date: new Date('2026-05-21T00:00:00Z'),
       label: 'Wed May 21',
       rows: [
-        makeRow({ id: 'a1', status: 'confirmed' }),
-        makeRow({ id: 'a2', patientName: 'Liam Brooks', status: 'scheduled' }),
+        makeRow({ id: 'a1', status: 'confirmed', startTime: future, endTime: future }),
+        makeRow({ id: 'a2', patientName: 'Liam Brooks', status: 'scheduled', startTime: future, endTime: future }),
       ],
       totals: { booked: 2, confirmed: 1, unconfirmed: 1 },
     }
@@ -243,6 +247,22 @@ describe('AgendaView', () => {
     )
     const confirmButtons = screen.getAllByRole('button', { name: /^Confirm$/ })
     expect(confirmButtons).toHaveLength(1)
+  })
+
+  it('shows "Mark done" on a past open visit instead of Confirm', () => {
+    // A scheduled visit whose start time has passed is the one that needs
+    // marking done (which fires the review request) — not confirming.
+    const group: AppointmentDayGroup = {
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [makeRow({ id: 'a1', status: 'scheduled', startTime: new Date('2026-05-21T09:00:00Z') })],
+      totals: { booked: 1, confirmed: 0, unconfirmed: 1 },
+    }
+    render(
+      <AgendaView groups={[group]} meta={baseMeta} filters={baseFilters} orgName="Acme Dental" />,
+    )
+    expect(screen.getByRole('button', { name: /Mark done/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Confirm$/ })).not.toBeInTheDocument()
   })
 
   it('shows the staff/provider name when provided on the row', () => {

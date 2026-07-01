@@ -5,7 +5,7 @@ import { db, schema } from '@/lib/db'
 import { deliver } from '@/lib/email'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
-import { getGoogleReviewStats } from '@/lib/services/google-reviews'
+import { getGoogleReviewStats, listFeaturableGoogleReviews } from '@/lib/services/google-reviews'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 
 /**
@@ -56,6 +56,12 @@ export interface ReviewConfig {
   npsEnabled: boolean
   autoSendEnabled: boolean
   autoSendDelayHours: number
+  /** Minimum star rating a Google review needs to auto-feature on the public
+   *  site. 4 = feature 4★ + 5★ (default); 5 = 5★ only. */
+  featureMinStars: number
+  /** Whether the /r/<token> landing shows the optional "tell us privately"
+   *  path (feedback routed to staff, never public). Shown to everyone. */
+  showPrivateFeedback: boolean
   privateFeedbackEmail: string | null
 }
 
@@ -129,10 +135,16 @@ const DEFAULT_CONFIG: Omit<ReviewConfig, 'organizationId'> = {
   // rating. The "private feedback" path is opt-in patient choice, not
   // a happiness funnel.
   npsEnabled: false,
-  // Auto-trigger 24h after appointment.status='completed'. Off for v1
-  // (manual send only); v1.1 wires the Vercel cron.
-  autoSendEnabled: false,
-  autoSendDelayHours: 24,
+  // Auto-ask after a visit is marked completed — ON by default (the module is
+  // built around this loop). Delay 0 = fire immediately from markCompleted(); a
+  // positive delay defers to the hourly cron. Still gated at send time by a
+  // configured platform + patient opt-in + rate limit.
+  autoSendEnabled: true,
+  autoSendDelayHours: 0,
+  // Auto-feature 4★+ Google reviews on the public site by default.
+  featureMinStars: 4,
+  // Offer the optional private-feedback path on the review landing by default.
+  showPrivateFeedback: true,
   privateFeedbackEmail: null,
 }
 
@@ -153,6 +165,8 @@ export async function getReviewConfig(organizationId: string): Promise<ReviewCon
     npsEnabled: row.npsEnabled === 1,
     autoSendEnabled: row.autoSendEnabled === 1,
     autoSendDelayHours: row.autoSendDelayHours,
+    featureMinStars: row.featureMinStars,
+    showPrivateFeedback: row.showPrivateFeedback === 1,
     privateFeedbackEmail: row.privateFeedbackEmail,
   }
 }
@@ -167,6 +181,7 @@ export async function updateReviewConfig(
     .where(eq(schema.clinicReviewConfig.organizationId, organizationId))
     .limit(1)
 
+  // Column-shaped patch (booleans → 0/1). Only keys present in `updates` are set.
   const patch: Record<string, unknown> = { updatedAt: new Date() }
   if (updates.googlePlaceId !== undefined) patch.googlePlaceId = updates.googlePlaceId
   if (updates.healthgradesUrl !== undefined) patch.healthgradesUrl = updates.healthgradesUrl
@@ -176,6 +191,8 @@ export async function updateReviewConfig(
   if (updates.npsEnabled !== undefined) patch.npsEnabled = updates.npsEnabled ? 1 : 0
   if (updates.autoSendEnabled !== undefined) patch.autoSendEnabled = updates.autoSendEnabled ? 1 : 0
   if (updates.autoSendDelayHours !== undefined) patch.autoSendDelayHours = updates.autoSendDelayHours
+  if (updates.featureMinStars !== undefined) patch.featureMinStars = updates.featureMinStars
+  if (updates.showPrivateFeedback !== undefined) patch.showPrivateFeedback = updates.showPrivateFeedback ? 1 : 0
   if (updates.privateFeedbackEmail !== undefined) patch.privateFeedbackEmail = updates.privateFeedbackEmail
 
   if (existing[0]) {
@@ -184,14 +201,38 @@ export async function updateReviewConfig(
       .set(patch)
       .where(eq(schema.clinicReviewConfig.organizationId, organizationId))
   } else {
+    // Insert: start from DEFAULT_CONFIG converted to column (int) shape, then
+    // overlay the (already column-shaped) patch. Rebuilding the row explicitly
+    // avoids spreading boolean defaults into integer columns.
     await db.insert(schema.clinicReviewConfig).values({
       organizationId,
-      ...DEFAULT_CONFIG,
-      ...updates,
-      npsEnabled: updates.npsEnabled ? 1 : 0,
-      autoSendEnabled: updates.autoSendEnabled ? 1 : 0,
+      googlePlaceId: DEFAULT_CONFIG.googlePlaceId,
+      healthgradesUrl: DEFAULT_CONFIG.healthgradesUrl,
+      facebookPageId: DEFAULT_CONFIG.facebookPageId,
+      yelpBusinessSlug: DEFAULT_CONFIG.yelpBusinessSlug,
+      minDaysBetweenRequests: DEFAULT_CONFIG.minDaysBetweenRequests,
+      npsEnabled: DEFAULT_CONFIG.npsEnabled ? 1 : 0,
+      autoSendEnabled: DEFAULT_CONFIG.autoSendEnabled ? 1 : 0,
+      autoSendDelayHours: DEFAULT_CONFIG.autoSendDelayHours,
+      featureMinStars: DEFAULT_CONFIG.featureMinStars,
+      showPrivateFeedback: DEFAULT_CONFIG.showPrivateFeedback ? 1 : 0,
+      privateFeedbackEmail: DEFAULT_CONFIG.privateFeedbackEmail,
+      ...patch,
     })
   }
+}
+
+// ── Auto-send eligibility helpers ────────────────────────────────────
+
+/** Auto-send is active when the clinic left it on AND has a platform set up. */
+export function autoSendActive(config: ReviewConfig): boolean {
+  return config.autoSendEnabled && isReviewConfigComplete(config)
+}
+
+/** Send the request the moment a visit is marked completed (delay 0). A
+ *  positive delay defers to the hourly cron instead. */
+export function shouldSendImmediately(config: ReviewConfig): boolean {
+  return autoSendActive(config) && config.autoSendDelayHours === 0
 }
 
 /** True when the org has at least one review platform configured. */
@@ -566,12 +607,19 @@ export interface PublicReviewContext {
   clinicName: string
   config: ReviewConfig
   sites: ReviewSite[]
+  /** The Google "write a review" deep link when the clinic has a Place ID —
+   *  the PRIMARY call to action on the landing page. Null when unset. */
+  googleUrl: string | null
+  /** Whether to show the optional "rather tell us privately?" path. */
+  showPrivateFeedback: boolean
   patientFirstName: string
-  /** Filled in when the patient already submitted on a prior visit, so the
-   *  landing page can show them their own words back instead of an empty
-   *  form. Null when they haven't written anything yet. */
+  /** Legacy first-party review text (pre-redesign). Kept so an old completed
+   *  request still shows the patient their words back. Null otherwise. */
   existingReviewText: string | null
   existingRating: number | null
+  /** Private note the patient already left for the team (never public). Shown
+   *  back on the "already done" branch so they know it landed. */
+  existingPrivateFeedback: string | null
   /** Clinic branding so the public review page wears the clinic's identity
    *  (warm ground + brand accent + logo + name) rather than generic gray. */
   clinic: {
@@ -595,6 +643,7 @@ export async function getPublicReviewContext(token: string): Promise<PublicRevie
       status: schema.reviewRequest.status,
       selectedSite: schema.reviewRequest.selectedSite,
       reviewText: schema.reviewRequest.reviewText,
+      privateFeedback: schema.reviewRequest.privateFeedback,
       rating: schema.reviewRequest.rating,
       patientFirstName: schema.patient.firstName,
       clinicName: schema.organization.name,
@@ -623,9 +672,12 @@ export async function getPublicReviewContext(token: string): Promise<PublicRevie
     clinicName: row.clinicName,
     config,
     sites: availableSites(config),
+    googleUrl: reviewPlatformUrl('google', config),
+    showPrivateFeedback: config.showPrivateFeedback,
     patientFirstName: row.patientFirstName,
     existingReviewText: row.reviewText,
     existingRating: row.rating,
+    existingPrivateFeedback: row.privateFeedback,
     clinic: {
       displayName: row.displayName ?? null,
       brandColor: row.brandColor ?? null,
@@ -748,6 +800,94 @@ export async function submitReviewText(input: {
     )
   } catch (err) {
     console.warn('[reviews.submitReviewText] notification failed', err)
+  }
+
+  return { ok: true, organizationId: row.organizationId, patientId: row.patientId }
+}
+
+/**
+ * Submit PRIVATE feedback from the /r/<token> landing — the optional "rather
+ * tell us privately?" path. Writes `review_request.privateFeedback` (NOT
+ * `reviewText`, so it can NEVER become a public testimonial) + marks the
+ * request completed + pings the front desk. Shown to every patient equally
+ * alongside the Google button (no rating gating → FTC-clean). Returns ok=false
+ * rather than throwing so the public page can render a friendly state.
+ */
+export async function submitPrivateFeedback(input: {
+  token: string
+  text: string
+  rating?: number | null
+}): Promise<{ ok: true; organizationId: string; patientId: string } | { ok: false; error: string }> {
+  const text = input.text.trim()
+  if (!text) return { ok: false, error: 'Please write a note before sending.' }
+  if (text.length > 2000) return { ok: false, error: 'Feedback must be 2000 characters or fewer.' }
+  if (input.rating != null && (input.rating < 1 || input.rating > 5)) {
+    return { ok: false, error: 'Rating must be 1–5.' }
+  }
+
+  const [row] = await db
+    .select({
+      id: schema.reviewRequest.id,
+      organizationId: schema.reviewRequest.organizationId,
+      patientId: schema.reviewRequest.patientId,
+      status: schema.reviewRequest.status,
+    })
+    .from(schema.reviewRequest)
+    .where(eq(schema.reviewRequest.token, input.token))
+    .limit(1)
+  if (!row) return { ok: false, error: 'This link is no longer valid.' }
+
+  // Same gate as submitReviewText: only a live request may be completed, so a
+  // replayed token can't resurrect a skipped/failed request.
+  const SUBMITTABLE_STATUSES = new Set(['sent', 'clicked', 'completed'])
+  if (!SUBMITTABLE_STATUSES.has(row.status)) {
+    return { ok: false, error: 'This link is no longer active.' }
+  }
+
+  const now = new Date()
+  await db
+    .update(schema.reviewRequest)
+    .set({
+      status: 'completed',
+      selectedSite: 'private_feedback',
+      privateFeedback: text,
+      ...(input.rating != null ? { rating: input.rating } : {}),
+      completedAt: sql`COALESCE(${schema.reviewRequest.completedAt}, ${now})`,
+      updatedAt: now,
+    })
+    .where(eq(schema.reviewRequest.id, row.id))
+
+  // The patient chose to tell the office something — always ping staff. A low
+  // rating force-emails even if push is muted (service-recovery moment). Never
+  // touches the public site (privateFeedback is not reviewText).
+  try {
+    const [p] = await db
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
+      .limit(1)
+    const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
+    const rating = input.rating ?? null
+    const lowRating = rating != null && rating <= 2
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      row.organizationId,
+      {
+        bucket: 'comments',
+        type: lowRating ? 'review_low_rating' : 'private_feedback',
+        title: lowRating
+          ? `⚠️ Private feedback from ${who} — worth a personal reach-out`
+          : `Private feedback from ${who}`,
+        body: text.slice(0, 140),
+        linkPath: '/reviews',
+        linkLabel: 'Open the private feedback inbox →',
+        forceEmail: lowRating,
+        meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
+      },
+      { roles: ['owner', 'admin'] },
+    )
+  } catch (err) {
+    console.warn('[reviews.submitPrivateFeedback] notification failed', err)
   }
 
   return { ok: true, organizationId: row.organizationId, patientId: row.patientId }
@@ -1051,6 +1191,56 @@ export async function listReviewsReceived(
   }))
 }
 
+export interface PrivateFeedbackRow {
+  id: string
+  patientId: string
+  patientName: string
+  privateFeedback: string
+  rating: number | null
+  completedAt: Date | null
+}
+
+/**
+ * Private notes patients left via the "tell us privately" path on the review
+ * landing — NEVER shown publicly. Powers the private-feedback inbox on the
+ * Reviews dashboard so the front desk can follow up. Keyed off the
+ * `privateFeedback` column (distinct from `listReviewsReceived`, which reads
+ * the legacy public `reviewText`).
+ */
+export async function listPrivateFeedback(
+  organizationId: string,
+  limit = 50,
+): Promise<PrivateFeedbackRow[]> {
+  const rows = await db
+    .select({
+      id: schema.reviewRequest.id,
+      patientId: schema.reviewRequest.patientId,
+      patientFirstName: schema.patient.firstName,
+      patientLastName: schema.patient.lastName,
+      privateFeedback: schema.reviewRequest.privateFeedback,
+      rating: schema.reviewRequest.rating,
+      completedAt: schema.reviewRequest.completedAt,
+    })
+    .from(schema.reviewRequest)
+    .innerJoin(schema.patient, eq(schema.reviewRequest.patientId, schema.patient.id))
+    .where(
+      and(
+        eq(schema.reviewRequest.organizationId, organizationId),
+        isNotNull(schema.reviewRequest.privateFeedback),
+      ),
+    )
+    .orderBy(desc(schema.reviewRequest.completedAt))
+    .limit(limit)
+  return rows.map((r) => ({
+    id: r.id,
+    patientId: r.patientId,
+    patientName: `${r.patientFirstName} ${r.patientLastName}`,
+    privateFeedback: r.privateFeedback ?? '',
+    rating: r.rating,
+    completedAt: r.completedAt,
+  }))
+}
+
 /** Privacy-first author label for a linked testimonial: "First L." + city. */
 export function formatLinkedTestimonialAuthor(p: {
   patientFirstName: string
@@ -1106,19 +1296,27 @@ export interface ReviewsProof {
 }
 
 export async function getReviewsProof(organizationId: string): Promise<ReviewsProof> {
-  const [profileRows, google] = await Promise.all([
+  const [profileRows, google, googleFeatured] = await Promise.all([
     db
       .select({ testimonials: schema.clinicProfile.testimonials })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
       .limit(1),
     getGoogleReviewStats(organizationId),
+    // 4★+ Google reviews auto-feature on the public site — count them in the
+    // "proof" alongside the manual testimonials so Analytics reflects reality.
+    listFeaturableGoogleReviews(organizationId).catch(() => []),
   ])
   const list = (profileRows[0]?.testimonials ?? []) as ClinicTestimonial[]
-  const featured = list.map((t) => ({
+  const manual = list.map((t) => ({
     patientId: t.patientId ?? null,
     label: t.authorLocation ? `${t.authorName} · ${t.authorLocation}` : t.authorName,
   }))
+  const fromGoogle = googleFeatured.map((t) => ({
+    patientId: null as string | null,
+    label: `${t.authorName} · Google`,
+  }))
+  const featured = [...manual, ...fromGoogle]
   return {
     featuredCount: featured.length,
     featured: featured.slice(0, 8),
@@ -1259,12 +1457,74 @@ export async function unfeatureReviewTestimonial(
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
-// ── Auto-send (v1.1, cron-driven) ────────────────────────────────────
+// ── Shared per-appointment send (immediate trigger + cron) ───────────
+
+/** Classify a createAndSendReviewRequest failure: expected user-state guard
+ *  misses ("opted out", "no email", already asked, no platforms) are a benign
+ *  'skipped'; anything else is a real 'failed' worth surfacing. */
+function classifyReviewSendError(msg: string): 'skipped' | 'failed' {
+  if (
+    msg.includes('opted out') ||
+    msg.includes('no email') ||
+    msg.includes('already asked') ||
+    msg.includes('No review platforms')
+  ) {
+    return 'skipped'
+  }
+  return 'failed'
+}
+
+/**
+ * Fire a review request for ONE completed appointment — the single send path
+ * shared by the immediate `markCompleted()` trigger AND the hourly cron.
+ *
+ * The per-appointment idempotency guard lives HERE (a SELECT on appointmentId).
+ * This is what makes the immediate send and the cron mutually exclusive:
+ * whichever fires first writes a review_request row pointing at the appointment,
+ * and the other then no-ops. (createAndSendReviewRequest itself only dedupes by
+ * patient rate-limit, NOT by appointmentId, so this guard is load-bearing.)
+ * Never throws — returns the outcome so callers can be best-effort.
+ */
+export async function fireReviewRequestForAppointment(
+  organizationId: string,
+  appointmentId: string,
+  patientId: string,
+  sendFn: typeof createAndSendReviewRequest = createAndSendReviewRequest,
+): Promise<{ outcome: 'sent' | 'skipped' | 'failed'; error?: string }> {
+  const [existing] = await db
+    .select({ id: schema.reviewRequest.id })
+    .from(schema.reviewRequest)
+    .where(eq(schema.reviewRequest.appointmentId, appointmentId))
+    .limit(1)
+  if (existing) return { outcome: 'skipped' }
+  try {
+    await sendFn({
+      organizationId,
+      patientId,
+      appointmentId,
+      channel: 'email',
+      requestedByUserId: null,
+    })
+    return { outcome: 'sent' }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unknown'
+    const outcome = classifyReviewSendError(msg)
+    return outcome === 'failed' ? { outcome, error: msg } : { outcome }
+  }
+}
+
+// ── Auto-send cron sweep ─────────────────────────────────────────────
 //
 // Triggered by the EventBridge → /api/cron/auto-send-reviews schedule
-// (hourly is fine; the per-appointment idempotency guard means running
-// multiple times is safe — only the FIRST visit to a completed
-// appointment fires a send).
+// (hourly). It's the SAFETY NET for the immediate markCompleted() trigger:
+// it catches appointments completed while a clinic had a positive delay set,
+// or where the immediate send was missed. Running multiple times is safe —
+// fireReviewRequestForAppointment's per-appointment guard means only the
+// FIRST visit to a completed appointment fires a send.
+//
+// Per-appointment idempotency: the query left-joins reviewRequest on
+// appointmentId and only surfaces appointments with no review_request row yet;
+// fireReviewRequestForAppointment re-checks the same guard before sending.
 //
 // Per-appointment idempotency: we left-join reviewRequest on
 // appointmentId and only attempt sends where no review_request row
@@ -1338,33 +1598,23 @@ export async function autoSendDueReviewRequests(opts?: {
 
     for (const c of candidates) {
       result.scanned++
-      try {
-        await send({
-          organizationId: org.organizationId,
-          patientId: c.patientId,
-          appointmentId: c.appointmentId,
-          channel: 'email',
-          requestedByUserId: null,
-        })
+      const r = await fireReviewRequestForAppointment(
+        org.organizationId,
+        c.appointmentId,
+        c.patientId,
+        send,
+      )
+      if (r.outcome === 'sent') {
         result.sent++
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'unknown'
-        // Expected user-state guard misses — record as skip, not failure.
-        if (
-          msg.includes('opted out') ||
-          msg.includes('no email') ||
-          msg.includes('already asked') ||
-          msg.includes('No review platforms')
-        ) {
-          result.skipped++
-        } else {
-          result.failed++
-          result.errors.push({
-            organizationId: org.organizationId,
-            appointmentId: c.appointmentId,
-            error: msg,
-          })
-        }
+      } else if (r.outcome === 'skipped') {
+        result.skipped++
+      } else {
+        result.failed++
+        result.errors.push({
+          organizationId: org.organizationId,
+          appointmentId: c.appointmentId,
+          error: r.error ?? 'unknown',
+        })
       }
     }
   }

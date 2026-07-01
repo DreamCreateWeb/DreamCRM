@@ -29,14 +29,17 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/email', () => ({ deliver: vi.fn() }))
 vi.mock('@/lib/services/pms/sync', () => ({ queueCommLogWriteBack: vi.fn() }))
 vi.mock('@/lib/services/clinic-sender', () => ({ getClinicSenderIdentity: vi.fn() }))
+let featurableGoogle: Array<Record<string, unknown>> = []
 vi.mock('@/lib/services/google-reviews', () => ({
   getGoogleReviewStats: vi.fn(async () => googleStats),
+  listFeaturableGoogleReviews: vi.fn(async () => featurableGoogle),
 }))
 
 import { getReviewsProof } from '@/lib/services/reviews'
 
 beforeEach(() => {
   testimonials = []
+  featurableGoogle = []
   googleStats.count = 0
   googleStats.averageRating = null
 })
@@ -69,5 +72,17 @@ describe('getReviewsProof', () => {
   it('returns zeros for a clinic with no testimonials and no Google rating', async () => {
     const out = await getReviewsProof('org_1')
     expect(out).toEqual({ featuredCount: 0, featured: [], googleRating: null, googleCount: 0 })
+  })
+
+  it('includes auto-featured Google reviews in the count + chips', async () => {
+    testimonials = [{ id: 't1', quote: 'Great', authorName: 'Mia H.', patientId: 'p1' }]
+    featurableGoogle = [
+      { id: 'gr_1', quote: 'Loved it', authorName: 'Priya N.', rating: 5, source: 'google' },
+      { id: 'gr_2', quote: 'Painless', authorName: 'Marcus B.', rating: 4, source: 'google' },
+    ]
+    const out = await getReviewsProof('org_1')
+    // 1 manual testimonial + 2 auto-featured Google reviews.
+    expect(out.featuredCount).toBe(3)
+    expect(out.featured.some((f) => f.label.includes('Google'))).toBe(true)
   })
 })

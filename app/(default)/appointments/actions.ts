@@ -78,11 +78,14 @@ export async function markNoShowAction(appointmentId: string): Promise<{ ok: tru
   return { ok: true }
 }
 
-export async function markCompletedAction(appointmentId: string): Promise<{ ok: true }> {
+export async function markCompletedAction(
+  appointmentId: string,
+): Promise<{ ok: true; reviewSent: boolean }> {
   const ctx = await requireClinicTenant()
-  await markCompleted(ctx.organizationId, appointmentId)
+  const { reviewSent } = await markCompleted(ctx.organizationId, appointmentId)
   revalidatePath('/appointments')
-  return { ok: true }
+  revalidatePath('/')
+  return { ok: true, reviewSent }
 }
 
 /**

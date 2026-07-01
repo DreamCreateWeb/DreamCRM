@@ -194,6 +194,12 @@ const TESTIMONIAL_CARD_BG = 'var(--c-deep, #36514c)'
 const TESTIMONIAL_CARD_STAR = '#FFCC00'
 
 export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string }) {
+  // Real rating when we have one (auto-featured Google reviews carry it); legacy
+  // / manual testimonials with no rating render the classic 5★ so nothing regresses.
+  const rating =
+    typeof t.rating === 'number' && t.rating >= 1 && t.rating <= 5 ? Math.round(t.rating) : 5
+  const filled = '★'.repeat(rating)
+  const empty = '★'.repeat(5 - rating)
   return (
     <figure
       className="rounded-2xl sm:rounded-3xl p-6 sm:p-10 lg:p-12 flex flex-col h-full"
@@ -208,10 +214,10 @@ export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string })
       <div className="flex items-end justify-between flex-wrap gap-3">
         <p
           className="text-base lg:text-lg leading-none tracking-widest"
-          style={{ color: TESTIMONIAL_CARD_STAR }}
-          aria-label="5 out of 5 stars"
+          aria-label={`${rating} out of 5 stars`}
         >
-          ★★★★★
+          <span style={{ color: TESTIMONIAL_CARD_STAR }}>{filled}</span>
+          {empty && <span style={{ color: 'rgba(255,255,255,0.25)' }}>{empty}</span>}
         </p>
         <figcaption className="text-sm lg:text-[15px]" style={{ color: 'rgba(255,255,255,0.85)' }}>
           <strong className="font-semibold" style={{ color: 'var(--c-deep-ink, #FFFFFF)' }}>
@@ -219,6 +225,14 @@ export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string })
           </strong>
           {t.authorLocation && (
             <span style={{ color: 'rgba(255,255,255,0.65)' }}> {t.authorLocation}</span>
+          )}
+          {t.source === 'google' && (
+            <span
+              className="ml-2 inline-block text-[11px] font-medium rounded-full px-2 py-0.5 align-middle"
+              style={{ backgroundColor: 'rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.75)' }}
+            >
+              via Google
+            </span>
           )}
         </figcaption>
       </div>

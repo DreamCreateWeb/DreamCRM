@@ -377,6 +377,18 @@ interface GbpRawLocation {
     primaryCategory?: { displayName?: string | null } | null
     additionalCategories?: Array<{ displayName?: string | null }> | null
   } | null
+  // Google Place ID candidates — Zernio's confirmed shape doesn't include one,
+  // but we parse defensively across several field names in case a version does,
+  // so a clinic's "review us on Google" link can auto-fill. Absent → the clinic
+  // pastes their Place ID / review link manually.
+  placeId?: string | null
+  placeID?: string | null
+  googlePlaceId?: string | null
+  metadata?: {
+    placeId?: string | null
+    newReviewUri?: string | null
+    mapsUri?: string | null
+  } | null
 }
 
 /** One normalized open/close period in our `HH:MM` 24-hour shape. */
@@ -403,6 +415,20 @@ export interface GoogleLocation {
   phone: string | null
   /** Primary + additional category display names (for future SEO/metadata). */
   categories: string[]
+  /** Google Place ID, when Zernio surfaces one (defensively parsed). Feeds the
+   *  "review us on Google" write link. Null when unavailable → manual entry. */
+  placeId: string | null
+}
+
+/**
+ * Pull a Google Place ID out of a "write a review" / maps URI when present.
+ * Handles `…writereview?placeid=<ID>` and `…?...&placeid=<ID>` shapes. Pure;
+ * returns null on no match.
+ */
+export function extractPlaceIdFromUri(uri: string | null | undefined): string | null {
+  if (!uri || typeof uri !== 'string') return null
+  const m = /[?&]placeid=([^&#]+)/i.exec(uri)
+  return m ? decodeURIComponent(m[1]) : null
 }
 
 /**
@@ -464,6 +490,14 @@ function normalizeLocation(raw: GbpRawLocation): GoogleLocation {
   for (const c of raw.categories?.additionalCategories ?? []) {
     if (c?.displayName) categories.push(c.displayName)
   }
+  const placeId =
+    raw.placeId ??
+    raw.placeID ??
+    raw.googlePlaceId ??
+    raw.metadata?.placeId ??
+    extractPlaceIdFromUri(raw.metadata?.newReviewUri) ??
+    extractPlaceIdFromUri(raw.metadata?.mapsUri) ??
+    null
   return {
     periods,
     addressLines: Array.isArray(addr?.addressLines)
@@ -475,6 +509,7 @@ function normalizeLocation(raw: GbpRawLocation): GoogleLocation {
     country: addr?.regionCode?.trim() || null,
     phone: (raw.phoneNumbers?.primaryPhone ?? raw.primaryPhone)?.trim() || null,
     categories,
+    placeId: typeof placeId === 'string' && placeId.trim() ? placeId.trim() : null,
   }
 }
 

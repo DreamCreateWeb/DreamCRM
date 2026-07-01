@@ -73,6 +73,7 @@ const GOOGLE_LOC: GoogleLocation = {
   country: 'US',
   phone: '555-0000',
   categories: [],
+  placeId: null,
 }
 
 beforeEach(() => {

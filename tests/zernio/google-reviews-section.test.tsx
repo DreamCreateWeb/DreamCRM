@@ -9,11 +9,13 @@ const actions = {
   syncGoogleReviewsAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, synced: 3 })),
   replyToGoogleReviewAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
   deleteGoogleReviewReplyAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
+  setGoogleReviewHiddenAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
 }
 vi.mock('@/app/(default)/reviews/actions', () => ({
   syncGoogleReviewsAction: (...a: unknown[]) => actions.syncGoogleReviewsAction(...a),
   replyToGoogleReviewAction: (...a: unknown[]) => actions.replyToGoogleReviewAction(...a),
   deleteGoogleReviewReplyAction: (...a: unknown[]) => actions.deleteGoogleReviewReplyAction(...a),
+  setGoogleReviewHiddenAction: (...a: unknown[]) => actions.setGoogleReviewHiddenAction(...a),
 }))
 
 import GoogleReviewsSection, { GoogleConnectPrompt, type GoogleReviewClientRow } from '@/app/(default)/reviews/received/google-reviews-section'
@@ -28,6 +30,7 @@ function row(overrides: Partial<GoogleReviewClientRow> = {}): GoogleReviewClient
     reviewCreatedAtIso: new Date().toISOString(),
     replyComment: null,
     replyUpdatedAtIso: null,
+    hiddenFromSite: false,
     ...overrides,
   }
 }

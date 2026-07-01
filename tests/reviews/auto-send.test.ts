@@ -16,6 +16,9 @@ const state = {
   orgs: [] as Array<{ organizationId: string; autoSendDelayHours: number }>,
   config: null as Record<string, unknown> | null,
   candidates: [] as Array<{ appointmentId: string; patientId: string }>,
+  // Rows the per-appointment dedupe SELECT (in fireReviewRequestForAppointment)
+  // returns. Empty = no existing request for the appointment → eligible to send.
+  existingRequest: [] as unknown[],
 }
 
 vi.mock('@/lib/db', () => {
@@ -46,6 +49,11 @@ vi.mock('@/lib/db', () => {
         // Eligible candidates scan: { appointmentId, patientId }
         if (keys.includes('appointmentId') && keys.includes('patientId')) {
           return chain(state.candidates)
+        }
+        // Per-appointment dedupe SELECT ({ id } from reviewRequest) inside
+        // fireReviewRequestForAppointment — empty = eligible to send.
+        if (keys.length === 1 && keys.includes('id')) {
+          return chain(state.existingRequest)
         }
         // getReviewConfig fallback (queries the whole row)
         return chain(state.config ? [state.config] : [])
@@ -106,6 +114,7 @@ beforeEach(() => {
   state.orgs = []
   state.config = null
   state.candidates = []
+  state.existingRequest = []
   sendStub.mockReset()
 })
 
@@ -156,6 +165,19 @@ describe('autoSendDueReviewRequests', () => {
     expect(sendStub).toHaveBeenCalledWith(
       expect.objectContaining({ requestedByUserId: null, channel: 'email' }),
     )
+  })
+
+  it('skips (no send) when a review_request already exists for the appointment', async () => {
+    state.orgs = [{ organizationId: 'org_1', autoSendDelayHours: 24 }]
+    state.config = COMPLETE_CONFIG
+    state.candidates = [{ appointmentId: 'apt_1', patientId: 'pat_1' }]
+    // The per-appointment dedupe SELECT finds an existing row → skip, never send.
+    state.existingRequest = [{ id: 'rr_existing' }]
+    const r = await callAutoSend()
+    expect(r.scanned).toBe(1)
+    expect(r.skipped).toBe(1)
+    expect(r.sent).toBe(0)
+    expect(sendStub).not.toHaveBeenCalled()
   })
 
   it('categorizes guard-miss errors as skipped, not failed', async () => {

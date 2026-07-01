@@ -37,7 +37,7 @@ import SavedViewsBar, { type SavedViewChip } from '@/components/saved-views/save
 import { bulkCreateFollowupsForPatientsAction } from '../patients/actions'
 import NewBookingDrawer from './new-booking-drawer'
 import AppointmentDrawer from './appointment-drawer'
-import { confirmAppointmentAction, bulkSendRemindersAction, bulkSetAppointmentStatusAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
+import { confirmAppointmentAction, markCompletedAction, bulkSendRemindersAction, bulkSetAppointmentStatusAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
 
 // Status carries categorical state only (timing lives on the aging border,
 // per-row flags on the glyphs). Tones from the semantic contract:
@@ -185,6 +185,12 @@ export default function AgendaView({
     EMPTY_CONFIRMED,
     (current, id) => new Set(current).add(id),
   )
+  // Same optimistic pattern for "Mark done" on past-but-open visits — the front
+  // desk reconciles the day's schedule in a rapid pass, so the row flips instantly.
+  const [optimisticCompleted, addOptimisticCompleted] = useOptimistic<Set<string>, string>(
+    EMPTY_CONFIRMED,
+    (current, id) => new Set(current).add(id),
+  )
   const [_pending, startTransition] = useTransition()
   const [bulkPending, startBulk] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
@@ -248,6 +254,21 @@ export default function AgendaView({
         // The optimistic confirm reverts when the transition ends; tell the
         // user why instead of letting the pill silently snap back.
         setToast("Couldn't confirm that visit — please try again.")
+      }
+    })
+  }
+
+  function onComplete(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    startTransition(async () => {
+      addOptimisticCompleted(id)
+      try {
+        const r = await markCompletedAction(id)
+        // Completing a visit auto-sends the review request (Google-first) — tell
+        // the front desk it went out so the loop feels real.
+        setToast(r.reviewSent ? 'Marked done — review request sent.' : 'Marked done.')
+      } catch {
+        setToast("Couldn't mark that visit done — please try again.")
       }
     })
   }
@@ -451,7 +472,9 @@ export default function AgendaView({
               onToggleRow={toggleRow}
               onOpen={(id) => setOpenDetail(id)}
               onConfirm={onConfirm}
+              onComplete={onComplete}
               optimisticConfirmed={optimisticConfirmed}
+              optimisticCompleted={optimisticCompleted}
             />
           ))}
         </div>
@@ -502,7 +525,9 @@ function DaySection({
   onToggleRow,
   onOpen,
   onConfirm,
+  onComplete,
   optimisticConfirmed,
+  optimisticCompleted,
 }: {
   group: AppointmentDayGroup
   selected: Set<string>
@@ -510,7 +535,9 @@ function DaySection({
   onToggleRow: (id: string) => void
   onOpen: (id: string) => void
   onConfirm: (id: string, e: React.MouseEvent) => void
+  onComplete: (id: string, e: React.MouseEvent) => void
   optimisticConfirmed: Set<string>
+  optimisticCompleted: Set<string>
 }) {
   const allSelected = group.rows.length > 0 && group.rows.every((r) => selected.has(r.id))
   const stillUnconfirmed = group.rows.filter(
@@ -542,7 +569,9 @@ function DaySection({
             onToggle={() => onToggleRow(r.id)}
             onOpen={() => onOpen(r.id)}
             onConfirm={(e) => onConfirm(r.id, e)}
+            onComplete={(e) => onComplete(r.id, e)}
             confirmedOptimistic={optimisticConfirmed.has(r.id)}
+            completedOptimistic={optimisticCompleted.has(r.id)}
           />
         ))}
       </ul>
@@ -556,18 +585,31 @@ function AppointmentRowCard({
   onToggle,
   onOpen,
   onConfirm,
+  onComplete,
   confirmedOptimistic,
+  completedOptimistic,
 }: {
   row: AppointmentRow
   selected: boolean
   onToggle: () => void
   onOpen: () => void
   onConfirm: (e: React.MouseEvent) => void
+  onComplete: (e: React.MouseEvent) => void
   confirmedOptimistic: boolean
+  completedOptimistic: boolean
 }) {
   const typeLabel = row.type.replace(/_/g, ' ')
-  // Reflect an in-flight confirm immediately (the button hides, the pill flips).
-  const status = confirmedOptimistic && row.status === 'scheduled' ? 'confirmed' : row.status
+  // Reflect an in-flight confirm/complete immediately (the button hides, the pill flips).
+  const status = completedOptimistic
+    ? 'completed'
+    : confirmedOptimistic && row.status === 'scheduled'
+      ? 'confirmed'
+      : row.status
+  // A past visit that's still open (scheduled/confirmed) is the one that needs
+  // marking done — surface it inline so the front desk doesn't open the drawer.
+  const isPastOpen =
+    (status === 'scheduled' || status === 'confirmed') &&
+    new Date(row.startTime).getTime() < Date.now()
   return (
     <li
       onClick={onOpen}
@@ -622,7 +664,17 @@ function AppointmentRowCard({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {status === 'scheduled' && (
+          {isPastOpen && (
+            <ActionButton
+              variant="secondary"
+              size="sm"
+              onClick={onComplete}
+              title="Mark this visit done — this sends the review request"
+            >
+              Mark done
+            </ActionButton>
+          )}
+          {status === 'scheduled' && !isPastOpen && (
             <ActionButton
               variant="secondary"
               size="sm"

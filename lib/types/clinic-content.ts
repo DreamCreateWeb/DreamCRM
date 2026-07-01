@@ -204,6 +204,13 @@ export interface ClinicTestimonial {
    *  as free-text only. When set, the Reviews module's "received" surface
    *  shows this testimonial as "Featured ✓" and avoids double-promotion. */
   patientId?: string | null
+  /** 1–5 star rating, when known. Auto-featured Google reviews carry their real
+   *  rating; legacy/manual testimonials leave it unset (rendered as 5★). */
+  rating?: number | null
+  /** Where the testimonial came from. 'google' = auto-featured from a synced
+   *  Google review (shows a "via Google" chip); undefined/'manual' = a
+   *  clinic-curated or first-party testimonial. */
+  source?: 'manual' | 'google'
 }
 
 /**

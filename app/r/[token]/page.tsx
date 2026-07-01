@@ -20,23 +20,22 @@ const FRAUNCES_HREF =
 /**
  * Public review landing page — `https://dreamcreatestudio.com/r/<token>`.
  *
- * Patient lands here from the email/SMS link and writes their review IN
- * DreamCRM. Text + optional rating are captured directly (review_request
- * .reviewText). After submitting, the page surfaces optional "also share
- * on Google / Healthgrades" CTAs — the SEO play stays, but the primary
- * outcome is that DreamCRM now owns the text. Staff reads it on
- * /reviews/received and never has to retype it.
+ * Google-first: the patient lands here from the email link and the primary
+ * action sends them straight to Google to leave their review (the module then
+ * auto-pulls it back in via the GBP connection). An OPTIONAL "rather tell us
+ * privately?" path routes feedback to the office (review_request.privateFeedback,
+ * never public) — a service-recovery valve for an unhappy patient.
  *
- * No auth — the signed opaque token IS the auth. The "already completed"
- * branch shows the patient's submitted review back to them + the
- * optional-platform CTAs (in case they want to also share externally).
+ * No auth — the signed opaque token IS the auth. The "already completed" branch
+ * shows a thank-you (and their private note back, when they left one).
  *
- * The page now wears the CLINIC's brand — warm #FAF7F2 ground + brand accent +
+ * The page wears the CLINIC's brand — warm #FAF7F2 ground + brand accent +
  * clinic logo + Fraunces display via MinimalSiteChrome — so the patient feels
  * they're inside their clinic's brand, not generic gray review software.
  *
- * FTC-clean: same prompt to every recipient. No NPS gating, no rating
- * branch. The optional 1-5 stars stay internal to DreamCRM display.
+ * FTC-clean: the SAME options are shown to every recipient (Google button +
+ * the optional private path). No rating gating — the ask never branches by
+ * predicted sentiment.
  */
 export default async function ReviewLandingPage({
   params,
@@ -83,9 +82,11 @@ export default async function ReviewLandingPage({
               brand={brand}
               patientFirstName={ctx.patientFirstName}
               alreadyCompleted={ctx.request.status === 'completed'}
-              existingReviewText={ctx.existingReviewText}
-              existingRating={ctx.existingRating}
+              googleUrl={ctx.googleUrl}
               sites={ctx.sites}
+              showPrivateFeedback={ctx.showPrivateFeedback}
+              existingPrivateFeedback={ctx.existingPrivateFeedback}
+              existingReviewText={ctx.existingReviewText}
             />
           </div>
         </div>

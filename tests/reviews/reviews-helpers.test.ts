@@ -45,6 +45,8 @@ function makeConfig(overrides: Partial<ReviewConfig>): ReviewConfig {
     npsEnabled: false,
     autoSendEnabled: false,
     autoSendDelayHours: 24,
+    featureMinStars: 4,
+    showPrivateFeedback: true,
     privateFeedbackEmail: null,
     ...overrides,
   }

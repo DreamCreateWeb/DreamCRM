@@ -12,7 +12,7 @@ import {
   type ReviewSite,
   type ReviewStatus,
 } from '@/lib/services/reviews'
-import { getGoogleReviewStats, hasGoogleBusinessConnection } from '@/lib/services/google-reviews'
+import { getGoogleReviewStats, hasGoogleBusinessConnection, listFeaturableGoogleReviews } from '@/lib/services/google-reviews'
 import ReviewConfigPanel from './review-config-panel'
 import EligibleList from './eligible-list'
 import ModuleHint from '@/components/onboarding/module-hint'
@@ -99,7 +99,7 @@ export default async function ReviewsPage() {
 
   // One eligible scan serves both the "Ready to ask" count and the list —
   // getReviewStats skips its own (includeEligible:false) so we don't scan twice.
-  const [config, stats, eligibleAll, recent, featuredIds, googleStats, googleConnected] = await Promise.all([
+  const [config, stats, eligibleAll, recent, featuredIds, googleStats, googleConnected, autoFeatured] = await Promise.all([
     getReviewConfig(ctx.organizationId),
     getReviewStats(ctx.organizationId, 30, { includeEligible: false }),
     listEligiblePatients(ctx.organizationId, 1000),
@@ -107,11 +107,14 @@ export default async function ReviewsPage() {
     listFeaturedTestimonialPatientIds(ctx.organizationId),
     getGoogleReviewStats(ctx.organizationId),
     hasGoogleBusinessConnection(ctx.organizationId),
+    listFeaturableGoogleReviews(ctx.organizationId).catch(() => []),
   ])
   const eligibleCount = eligibleAll.length
   const eligible = eligibleAll.slice(0, 25)
 
   const configured = isReviewConfigComplete(config)
+  // Google-first: the write-review link is the one thing the whole loop needs.
+  const hasGoogleLink = !!config.googlePlaceId
   const now = new Date()
 
   return (
@@ -144,15 +147,18 @@ export default async function ReviewsPage() {
         }
       />
 
-      {/* ── Config gate ───────────────────────────────────────────── */}
-      {!configured && (
+      {/* ── Setup gate — the Google review link is the hero ─────────── */}
+      {!hasGoogleLink && (
         <div className="mb-6 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-[var(--r-lg)] p-5">
           <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">
-            Connect at least one review platform to start sending requests
+            Set your Google review link to turn the whole thing on
           </p>
           <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mb-3">
-            We need your Google Place ID (most important — ~80% of dental review value), Healthgrades URL,
-            or Facebook Page ID. Yelp is opt-in only — their solicited-review filter penalizes prompted reviews.
+            Once this is set, a completed visit automatically asks the patient for a
+            Google review, those reviews sync back in, and your 4★+ ones feature on your
+            website — all on their own. Connect your Google Business Profile on{' '}
+            <Link href="/integrations" className="underline">Integrations</Link> and we&apos;ll
+            try to fill this in for you.
           </p>
           <ReviewConfigPanel config={config} />
         </div>
@@ -187,7 +193,7 @@ export default async function ReviewsPage() {
 
       {/* ── Google reviews (real, synced via the GBP connection) ───── */}
       {googleConnected && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
           <KpiStat
             label="Google rating"
             value={googleStats.averageRating != null ? `${googleStats.averageRating.toFixed(1)}★` : '—'}
@@ -198,6 +204,13 @@ export default async function ReviewsPage() {
             label="Google reviews"
             value={googleStats.count}
             sub="Synced from your Google Business Profile"
+            href="/reviews/received"
+          />
+          <KpiStat
+            label="Auto-featured on site"
+            value={autoFeatured.length}
+            sub={autoFeatured.length > 0 ? `${config.featureMinStars}★+ showing on your website` : 'None featured yet'}
+            tone={autoFeatured.length > 0 ? 'ok' : undefined}
             href="/reviews/received"
           />
           <KpiStat
@@ -350,18 +363,24 @@ export default async function ReviewsPage() {
         </section>
       )}
 
-      {/* ── Coming next ───────────────────────────────────────────── */}
+      {/* ── How the automatic loop works ──────────────────────────── */}
       <section>
         <div className="v2-well border border-dashed border-[color:var(--color-hairline-strong)] p-5">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
-            Coming next
+            How this works
           </p>
-          <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Send a request automatically a day after a visit is marked complete (you turn it on in Settings)</li>
-            <li>· Text message requests, not just email</li>
-            <li>· An optional private-feedback path on the request page (still FTC-clean — we never change the ask based on the rating)</li>
-            <li>· A per-patient &quot;don&apos;t ask for reviews&quot; setting (today the limit applies to the whole practice)</li>
-          </ul>
+          <ol className="text-xs text-gray-600 dark:text-gray-300 space-y-1 list-decimal list-inside">
+            <li>A visit gets marked completed → the patient is automatically asked for a Google review.</li>
+            <li>They tap through and leave their review on Google.</li>
+            <li>Their review syncs back here on its own (hourly, or hit “Refresh from Google”).</li>
+            <li>
+              Your {config.featureMinStars}★+ reviews feature on your website automatically — hide any
+              one you don&apos;t want on the “Reviews received” page.
+            </li>
+          </ol>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-3">
+            Text-message requests are coming next — everything above runs on email today.
+          </p>
         </div>
       </section>
     </div>

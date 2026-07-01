@@ -673,13 +673,23 @@ export const clinicReviewConfig = pgTable('clinic_review_config', {
   // positive reviews is illegal in some jurisdictions). NPS done right
   // (ALL responses public when configured) lands in v1.1.
   npsEnabled: integer('nps_enabled').notNull().default(0),
-  // Phase 2 auto-trigger: when an appointment.status flips to
-  // 'completed', schedule a review request for autoSendDelayHours later.
-  // Off for v1 — staff manually click "Request review" per appointment.
-  autoSendEnabled: integer('auto_send_enabled').notNull().default(0),
-  autoSendDelayHours: integer('auto_send_delay_hours').notNull().default(48),
-  // Where private 1-3 star NPS feedback lands. Falls back to
-  // clinicProfile.email when unset.
+  // Auto-trigger: when an appointment.status flips to 'completed', a review
+  // request is sent. ON by default (the whole module is built around this
+  // loop). When autoSendDelayHours === 0 the request fires immediately from
+  // markCompleted(); a positive delay defers it to the hourly cron. Clinics
+  // can turn this off in the reviews config.
+  autoSendEnabled: integer('auto_send_enabled').notNull().default(1),
+  autoSendDelayHours: integer('auto_send_delay_hours').notNull().default(0),
+  // Minimum star rating a synced Google review needs to auto-feature on the
+  // public site. Default 4 (feature 4★ + 5★); clinics can raise it to 5 for
+  // "5★ only". Reviews below this, rating-only reviews, and individually
+  // hidden reviews never appear on the site.
+  featureMinStars: integer('feature_min_stars').notNull().default(4),
+  // Whether the /r/<token> landing shows the optional "rather tell us
+  // privately?" path (routes feedback to staff, never public). Shown to
+  // EVERY patient equally when on (FTC-clean — not rating gating). Default on.
+  showPrivateFeedback: integer('show_private_feedback').notNull().default(1),
+  // Where private feedback lands. Falls back to clinicProfile.email when unset.
   privateFeedbackEmail: text('private_feedback_email'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1474,6 +1484,9 @@ export const platformReview = pgTable(
     // Best-effort link to a CRM patient by reviewer name — weak/optional, fine to
     // leave null in v1 (a reviewer name rarely maps 1:1 to a patient row).
     patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    // Staff toggled this review OFF the public site. Qualifying reviews (star
+    // rating >= featureMinStars, with a comment) auto-feature UNLESS hidden here.
+    hiddenFromSite: integer('hidden_from_site').notNull().default(0),
     // 1 for the demo (Dream Dental) — demo reviews NEVER hit the network.
     isDemo: integer('is_demo').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),

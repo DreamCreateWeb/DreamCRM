@@ -15,6 +15,7 @@ import {
   syncGoogleReviews,
   replyToGoogleReview,
   deleteGoogleReviewReply,
+  setGoogleReviewHidden,
 } from '@/lib/services/google-reviews'
 import { syncFacebookReviews } from '@/lib/services/facebook-reviews'
 
@@ -151,6 +152,26 @@ export async function deleteGoogleReviewReplyAction(
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot manage replies.' }
   const r = await deleteGoogleReviewReply(ctx.organizationId, externalReviewId)
   if (r.ok) revalidatePath('/reviews/received')
+  return r
+}
+
+/**
+ * Hide (or un-hide) a Google review from the public website. Owner/admin only.
+ * Revalidates the reviews surfaces AND the public site (auto-feature changes).
+ */
+export async function setGoogleReviewHiddenAction(input: {
+  externalReviewId: string
+  hidden: boolean
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot manage reviews.' }
+  const r = await setGoogleReviewHidden(ctx.organizationId, input.externalReviewId, input.hidden)
+  if (r.ok) {
+    revalidatePath('/reviews/received')
+    revalidatePath('/reviews')
+    revalidatePath(`/site/${ctx.organizationSlug}`)
+  }
   return r
 }
 

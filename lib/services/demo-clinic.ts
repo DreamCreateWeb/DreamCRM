@@ -2346,6 +2346,32 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Idempotent (upsert by externalReviewId). Never networks.
     await seedDemoGoogleReviews(existing.id)
 
+    // Reviews redesign self-heal: legacy demo config predates the Google-first
+    // loop — flip it to the showcase state (auto-ask immediately, auto-feature
+    // 4★+, private-feedback path on). And mark ONE qualifying 5★ Google review
+    // hidden so the "hide from website" override is visible. Both idempotent +
+    // demo-scoped (seedDemoGoogleReviews' onConflictDoNothing won't set the flag
+    // on a pre-existing row, so we set it here).
+    await db
+      .update(schema.clinicReviewConfig)
+      .set({
+        autoSendEnabled: 1,
+        autoSendDelayHours: 0,
+        featureMinStars: 4,
+        showPrivateFeedback: 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.clinicReviewConfig.organizationId, existing.id))
+    await db
+      .update(schema.platformReview)
+      .set({ hiddenFromSite: 1, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.platformReview.organizationId, existing.id),
+          eq(schema.platformReview.externalReviewId, 'demo_gr_2'),
+        ),
+      )
+
     // Facebook recommendations self-heal: seed synthetic FB recommendations
     // (recommend / don't-recommend) so the Reviews "From Facebook" section
     // showcases populated state on legacy demos. Idempotent; never networks. FB
@@ -4208,8 +4234,12 @@ async function seedReviewsForOrg(
       yelpBusinessSlug: null, // opt-in only; the demo keeps it off
       minDaysBetweenRequests: 365,
       npsEnabled: 0,
-      autoSendEnabled: 0,
-      autoSendDelayHours: 24,
+      // The redesigned Google-first loop: auto-ask immediately on completion,
+      // auto-feature 4★+ Google reviews, offer the private-feedback path.
+      autoSendEnabled: 1,
+      autoSendDelayHours: 0,
+      featureMinStars: 4,
+      showPrivateFeedback: 1,
     })
     configAdded = true
   }
@@ -4240,6 +4270,11 @@ async function seedReviewsForOrg(
     status: 'sent' | 'clicked' | 'completed' | 'skipped' | 'failed'
     daysAgo: number
     selectedSite?: 'google' | 'healthgrades' | 'facebook' | 'yelp'
+    /** When set, this completed row is a PRIVATE-feedback submission (the patient
+     *  chose "tell us privately") — writes privateFeedback, never reviewText, so
+     *  it lands in the private inbox and never on the public site. */
+    privateFeedback?: string
+    rating?: number
   }
   const REVIEW_SEEDS: ReviewSeed[] = [
     // Completed — featured on the public site (review text comes from
@@ -4255,6 +4290,15 @@ async function seedReviewsForOrg(
     // deciding to feature.
     { patientIdx: 1, status: 'completed', daysAgo: 8, selectedSite: 'healthgrades' },
     { patientIdx: 12, status: 'completed', daysAgo: 28, selectedSite: 'google' },
+    // Private feedback — the patient chose "tell us privately" (never public).
+    // Lands in the /reviews/received private-feedback inbox for follow-up.
+    {
+      patientIdx: 5,
+      status: 'completed',
+      daysAgo: 6,
+      privateFeedback: 'Front desk wait felt a little long this visit, but the dentist was great and explained everything. Just wanted you to know!',
+      rating: 3,
+    },
     // Earlier funnel stages
     { patientIdx: 3, status: 'clicked', daysAgo: 3 },
     { patientIdx: 4, status: 'sent', daysAgo: 1 },
@@ -4282,7 +4326,11 @@ async function seedReviewsForOrg(
     // /reviews/received UI shows real quote text staff can read (and the
     // featured public-site testimonials use the SAME text after promotion —
     // single source of truth).
-    const reviewEntry = seed.status === 'completed' ? DEMO_REVIEW_TEXTS[seed.patientIdx] : undefined
+    // Private-feedback rows write privateFeedback (never reviewText → never
+    // public); regular completed rows carry the patient's public review text.
+    const isPrivate = !!seed.privateFeedback
+    const reviewEntry =
+      seed.status === 'completed' && !isPrivate ? DEMO_REVIEW_TEXTS[seed.patientIdx] : undefined
     await db.insert(schema.reviewRequest).values({
       id: newId('revreq'),
       organizationId: orgId,
@@ -4294,9 +4342,10 @@ async function seedReviewsForOrg(
       sentAt,
       clickedAt,
       completedAt,
-      selectedSite: seed.selectedSite ?? null,
+      selectedSite: isPrivate ? 'private_feedback' : (seed.selectedSite ?? null),
       reviewText: reviewEntry?.text ?? null,
-      rating: reviewEntry?.rating ?? null,
+      privateFeedback: seed.privateFeedback ?? null,
+      rating: isPrivate ? (seed.rating ?? null) : (reviewEntry?.rating ?? null),
       token: `demo${seed.status.slice(0, 3)}${seed.patientIdx}_${Math.random().toString(36).slice(2, 10)}`,
       errorMessage: seed.status === 'failed' ? 'Email bounced (demo)' : null,
       createdAt: new Date(now.getTime() - seed.daysAgo * dayMs),

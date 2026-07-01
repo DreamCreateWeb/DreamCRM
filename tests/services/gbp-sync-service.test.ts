@@ -189,6 +189,7 @@ const GOOGLE_LOC: GoogleLocation = {
   country: 'US',
   phone: '(555) 867-5309',
   categories: ['Dentist'],
+  placeId: null,
 }
 
 beforeEach(() => {

@@ -84,6 +84,11 @@ interface Props {
    *  dropdown child. Derived inside the page wrapper (no DB call needed; it's
    *  just `staff.length > 0` on the already-loaded profile). */
   hasTeam?: boolean
+  /** 4★+ Google reviews (already filtered + shaped) that auto-feature in the
+   *  testimonials carousel alongside the clinic's manual testimonials. The page
+   *  loads these from the synced `platform_review` rows so Google stays the live
+   *  source of truth (no copying into clinic_profile). Defaults to none. */
+  featuredGoogleReviews?: ClinicTestimonial[]
 }
 
 /**
@@ -103,7 +108,7 @@ export function formatReviewCount(n: number): string {
   return `${Math.floor(n / 1000)}k+`
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false }: Props) {
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false, featuredGoogleReviews = [] }: Props) {
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -142,8 +147,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         : s,
     )
     .filter((s) => !(s.dynamic === 'review_count' && reviewCount === 0))
-  const testimonials: ClinicTestimonial[] =
-    ((profile.testimonials as ClinicTestimonial[] | null) ?? []).slice(0, 50)
+  // Manual/first-party testimonials the clinic curated, PLUS 4★+ Google reviews
+  // that auto-feature (passed in from the page — the live source of truth). Merged
+  // at render so Google reviews are never copied into clinic_profile.
+  const testimonials: ClinicTestimonial[] = [
+    ...((profile.testimonials as ClinicTestimonial[] | null) ?? []),
+    ...featuredGoogleReviews,
+  ].slice(0, 50)
   const officePhotos: ClinicOfficePhoto[] =
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
   // Insurance carriers shown on the public Insurance section + populated

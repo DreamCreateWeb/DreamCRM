@@ -11,6 +11,7 @@ import {
   syncGoogleReviewsAction,
   replyToGoogleReviewAction,
   deleteGoogleReviewReplyAction,
+  setGoogleReviewHiddenAction,
 } from '../actions'
 
 export interface GoogleReviewClientRow {
@@ -22,6 +23,7 @@ export interface GoogleReviewClientRow {
   reviewCreatedAtIso: string | null
   replyComment: string | null
   replyUpdatedAtIso: string | null
+  hiddenFromSite: boolean
 }
 
 function fmtRelative(iso: string | null): string {
@@ -97,13 +99,29 @@ export function GoogleConnectPrompt() {
   )
 }
 
-function ReviewCard({ row }: { row: GoogleReviewClientRow }) {
+function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; featureMinStars: number }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(row.replyComment ?? '')
+
+  // A review auto-features on the public site when its rating meets the clinic's
+  // threshold AND it has a written comment — unless staff hid it here.
+  const eligible =
+    row.starRating != null && row.starRating >= featureMinStars && !!row.comment?.trim()
+
+  function toggleHidden(hidden: boolean) {
+    setError(null)
+    startTransition(async () => {
+      const r = await setGoogleReviewHiddenAction({ externalReviewId: row.externalReviewId, hidden })
+      if (r.ok) {
+        setToast(hidden ? 'Hidden from your website.' : 'Now showing on your website.')
+        router.refresh()
+      } else setError(r.error)
+    })
+  }
 
   function saveReply() {
     setError(null)
@@ -210,6 +228,29 @@ function ReviewCard({ row }: { row: GoogleReviewClientRow }) {
           )}
         </div>
 
+        {/* ── Website feature status / hide toggle ──────────────────────── */}
+        <div className="mt-4 pt-3 border-t border-[color:var(--color-hairline)] flex items-center justify-between gap-2 flex-wrap">
+          {!eligible ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Not featured — needs {featureMinStars}★+ and a written comment.
+            </p>
+          ) : row.hiddenFromSite ? (
+            <>
+              <StatusPill tone="neutral" label="Hidden from website" title="You hid this review from your public site" />
+              <ActionButton variant="secondary" size="sm" onClick={() => toggleHidden(false)} disabled={pending}>
+                {pending ? 'Working…' : 'Show on website'}
+              </ActionButton>
+            </>
+          ) : (
+            <>
+              <StatusPill tone="ok" label="Featured on website ✓" title="Auto-featured on your public site" />
+              <ActionButton variant="ghost" size="sm" onClick={() => toggleHidden(true)} disabled={pending}>
+                {pending ? 'Working…' : 'Hide from website'}
+              </ActionButton>
+            </>
+          )}
+        </div>
+
         {error && <p className={`text-xs mt-2 ${TONE_TEXT.urgent}`}>{error}</p>}
       </div>
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
@@ -221,10 +262,12 @@ export default function GoogleReviewsSection({
   rows,
   count,
   averageRating,
+  featureMinStars = 4,
 }: {
   rows: GoogleReviewClientRow[]
   count: number
   averageRating: number | null
+  featureMinStars?: number
 }) {
   const router = useRouter()
   const [refreshing, startRefresh] = useTransition()
@@ -260,7 +303,7 @@ export default function GoogleReviewsSection({
       ) : (
         <ul className="space-y-3">
           {rows.map((r) => (
-            <ReviewCard key={r.externalReviewId} row={r} />
+            <ReviewCard key={r.externalReviewId} row={r} featureMinStars={featureMinStars} />
           ))}
         </ul>
       )}

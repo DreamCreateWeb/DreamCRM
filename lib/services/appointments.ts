@@ -979,7 +979,17 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
   }
 }
 
-export async function markCompleted(organizationId: string, appointmentId: string) {
+/** Result of completing a visit. `reviewSent` is true when the completion
+ *  immediately fired a review request (auto-send on + delay 0 + it actually
+ *  sent) so the UI can toast "review request sent". */
+export interface MarkCompletedResult {
+  reviewSent: boolean
+}
+
+export async function markCompleted(
+  organizationId: string,
+  appointmentId: string,
+): Promise<MarkCompletedResult> {
   await assertAppointmentMutable(organizationId, appointmentId)
   await setAppointmentState(organizationId, appointmentId, {
     status: 'completed',
@@ -999,6 +1009,26 @@ export async function markCompleted(organizationId: string, appointmentId: strin
       .set({ lastActivityAt: new Date() })
       .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, appt.patientId)))
   }
+
+  // The core of the reviews loop: a completed visit auto-sends a review request
+  // (Google-first). Best-effort + non-blocking — a send failure must never fail
+  // the completion. Only fires when the clinic left auto-send on AND set a 0-hour
+  // delay (immediate); a positive delay defers to the hourly cron. The dedupe in
+  // fireReviewRequestForAppointment keeps this and the cron from double-sending.
+  let reviewSent = false
+  if (appt?.patientId) {
+    try {
+      const { getReviewConfig, shouldSendImmediately, fireReviewRequestForAppointment } = await import('./reviews')
+      const config = await getReviewConfig(organizationId)
+      if (shouldSendImmediately(config)) {
+        const r = await fireReviewRequestForAppointment(organizationId, appointmentId, appt.patientId)
+        reviewSent = r.outcome === 'sent'
+      }
+    } catch (err) {
+      console.warn('[appointments.markCompleted] review auto-send failed', err)
+    }
+  }
+  return { reviewSent }
 }
 
 export interface RescheduleInput {

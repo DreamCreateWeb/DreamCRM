@@ -1,7 +1,8 @@
 import 'server-only'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { resolveGbpAccount } from '@/lib/services/zernio'
+import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 import {
   listGoogleReviews as zernioListGoogleReviews,
   replyToGoogleReview as zernioReplyToGoogleReview,
@@ -40,6 +41,8 @@ export interface GoogleReviewView {
   reviewUpdatedAt: Date | null
   replyComment: string | null
   replyUpdatedAt: Date | null
+  /** Staff hid this review from the public site (it won't auto-feature). */
+  hiddenFromSite: boolean
 }
 
 export interface GoogleReviewStats {
@@ -64,6 +67,7 @@ function toView(r: schema.GoogleReviewRow): GoogleReviewView {
     reviewUpdatedAt: r.reviewUpdatedAt,
     replyComment: r.replyComment,
     replyUpdatedAt: r.replyUpdatedAt,
+    hiddenFromSite: r.hiddenFromSite === 1,
   }
 }
 
@@ -236,6 +240,86 @@ export async function getGoogleReviewStats(orgId: string): Promise<GoogleReviewS
   return { count, averageRating, needsReply }
 }
 
+// ── Auto-feature on the public site ─────────────────────────────────────────────
+
+/**
+ * The org's Google reviews that qualify to auto-feature on the public site:
+ * star rating at or above the clinic's `featureMinStars` threshold (default 4),
+ * with a written comment (rating-only reviews have nothing to show), and not
+ * individually hidden by staff. Newest-highest first, capped. Returned in the
+ * shared `ClinicTestimonial` shape so the public site can merge them straight
+ * in with the manually-featured testimonials.
+ *
+ * Reads `featureMinStars` off `clinic_review_config` directly (not via
+ * reviews.ts) to avoid an import cycle — reviews.ts imports THIS module.
+ */
+export async function listFeaturableGoogleReviews(
+  orgId: string,
+  limit = 12,
+): Promise<ClinicTestimonial[]> {
+  const [cfg] = await db
+    .select({ featureMinStars: schema.clinicReviewConfig.featureMinStars })
+    .from(schema.clinicReviewConfig)
+    .where(eq(schema.clinicReviewConfig.organizationId, orgId))
+    .limit(1)
+  const minStars = cfg?.featureMinStars ?? 4
+
+  const rows = await db
+    .select()
+    .from(schema.platformReview)
+    .where(
+      and(
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+        eq(schema.platformReview.hiddenFromSite, 0),
+        // `>= minStars` also excludes rating-only reviews (null star fails the
+        // comparison), and we require a comment below.
+        gte(schema.platformReview.starRating, minStars),
+        isNotNull(schema.platformReview.comment),
+      ),
+    )
+    .orderBy(
+      desc(schema.platformReview.starRating),
+      desc(sql`COALESCE(${schema.platformReview.reviewCreatedAt}, ${schema.platformReview.createdAt})`),
+    )
+    .limit(limit)
+
+  return rows
+    .filter((r) => (r.comment ?? '').trim().length > 0)
+    .map((r) => ({
+      id: `gr_${r.externalReviewId}`,
+      quote: (r.comment ?? '').trim(),
+      authorName: r.reviewerName?.trim() || 'Google reviewer',
+      authorLocation: null,
+      authorPhotoUrl: r.reviewerPhotoUrl,
+      patientId: null,
+      rating: r.starRating,
+      source: 'google' as const,
+    }))
+}
+
+/** Hide (or un-hide) a Google review from the public site. Staff override on top
+ *  of the auto-feature rule. Scoped to org+platform+externalReviewId. */
+export async function setGoogleReviewHidden(
+  orgId: string,
+  externalReviewId: string,
+  hidden: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const review = await loadReview(orgId, externalReviewId)
+  if (!review) return { ok: false, error: 'That review is no longer available.' }
+  await db
+    .update(schema.platformReview)
+    .set({ hiddenFromSite: hidden ? 1 : 0, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+        eq(schema.platformReview.externalReviewId, externalReviewId),
+      ),
+    )
+  return { ok: true }
+}
+
 // ── Reply / delete-reply ──────────────────────────────────────────────────────
 
 async function loadReview(
@@ -387,6 +471,9 @@ interface DemoReviewSeed {
   daysAgo: number
   replyComment: string | null
   replyDaysAgo: number | null
+  /** Seed this qualifying 5★ review as hidden-from-site so the demo showcases
+   *  the staff "hide from website" override. */
+  hidden?: boolean
 }
 
 const DEMO_GOOGLE_REVIEWS: DemoReviewSeed[] = [
@@ -412,6 +499,9 @@ const DEMO_GOOGLE_REVIEWS: DemoReviewSeed[] = [
     daysAgo: 9,
     replyComment: null,
     replyDaysAgo: null,
+    // Qualifies (5★ + comment) but staff hid it — demoes the hide override, so
+    // it appears in /reviews/received but NOT on the public site.
+    hidden: true,
   },
   {
     externalReviewId: 'demo_gr_3',
@@ -498,6 +588,7 @@ export async function seedDemoGoogleReviews(organizationId: string): Promise<voi
         reviewUpdatedAt: createdAt,
         replyComment: seed.replyComment,
         replyUpdatedAt: replyAt,
+        hiddenFromSite: seed.hidden ? 1 : 0,
         isDemo: 1,
       })
       .onConflictDoNothing()

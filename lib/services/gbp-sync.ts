@@ -162,6 +162,7 @@ const DEMO_GOOGLE_LOCATION: GoogleLocation = {
   country: 'US',
   phone: '(512) 555-0100',
   categories: ['Dentist', 'Cosmetic dentist'],
+  placeId: 'ChIJDemo000000000_DreamDental',
 }
 
 /** Synthetic Google photos for the demo — reuses the demo office-photo URLs so
@@ -184,6 +185,35 @@ function asSource(raw: string | null | undefined): FieldSource {
  */
 function mayWrite(force: boolean, source: FieldSource): boolean {
   return force || source !== 'manual'
+}
+
+/**
+ * Populate `clinic_review_config.googlePlaceId` from a GBP-synced Place ID, but
+ * ONLY when it's currently empty — a manually-pasted value is never clobbered
+ * (we treat any existing value as the clinic's own). Creates the config row with
+ * DB defaults if none exists yet. Written directly (not via reviews.ts) to keep
+ * gbp-sync free of a reviews-service import cycle.
+ */
+async function maybeAutofillGooglePlaceId(orgId: string, placeId: string): Promise<void> {
+  const value = placeId.trim()
+  if (!value) return
+  const [cfg] = await db
+    .select({ googlePlaceId: schema.clinicReviewConfig.googlePlaceId })
+    .from(schema.clinicReviewConfig)
+    .where(eq(schema.clinicReviewConfig.organizationId, orgId))
+    .limit(1)
+  if (cfg) {
+    if (cfg.googlePlaceId && cfg.googlePlaceId.trim()) return // manual value — leave it
+    await db
+      .update(schema.clinicReviewConfig)
+      .set({ googlePlaceId: value, updatedAt: new Date() })
+      .where(eq(schema.clinicReviewConfig.organizationId, orgId))
+  } else {
+    await db
+      .insert(schema.clinicReviewConfig)
+      .values({ organizationId: orgId, googlePlaceId: value })
+      .onConflictDoNothing()
+  }
 }
 
 // ── The sync ──────────────────────────────────────────────────────────────────
@@ -228,6 +258,17 @@ export async function syncGoogleBusinessProfile(
     }
   } catch (e) {
     return { ok: false, applied: [], skippedManual: [], photoCount: 0, error: (e as Error).message }
+  }
+
+  // Best-effort: auto-fill the clinic's Google Place ID (powers the "review us
+  // on Google" write link) when Zernio surfaced one AND the clinic hasn't set it
+  // manually. Its own try/catch so a config write never fails the GBP sync.
+  if (location.placeId) {
+    try {
+      await maybeAutofillGooglePlaceId(orgId, location.placeId)
+    } catch (e) {
+      console.warn('[gbp-sync] Google Place ID autofill failed', e)
+    }
   }
 
   // Read the current source flags.

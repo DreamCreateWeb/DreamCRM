@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
-import { pickPlatformAction, submitReviewAction } from './actions'
+import { pickPlatformAction, submitPrivateFeedbackAction } from './actions'
 
 const INK = 'var(--c-ink, #1C1A17)'
 const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
@@ -20,39 +20,46 @@ const PLATFORM_LABEL: Record<ReviewSite, string> = {
   yelp: 'Yelp',
 }
 
-const PLATFORM_BLURB: Record<ReviewSite, string> = {
-  google: 'Most people find your dentist this way — sharing here helps the most.',
-  healthgrades: 'The dental-specific platform — especially helpful for healthcare reputation.',
-  facebook: 'Useful if you found them via Facebook or have an account.',
-  yelp: 'Useful if you already write reviews on Yelp.',
-}
-
+/**
+ * Public review landing (Google-first). The hero action sends the patient
+ * straight to Google to write their review; any other configured platforms show
+ * as secondary options. An OPTIONAL "rather tell us privately?" path routes
+ * feedback to the office (never public) — shown to every patient equally, so it
+ * stays FTC-clean (no rating gating). The clinic can hide the private path.
+ */
 export default function ReviewForm({
   token,
   clinicName,
   brand,
   patientFirstName,
   alreadyCompleted,
-  existingReviewText,
-  existingRating,
+  googleUrl,
   sites,
+  showPrivateFeedback,
+  existingPrivateFeedback,
+  existingReviewText,
 }: {
   token: string
   clinicName: string
   brand: string
   patientFirstName: string
   alreadyCompleted: boolean
-  existingReviewText: string | null
-  existingRating: number | null
+  googleUrl: string | null
   sites: ReviewSite[]
+  showPrivateFeedback: boolean
+  existingPrivateFeedback: string | null
+  existingReviewText: string | null
 }) {
-  // After-submit flips the page into "thanks + share elsewhere?" mode
-  // without a navigation; the server action revalidates so the next read
-  // shows the existing text back to the patient.
-  const justSubmittedInitial = alreadyCompleted && !!existingReviewText
-  const [text, setText] = useState(existingReviewText ?? '')
-  const [rating, setRating] = useState<number | null>(existingRating ?? null)
-  const [submitted, setSubmitted] = useState(justSubmittedInitial)
+  // Non-Google configured platforms (Google is the hero button on its own).
+  const otherSites = sites.filter((s) => s !== 'google')
+  const noPublic = !googleUrl && otherSites.length === 0
+
+  const [privateSent, setPrivateSent] = useState(false)
+  // Open the private form by default only when there's no public platform to send
+  // to (and the clinic allows private feedback) — otherwise it's a quiet opt-in.
+  const [showPrivate, setShowPrivate] = useState(noPublic && showPrivateFeedback)
+  const [text, setText] = useState('')
+  const [rating, setRating] = useState<number | null>(null)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -60,29 +67,9 @@ export default function ReviewForm({
   const ink = readableInk(brand)
   const display = { fontFamily: 'var(--font-display, Georgia, serif)' }
 
-  function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
-    const fd = new FormData()
-    fd.set('reviewText', text)
-    if (rating != null) fd.set('rating', String(rating))
-    // The form builds FormData by hand (reviewText comes from state), so pull
-    // the spam-trust hidden values off the rendered inputs and carry them.
-    const el = formRef.current
-    if (el) {
-      const hp = el.querySelector<HTMLInputElement>(`[name="${HONEYPOT_FIELD}"]`)
-      const ts = el.querySelector<HTMLInputElement>(`[name="${TIMETRAP_FIELD}"]`)
-      if (hp) fd.set(HONEYPOT_FIELD, hp.value)
-      if (ts) fd.set(TIMETRAP_FIELD, ts.value)
-    }
-    startTransition(async () => {
-      const r = await submitReviewAction(token, fd)
-      if (r.ok) setSubmitted(true)
-      else setError(r.error)
-    })
-  }
-
-  if (submitted) {
+  // ── Completed / just-sent state ──
+  if (alreadyCompleted || privateSent) {
+    const note = existingPrivateFeedback ?? (privateSent ? text.trim() : null)
     return (
       <div
         className="rounded-3xl p-8 md:p-10 shadow-sm"
@@ -94,68 +81,82 @@ export default function ReviewForm({
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-3" style={{ color: ink, ...display }}>
           Thank you, {escapeText(patientFirstName)}.
         </h1>
-        <p className="text-[15px] leading-relaxed mb-6" style={{ color: INK_MUTED }}>
-          Your review is in — {clinicName} can read it from their dashboard. It
-          means a lot.
-        </p>
-
-        <blockquote
-          className="rounded-xl p-4 mb-6 text-[15px] leading-relaxed italic whitespace-pre-wrap"
-          style={{ backgroundColor: `${brand}0D`, borderLeft: `3px solid ${brand}`, color: INK }}
-        >
-          &ldquo;{text}&rdquo;
-        </blockquote>
-
-        {sites.length > 0 && (
+        {note ? (
           <>
-            <p className="text-sm font-semibold mb-3" style={{ color: INK }}>
-              Also share your review publicly?
+            <p className="text-[15px] leading-relaxed mb-6" style={{ color: INK_MUTED }}>
+              Thanks for the honest note — it goes straight to the {clinicName} team, and
+              they&apos;ll follow up if it&apos;s something they can make right.
             </p>
-            <p className="text-[13px] mb-4" style={{ color: INK_MUTED }}>
-              Honest reviews on the platforms below help other people find
-              {' '}{clinicName}. Totally optional — your review&apos;s already in.
+            <blockquote
+              className="rounded-xl p-4 mb-2 text-[15px] leading-relaxed italic whitespace-pre-wrap"
+              style={{ backgroundColor: `${brand}0D`, borderLeft: `3px solid ${brand}`, color: INK }}
+            >
+              &ldquo;{note}&rdquo;
+            </blockquote>
+          </>
+        ) : existingReviewText ? (
+          <>
+            <p className="text-[15px] leading-relaxed mb-6" style={{ color: INK_MUTED }}>
+              Your review is in — thank you. It means a lot to {clinicName}.
             </p>
-            <div className="space-y-2.5">
-              {sites.map((site) => (
-                <form key={site} action={pickPlatformAction.bind(null, token, site)}>
-                  <button
-                    type="submit"
-                    className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-xl border-2 transition text-left hover:bg-black/[0.02]"
-                    style={{ borderColor: BORDER }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold" style={{ color: INK }}>
-                        Share on {PLATFORM_LABEL[site]}
-                      </p>
-                      <p className="text-[12px] mt-0.5" style={{ color: INK_MUTED }}>
-                        {PLATFORM_BLURB[site]}
-                      </p>
-                    </div>
-                    <span className="text-xl shrink-0" style={{ color: brand }}>→</span>
-                  </button>
-                </form>
-              ))}
-            </div>
+            <blockquote
+              className="rounded-xl p-4 mb-2 text-[15px] leading-relaxed italic whitespace-pre-wrap"
+              style={{ backgroundColor: `${brand}0D`, borderLeft: `3px solid ${brand}`, color: INK }}
+            >
+              &ldquo;{existingReviewText}&rdquo;
+            </blockquote>
+          </>
+        ) : (
+          <>
+            <p className="text-[15px] leading-relaxed mb-6" style={{ color: INK_MUTED }}>
+              You&apos;re all set — thanks for taking the time. It means a lot to {clinicName}.
+            </p>
+            {googleUrl && (
+              <form action={pickPlatformAction.bind(null, token, 'google')}>
+                <button
+                  type="submit"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-sm font-semibold text-white transition hover:opacity-95"
+                  style={{ backgroundColor: brand }}
+                >
+                  Leave a Google review →
+                </button>
+              </form>
+            )}
           </>
         )}
-
         <div className="mt-8 pt-6 text-center" style={{ borderTop: `1px solid ${BORDER}` }}>
-          <p className="text-[12px]" style={{ color: INK_MUTED }}>
-            You can close this page now — your review is saved.
-          </p>
+          <p className="text-[12px]" style={{ color: INK_MUTED }}>You can close this page now.</p>
         </div>
       </div>
     )
   }
 
+  function submitPrivate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    const fd = new FormData()
+    fd.set('feedbackText', text)
+    if (rating != null) fd.set('rating', String(rating))
+    // The form builds FormData by hand, so carry the spam-trust hidden values.
+    const el = formRef.current
+    if (el) {
+      const hp = el.querySelector<HTMLInputElement>(`[name="${HONEYPOT_FIELD}"]`)
+      const ts = el.querySelector<HTMLInputElement>(`[name="${TIMETRAP_FIELD}"]`)
+      if (hp) fd.set(HONEYPOT_FIELD, hp.value)
+      if (ts) fd.set(TIMETRAP_FIELD, ts.value)
+    }
+    startTransition(async () => {
+      const r = await submitPrivateFeedbackAction(token, fd)
+      if (r.ok) setPrivateSent(true)
+      else setError(r.error)
+    })
+  }
+
   return (
-    <form
-      ref={formRef}
-      onSubmit={submit}
+    <div
       className="rounded-3xl p-8 md:p-10 shadow-sm"
       style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
     >
-      <FormTrustFields />
       <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-2" style={{ color: INK_MUTED }}>
         {clinicName}
       </p>
@@ -163,53 +164,109 @@ export default function ReviewForm({
         Thanks for coming in, {escapeText(patientFirstName)}.
       </h1>
       <p className="text-[15px] leading-relaxed mb-6" style={{ color: INK_MUTED }}>
-        Would you take a minute to share how your visit went? Honest, good or
-        bad — your words help other patients decide.
+        {googleUrl
+          ? `Would you share how your visit went on Google? It takes a minute — and it's the #1 way new patients find ${clinicName}.`
+          : otherSites.length > 0
+            ? `Would you share how your visit went? It takes a minute and helps other patients find ${clinicName}.`
+            : `We'd love to hear how your visit went.`}
       </p>
 
-      <div className="mb-5">
-        <label className="block text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: INK_MUTED }}>
-          How was your visit? (optional)
-        </label>
-        <RatingSelector value={rating} onChange={setRating} />
-      </div>
+      {/* PRIMARY — Google */}
+      {googleUrl && (
+        <form action={pickPlatformAction.bind(null, token, 'google')}>
+          <button
+            type="submit"
+            className="w-full inline-flex items-center justify-center gap-2 px-5 py-4 rounded-full text-base font-semibold text-white transition hover:opacity-95"
+            style={{ backgroundColor: brand }}
+          >
+            <GoogleGlyph /> Review us on Google →
+          </button>
+        </form>
+      )}
 
-      <div className="mb-5">
-        <label htmlFor="review-text" className="block text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: INK_MUTED }}>
-          Your review
-        </label>
-        <textarea
-          id="review-text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={6}
-          maxLength={2000}
-          className="w-full text-[15px] leading-relaxed px-4 py-3 rounded-xl focus:outline-none focus:ring-2 resize-none"
-          style={{ border: `1px solid ${BORDER}`, color: INK, ['--tw-ring-color' as string]: `${brand}55` }}
-          placeholder="What stood out? 2-4 sentences works best."
-          required
-        />
-        <p className="text-[11px] mt-1 tabular-nums text-right" style={{ color: INK_MUTED }}>
-          {text.length} / 2000
-        </p>
-      </div>
+      {/* Other configured platforms (secondary) */}
+      {otherSites.length > 0 && (
+        <div className={`space-y-2.5 ${googleUrl ? 'mt-3' : ''}`}>
+          {otherSites.map((site) => (
+            <form key={site} action={pickPlatformAction.bind(null, token, site)}>
+              <button
+                type="submit"
+                className="w-full flex items-center justify-between gap-3 px-5 py-3.5 rounded-xl border-2 transition text-left hover:bg-black/[0.02]"
+                style={{ borderColor: BORDER }}
+              >
+                <span className="text-sm font-bold" style={{ color: INK }}>
+                  Review us on {PLATFORM_LABEL[site]}
+                </span>
+                <span className="text-lg shrink-0" style={{ color: brand }}>→</span>
+              </button>
+            </form>
+          ))}
+        </div>
+      )}
 
-      {error && <p className="text-[13px] text-rose-600 mb-3">{error}</p>}
+      {/* OPTIONAL private feedback path — shown to everyone equally (FTC-clean) */}
+      {showPrivateFeedback && (
+        <div className={noPublic ? '' : 'mt-6 pt-6'} style={noPublic ? undefined : { borderTop: `1px solid ${BORDER}` }}>
+          {!showPrivate ? (
+            <button
+              type="button"
+              onClick={() => setShowPrivate(true)}
+              className="text-[13px] underline"
+              style={{ color: INK_MUTED }}
+            >
+              Rather share your feedback privately with the team? →
+            </button>
+          ) : (
+            <form ref={formRef} onSubmit={submitPrivate}>
+              <FormTrustFields />
+              {!noPublic && (
+                <p className="text-[13px] mb-3" style={{ color: INK_MUTED }}>
+                  This goes straight to the {clinicName} team — it won&apos;t be posted publicly.
+                </p>
+              )}
+              <div className="mb-4">
+                <label className="block text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: INK_MUTED }}>
+                  How was your visit? (optional)
+                </label>
+                <RatingSelector value={rating} onChange={setRating} />
+              </div>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={5}
+                maxLength={2000}
+                className="w-full text-[15px] leading-relaxed px-4 py-3 rounded-xl focus:outline-none focus:ring-2 resize-none"
+                style={{ border: `1px solid ${BORDER}`, color: INK, ['--tw-ring-color' as string]: `${brand}55` }}
+                placeholder="Tell us what we could do better — we read every note."
+                required
+              />
+              {error && <p className="text-[13px] text-rose-600 mt-2">{error}</p>}
+              <button
+                type="submit"
+                disabled={pending || !text.trim()}
+                className="mt-3 w-full inline-flex items-center justify-center px-5 py-3 rounded-full text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition hover:opacity-95"
+                style={{ backgroundColor: brand }}
+              >
+                {pending ? 'Sending…' : 'Send to the team'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
-      <button
-        type="submit"
-        disabled={pending || !text.trim()}
-        className="w-full inline-flex items-center justify-center px-5 py-3.5 rounded-full text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition hover:opacity-95"
-        style={{ backgroundColor: brand }}
-      >
-        {pending ? 'Submitting…' : 'Submit my review'}
-      </button>
-
-      <p className="text-[12px] mt-4 text-center" style={{ color: INK_MUTED }}>
-        You can also share publicly on Google, Healthgrades, etc — we&apos;ll
-        offer those after you submit.
-      </p>
-    </form>
+function GoogleGlyph() {
+  // Simple "G" mark in a white chip — decorative.
+  return (
+    <span
+      aria-hidden
+      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white text-[13px] font-bold"
+      style={{ color: '#4285F4' }}
+    >
+      G
+    </span>
   )
 }
 
@@ -251,8 +308,5 @@ function RatingSelector({
 }
 
 function escapeText(s: string): string {
-  // React already escapes HTML in {} interpolation; this just prevents the
-  // odd case of a name with whitespace-only / null-byte content slipping
-  // through to the visible greeting.
   return s.trim() || 'there'
 }
