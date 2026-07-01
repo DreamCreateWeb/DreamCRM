@@ -7,7 +7,6 @@ import type {
   ClinicService,
   ClinicStaff,
   ClinicStat,
-  ClinicTestimonial,
   ClinicOfficePhoto,
   ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
@@ -19,7 +18,6 @@ import { ActionButton } from '@/components/ui/action-button'
 import ServicesLibraryPicker from './services-library-picker'
 import StaffEditor from './staff-editor'
 import StatsEditor from './stats-editor'
-import TestimonialsEditor from './testimonials-editor'
 import OfficePhotosEditor from './office-photos-editor'
 import FinancingPartnersEditor from './financing-partners-editor'
 
@@ -81,7 +79,6 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
   const initialServices = (profile?.services ?? null) as ClinicService[] | null
   const initialStaff = (profile?.staff ?? null) as ClinicStaff[] | null
   const initialStats = (profile?.stats ?? null) as ClinicStat[] | null
-  const initialTestimonials = (profile?.testimonials ?? null) as ClinicTestimonial[] | null
   const initialOfficePhotos = (profile?.officePhotos ?? null) as ClinicOfficePhoto[] | null
   // Accepted insurance carriers — JSON string[] on clinic_profile
   // (migration 0038). Edited as one carrier per line in a textarea so
@@ -415,16 +412,6 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
     </div>
   )
 
-  const testimonials = (
-    <div className="v2-card p-5">
-      <p className={SUB_DESC}>
-        Long-form patient quotes — first name + city. The single strongest trust signal
-        on the page when done well.
-      </p>
-      <TestimonialsEditor name="testimonials" defaultValue={initialTestimonials} />
-    </div>
-  )
-
   const officePhotos = (
     <div className="v2-card p-5">
       <p className={SUB_DESC}>
@@ -537,7 +524,6 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
         <Section id="services" title="Services">{services}</Section>
         <Section id="staff" title="Team">{staff}</Section>
         <Section id="stats" title="Trust stats">{stats}</Section>
-        <Section id="testimonials" title="Testimonials">{testimonials}</Section>
         <Section id="photos" title="Office photos">{officePhotos}</Section>
         <Section id="insurance" title="Insurance carriers">{insurance}</Section>
         <Section id="methods" title="Payment methods">{paymentMethods}</Section>

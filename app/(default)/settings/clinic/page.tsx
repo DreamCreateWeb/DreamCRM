@@ -77,7 +77,6 @@ export default async function ClinicSettings() {
         { id: 'services', label: 'Services' },
         { id: 'staff', label: 'Team' },
         { id: 'stats', label: 'Trust stats' },
-        { id: 'testimonials', label: 'Testimonials' },
         { id: 'photos', label: 'Office photos' },
       ],
     },

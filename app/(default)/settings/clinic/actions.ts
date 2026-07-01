@@ -11,7 +11,6 @@ import {
   parseServices,
   parseStaff,
   parseStats,
-  parseTestimonials,
   parseOfficePhotos,
   parseFaq,
   parseStringList,
@@ -67,7 +66,6 @@ export async function updateClinicProfile(formData: FormData) {
   const services = parseServices(formData.get('services')?.toString())
   const staff = parseStaff(formData.get('staff')?.toString())
   const stats = parseStats(formData.get('stats')?.toString())
-  const testimonials = parseTestimonials(formData.get('testimonials')?.toString())
   const officePhotos = parseOfficePhotos(formData.get('officePhotos')?.toString())
   const faq = parseFaq(formData.get('faq')?.toString())
   const acceptedInsuranceCarriers = parseStringList(
@@ -112,7 +110,10 @@ export async function updateClinicProfile(formData: FormData) {
     services,
     staff,
     stats,
-    testimonials,
+    // testimonials is deliberately NOT here — clinic_profile.testimonials is
+    // now owned by the Reviews module (Google auto-feature + patient-linked
+    // legacy entries). This mega-form must never touch it, or every save here
+    // would silently overwrite/null it out from under Reviews.
     officePhotos,
     faq,
     acceptedInsuranceCarriers,

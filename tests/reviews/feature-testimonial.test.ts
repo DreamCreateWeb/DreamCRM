@@ -1,21 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * Coverage for the "received reviews → public-site testimonials" loop.
- * Closes the disconnect between dashboard /reviews data (review_request
- * rows tied to real patients) and the public site testimonials JSON.
+ * Coverage for the legacy first-party "reviews → public-site testimonials"
+ * signal that survives the Google-first redesign.
  *
- * Tests:
+ * `featureReviewAsTestimonial` / `unfeatureReviewTestimonial` (the manual
+ * promote/demote flow, sourced from `review_request.reviewText`) were removed —
+ * featuring is now automatic from synced Google reviews (see
+ * `listFeaturableGoogleReviews` in google-reviews.ts). There is no remaining
+ * path, anywhere in the product, that lets staff manually create or edit a
+ * testimonial — Reviews (Google-sourced) is the only system.
+ *
+ * What's left here:
  *  - listFeaturedTestimonialPatientIds: extracts patientIds from
- *    profile.testimonials so the dashboard can badge "Featured" rows.
- *  - featureReviewAsTestimonial: rejects on cross-tenant patient,
- *    empty/oversize quotes; promotes with privacy-first "First L." +
- *    city label; idempotent on (orgId, patientId) — second call replaces
- *    rather than stacks.
- *  - unfeatureReviewTestimonial: removes only the patient-linked entry,
- *    leaves free-text testimonials alone.
- *  - formatLinkedTestimonialAuthor / formatLinkedTestimonialLocation:
- *    pure helpers covering the privacy default + edge cases.
+ *    profile.testimonials so the dashboard can badge legacy "Featured" rows
+ *    (historical patient-linked entries from the old flow).
+ *  - demo seed shape guards for the legacy patient-linked testimonials.
  */
 
 interface TestimonialShape {
@@ -28,46 +28,21 @@ interface TestimonialShape {
 }
 
 const state = {
-  patient: null as Record<string, unknown> | null,
   profile: null as { testimonials: TestimonialShape[] | null } | null,
-  /** The reviewText lookup result. featureReviewAsTestimonial now sources the
-   *  quote from review_request rather than a caller-supplied parameter. */
-  review: null as { reviewText: string | null } | null,
-  updates: [] as Array<{ table: string; set: Record<string, unknown> }>,
 }
 
 vi.mock('@/lib/db', () => ({
   db: {
     select: () => ({
-      from: (t: unknown) => {
-        // Chain that resolves on .limit(...) — works for queries with or
-        // without .orderBy() in between.
-        const result = (async () => {
-          if (t === 'patient') return state.patient ? [state.patient] : []
-          if (t === 'clinicProfile') return state.profile ? [state.profile] : []
-          if (t === 'reviewRequest') return state.review ? [state.review] : []
-          return []
-        })
-        const chain = {
-          where: () => chain,
-          orderBy: () => chain,
-          limit: async () => await result(),
-        }
-        return chain
-      },
-    }),
-    update: (t: unknown) => ({
-      set: (set: Record<string, unknown>) => ({
-        where: async () => { state.updates.push({ table: String(t), set }) },
+      from: () => ({
+        where: () => ({
+          limit: async () => (state.profile ? [state.profile] : []),
+        }),
       }),
     }),
   },
   schema: {
-    patient: 'patient',
-    clinicProfile: 'clinicProfile',
-    clinicReviewConfig: 'clinicReviewConfig',
-    reviewRequest: 'reviewRequest',
-    organization: 'organization',
+    clinicProfile: { organizationId: 'organizationId', testimonials: 'testimonials' },
   },
 }))
 
@@ -75,15 +50,19 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({ _: 'and' })),
   eq: vi.fn(() => ({ _: 'eq' })),
   desc: vi.fn((x) => x),
-  asc: vi.fn((x) => x),
+  count: vi.fn(() => ({ _: 'count' })),
   gte: vi.fn(() => ({ _: 'gte' })),
   lte: vi.fn(() => ({ _: 'lte' })),
   ne: vi.fn(() => ({ _: 'ne' })),
-  count: vi.fn(() => ({ _: 'count' })),
   inArray: vi.fn(() => ({ _: 'inArray' })),
   isNotNull: vi.fn(() => ({ _: 'isNotNull' })),
   isNull: vi.fn(() => ({ _: 'isNull' })),
   sql: Object.assign(vi.fn(() => ({ _: 'sql' })), { raw: vi.fn() }),
+}))
+
+vi.mock('@/lib/services/google-reviews', () => ({
+  getGoogleReviewStats: vi.fn(async () => ({ count: 0, averageRating: null, needsReply: 0 })),
+  listFeaturableGoogleReviews: vi.fn(async () => []),
 }))
 
 vi.mock('@/lib/services/pms/sync', () => ({
@@ -95,42 +74,7 @@ vi.mock('resend', () => ({
 }))
 
 beforeEach(() => {
-  state.patient = null
   state.profile = null
-  state.review = null
-  state.updates = []
-})
-
-describe('formatLinkedTestimonialAuthor', () => {
-  it('renders "First L." for a standard name', async () => {
-    const { formatLinkedTestimonialAuthor } = await import('@/lib/services/reviews')
-    expect(formatLinkedTestimonialAuthor({ patientFirstName: 'Mia', patientLastName: 'Hayes' })).toBe('Mia H.')
-  })
-
-  it('uppercases the initial regardless of input casing', async () => {
-    const { formatLinkedTestimonialAuthor } = await import('@/lib/services/reviews')
-    expect(formatLinkedTestimonialAuthor({ patientFirstName: 'mia', patientLastName: 'hayes' })).toBe('mia H.')
-  })
-
-  it('falls back to first name only when last name is empty', async () => {
-    const { formatLinkedTestimonialAuthor } = await import('@/lib/services/reviews')
-    expect(formatLinkedTestimonialAuthor({ patientFirstName: 'Cher', patientLastName: '' })).toBe('Cher')
-  })
-})
-
-describe('formatLinkedTestimonialLocation', () => {
-  it('renders "City, State" when both are present', async () => {
-    const { formatLinkedTestimonialLocation } = await import('@/lib/services/reviews')
-    expect(formatLinkedTestimonialLocation({ patientCity: 'Austin', patientState: 'TX' })).toBe('Austin, TX')
-  })
-  it('renders city alone when state is missing', async () => {
-    const { formatLinkedTestimonialLocation } = await import('@/lib/services/reviews')
-    expect(formatLinkedTestimonialLocation({ patientCity: 'Austin', patientState: null })).toBe('Austin')
-  })
-  it('returns null when both are missing', async () => {
-    const { formatLinkedTestimonialLocation } = await import('@/lib/services/reviews')
-    expect(formatLinkedTestimonialLocation({ patientCity: null, patientState: null })).toBeNull()
-  })
 })
 
 describe('listFeaturedTestimonialPatientIds', () => {
@@ -154,103 +98,15 @@ describe('listFeaturedTestimonialPatientIds', () => {
     expect(ids.size).toBe(2)
     expect(ids.has('pat_mia')).toBe(true)
     expect(ids.has('pat_noah')).toBe(true)
-    // Free-text testimonial (no patientId) does not surface as featured.
-    expect(ids.has('null')).toBe(false)
-  })
-})
-
-describe('featureReviewAsTestimonial', () => {
-  const okPatient = { firstName: 'Mia', lastName: 'Hayes', city: 'Austin', state: 'TX' }
-
-  it('rejects when the patient does not belong to the org', async () => {
-    state.patient = null
-    state.profile = { testimonials: [] }
-    state.review = { reviewText: 'whatever' }
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await expect(
-      featureReviewAsTestimonial({
-        organizationId: 'org_1',
-        patientId: 'pat_foreign',
-      }),
-    ).rejects.toThrow(/not found in this organization/i)
-    expect(state.updates).toHaveLength(0)
-  })
-
-  it('rejects when the patient has no review text submitted (the "nothing to feature" guard)', async () => {
-    // This is the honest replacement for the old "staff types the quote"
-    // path — when the patient never wrote anything in DreamCRM, there's
-    // nothing to feature. The error message guides staff to ask the
-    // patient for a review instead.
-    state.patient = okPatient
-    state.profile = { testimonials: [] }
-    state.review = null
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await expect(
-      featureReviewAsTestimonial({ organizationId: 'org_1', patientId: 'pat_mia' }),
-    ).rejects.toThrow(/has not submitted a review/i)
-    expect(state.updates).toHaveLength(0)
-  })
-
-  it('rejects when the review row exists but reviewText is empty / whitespace', async () => {
-    state.patient = okPatient
-    state.profile = { testimonials: [] }
-    state.review = { reviewText: '   ' }
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await expect(
-      featureReviewAsTestimonial({ organizationId: 'org_1', patientId: 'pat_mia' }),
-    ).rejects.toThrow(/has not submitted a review/i)
-    expect(state.updates).toHaveLength(0)
-  })
-
-  it('promotes with the patient-submitted quote and privacy-first "First L." + city defaults', async () => {
-    state.patient = okPatient
-    state.profile = { testimonials: [] }
-    state.review = { reviewText: 'Genuinely good experience — I felt heard.' }
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await featureReviewAsTestimonial({
-      organizationId: 'org_1',
-      patientId: 'pat_mia',
-    })
-    expect(state.updates).toHaveLength(1)
-    const next = (state.updates[0].set as { testimonials: TestimonialShape[] }).testimonials
-    expect(next).toHaveLength(1)
-    expect(next[0].patientId).toBe('pat_mia')
-    expect(next[0].authorName).toBe('Mia H.')
-    expect(next[0].authorLocation).toBe('Austin, TX')
-    // The quote MUST come from the patient's submission, not a parameter —
-    // staff can't put words in the patient's mouth.
-    expect(next[0].quote).toBe('Genuinely good experience — I felt heard.')
-  })
-
-  it('idempotent on (orgId, patientId): re-promote replaces, does not duplicate', async () => {
-    state.patient = okPatient
-    state.profile = {
-      testimonials: [
-        { id: 't_old', quote: 'old quote', authorName: 'Mia H.', authorLocation: 'Austin, TX', authorPhotoUrl: null, patientId: 'pat_mia' },
-        { id: 't_freetext', quote: 'free', authorName: 'Jen R.', authorLocation: null, authorPhotoUrl: null, patientId: null },
-      ],
-    }
-    state.review = { reviewText: 'fresh quote' }
-    const { featureReviewAsTestimonial } = await import('@/lib/services/reviews')
-    await featureReviewAsTestimonial({
-      organizationId: 'org_1',
-      patientId: 'pat_mia',
-    })
-    const next = (state.updates[0].set as { testimonials: TestimonialShape[] }).testimonials
-    // free-text testimonial preserved, linked one replaced with the fresh quote
-    expect(next).toHaveLength(2)
-    expect(next.find((t) => t.patientId === null)?.quote).toBe('free')
-    expect(next.find((t) => t.patientId === 'pat_mia')?.quote).toBe('fresh quote')
   })
 })
 
 describe('demo review distribution', () => {
   // Defends the seed shape against drift. The /reviews/received surface
-  // needs enough completed rows to feel populated, AND a mix of featured
-  // vs. unfeatured so the "Add to website" CTA has visible targets when
-  // staff first opens the page. A future PR that trims these (e.g. someone
-  // dropping a seed thinking it's noise) breaks the demo experience the
-  // user explicitly asked for — these tests pin it.
+  // needs enough completed rows to feel populated, with a real mix across
+  // platforms. A future PR that trims these (e.g. someone dropping a seed
+  // thinking it's noise) breaks the demo experience the user explicitly
+  // asked for — these tests pin it.
 
   it('demo seeds at least 5 completed review_requests across multiple platforms', async () => {
     // We grep the source rather than running the seeder; the file is a
@@ -272,7 +128,7 @@ describe('demo review distribution', () => {
     expect(platforms.size).toBeGreaterThanOrEqual(3)
   })
 
-  it('demo seeds at least 4 patient-linked testimonials (for the "Featured" state)', async () => {
+  it('demo seeds at least 4 patient-linked testimonials (legacy "Featured" state)', async () => {
     const src = await import('node:fs').then((fs) =>
       fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
     )
@@ -283,17 +139,10 @@ describe('demo review distribution', () => {
     expect(numbers.length).toBeGreaterThanOrEqual(4)
   })
 
-  it('keeps at least one free-text testimonial so the legacy unlinked path stays exercised', async () => {
-    const src = await import('node:fs').then((fs) =>
-      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
-    )
-    expect(src).toMatch(/DEMO_FREE_TEXT_TESTIMONIAL\s*=\s*\{[^}]*quote:/)
-  })
-
   it('seeds review_text for every completed review (no more "type the quote" workflow)', async () => {
     // The DEMO_REVIEW_TEXTS map keys every patientIdx whose review_request
-    // is seeded as `status='completed'`. Without this, /reviews/received
-    // would show empty cards — the bug the user reported.
+    // is seeded as `status='completed'`. Without this, the legacy patient-
+    // linked testimonials would build with an empty quote.
     const src = await import('node:fs').then((fs) =>
       fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
     )
@@ -309,7 +158,7 @@ describe('demo review distribution', () => {
     }
   })
 
-  it('leaves at least 2 completed reviews unfeatured so /reviews/received demos the CTA', async () => {
+  it('leaves at least 2 completed reviews unfeatured (legacy first-party rows)', async () => {
     const src = await import('node:fs').then((fs) =>
       fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
     )
@@ -323,39 +172,11 @@ describe('demo review distribution', () => {
     const unfeatured = Array.from(completedIdxs).filter((i) => !featuredIdxs.has(i))
     expect(unfeatured.length).toBeGreaterThanOrEqual(2)
   })
-})
 
-describe('unfeatureReviewTestimonial', () => {
-  it('removes only the patient-linked entry', async () => {
-    state.profile = {
-      testimonials: [
-        { id: 't_freetext', quote: 'free', authorName: 'Jen R.', authorLocation: null, authorPhotoUrl: null, patientId: null },
-        { id: 't_mia', quote: 'q', authorName: 'Mia H.', authorLocation: null, authorPhotoUrl: null, patientId: 'pat_mia' },
-      ],
-    }
-    const { unfeatureReviewTestimonial } = await import('@/lib/services/reviews')
-    await unfeatureReviewTestimonial('org_1', 'pat_mia')
-    expect(state.updates).toHaveLength(1)
-    const next = (state.updates[0].set as { testimonials: TestimonialShape[] }).testimonials
-    expect(next).toHaveLength(1)
-    expect(next[0].patientId).toBeNull()
-  })
-
-  it('is a no-op when no testimonial is linked to that patient', async () => {
-    state.profile = {
-      testimonials: [
-        { id: 't_freetext', quote: 'free', authorName: 'Jen R.', authorLocation: null, authorPhotoUrl: null, patientId: null },
-      ],
-    }
-    const { unfeatureReviewTestimonial } = await import('@/lib/services/reviews')
-    await unfeatureReviewTestimonial('org_1', 'pat_nonexistent')
-    expect(state.updates).toHaveLength(0)
-  })
-
-  it('silent when the profile is missing entirely', async () => {
-    state.profile = null
-    const { unfeatureReviewTestimonial } = await import('@/lib/services/reviews')
-    await unfeatureReviewTestimonial('org_1', 'pat_mia')
-    expect(state.updates).toHaveLength(0)
+  it('no longer seeds a free-text (unlinked) testimonial — Reviews is the only system', async () => {
+    const src = await import('node:fs').then((fs) =>
+      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
+    )
+    expect(src).not.toMatch(/DEMO_FREE_TEXT_TESTIMONIAL/)
   })
 })

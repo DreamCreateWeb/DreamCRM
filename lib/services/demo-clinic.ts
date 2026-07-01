@@ -1013,13 +1013,11 @@ export function upgradeLegacyDemoStats(stats: ClinicStat[] | null): ClinicStat[]
 }
 
 /**
- * SINGLE SOURCE OF TRUTH for demo review text. Keyed by patientIdx. Used
- * to populate review_request.reviewText on completed seeds AND to build
- * the featured-testimonial array on the public site — so the quote a
- * staff member sees in /reviews/received exactly matches what the public
- * shows once "Feature on website" is clicked (mirrors the production
- * path: featureReviewAsTestimonial sources the quote from
- * review_request.reviewText).
+ * SINGLE SOURCE OF TRUTH for demo review text. Keyed by patientIdx. Used to
+ * populate review_request.reviewText on completed legacy first-party seeds AND
+ * to build the legacy patient-linked testimonial array — so the quote matches
+ * what was originally featured. Featuring new reviews is Google-first now (see
+ * `listFeaturableGoogleReviews`); this only backs historical demo rows.
  */
 const DEMO_REVIEW_TEXTS: Record<number, { text: string; rating: number }> = {
   // Mia Hayes (idx 0) — completed Google · 5d ago
@@ -1077,21 +1075,15 @@ const DEMO_REVIEW_TEXTS: Record<number, { text: string; rating: number }> = {
 
 /** Patient indices whose reviews are pre-featured on the public site. The
  *  rest of the DEMO_REVIEW_TEXTS entries stay as "received but not yet
- *  featured" so /reviews/received has live targets for the Feature CTA. */
+ *  featured" — legacy first-party rows, kept as historical patient-authored
+ *  content. New featuring is Google-first (auto-featured 4★+ reviews); there
+ *  is no manual/free-text testimonial path anymore. */
 const DEMO_FEATURED_PATIENT_IDXS: number[] = [0, 2, 6, 7, 11]
 
-/** One free-text testimonial — no patientId. Kept so the demo also exercises
- *  the legacy unlinked path that hand-curated content uses. */
-const DEMO_FREE_TEXT_TESTIMONIAL = {
-  authorName: 'Jen R.',
-  authorLocation: 'Cedar Park, TX' as string | null,
-  quote:
-    "My kids actually ASK to go to Dream Dental. The hygienist remembered that Lily likes the bubblegum fluoride. Small thing — huge difference for a six-year-old.",
-}
-
-/** Build the final testimonial JSON from DEMO_REVIEW_TEXTS + the seeded
- *  patients, applying the same "First L." + city denormalization that
- *  featureReviewAsTestimonial uses in production. */
+/** Build the legacy patient-linked testimonial JSON from DEMO_REVIEW_TEXTS +
+ *  the seeded patients, applying the same "First L." + city denormalization
+ *  the old first-party feature flow used. Every entry is real, patient-
+ *  authored content — no hand-typed/free-text testimonials are seeded. */
 function buildDemoTestimonials(
   patientIds: string[],
   personas: Array<{ firstName: string; lastName: string; city: string | null; state: string | null }>,
@@ -1123,15 +1115,6 @@ function buildDemoTestimonials(
       patientId: patientIds[patientIdx],
     })
   }
-  // Append the free-text legacy testimonial last (no patient link).
-  items.push({
-    id: `t${counter++}`,
-    quote: DEMO_FREE_TEXT_TESTIMONIAL.quote,
-    authorName: DEMO_FREE_TEXT_TESTIMONIAL.authorName,
-    authorLocation: DEMO_FREE_TEXT_TESTIMONIAL.authorLocation,
-    authorPhotoUrl: null,
-    patientId: null,
-  })
   return items
 }
 
@@ -2627,9 +2610,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Now that patient IDs exist, build the testimonials so each one references
   // a real CRM patient (Mia Hayes / Noah Mitchell — the same patients whose
-  // review_request rows get seeded as `status='completed'` further down). The
-  // free-text testimonial stays unlinked so the demo also covers the legacy
-  // path. Production uses featureReviewAsTestimonial() for the same shape.
+  // review_request rows get seeded as `status='completed'` further down).
   await db
     .update(schema.clinicProfile)
     .set({

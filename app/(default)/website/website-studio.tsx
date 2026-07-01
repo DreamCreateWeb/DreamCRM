@@ -5,7 +5,6 @@ import Link from 'next/link'
 import type { ClinicProfile } from '@/lib/db/schema/platform'
 import type {
   ClinicStat,
-  ClinicTestimonial,
   ClinicStaff,
   ClinicOfficePhoto,
   ClinicFaqItem,
@@ -26,7 +25,6 @@ import FocalPointPicker from '@/components/ui/focal-point-picker'
 import LeadFormBuilder from './lead-form-builder'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import StatsEditor from '../settings/clinic/stats-editor'
-import TestimonialsEditor from '../settings/clinic/testimonials-editor'
 import StaffEditor from '../settings/clinic/staff-editor'
 import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
 import FinancingPartnersEditor from '../settings/clinic/financing-partners-editor'
@@ -37,7 +35,6 @@ import {
   saveInlineField,
   saveImageField,
   saveStats,
-  saveTestimonials,
   saveAbout,
   saveStaff,
   saveOfficePhotos,
@@ -95,7 +92,6 @@ const IMAGE_FIELDS: Record<
 /** Section modals that render an editor in a <form> and save via FormData. */
 const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult>> = {
   stats: saveStats,
-  testimonials: saveTestimonials,
   about: saveAbout,
   staff: saveStaff,
   officePhotos: saveOfficePhotos,
@@ -111,7 +107,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
 const SECTION_TITLES: Record<string, string> = {
   stats: 'Trust stats',
   differenceVideoUrl: 'Intro video',
-  testimonials: 'Featured reviews',
+  testimonials: 'Reviews',
   about: 'About your practice',
   staff: 'Meet the team',
   officePhotos: 'Office photos',
@@ -133,6 +129,11 @@ const SECTION_TITLES: Record<string, string> = {
  * their modal is a link-out to that manager rather than an inline editor.
  */
 const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
+  testimonials: {
+    href: '/reviews',
+    cta: 'Open the Reviews module',
+    desc: 'Featured reviews are managed in the Reviews module now. Patients leave real reviews on Google, and your best ones (4★ and up) show up here automatically — no more typing a quote by hand. Hide or manage what\'s featured from there.',
+  },
   blog: {
     href: '/posts',
     cta: 'Open the blog manager',
@@ -683,7 +684,7 @@ function StudioModal({
   const isLinkOut = modal.kind === 'section' && !!LINK_OUTS[modal.field]
   // Content-heavy repeater editors get a wider sheet so cards aren't cramped.
   const WIDE_FIELDS = new Set([
-    'staff', 'faq', 'testimonials', 'stats', 'officePhotos', 'hours',
+    'staff', 'faq', 'stats', 'officePhotos', 'hours',
     'paymentFinancing', 'insurance_verifier', 'contact',
   ])
   const isWide = isServices || (modal.kind === 'section' && WIDE_FIELDS.has(modal.field))
@@ -821,18 +822,6 @@ function StudioModal({
                 <RewriteWithAiButton section="stats" usage={aiUsage} onUsage={onAiUsage} onContent={applyAiDraft} />
               </div>
               <StatsEditor key={`stats-${aiNonce}`} name="stats" defaultValue={statsDefault} />
-            </form>
-          )}
-          {modal.kind === 'section' && modal.field === 'testimonials' && (
-            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Patient quotes shown on your homepage. Reviews submitted through the Reviews
-                module can be featured here too — and you can add your own.
-              </p>
-              <TestimonialsEditor
-                name="testimonials"
-                defaultValue={(profile.testimonials as ClinicTestimonial[] | null) ?? null}
-              />
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'about' && (

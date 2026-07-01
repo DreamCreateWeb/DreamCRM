@@ -5,7 +5,6 @@ import {
   parseStaff,
   parseStats,
   parseServices,
-  parseTestimonials,
   parseOfficePhotos,
   parseFinancingPartners,
   parseHours,
@@ -168,17 +167,7 @@ describe('parseServices', () => {
   })
 })
 
-describe('parseTestimonials + parseOfficePhotos + parseFinancingPartners', () => {
-  it('testimonials require quote + authorName', () => {
-    const out = parseTestimonials(
-      JSON.stringify([
-        { quote: 'great', authorName: '' },
-        { quote: 'great', authorName: 'Mia', authorLocation: 'Austin' },
-      ]),
-    )
-    expect(out).toHaveLength(1)
-    expect(out![0].authorLocation).toBe('Austin')
-  })
+describe('parseOfficePhotos + parseFinancingPartners', () => {
   it('office photos require a url', () => {
     const out = parseOfficePhotos(JSON.stringify([{ alt: 'x' }, { url: 'http://x/1.jpg', caption: 'Lobby' }]))
     expect(out).toHaveLength(1)

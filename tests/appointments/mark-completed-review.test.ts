@@ -46,10 +46,11 @@ vi.mock('@/lib/services/pms', () => ({
   queueAppointmentStatusWriteBack: vi.fn(async () => undefined),
 }))
 
+type FireOutcome = { outcome: 'sent' | 'skipped' | 'failed'; error?: string }
 const { getReviewConfigMock, shouldSendImmediatelyMock, fireMock } = vi.hoisted(() => ({
   getReviewConfigMock: vi.fn(async () => ({})),
   shouldSendImmediatelyMock: vi.fn(() => true),
-  fireMock: vi.fn(async () => ({ outcome: 'sent' as const })),
+  fireMock: vi.fn<() => Promise<FireOutcome>>(async () => ({ outcome: 'sent' })),
 }))
 vi.mock('@/lib/services/reviews', () => ({
   getReviewConfig: getReviewConfigMock,

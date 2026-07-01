@@ -1096,100 +1096,7 @@ export async function listReviewRequests(
   }))
 }
 
-// ── Reviews received → website testimonials ──────────────────────────
-//
-// The "review you received" loop the dashboard is missing without this:
-// a patient completes a `review_request` (they tap a public-review
-// platform on the /r/<token> landing — Google / Healthgrades / etc),
-// and now the clinic wants to feature that review on their public site.
-//
-// We DON'T have the review text — the patient writes it on the external
-// platform, where DreamCRM can't see it (Google Business Profile API +
-// equivalents are the GBP-integration roadmap, not v1). So "featuring"
-// means: staff browses their received reviews here, copies the quote
-// from the public platform, pastes it into a small capture form, and we
-// promote it into the `clinic_profile.testimonials` JSON array with the
-// patient linked. The privacy-first display label ("First L." + city)
-// is denormalized at promotion time — see `formatLinkedTestimonialAuthor`.
-
-export interface ReviewReceivedRow {
-  /** review_request id. */
-  id: string
-  patientId: string
-  patientFirstName: string
-  patientLastName: string
-  patientCity: string | null
-  patientState: string | null
-  completedAt: Date | null
-  selectedSite: ReviewSite | null
-  /** The full review text the patient submitted on /r/<token>. Null when
-   *  the patient went straight to a third-party platform without leaving
-   *  a copy here — that case stays unfeaturable (we can't quote what we
-   *  don't have). */
-  reviewText: string | null
-  /** Optional 1-5 rating the patient gave alongside their review. */
-  rating: number | null
-  /** The visit that triggered this review request, when one is linked
-   *  (`review_request.appointmentId`). Null for requests sent ad-hoc from
-   *  the patient detail page with no appointment, or whose appointment was
-   *  later deleted (the FK is ON DELETE SET NULL). Lets the received-review
-   *  card cite "After their {date} visit". */
-  appointmentId: string | null
-  appointmentDate: Date | null
-}
-
-/**
- * Every review_request for this org that the patient completed. Most
- * recent first. Joined to patient so the surface can render names +
- * cities without N+1.
- */
-export async function listReviewsReceived(
-  organizationId: string,
-  limit = 100,
-): Promise<ReviewReceivedRow[]> {
-  const rows = await db
-    .select({
-      id: schema.reviewRequest.id,
-      patientId: schema.reviewRequest.patientId,
-      patientFirstName: schema.patient.firstName,
-      patientLastName: schema.patient.lastName,
-      patientCity: schema.patient.city,
-      patientState: schema.patient.state,
-      completedAt: schema.reviewRequest.completedAt,
-      selectedSite: schema.reviewRequest.selectedSite,
-      reviewText: schema.reviewRequest.reviewText,
-      rating: schema.reviewRequest.rating,
-      appointmentId: schema.reviewRequest.appointmentId,
-      // Left-join so requests with no linked appointment (or a deleted one,
-      // FK is ON DELETE SET NULL) still return — appointmentDate is just null.
-      appointmentDate: schema.appointment.startTime,
-    })
-    .from(schema.reviewRequest)
-    .innerJoin(schema.patient, eq(schema.reviewRequest.patientId, schema.patient.id))
-    .leftJoin(schema.appointment, eq(schema.reviewRequest.appointmentId, schema.appointment.id))
-    .where(
-      and(
-        eq(schema.reviewRequest.organizationId, organizationId),
-        eq(schema.reviewRequest.status, 'completed'),
-      ),
-    )
-    .orderBy(desc(schema.reviewRequest.completedAt))
-    .limit(limit)
-  return rows.map((r) => ({
-    id: r.id,
-    patientId: r.patientId,
-    patientFirstName: r.patientFirstName,
-    patientLastName: r.patientLastName,
-    patientCity: r.patientCity,
-    patientState: r.patientState,
-    completedAt: r.completedAt,
-    selectedSite: r.selectedSite as ReviewSite | null,
-    reviewText: r.reviewText,
-    rating: r.rating,
-    appointmentId: r.appointmentId,
-    appointmentDate: r.appointmentDate,
-  }))
-}
+// ── Private feedback (received) ───────────────────────────────────────
 
 export interface PrivateFeedbackRow {
   id: string
@@ -1204,8 +1111,8 @@ export interface PrivateFeedbackRow {
  * Private notes patients left via the "tell us privately" path on the review
  * landing — NEVER shown publicly. Powers the private-feedback inbox on the
  * Reviews dashboard so the front desk can follow up. Keyed off the
- * `privateFeedback` column (distinct from `listReviewsReceived`, which reads
- * the legacy public `reviewText`).
+ * `privateFeedback` column, distinct from the legacy public `reviewText`
+ * column (no longer written by anything — public reviews go through Google).
  */
 export async function listPrivateFeedback(
   organizationId: string,
@@ -1239,25 +1146,6 @@ export async function listPrivateFeedback(
     rating: r.rating,
     completedAt: r.completedAt,
   }))
-}
-
-/** Privacy-first author label for a linked testimonial: "First L." + city. */
-export function formatLinkedTestimonialAuthor(p: {
-  patientFirstName: string
-  patientLastName: string
-}): string {
-  const initial = (p.patientLastName.trim()[0] ?? '').toUpperCase()
-  return initial ? `${p.patientFirstName} ${initial}.` : p.patientFirstName
-}
-
-export function formatLinkedTestimonialLocation(p: {
-  patientCity: string | null
-  patientState: string | null
-}): string | null {
-  const city = p.patientCity?.trim()
-  const state = p.patientState?.trim()
-  if (city && state) return `${city}, ${state}`
-  return city || state || null
 }
 
 /**
@@ -1323,138 +1211,6 @@ export async function getReviewsProof(organizationId: string): Promise<ReviewsPr
     googleRating: google.averageRating,
     googleCount: google.count,
   }
-}
-
-export interface FeatureReviewInput {
-  organizationId: string
-  patientId: string
-  /** Feature this specific completed review's text. When the patient has more
-   *  than one completed review, the received-list passes the id of the exact
-   *  card the operator clicked — otherwise "most recent" could publish a
-   *  different review than the one on screen. Omitted = most recent (back-compat).
-   *  Still org+patient-scoped, so a foreign id never matches. */
-  reviewRequestId?: string
-}
-
-/**
- * Promote a received review into a public-site testimonial. Sources the
- * quote text from the patient's latest completed review_request.reviewText —
- * staff CAN'T type words for the patient. Idempotent on (orgId, patientId):
- * a second call replaces the prior linked testimonial rather than stacking
- * duplicates. Author label + city + quote are denormalized so a patient
- * rename / move / second review doesn't silently change the public page
- * until the clinic re-features.
- *
- * Throws when:
- *   - the patient is not in the org (cross-tenant guard)
- *   - the patient has no completed review_request with a reviewText (you
- *     can't feature what the patient didn't write — this is the honest
- *     replacement for the old "type the quote" modal)
- */
-export async function featureReviewAsTestimonial(
-  input: FeatureReviewInput,
-): Promise<void> {
-  const [patient] = await db
-    .select({
-      firstName: schema.patient.firstName,
-      lastName: schema.patient.lastName,
-      city: schema.patient.city,
-      state: schema.patient.state,
-    })
-    .from(schema.patient)
-    .where(
-      and(
-        eq(schema.patient.id, input.patientId),
-        eq(schema.patient.organizationId, input.organizationId),
-      ),
-    )
-    .limit(1)
-  if (!patient) throw new Error('Patient not found in this organization')
-
-  // Source the quote from the exact review the operator clicked (when supplied),
-  // else the patient's most recent completed review. Always org+patient-scoped,
-  // so an id from another patient/clinic simply doesn't match.
-  const reviewWhere = [
-    eq(schema.reviewRequest.organizationId, input.organizationId),
-    eq(schema.reviewRequest.patientId, input.patientId),
-    eq(schema.reviewRequest.status, 'completed'),
-    isNotNull(schema.reviewRequest.reviewText),
-  ]
-  if (input.reviewRequestId) {
-    reviewWhere.push(eq(schema.reviewRequest.id, input.reviewRequestId))
-  }
-  const [review] = await db
-    .select({ reviewText: schema.reviewRequest.reviewText })
-    .from(schema.reviewRequest)
-    .where(and(...reviewWhere))
-    .orderBy(desc(schema.reviewRequest.completedAt))
-    .limit(1)
-  const quote = review?.reviewText?.trim() ?? ''
-  if (!quote) {
-    throw new Error(
-      'This patient has not submitted a review with text — there\'s nothing to feature. Ask them to leave a review first.',
-    )
-  }
-
-  const [profile] = await db
-    .select({ testimonials: schema.clinicProfile.testimonials })
-    .from(schema.clinicProfile)
-    .where(eq(schema.clinicProfile.organizationId, input.organizationId))
-    .limit(1)
-  if (!profile) throw new Error('Clinic profile not found')
-
-  const current = (profile.testimonials ?? []) as ClinicTestimonial[]
-  // Replace any existing entry linked to this patient — keeps re-promotion
-  // a no-op on identity rather than producing duplicates.
-  const filtered = current.filter((t) => t.patientId !== input.patientId)
-
-  const authorName = formatLinkedTestimonialAuthor({
-    patientFirstName: patient.firstName,
-    patientLastName: patient.lastName,
-  })
-  const authorLocation = formatLinkedTestimonialLocation({
-    patientCity: patient.city,
-    patientState: patient.state,
-  })
-
-  const next: ClinicTestimonial[] = [
-    ...filtered,
-    {
-      id: `tst_${randomBytes(6).toString('hex')}`,
-      quote,
-      authorName,
-      authorLocation,
-      authorPhotoUrl: null,
-      patientId: input.patientId,
-    },
-  ]
-
-  await db
-    .update(schema.clinicProfile)
-    .set({ testimonials: next, updatedAt: new Date() })
-    .where(eq(schema.clinicProfile.organizationId, input.organizationId))
-}
-
-/** Remove a patient-linked testimonial from the website. Free-text
- *  testimonials (no patientId) are left alone — they're edited via the
- *  /settings/clinic testimonials editor. */
-export async function unfeatureReviewTestimonial(
-  organizationId: string,
-  patientId: string,
-): Promise<void> {
-  const [profile] = await db
-    .select({ testimonials: schema.clinicProfile.testimonials })
-    .from(schema.clinicProfile)
-    .where(eq(schema.clinicProfile.organizationId, organizationId))
-    .limit(1)
-  if (!profile) return
-  const current = (profile.testimonials ?? []) as ClinicTestimonial[]
-  const next = current.filter((t) => t.patientId !== patientId)
-  if (next.length === current.length) return
-  await db
-    .update(schema.clinicProfile)
-    .set({ testimonials: next, updatedAt: new Date() })
-    .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
 // ── Shared per-appointment send (immediate trigger + cron) ───────────

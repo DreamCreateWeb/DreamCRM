@@ -14,7 +14,6 @@ import type {
   ClinicService,
   ClinicStaff,
   ClinicStat,
-  ClinicTestimonial,
   ClinicOfficePhoto,
   ClinicFinancingPartner,
   ClinicFaqItem,
@@ -129,35 +128,6 @@ export function parseStats(raw: string | undefined): ClinicStat[] | null {
       if (!value && !label) continue
       const dynamic = obj.dynamic === 'review_count' ? 'review_count' : null
       out.push({ id: typeof obj.id === 'string' ? obj.id : uid(), value, label, dynamic })
-    }
-    return out.length ? out : null
-  } catch {
-    return null
-  }
-}
-
-export function parseTestimonials(raw: string | undefined): ClinicTestimonial[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: ClinicTestimonial[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const obj = item as Record<string, unknown>
-      const quote = typeof obj.quote === 'string' ? obj.quote.trim() : ''
-      const authorName = typeof obj.authorName === 'string' ? obj.authorName.trim() : ''
-      if (!quote || !authorName) continue
-      out.push({
-        id: typeof obj.id === 'string' ? obj.id : uid(),
-        quote,
-        authorName,
-        authorLocation:
-          typeof obj.authorLocation === 'string' ? obj.authorLocation.trim() || null : null,
-        authorPhotoUrl:
-          typeof obj.authorPhotoUrl === 'string' ? obj.authorPhotoUrl || null : null,
-        patientId: typeof obj.patientId === 'string' && obj.patientId ? obj.patientId : null,
-      })
     }
     return out.length ? out : null
   } catch {

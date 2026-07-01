@@ -11,7 +11,6 @@ import { isValidVideoUrl } from '@/lib/website-url'
 import {
   parseStaff,
   parseStats,
-  parseTestimonials,
   parseOfficePhotos,
   parseFaq,
   parseStringList,
@@ -159,15 +158,6 @@ export async function saveStaff(formData: FormData): Promise<SectionResult> {
 export async function saveStats(formData: FormData): Promise<SectionResult> {
   return runSection(async (ctx) => {
     await writeSection(ctx, { stats: parseStats(formData.get('stats')?.toString()) })
-  })
-}
-
-// ── Testimonials ────────────────────────────────────────────────────────────
-export async function saveTestimonials(formData: FormData): Promise<SectionResult> {
-  return runSection(async (ctx) => {
-    await writeSection(ctx, {
-      testimonials: parseTestimonials(formData.get('testimonials')?.toString()),
-    })
   })
 }
 

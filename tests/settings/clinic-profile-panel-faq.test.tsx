@@ -88,7 +88,7 @@ describe('ClinicProfilePanel — hub sections', () => {
   // them and nothing hides behind a tab.
   const SECTION_IDS = [
     'basics', 'contact', 'hours', 'branding', 'services', 'staff', 'stats',
-    'testimonials', 'photos', 'insurance', 'methods', 'financing', 'cancellation',
+    'photos', 'insurance', 'methods', 'financing', 'cancellation',
   ]
 
   it('renders every setting as an anchorable section (the rail jumps to these ids)', () => {

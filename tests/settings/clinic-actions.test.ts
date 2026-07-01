@@ -218,37 +218,20 @@ describe('updateClinicProfile', () => {
     expect(set.stats.map((s) => s.value)).toEqual(['8,000+', 'Same-week'])
   })
 
-  it('parses testimonials JSON, requires both quote + authorName', async () => {
+  it('never touches testimonials — even when a testimonials field is submitted', async () => {
+    // clinic_profile.testimonials is owned by the Reviews module (Google
+    // auto-feature + legacy patient-linked entries). This mega-form must NEVER
+    // parse or write it, or every settings save would silently wipe/overwrite
+    // whatever Reviews put there. Regression guard for exactly that bug class.
     await updateClinicProfile(
       form({
         displayName: 'X',
-        testimonials: JSON.stringify([
-          {
-            id: 't1',
-            quote: 'Great visit.',
-            authorName: 'Sarah K.',
-            authorLocation: 'Austin, TX',
-          },
-          { id: 't2', quote: 'No name', authorName: '' }, // dropped (no author)
-          { id: 't3', quote: '', authorName: 'No quote' }, // dropped (no quote)
-          { id: 't4', quote: 'Loved it.', authorName: 'Marcus T.' },
-        ]),
+        testimonials: JSON.stringify([{ id: 't1', quote: 'Great visit.', authorName: 'Sarah K.' }]),
       }),
     )
     const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as {
-      set: {
-        testimonials: Array<{
-          quote: string
-          authorName: string
-          authorLocation: string | null
-        }>
-      }
-    }).set
-    expect(set.testimonials).toHaveLength(2)
-    expect(set.testimonials[0].quote).toBe('Great visit.')
-    expect(set.testimonials[0].authorLocation).toBe('Austin, TX')
-    expect(set.testimonials[1].authorName).toBe('Marcus T.')
+    const set = insertOp.values as { set: Record<string, unknown> }
+    expect('testimonials' in set.set).toBe(false)
   })
 
   it('parses office photos JSON, requires url', async () => {
@@ -275,10 +258,9 @@ describe('updateClinicProfile', () => {
     await updateClinicProfile(form({ displayName: 'X' }))
     const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
     const set = (insertOp.values as {
-      set: { stats: unknown; testimonials: unknown; officePhotos: unknown }
+      set: { stats: unknown; officePhotos: unknown }
     }).set
     expect(set.stats).toBeNull()
-    expect(set.testimonials).toBeNull()
     expect(set.officePhotos).toBeNull()
   })
 
