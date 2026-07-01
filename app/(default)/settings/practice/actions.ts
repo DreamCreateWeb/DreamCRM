@@ -37,14 +37,43 @@ type Result = { ok: true } | { ok: false; error: string }
 
 // ----- Providers --------------------------------------------------------
 
+/** Loose email sanity check — mirrors the browser's type="email" (a single @,
+ *  non-empty local + domain, a dot in the domain). We only VALIDATE when a value
+ *  is present; email stays optional on a provider. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+function validateEmail(email: string | null | undefined): string | null {
+  const e = (email ?? '').trim()
+  if (!e) return null // empty is allowed (optional field)
+  return EMAIL_RE.test(e) ? null : 'Enter a valid email address (or leave it blank).'
+}
+
+/** True when `name` collides (case-insensitively) with an existing ACTIVE
+ *  provider other than `exceptId`. Deactivated providers don't count — you can
+ *  re-add a name that only exists on an inactive/departed row. */
+async function nameCollides(organizationId: string, name: string, exceptId?: string): Promise<boolean> {
+  const key = name.trim().toLowerCase()
+  if (!key) return false
+  const existing = await listProviders(organizationId)
+  return existing.some(
+    (p) => p.isActive && p.id !== exceptId && p.displayName.trim().toLowerCase() === key,
+  )
+}
+
 export async function createProviderAction(input: {
   displayName: string
   role?: string
   email?: string | null
 }): Promise<Result> {
   const ctx = await requirePracticeAdmin()
+  const displayName = (input.displayName ?? '').trim()
+  if (!displayName) return { ok: false, error: 'Enter a provider name.' }
+  const emailError = validateEmail(input.email)
+  if (emailError) return { ok: false, error: emailError }
   try {
-    await createProvider({ organizationId: ctx.organizationId, ...input })
+    if (await nameCollides(ctx.organizationId, displayName)) {
+      return { ok: false, error: `A provider named “${displayName}” already exists.` }
+    }
+    await createProvider({ organizationId: ctx.organizationId, displayName, role: input.role, email: input.email })
     revalidatePath('/settings/practice')
     revalidatePath('/appointments')
     return { ok: true }
@@ -62,7 +91,17 @@ export async function updateProviderAction(input: {
 }): Promise<Result> {
   const ctx = await requirePracticeAdmin()
   const { providerId, ...patch } = input
+  if (patch.displayName !== undefined && !patch.displayName.trim()) {
+    return { ok: false, error: 'Enter a provider name.' }
+  }
+  if (patch.email !== undefined) {
+    const emailError = validateEmail(patch.email)
+    if (emailError) return { ok: false, error: emailError }
+  }
   try {
+    if (patch.displayName !== undefined && (await nameCollides(ctx.organizationId, patch.displayName, providerId))) {
+      return { ok: false, error: `A provider named “${patch.displayName.trim()}” already exists.` }
+    }
     await updateProvider({ organizationId: ctx.organizationId, providerId, patch })
     revalidatePath('/settings/practice')
     revalidatePath('/appointments')
