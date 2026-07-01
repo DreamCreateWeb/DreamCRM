@@ -98,6 +98,6 @@ export const clinicModules: ModuleRegistry = {
     { id: 'integrations',      path: '/integrations',      label: 'Integrations',     section: 'Business', icon: 'plug',     status: 'live' },
 
     // ── Settings ───────────────────────────────────────────────────────
-    { id: 'settings',          path: '/settings/account',  label: 'Settings',         section: 'Settings', icon: 'gear',     status: 'live' },
+    { id: 'settings',          path: '/settings',          label: 'Settings',         section: 'Settings', icon: 'gear',     status: 'live' },
   ],
 }

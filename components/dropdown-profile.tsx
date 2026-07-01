@@ -69,14 +69,6 @@ export default function DropdownProfile({
           <div className="text-xs text-gray-500 dark:text-gray-400 italic capitalize">{role}</div>
         </div>
         <MenuItem>
-          <Link
-            className="font-medium text-sm flex items-center py-1.5 px-3 text-teal-700 dark:text-teal-400 data-[focus]:bg-teal-500/10"
-            href="/settings/account"
-          >
-            Account settings
-          </Link>
-        </MenuItem>
-        <MenuItem>
           <button
             type="button"
             onClick={handleSignOut}

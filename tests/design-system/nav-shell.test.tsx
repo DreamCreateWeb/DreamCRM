@@ -43,7 +43,7 @@ const MODULES: ModuleDef[] = [
   { id: 'appointments', path: '/appointments', label: 'Appointments', section: 'Daily', icon: 'cal', status: 'live', pinned: true, shortcut: '⌘3' },
   { id: 'leads', path: '/leads', label: 'Leads', section: 'Daily', icon: 'megaphone', status: 'live' },
   { id: 'shop', path: '/shop', label: 'Shop', section: 'Business', icon: 'bag', status: 'live' },
-  { id: 'settings', path: '/settings/account', label: 'Settings', section: 'Settings', icon: 'gear', status: 'live' },
+  { id: 'settings', path: '/settings', label: 'Settings', section: 'Settings', icon: 'gear', status: 'live' },
 ]
 
 beforeEach(() => {
@@ -82,10 +82,12 @@ describe('TenantSidebar — groups + Settings slot', () => {
     expect(screen.getByRole('button', { name: 'Business' })).toBeInTheDocument()
   })
 
-  it('puts Settings in the bottom pinned slot, NOT inside a Settings group', () => {
+  it('puts Settings in the bottom pinned slot pointing at the /settings home', () => {
     render(<TenantSidebar modules={MODULES} orgName="Acme" tenantType="clinic" />)
-    // Settings link is present...
-    expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument()
+    // The ONE settings entry point → the settings home.
+    const link = screen.getByRole('link', { name: /Settings/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/settings')
     // ...but there is no collapsible "Settings" group header button.
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
   })
@@ -107,31 +109,29 @@ describe('TenantSidebar — Inbox folds into Messages (clinic registry)', () => 
 })
 
 describe('TenantSidebar — org switcher + demo pill', () => {
-  it('shows the org name + plan badge and a plan/billing menu for a clinic', () => {
+  it('shows the org name + plan badge as a STATIC block (no dropdown menu)', () => {
     render(<TenantSidebar modules={MODULES} orgName="Acme Dental" badge="Pro plan" tenantType="clinic" />)
     const block = screen.getByTestId('org-switcher')
     expect(within(block).getByText('Acme Dental')).toBeInTheDocument()
     expect(within(block).getByText('Pro plan')).toBeInTheDocument()
-    // The switcher trigger is a real menu button for clinics.
-    const trigger = within(block).getByRole('button')
-    expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+    // The org block is no longer a menu — Settings has ONE entry point (the nav
+    // "Settings" button → the /settings home), so there's no chevron dropdown here.
+    expect(within(block).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('the org-switcher menu links to the merged plan & billing settings', () => {
+  it('has no Clinic settings / Plan & billing links in the org block', () => {
     render(<TenantSidebar modules={MODULES} orgName="Acme" badge="Pro plan" tenantType="clinic" />)
     const block = screen.getByTestId('org-switcher')
-    fireEvent.click(within(block).getByRole('button'))
-    // Plan + Billing were merged into one destination.
-    expect(screen.getByRole('menuitem', { name: /Plan & billing/i })).toHaveAttribute('href', '/settings/billing')
-    // No separate /settings/plans entry remains.
-    const items = screen.getAllByRole('menuitem')
-    expect(items.some((i) => i.getAttribute('href') === '/settings/plans')).toBe(false)
+    expect(within(block).queryByRole('menuitem')).not.toBeInTheDocument()
+    expect(within(block).queryByText(/Clinic settings/i)).not.toBeInTheDocument()
+    expect(within(block).queryByText(/Plan & billing/i)).not.toBeInTheDocument()
   })
 
-  it('disables the switcher menu for a platform tenant (no plan to manage)', () => {
+  it('renders the org block statically for a platform tenant too', () => {
     render(<TenantSidebar modules={MODULES} orgName="Dream Create" badge="Platform admin" tenantType="platform" />)
     const block = screen.getByTestId('org-switcher')
-    expect(within(block).getByRole('button')).toBeDisabled()
+    expect(within(block).getByText('Dream Create')).toBeInTheDocument()
+    expect(within(block).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('renders the amber Demo pill only in demo mode', () => {

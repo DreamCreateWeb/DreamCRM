@@ -24,7 +24,7 @@ export const platformModules: ModuleRegistry = {
     { id: 'marketing_blog',   path: '/posts',               label: 'Platform Blog',    section: 'Pages', icon: 'pen',      status: 'live' },
     { id: 'search_console',   path: '/seo',                 label: 'Search Console',   section: 'Settings', icon: 'search', status: 'live' },
     { id: 'service_library',  path: '/platform/service-library', label: 'Service Library', section: 'Settings', icon: 'gear', status: 'live' },
-    { id: 'settings',         path: '/settings/account',    label: 'Settings',         section: 'Settings', icon: 'gear', status: 'live' },
+    { id: 'settings',         path: '/settings',            label: 'Settings',         section: 'Settings', icon: 'gear', status: 'live' },
     // 'Developer' is a placeholder slot for a future API-keys + webhooks
     // management page. Marked `soon` so the sidebar shows it dimmed
     // instead of routing to a 404 (no `/developer` page exists yet).

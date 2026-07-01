@@ -109,7 +109,6 @@ export default function TenantSidebar({
   const pathname = usePathname()
   const { sidebarOpen, setSidebarOpen, railCollapsed, toggleRail } = useAppProvider()
   const [badges, setBadges] = useState<NavBadgeCounts>({ messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0, reviews: 0 })
-  const [orgMenuOpen, setOrgMenuOpen] = useState(false)
 
   // Live unread-count pills (Messages / Leads / Shop). Clinic tenants only —
   // platform + patient sidebars don't surface those entries. Polls on an
@@ -290,10 +289,7 @@ export default function TenantSidebar({
           orgName={orgName}
           badge={badge}
           isDemo={isDemo}
-          isClinic={isClinic}
           rail={railCollapsed}
-          open={orgMenuOpen}
-          setOpen={setOrgMenuOpen}
         />
 
         {/* 3 — Cockpit zone (label-less, inset) */}
@@ -358,46 +354,25 @@ function OrgSwitcher({
   orgName,
   badge,
   isDemo,
-  isClinic,
   rail,
-  open,
-  setOpen,
 }: {
   orgName?: string
   badge?: string
   isDemo: boolean
-  isClinic: boolean
   rail: boolean
-  open: boolean
-  setOpen: (v: boolean) => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [open, setOpen])
-
-  // The chevron menu (plan + billing) is clinic-only — platform/patient have
-  // no plan to manage, so the block degrades to a static label there.
-  const hasMenu = isClinic
+  // Static identity block: the clinic name + plan + Demo pill. The old chevron
+  // dropdown (Clinic settings / Plan & billing) is gone — Settings is reached
+  // from the single "Settings" button in the nav, which opens the settings home.
   const initial = (orgName ?? 'D').trim().charAt(0).toUpperCase()
 
   return (
-    <div ref={ref} className="relative z-20 mb-4 px-0.5" data-testid="org-switcher">
-      <button
-        type="button"
-        onClick={() => hasMenu && setOpen(!open)}
-        aria-haspopup={hasMenu ? 'menu' : undefined}
-        aria-expanded={hasMenu ? open : undefined}
-        disabled={!hasMenu}
+    <div className="relative z-20 mb-4 px-0.5" data-testid="org-switcher">
+      <div
         title={orgName}
-        className={`group flex w-full items-center gap-2 rounded-lg py-1.5 text-left transition ${
+        className={`flex w-full items-center gap-2 rounded-lg py-1.5 ${
           rail ? 'lg:justify-center lg:px-0 px-2' : 'px-2'
-        } ${hasMenu ? 'hover:bg-ink-900/[0.04] cursor-pointer' : 'cursor-default'}`}
+        }`}
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300 text-xs font-bold">
           {initial}
@@ -420,37 +395,7 @@ function OrgSwitcher({
             )}
           </span>
         )}
-        {hasMenu && !rail && (
-          <svg className="ml-auto h-3.5 w-3.5 shrink-0 fill-current text-ink-400" viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M5.9 8.4 1.5 4l1-1L6 6.4 9.5 3l1 1z" />
-          </svg>
-        )}
-      </button>
-
-      {hasMenu && open && (
-        <div
-          role="menu"
-          className="absolute left-0 right-0 top-full z-30 mt-1 rounded-lg bg-surface-2 p-1 shadow-[var(--shadow-pop)]"
-        >
-          <Link
-            href="/settings/clinic"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="block rounded-md px-3 py-1.5 text-sm font-semibold text-ink-800 hover:bg-ink-900/[0.04]"
-          >
-            Clinic settings
-          </Link>
-          <div className="my-1 border-t border-hairline" />
-          <Link
-            href="/settings/billing"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="block rounded-md px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-ink-900/[0.04]"
-          >
-            Plan &amp; billing
-          </Link>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
