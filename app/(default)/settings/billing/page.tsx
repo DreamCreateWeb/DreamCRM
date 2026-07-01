@@ -25,14 +25,16 @@ export const dynamic = 'force-dynamic'
 export default async function BillingSettings({
   searchParams,
 }: {
-  searchParams: Promise<{ upgrade?: string }>
+  searchParams: Promise<{ upgrade?: string; interval?: string }>
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/settings/account')
 
   // `?upgrade=<module>` arrives via requirePlan's redirect (now folded into this
   // page) — show the "{module} is on a higher plan" banner above the grid.
-  const { upgrade } = await searchParams
+  // `?interval=annual|monthly` persists the plan-grid billing-period toggle
+  // across reloads (the panel writes it back on change).
+  const { upgrade, interval: intervalParam } = await searchParams
 
   // Subscription truth lives org-scoped on clinic_profile (written by the Stripe
   // webhook) + the live subscription. Invoices come from Stripe scoped to THIS
@@ -72,6 +74,7 @@ export default async function BillingSettings({
             planTier={ctx.planTier}
             subscriptionStatus={ctx.subscriptionStatus ?? summary?.status ?? null}
             interval={summary?.interval ?? null}
+            initialInterval={intervalParam === 'annual' || intervalParam === 'monthly' ? intervalParam : null}
             renewsAt={summary?.currentPeriodEnd ? summary.currentPeriodEnd.toISOString() : null}
             cancelAtPeriodEnd={summary?.cancelAtPeriodEnd ?? false}
             card={summary?.card ?? null}
@@ -79,6 +82,7 @@ export default async function BillingSettings({
             nextChargeCurrency={summary?.nextChargeCurrency ?? null}
             hasSubscription={!managedBilling}
             onTrial={ctx.onTrial ?? false}
+            trialEndsAt={ctx.trialEndsAt ? ctx.trialEndsAt.toISOString() : null}
             upgradeModuleLabel={upgrade ? getModuleLabel('clinic', upgrade) ?? null : null}
             invoices={invoices.map((inv) => ({
               id: inv.id,

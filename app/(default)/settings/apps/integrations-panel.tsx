@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { disconnectMailbox } from './integration-actions'
 import { type Tone } from '@/lib/ui/encodings'
@@ -8,12 +8,23 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { relativeTime } from '@/lib/utils'
 import { SettingsTabs } from '../settings-tabs'
 
 export interface IntegrationAccount {
   id: string
   label: string
   sub: string
+  /** Real per-mailbox sync health (email_account.sync_status):
+   *  pending | syncing | ready | error. Absent for non-Gmail rows. */
+  syncStatus?: string
+  /** email_account.sync_error — the last failure message, when status='error'. */
+  syncError?: string | null
+  /** email_account.last_sync_at (ISO) — powers the "synced {relative}" line.
+   *  null until the first successful sync. */
+  lastSyncAtIso?: string | null
+  /** Live unread count for this mailbox (derived, not stored). */
+  unreadCount?: number
 }
 
 export interface Integration {
@@ -26,8 +37,11 @@ export interface Integration {
   status:
     | { kind: 'connected'; detail?: string }
     | { kind: 'available'; detail?: string }
-    | { kind: 'partial'; detail?: string }
-    | { kind: 'misconfigured'; detail?: string }
+    // `managed` marks an integration wired through platform env-vars a clinic
+    // user can't touch — the panel then shows a calm "Configured by your Dream
+    // Create administrator" line instead of a dead env-var instruction.
+    | { kind: 'partial'; detail?: string; managed?: boolean }
+    | { kind: 'misconfigured'; detail?: string; managed?: boolean }
   /** Per-account list (Gmail accounts, etc.) */
   accounts?: IntegrationAccount[]
   /** Click-to-connect URL */
@@ -63,6 +77,27 @@ const STATUS_LABEL: Record<Integration['status']['kind'], string> = {
   misconfigured: 'Not configured',
 }
 
+/**
+ * Map a mailbox's REAL sync_status column onto a pill tone + label. `ready`
+ * is the healthy resting state (ok); a hard `error` is the one that needs
+ * attention (urgent); `syncing`/`pending` are in-flight (info). Teal is never
+ * a status, so we stay inside the semantic tones.
+ */
+function syncStatusPill(status: string | undefined): { tone: Tone; label: string } | null {
+  switch (status) {
+    case 'ready':
+      return { tone: 'ok', label: 'Active' }
+    case 'syncing':
+      return { tone: 'info', label: 'Syncing…' }
+    case 'pending':
+      return { tone: 'info', label: 'First sync pending' }
+    case 'error':
+      return { tone: 'urgent', label: 'Sync error' }
+    default:
+      return null
+  }
+}
+
 export default function IntegrationsPanel({ integrations, tenantType }: Props) {
   return (
     <div className="grow">
@@ -80,7 +115,7 @@ export default function IntegrationsPanel({ integrations, tenantType }: Props) {
                     <>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           {tenantType === 'platform'
-            ? 'External services that power DreamCRM behind the scenes. Most are configured via environment variables in the Vercel project.'
+            ? 'External services that power DreamCRM behind the scenes. Most are configured by your Dream Create administrator.'
             : tenantType === 'clinic'
               ? 'Services connected to your DreamCRM workspace.'
               : 'Services connected to your account.'}
@@ -112,42 +147,74 @@ export default function IntegrationsPanel({ integrations, tenantType }: Props) {
 }
 
 function IntegrationCard({ integration: i }: { integration: Integration }) {
+  const isConnected = i.status.kind === 'connected'
+  const hasAccounts = !!i.accounts && i.accounts.length > 0
+  // An "available" integration with a live connect path is an invitation, not
+  // a settled state — give it a teal-tinted etched surface so it reads clearly
+  // apart from connected/managed cards. (Teal = identity/selection accent.)
+  const invite = i.status.kind === 'available' && !!i.connectHref
+  const isManaged = 'managed' in i.status && !!i.status.managed
+
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl p-5 flex flex-col">
-      <div className="flex items-start gap-3 mb-2">
-        <div className={`w-10 h-10 rounded-lg shrink-0 flex items-center justify-center ${ACCENT_BG[i.accent]}`}>
+    <div
+      className={`v2-card flex flex-col p-5 ${
+        invite ? 'ring-1 ring-inset ring-teal-500/25 dark:ring-teal-400/20' : ''
+      }`}
+    >
+      <div className="mb-3 flex items-start gap-3">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${ACCENT_BG[i.accent]}`}>
           <IconFor icon={i.icon} />
         </div>
-        <div className="grow min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="min-w-0 grow">
+          <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">{i.name}</h3>
             <StatusPill tone={STATUS_TONE[i.status.kind]} label={STATUS_LABEL[i.status.kind]} />
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold mt-0.5">
+          <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {i.category}
           </p>
         </div>
       </div>
-      <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 leading-snug">{i.description}</p>
+
+      <p className="mb-3 text-sm leading-snug text-gray-600 dark:text-gray-300">{i.description}</p>
+
       {i.status.detail && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{i.status.detail}</p>
+        <p className="mb-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{i.status.detail}</p>
       )}
-      {i.accounts && i.accounts.length > 0 && (
+
+      {/* Env-var-configured integrations a clinic user can't act on: a calm,
+          neutral line instead of a dead "set X env var" instruction. No docs
+          URL exists in the codebase, so we don't invent one. */}
+      {isManaged && (
+        <p className="mb-3 flex items-center gap-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          <svg className="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 0h10.5a2.25 2.25 0 012.25 2.25v6a2.25 2.25 0 01-2.25 2.25H6.75a2.25 2.25 0 01-2.25-2.25v-6a2.25 2.25 0 012.25-2.25z" />
+          </svg>
+          Configured by your Dream Create administrator.
+        </p>
+      )}
+
+      {hasAccounts && (
         <ul className="mb-3 space-y-1.5">
-          {i.accounts.map((a) => (
+          {i.accounts!.map((a) => (
             <AccountRow key={a.id} integrationKey={i.key} account={a} />
           ))}
         </ul>
       )}
-      <div className="mt-auto flex items-center gap-2 pt-2">
-        {i.status.kind !== 'connected' && i.connectHref && (
+
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
+        {/* Primary Connect — the clear call to action on an unconnected,
+            connectable integration. When mailboxes already exist it steps
+            down to a secondary "Add another mailbox" so the connected state
+            doesn't read the same as an empty one. */}
+        {!isConnected && i.connectHref && !hasAccounts && (
           <ActionButton href={i.connectHref} variant="primary" size="sm">
             Connect
           </ActionButton>
         )}
-        {i.connectHref && i.accounts && i.accounts.length > 0 && (
+        {i.connectHref && hasAccounts && (
           <ActionButton href={i.connectHref} variant="secondary" size="sm">
-            Add another
+            {i.key === 'gmail' ? 'Add another mailbox' : 'Add another'}
           </ActionButton>
         )}
         {i.manageHref && (
@@ -188,11 +255,39 @@ function AccountRow({ integrationKey, account }: { integrationKey: string; accou
     })
   }
 
+  const pill = syncStatusPill(account.syncStatus)
+  // Only claim a "synced {time}" once there's a real last_sync_at timestamp.
+  const syncedLabel = account.lastSyncAtIso ? `Synced ${relativeTime(account.lastSyncAtIso)}` : null
+  const unread =
+    typeof account.unreadCount === 'number' && account.unreadCount > 0
+      ? `${account.unreadCount} unread`
+      : null
+
   return (
-    <li className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/40">
+    <li className="v2-well flex items-center gap-2 px-2.5 py-2">
       <div className="min-w-0 grow">
-        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{account.label}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{account.sub}</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-100">{account.label}</p>
+          {pill && <StatusPill tone={pill.tone} label={pill.label} title={account.syncError ?? undefined} />}
+        </div>
+        <p className="truncate text-xs text-gray-500 dark:text-gray-400">{account.sub}</p>
+        {/* Health line — every value here is real (last_sync_at + live unread).
+            When the mailbox errored, surface the actual sync_error message. */}
+        {account.syncStatus === 'error' && account.syncError ? (
+          <p className="mt-0.5 truncate text-xs text-rose-600 dark:text-rose-400" title={account.syncError}>
+            {account.syncError}
+          </p>
+        ) : (
+          (syncedLabel || unread) && (
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-gray-500 dark:text-gray-400">
+              {syncedLabel && (
+                <span className="tabular-nums font-mono-num">{syncedLabel}</span>
+              )}
+              {syncedLabel && unread && <span aria-hidden="true">·</span>}
+              {unread && <span className="tabular-nums font-mono-num">{unread}</span>}
+            </p>
+          )
+        )}
       </div>
       {integrationKey === 'gmail' && (
         <ActionButton
@@ -200,9 +295,9 @@ function AccountRow({ integrationKey, account }: { integrationKey: string; accou
           size="sm"
           onClick={handleDisconnect}
           disabled={pending}
-          className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+          className="shrink-0 self-start text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
         >
-          Disconnect
+          {pending ? 'Disconnecting…' : 'Disconnect'}
         </ActionButton>
       )}
     </li>

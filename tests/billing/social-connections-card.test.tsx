@@ -31,12 +31,14 @@ describe('SocialConnectionsCard (Billing summary)', () => {
   it('shows the current entitlement incl. Google Business + the total', () => {
     render(<SocialConnectionsCard {...props()} />)
     expect(screen.getByRole('heading', { name: /Social connections/i })).toBeTruthy()
-    expect(screen.getByText(/2 total including Google Business/i)).toBeTruthy()
+    // The total (2) is styled in its own font-mono-num span, so match the phrase
+    // that carries the "including Google Business" framing.
+    expect(screen.getByText(/total including Google Business/i)).toBeTruthy()
   })
 
   it('links to Integrations to manage the add-on (no competing buy/cancel buttons here)', () => {
     render(<SocialConnectionsCard {...props()} />)
-    const link = screen.getByRole('link', { name: /Manage channels .* in Integrations/i }) as HTMLAnchorElement
+    const link = screen.getByRole('link', { name: /Manage on Integrations/i }) as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('/integrations')
     // No competing add-on widget on the billing card anymore.
     expect(screen.queryByRole('button', { name: /Add for/i })).toBeNull()
@@ -65,11 +67,13 @@ describe('SocialConnectionsCard (Billing summary)', () => {
 
   it('shows "coming soon" copy when the Stripe prices are not configured', () => {
     render(<SocialConnectionsCard {...props({ addonConfigured: false })} />)
-    expect(screen.getByText(/coming soon/i)).toBeTruthy()
+    // "Coming soon" now shows on both the status pill and the nudge line.
+    expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThan(0)
   })
 
   it('shows the managed-billing message for a comped clinic', () => {
     render(<SocialConnectionsCard {...props({ managedBilling: true })} />)
-    expect(screen.getByText(/managed billing/i)).toBeTruthy()
+    // "Managed billing" shows on both the status pill and the nudge line.
+    expect(screen.getAllByText(/managed billing/i).length).toBeGreaterThan(0)
   })
 })

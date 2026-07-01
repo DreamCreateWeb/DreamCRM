@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState, useTransition } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { formatMoney, formatShortDate } from '@/lib/utils'
 import {
   cancelSubscriptionAction,
@@ -16,6 +16,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
+import { trialDaysLeft, trialUrgency, type TrialUrgency } from '@/lib/trial'
 
 /**
  * One subscription surface — the merge of the old Settings → Plan and
@@ -24,6 +25,27 @@ import { subscriptionStatusMeta } from '@/lib/billing-status'
  * what you have (+ when it renews) → change it (the plan grid) → past invoices.
  * `/settings/plans` redirects here.
  */
+
+/**
+ * Trial-countdown tone → design-system semantic tone. Escalates as the window
+ * closes: calm (violet, low pressure) → soon (amber = needs our action) →
+ * urgent/final (rose = act now). Mirrors `trialUrgency` in lib/trial.ts so the
+ * countdown here and the dashboard banner can't drift.
+ */
+const TRIAL_TONE: Record<TrialUrgency, 'special' | 'warn' | 'urgent'> = {
+  calm: 'special',
+  soon: 'warn',
+  urgent: 'urgent',
+  final: 'urgent',
+}
+
+/** Plain-language "N days left" label from the ceil'd days-remaining. */
+function trialCountdownLabel(daysLeft: number | null): string {
+  if (daysLeft == null) return ''
+  if (daysLeft <= 0) return 'Ends today'
+  if (daysLeft === 1) return '1 day left'
+  return `${daysLeft} days left`
+}
 
 interface OrgInvoice {
   id: string
@@ -38,7 +60,10 @@ interface OrgInvoice {
 interface Props {
   planTier: PlanId
   subscriptionStatus: string | null
+  /** The current subscription's billing period — anchors the "you're on the X plan" summary. */
   interval: BillingInterval | null
+  /** The plan-grid toggle default, read from `?interval=` so a reload keeps the choice. */
+  initialInterval: BillingInterval | null
   renewsAt: string | null
   cancelAtPeriodEnd: boolean
   /** Default card on file (brand + last4 + expiry), when one is set. */
@@ -50,6 +75,8 @@ interface Props {
   hasSubscription: boolean
   /** No-card free trial — full access, no PAID plan yet, so every plan is choosable. */
   onTrial: boolean
+  /** The trial's real end instant (ISO) from clinic_profile via the tenant ctx — drives the countdown. */
+  trialEndsAt: string | null
   /** When arriving via requirePlan's redirect, the gated module's label. */
   upgradeModuleLabel: string | null
   invoices: OrgInvoice[]
@@ -59,6 +86,7 @@ export default function SubscriptionPanel({
   planTier,
   subscriptionStatus,
   interval: currentInterval,
+  initialInterval,
   renewsAt,
   cancelAtPeriodEnd,
   card,
@@ -66,13 +94,32 @@ export default function SubscriptionPanel({
   nextChargeCurrency,
   hasSubscription,
   onTrial,
+  trialEndsAt,
   upgradeModuleLabel,
   invoices,
 }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const askConfirm = useConfirm()
-  const [interval, setInterval] = useState<BillingInterval>(currentInterval ?? 'monthly')
+  // The plan-grid toggle. Seeds from `?interval=` (a reload keeps the choice),
+  // then falls back to the current subscription's period, then monthly.
+  const [interval, setInterval] = useState<BillingInterval>(
+    initialInterval ?? currentInterval ?? 'monthly',
+  )
   const [pending, startTransition] = useTransition()
+
+  // Persist the toggle in the URL so a reload / back-forward keeps the choice
+  // (presentation-only — no Stripe call; the checkout still passes `interval`).
+  const setBillingInterval = useCallback(
+    (next: BillingInterval) => {
+      setInterval(next)
+      const params = new URLSearchParams(searchParams?.toString() ?? '')
+      params.set('interval', next)
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    },
+    [pathname, router, searchParams],
+  )
   const [pendingPlan, setPendingPlan] = useState<PlanId | null>(null)
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
   // Separate channel for the subscription-card actions (cancel / resume) so
@@ -84,6 +131,21 @@ export default function SubscriptionPanel({
   // A subscription that isn't active/trialing means a switch should go through
   // the portal (fix the card first), not start a fresh checkout.
   const billingBroken = status.severity === 'urgent' || status.severity === 'warn'
+
+  // Trial countdown — sourced from the REAL clinic_profile trial-end via ctx.
+  // `trialDaysLeft` is ceil + never-negative; `trialUrgency` escalates the tone
+  // as the window shrinks (calm → soon → urgent/final) so it reads warmer early
+  // and more insistent near the wall. Compute once on the client after mount so
+  // "days left" reflects the viewer's clock (a server-rendered day can be stale).
+  const trialEnd = onTrial && trialEndsAt ? new Date(trialEndsAt) : null
+  const [trialDays, setTrialDays] = useState<number | null>(() =>
+    trialEnd ? trialDaysLeft(trialEnd) : null,
+  )
+  useEffect(() => {
+    setTrialDays(trialEnd ? trialDaysLeft(trialEnd) : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trialEndsAt, onTrial])
+  const trialTone = TRIAL_TONE[trialUrgency(trialDays)]
   const summaryPrice = plan ? (currentInterval === 'annual' ? plan.annualPrice : plan.price) : null
   const priceLabel = summaryPrice != null ? `$${summaryPrice}/${currentInterval === 'annual' ? 'yr' : 'mo'}` : null
 
@@ -189,8 +251,27 @@ export default function SubscriptionPanel({
                   {priceLabel && <span className="tabular-nums"> · {priceLabel}</span>}.
                 </span>
               )}
-              {status.label && <StatusPill tone={status.tone} label={status.label} title={status.description} />}
+              {onTrial && trialDays != null ? (
+                <StatusPill
+                  tone={trialTone}
+                  title="Your free trial — choose a plan below before it ends to keep full access."
+                >
+                  <span className="font-mono-num tabular-nums">{trialCountdownLabel(trialDays)}</span>
+                  <span className="ml-1">in your trial</span>
+                </StatusPill>
+              ) : (
+                status.label && <StatusPill tone={status.tone} label={status.label} title={status.description} />
+              )}
             </div>
+            {onTrial && trialEnd && (
+              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Your trial ends on{' '}
+                <strong className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
+                  {formatShortDate(trialEnd)}
+                </strong>
+                .
+              </div>
+            )}
             {!onTrial && renewsAt && (
               <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {cancelAtPeriodEnd ? 'Access ends' : 'Renews'} on{' '}
@@ -268,7 +349,7 @@ export default function SubscriptionPanel({
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Monthly</span>
             <Toggle
               checked={interval === 'annual'}
-              onChange={(v) => setInterval(v ? 'annual' : 'monthly')}
+              onChange={(v) => setBillingInterval(v ? 'annual' : 'monthly')}
               srLabel="Pay annually"
             />
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
