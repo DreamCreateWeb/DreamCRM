@@ -57,7 +57,7 @@ describe('SettingsSidebar — user vs org surfaces', () => {
     render(<SettingsSidebar tenantType="clinic" />)
     const active = screen.getByRole('link', { name: 'Patient portal' })
     expect(active.getAttribute('aria-current')).toBe('page')
-    expect(screen.getByRole('link', { name: 'Reminders' }).getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Emails' }).getAttribute('aria-current')).toBeNull()
   })
 
   it('platform tenant gets the Platform surface on an org page', () => {

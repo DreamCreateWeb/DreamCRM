@@ -130,6 +130,8 @@ describe('cancelAppointment notifications', () => {
         rebookUrl: 'https://acme.dreamcreatestudio.com/book', // pro tier → online booking
       }),
       expect.objectContaining({ from: 'Acme Dental <acme-dental@dreamcreatestudio.com>' }),
+      // 4th arg = the resolved editable-email override ({} when the clinic hasn't customized it).
+      expect.anything(),
     )
   })
 

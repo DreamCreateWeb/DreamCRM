@@ -120,6 +120,19 @@ export const clinicProfile = pgTable('clinic_profile', {
   // send engine lives in lib/services/reminder-automation.ts.
   reminderSettings: jsonb('reminder_settings'),
 
+  // Clinic-editable copy for the automated patient emails (Settings →
+  // Automations → Emails): per-email subject + body-slot overrides, plus an
+  // enable flag for the auto-firing emails that don't already have one
+  // (booking confirmation, cancellation, contact-form ack). Shape:
+  // EmailAutomationsConfig in lib/types/email-automations.ts. Null = every
+  // email uses its built-in default copy; partial values merge over the
+  // registry defaults via resolveEmailAutomations(), so a new email or slot
+  // never needs a backfill. Reminder timing/on-off still lives in
+  // reminderSettings and review auto-send in clinic_review_config; this column
+  // is content-only for those. The render + send wiring lives in
+  // lib/services/email-automations.ts.
+  emailAutomations: jsonb('email_automations'),
+
   // Contact
   phone: text('phone'),
   email: text('email'),

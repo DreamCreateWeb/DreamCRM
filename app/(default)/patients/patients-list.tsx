@@ -256,6 +256,9 @@ export default function PatientsList({
         }
         actions={
           <div className="flex items-center gap-2">
+            <ActionButton variant="secondary" href="/settings/automations/emails?email=portal_invite">
+              Edit invite email
+            </ActionButton>
             {canManage && (
               <>
                 <ActionButton variant="ghost" onClick={() => setImportOpen(true)}>

@@ -905,6 +905,20 @@ const DEMO_PORTAL_SETTINGS = {
   },
 } as const
 
+// A couple of clinic-customized automated emails (Settings → Automations →
+// Emails) so the hub showcases the "Customized" state next to the defaults.
+// Only the overridden slots are stored — the rest fall back to the built-in
+// copy; resolveEmailAutomations merges these over the registry defaults on read.
+const DEMO_EMAIL_AUTOMATIONS = {
+  booking_confirmation: {
+    subject: "You're all set at {{clinicName}} 🦷",
+    body: "Hi {{firstName}}, we're looking forward to seeing you for your {{appointmentType}} visit. Here are the details:",
+  },
+  review_request: {
+    body: 'Thanks so much for coming in! If you have a spare minute, we would be grateful if you shared how your visit went — it genuinely helps other families find us.',
+  },
+} as const
+
 // Insurance-card photo pair + a concern photo for the demo's intake submission,
 // so the file-upload + insurance-card render paths showcase on the submission
 // viewer / patient timeline. Public Unsplash URLs (resolvable, non-PHI).
@@ -1679,6 +1693,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         cancellationPolicy: schema.clinicProfile.cancellationPolicy,
         timezone: schema.clinicProfile.timezone,
         portalSettings: schema.clinicProfile.portalSettings,
+        emailAutomations: schema.clinicProfile.emailAutomations,
         chairCount: schema.clinicProfile.chairCount,
         visitTypeSettings: schema.clinicProfile.visitTypeSettings,
         recallDefaultMonths: schema.clinicProfile.recallDefaultMonths,
@@ -1873,6 +1888,12 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // has any saved portal settings (hand-edited = clinic-owned).
     if (!profile?.portalSettings) {
       patch.portalSettings = DEMO_PORTAL_SETTINGS
+    }
+    // Automated-email copy backfill (Settings → Automations → Emails). Only
+    // seeds the demo overrides when null so a hand-edited demo stays untouched;
+    // partial blob merges over the registry defaults at read time.
+    if (!profile?.emailAutomations) {
+      patch.emailAutomations = DEMO_EMAIL_AUTOMATIONS
     }
     // Clinic-ops backfill (migration 0054 — Practice setup). Legacy demos
     // predate chair_count / visit_type_settings / recall_default_months. Each
@@ -2522,6 +2543,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     financingPartners: DEMO_FINANCING_PARTNERS,
     cancellationPolicy: DEMO_CANCELLATION_POLICY,
     portalSettings: DEMO_PORTAL_SETTINGS,
+    emailAutomations: DEMO_EMAIL_AUTOMATIONS,
     chairCount: DEMO_CHAIR_COUNT,
     visitTypeSettings: DEMO_VISIT_TYPES,
     recallDefaultMonths: DEMO_RECALL_DEFAULT_MONTHS,

@@ -919,7 +919,20 @@ async function sendCancellationEmailToPatient(
 
   const { getClinicSenderIdentity } = await import('@/lib/services/clinic-sender')
   const { sendCancellationConfirmation } = await import('@/lib/email')
+  const { formatClinicDateTime } = await import('@/lib/format-datetime')
+  const { renderAutomatedEmail } = await import('@/lib/services/email-automations')
   const sender = await getClinicSenderIdentity(organizationId)
+  // Editable copy (Settings → Automations → Emails). Skip the send when the
+  // clinic has turned the cancellation email off.
+  const rendered = await renderAutomatedEmail(organizationId, 'cancellation', {
+    firstName: opts.patientName.split(' ')[0],
+    patientName: opts.patientName,
+    clinicName: sender.name,
+    clinicPhone: profile?.phone ?? '',
+    appointmentType: opts.appointmentType.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()),
+    appointmentTime: formatClinicDateTime(opts.startTime, sender.timeZone),
+  })
+  if (!rendered.enabled) return
   await sendCancellationConfirmation(
     opts.to,
     {
@@ -932,6 +945,7 @@ async function sendCancellationEmailToPatient(
       timeZone: sender.timeZone,
     },
     sender,
+    rendered.override,
   )
 }
 

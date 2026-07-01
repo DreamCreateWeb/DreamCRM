@@ -139,11 +139,16 @@ export default async function ReviewsPage() {
           />
         }
         actions={
-          stats.completed30d > 0 ? (
-            <ActionButton variant="primary" breath href="/reviews/received">
-              Browse received reviews
+          <div className="flex items-center gap-2">
+            <ActionButton variant="secondary" size="sm" href="/settings/automations/emails?email=review_request">
+              Edit request email
             </ActionButton>
-          ) : undefined
+            {stats.completed30d > 0 && (
+              <ActionButton variant="primary" breath href="/reviews/received">
+                Browse received reviews
+              </ActionButton>
+            )}
+          </div>
         }
       />
 

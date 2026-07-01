@@ -13,6 +13,7 @@ const KNOWN_PAGES = new Set([
   '/settings/practice',
   '/settings/portal',
   '/settings/reminders',
+  '/settings/automations/emails',
   '/settings/message-templates',
   '/settings/locations',
   '/settings/apps',

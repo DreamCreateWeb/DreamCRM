@@ -60,11 +60,16 @@ export default async function IntakeFormsListPage() {
         title="Intake forms"
         subtitle="Digital forms patients fill out before their visit. Sent automatically with booking confirmations, or share the link directly."
         actions={
-          <form action={createBlankFormAction}>
-            <ActionButton type="submit" variant="primary" size="sm" breath>
-              + New Form
+          <div className="flex items-center gap-2">
+            <ActionButton variant="secondary" size="sm" href="/settings/automations/emails?email=intake_request">
+              Edit intake email
             </ActionButton>
-          </form>
+            <form action={createBlankFormAction}>
+              <ActionButton type="submit" variant="primary" size="sm" breath>
+                + New Form
+              </ActionButton>
+            </form>
+          </div>
         }
       />
 

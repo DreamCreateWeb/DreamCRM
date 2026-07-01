@@ -7,7 +7,9 @@ import { rateLimitPublicAction } from '@/lib/services/rate-limit'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
+import { formatClinicDateTime } from '@/lib/format-datetime'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { visitTypeDuration } from '@/lib/types/visit-types'
@@ -132,15 +134,25 @@ export async function submitContactRequest(formData: FormData) {
   if (email) {
     try {
       const sender = await getClinicSenderIdentity(orgId)
-      await sendNotificationEmail(
-        {
-          to: email,
-          name,
-          title: `Thanks for reaching out to ${sender.name}`,
-          body: `Hi ${name.split(' ')[0]}, we got your message and we'll reach out within one business day. If it's urgent${profile?.phone ? ` you can call us at ${profile.phone}` : ''} — otherwise, sit tight and we'll be in touch soon.`,
-        },
-        sender,
-      )
+      // Editable copy (Settings → Automations → Emails); the clinic can turn the
+      // auto-reply off. {{urgentLine}} keeps the current conditional phone clause.
+      const rendered = await renderAutomatedEmail(orgId, 'contact_ack', {
+        firstName: name.split(' ')[0],
+        clinicName: sender.name,
+        clinicPhone: profile?.phone ?? '',
+        urgentLine: profile?.phone ? ` you can call us at ${profile.phone}` : '',
+      })
+      if (rendered.enabled) {
+        await sendNotificationEmail(
+          {
+            to: email,
+            name,
+            title: rendered.full.subject,
+            body: rendered.full.body,
+          },
+          sender,
+        )
+      }
     } catch (err) {
       console.warn('[clinic-site] contact auto-ack email failed', err)
     }
@@ -538,27 +550,43 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
 
   const sender = await getClinicSenderIdentity(orgId)
 
+  let emailSent = false
   if (email) {
-    sendBookingConfirmationEmail(
-      email,
-      {
-        patientName: `${firstName} ${lastName}`,
-        clinicName: sender.name,
-        clinicPhone: profile?.phone ?? null,
-        startTime,
-        appointmentType,
-        intakeFormUrl,
-        timeZone: sender.timeZone,
-      },
-      sender,
-    ).catch((err) => {
-      console.error('[clinic-site] booking email failed', err)
+    // Editable copy (Settings → Automations → Emails). When the clinic has
+    // turned the confirmation email off, we don't send it — and the post-booking
+    // screen won't claim we did.
+    const rendered = await renderAutomatedEmail(orgId, 'booking_confirmation', {
+      firstName,
+      patientName: `${firstName} ${lastName}`,
+      clinicName: sender.name,
+      clinicPhone: profile?.phone ?? '',
+      appointmentType: appointmentType.replace('_', ' ').replace(/^\w/, (c) => c.toUpperCase()),
+      appointmentTime: formatClinicDateTime(startTime, sender.timeZone),
     })
-    // Mirror the booking confirmation into OD's CommLog (best-effort).
-    queueCommLogWriteBack(orgId, patientId, {
-      note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
-      mode: 'Email',
-    }).catch(() => {})
+    if (rendered.enabled) {
+      emailSent = true
+      sendBookingConfirmationEmail(
+        email,
+        {
+          patientName: `${firstName} ${lastName}`,
+          clinicName: sender.name,
+          clinicPhone: profile?.phone ?? null,
+          startTime,
+          appointmentType,
+          intakeFormUrl,
+          timeZone: sender.timeZone,
+        },
+        sender,
+        rendered.override,
+      ).catch((err) => {
+        console.error('[clinic-site] booking email failed', err)
+      })
+      // Mirror the booking confirmation into OD's CommLog (best-effort).
+      queueCommLogWriteBack(orgId, patientId, {
+        note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+        mode: 'Email',
+      }).catch(() => {})
+    }
   }
 
   // One-line address for display + the .ics LOCATION, and a directions deep
@@ -583,6 +611,6 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
     addressText,
     mapsUrl,
     intakeFormUrl,
-    emailSent: Boolean(email),
+    emailSent,
   }
 }

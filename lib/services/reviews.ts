@@ -3,6 +3,8 @@ import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } f
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { deliver } from '@/lib/email'
+import { renderAutomatedEmail } from '@/lib/services/email-automations'
+import type { EmailSlots } from '@/lib/types/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { getGoogleReviewStats, listFeaturableGoogleReviews } from '@/lib/services/google-reviews'
@@ -492,12 +494,18 @@ export async function createAndSendReviewRequest(input: {
   const clinicName = sender.name || orgRow?.name || 'your clinic'
   const reviewUrl = buildReviewRedirectUrl(token)
 
+  // Editable copy (Settings → Automations → Emails). Auto-send on/off + timing
+  // live in clinic_review_config; this is content only, so no enable check here.
+  const rendered = await renderAutomatedEmail(input.organizationId, 'review_request', {
+    firstName: patient.firstName,
+    clinicName,
+  })
+
   try {
     await sendReviewRequestEmail({
       to: patient.email,
-      patientFirstName: patient.firstName,
-      clinicName,
       reviewUrl,
+      content: rendered.full,
       from: sender.from,
       replyTo: sender.replyTo,
       gmail: sender.gmail,
@@ -533,25 +541,28 @@ function buildReviewRedirectUrl(token: string): string {
 
 async function sendReviewRequestEmail(opts: {
   to: string
-  patientFirstName: string
-  clinicName: string
   reviewUrl: string
+  /** Clinic-editable, token-filled slots (Settings → Automations → Emails). */
+  content: EmailSlots
   /** Per-clinic From header + Reply-To so the ask comes FROM the clinic. */
   from?: string
   replyTo?: string | null
   /** Tier 2: send via the clinic's connected Gmail account AS their address. */
   gmail?: { accountId: string; from: string }
 }): Promise<void> {
-  const subject = `Quick favor from ${opts.clinicName}`
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Quick favor from ${escapeHtml(opts.clinicName)}</title></head>
+  const subject = opts.content.subject
+  const headingHtml = opts.content.heading != null ? slotToHtml(opts.content.heading) : ''
+  const bodyHtml = slotToHtml(opts.content.body)
+  const closingHtml = opts.content.closing != null ? slotToHtml(opts.content.closing) : ''
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(subject)}</title></head>
 <body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c1917">
   <div style="max-width:560px;margin:0 auto;background:#fff;padding:32px 40px">
-    <p style="font-size:15px;line-height:1.55;margin:0 0 16px">Hi ${escapeHtml(opts.patientFirstName)},</p>
-    <p style="font-size:15px;line-height:1.55;margin:0 0 16px">Thanks for coming in. Quick favor — would you take a minute to share how it went? It really helps other people find us, and your honest take (good, bad, or in-between) is what we want.</p>
+    <p style="font-size:15px;line-height:1.55;margin:0 0 16px">${headingHtml}</p>
+    <p style="font-size:15px;line-height:1.55;margin:0 0 16px">${bodyHtml}</p>
     <p style="margin:24px 0">
       <a href="${opts.reviewUrl}" style="display:inline-block;padding:12px 24px;background:#1c1917;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Leave a review</a>
     </p>
-    <p style="font-size:13px;line-height:1.55;color:#57534e;margin:24px 0 0">Thank you,<br/>The team at ${escapeHtml(opts.clinicName)}</p>
+    <p style="font-size:13px;line-height:1.55;color:#57534e;margin:24px 0 0">${closingHtml}</p>
   </div>
 </body></html>`
 
@@ -568,6 +579,12 @@ async function sendReviewRequestEmail(opts: {
     subject,
     html,
   })
+}
+
+/** Escape + honour clinic line breaks — the trust boundary for editable review
+ *  copy (mirrors slotToHtml in lib/email.ts). */
+function slotToHtml(text: string): string {
+  return escapeHtml(text).replace(/\r?\n/g, '<br>')
 }
 
 function escapeHtml(s: string): string {

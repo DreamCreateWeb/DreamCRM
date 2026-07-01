@@ -63,6 +63,9 @@ const calendarIcon = (
 const chatIcon = (
   <path d="M2 2a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2v2.5a.5.5 0 0 0 .8.4L8.7 13H14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2Zm2 4h8a1 1 0 1 1 0 2H4a1 1 0 0 1 0-2Zm0 3h5a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2Z" />
 )
+const mailIcon = (
+  <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2.5-.2 5.5 3.6 5.5-3.6H2.5ZM14 5.4l-5.5 3.6a1 1 0 0 1-1 0L2 5.4V12h12V5.4Z" />
+)
 
 // ── The two settings SURFACES ───────────────────────────────────────────
 //
@@ -107,8 +110,13 @@ function clinicSections(): NavSection[] {
       items: [
         { href: '/settings/practice', label: 'Practice setup', icon: calendarIcon },
         { href: '/settings/portal', label: 'Patient portal', icon: heartIcon },
-        { href: '/settings/reminders', label: 'Reminders', icon: bellIcon },
         { href: '/settings/message-templates', label: 'Message templates', icon: chatIcon },
+      ],
+    },
+    {
+      title: 'Automations',
+      items: [
+        { href: '/settings/automations/emails', label: 'Emails', icon: mailIcon },
       ],
     },
     {

@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { sendIntakeRequestEmail } from '@/lib/email'
+import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getDefaultFormTemplate, getFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
@@ -72,6 +73,12 @@ export async function sendIntakeRequestToPatient(
   const intakeFormUrl = `${base}/intake/${form.slug}`
 
   const sender = await getClinicSenderIdentity(organizationId)
+  // Editable copy (Settings → Automations → Emails). On-demand (staff-triggered)
+  // + reused by the automatic forms reminder, so there's no on/off here.
+  const rendered = await renderAutomatedEmail(organizationId, 'intake_request', {
+    firstName: patient.firstName,
+    clinicName: sender.name,
+  })
   await sendIntakeRequestEmail(
     patient.email,
     {
@@ -80,6 +87,7 @@ export async function sendIntakeRequestToPatient(
       intakeFormUrl,
     },
     sender,
+    rendered.override,
   )
 
   await queueCommLogWriteBack(organizationId, patient.id, {

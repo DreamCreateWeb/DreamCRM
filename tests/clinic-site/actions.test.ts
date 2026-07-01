@@ -390,6 +390,8 @@ describe('submitBookingRequest', () => {
         appointmentType: 'cleaning',
       }),
       expect.objectContaining({ from: 'Acme Dental <acme-dental@dreamcreatestudio.com>' }),
+      // 4th arg = the resolved editable-email override ({} when uncustomized).
+      expect.anything(),
     )
   })
 

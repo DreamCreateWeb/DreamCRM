@@ -5,6 +5,8 @@ import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { sendBookingConfirmationEmail } from '@/lib/email'
+import { formatClinicDateTime } from '@/lib/format-datetime'
+import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getBookingIntakeForm } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
@@ -78,6 +80,17 @@ export async function sendBookingConfirmation(opts: {
     }
 
     const sender = await getClinicSenderIdentity(opts.organizationId)
+    // Resolve the clinic's editable copy (Settings → Automations → Emails). When
+    // they've turned this email off, skip the send + the commlog mirror entirely.
+    const rendered = await renderAutomatedEmail(opts.organizationId, 'booking_confirmation', {
+      firstName: p.firstName,
+      patientName: `${p.firstName} ${p.lastName}`.trim(),
+      clinicName: sender.name,
+      clinicPhone: profile?.phone ?? '',
+      appointmentType: opts.appointmentType.replace('_', ' ').replace(/^\w/, (c) => c.toUpperCase()),
+      appointmentTime: formatClinicDateTime(opts.startTime, sender.timeZone),
+    })
+    if (!rendered.enabled) return
     await sendBookingConfirmationEmail(
       p.email,
       {
@@ -90,6 +103,7 @@ export async function sendBookingConfirmation(opts: {
         timeZone: sender.timeZone,
       },
       sender,
+      rendered.override,
     )
     await queueCommLogWriteBack(opts.organizationId, opts.patientId, {
       note: `Booking confirmation sent for ${opts.appointmentType.replace(/_/g, ' ')} on ${opts.startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,

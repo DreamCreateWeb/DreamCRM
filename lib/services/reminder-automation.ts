@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
+import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getAppointmentDetail, logReminderSent, type AppointmentDetail } from '@/lib/services/appointments'
@@ -82,12 +83,22 @@ export async function sendReminderEmail(
     const dateStr = detail.startTime.toLocaleDateString('en-US', {
       weekday: 'long', month: 'short', day: 'numeric', timeZone: sender.timeZone,
     })
+    // Editable copy (Settings → Automations → Emails). The reminder's on/off +
+    // timing live in reminder_settings (the cron gates on them); a manual
+    // "Send reminder" always sends, so there's no enable check here.
+    const rendered = await renderAutomatedEmail(organizationId, 'appointment_reminder', {
+      firstName,
+      clinicName: sender.name,
+      appointmentType: typeLabel,
+      appointmentDate: dateStr,
+      appointmentTime: startStr,
+    })
     await sendNotificationEmail(
       {
         to: detail.patient.email,
         name: detail.patient.fullName,
-        title: `Reminder: your ${typeLabel} on ${dateStr}`,
-        body: `Hi ${firstName} — just a quick reminder of your ${typeLabel} appointment at ${sender.name} on ${startStr}. Reply CONFIRM or call us back to confirm. Thanks!`,
+        title: rendered.full.subject,
+        body: rendered.full.body,
       },
       sender,
     )

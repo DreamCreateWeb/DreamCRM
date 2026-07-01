@@ -141,11 +141,22 @@ export async function maybeSendPortalInviteForMagicLink(rawEmail: string): Promi
     const clinicName = profile?.displayName || org?.name || 'Your dental office'
 
     const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
-    await sendPatientPortalInviteEmail(email, {
+    // Editable copy (Settings → Automations → Emails); Tier-1 sender applied by deliver().
+    const { renderAutomatedEmail } = await import('@/lib/services/email-automations')
+    const rendered = await renderAutomatedEmail(pat.organizationId, 'portal_invite', {
+      firstName: pat.firstName,
       clinicName,
-      patientFirstName: pat.firstName,
-      inviteUrl: `${base}/accept-invite?token=${inviteId}`,
     })
+    await sendPatientPortalInviteEmail(
+      email,
+      {
+        clinicName,
+        patientFirstName: pat.firstName,
+        inviteUrl: `${base}/accept-invite?token=${inviteId}`,
+      },
+      undefined,
+      rendered.override,
+    )
     return true
   } catch (err) {
     console.warn('[auth] maybeSendPortalInviteForMagicLink failed', err)

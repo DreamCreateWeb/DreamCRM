@@ -212,11 +212,16 @@ export default function LeadsView({
           />
         }
         actions={
-          counts.total > 0 ? (
-            <ActionButton variant="ghost" href={exportHref} target="_blank">
-              Export CSV
+          <div className="flex items-center gap-2">
+            <ActionButton variant="secondary" href="/settings/automations/emails?email=contact_ack">
+              Edit auto-reply email
             </ActionButton>
-          ) : undefined
+            {counts.total > 0 && (
+              <ActionButton variant="ghost" href={exportHref} target="_blank">
+                Export CSV
+              </ActionButton>
+            )}
+          </div>
         }
       />
 

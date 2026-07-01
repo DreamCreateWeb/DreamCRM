@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import type { ClinicSender } from './email-identity'
+import type { EmailSlots } from './types/email-automations'
 
 // Sender identity for all transactional + marketing email. Override with the
 // EMAIL_FROM env var (e.g. "Dream Create <hello@dreamcreatestudio.com>") once
@@ -306,27 +307,34 @@ export async function sendPatientPortalInviteEmail(
   to: string,
   data: { clinicName: string; patientFirstName: string; inviteUrl: string },
   sender?: ClinicSender,
+  content?: Partial<EmailSlots>,
 ) {
+  const subject = content?.subject ?? `${data.clinicName} — set up your patient portal`
+  const headingHtml = content?.heading != null ? slotToHtml(content.heading) : `Hi ${escapeHtml(data.patientFirstName)},`
+  const bodyHtml =
+    content?.body != null
+      ? slotToHtml(content.body)
+      : `${escapeHtml(data.clinicName)} set up a patient portal for you —
+          where you can see your upcoming appointments, book a visit, message the office,
+          and fill out forms ahead of time.`
+  const closingHtml =
+    content?.closing != null
+      ? slotToHtml(content.closing)
+      : "Weren't expecting this? You can ignore this email."
   await deliver({
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
-    subject: `${data.clinicName} — set up your patient portal`,
+    subject,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
-        <h2 style="margin:0 0 16px;font-size:20px">Hi ${escapeHtml(data.patientFirstName)},</h2>
-        <p style="margin:0 0 20px;line-height:1.55">
-          ${escapeHtml(data.clinicName)} set up a patient portal for you —
-          where you can see your upcoming appointments, book a visit, message the office,
-          and fill out forms ahead of time.
-        </p>
+        <h2 style="margin:0 0 16px;font-size:20px">${headingHtml}</h2>
+        <p style="margin:0 0 20px;line-height:1.55">${bodyHtml}</p>
         <a href="${data.inviteUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
           Set up my portal
         </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">
-          Weren't expecting this? You can ignore this email.
-        </p>
+        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">${closingHtml}</p>
       </div>
     `,
   })
@@ -378,7 +386,7 @@ export interface BookingConfirmationData {
   timeZone?: string
 }
 
-export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData, sender?: ClinicSender) {
+export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData, sender?: ClinicSender, content?: Partial<EmailSlots>) {
   const typeLabel = data.appointmentType.replace('_', ' ').replace(/^\w/, c => c.toUpperCase())
   const timeStr = data.startTime.toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -400,27 +408,33 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
           </a>
         </div>`
     : ''
+  const subject = content?.subject ?? `Appointment confirmed at ${data.clinicName}`
+  const headingHtml = content?.heading != null ? slotToHtml(content.heading) : 'Your appointment is set'
+  const bodyHtml =
+    content?.body != null
+      ? slotToHtml(content.body)
+      : `Hi ${data.patientName}, your <strong>${typeLabel}</strong> visit at
+          <strong>${data.clinicName}</strong> is booked.`
+  const closingHtml =
+    content?.closing != null
+      ? slotToHtml(content.closing)
+      : "We'll be in touch to confirm. Need to change your time? Just give us a call."
   await deliver({
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
-    subject: `Appointment confirmed at ${data.clinicName}`,
+    subject,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <h2 style="margin:0 0 16px;font-size:20px;color:#111">Your appointment is set</h2>
-        <p style="margin:0 0 24px;color:#444;line-height:1.5">
-          Hi ${data.patientName}, your <strong>${typeLabel}</strong> visit at
-          <strong>${data.clinicName}</strong> is booked.
-        </p>
+        <h2 style="margin:0 0 16px;font-size:20px;color:#111">${headingHtml}</h2>
+        <p style="margin:0 0 24px;color:#444;line-height:1.5">${bodyHtml}</p>
         <div style="padding:16px 20px;background:#f9fafb;border-radius:8px;margin-bottom:24px">
           <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
           <p style="margin:0;font-size:14px;color:#555">${data.clinicName}${data.clinicPhone ? ` · ${data.clinicPhone}` : ''}</p>
         </div>
         ${intakeBlock}
-        <p style="margin:0;font-size:13px;color:#888">
-          We'll be in touch to confirm. Need to change your time? Just give us a call.
-        </p>
+        <p style="margin:0;font-size:13px;color:#888">${closingHtml}</p>
       </div>
     `,
   })
@@ -453,6 +467,7 @@ export async function sendCancellationConfirmation(
   to: string,
   data: CancellationConfirmationData,
   sender?: ClinicSender,
+  content?: Partial<EmailSlots>,
 ) {
   const typeLabel = data.appointmentType.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
   const timeStr = data.startTime.toLocaleString('en-US', {
@@ -472,20 +487,24 @@ export async function sendCancellationConfirmation(
         <p style="margin:0;font-size:13px;color:#6b635a;line-height:1.55">
           Whenever you're ready to rebook, just ${data.clinicPhone ? `give us a call at ${escapeHtml(data.clinicPhone)}` : 'reach out'} — we'd love to see you.
         </p>`
+  const subject = content?.subject ?? `Your appointment at ${data.clinicName} was cancelled`
+  const headingHtml = content?.heading != null ? slotToHtml(content.heading) : 'Appointment cancelled'
+  const bodyHtml =
+    content?.body != null
+      ? slotToHtml(content.body)
+      : `Hi ${escapeHtml(data.patientName)}, this confirms your <strong>${escapeHtml(typeLabel)}</strong>
+          at <strong>${escapeHtml(data.clinicName)}</strong> has been cancelled. No problem at all —
+          life happens.`
   await deliver({
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
-    subject: `Your appointment at ${data.clinicName} was cancelled`,
+    subject,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
-        <h2 style="margin:0 0 16px;font-size:20px">Appointment cancelled</h2>
-        <p style="margin:0 0 20px;line-height:1.55">
-          Hi ${escapeHtml(data.patientName)}, this confirms your <strong>${escapeHtml(typeLabel)}</strong>
-          at <strong>${escapeHtml(data.clinicName)}</strong> has been cancelled. No problem at all —
-          life happens.
-        </p>
+        <h2 style="margin:0 0 16px;font-size:20px">${headingHtml}</h2>
+        <p style="margin:0 0 20px;line-height:1.55">${bodyHtml}</p>
         <div style="padding:16px 20px;background:#f7f4ef;border-radius:8px;margin-bottom:24px">
           <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#6b635a;text-decoration:line-through">${timeStr}</p>
           <p style="margin:0;font-size:13px;color:#857c70">${escapeHtml(data.clinicName)}${data.clinicPhone ? ` · ${escapeHtml(data.clinicPhone)}` : ''}</p>
@@ -507,27 +526,33 @@ export interface IntakeRequestEmailData {
  * link to the public intake form; the form's submission lands as a
  * `form_submission` row attached to the patient (matched by email).
  */
-export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmailData, sender?: ClinicSender) {
+export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmailData, sender?: ClinicSender, content?: Partial<EmailSlots>) {
+  const subject = content?.subject ?? `${data.clinicName} — quick intake form before your visit`
+  const headingHtml = content?.heading != null ? slotToHtml(content.heading) : `Hi ${escapeHtml(data.patientFirstName)},`
+  const bodyHtml =
+    content?.body != null
+      ? slotToHtml(content.body)
+      : `Before your visit at ${escapeHtml(data.clinicName)}, please take a few minutes
+          to fill out our intake form. It saves time at the front desk and helps us
+          take better care of you.`
+  const closingHtml =
+    content?.closing != null
+      ? slotToHtml(content.closing)
+      : 'Have questions? Just reply to this email — it goes straight to our front desk.'
   await deliver({
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
-    subject: `${data.clinicName} — quick intake form before your visit`,
+    subject,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
-        <h2 style="margin:0 0 16px;font-size:20px">Hi ${escapeHtml(data.patientFirstName)},</h2>
-        <p style="margin:0 0 16px;line-height:1.55">
-          Before your visit at ${escapeHtml(data.clinicName)}, please take a few minutes
-          to fill out our intake form. It saves time at the front desk and helps us
-          take better care of you.
-        </p>
+        <h2 style="margin:0 0 16px;font-size:20px">${headingHtml}</h2>
+        <p style="margin:0 0 16px;line-height:1.55">${bodyHtml}</p>
         <a href="${data.intakeFormUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
           Fill out intake form
         </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">
-          Have questions? Just reply to this email — it goes straight to our front desk.
-        </p>
+        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">${closingHtml}</p>
       </div>
     `,
   })
@@ -761,4 +786,14 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/**
+ * Turn a clinic-authored email slot (plain text with `{{tokens}}` already
+ * substituted by renderAutomatedEmail) into safe inline HTML: escape it, then
+ * honour the clinic's line breaks. This is the trust boundary for every
+ * clinic-editable email body — the raw text is never injected unescaped.
+ */
+function slotToHtml(text: string): string {
+  return escapeHtml(text).replace(/\r?\n/g, '<br>')
 }

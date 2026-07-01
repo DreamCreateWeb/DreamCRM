@@ -142,9 +142,14 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
 
   // ─── Other clinic pages ──────────────────────────────────────────────
   {
+    surface: 'clinic', href: '/settings/automations/emails', page: 'Automated emails',
+    label: 'Automated patient emails',
+    keywords: ['emails', 'automated', 'automations', 'confirmation email', 'cancellation email', 'intake email', 'portal invite email', 'review request email', 'auto-reply', 'email wording', 'edit email', 'email template', 'appointment confirmation'],
+  },
+  {
     surface: 'clinic', href: '/settings/reminders', page: 'Reminders',
     label: 'Appointment reminders',
-    keywords: ['reminders', 'automatic', 'text reminder', 'email reminder', 'remind patients'],
+    keywords: ['reminders', 'automatic', 'text reminder', 'email reminder', 'remind patients', 'automations', 'hours before'],
   },
   {
     surface: 'clinic', href: '/settings/message-templates', page: 'Message templates',

@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import { db, schema } from '@/lib/db'
 import { sendPatientPortalInviteEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { requireTenant } from '@/lib/auth/context'
 import {
   createPatient,
@@ -813,6 +814,11 @@ async function invitePatientToPortalCore({
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
   try {
     const sender = await getClinicSenderIdentity(organizationId)
+    // Editable copy (Settings → Automations → Emails).
+    const rendered = await renderAutomatedEmail(organizationId, 'portal_invite', {
+      firstName: p.firstName,
+      clinicName: sender.name,
+    })
     await sendPatientPortalInviteEmail(
       email,
       {
@@ -821,6 +827,7 @@ async function invitePatientToPortalCore({
         inviteUrl: `${base}/accept-invite?token=${id}`,
       },
       sender,
+      rendered.override,
     )
   } catch {
     return { status: 'error', error: 'The invite couldn’t be emailed — please try again.' }
