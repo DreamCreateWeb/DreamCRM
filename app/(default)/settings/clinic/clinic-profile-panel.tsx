@@ -11,15 +11,19 @@ import type {
   ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
 import { DEFAULT_PAYMENT_METHODS } from '@/lib/types/clinic-content'
-import { US_TIMEZONES } from '@/lib/clinic-timezone'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
+import { TagListEditor } from '@/components/ui/editor-kit'
 import ServicesLibraryPicker from './services-library-picker'
 import StaffEditor from './staff-editor'
 import StatsEditor from './stats-editor'
 import OfficePhotosEditor from './office-photos-editor'
 import FinancingPartnersEditor from './financing-partners-editor'
+import BrandColorField from './brand-color-field'
+import HoursGrid from './hours-grid'
+import TimezonePicker from './timezone-picker'
+import DifferenceVideoField from './difference-video-field'
 
 interface Props {
   profile: ClinicProfile | null
@@ -28,18 +32,6 @@ interface Props {
   library: ServiceLibraryEntryWithStatus[]
   gmailAccounts: Array<{ id: string; emailAddress: string; displayName: string | null }>
 }
-
-const DAYS = [
-  { id: 'mon', label: 'Monday' },
-  { id: 'tue', label: 'Tuesday' },
-  { id: 'wed', label: 'Wednesday' },
-  { id: 'thu', label: 'Thursday' },
-  { id: 'fri', label: 'Friday' },
-  { id: 'sat', label: 'Saturday' },
-  { id: 'sun', label: 'Sunday' },
-] as const
-
-interface HoursEntry { open?: string | null; close?: string | null; closed?: boolean }
 
 const SUB_DESC = 'text-xs text-gray-500 dark:text-gray-400 mb-3'
 
@@ -75,7 +67,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const initialHours = (profile?.hours ?? {}) as Record<string, HoursEntry>
+  const initialHours = (profile?.hours ?? {}) as Record<
+    string,
+    { open?: string | null; close?: string | null; closed?: boolean }
+  >
   const initialServices = (profile?.services ?? null) as ClinicService[] | null
   const initialStaff = (profile?.staff ?? null) as ClinicStaff[] | null
   const initialStats = (profile?.stats ?? null) as ClinicStat[] | null
@@ -267,55 +262,17 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
 
   const hours = (
     <div className="v2-card p-5">
-      <div className="mb-4 max-w-xs">
-        <label className="block text-sm font-medium mb-1" htmlFor="timezone">Timezone</label>
-        <select
-          id="timezone"
+      <div className="mb-5 max-w-sm">
+        <span className="block text-sm font-medium mb-1">Timezone</span>
+        <TimezonePicker
           name="timezone"
-          className="form-select w-full"
           defaultValue={profile?.timezone ?? 'America/New_York'}
-        >
-          {US_TIMEZONES.map((tz) => (
-            <option key={tz.id} value={tz.id}>{tz.label}</option>
-          ))}
-        </select>
+        />
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          The hours below + appointment times in patient emails are shown in this timezone.
+          The hours below and appointment times in patient emails are shown in this timezone.
         </p>
       </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">24-hour format (HH:MM). Leave blank to omit a day.</p>
-      <div className="space-y-2">
-        {DAYS.map(({ id, label }) => {
-          const day = initialHours[id]
-          return (
-            <div key={id} className="flex items-center gap-3 py-1">
-              <label className="w-28 text-sm font-medium text-gray-700 dark:text-gray-200">{label}</label>
-              <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                <input
-                  type="checkbox"
-                  className="form-checkbox"
-                  name={`hours[${id}].closed`}
-                  defaultChecked={!!day?.closed}
-                />
-                Closed
-              </label>
-              <input
-                name={`hours[${id}].open`}
-                type="time"
-                defaultValue={day?.closed ? '' : day?.open ?? ''}
-                className="form-input w-32"
-              />
-              <span className="text-xs text-gray-400">to</span>
-              <input
-                name={`hours[${id}].close`}
-                type="time"
-                defaultValue={day?.closed ? '' : day?.close ?? ''}
-                className="form-input w-32"
-              />
-            </div>
-          )
-        })}
-      </div>
+      <HoursGrid initial={initialHours} />
     </div>
   )
 
@@ -323,11 +280,8 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
     <div className="v2-card p-5">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="brandColor">Brand Color</label>
-          <div className="flex items-center gap-3">
-            <input id="brandColor" name="brandColor" className="form-input w-32" type="text" placeholder="#8b5cf6" defaultValue={profile?.brandColor ?? ''} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">Used as the accent color across your clinic website.</span>
-          </div>
+          <span className="block text-sm font-medium mb-1">Brand Color</span>
+          <BrandColorField name="brandColor" defaultValue={profile?.brandColor ?? null} />
         </div>
         <ImageUploader
           name="logoUrl"
@@ -351,23 +305,10 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
             is a future v1.1 addition; for now this is the lightest-
             touch wiring that exercises the new differenceVideoUrl column.
             Falls back to the hero image when left blank. */}
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="differenceVideoUrl">
-            &ldquo;Why us?&rdquo; ambient video URL
-            <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2">(optional)</span>
-          </label>
-          <input
-            id="differenceVideoUrl"
-            name="differenceVideoUrl"
-            type="url"
-            className="form-input w-full"
-            placeholder="https://…/video.mp4"
-            defaultValue={profile?.differenceVideoUrl ?? ''}
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Plays as an ambient autoplay loop in the &ldquo;Why us?&rdquo; section. Falls back to the hero image when blank. MP4 or WebM recommended.
-          </p>
-        </div>
+        <DifferenceVideoField
+          name="differenceVideoUrl"
+          defaultValue={profile?.differenceVideoUrl ?? null}
+        />
         <input type="hidden" name="template" value="modern" />
         {/* FAQ is edited in the Website Studio, not here. Carry the saved
             value through so a profile save doesn't wipe it (see initialFaqJson). */}
@@ -426,16 +367,14 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
     <div className="v2-card p-5">
       <p className={SUB_DESC}>
         Shown on your public site in the &ldquo;Dental insurance coverage&rdquo; section
-        and used as the dropdown options on the insurance verifier form. One carrier per
-        line. Leave blank if you&apos;d rather just invite patients to call to verify.
+        and used as the dropdown options on the insurance verifier form. Leave empty if
+        you&apos;d rather just invite patients to call to verify.
       </p>
-      <textarea
-        id="acceptedInsuranceCarriers"
+      <TagListEditor
         name="acceptedInsuranceCarriers"
-        className="form-textarea w-full font-mono text-sm"
-        rows={6}
-        defaultValue={initialInsuranceCarriers.join('\n')}
-        placeholder={'Aetna\nCigna\nDelta Dental\nGuardian\nMetLife'}
+        defaultValue={initialInsuranceCarriers}
+        placeholder="e.g. Aetna, Cigna, Delta Dental…"
+        addLabel="Add a carrier…"
       />
     </div>
   )
@@ -443,17 +382,14 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
   const paymentMethods = (
     <div className="v2-card p-5">
       <p className={SUB_DESC}>
-        Shown on your <code>/payment-financing</code> page. One method per line.
-        Leave blank to use a sensible default list (cash, cards, HSA / FSA, Apple
-        Pay / Google Pay, ACH) — the section never reads empty.
+        Shown on your <code>/payment-financing</code> page. Leave empty to use a sensible
+        default list ({DEFAULT_PAYMENT_METHODS.join(', ')}) — the section never reads empty.
       </p>
-      <textarea
-        id="paymentMethods"
+      <TagListEditor
         name="paymentMethods"
-        className="form-textarea w-full font-mono text-sm"
-        rows={5}
-        defaultValue={initialPaymentMethods.join('\n')}
-        placeholder={DEFAULT_PAYMENT_METHODS.join('\n')}
+        defaultValue={initialPaymentMethods}
+        placeholder="e.g. Cash, Credit & debit cards, HSA / FSA…"
+        addLabel="Add a payment method…"
       />
     </div>
   )

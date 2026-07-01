@@ -9,6 +9,11 @@ import { redirect } from 'next/navigation'
 import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getSeoMeta } from '@/lib/services/site-analytics'
 import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
+import { listPublishedPosts } from '@/lib/services/blog'
+import { listActivePlans } from '@/lib/services/membership'
+import { getOpenJobs } from '@/lib/services/careers'
+import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
+import { SEO_PAGE_KEYS, type SeoPageKey } from '@/lib/types/seo-meta'
 import SeoMetaForm from './seo-meta-form'
 import { SettingsPage } from '../settings-kit'
 
@@ -19,10 +24,46 @@ export default async function SearchAppearanceSettingsPage() {
   // below-tier clinics to the upgrade screen.
   await requirePlan(ctx, 'pro', 'seo')
 
-  const [meta, site] = await Promise.all([
-    getSeoMeta(ctx.organizationId),
-    getClinicSiteBySlug(ctx.organizationSlug),
-  ])
+  const site = await getClinicSiteBySlug(ctx.organizationSlug)
+
+  // Which optional public pages this clinic actually has, computed exactly like
+  // the site headers do (buildClinicNavLinks gating) so the editor only offers
+  // an override for a page that really exists. We only pay for the three DB
+  // lookups when there's a profile to gate against; the rest read off the
+  // already-loaded profile jsonb (no extra queries).
+  const [publishedPosts, membershipPlans, openJobs] = site
+    ? await Promise.all([
+        listPublishedPosts(site.orgId, { limit: 1 }),
+        listActivePlans(site.orgId),
+        getOpenJobs(site.orgId),
+      ])
+    : [[], [], []]
+
+  const services = (site?.profile.services as ClinicService[] | null) ?? []
+  const staff = (site?.profile.staff as ClinicStaff[] | null) ?? []
+
+  // Which pages the public site actually renders for this clinic. Pages with
+  // universal defaults always render; the rest gate on their underlying data
+  // exactly like buildClinicNavLinks does. `book` is Pro+-only, but this whole
+  // surface is already Pro+-gated, so it always applies here. Keyed by every
+  // SeoPageKey so the map is exhaustive (TS enforces it stays in lockstep with
+  // SEO_PAGE_KEYS).
+  const pageExists: Record<SeoPageKey, boolean> = {
+    home: true,
+    about: true,
+    book: true,
+    insurance: true,
+    'payment-financing': true,
+    faq: true,
+    services: services.length > 0,
+    team: staff.length > 0,
+    'dental-plans': membershipPlans.length > 0,
+    careers: openJobs.length > 0,
+    'blog-index': publishedPosts.length > 0,
+  }
+  const applicablePages: SeoPageKey[] = SEO_PAGE_KEYS.filter((k) => pageExists[k])
+
+  const meta = await getSeoMeta(ctx.organizationId)
 
   const name = site?.profile.displayName ?? ctx.organizationName
   const tagline = site?.profile.tagline ?? null
@@ -46,6 +87,7 @@ export default async function SearchAppearanceSettingsPage() {
             tagline={tagline}
             about={about}
             domain={domain}
+            applicablePages={applicablePages}
           />
         </div>
       </SettingsPage>

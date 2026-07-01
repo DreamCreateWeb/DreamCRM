@@ -42,10 +42,24 @@ export default async function AppsSettings() {
       accent: 'rose',
       status: gmailReady
         ? gmailAccounts.length > 0
-          ? { kind: 'connected', detail: `${gmailAccounts.length} account${gmailAccounts.length === 1 ? '' : 's'} connected` }
-          : { kind: 'available' }
-        : { kind: 'misconfigured', detail: 'OAuth client not configured — set GOOGLE_OAUTH_* env vars.' },
-      accounts: gmailAccounts.map((a) => ({ id: a.id, label: a.displayName ?? a.emailAddress, sub: a.emailAddress })),
+          ? { kind: 'connected', detail: `${gmailAccounts.length} mailbox${gmailAccounts.length === 1 ? '' : 'es'} connected` }
+          : { kind: 'available', detail: 'No mailbox connected yet.' }
+        : // The OAuth client is a platform-level env secret — a clinic user
+          // can't set it, so frame it as administrator-managed rather than a
+          // dead "set GOOGLE_OAUTH_* env vars" instruction they can't act on.
+          { kind: 'misconfigured', managed: true },
+      // Carry the REAL per-mailbox sync health straight from the DB row
+      // (email_account.sync_status / sync_error / last_sync_at + the live
+      // unread count). Nothing here is fabricated — see listOrgEmailAccounts.
+      accounts: gmailAccounts.map((a) => ({
+        id: a.id,
+        label: a.displayName ?? a.emailAddress,
+        sub: a.emailAddress,
+        syncStatus: a.syncStatus,
+        syncError: a.syncError,
+        lastSyncAtIso: a.lastSyncAt ? a.lastSyncAt.toISOString() : null,
+        unreadCount: a.unreadCount,
+      })),
       connectHref: '/api/oauth/gmail/start',
       manageHref: '/inbox/settings',
     })
@@ -75,7 +89,7 @@ export default async function AppsSettings() {
       accent: 'sky',
       status: process.env.STRIPE_SECRET_KEY
         ? { kind: 'connected', detail: 'API key configured' }
-        : { kind: 'misconfigured', detail: 'Set STRIPE_SECRET_KEY env var to enable.' },
+        : { kind: 'misconfigured', managed: true },
       manageHref: 'https://dashboard.stripe.com',
     })
   }
@@ -93,8 +107,8 @@ export default async function AppsSettings() {
       status: process.env.RESEND_API_KEY
         ? process.env.RESEND_WEBHOOK_SECRET
           ? { kind: 'connected', detail: 'API key + webhook configured' }
-          : { kind: 'partial', detail: 'API key set, webhook secret missing' }
-        : { kind: 'misconfigured', detail: 'Set RESEND_API_KEY env var to enable.' },
+          : { kind: 'partial', detail: 'API key set, webhook secret missing.', managed: true }
+        : { kind: 'misconfigured', managed: true },
       manageHref: 'https://resend.com/dashboard',
     })
   }
@@ -111,7 +125,7 @@ export default async function AppsSettings() {
       accent: 'violet',
       status: process.env.ANTHROPIC_API_KEY
         ? { kind: 'connected', detail: 'API key configured' }
-        : { kind: 'misconfigured', detail: 'Set ANTHROPIC_API_KEY env var to enable.' },
+        : { kind: 'misconfigured', managed: true },
       manageHref: 'https://console.anthropic.com',
     })
   }
@@ -129,7 +143,7 @@ export default async function AppsSettings() {
       status:
         process.env.GMAIL_PUBSUB_TOPIC && process.env.GMAIL_PUBSUB_SA_EMAIL
           ? { kind: 'connected', detail: 'Topic + service account configured' }
-          : { kind: 'misconfigured', detail: 'Set GMAIL_PUBSUB_TOPIC and GMAIL_PUBSUB_SA_EMAIL to enable.' },
+          : { kind: 'misconfigured', managed: true },
     })
   }
 

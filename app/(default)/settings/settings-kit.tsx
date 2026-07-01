@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
 
 /**
@@ -11,11 +12,12 @@ import { PageHeader } from '@/components/ui/page-header'
 /**
  * The standard shell for a focused settings page: a calm `PageHeader` (aura OFF
  * — settings are data surfaces, the one brand moment lives on the Settings home)
- * above one consistent `.v2-panel`. Centralizes the eyebrow (defaults to
- * "Settings") so it's no longer hardcoded per page.
+ * above one consistent `.v2-panel`. The eyebrow is the ONE consistent way back
+ * to the Settings home — a "‹ Settings" link every page inherits — so there's no
+ * cross-page rail to carry (the `/settings` home IS the cross-page navigation).
  */
 export function SettingsPage({
-  eyebrow = 'Settings',
+  backLabel = 'Settings',
   title,
   subtitle,
   actions,
@@ -23,7 +25,8 @@ export function SettingsPage({
   panel = true,
   children,
 }: {
-  eyebrow?: ReactNode
+  /** Label for the back-to-home link (defaults to "Settings"). */
+  backLabel?: string
   title: ReactNode
   subtitle?: ReactNode
   actions?: ReactNode
@@ -37,9 +40,30 @@ export function SettingsPage({
 }) {
   return (
     <>
-      <PageHeader eyebrow={eyebrow} title={title} subtitle={subtitle} actions={actions} aura={false} />
+      <PageHeader eyebrow={<BackToSettingsLink label={backLabel} />} title={title} subtitle={subtitle} actions={actions} aura={false} />
       {panel ? <div className={`v2-panel mb-8${padded ? ' p-6' : ''}`}>{children}</div> : children}
     </>
+  )
+}
+
+/** The back-to-home affordance shared by every focused settings page. Rendered
+ *  in the header's eyebrow slot (teal caps) so it reads as the section crumb AND
+ *  the way back to `/settings` in one control. */
+function BackToSettingsLink({ label }: { label: string }) {
+  return (
+    <Link
+      href="/settings"
+      className="group -ml-0.5 inline-flex items-center gap-1 rounded-[var(--r-sm)] px-0.5 hover:text-teal-800 dark:hover:text-teal-300 transition-colors"
+    >
+      <svg
+        className="h-3 w-3 fill-current transition-transform group-hover:-translate-x-0.5"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+      >
+        <path d="M6.7 2.3a1 1 0 0 1 0 1.4L4.4 6H14a1 1 0 1 1 0 2H4.4l2.3 2.3a1 1 0 1 1-1.4 1.4l-4-4a1 1 0 0 1 0-1.4l4-4a1 1 0 0 1 1.4 0Z" />
+      </svg>
+      {label}
+    </Link>
   )
 }
 

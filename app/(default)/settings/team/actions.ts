@@ -80,21 +80,92 @@ export async function inviteTeamMember(input: unknown) {
     inviterId: ctx.userId,
   })
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dreamcreatestudio.com'
-  try {
-    await sendInvitationEmail(email, {
-      inviterName: ctx.userName ?? 'Dream Create',
-      orgName: ctx.organizationName,
-      role: data.role,
-      inviteUrl: `${base}/accept-invite?token=${id}`,
-    })
-  } catch (err) {
-    // Email failed but the row exists — surface a warning, don't roll back.
-    console.warn('[invite] email send failed; invitation is still valid', err)
-  }
+  // The invitation row is the source of truth; the email is a best-effort
+  // delivery on top of it. Report whether the email actually went out so the
+  // UI can nudge the admin to Resend / share the link when it didn't.
+  const emailed = await deliverInviteEmail({
+    id,
+    email,
+    role: data.role,
+    inviterName: ctx.userName,
+    orgName: ctx.organizationName,
+  })
 
   revalidatePath('/settings/team')
-  return { ok: true, id }
+  return { ok: true, id, emailed }
+}
+
+/**
+ * Shared best-effort invite-email delivery (used by both invite + resend).
+ * Never throws — a failed send must not roll back / block the pending row.
+ * Returns whether the email was actually accepted for delivery.
+ */
+async function deliverInviteEmail(args: {
+  id: string
+  email: string
+  role: string
+  inviterName: string | null
+  orgName: string
+}): Promise<boolean> {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dreamcreatestudio.com'
+  try {
+    await sendInvitationEmail(args.email, {
+      inviterName: args.inviterName ?? 'Dream Create',
+      orgName: args.orgName,
+      role: args.role,
+      inviteUrl: `${base}/accept-invite?token=${args.id}`,
+    })
+    return true
+  } catch (err) {
+    // Email failed but the row exists — surface it as `emailed: false`.
+    console.warn('[invite] email send failed; invitation is still valid', err)
+    return false
+  }
+}
+
+/**
+ * Re-send the invitation email for an existing pending invite, and refresh its
+ * expiry so the fresh link is good for the full TTL again. Same gates as
+ * inviteTeamMember (requireTeamAdmin). Scoped to the active org, and only acts
+ * on a still-`pending` invitation (a cancelled / accepted one can't be revived
+ * here). Returns whether the re-send actually emailed.
+ */
+export async function resendTeamInvitation(invitationId: string) {
+  const ctx = await requireTeamAdmin()
+
+  const [inv] = await db
+    .select({ id: schema.invitation.id, email: schema.invitation.email, role: schema.invitation.role })
+    .from(schema.invitation)
+    .where(
+      and(
+        eq(schema.invitation.id, invitationId),
+        eq(schema.invitation.organizationId, ctx.organizationId),
+        eq(schema.invitation.status, 'pending'),
+      ),
+    )
+    .limit(1)
+  if (!inv) {
+    throw new Error('That invitation is no longer pending.')
+  }
+
+  // Refresh the expiry so the re-sent link is valid for the full TTL again.
+  await db
+    .update(schema.invitation)
+    .set({ expiresAt: new Date(Date.now() + INVITATION_TTL_MS) })
+    .where(
+      and(eq(schema.invitation.id, invitationId), eq(schema.invitation.organizationId, ctx.organizationId)),
+    )
+
+  const emailed = await deliverInviteEmail({
+    id: inv.id,
+    email: inv.email,
+    role: inv.role ?? 'member',
+    inviterName: ctx.userName,
+    orgName: ctx.organizationName,
+  })
+
+  revalidatePath('/settings/team')
+  return { ok: true, emailed }
 }
 
 export async function cancelTeamInvitation(invitationId: string) {

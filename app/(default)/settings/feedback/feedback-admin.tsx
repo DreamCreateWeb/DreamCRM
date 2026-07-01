@@ -6,6 +6,7 @@ import { type Tone } from '@/lib/ui/encodings'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { FEEDBACK_CATEGORIES, feedbackCategoryLabel } from './feedback-categories'
 
 export interface FeedbackEntry {
   id: number
@@ -29,7 +30,7 @@ const TONE_BY_RATING: Record<number, Tone> = {
   5: 'ok',
 }
 
-const FILTER_LABELS: Record<'all' | 'platform' | 'clinic' | 'unhappy', string> = {
+const SOURCE_LABELS: Record<'all' | 'platform' | 'clinic' | 'unhappy', string> = {
   all: 'All',
   platform: 'Platform',
   clinic: 'Clinic',
@@ -37,16 +38,45 @@ const FILTER_LABELS: Record<'all' | 'platform' | 'clinic' | 'unhappy', string> =
 }
 
 export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] }) {
-  const [filter, setFilter] = useState<'all' | 'platform' | 'clinic' | 'unhappy'>('all')
+  const [source, setSource] = useState<'all' | 'platform' | 'clinic' | 'unhappy'>('all')
+  // Category filter is independent of source: 'all' = every topic. Only offer
+  // categories that actually appear in the data (plus the known buckets), so
+  // the chip row never advertises an empty filter.
+  const [category, setCategory] = useState<string>('all')
 
-  const filtered = useMemo(() => {
-    return entries.filter((e) => {
-      if (filter === 'platform') return e.organizationType === 'platform'
-      if (filter === 'clinic') return e.organizationType === 'clinic'
-      if (filter === 'unhappy') return e.rating !== null && e.rating <= 2
-      return true
-    })
-  }, [entries, filter])
+  // Per-category counts (over the source-filtered set, so the badges track what
+  // the category chips would actually narrow to).
+  const sourceFiltered = useMemo(
+    () =>
+      entries.filter((e) => {
+        if (source === 'platform') return e.organizationType === 'platform'
+        if (source === 'clinic') return e.organizationType === 'clinic'
+        if (source === 'unhappy') return e.rating !== null && e.rating <= 2
+        return true
+      }),
+    [entries, source],
+  )
+
+  // Buckets to show: the known catalog entries that appear, then any extra
+  // legacy ids present in the data (e.g. 'nps'/'general'), so nothing is
+  // unfilterable.
+  const categoryChips = useMemo(() => {
+    const present = new Set(sourceFiltered.map((e) => e.category))
+    const known = FEEDBACK_CATEGORIES.filter((c) => present.has(c.id)).map((c) => c.id)
+    const extras = Array.from(present).filter((id) => !FEEDBACK_CATEGORIES.some((c) => c.id === id)).sort()
+    return [...known, ...extras]
+  }, [sourceFiltered])
+
+  const countByCategory = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const e of sourceFiltered) m.set(e.category, (m.get(e.category) ?? 0) + 1)
+    return m
+  }, [sourceFiltered])
+
+  const filtered = useMemo(
+    () => (category === 'all' ? sourceFiltered : sourceFiltered.filter((e) => e.category === category)),
+    [sourceFiltered, category],
+  )
 
   return (
     <section className="border-t border-gray-200 dark:border-gray-700/60 px-6 py-6">
@@ -61,12 +91,33 @@ export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] })
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {(['all', 'platform', 'clinic', 'unhappy'] as const).map((f) => (
-            <FilterChip key={f} active={filter === f} onClick={() => setFilter(f)}>
-              {FILTER_LABELS[f]}
+            <FilterChip key={f} active={source === f} onClick={() => setSource(f)}>
+              {SOURCE_LABELS[f]}
             </FilterChip>
           ))}
         </div>
       </div>
+
+      {/* Topic filter — reads feedback.category. Only shows when there's more
+          than one topic to choose between. */}
+      {categoryChips.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-0.5">Topic</span>
+          <FilterChip active={category === 'all'} onClick={() => setCategory('all')} count={sourceFiltered.length}>
+            All topics
+          </FilterChip>
+          {categoryChips.map((id) => (
+            <FilterChip
+              key={id}
+              active={category === id}
+              onClick={() => setCategory(id)}
+              count={countByCategory.get(id) ?? 0}
+            >
+              {feedbackCategoryLabel(id)}
+            </FilterChip>
+          ))}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         entries.length === 0 ? (
@@ -104,6 +155,7 @@ export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] })
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <StatusPill tone="neutral" label={feedbackCategoryLabel(e.category)} />
                   {e.rating != null && (
                     <StatusPill tone={TONE_BY_RATING[e.rating] ?? 'neutral'} label={`${e.rating}/5`} />
                   )}

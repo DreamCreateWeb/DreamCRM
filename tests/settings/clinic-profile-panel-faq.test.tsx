@@ -101,10 +101,12 @@ describe('ClinicProfilePanel — hub sections', () => {
   it('mounts every section\'s inputs at once so the single Save submits all fields', () => {
     render(<ClinicProfilePanel profile={makeProfile()} {...baseProps} />)
     // No tab hides anything now — fields from every section are in the DOM, so
-    // one Save still persists them all.
+    // one Save still persists them all. Insurance carriers + payment methods are
+    // now chip editors (TagListEditor) that serialize to a hidden input, not a
+    // <textarea>; the field NAME (what the action reads) is unchanged.
     expect(document.querySelector('input[name="displayName"]')).not.toBeNull()
-    expect(document.querySelector('textarea[name="paymentMethods"]')).not.toBeNull()
-    expect(document.querySelector('textarea[name="acceptedInsuranceCarriers"]')).not.toBeNull()
+    expect(document.querySelector('input[name="paymentMethods"]')).not.toBeNull()
+    expect(document.querySelector('input[name="acceptedInsuranceCarriers"]')).not.toBeNull()
     expect(document.querySelector('input[name="faq"]')).not.toBeNull()
   })
 })

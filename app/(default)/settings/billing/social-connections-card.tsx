@@ -41,6 +41,18 @@ export default function SocialConnectionsCard({
 }: SocialConnectionsCardProps) {
   const totalIncludingGbp = socialLimit + 1
 
+  // A single at-a-glance status chip for the add-on (state only — buying/
+  // cancelling now lives on /integrations, so this card never competes with it).
+  const addonPill: { tone: 'ok' | 'info' | 'neutral'; label: string } = addonActive
+    ? { tone: 'ok', label: 'Add-on active' }
+    : !addonAvailable
+      ? { tone: 'neutral', label: 'Pro plan required' }
+      : managedBilling
+        ? { tone: 'info', label: 'Managed billing' }
+        : !addonConfigured
+          ? { tone: 'neutral', label: 'Coming soon' }
+          : { tone: 'info', label: 'Add-on available' }
+
   // A one-line nudge that matches the clinic's current state.
   let nudge: string
   if (addonActive) {
@@ -57,26 +69,29 @@ export default function SocialConnectionsCard({
 
   return (
     <section>
-      <div className="flex items-center gap-2 mb-3">
-        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Social connections</h3>
-        {addonActive && <StatusPill tone="ok" label="Add-on active" />}
-      </div>
+      <h3 className="mb-3 text-base font-semibold text-gray-800 dark:text-gray-100">Social connections</h3>
 
       <div className="v2-card p-5">
-        <p className="text-sm text-gray-700 dark:text-gray-200">
-          Your <strong className="font-medium">{planName}</strong> plan includes{' '}
-          <strong className="font-medium">Google Business</strong> plus{' '}
-          <strong className="font-medium font-mono-num">{socialLimit}</strong>{' '}
-          {socialLimit === 1 ? 'social connection' : 'social connections'}{' '}
-          <span className="text-gray-500 dark:text-gray-400">({totalIncludingGbp} total including Google Business)</span>.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="text-sm text-gray-700 dark:text-gray-200">
+            Your <strong className="font-medium">{planName}</strong> plan includes{' '}
+            <strong className="font-medium">Google Business</strong> plus{' '}
+            <strong className="font-medium font-mono-num tabular-nums">{socialLimit}</strong>{' '}
+            {socialLimit === 1 ? 'social connection' : 'social connections'}{' '}
+            <span className="text-gray-500 dark:text-gray-400">
+              (<span className="font-mono-num tabular-nums">{totalIncludingGbp}</span> total including Google Business)
+            </span>
+            .
+          </p>
+          <StatusPill tone={addonPill.tone} label={addonPill.label} />
+        </div>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{nudge}</p>
 
         <Link
           href="/integrations"
           className="mt-4 inline-flex items-center text-sm font-medium text-teal-600 dark:text-teal-400 hover:underline"
         >
-          Manage channels &amp; add-on in Integrations →
+          Manage on Integrations →
         </Link>
       </div>
     </section>

@@ -104,8 +104,10 @@ describe('TeamPanel', () => {
 
   it('never offers a role control for the owner', () => {
     render(<TeamPanel canManage members={[ME]} invitations={[]} />)
-    // The owner is the current user here; no role select should exist.
-    expect(screen.queryByLabelText(/Role for/i)).not.toBeInTheDocument()
+    // The owner's member row has no role editor (immutable + it's the current
+    // user). The invite form's "Role for the new teammate" picker is separate.
+    expect(screen.queryByLabelText(/Role for Dustin/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/Role for the new teammate/i)).toBeInTheDocument()
   })
 
   it('a non-manager (plain member) sees no invite form, no remove, no role select', () => {

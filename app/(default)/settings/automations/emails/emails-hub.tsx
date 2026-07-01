@@ -48,6 +48,21 @@ function fillTokens(text: string): string {
   return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, k: string) => SAMPLE_FIELDS[k] ?? '')
 }
 
+/** The sample value a `{{token}}` fills to, for the chip tooltip — so staff learn
+ *  the tokens without opening the legend. e.g. "{{firstName}} → Jordan". */
+function tokenSample(token: string): string | null {
+  const key = token.replace(/[{}]/g, '').trim()
+  const v = SAMPLE_FIELDS[key]
+  return v ? v.trim() : null
+}
+
+// Snap-to presets for "hours before the visit". 2h is offered per the brief but
+// only surfaces when it's inside the clinic-editable window (min is 4h today, so
+// it's filtered out) — every chip persists a valid integer, never a clamped one.
+const REMINDER_HOUR_PRESETS = [2, 4, 8, 12, 24, 48].filter(
+  (h) => h >= REMINDER_OFFSET_MIN_HOURS && h <= REMINDER_OFFSET_MAX_HOURS,
+)
+
 function slotsFrom(resolved: ResolvedEmail, key: EmailAutomationKey): Record<EmailSlotKey, string> {
   const spec = EMAIL_AUTOMATION_SPECS[key]
   const out = {} as Record<EmailSlotKey, string>
@@ -60,6 +75,12 @@ function defaultSlots(key: EmailAutomationKey): Record<EmailSlotKey, string> {
   for (const f of spec.slotFields) out[f.slot] = spec.slotDefaults[f.slot] ?? ''
   return out
 }
+
+// The auto-firing emails whose on/off switch lives in THIS column — the set that,
+// together with the reminder, decides whether ANY automatic email goes out.
+const TOGGLEABLE_KEYS = EMAIL_AUTOMATION_KEYS.filter(
+  (k) => EMAIL_AUTOMATION_SPECS[k].enableSource === 'email_automations',
+)
 
 export default function EmailsHub({
   config,
@@ -75,7 +96,16 @@ export default function EmailsHub({
   // Reminder timing/on-off is shared state (the reminder card owns it, but it
   // lives here so a re-render doesn't drop it).
   const [reminderState, setReminderState] = useState<ReminderSettings>(reminder)
+  // Mirror each self-toggling email's on/off up here so the "all off" callout
+  // stays live as cards flip. Cards still own + save their own state — this is a
+  // read-only reflection, never the save source.
+  const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(TOGGLEABLE_KEYS.map((k) => [k, config[k].enabled])),
+  )
   const [toast, setToast] = useState<string | null>(null)
+
+  const allOff =
+    !reminderState.enabled && TOGGLEABLE_KEYS.every((k) => enabledMap[k] === false)
 
   return (
     <div className="space-y-8">
@@ -83,6 +113,21 @@ export default function EmailsHub({
         <p className="text-xs text-gray-500 dark:text-gray-400">
           These emails go to every patient, so only an owner or admin can edit them. You can still read them here.
         </p>
+      )}
+
+      {allOff && (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-[var(--r-md)] border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50/70 px-4 py-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+        >
+          <svg className="mt-0.5 h-4 w-4 shrink-0 fill-amber-500" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 1.5 15 14H1L8 1.5Zm0 4.25a.9.9 0 0 0-.9.9v3a.9.9 0 0 0 1.8 0v-3a.9.9 0 0 0-.9-.9Zm0 6.4a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+          </svg>
+          <span>
+            <span className="font-semibold">No automated emails will be sent</span> — patients won’t get
+            confirmations or reminders. Turn at least one back on below so they hear from you automatically.
+          </span>
+        </div>
       )}
 
       {CATEGORY_ORDER.map((cat) => {
@@ -104,6 +149,7 @@ export default function EmailsHub({
                   canManage={canManage}
                   defaultOpen={focusKey === key}
                   onToast={setToast}
+                  onEnabledChange={(v) => setEnabledMap((p) => ({ ...p, [key]: v }))}
                   reminderState={reminderState}
                   setReminderState={setReminderState}
                 />
@@ -124,6 +170,7 @@ function EmailCard({
   canManage,
   defaultOpen,
   onToast,
+  onEnabledChange,
   reminderState,
   setReminderState,
 }: {
@@ -132,13 +179,19 @@ function EmailCard({
   canManage: boolean
   defaultOpen: boolean
   onToast: (msg: string) => void
+  /** Report this email's on/off up so the hub's "all off" callout stays live. */
+  onEnabledChange: (enabled: boolean) => void
   reminderState: ReminderSettings
   setReminderState: (next: ReminderSettings) => void
 }) {
   const spec = EMAIL_AUTOMATION_SPECS[emailKey]
   const [open, setOpen] = useState(defaultOpen)
   const [slots, setSlots] = useState<Record<EmailSlotKey, string>>(() => slotsFrom(initial, emailKey))
-  const [enabled, setEnabled] = useState(initial.enabled)
+  const [enabled, setEnabledState] = useState(initial.enabled)
+  const setEnabled = (v: boolean) => {
+    setEnabledState(v)
+    onEnabledChange(v)
+  }
   const [pending, startTransition] = useTransition()
   const [focusedSlot, setFocusedSlot] = useState<EmailSlotKey | null>(null)
   const fieldRefs = useRef<Partial<Record<EmailSlotKey, HTMLInputElement | HTMLTextAreaElement | null>>>({})
@@ -269,83 +322,117 @@ function EmailCard({
             </p>
           )}
 
-          {/* Editable fields + token chips. */}
+          {/* Editable fields + token chips. Hover/focus shows what each token
+              fills to (e.g. "{{firstName}} → Jordan") so staff learn them. */}
           {canManage && spec.tokens.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-gray-500 dark:text-gray-400">Insert:</span>
-              {spec.tokens.map((t) => (
-                <button
-                  key={t.token}
-                  type="button"
-                  title={t.label}
-                  onClick={() => insertToken(t.token)}
-                  className="rounded-full border border-gray-200 bg-white px-2 py-0.5 font-mono-num text-[11px] text-gray-700 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  {t.token}
-                </button>
-              ))}
+              {spec.tokens.map((t) => {
+                const sample = tokenSample(t.token)
+                return (
+                  <button
+                    key={t.token}
+                    type="button"
+                    title={sample ? `${t.label} — fills in as “${sample}”` : t.label}
+                    onClick={() => insertToken(t.token)}
+                    className="group relative rounded-full border border-gray-200 bg-white px-2 py-0.5 font-mono-num text-[11px] text-gray-700 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  >
+                    {t.token}
+                    {sample && (
+                      <span
+                        // Visual hint only — the `title` above carries the same
+                        // info for assistive tech, so this must NOT join the
+                        // button's accessible name (it would double the token).
+                        aria-hidden="true"
+                        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-gray-900 px-2 py-1 text-[11px] font-normal text-white shadow-[var(--shadow-pop)] group-hover:block group-focus-visible:block dark:bg-gray-700"
+                      >
+                        <span className="font-mono-num">{t.token}</span> → {sample}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           )}
 
           <div className="space-y-3">
-            {spec.slotFields.map((f) => (
-              <div key={f.slot}>
-                <label
-                  htmlFor={`${emailKey}-${f.slot}`}
-                  className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {f.label}
-                </label>
-                {f.rows <= 1 ? (
-                  <input
-                    id={`${emailKey}-${f.slot}`}
-                    ref={(el) => {
-                      fieldRefs.current[f.slot] = el
-                    }}
-                    value={slots[f.slot] ?? ''}
-                    onChange={(e) => setSlots((p) => ({ ...p, [f.slot]: e.target.value }))}
-                    onFocus={() => setFocusedSlot(f.slot)}
-                    disabled={!canManage}
-                    className="form-input w-full text-sm disabled:opacity-70"
-                  />
-                ) : (
-                  <textarea
-                    id={`${emailKey}-${f.slot}`}
-                    ref={(el) => {
-                      fieldRefs.current[f.slot] = el
-                    }}
-                    value={slots[f.slot] ?? ''}
-                    onChange={(e) => setSlots((p) => ({ ...p, [f.slot]: e.target.value }))}
-                    onFocus={() => setFocusedSlot(f.slot)}
-                    rows={f.rows}
-                    disabled={!canManage}
-                    className="form-textarea w-full text-sm disabled:opacity-70"
-                  />
-                )}
-              </div>
-            ))}
+            {spec.slotFields.map((f) => {
+              const hintId = f.hint ? `${emailKey}-${f.slot}-hint` : undefined
+              return (
+                <div key={f.slot}>
+                  <label
+                    htmlFor={`${emailKey}-${f.slot}`}
+                    className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {f.label}
+                  </label>
+                  {f.rows <= 1 ? (
+                    <input
+                      id={`${emailKey}-${f.slot}`}
+                      ref={(el) => {
+                        fieldRefs.current[f.slot] = el
+                      }}
+                      value={slots[f.slot] ?? ''}
+                      onChange={(e) => setSlots((p) => ({ ...p, [f.slot]: e.target.value }))}
+                      onFocus={() => setFocusedSlot(f.slot)}
+                      disabled={!canManage}
+                      aria-describedby={hintId}
+                      className="form-input w-full text-sm disabled:opacity-70"
+                    />
+                  ) : (
+                    <textarea
+                      id={`${emailKey}-${f.slot}`}
+                      ref={(el) => {
+                        fieldRefs.current[f.slot] = el
+                      }}
+                      value={slots[f.slot] ?? ''}
+                      onChange={(e) => setSlots((p) => ({ ...p, [f.slot]: e.target.value }))}
+                      onFocus={() => setFocusedSlot(f.slot)}
+                      rows={f.rows}
+                      disabled={!canManage}
+                      aria-describedby={hintId}
+                      className="form-textarea w-full text-sm disabled:opacity-70"
+                    />
+                  )}
+                  {f.hint && (
+                    <p id={hintId} className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                      {f.hint}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
-          {/* Live preview + what's added for you. */}
-          <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-700/50 dark:bg-gray-800/30">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Preview</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              <span className="font-medium text-gray-700 dark:text-gray-200">Subject:</span> {fillTokens(slots.subject ?? '')}
-            </p>
-            <div className="mt-2 space-y-1.5 text-sm text-gray-700 dark:text-gray-200">
-              {slots.heading != null && slots.heading.trim() !== '' && (
-                <p className="font-semibold">{fillTokens(slots.heading)}</p>
-              )}
-              <p className="whitespace-pre-wrap">{fillTokens(slots.body ?? '')}</p>
-              {slots.closing != null && slots.closing.trim() !== '' && (
-                <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">{fillTokens(slots.closing)}</p>
-              )}
+          {/* Live preview — styled to read closer to the email a patient gets:
+              a subject bar, an envelope-like framed body with preserved line
+              breaks, and an honest note of the blocks we add for you. */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Preview</p>
+            <div className="v2-well overflow-hidden rounded-[var(--r-md)] text-left">
+              {/* Subject bar — the line a patient sees in their inbox. */}
+              <div className="border-b border-gray-200/70 bg-gray-100/60 px-4 py-2 dark:border-gray-700/60 dark:bg-gray-800/50">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Subject</span>
+                <p className="truncate text-[13px] font-semibold text-gray-800 dark:text-gray-100">
+                  {fillTokens(slots.subject ?? '') || <span className="font-normal italic text-gray-400">(no subject)</span>}
+                </p>
+              </div>
+              {/* Body — mirrors the sent email's stacked heading / message / closing. */}
+              <div className="space-y-2 bg-white px-4 py-3.5 text-sm leading-relaxed text-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
+                {slots.heading != null && slots.heading.trim() !== '' && (
+                  <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{fillTokens(slots.heading)}</p>
+                )}
+                <p className="whitespace-pre-wrap">{fillTokens(slots.body ?? '')}</p>
+                {slots.closing != null && slots.closing.trim() !== '' && (
+                  <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">{fillTokens(slots.closing)}</p>
+                )}
+                {spec.includesNote.length > 0 && (
+                  <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-[11px] leading-relaxed text-gray-400 dark:border-gray-700/60">
+                    We automatically add: {spec.includesNote.join(' · ')}.
+                  </p>
+                )}
+              </div>
             </div>
-            {spec.includesNote.length > 0 && (
-              <p className="mt-3 text-[11px] leading-relaxed text-gray-400">
-                We automatically add: {spec.includesNote.join(' · ')}.
-              </p>
-            )}
           </div>
 
           {canManage && (
@@ -410,6 +497,7 @@ function ReminderTiming({
   onChange: (next: ReminderSettings) => void
   disabled: boolean
 }) {
+  const timingDisabled = disabled || !value.enabled
   return (
     <div id="reminder-timing" className="space-y-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/40">
       <label className="flex items-center justify-between gap-3">
@@ -421,20 +509,48 @@ function ReminderTiming({
           srLabel="Send reminders automatically"
         />
       </label>
-      <div className={`flex items-center justify-between gap-3 ${value.enabled ? '' : 'opacity-50'}`}>
-        <span className="text-sm text-gray-700 dark:text-gray-300">Hours before the visit</span>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={REMINDER_OFFSET_MIN_HOURS}
-            max={REMINDER_OFFSET_MAX_HOURS}
-            step={1}
-            value={value.offsetHours}
-            onChange={(e) => onChange({ ...value, offsetHours: Number(e.target.value) })}
-            disabled={disabled || !value.enabled}
-            className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm tabular-nums dark:border-gray-700 dark:bg-gray-800"
-          />
-          <span className="text-sm text-gray-500 dark:text-gray-400">hours</span>
+      <div className={value.enabled ? '' : 'opacity-50'}>
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="reminder-offset-hours" className="text-sm text-gray-700 dark:text-gray-300">
+            Hours before the visit
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="reminder-offset-hours"
+              type="number"
+              min={REMINDER_OFFSET_MIN_HOURS}
+              max={REMINDER_OFFSET_MAX_HOURS}
+              step={1}
+              value={value.offsetHours}
+              onChange={(e) => onChange({ ...value, offsetHours: Number(e.target.value) })}
+              disabled={timingDisabled}
+              aria-describedby="reminder-offset-hint"
+              className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm tabular-nums dark:border-gray-700 dark:bg-gray-800"
+            />
+            <span className="text-sm text-gray-500 dark:text-gray-400">hours</span>
+          </div>
+        </div>
+        {/* Quick-pick presets — snap to common windows; still persists the integer. */}
+        <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
+          {REMINDER_HOUR_PRESETS.map((h) => {
+            const active = value.offsetHours === h
+            return (
+              <button
+                key={h}
+                type="button"
+                onClick={() => onChange({ ...value, offsetHours: h })}
+                disabled={timingDisabled}
+                aria-pressed={active}
+                className={`rounded-full border px-2 py-0.5 font-mono-num text-[11px] tabular-nums transition-colors disabled:opacity-40 ${
+                  active
+                    ? 'border-teal-400 bg-teal-500/10 text-teal-700 dark:text-teal-300'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                }`}
+              >
+                {h}h
+              </button>
+            )
+          })}
         </div>
       </div>
       <label className="flex items-center justify-between gap-3">
@@ -448,7 +564,7 @@ function ReminderTiming({
           srLabel="Also remind patients to finish their forms"
         />
       </label>
-      <p className="text-[11px] leading-relaxed text-gray-400">
+      <p id="reminder-offset-hint" className="text-[11px] leading-relaxed text-gray-400">
         The forms reminder uses your “Intake form request” email. Between {REMINDER_OFFSET_MIN_HOURS} and{' '}
         {REMINDER_OFFSET_MAX_HOURS} hours (7 days). Each patient gets at most one reminder per visit.
       </p>

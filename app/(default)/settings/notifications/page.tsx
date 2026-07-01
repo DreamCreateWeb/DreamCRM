@@ -29,7 +29,9 @@ export default async function NotificationsSettings() {
             comments: prefs.comments,
             candidates: prefs.candidates,
             offers: prefs.offers,
-            pushEverything: prefs.pushEverything,
+            // `pushEverything` is intentionally dropped from the panel — see the
+            // note in notifications-panel.tsx. `saveNotificationPrefs` treats the
+            // field as optional and preserves the stored column when it's absent.
             pushEmail: prefs.pushEmail,
             pushNothing: prefs.pushNothing,
           }}
