@@ -878,6 +878,46 @@ export async function bulkInvitePatientsToPortalAction(
   return result
 }
 
+// ----- Email-to-pay (balance pay links) ----------------------------------
+
+/** Email one patient their balance + secure pay link (the /b/[token] landing). */
+export async function sendPayLinkAction(
+  patientId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic staff can send pay links' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot send pay links' }
+  const { sendPayLinkEmail } = await import('@/lib/services/balance-outreach')
+  const r = await sendPayLinkEmail(ctx.organizationId, patientId, ctx.userId, { source: 'staff' })
+  if (r.ok) return { ok: true }
+  const message =
+    r.reason === 'no_balance'
+      ? 'This patient has no balance on file.'
+      : r.reason === 'no_email'
+        ? 'This patient has no email on file.'
+        : r.reason === 'payments_unavailable'
+          ? 'Connect your Stripe account first (Shop → Payments) so patients can pay online.'
+          : r.reason === 'recently_sent'
+            ? 'A pay link already went out in the last few days — give it a moment to land.'
+            : 'Could not send the pay link.'
+  return { ok: false, error: message }
+}
+
+/** Bulk "email pay link" from the patients list — skips patients without a
+ *  balance/email so it's safe on any selection. */
+export async function bulkSendPayLinksAction(
+  patientIds: string[],
+): Promise<{ ok: true; sent: number; skipped: number; failed: number } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic staff can send pay links' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot send pay links' }
+  if (patientIds.length === 0) return { ok: false, error: 'No patients selected' }
+  const { sendPayLinksBulk } = await import('@/lib/services/balance-outreach')
+  const r = await sendPayLinksBulk(ctx.organizationId, patientIds, ctx.userId)
+  revalidatePath('/patients')
+  return { ok: true, ...r }
+}
+
 // ----- CSV import -------------------------------------------------------
 
 export interface ImportPreview {

@@ -84,12 +84,20 @@ write-back + reminders (email, 30m cron) + review-request on complete.
 Current: shop/memberships/coupons ⭐, portal balance payments, collections
 nudge (My Day), balance follow-up rule.
 
-- ✗ **Email-to-pay statements** — proactive "your balance + pay link" email
-  from the patient record + bulk from the balances list (text-to-pay's email
-  sibling; SMS-ready later). Every vendor has the SMS version. **P1.**
-- ✗ **Automated balance-reminder cadence** (Weave bulk collections, DI
-  past-due automation, Revenue Cycle Messaging) — opt-in automation:
-  balance > X and aging > Y → cadenced emails w/ pay links. **P1.**
+- ✅ **Email-to-pay statements** — SHIPPED 2026-07-02. "Email a pay link"
+  from the patient record's balance nudge + bulk from the patient list
+  (skips no-balance/no-email); clinic-editable copy (Emails hub, Billing
+  category); the email's button lands on the public `/b/[token]` pay page
+  (token-is-auth, live PMS balance, partial payments, Connect direct
+  charge, idempotent finalize + webhook backstop, /shop/payments
+  reconciliation). SMS sibling when the SMS channel lands.
+- ✅ **Automated balance-reminder cadence** — SHIPPED 2026-07-02. Opt-in
+  (default OFF) at Shop → Payments: balance ≥ $X → the same pay-link email
+  every N days, capped at M sends per rolling 90 days ("after that it's a
+  phone call"); manual sends pause the schedule (3-day anti-stack guard both
+  ways); demo orgs never send; rides the daily retention cron. No aging
+  buckets yet (PMS gives a point-in-time balance only) — threshold + cadence
+  stand in until an aging source exists.
 - ✗ **Payment plans w/ card-on-file autopay** for balances (DI) — we have
   subscription rails via Connect. **P2.**
 - ✗ Collections/AR board (DI) — AR aging view beyond the payments page. **P2.**

@@ -1,8 +1,10 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { listRecentBalancePayments } from '@/lib/services/balance-payments'
+import { listRecentBalancePayments, canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { listRecentBookingDeposits } from '@/lib/services/booking-deposits'
+import { getBalanceOutreachSettings } from '@/lib/services/balance-outreach'
+import BalanceOutreachCard from './balance-outreach-card'
 import { formatCents } from '@/lib/types/shop'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -22,10 +24,13 @@ export default async function ShopPaymentsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [payments, deposits] = await Promise.all([
+  const [payments, deposits, outreach, paymentsReady] = await Promise.all([
     listRecentBalancePayments(ctx.organizationId),
     listRecentBookingDeposits(ctx.organizationId),
+    getBalanceOutreachSettings(ctx.organizationId),
+    canTakeBalancePayments(ctx.organizationId),
   ])
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
@@ -170,6 +175,8 @@ export default async function ShopPaymentsPage() {
           </div>
         </div>
       )}
+
+      <BalanceOutreachCard initial={outreach} canManage={canManage} paymentsReady={paymentsReady} />
     </div>
   )
 }

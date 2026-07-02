@@ -1411,6 +1411,40 @@ export const patientBalancePayment = pgTable(
 )
 export type PatientBalancePayment = typeof patientBalancePayment.$inferSelect
 
+// One row per "email-to-pay" pay-link sent to a patient (staff-clicked or the
+// opt-in automated balance-reminder cadence). The token IS the auth for the
+// public /b/[token] pay landing — same pattern as /r, /w, /c. The landing
+// always shows the LIVE pmsBalanceCents (the snapshot here is an audit aid);
+// an actual payment rides the existing patient_balance_payment rails.
+export const balancePaymentRequest = pgTable(
+  'balance_payment_request',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    token: text('token').notNull(),
+    // Balance shown in the email at send time (audit aid — the landing reads live).
+    balanceCentsAtSend: integer('balance_cents_at_send'),
+    // 'sent' | 'paid'
+    status: text('status').notNull().default('sent'),
+    // 'staff' | 'auto' (the cadence)
+    source: text('source').notNull().default('staff'),
+    sentByUserId: text('sent_by_user_id'),
+    // The patient_balance_payment this request produced (soft pointer).
+    paymentId: text('payment_id'),
+    sentAt: timestamp('sent_at').notNull().defaultNow(),
+    paidAt: timestamp('paid_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('balance_pay_request_token_idx').on(t.token),
+    index('balance_pay_request_org_idx').on(t.organizationId, t.sentAt),
+    index('balance_pay_request_patient_idx').on(t.patientId, t.sentAt),
+  ],
+)
+export type BalancePaymentRequest = typeof balancePaymentRequest.$inferSelect
+
 // One row per booking deposit collected at PUBLIC online booking (per-visit-
 // type `depositCents` in clinic_profile.visit_type_settings; off by default).
 // Money moves through the clinic's connected Stripe account (direct charge,

@@ -52,6 +52,12 @@ export async function createBalancePaymentSession(input: {
   patientEmail: string | null
   clinicName: string
   baseUrl: string
+  /**
+   * Absolute URL Stripe returns to instead of the portal invoices page —
+   * used by the public /b/[token] pay landing. `{CHECKOUT_SESSION_ID}` is
+   * appended as ?session_id= on success; the cancel trip returns bare.
+   */
+  returnUrl?: string
 }): Promise<{ url: string }> {
   const cfg = await connectedAccount(input.organizationId)
   if (!cfg?.accountId || cfg.status !== 'active' || cfg.charges !== 1) {
@@ -104,8 +110,10 @@ export async function createBalancePaymentSession(input: {
         },
       ],
       ...(input.patientEmail ? { customer_email: input.patientEmail } : {}),
-      success_url: `${input.baseUrl}/patient/invoices?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${input.baseUrl}/patient/invoices`,
+      success_url: input.returnUrl
+        ? `${input.returnUrl}?session_id={CHECKOUT_SESSION_ID}`
+        : `${input.baseUrl}/patient/invoices?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: input.returnUrl || `${input.baseUrl}/patient/invoices`,
       metadata: { kind: 'balance_payment', paymentId, organizationId: input.organizationId },
       payment_intent_data: {
         metadata: { kind: 'balance_payment', paymentId, organizationId: input.organizationId },

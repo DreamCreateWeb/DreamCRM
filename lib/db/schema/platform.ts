@@ -133,6 +133,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   // lib/services/email-automations.ts.
   emailAutomations: jsonb('email_automations'),
 
+  // Automated balance-reminder cadence (Shop → Payments). Stored values merge
+  // over defaults via resolveBalanceOutreachSettings(); null = DISABLED —
+  // dunning email is strictly opt-in. Engine: lib/services/balance-outreach.ts.
+  balanceOutreach: jsonb('balance_outreach'),
+
   // Contact
   phone: text('phone'),
   email: text('email'),

@@ -27,6 +27,7 @@ export type EmailAutomationKey =
   | 'portal_invite'
   | 'review_request'
   | 'contact_ack'
+  | 'balance_pay_link'
 
 export type EmailSlotKey = 'subject' | 'heading' | 'body' | 'closing'
 
@@ -39,7 +40,7 @@ export interface EmailSlots {
   closing?: string
 }
 
-export type EmailCategory = 'appointments' | 'forms' | 'portal' | 'reviews' | 'website'
+export type EmailCategory = 'appointments' | 'forms' | 'portal' | 'reviews' | 'website' | 'billing'
 
 /** A `{{token}}` a clinic can drop into this email's copy. */
 export interface TokenSpec {
@@ -285,6 +286,40 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       text: 'Whether this sends automatically after a completed visit (and how soon) is set in the Reviews module.',
       href: '/reviews',
       linkLabel: 'Open Reviews',
+    },
+  },
+
+  balance_pay_link: {
+    key: 'balance_pay_link',
+    label: 'Balance & pay link',
+    description:
+      'Sent when you email a patient their balance with a secure pay link — and by the automatic balance reminder, if you turn that on.',
+    category: 'billing',
+    enableSource: null,
+    moduleHref: '/shop/payments',
+    moduleLabel: 'Online payments',
+    tokens: [
+      T_FIRST,
+      T_CLINIC,
+      T_PHONE,
+      { token: '{{balance}}', label: 'Their current balance (e.g. $135.00)' },
+    ],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'Your balance at {{clinicName}} — pay online in a minute',
+      body: 'Hi {{firstName}} — you have a balance of {{balance}} with {{clinicName}}. No rush and no judgment — life gets busy. You can take care of it online in about a minute, or reply to this email if something looks off and we’ll sort it out together.',
+    },
+    includesNote: [
+      'A secure “Pay my balance” button (their personal pay page — no sign-in needed)',
+      'A short greeting and your clinic name signature',
+    ],
+    timingHint: {
+      text: 'Sent on demand from a patient’s record or the patient list — and automatically on a schedule when you turn on Automatic balance reminders.',
+      href: '/shop/payments',
+      linkLabel: 'Online payments',
     },
   },
 

@@ -25,7 +25,7 @@ import AddPatientModal from './add-patient-modal'
 import ImportPatientsModal from './import-patients-modal'
 import SavedViewsBar from './saved-views-bar'
 import type { PatientViewRow } from '@/lib/types/patient-views'
-import { bulkInvitePatientsToPortalAction, bulkAssignPatientTagAction } from './actions'
+import { bulkInvitePatientsToPortalAction, bulkAssignPatientTagAction, bulkSendPayLinksAction } from './actions'
 
 function money(cents: number): string {
   if (cents === 0) return '—'
@@ -177,6 +177,29 @@ export default function PatientsList({
     () => rows.filter((r) => selected.has(r.id) && r.email).length,
     [rows, selected],
   )
+
+  // Bulk email-to-pay — selected patients with a balance AND an email.
+  const payableCount = useMemo(
+    () => rows.filter((r) => selected.has(r.id) && r.email && (r.outstandingBalanceCents ?? 0) > 0).length,
+    [rows, selected],
+  )
+  const [payLinking, startPayLinks] = useTransition()
+  function bulkPayLinks() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    startPayLinks(async () => {
+      const r = await bulkSendPayLinksAction(ids)
+      if (!r.ok) {
+        setToast(r.error)
+        return
+      }
+      const parts: string[] = [`Sent ${r.sent} pay ${r.sent === 1 ? 'link' : 'links'}`]
+      if (r.skipped) parts.push(`${r.skipped} skipped (no balance / no email / just sent)`)
+      if (r.failed) parts.push(`${r.failed} failed`)
+      setToast(parts.join(' · '))
+      setSelected(new Set())
+    })
+  }
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
   function toggleAll() {
@@ -496,6 +519,17 @@ export default function PatientsList({
             title={invitableCount === 0 ? 'None of the selected patients have an email on file' : undefined}
           >
             {inviting ? 'Inviting…' : `Invite to portal (${invitableCount})`}
+          </ActionButton>
+        )}
+        {payableCount > 0 && (
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            onClick={bulkPayLinks}
+            disabled={payLinking}
+            title="Email each selected patient their balance with a secure pay link (patients without a balance are skipped)"
+          >
+            {payLinking ? 'Sending…' : `Email pay link (${payableCount})`}
           </ActionButton>
         )}
       </BulkBar>

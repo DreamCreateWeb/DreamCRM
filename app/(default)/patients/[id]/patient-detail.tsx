@@ -31,6 +31,7 @@ import {
   openPatientThreadAction,
   sendIntakeRequestAction,
   sendPatientPortalInviteAction,
+  sendPayLinkAction,
   sendReviewRequestForPatientAction,
   viewAsPatientAction,
 } from '../actions'
@@ -532,7 +533,7 @@ function SendPortalInviteButton({ patientId }: { patientId: string }) {
 }
 
 function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?: IntakeFormOption[] }) {
-  const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string }; sendIntake?: boolean }> = []
+  const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string }; sendIntake?: boolean; sendPayLink?: boolean }> = []
   if (header.flags.unconfirmedNext48h) {
     items.push({
       severity: 'warn',
@@ -551,7 +552,11 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
     items.push({
       severity: 'warn',
       copy: `${money(header.outstandingBalanceCents)} balance on file (from your PMS).`,
-      cta: { label: 'See online payments', href: '/shop/payments' },
+      // With an email on file the fastest fix is emailing their pay link;
+      // otherwise fall back to the reconciliation page.
+      ...(header.email
+        ? { sendPayLink: true }
+        : { cta: { label: 'See online payments', href: '/shop/payments' } }),
     })
   }
   if (header.flags.lapsed) {
@@ -589,6 +594,7 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
                 className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline disabled:opacity-50"
               />
             )}
+            {it.sendPayLink && <SendPayLinkInline patientId={header.id} />}
             {it.cta && (
               <Link
                 href={it.cta.href}
@@ -601,6 +607,41 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
         ))}
       </ul>
     </div>
+  )
+}
+
+/** Inline "email a pay link" action for the balance nudge — sends the
+ *  patient their balance + the secure /b/[token] pay page. */
+function SendPayLinkInline({ patientId }: { patientId: string }) {
+  const [pending, startTransition] = useTransition()
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  function onClick() {
+    setFeedback(null)
+    startTransition(async () => {
+      const r = await sendPayLinkAction(patientId)
+      if (r.ok) setFeedback({ kind: 'ok', msg: 'Pay link sent — it lands with their balance and a secure pay page.' })
+      else setFeedback({ kind: 'err', msg: r.error })
+    })
+  }
+
+  if (feedback?.kind === 'ok') {
+    return <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{feedback.msg}</p>
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={pending}
+        className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline disabled:opacity-50"
+      >
+        {pending ? 'Sending…' : 'Email a pay link →'}
+      </button>
+      {feedback?.kind === 'err' && (
+        <p className="text-xs text-rose-600 dark:text-rose-400 mt-0.5">{feedback.msg}</p>
+      )}
+    </>
   )
 }
 

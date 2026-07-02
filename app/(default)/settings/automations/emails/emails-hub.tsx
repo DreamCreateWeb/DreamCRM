@@ -24,10 +24,11 @@ import { Toggle } from '@/components/ui/toggle'
 import { FlashToast } from '@/components/ui/flash-toast'
 
 // Order + copy for the category groups a clinic scans top-to-bottom.
-const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'portal', 'reviews', 'website']
+const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'billing', 'portal', 'reviews', 'website']
 const CATEGORY_LABELS: Record<EmailCategory, { title: string; blurb: string }> = {
   appointments: { title: 'Appointments', blurb: 'Confirmations, reminders, and cancellations.' },
   forms: { title: 'Forms & intake', blurb: 'The paperwork you send before a visit.' },
+  billing: { title: 'Billing', blurb: 'Balance emails with a secure pay link.' },
   portal: { title: 'Patient portal', blurb: 'Invites to your online patient portal.' },
   reviews: { title: 'Reviews', blurb: 'Asking happy patients to leave a review.' },
   website: { title: 'Website', blurb: 'Replies to people who message you from your site.' },

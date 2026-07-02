@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { runRetentionAutomations } from '@/lib/services/retention-automation'
+import { runBalanceReminderCadence } from '@/lib/services/balance-outreach'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,13 @@ async function run(request: Request) {
   }
   try {
     const result = await runRetentionAutomations()
-    return NextResponse.json({ ok: true, ...result })
+    // Opt-in balance-reminder cadence rides the same daily tick. Best-effort —
+    // a billing hiccup must never fail the birthday/reactivation job.
+    const balance = await runBalanceReminderCadence().catch((err) => {
+      console.warn('[retention-automations] balance cadence failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, balanceOutreach: balance })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

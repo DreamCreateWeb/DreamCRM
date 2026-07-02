@@ -2489,6 +2489,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // a visit-type catalog with a $50 consultation deposit (only when null).
     await seedDemoBookingDeposit(existing.id, new Date(), existingPatientIds)
 
+    // Billing-outreach self-heal: one sent pay-link request on Marcus.
+    await seedDemoBalanceOutreach(existing.id, new Date(), existingPatientIds)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -3160,6 +3163,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Booking-deposit showcase: paid deposit on Emma's widget consultation +
   // a visit-type catalog carrying a $50 consultation deposit.
   await seedDemoBookingDeposit(orgId, now, patientIds)
+
+  // Billing-outreach showcase: one sent pay-link request on Marcus.
+  await seedDemoBalanceOutreach(orgId, now, patientIds)
 
   return {
     organizationId: orgId,
@@ -4436,7 +4442,19 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
-  // (8) Public-site testimonials linked to a non-persona patient — a seeded
+  // (8) Seeded pay-link requests (demo tokens) on a non-persona patient —
+  // a fabricated dunning record must never sit on a real person.
+  await db
+    .delete(schema.balancePaymentRequest)
+    .where(
+      and(
+        eq(schema.balancePaymentRequest.organizationId, orgId),
+        inArray(schema.balancePaymentRequest.patientId, strays),
+        like(schema.balancePaymentRequest.token, 'demo%'),
+      ),
+    )
+
+  // (9) Public-site testimonials linked to a non-persona patient — a seeded
   // quote must never render under a real person's name.
   const [profileRow] = await db
     .select({ testimonials: schema.clinicProfile.testimonials })
@@ -4628,6 +4646,54 @@ async function seedDemoBookingDeposit(
       .set({ visitTypeSettings: DEMO_VISIT_TYPES, updatedAt: new Date() })
       .where(eq(schema.clinicProfile.organizationId, orgId))
   }
+}
+
+/**
+ * Seed the billing-outreach showcase: one SENT pay-link request on Marcus
+ * (persona 3 — the outstanding-balance persona) so the /b/[token] landing and
+ * the request history demo real states. Anchored on his live PMS balance
+ * (seeded by pms/demo-seed.ts); missing → skip. Token carries the `demo`
+ * marker the cleanup sweep recognizes; demo orgs never actually email
+ * (runBalanceReminderCadence + the cadence both skip isDemo).
+ */
+async function seedDemoBalanceOutreach(
+  orgId: string,
+  now: Date,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const marcusId = patientIds[3]
+  if (!marcusId) return
+  const REQUEST_ID = 'bpr_demo_marcus'
+
+  const [existing] = await db
+    .select({ id: schema.balancePaymentRequest.id })
+    .from(schema.balancePaymentRequest)
+    .where(eq(schema.balancePaymentRequest.id, REQUEST_ID))
+    .limit(1)
+  if (existing) return
+
+  // Anchor: Marcus's seeded PMS balance. Missing/zero → skip the showcase.
+  const [p] = await db
+    .select({ balance: schema.patient.pmsBalanceCents })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, marcusId)))
+    .limit(1)
+  if (!p?.balance || p.balance <= 0) return
+
+  const sentAt = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
+  await db.insert(schema.balancePaymentRequest).values({
+    id: REQUEST_ID,
+    organizationId: orgId,
+    patientId: marcusId,
+    token: 'demopb_marcus_showcase',
+    balanceCentsAtSend: p.balance,
+    status: 'sent',
+    source: 'auto',
+    sentByUserId: null,
+    sentAt,
+    createdAt: sentAt,
+    updatedAt: sentAt,
+  })
 }
 
 /**

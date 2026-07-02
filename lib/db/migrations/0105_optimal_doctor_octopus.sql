@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "balance_outreach" jsonb;

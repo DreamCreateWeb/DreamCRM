@@ -18,6 +18,11 @@ const runRetentionAutomations = vi.fn(async () => ({
 vi.mock('@/lib/services/retention-automation', () => ({
   runRetentionAutomations: () => runRetentionAutomations(),
 }))
+// The retention cron also ticks the opt-in balance-reminder cadence (best-effort).
+const runBalanceReminderCadence = vi.fn(async () => ({ orgsScanned: 0, candidates: 0, sent: 0, skipped: 0 }))
+vi.mock('@/lib/services/balance-outreach', () => ({
+  runBalanceReminderCadence: () => runBalanceReminderCadence(),
+}))
 const runFollowupRules = vi.fn(async () => ({ scanned: 0, created: 0, errors: [] }))
 vi.mock('@/lib/services/followup-rules', () => ({
   runFollowupRules: () => runFollowupRules(),
@@ -106,7 +111,9 @@ describe('retention-automations cron — authorized run', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       ok: true, scanned: 2, created: 1, alreadyCreated: 1, emptyAudience: 0, details: [], errors: [],
+      balanceOutreach: { orgsScanned: 0, candidates: 0, sent: 0, skipped: 0 },
     })
     expect(runRetentionAutomations).toHaveBeenCalledTimes(1)
+    expect(runBalanceReminderCadence).toHaveBeenCalledTimes(1)
   })
 })
