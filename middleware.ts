@@ -102,6 +102,9 @@ const PUBLIC_PATHS = [
   // Public fast-pass claim pages ("an earlier opening") — same token-IS-auth
   // pattern as /r; patient lands from the offer email.
   '/w',
+  // Public one-click appointment-confirm pages — same token-IS-auth pattern;
+  // patient lands from the reminder email's "Confirm my visit" button.
+  '/c',
   // Subscribable .ics calendar feed (/api/calendar/<token>). Calendar apps
   // (Google/Apple/Outlook) fetch it with no session — the opaque token in the
   // URL is the auth. Must be public or the fetch 302s to /signin.

@@ -61,11 +61,17 @@ write-back + reminders (email, 30m cron) + review-request on complete.
   reconciliation + CSV under Shop → Payments; drawer shows paid/pending pill.
   Later: portal-booking deposits, auto-release when unpaid after N hours,
   refund-on-cancel policy control.
-- ◐ **Reminder depth** — competitors: multiple cadenced reminders per visit
-  w/ per-visit-type templates, DIFFERENT copy for confirmed vs unconfirmed,
-  save-the-date on booking, procedure prep/post instructions attached,
-  form links attached (we attach forms ✅). NexHealth wraps this as
-  per-type "Appointment Journeys". **P1** (email now; voice/SMS later).
+- ✅ **Reminder journeys** — SHIPPED 2026-07-02. Multi-touch cadence
+  (`touchOffsets`, default 3 days + day-before, up to 3 touches, journey
+  presets in the Emails hub; legacy single-offset blobs resolve verbatim);
+  per-touch idempotency + a 20h min-gap so touches never stack; DIFFERENT
+  copy for confirmed ("see you soon", its own toggle) vs unconfirmed
+  (confirm CTA); **one-click email confirm** (`/c/[token]` token-is-auth
+  landing, POST-confirm so scanners can't; confirmedVia 'email') replacing
+  the dead "Reply CONFIRM" copy; per-visit-type **prep instructions**
+  (Settings → Practice) appended to reminders + shown on the confirm page;
+  save-the-date "Add to calendar" link in the booking confirmation.
+  Later: SMS channel, post-visit instructions, per-type cadence overrides.
 - ✗ **Family messaging consolidation** (Lighthouse) — one confirmation for a
   family with multiple same-day visits (we have guardian links). **P2.**
 - ◐ **No-show follow-up** — we create a staff follow-up; vendors ALSO message

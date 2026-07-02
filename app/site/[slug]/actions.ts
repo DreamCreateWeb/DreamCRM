@@ -609,6 +609,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
           clinicName: sender.name,
           clinicPhone: profile?.phone ?? null,
           startTime,
+          endTime,
           appointmentType,
           intakeFormUrl,
           timeZone: sender.timeZone,

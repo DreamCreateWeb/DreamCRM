@@ -722,6 +722,13 @@
       "when": 1783007317321,
       "tag": "0102_typical_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1783009268173,
+      "tag": "0103_typical_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

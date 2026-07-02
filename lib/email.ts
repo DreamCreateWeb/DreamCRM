@@ -383,6 +383,29 @@ export interface BookingConfirmationData {
   /** Clinic IANA timezone so the appointment time renders at the clinic's
    *  wall-clock (the server runs in UTC). */
   timeZone?: string
+  /** Visit end (drives the calendar hold's length). Absent → 30 minutes. */
+  endTime?: Date | null
+}
+
+/** Google Calendar "add event" template URL — the save-the-date link that
+ *  works in every mail client with zero attachment plumbing. UTC instants
+ *  (the trailing Z); Google renders them in the viewer's calendar zone. */
+function googleCalendarUrl(input: {
+  title: string
+  start: Date
+  end: Date
+  details?: string
+  location?: string | null
+}): string {
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: input.title,
+    dates: `${fmt(input.start)}/${fmt(input.end)}`,
+  })
+  if (input.details) params.set('details', input.details)
+  if (input.location) params.set('location', input.location)
+  return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
 
 export async function sendBookingConfirmationEmail(to: string, data: BookingConfirmationData, sender?: ClinicSender, content?: Partial<EmailSlots>) {
@@ -430,7 +453,15 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
         <p style="margin:0 0 24px;color:#444;line-height:1.5">${bodyHtml}</p>
         <div style="padding:16px 20px;background:#f9fafb;border-radius:8px;margin-bottom:24px">
           <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
-          <p style="margin:0;font-size:14px;color:#555">${data.clinicName}${data.clinicPhone ? ` · ${data.clinicPhone}` : ''}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#555">${data.clinicName}${data.clinicPhone ? ` · ${data.clinicPhone}` : ''}</p>
+          <a href="${googleCalendarUrl({
+            title: `${typeLabel} at ${data.clinicName}`,
+            start: data.startTime,
+            end: data.endTime ?? new Date(data.startTime.getTime() + 30 * 60 * 1000),
+            details: data.clinicPhone ? `Questions? Call ${data.clinicPhone}.` : undefined,
+          })}" style="font-size:13px;color:#0f766e;text-decoration:underline">
+            Add to calendar →
+          </a>
         </div>
         ${intakeBlock}
         <p style="margin:0;font-size:13px;color:#888">${closingHtml}</p>

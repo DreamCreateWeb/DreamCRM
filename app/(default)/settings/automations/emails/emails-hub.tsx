@@ -13,6 +13,8 @@ import {
 import {
   REMINDER_OFFSET_MAX_HOURS,
   REMINDER_OFFSET_MIN_HOURS,
+  REMINDER_MAX_TOUCHES,
+  REMINDER_JOURNEY_PRESETS,
   type ReminderSettings,
 } from '@/lib/types/reminders'
 import { saveEmailAutomationAction } from './actions'
@@ -56,12 +58,11 @@ function tokenSample(token: string): string | null {
   return v ? v.trim() : null
 }
 
-// Snap-to presets for "hours before the visit". 2h is offered per the brief but
-// only surfaces when it's inside the clinic-editable window (min is 4h today, so
-// it's filtered out) — every chip persists a valid integer, never a clamped one.
-const REMINDER_HOUR_PRESETS = [2, 4, 8, 12, 24, 48].filter(
-  (h) => h >= REMINDER_OFFSET_MIN_HOURS && h <= REMINDER_OFFSET_MAX_HOURS,
-)
+/** "72" → "3 days" / "24" → "24 hours" for the touch-row helper label. */
+function fmtOffset(h: number): string {
+  if (h % 24 === 0 && h >= 48) return `${h / 24} days`
+  return `${h} hours`
+}
 
 function slotsFrom(resolved: ResolvedEmail, key: EmailAutomationKey): Record<EmailSlotKey, string> {
   const spec = EMAIL_AUTOMATION_SPECS[key]
@@ -307,7 +308,7 @@ function EmailCard({
             />
           )}
 
-          {spec.enableSource === 'review_config' && spec.timingHint && (
+          {spec.enableSource !== 'reminder_settings' && spec.timingHint && (
             <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-gray-800/40 dark:text-gray-300">
               {spec.timingHint.text}{' '}
               <a href={spec.timingHint.href} className="font-medium text-teal-700 hover:underline dark:text-teal-400">
@@ -486,8 +487,8 @@ function StatePill({
   )
 }
 
-/** The reminder card's timing block — on/off, hours-before, forms nudge. Writes
- *  reminder_settings (via the shared state + the reminder card's Save). */
+/** The reminder card's timing block — on/off, the multi-touch journey, forms
+ *  nudge. Writes reminder_settings (via the shared state + the card's Save). */
 function ReminderTiming({
   value,
   onChange,
@@ -498,6 +499,28 @@ function ReminderTiming({
   disabled: boolean
 }) {
   const timingDisabled = disabled || !value.enabled
+  const touches = value.touchOffsets
+
+  function setTouch(i: number, hours: number) {
+    const next = [...touches]
+    next[i] = hours
+    onChange({ ...value, touchOffsets: next })
+  }
+  function removeTouch(i: number) {
+    if (touches.length <= 1) return // a journey needs at least one touch
+    onChange({ ...value, touchOffsets: touches.filter((_, idx) => idx !== i) })
+  }
+  function addTouch() {
+    if (touches.length >= REMINDER_MAX_TOUCHES) return
+    // Offer the next sensible earlier touch that isn't in the journey yet.
+    const candidate = [168, 72, 24, 4].find((h) => !touches.includes(h)) ?? 24
+    onChange({ ...value, touchOffsets: [...touches, candidate] })
+  }
+
+  const journeyMatches = (offsets: number[]) =>
+    offsets.length === touches.length &&
+    [...offsets].sort((a, b) => b - a).every((v, i) => [...touches].sort((a, b) => b - a)[i] === v)
+
   return (
     <div id="reminder-timing" className="space-y-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/40">
       <label className="flex items-center justify-between gap-3">
@@ -509,50 +532,77 @@ function ReminderTiming({
           srLabel="Send reminders automatically"
         />
       </label>
-      <div className={value.enabled ? '' : 'opacity-50'}>
-        <div className="flex items-center justify-between gap-3">
-          <label htmlFor="reminder-offset-hours" className="text-sm text-gray-700 dark:text-gray-300">
-            Hours before the visit
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              id="reminder-offset-hours"
-              type="number"
-              min={REMINDER_OFFSET_MIN_HOURS}
-              max={REMINDER_OFFSET_MAX_HOURS}
-              step={1}
-              value={value.offsetHours}
-              onChange={(e) => onChange({ ...value, offsetHours: Number(e.target.value) })}
-              disabled={timingDisabled}
-              aria-describedby="reminder-offset-hint"
-              className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm tabular-nums dark:border-gray-700 dark:bg-gray-800"
-            />
-            <span className="text-sm text-gray-500 dark:text-gray-400">hours</span>
+
+      <div className={value.enabled ? 'space-y-2' : 'space-y-2 opacity-50'}>
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          Reminder schedule <span className="text-xs text-gray-400">(hours before the visit)</span>
+        </p>
+        {touches.map((h, i) => (
+          <div key={i} className="flex items-center justify-between gap-3">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Reminder {i + 1} · {fmtOffset(h)} before
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={REMINDER_OFFSET_MIN_HOURS}
+                max={REMINDER_OFFSET_MAX_HOURS}
+                step={1}
+                value={h}
+                onChange={(e) => setTouch(i, Number(e.target.value))}
+                disabled={timingDisabled}
+                aria-label={`Reminder ${i + 1}: hours before the visit`}
+                className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm tabular-nums dark:border-gray-700 dark:bg-gray-800"
+              />
+              <span className="text-sm text-gray-500 dark:text-gray-400">h</span>
+              {touches.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeTouch(i)}
+                  disabled={timingDisabled}
+                  className="text-xs text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-40"
+                  aria-label={`Remove reminder ${i + 1}`}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={addTouch}
+            disabled={timingDisabled || touches.length >= REMINDER_MAX_TOUCHES}
+            className="text-xs font-medium text-teal-700 hover:underline disabled:opacity-40 disabled:no-underline dark:text-teal-400"
+          >
+            + Add a reminder{touches.length >= REMINDER_MAX_TOUCHES ? ` (max ${REMINDER_MAX_TOUCHES})` : ''}
+          </button>
+          {/* One-click journey presets. */}
+          <div className="flex flex-wrap gap-1.5">
+            {REMINDER_JOURNEY_PRESETS.map((p) => {
+              const active = journeyMatches(p.offsets)
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => onChange({ ...value, touchOffsets: [...p.offsets] })}
+                  disabled={timingDisabled}
+                  aria-pressed={active}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors disabled:opacity-40 ${
+                    active
+                      ? 'border-teal-400 bg-teal-500/10 text-teal-700 dark:text-teal-300'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              )
+            })}
           </div>
         </div>
-        {/* Quick-pick presets — snap to common windows; still persists the integer. */}
-        <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
-          {REMINDER_HOUR_PRESETS.map((h) => {
-            const active = value.offsetHours === h
-            return (
-              <button
-                key={h}
-                type="button"
-                onClick={() => onChange({ ...value, offsetHours: h })}
-                disabled={timingDisabled}
-                aria-pressed={active}
-                className={`rounded-full border px-2 py-0.5 font-mono-num text-[11px] tabular-nums transition-colors disabled:opacity-40 ${
-                  active
-                    ? 'border-teal-400 bg-teal-500/10 text-teal-700 dark:text-teal-300'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                }`}
-              >
-                {h}h
-              </button>
-            )
-          })}
-        </div>
       </div>
+
       <label className="flex items-center justify-between gap-3">
         <span className="text-sm text-gray-700 dark:text-gray-300">
           Also remind patients to finish their forms
@@ -564,9 +614,11 @@ function ReminderTiming({
           srLabel="Also remind patients to finish their forms"
         />
       </label>
-      <p id="reminder-offset-hint" className="text-[11px] leading-relaxed text-gray-400">
-        The forms reminder uses your “Intake form request” email. Between {REMINDER_OFFSET_MIN_HOURS} and{' '}
-        {REMINDER_OFFSET_MAX_HOURS} hours (7 days). Each patient gets at most one reminder per visit.
+      <p className="text-[11px] leading-relaxed text-gray-400">
+        Each reminder sends at most once per visit, never two within a day of each other. Patients
+        who’ve already confirmed get the gentler “already confirmed” email below instead. Offsets
+        between {REMINDER_OFFSET_MIN_HOURS} and {REMINDER_OFFSET_MAX_HOURS} hours (7 days). The
+        forms reminder uses your “Intake form request” email.
       </p>
     </div>
   )

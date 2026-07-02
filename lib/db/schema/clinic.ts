@@ -294,8 +294,12 @@ export const appointment = pgTable('appointment', {
   cancelledAt: timestamp('cancelled_at'),
   completedAt: timestamp('completed_at'),
   noShowedAt: timestamp('no_showed_at'),
-  // How the confirmation came in: 'sms' | 'email' | 'manual' | 'auto_sms_keyword'
+  // How the confirmation came in: 'sms' | 'email' | 'manual' | 'auto_sms_keyword' | 'portal'
   confirmedVia: text('confirmed_via'),
+  // Token-IS-auth for the public one-click confirm landing (/c/[token]) linked
+  // from reminder emails — same pattern as /r and /w. Minted lazily at the
+  // first reminder send; reused across the journey's touches.
+  confirmToken: text('confirm_token'),
   // If this row replaced an earlier appointment via reschedule, points back.
   // Soft pointer (no FK) since the original row may have been deleted.
   rescheduledFromAppointmentId: text('rescheduled_from_appointment_id'),
@@ -319,6 +323,8 @@ export const appointment = pgTable('appointment', {
   index('appointment_org_provider_idx').on(t.organizationId, t.providerId),
   // Bookings-today count (Overview trend) + recent-activity ordering.
   index('appointment_org_created_idx').on(t.organizationId, t.createdAt),
+  // Public confirm-landing lookup (token IS the auth).
+  uniqueIndex('appointment_confirm_token_idx').on(t.confirmToken),
 ])
 
 // Clinic staff who patients can be booked "with". Intentionally lightweight:

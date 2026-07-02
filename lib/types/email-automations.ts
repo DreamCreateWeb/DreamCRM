@@ -21,6 +21,7 @@
 export type EmailAutomationKey =
   | 'booking_confirmation'
   | 'appointment_reminder'
+  | 'appointment_reminder_confirmed'
   | 'intake_request'
   | 'cancellation'
   | 'portal_invite'
@@ -142,11 +143,44 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
     ],
     slotDefaults: {
       subject: 'Reminder: your {{appointmentType}} on {{appointmentDate}}',
-      body: 'Hi {{firstName}} — just a quick reminder of your {{appointmentType}} appointment at {{clinicName}} on {{appointmentTime}}. Reply CONFIRM or call us back to confirm. Thanks!',
+      body: 'Hi {{firstName}} — just a quick reminder of your {{appointmentType}} appointment at {{clinicName}} on {{appointmentTime}}. Tap the button below to confirm — or if the time no longer works, just reply and we’ll find a better one.',
     },
-    includesNote: ['A short greeting and your clinic name signature'],
+    includesNote: [
+      'A one-click “Confirm my visit” button (patients confirm right from the email)',
+      'Any prep instructions you’ve set for the visit type (Settings → Practice → Visit types)',
+      'A short greeting and your clinic name signature',
+    ],
     timingHint: {
       text: 'When reminders send (and whether they send at all) is set just below.',
+      href: '#reminder-timing',
+      linkLabel: 'Reminder timing',
+    },
+  },
+
+  appointment_reminder_confirmed: {
+    key: 'appointment_reminder_confirmed',
+    label: 'Reminder — already confirmed',
+    description:
+      'The gentler heads-up sent before a visit the patient has ALREADY confirmed — no confirm ask, just “see you soon.” Rides the same reminder schedule.',
+    category: 'appointments',
+    enableSource: 'email_automations',
+    moduleHref: '/appointments',
+    moduleLabel: 'Appointments',
+    tokens: [T_FIRST, T_CLINIC, T_TYPE, T_DATE, T_TIME],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'See you {{appointmentDate}} — {{appointmentType}} at {{clinicName}}',
+      body: 'Hi {{firstName}} — you’re all set for your {{appointmentType}} at {{clinicName}} on {{appointmentTime}}. Nothing to do — this is just a friendly heads-up. If something’s come up, reply to this email and we’ll find a new time.',
+    },
+    includesNote: [
+      'Any prep instructions you’ve set for the visit type (Settings → Practice → Visit types)',
+      'A short greeting and your clinic name signature',
+    ],
+    timingHint: {
+      text: 'Sends on the same reminder schedule as the appointment reminder.',
       href: '#reminder-timing',
       linkLabel: 'Reminder timing',
     },

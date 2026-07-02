@@ -32,6 +32,11 @@ export interface VisitType {
    * a payments hiccup must never block a patient from booking).
    */
   depositCents: number
+  /**
+   * Pre-visit prep instructions appended to this type's reminder emails
+   * ("eat a light meal beforehand", "arrange a ride home"). Empty = none.
+   */
+  prepInstructions: string
 }
 
 export type VisitTypeSettings = VisitType[]
@@ -51,14 +56,14 @@ export const OTHER_VISIT_TYPE_ID = 'other'
  * schedule-buster fix).
  */
 export const DEFAULT_VISIT_TYPES: VisitType[] = [
-  { id: 'checkup', label: 'Checkup', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
-  { id: 'cleaning', label: 'Cleaning', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
-  { id: 'consultation', label: 'Consultation', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
-  { id: 'emergency', label: 'Emergency / tooth pain', durationMinutes: 30, bookablePublic: true, bookablePortal: false, depositCents: 0 },
-  { id: 'filling', label: 'Filling', durationMinutes: 30, bookablePublic: false, bookablePortal: false, depositCents: 0 },
-  { id: 'extraction', label: 'Extraction', durationMinutes: 45, bookablePublic: false, bookablePortal: false, depositCents: 0 },
-  { id: 'root_canal', label: 'Root canal', durationMinutes: 60, bookablePublic: false, bookablePortal: false, depositCents: 0 },
-  { id: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
+  { id: 'checkup', label: 'Checkup', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0, prepInstructions: '' },
+  { id: 'cleaning', label: 'Cleaning', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0, prepInstructions: '' },
+  { id: 'consultation', label: 'Consultation', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0, prepInstructions: '' },
+  { id: 'emergency', label: 'Emergency / tooth pain', durationMinutes: 30, bookablePublic: true, bookablePortal: false, depositCents: 0, prepInstructions: '' },
+  { id: 'filling', label: 'Filling', durationMinutes: 30, bookablePublic: false, bookablePortal: false, depositCents: 0, prepInstructions: '' },
+  { id: 'extraction', label: 'Extraction', durationMinutes: 45, bookablePublic: false, bookablePortal: false, depositCents: 0, prepInstructions: '' },
+  { id: 'root_canal', label: 'Root canal', durationMinutes: 60, bookablePublic: false, bookablePortal: false, depositCents: 0, prepInstructions: '' },
+  { id: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0, prepInstructions: '' },
 ]
 
 /** Clamp a duration into a sane booking range (one slot .. a half-day). */
@@ -66,6 +71,12 @@ function cleanDuration(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n)) return 30
   return Math.min(480, Math.max(15, Math.round(n)))
+}
+
+/** Trim + cap prep instructions (plain text appended to reminder emails). */
+function cleanPrep(v: unknown): string {
+  if (typeof v !== 'string') return ''
+  return v.trim().slice(0, 600)
 }
 
 /** Clamp a deposit into 0..$1,000 whole cents. Absent/malformed → 0 (off) —
@@ -112,6 +123,7 @@ export function resolveVisitTypes(stored: unknown): VisitType[] {
       bookablePublic: r.bookablePublic === undefined ? true : !!r.bookablePublic,
       bookablePortal: r.bookablePortal === undefined ? true : !!r.bookablePortal,
       depositCents: cleanDeposit(r.depositCents),
+      prepInstructions: cleanPrep(r.prepInstructions),
     })
   }
 
@@ -136,6 +148,14 @@ export function findVisitType(types: VisitType[], id: string | null | undefined)
 export function visitTypeDuration(stored: unknown, id: string | null | undefined): number {
   const found = findVisitType(resolveVisitTypes(stored), id)
   return found?.durationMinutes ?? 30
+}
+
+/**
+ * Prep instructions for a visit-type id ('' when none / unknown id).
+ */
+export function visitTypePrepInstructions(stored: unknown, id: string | null | undefined): string {
+  const found = findVisitType(resolveVisitTypes(stored), id)
+  return found?.prepInstructions ?? ''
 }
 
 /**

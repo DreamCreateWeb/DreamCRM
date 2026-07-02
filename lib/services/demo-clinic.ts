@@ -976,9 +976,25 @@ const DEMO_FORM_ES: Record<string, string> = {
 // editor + duration→slot math both showcase a clinic-added entry.
 const DEMO_CHAIR_COUNT = 3
 const DEMO_RECALL_DEFAULT_MONTHS = 6
+// Consultation carries a $50 deposit + root canal carries prep instructions so
+// the Settings → Visit types editor, the reminder-email prep block, and the
+// booking-deposit surfaces all demo a configured example.
 const DEMO_VISIT_TYPES: VisitType[] = [
-  ...DEFAULT_VISIT_TYPES.filter((t) => t.id !== OTHER_VISIT_TYPE_ID),
-  { id: 'implant_consult', label: 'Implant consult', durationMinutes: 60, bookablePublic: true, bookablePortal: false, depositCents: 0 },
+  ...DEFAULT_VISIT_TYPES.filter((t) => t.id !== OTHER_VISIT_TYPE_ID).map((t) => {
+    if (t.id === 'consultation') return { ...t, depositCents: 5000 }
+    if (t.id === 'root_canal')
+      return { ...t, prepInstructions: 'Eat a normal meal beforehand and take any regular medications as usual. Plan for about 90 minutes with us.' }
+    return { ...t }
+  }),
+  {
+    id: 'implant_consult',
+    label: 'Implant consult',
+    durationMinutes: 60,
+    bookablePublic: true,
+    bookablePortal: false,
+    depositCents: 0,
+    prepInstructions: 'Bring any recent X-rays or referral paperwork you have — it helps us give you real answers on day one.',
+  },
   ...DEFAULT_VISIT_TYPES.filter((t) => t.id === OTHER_VISIT_TYPE_ID),
 ]
 
@@ -4599,20 +4615,17 @@ async function seedDemoBookingDeposit(
   })
 
   // Visit-type catalog backfill — ONLY when the demo has never configured one
-  // (never clobbers an existing catalog). Defaults + a $50 consultation
-  // deposit so the Settings → Visit types editor demos the field.
+  // (never clobbers an existing catalog). The demo catalog carries the $50
+  // consultation deposit + prep-instruction examples the editor showcases.
   const [profile] = await db
     .select({ visitTypeSettings: schema.clinicProfile.visitTypeSettings })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, orgId))
     .limit(1)
   if (profile && profile.visitTypeSettings == null) {
-    const withDeposit = DEFAULT_VISIT_TYPES.map((t) =>
-      t.id === 'consultation' ? { ...t, depositCents: 5000 } : { ...t },
-    )
     await db
       .update(schema.clinicProfile)
-      .set({ visitTypeSettings: withDeposit, updatedAt: new Date() })
+      .set({ visitTypeSettings: DEMO_VISIT_TYPES, updatedAt: new Date() })
       .where(eq(schema.clinicProfile.organizationId, orgId))
   }
 }

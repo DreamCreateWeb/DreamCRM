@@ -1,12 +1,20 @@
 import 'server-only'
-import { and, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, lte, ne, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { sendNotificationEmail } from '@/lib/email'
+import { authEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { getOrCreateConfirmToken } from '@/lib/services/appointment-confirm'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getAppointmentDetail, logReminderSent, type AppointmentDetail } from '@/lib/services/appointments'
-import { resolveReminderSettings, FORMS_REMINDER_WINDOW_HOURS, type ReminderSettings } from '@/lib/types/reminders'
+import {
+  resolveReminderSettings,
+  reminderTouchTemplate,
+  FORMS_REMINDER_WINDOW_HOURS,
+  REMINDER_MIN_GAP_HOURS,
+  type ReminderSettings,
+} from '@/lib/types/reminders'
+import { visitTypePrepInstructions } from '@/lib/types/visit-types'
 import type { ClinicSender } from '@/lib/email-identity'
 
 // ── Settings CRUD (Settings → Reminders) ─────────────────────────────────────
@@ -67,11 +75,23 @@ export async function updateReminderSettings(
  * automated send. Returns `{ ok }` — never throws — so a bad address in a batch
  * doesn't abort the rest.
  */
+const APP_BASE =
+  process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || 'https://www.dreamcreatestudio.com'
+
+function escapeReminderHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 export async function sendReminderEmail(
   organizationId: string,
   detail: AppointmentDetail,
   sender: ClinicSender,
   sentByUserId: string | null,
+  opts?: { template?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
   try {
@@ -83,25 +103,81 @@ export async function sendReminderEmail(
     const dateStr = detail.startTime.toLocaleDateString('en-US', {
       weekday: 'long', month: 'short', day: 'numeric', timeZone: sender.timeZone,
     })
-    // Editable copy (Settings → Automations → Emails). The reminder's on/off +
-    // timing live in reminder_settings (the cron gates on them); a manual
-    // "Send reminder" always sends, so there's no enable check here.
-    const rendered = await renderAutomatedEmail(organizationId, 'appointment_reminder', {
-      firstName,
-      clinicName: sender.name,
-      appointmentType: typeLabel,
-      appointmentDate: dateStr,
-      appointmentTime: startStr,
-    })
-    await sendNotificationEmail(
+    // Confirmed patients get the gentler "see you soon" variant (no confirm
+    // ask); unconfirmed the confirm-cta copy. Both clinic-editable (Settings →
+    // Automations → Emails). The reminder's timing/on-off lives in
+    // reminder_settings (the cron gates on it); a manual "Send reminder"
+    // always sends, so there's no enable check on the unconfirmed variant.
+    const confirmed = detail.status === 'confirmed'
+    const rendered = await renderAutomatedEmail(
+      organizationId,
+      confirmed ? 'appointment_reminder_confirmed' : 'appointment_reminder',
       {
-        to: detail.patient.email,
-        name: detail.patient.fullName,
-        title: rendered.full.subject,
-        body: rendered.full.body,
+        firstName,
+        clinicName: sender.name,
+        appointmentType: typeLabel,
+        appointmentDate: dateStr,
+        appointmentTime: startStr,
       },
-      sender,
     )
+    if (confirmed && !rendered.enabled) {
+      return { ok: false, error: 'Confirmed-visit reminders are disabled for this clinic' }
+    }
+
+    // Per-visit-type prep instructions (Settings → Practice → Visit types) —
+    // appended as their own paragraph so they survive any copy customization.
+    let prep = ''
+    try {
+      const [profileRow] = await db
+        .select({ visitTypeSettings: schema.clinicProfile.visitTypeSettings })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, organizationId))
+        .limit(1)
+      prep = visitTypePrepInstructions(profileRow?.visitTypeSettings ?? null, detail.type)
+    } catch {
+      /* prep is a nice-to-have — never blocks the reminder */
+    }
+    const body = prep ? `${rendered.full.body}\n\nBefore your visit: ${prep}` : rendered.full.body
+
+    // Unconfirmed → carry the one-click confirm button (token-is-auth landing
+    // at /c/[token]; the same token across every touch of the journey).
+    let confirmUrl: string | null = null
+    if (!confirmed) {
+      try {
+        const token = await getOrCreateConfirmToken(organizationId, detail.id)
+        if (token) confirmUrl = `${APP_BASE}/c/${token}`
+      } catch {
+        /* fall back to the plain reminder below */
+      }
+    }
+
+    if (confirmUrl) {
+      await deliver({
+        to: detail.patient.email,
+        from: sender.from,
+        replyTo: sender.replyTo,
+        gmail: sender.gmail,
+        subject: rendered.full.subject,
+        html: authEmailShell({
+          heading: 'Your visit is coming up',
+          introHtml: escapeReminderHtml(body).replace(/\n/g, '<br>'),
+          buttonUrl: confirmUrl,
+          buttonLabel: 'Confirm my visit',
+          footnoteHtml:
+            'Need a different time? Just reply to this email and we’ll find one together.',
+        }),
+      })
+    } else {
+      await sendNotificationEmail(
+        {
+          to: detail.patient.email,
+          name: detail.patient.fullName,
+          title: rendered.full.subject,
+          body,
+        },
+        sender,
+      )
+    }
     await queueCommLogWriteBack(organizationId, detail.patient.id, {
       note: `Appointment reminder sent for ${startStr}.`,
       mode: 'Email',
@@ -110,7 +186,7 @@ export async function sendReminderEmail(
       organizationId,
       appointmentId: detail.id,
       channel: 'email',
-      template: sentByUserId ? 'default_reminder' : 'auto_reminder',
+      template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
       sentByUserId,
     })
     return { ok: true }
@@ -139,14 +215,15 @@ export interface ReminderRunResult {
 
 /**
  * Find + send every due appointment reminder across all clinics. Safe to run
- * every 30 minutes — idempotent per appointment within its reminder window.
+ * every 30 minutes — each JOURNEY TOUCH is idempotent per appointment.
  *
  * Eligibility per appointment:
- *   - status is 'scheduled' or 'confirmed' (a confirmed patient still gets the
- *     day-before nudge; cancelled / no_show / completed never do),
- *   - startTime ∈ [now, now + offsetHours],
+ *   - status is 'scheduled' (confirm-cta copy) or 'confirmed' (gentler
+ *     variant with its own on/off); cancelled / no_show / completed never,
+ *   - startTime ∈ [now, now + max(touchOffsets)],
  *   - patient is active and has an email on file,
- *   - no `appointment_reminder_log` row within the last `offsetHours`.
+ *   - the due touch (smallest opened offset) hasn't sent for this visit, and
+ *     no other visit reminder went out within REMINDER_MIN_GAP_HOURS.
  */
 export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
   const now = opts?.now ?? new Date()
@@ -174,27 +251,31 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     if (!settings.enabled) continue
     result.orgsScanned++
 
-    const windowEnd = new Date(now.getTime() + settings.offsetHours * 60 * 60 * 1000)
-    const remindedSince = new Date(now.getTime() - settings.offsetHours * 60 * 60 * 1000)
+    // The journey: touch offsets descending (e.g. [72, 24]). The scan window
+    // covers the LARGEST offset; per appointment we pick the most imminent
+    // touch whose window has opened.
+    const offsets = settings.touchOffsets
+    const windowEnd = new Date(now.getTime() + offsets[0] * 60 * 60 * 1000)
+    const gapCutoff = new Date(now.getTime() - REMINDER_MIN_GAP_HOURS * 60 * 60 * 1000)
 
-    // Candidate appointments in the window with an email on file. The
-    // idempotency check (a recent reminder log row) is a per-appointment query
-    // below rather than a join, to keep this dependency-light + easy to unit
-    // test the windowing/idempotency rules in isolation.
+    // Candidate appointments in the window with an email on file. Both
+    // scheduled AND confirmed qualify — confirmed patients get the gentler
+    // "see you soon" variant (its own on/off in the Emails hub); unconfirmed
+    // get the confirm-cta copy. The per-touch idempotency check is a
+    // per-appointment query below rather than a join, to keep this
+    // dependency-light + easy to unit test in isolation.
     const candidates = await db
       .select({
         appointmentId: schema.appointment.id,
         patientId: schema.appointment.patientId,
+        startTime: schema.appointment.startTime,
       })
       .from(schema.appointment)
       .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
       .where(
         and(
           eq(schema.appointment.organizationId, profile.organizationId),
-          // Only nudge UNconfirmed visits — the reminder asks the patient to
-          // confirm, so sending it to an already-confirmed appointment is
-          // contradictory (matches the manual reminder path's guard).
-          eq(schema.appointment.status, 'scheduled'),
+          inArray(schema.appointment.status, ['scheduled', 'confirmed']),
           gte(schema.appointment.startTime, now),
           lte(schema.appointment.startTime, windowEnd),
           eq(schema.patient.isActive, 1),
@@ -207,19 +288,48 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     for (const c of candidates) {
       result.candidates++
 
-      // Idempotency: skip if a reminder already went out for this appointment
-      // within the current window. Running every 30 min is therefore safe.
-      const [recent] = await db
-        .select({ id: schema.appointmentReminderLog.id })
+      // Pick this appointment's due touch: the SMALLEST offset whose window
+      // has opened (hoursUntil <= offset). A visit booked inside a larger
+      // touch's window gets that touch once, never a catch-up burst.
+      const hoursUntil = ((c.startTime as Date).getTime() - now.getTime()) / (60 * 60 * 1000)
+      const eligible = offsets.filter((o) => hoursUntil <= o)
+      if (eligible.length === 0) {
+        result.skipped++
+        continue
+      }
+      const touch = Math.min(...eligible)
+      const template = reminderTouchTemplate(touch)
+
+      // Idempotency, two rules in one query:
+      //  (a) this touch already sent for this appointment (ever) — a touch
+      //      fires at most once;
+      //  (b) ANY visit reminder (auto or manual; forms nudges don't count)
+      //      went out within REMINDER_MIN_GAP_HOURS — touches never stack
+      //      back-to-back on a late booking, and a manual drawer send
+      //      suppresses the next automated touch.
+      const priorLogs = await db
+        .select({
+          template: schema.appointmentReminderLog.template,
+          sentAt: schema.appointmentReminderLog.sentAt,
+        })
         .from(schema.appointmentReminderLog)
         .where(
           and(
             eq(schema.appointmentReminderLog.appointmentId, c.appointmentId),
-            gte(schema.appointmentReminderLog.sentAt, remindedSince),
+            or(
+              eq(schema.appointmentReminderLog.template, template),
+              gte(schema.appointmentReminderLog.sentAt, gapCutoff),
+            ),
           ),
         )
-        .limit(1)
-      if (recent) {
+      const touchAlreadySent = priorLogs.some((l) => l.template === template)
+      const recentReminder = priorLogs.some(
+        (l) =>
+          l.template !== FORMS_REMINDER_TEMPLATE &&
+          l.sentAt instanceof Date &&
+          l.sentAt >= gapCutoff,
+      )
+      if (touchAlreadySent || recentReminder) {
         result.alreadyReminded++
         continue
       }
@@ -231,10 +341,10 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           continue
         }
         const sender = await getClinicSenderIdentity(profile.organizationId)
-        const r = await sendReminderEmail(profile.organizationId, detail, sender, null)
+        const r = await sendReminderEmail(profile.organizationId, detail, sender, null, { template })
         if (r.ok) {
           result.sent++
-        } else if (r.error.includes('no email')) {
+        } else if (r.error.includes('no email') || r.error.includes('disabled')) {
           result.skipped++
         } else {
           result.failed++

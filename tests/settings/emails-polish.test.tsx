@@ -35,28 +35,36 @@ describe('EmailsHub polish', () => {
     expect(chip.textContent).toContain('→ Jordan')
   })
 
-  it('reminder hour presets snap the offset and only offer values inside the window', () => {
+  it('renders the default journey (72h + 24h) as two touch rows', () => {
     render(<EmailsHub config={CONFIG} reminder={REMINDER_DEFAULTS} canManage focusKey="appointment_reminder" />)
-    // 2h is below the 4h minimum, so it must not be offered as a preset
-    expect(screen.queryByRole('button', { name: '2h' })).toBeNull()
-    const offset = document.getElementById('reminder-offset-hours') as HTMLInputElement
-    expect(offset.value).toBe(String(REMINDER_DEFAULTS.offsetHours))
-    fireEvent.click(screen.getByRole('button', { name: '48h' }))
-    expect((document.getElementById('reminder-offset-hours') as HTMLInputElement).value).toBe('48')
+    const t1 = screen.getByLabelText('Reminder 1: hours before the visit') as HTMLInputElement
+    const t2 = screen.getByLabelText('Reminder 2: hours before the visit') as HTMLInputElement
+    expect(t1.value).toBe('72')
+    expect(t2.value).toBe('24')
   })
 
-  it('the reminder offset input is described by its helper text', () => {
+  it('journey presets swap the whole touch list in one click', () => {
     render(<EmailsHub config={CONFIG} reminder={REMINDER_DEFAULTS} canManage focusKey="appointment_reminder" />)
-    const offset = document.getElementById('reminder-offset-hours') as HTMLInputElement
-    const describedBy = offset.getAttribute('aria-describedby')
-    expect(describedBy).toBeTruthy()
-    expect(document.getElementById(describedBy!)).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Day before only' }))
+    expect(screen.getByLabelText('Reminder 1: hours before the visit')).toHaveProperty('value', '24')
+    expect(screen.queryByLabelText('Reminder 2: hours before the visit')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '1 week + 3 days + day before' }))
+    expect(screen.getByLabelText('Reminder 3: hours before the visit')).toHaveProperty('value', '24')
+  })
+
+  it('"+ Add a reminder" appends a touch and caps at the maximum', () => {
+    render(<EmailsHub config={CONFIG} reminder={REMINDER_DEFAULTS} canManage focusKey="appointment_reminder" />)
+    fireEvent.click(screen.getByRole('button', { name: /Add a reminder/ }))
+    expect(screen.getByLabelText('Reminder 3: hours before the visit')).toBeTruthy()
+    // At the cap the button disables.
+    expect((screen.getByRole('button', { name: /Add a reminder/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('warns when every automated email would be off', () => {
     // All self-toggling emails off + reminder off = nothing fires.
     const off = resolveEmailAutomations({
       booking_confirmation: { enabled: false },
+      appointment_reminder_confirmed: { enabled: false },
       cancellation: { enabled: false },
       contact_ack: { enabled: false },
     })
@@ -79,6 +87,7 @@ describe('EmailsHub polish', () => {
   it('the "all off" callout appears live when the last email is toggled off', () => {
     const off = resolveEmailAutomations({
       booking_confirmation: { enabled: false },
+      appointment_reminder_confirmed: { enabled: false },
       cancellation: { enabled: false },
     })
     // contact_ack still on + reminder off -> not all off yet

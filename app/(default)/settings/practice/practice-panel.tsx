@@ -458,7 +458,7 @@ function VisitTypesSection({
     setSaved(false)
     setTypes((cur) => [
       ...cur,
-      { id: `visit_${cur.length + 1}`, label: 'New visit type', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
+      { id: `visit_${cur.length + 1}`, label: 'New visit type', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0, prepInstructions: '' },
     ])
   }
   function save() {
@@ -533,6 +533,19 @@ function VisitTypesSection({
                   <button type="button" onClick={() => remove(i)} className="text-xs text-rose-600 hover:underline dark:text-rose-400">Remove</button>
                 )}
               </div>
+              <label className="block w-full">
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Prep instructions <span className="text-gray-400 dark:text-gray-500">(optional — added to this type&rsquo;s reminder emails)</span>
+                </span>
+                <textarea
+                  value={t.prepInstructions ?? ''}
+                  onChange={(e) => update(i, { prepInstructions: e.target.value.slice(0, 600) })}
+                  rows={1}
+                  placeholder="e.g. Eat a light meal beforehand and plan for a ride home."
+                  className="form-textarea mt-1 w-full resize-y text-sm"
+                  aria-label={`Prep instructions for ${t.label}`}
+                />
+              </label>
             </li>
           )
         })}
