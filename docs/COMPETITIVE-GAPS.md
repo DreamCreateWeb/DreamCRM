@@ -72,8 +72,16 @@ write-back + reminders (email, 30m cron) + review-request on complete.
   (Settings → Practice) appended to reminders + shown on the confirm page;
   save-the-date "Add to calendar" link in the booking confirmation.
   Later: SMS channel, post-visit instructions, per-type cadence overrides.
-- ✗ **Family messaging consolidation** (Lighthouse) — one confirmation for a
-  family with multiple same-day visits (we have guardian links). **P2.**
+- ✅ **Family messaging consolidation** (Lighthouse) — SHIPPED 2026-07-02:
+  the reminder engine now buckets due touches by (recipient inbox,
+  clinic-local day) — mom plus two kids on Friday get ONE "your family's
+  visits" email listing everyone with an inline confirm link per
+  still-unconfirmed visit, instead of three near-identical messages. Bonus:
+  email-less dependents (guardian-linked) are now reminded via the
+  guardian's inbox — previously they silently got nothing. Per-appointment
+  reminder logs keep every touch's idempotency; automatic, no new setting.
+  Later: same consolidation for booking confirmations when family booking
+  ships.
 - ✅ **No-show follow-up** — SHIPPED 2026-07-02. On no-show the patient now
   ALSO gets the warm "we missed you — no judgment, find a new time" note
   (new no_show_rebook Emails-hub key, clinic-editable + toggleable, default

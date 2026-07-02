@@ -46,14 +46,32 @@ function htmlToText(html: string): string {
 export function authEmailShell(opts: {
   heading: string
   introHtml: string
-  buttonUrl: string
-  buttonLabel: string
+  /** Omit (with buttonLabel) for a button-less notice — e.g. the family
+   *  reminder, whose per-visit confirm links live inline in introHtml. */
+  buttonUrl?: string
+  buttonLabel?: string
   accent?: string | null
   footnoteHtml?: string
 }): string {
   const bg = opts.accent && /^#[0-9a-fA-F]{6}$/.test(opts.accent) ? opts.accent : '#1c1a17'
   const url = opts.buttonUrl
-  const label = escapeHtml(opts.buttonLabel)
+  const label = escapeHtml(opts.buttonLabel ?? '')
+  const buttonBlock =
+    url && opts.buttonLabel
+      ? `<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url}" style="height:46px;v-text-anchor:middle;width:260px;" arcsize="13%" stroke="f" fillcolor="${bg}">
+<w:anchorlock/>
+<center style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">${label}</center>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<a href="${url}" style="background:${bg};border-radius:8px;color:#ffffff;display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;line-height:46px;height:46px;text-align:center;text-decoration:none;width:260px;">${label}</a>
+<!--<![endif]-->
+<p style="margin:26px 0 0;font-size:13px;line-height:1.5;color:#666666;">
+Button not working? Copy and paste this link into your browser:<br>
+<a href="${url}" style="color:#2A7F8C;word-break:break-all;">${escapeHtml(url)}</a>
+</p>`
+      : ''
   return `<!DOCTYPE html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -69,19 +87,7 @@ export function authEmailShell(opts: {
 <tr><td style="padding:32px 28px;font-family:Arial,Helvetica,sans-serif;color:#1c1a17;">
 <h1 style="margin:0 0 14px;font-size:20px;font-weight:700;color:#111111;">${escapeHtml(opts.heading)}</h1>
 <div style="margin:0 0 26px;font-size:15px;line-height:1.55;color:#444444;">${opts.introHtml}</div>
-<!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${url}" style="height:46px;v-text-anchor:middle;width:260px;" arcsize="13%" stroke="f" fillcolor="${bg}">
-<w:anchorlock/>
-<center style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">${label}</center>
-</v:roundrect>
-<![endif]-->
-<!--[if !mso]><!-->
-<a href="${url}" style="background:${bg};border-radius:8px;color:#ffffff;display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;line-height:46px;height:46px;text-align:center;text-decoration:none;width:260px;">${label}</a>
-<!--<![endif]-->
-<p style="margin:26px 0 0;font-size:13px;line-height:1.5;color:#666666;">
-Button not working? Copy and paste this link into your browser:<br>
-<a href="${url}" style="color:#2A7F8C;word-break:break-all;">${escapeHtml(url)}</a>
-</p>
+${buttonBlock}
 ${opts.footnoteHtml ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#999999;">${opts.footnoteHtml}</p>` : ''}
 </td></tr>
 </table>

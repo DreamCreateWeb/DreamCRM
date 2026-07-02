@@ -27,8 +27,15 @@ const hoursAgo = (h: number) => new Date(NOW.getTime() - h * HOUR)
 
 const state = {
   profiles: [] as Array<{ organizationId: string; reminderSettings: unknown }>,
-  candidates: [] as Array<{ appointmentId: string; patientId: string; startTime: Date }>,
+  candidates: [] as Array<{
+    appointmentId: string
+    patientId: string
+    startTime: Date
+    guardianPatientId?: string | null
+  }>,
   details: new Map<string, ApptDetail>(),
+  // Guardian-email lookups (from(patient)), shifted per email-less candidate.
+  guardianQueue: [] as Array<Array<{ email: string | null }>>,
 }
 
 // Per-candidate prior-log rows, shifted in candidate order.
@@ -54,6 +61,7 @@ vi.mock('@/lib/db', () => ({
         if (table === 'clinic_profile') return makeThenable(() => state.profiles)
         if (table === 'appointment') return makeThenable(() => state.candidates)
         if (table === 'appointment_reminder_log') return makeThenable(() => logQueue.shift() ?? [])
+        if (table === 'patient') return makeThenable(() => state.guardianQueue.shift() ?? [])
         return makeThenable(() => [])
       },
     }),
@@ -120,9 +128,18 @@ vi.mock('@/lib/services/appointments', () => ({
 
 import { runDueReminders } from '@/lib/services/reminder-automation'
 
-function seedCandidate(id: string, startInHours: number, opts: { email?: string | null; status?: string } = {}) {
+function seedCandidate(
+  id: string,
+  startInHours: number,
+  opts: { email?: string | null; status?: string; guardianPatientId?: string } = {},
+) {
   const startTime = inHours(startInHours)
-  state.candidates.push({ appointmentId: id, patientId: `p_${id}`, startTime })
+  state.candidates.push({
+    appointmentId: id,
+    patientId: `p_${id}`,
+    startTime,
+    guardianPatientId: opts.guardianPatientId ?? null,
+  })
   state.details.set(id, {
     id,
     patientEmail: opts.email === undefined ? 'sam@example.com' : opts.email,
@@ -135,6 +152,7 @@ beforeEach(() => {
   state.profiles = []
   state.candidates = []
   state.details = new Map()
+  state.guardianQueue = []
   logQueue = []
   vi.clearAllMocks()
 })
@@ -254,5 +272,84 @@ describe('runDueReminders — journeys', () => {
     const r = await runDueReminders({ now: NOW })
     expect(r.orgsScanned).toBe(1)
     expect(r.sent).toBe(0)
+  })
+})
+
+describe('runDueReminders — family consolidation', () => {
+  it('two same-day visits to the same inbox collapse into ONE email with a log row each', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    // Jun 11 04:00 + 06:00 America/New_York — same clinic-local day, same inbox.
+    seedCandidate('kid1', 20)
+    seedCandidate('kid2', 22)
+    logQueue = [[], []]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(2) // both visits count as reminded…
+    expect(deliverMock).toHaveBeenCalledTimes(1) // …through a single email
+    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
+    expect(logReminderSentMock).toHaveBeenCalledTimes(2) // per-touch idempotency intact
+    expect(logReminderSentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'kid1', template: 'auto_reminder_24h' }),
+    )
+    expect(logReminderSentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'kid2', template: 'auto_reminder_24h' }),
+    )
+  })
+
+  it('same inbox on DIFFERENT clinic-local days stays two separate reminders', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20) // Jun 11 clinic-local
+    seedCandidate('a2', 60) // Jun 12 clinic-local (Jun 13 00:00Z → Jun 12 20:00 EDT)
+    logQueue = [[], []]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(2)
+    expect(deliverMock).toHaveBeenCalledTimes(2) // two individual confirm-cta emails
+  })
+
+  it('different inboxes on the same day stay individual', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: 'mia@example.com' })
+    seedCandidate('a2', 22, { email: 'noah@example.com' })
+    logQueue = [[], []]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(2)
+    expect(deliverMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('an email-less dependent is reminded at the guardian’s address', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('dep1', 20, { email: null, guardianPatientId: 'g_mom' })
+    logQueue = [[]]
+    state.guardianQueue = [[{ email: 'mom@example.com' }]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(1)
+    expect(deliverMock).toHaveBeenCalledWith(expect.objectContaining({ to: 'mom@example.com' }))
+  })
+
+  it('guardian + dependent visits the same day consolidate into the guardian’s inbox', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('mom', 20, { email: 'mom@example.com' })
+    seedCandidate('dep1', 22, { email: null, guardianPatientId: 'p_mom' })
+    logQueue = [[], []]
+    state.guardianQueue = [[{ email: 'mom@example.com' }]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(2)
+    expect(deliverMock).toHaveBeenCalledTimes(1)
+    expect(deliverMock).toHaveBeenCalledWith(expect.objectContaining({ to: 'mom@example.com' }))
+  })
+
+  it('an email-less dependent with NO guardian email is skipped (unchanged)', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('dep1', 20, { email: null, guardianPatientId: 'g_gone' })
+    logQueue = [[]]
+    state.guardianQueue = [[]] // guardian row not found
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(0)
+    expect(r.skipped).toBe(1)
   })
 })

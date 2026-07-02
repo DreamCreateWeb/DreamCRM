@@ -15,6 +15,7 @@ import {
   type ReminderSettings,
 } from '@/lib/types/reminders'
 import { visitTypePrepInstructions } from '@/lib/types/visit-types'
+import { clinicDayKey } from '@/lib/format-datetime'
 import type { ClinicSender } from '@/lib/email-identity'
 
 // ── Settings CRUD (Settings → Reminders) ─────────────────────────────────────
@@ -91,9 +92,15 @@ export async function sendReminderEmail(
   detail: AppointmentDetail,
   sender: ClinicSender,
   sentByUserId: string | null,
-  opts?: { template?: string },
+  opts?: {
+    template?: string
+    /** Recipient override — a dependent without their own email gets the
+     *  reminder at their guardian's address. */
+    to?: string
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
+  const to = opts?.to ?? detail.patient.email
+  if (!to) return { ok: false, error: 'Patient has no email on file' }
   try {
     const typeLabel = detail.type.replace(/_/g, ' ')
     const firstName = detail.patient.fullName.split(' ')[0]
@@ -153,7 +160,7 @@ export async function sendReminderEmail(
 
     if (confirmUrl) {
       await deliver({
-        to: detail.patient.email,
+        to,
         from: sender.from,
         replyTo: sender.replyTo,
         gmail: sender.gmail,
@@ -170,7 +177,7 @@ export async function sendReminderEmail(
     } else {
       await sendNotificationEmail(
         {
-          to: detail.patient.email,
+          to,
           name: detail.patient.fullName,
           title: rendered.full.subject,
           body,
@@ -189,6 +196,123 @@ export async function sendReminderEmail(
       template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
       sentByUserId,
     })
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
+// ── Family consolidation ─────────────────────────────────────────────────────
+
+/** One due reminder touch, resolved and ready to send. */
+interface DueReminderItem {
+  detail: AppointmentDetail
+  template: string
+  /** Resolved recipient (the patient's own email, or their guardian's). */
+  recipient: string
+}
+
+/**
+ * One email for a family's same-day visits (Lighthouse-style consolidation):
+ * when several due reminders resolve to the SAME inbox for the SAME
+ * clinic-local day — mom plus two kids at 9:00, 9:45 and 10:30 — the inbox
+ * gets a single "your family's visits" email listing everyone, with an inline
+ * confirm link per still-unconfirmed visit, instead of three near-identical
+ * messages. Copy is generated (a multi-visit list doesn't fit the Emails-hub
+ * token templates); the journey's timing/on-off still comes from
+ * reminder_settings. Logs one reminder row PER appointment (each touch keeps
+ * its own idempotency) and mirrors one CommLog note per patient.
+ */
+async function sendFamilyReminderEmail(
+  organizationId: string,
+  items: DueReminderItem[],
+  sender: ClinicSender,
+  to: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const sorted = [...items].sort(
+      (a, b) => a.detail.startTime.getTime() - b.detail.startTime.getTime(),
+    )
+    const dayLabel = sorted[0].detail.startTime.toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric', timeZone: sender.timeZone,
+    })
+
+    // Per-visit-type prep, fetched once for the whole household.
+    let visitTypeSettings: unknown = null
+    try {
+      const [profileRow] = await db
+        .select({ visitTypeSettings: schema.clinicProfile.visitTypeSettings })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, organizationId))
+        .limit(1)
+      visitTypeSettings = profileRow?.visitTypeSettings ?? null
+    } catch {
+      /* prep is a nice-to-have */
+    }
+
+    const lines: string[] = []
+    for (const item of sorted) {
+      const d = item.detail
+      const firstName = escapeReminderHtml(d.patient.fullName.split(' ')[0])
+      const typeLabel = escapeReminderHtml(d.type.replace(/_/g, ' '))
+      const timeStr = d.startTime.toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
+      })
+      let confirmHtml = ''
+      if (d.status !== 'confirmed') {
+        try {
+          const token = await getOrCreateConfirmToken(organizationId, d.id)
+          if (token) {
+            confirmHtml = ` &nbsp;·&nbsp; <a href="${APP_BASE}/c/${token}" style="color:#2A7F8C;font-weight:bold;">Confirm →</a>`
+          }
+        } catch {
+          /* line renders without the link */
+        }
+      }
+      lines.push(
+        `<p style="margin:0 0 6px;"><strong>${firstName}</strong> — ${typeLabel}, ${timeStr}${confirmHtml}</p>`,
+      )
+      const prep = visitTypePrepInstructions(visitTypeSettings as never, d.type)
+      if (prep) {
+        lines.push(
+          `<p style="margin:0 0 10px;font-size:13px;color:#666666;">Before ${firstName}’s visit: ${escapeReminderHtml(prep)}</p>`,
+        )
+      }
+    }
+
+    const introHtml = `<p style="margin:0 0 14px;">Hi! Your family has ${sorted.length} visits with ${escapeReminderHtml(sender.name)} on ${dayLabel} — all together here so we only nudge you once:</p>${lines.join('')}`
+
+    await deliver({
+      to,
+      from: sender.from,
+      replyTo: sender.replyTo,
+      gmail: sender.gmail,
+      subject: `Your family’s visits on ${dayLabel} — ${sender.name}`,
+      html: authEmailShell({
+        heading: 'Your family’s visits are coming up',
+        introHtml,
+        footnoteHtml:
+          'Need a different time for anyone? Just reply to this email and we’ll find one together.',
+      }),
+    })
+
+    for (const item of sorted) {
+      const d = item.detail
+      const startStr = d.startTime.toLocaleString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
+      })
+      await queueCommLogWriteBack(organizationId, d.patient.id, {
+        note: `Family visit reminder sent for ${startStr} (one email covering ${sorted.length} same-day family visits).`,
+        mode: 'Email',
+      })
+      await logReminderSent({
+        organizationId,
+        appointmentId: d.id,
+        channel: 'email',
+        template: item.template,
+        sentByUserId: null,
+      })
+    }
     return { ok: true }
   } catch (err) {
     return { ok: false, error: (err as Error).message }
@@ -221,9 +345,15 @@ export interface ReminderRunResult {
  *   - status is 'scheduled' (confirm-cta copy) or 'confirmed' (gentler
  *     variant with its own on/off); cancelled / no_show / completed never,
  *   - startTime ∈ [now, now + max(touchOffsets)],
- *   - patient is active and has an email on file,
+ *   - patient is active with an email on file — or a guardian link whose
+ *     guardian has one (dependents get reminded via the guardian's inbox),
  *   - the due touch (smallest opened offset) hasn't sent for this visit, and
  *     no other visit reminder went out within REMINDER_MIN_GAP_HOURS.
+ *
+ * Family consolidation: due reminders resolving to the same inbox for the
+ * same clinic-local day collapse into ONE household email (see
+ * sendFamilyReminderEmail); every appointment still gets its own log row, so
+ * per-touch idempotency is unchanged.
  */
 export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
   const now = opts?.now ?? new Date()
@@ -258,17 +388,20 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     const windowEnd = new Date(now.getTime() + offsets[0] * 60 * 60 * 1000)
     const gapCutoff = new Date(now.getTime() - REMINDER_MIN_GAP_HOURS * 60 * 60 * 1000)
 
-    // Candidate appointments in the window with an email on file. Both
-    // scheduled AND confirmed qualify — confirmed patients get the gentler
-    // "see you soon" variant (its own on/off in the Emails hub); unconfirmed
-    // get the confirm-cta copy. The per-touch idempotency check is a
-    // per-appointment query below rather than a join, to keep this
-    // dependency-light + easy to unit test in isolation.
+    // Candidate appointments in the window with a reachable inbox: the
+    // patient's own email, OR a guardian link (a dependent without an email
+    // gets reminders at the guardian's address). Both scheduled AND confirmed
+    // qualify — confirmed patients get the gentler "see you soon" variant
+    // (its own on/off in the Emails hub); unconfirmed get the confirm-cta
+    // copy. The per-touch idempotency check is a per-appointment query below
+    // rather than a join, to keep this dependency-light + easy to unit test
+    // in isolation.
     const candidates = await db
       .select({
         appointmentId: schema.appointment.id,
         patientId: schema.appointment.patientId,
         startTime: schema.appointment.startTime,
+        guardianPatientId: schema.patient.guardianPatientId,
       })
       .from(schema.appointment)
       .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
@@ -279,11 +412,18 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           gte(schema.appointment.startTime, now),
           lte(schema.appointment.startTime, windowEnd),
           eq(schema.patient.isActive, 1),
-          isNotNull(schema.patient.email),
-          ne(schema.patient.email, ''),
+          or(
+            and(isNotNull(schema.patient.email), ne(schema.patient.email, '')),
+            isNotNull(schema.patient.guardianPatientId),
+          ),
         ),
       )
       .limit(500)
+
+    // Due items collect here, then send grouped by inbox + clinic-local day —
+    // a family with several same-day visits gets ONE consolidated email.
+    const dueItems: DueReminderItem[] = []
+    let sender: ClinicSender | null = null
 
     for (const c of candidates) {
       result.candidates++
@@ -336,20 +476,31 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
 
       try {
         const detail = await getAppointmentDetail(profile.organizationId, c.appointmentId)
-        if (!detail || !detail.patient.email) {
+        if (!detail) {
           result.skipped++
           continue
         }
-        const sender = await getClinicSenderIdentity(profile.organizationId)
-        const r = await sendReminderEmail(profile.organizationId, detail, sender, null, { template })
-        if (r.ok) {
-          result.sent++
-        } else if (r.error.includes('no email') || r.error.includes('disabled')) {
-          result.skipped++
-        } else {
-          result.failed++
-          result.errors.push({ organizationId: profile.organizationId, appointmentId: c.appointmentId, error: r.error })
+        // Resolve the inbox: the patient's own email, else the guardian's
+        // (family-linked dependents often have no address of their own).
+        let recipient = detail.patient.email
+        if (!recipient && c.guardianPatientId) {
+          const [guardian] = await db
+            .select({ email: schema.patient.email })
+            .from(schema.patient)
+            .where(
+              and(
+                eq(schema.patient.id, c.guardianPatientId),
+                eq(schema.patient.organizationId, profile.organizationId),
+              ),
+            )
+            .limit(1)
+          recipient = guardian?.email?.trim() || null
         }
+        if (!recipient) {
+          result.skipped++
+          continue
+        }
+        dueItems.push({ detail, template, recipient })
       } catch (err) {
         result.failed++
         result.errors.push({
@@ -357,6 +508,62 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           appointmentId: c.appointmentId,
           error: err instanceof Error ? err.message : 'unknown',
         })
+      }
+    }
+
+    if (dueItems.length === 0) continue
+
+    try {
+      sender = await getClinicSenderIdentity(profile.organizationId)
+    } catch (err) {
+      result.failed += dueItems.length
+      result.errors.push({
+        organizationId: profile.organizationId,
+        appointmentId: dueItems[0].detail.id,
+        error: err instanceof Error ? err.message : 'sender identity failed',
+      })
+      continue
+    }
+
+    // Family consolidation: bucket by (inbox, clinic-local day). One visit in
+    // a bucket → the normal single-visit reminder (unchanged behavior); more
+    // → one consolidated household email covering them all.
+    const buckets = new Map<string, DueReminderItem[]>()
+    for (const item of dueItems) {
+      const key = `${item.recipient.toLowerCase()}|${clinicDayKey(item.detail.startTime, sender.timeZone)}`
+      const list = buckets.get(key)
+      if (list) list.push(item)
+      else buckets.set(key, [item])
+    }
+
+    for (const bucket of Array.from(buckets.values())) {
+      if (bucket.length === 1) {
+        const item = bucket[0]
+        const r = await sendReminderEmail(profile.organizationId, item.detail, sender, null, {
+          template: item.template,
+          to: item.recipient,
+        })
+        if (r.ok) {
+          result.sent++
+        } else if (r.error.includes('no email') || r.error.includes('disabled')) {
+          result.skipped++
+        } else {
+          result.failed++
+          result.errors.push({ organizationId: profile.organizationId, appointmentId: item.detail.id, error: r.error })
+        }
+      } else {
+        const r = await sendFamilyReminderEmail(
+          profile.organizationId,
+          bucket,
+          sender,
+          bucket[0].recipient,
+        )
+        if (r.ok) {
+          result.sent += bucket.length
+        } else {
+          result.failed += bucket.length
+          result.errors.push({ organizationId: profile.organizationId, appointmentId: bucket[0].detail.id, error: r.error })
+        }
       }
     }
   }

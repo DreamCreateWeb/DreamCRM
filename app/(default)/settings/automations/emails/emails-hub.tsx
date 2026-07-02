@@ -619,7 +619,8 @@ function ReminderTiming({
         Each reminder sends at most once per visit, never two within a day of each other. Patients
         who’ve already confirmed get the gentler “already confirmed” email below instead. Offsets
         between {REMINDER_OFFSET_MIN_HOURS} and {REMINDER_OFFSET_MAX_HOURS} hours (7 days). The
-        forms reminder uses your “Intake form request” email.
+        forms reminder uses your “Intake form request” email. Families with several visits the
+        same day get one combined email instead of a pile of near-identical ones.
       </p>
     </div>
   )
