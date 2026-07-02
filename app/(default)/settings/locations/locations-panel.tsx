@@ -295,6 +295,10 @@ function LocationForm({
             defaultChecked={primaryLocked}
             disabled={primaryLocked}
           />
+          {/* A disabled checkbox is excluded from FormData, so mirror the locked
+              "primary" value through a hidden field — otherwise the very first
+              location (checkbox checked + disabled) would save as non-primary. */}
+          {primaryLocked && <input type="hidden" name="isPrimary" value="on" />}
           <span>
             <span className="font-medium text-gray-800 dark:text-gray-100">Primary location</span>
             <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">

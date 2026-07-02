@@ -104,7 +104,9 @@ export default function SubscriptionPanel({
   const askConfirm = useConfirm()
   // The plan-grid toggle. Seeds from `?interval=` (a reload keeps the choice),
   // then falls back to the current subscription's period, then monthly.
-  const [interval, setInterval] = useState<BillingInterval>(
+  // Setter is named setIntervalState (not setInterval) to avoid shadowing the
+  // global window.setInterval.
+  const [interval, setIntervalState] = useState<BillingInterval>(
     initialInterval ?? currentInterval ?? 'monthly',
   )
   const [pending, startTransition] = useTransition()
@@ -113,7 +115,7 @@ export default function SubscriptionPanel({
   // (presentation-only — no Stripe call; the checkout still passes `interval`).
   const setBillingInterval = useCallback(
     (next: BillingInterval) => {
-      setInterval(next)
+      setIntervalState(next)
       const params = new URLSearchParams(searchParams?.toString() ?? '')
       params.set('interval', next)
       router.replace(`${pathname}?${params.toString()}`, { scroll: false })

@@ -17,12 +17,17 @@ vi.mock('@/lib/auth/context', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 const ops: Array<{ kind: 'insert' | 'update' | 'delete'; table: string; values?: unknown }> = []
+// Rows the "does this org already have a location?" probe returns. Default (set in
+// beforeEach) is one existing row, so a plain add is a SUBSEQUENT location; the
+// first-location-is-primary path is covered in locations-add-primary.test.ts.
+let selectRows: Array<{ id: string }> = []
 
 vi.mock('@/lib/db', async () => {
   const { clinicLocation } = await import('@/lib/db/schema/platform')
   const name = (t: unknown) => (t === clinicLocation ? 'clinic_location' : 'unknown')
   return {
     db: {
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => selectRows }) }) }),
       insert: (table: unknown) => ({
         values: async (v: unknown) => ops.push({ kind: 'insert', table: name(table), values: v }),
       }),
@@ -46,6 +51,7 @@ import {
 
 beforeEach(() => {
   ops.length = 0
+  selectRows = [{ id: 'loc_existing' }]
   tenantCtx = {
     tenantType: 'clinic',
     role: 'owner',
