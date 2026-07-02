@@ -104,9 +104,13 @@ export async function addSocialAddon(orgId: string): Promise<void> {
     throw new Error('The social-connections add-on is coming soon — it isn’t available to purchase yet.')
   }
   if (!profile.stripeSubscriptionId) {
-    // Comped/managed clinics have a granted tier but no Stripe subscription, so
-    // there's nothing to attach the add-on item to.
-    throw new Error('Your plan is on managed billing — contact us to add social connections.')
+    // No subscription to attach the add-on item to. Two distinct cases with
+    // different next steps: managed/comped is billed by us (contact us); a
+    // self-serve clinic on the no-card trial just needs to start their plan.
+    if (profile.billingMode === 'managed' || profile.billingMode === 'comped') {
+      throw new Error('Your plan is on managed billing — contact us to add social connections.')
+    }
+    throw new Error('Start your plan first (Settings → Plan & billing) — the add-on attaches to your subscription.')
   }
 
   // Reconcile the add-on item against the CURRENT tier + interval. This both

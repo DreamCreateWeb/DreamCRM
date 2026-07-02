@@ -15,7 +15,7 @@ import {
   upsertBilling,
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
-import { createCheckoutSession, createPortalSession, setSubscriptionCancelation } from '@/lib/services/billing'
+import { createCheckoutSession, createPortalSession, setSubscriptionCancelation, updateSubscriptionPlan } from '@/lib/services/billing'
 import type { BillingInterval, PlanId } from '@/lib/stripe-config'
 
 export async function saveAccount(input: unknown) {
@@ -46,6 +46,18 @@ export async function startStripeCheckout(planId: PlanId, interval: BillingInter
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
     throw new Error('Only clinic tenants can change plans here')
+  }
+  // A clinic that ALREADY has a live subscription changes plan in place
+  // (price swap + proration) — Checkout would mint a SECOND subscription and
+  // the old one would keep billing. Checkout is only for the first purchase.
+  const changedInPlace = await updateSubscriptionPlan({
+    organizationId: ctx.organizationId,
+    planId,
+    interval,
+  })
+  if (changedInPlace) {
+    revalidatePath('/settings/billing')
+    redirect('/settings/billing?checkout=success')
   }
   const session = await createCheckoutSession({
     organizationId: ctx.organizationId,

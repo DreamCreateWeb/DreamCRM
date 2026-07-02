@@ -143,6 +143,7 @@ export default async function DashboardShell({
                     orgName={ctx.organizationName}
                     managed={!!ctx.hasReservedPlan}
                     canManageBilling={ctx.role === 'owner' || ctx.role === 'admin'}
+                    canceled={ctx.subscriptionStatus === 'canceled'}
                   />
                 ) : (
                   children

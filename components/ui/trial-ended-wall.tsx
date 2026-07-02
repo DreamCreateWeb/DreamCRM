@@ -22,10 +22,15 @@ export default function TrialEndedWall({
   orgName,
   managed,
   canManageBilling,
+  canceled = false,
 }: {
   orgName: string
   managed: boolean
   canManageBilling: boolean
+  /** A former PAYING clinic whose subscription was canceled — same lock, but
+   *  "your subscription has ended", never "your free trial has ended" (telling
+   *  a paying customer they were on a trial reads as a billing bug). */
+  canceled?: boolean
 }) {
   const [interval, setInterval] = useState<BillingInterval>('monthly')
 
@@ -37,10 +42,12 @@ export default function TrialEndedWall({
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </span>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Your free trial has ended</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          {canceled ? 'Your subscription has ended' : 'Your free trial has ended'}
+        </h1>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          Set up billing to keep using <strong>{orgName}</strong>. Your website, patients, and everything you’ve set up
-          are safe — access returns the moment you subscribe.
+          {canceled ? 'Pick a plan to keep using' : 'Set up billing to keep using'} <strong>{orgName}</strong>. Your
+          website, patients, and everything you’ve set up are safe — access returns the moment you subscribe.
         </p>
 
         {!canManageBilling ? (

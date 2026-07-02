@@ -69,8 +69,11 @@ export interface IntegrationsLibraryProps {
     addonPriceDollars: number | null
     /** Whether the Stripe add-on prices are configured (env present). */
     addonConfigured: boolean
-    /** True when the clinic has no Stripe subscription (comped/managed). */
+    /** The platform bills this clinic outside self-serve Stripe (managed/comped). */
     managedBilling: boolean
+    /** Self-serve clinic with no subscription yet (no-card trial) — the add-on
+     *  needs a live subscription to attach to; route to billing, not "contact us". */
+    needsSubscription: boolean
   }
   /** Connect URLs for first-party OAuth integrations (Gmail / Stripe Connect),
    *  keyed by def id — so the card links to the existing flow, not a rebuild. */
@@ -916,6 +919,10 @@ function SocialAddonCard({
           </ActionButton>
         ) : entitlement.managedBilling ? (
           <span className="text-sm text-gray-600 dark:text-gray-300">Managed billing — contact us.</span>
+        ) : entitlement.needsSubscription ? (
+          <ActionButton variant="primary" size="sm" href="/settings/billing">
+            Start your plan to add more
+          </ActionButton>
         ) : !entitlement.addonConfigured ? (
           <ActionButton variant="secondary" size="sm" disabled>
             Add-on coming soon

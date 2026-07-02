@@ -75,8 +75,11 @@ export async function createCheckoutSession(args: {
     mode: 'subscription',
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: publicUrl('/settings/plans?checkout=success'),
-    cancel_url: publicUrl('/settings/plans?checkout=cancelled'),
+    // Land back on billing with the session id so the page can SYNC the
+    // subscription synchronously (activation must not hinge on webhook
+    // timing) + show a success confirmation.
+    success_url: publicUrl('/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}'),
+    cancel_url: publicUrl('/settings/billing?checkout=cancelled'),
     allow_promotion_codes: true,
     metadata: {
       organizationId: args.organizationId,
@@ -91,6 +94,96 @@ export async function createCheckoutSession(args: {
       },
     },
   })
+}
+
+/**
+ * Change the plan ON the clinic's EXISTING subscription — in place, with
+ * proration — instead of creating a second one. Checkout `mode:'subscription'`
+ * always mints a NEW subscription; for a clinic that already has one, that
+ * meant two live subscriptions (the old one kept billing, orphaned when the
+ * webhook overwrote `stripeSubscriptionId`). Returns true when the change was
+ * handled here (caller must NOT open Checkout), false when there's no live
+ * subscription to update (first purchase → Checkout is correct).
+ */
+export async function updateSubscriptionPlan(args: {
+  organizationId: string
+  planId: PlanId
+  interval: BillingInterval
+}): Promise<boolean> {
+  const plan = PLANS.find((p) => p.id === args.planId)
+  if (!plan) throw new Error(`Unknown plan: ${args.planId}`)
+  const priceId = plan.priceIds[args.interval]
+  if (!priceId) throw new Error(`Stripe price for ${plan.name} (${args.interval}) is not configured`)
+
+  const [profile] = await db
+    .select({
+      stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+      socialAddon: schema.clinicProfile.socialAddon,
+    })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, args.organizationId))
+    .limit(1)
+  const subId = profile?.stripeSubscriptionId
+  if (!subId) return false
+
+  const sub = await stripe.subscriptions.retrieve(subId, { expand: ['items.data.price'] })
+  // Only update a subscription that's actually alive. Canceled/incomplete →
+  // fall through to a fresh Checkout.
+  if (!['active', 'trialing', 'past_due'].includes(sub.status)) return false
+
+  const planItem = sub.items.data.find((it) => getPlanByPriceId(it.price?.id ?? ''))
+  if (!planItem) return false
+
+  if (planItem.price?.id !== priceId) {
+    await stripe.subscriptions.update(sub.id, {
+      items: [{ id: planItem.id, price: priceId }],
+      proration_behavior: 'create_prorations',
+      metadata: {
+        organizationId: args.organizationId,
+        planId: plan.id,
+        interval: args.interval,
+      },
+    })
+    // The social add-on item is priced per (tier, interval) — swap it to the
+    // matching price so the add-on follows the plan change. Best-effort; the
+    // webhook's sync keeps the flag correct regardless.
+    if (profile?.socialAddon === 1) {
+      try {
+        const { reconcileSocialAddonItem } = await import('@/lib/services/social-billing')
+        await reconcileSocialAddonItem(args.organizationId, true)
+      } catch (err) {
+        console.warn('[billing] add-on reprice after plan change failed', err)
+      }
+    }
+  }
+
+  // Write the new tier immediately — the UI the user lands on next must not
+  // depend on webhook timing.
+  await syncSubscriptionFromStripe(sub.id)
+  return true
+}
+
+/**
+ * Synchronously sync the subscription born from a completed Checkout session —
+ * called from the success landing so activation doesn't hinge on webhook
+ * timing. Verifies the session belongs to the org before syncing. Best-effort:
+ * returns false on any mismatch/failure (the webhook remains the safety net).
+ */
+export async function syncCheckoutSuccess(
+  organizationId: string,
+  sessionId: string,
+): Promise<boolean> {
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+    if (session.metadata?.organizationId !== organizationId) return false
+    const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
+    if (!subId) return false
+    await syncSubscriptionFromStripe(subId)
+    return true
+  } catch (err) {
+    console.warn('[billing] checkout success sync failed', err)
+    return false
+  }
 }
 
 export interface OrgStripeInvoice {

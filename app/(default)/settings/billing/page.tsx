@@ -5,7 +5,7 @@ import SocialConnectionsCard from './social-connections-card'
 import { SettingsPage } from '../settings-kit'
 import { requireTenant } from '@/lib/auth/context'
 import { getModuleLabel } from '@/lib/modules'
-import { getOrgSubscriptionSummary, listOrgStripeInvoices } from '@/lib/services/billing'
+import { getOrgSubscriptionSummary, listOrgStripeInvoices, syncCheckoutSuccess } from '@/lib/services/billing'
 import { db, schema } from '@/lib/db'
 import { getPlanById, socialAddonConfigured } from '@/lib/stripe-config'
 import {
@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic'
 export default async function BillingSettings({
   searchParams,
 }: {
-  searchParams: Promise<{ upgrade?: string; interval?: string }>
+  searchParams: Promise<{ upgrade?: string; interval?: string; checkout?: string; session_id?: string }>
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/settings/account')
@@ -34,7 +34,17 @@ export default async function BillingSettings({
   // page) — show the "{module} is on a higher plan" banner above the grid.
   // `?interval=annual|monthly` persists the plan-grid billing-period toggle
   // across reloads (the panel writes it back on change).
-  const { upgrade, interval: intervalParam } = await searchParams
+  const { upgrade, interval: intervalParam, checkout, session_id: sessionId } = await searchParams
+
+  // Checkout return: sync the new subscription NOW (org-verified) so activation
+  // doesn't hinge on webhook timing — an expired-trial owner would otherwise
+  // bounce straight back into the trial-ended wall after paying. Then redirect
+  // to a clean URL so the whole request (tenant context, wall, sidebar) is
+  // re-resolved against the freshly-synced state and a refresh can't re-sync.
+  if (checkout === 'success' && sessionId) {
+    await syncCheckoutSuccess(ctx.organizationId, sessionId)
+    redirect('/settings/billing?checkout=success')
+  }
 
   // Subscription truth lives org-scoped on clinic_profile (written by the Stripe
   // webhook) + the live subscription. Invoices come from Stripe scoped to THIS
@@ -62,7 +72,12 @@ export default async function BillingSettings({
   const addonRaisesTo = socialConnectionLimit(planTier, true)
   const addonCents = socialAddonPriceCents(planTier)
   // Comped/managed clinics have a granted tier but no Stripe subscription.
+  // hasSubscription drives the panel's trial-vs-subscribed layout (no sub yet
+  // = plan grid); trulyManaged drives the social card's "contact us" copy —
+  // a self-serve TRIAL clinic has no sub either but is NOT managed billing.
   const managedBilling = !profileRow?.stripeSubscriptionId
+  const trulyManaged =
+    profileRow?.billingMode === 'managed' || profileRow?.billingMode === 'comped'
 
   return (
     <>
@@ -70,6 +85,17 @@ export default async function BillingSettings({
         title="Plan & billing"
         subtitle="What you have, what it costs, when it renews — change your plan and see past invoices."
       >
+          {checkout === 'success' && (
+            <p className="mb-4 rounded-[var(--r-md)] bg-emerald-500/15 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+              You’re all set — thanks! Your plan is active. If anything below still shows the old
+              plan, give it a few seconds and refresh.
+            </p>
+          )}
+          {checkout === 'cancelled' && (
+            <p className="mb-4 rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+              No changes made — checkout was cancelled. Pick a plan whenever you’re ready.
+            </p>
+          )}
           <SubscriptionPanel
             planTier={ctx.planTier}
             subscriptionStatus={ctx.subscriptionStatus ?? summary?.status ?? null}
@@ -103,7 +129,7 @@ export default async function BillingSettings({
               addonPriceDollars={addonCents != null ? Math.round(addonCents / 100) : null}
               addonRaisesTo={addonRaisesTo}
               addonConfigured={socialAddonConfigured()}
-              managedBilling={managedBilling}
+              managedBilling={trulyManaged}
             />
           </div>
       </SettingsPage>

@@ -73,6 +73,7 @@ export default async function IntegrationsPage({
       .select({
         socialAddon: schema.clinicProfile.socialAddon,
         stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+        billingMode: schema.clinicProfile.billingMode,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, ctx.organizationId))
@@ -193,7 +194,16 @@ export default async function IntegrationsPage({
           addonRaisesTo: socialConnectionLimit(planTier, true),
           addonPriceDollars: addonCents != null ? Math.round(addonCents / 100) : null,
           addonConfigured: socialAddonConfigured(),
-          managedBilling: !profileRow?.stripeSubscriptionId,
+          // "Managed" = the platform bills this clinic outside self-serve
+          // Stripe. A SELF-SERVE clinic on the no-card trial also has no
+          // subscription yet — that's needsSubscription, not managed, and it
+          // routes to billing instead of "contact us".
+          managedBilling:
+            profileRow?.billingMode === 'managed' || profileRow?.billingMode === 'comped',
+          needsSubscription:
+            !profileRow?.stripeSubscriptionId &&
+            profileRow?.billingMode !== 'managed' &&
+            profileRow?.billingMode !== 'comped',
         }}
         oauthConnectHrefs={{ gmail: '/inbox', stripe_connect: '/shop' }}
         justConnected={justConnected}

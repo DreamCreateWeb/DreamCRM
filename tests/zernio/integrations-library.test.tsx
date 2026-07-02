@@ -66,7 +66,7 @@ function props(
       addonRaisesTo: 5,
       addonPriceDollars: 20,
       addonConfigured: true,
-      managedBilling: false,
+      managedBilling: false, needsSubscription: false,
     },
     oauthConnectHrefs: { gmail: '/inbox', stripe_connect: '/shop' },
     justConnected: null,
@@ -388,7 +388,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
           {
             planName: 'Pro',
             cap: { allowed: true, limit: 1, current: 0 },
-            entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 3, addonPriceDollars: 30, addonConfigured: true, managedBilling: false },
+            entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 3, addonPriceDollars: 30, addonConfigured: true, managedBilling: false, needsSubscription: false },
           },
           state,
           'pro',
@@ -406,7 +406,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
           {
             planName: 'Basic',
             cap: { allowed: false, limit: 0, current: 0, reason: 'upgrade to Pro' },
-            entitlement: { addonAvailable: false, addonActive: false, addonRaisesTo: 0, addonPriceDollars: null, addonConfigured: true, managedBilling: false },
+            entitlement: { addonAvailable: false, addonActive: false, addonRaisesTo: 0, addonPriceDollars: null, addonConfigured: true, managedBilling: false, needsSubscription: false },
           },
           state,
           'basic',
@@ -426,7 +426,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
           {
             planName: 'Pro',
             cap: { allowed: true, limit: 1, current: 0 },
-            entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 3, addonPriceDollars: 30, addonConfigured: false, managedBilling: false },
+            entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 3, addonPriceDollars: 30, addonConfigured: false, managedBilling: false, needsSubscription: false },
           },
           state,
           'pro',
@@ -443,7 +443,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
       <IntegrationsLibrary
         {...props({
           cap: { allowed: true, limit: 2, current: 0 },
-          entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 5, addonPriceDollars: 20, addonConfigured: true, managedBilling: true },
+          entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 5, addonPriceDollars: 20, addonConfigured: true, managedBilling: true, needsSubscription: false },
         })}
       />,
     )
