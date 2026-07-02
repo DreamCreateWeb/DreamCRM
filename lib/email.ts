@@ -636,9 +636,14 @@ export async function sendTrialReminderEmail(
  */
 export async function sendTrialWelcomeEmail(
   to: string,
-  data: { firstName: string | null; clinicName: string; dashboardUrl: string },
+  data: { firstName: string | null; clinicName: string; dashboardUrl: string; siteUrl?: string | null },
 ) {
   const hi = data.firstName ? `Hi ${escapeHtml(data.firstName)},` : 'Hi,'
+  const siteLine = data.siteUrl
+    ? `<br><br>Your website is already live at <a href="${data.siteUrl}" style="color:#2A7F8C;">${escapeHtml(
+        data.siteUrl.replace('https://', ''),
+      )}</a> — it updates the moment you customize it.`
+    : ''
   await deliver({
     to,
     subject: `Welcome to DreamCRM — ${data.clinicName} is live`,
@@ -646,7 +651,7 @@ export async function sendTrialWelcomeEmail(
       heading: 'Your free trial is live',
       introHtml: `${hi}<br><br>Welcome! <strong>${escapeHtml(
         data.clinicName,
-      )}</strong> is set up with full access for 7 days — website, bookings, patients, messaging, the lot. No card needed. Build your website, invite your team, and see how it fits your front desk.`,
+      )}</strong> is set up with full access for 7 days — website, bookings, patients, messaging, the lot. No card needed. Build your website, invite your team, and see how it fits your front desk.${siteLine}`,
       buttonUrl: data.dashboardUrl,
       buttonLabel: 'Open your dashboard',
       accent: '#28B3AD',

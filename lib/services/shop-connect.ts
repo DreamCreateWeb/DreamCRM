@@ -41,7 +41,10 @@ export async function saveConnectedAccount(organizationId: string, accountId: st
   const acct = await stripe.accounts.retrieve(accountId)
   const charges = acct.charges_enabled ?? false
   const payouts = acct.payouts_enabled ?? false
-  const status = charges ? 'active' : 'pending'
+  // 'pending' = onboarding not finished yet; 'restricted' = a previously
+  // onboarded account whose charges Stripe has disabled (drives the
+  // needs_attention state — checkout would fail while we showed "active").
+  const status = charges ? 'active' : acct.details_submitted ? 'restricted' : 'pending'
   await db
     .insert(schema.shopConfig)
     .values({
@@ -64,20 +67,34 @@ export async function saveConnectedAccount(organizationId: string, accountId: st
 }
 
 /** Re-pull capability status from Stripe (e.g. when the /shop page loads), so
- * a clinic that finished onboarding flips from 'pending' to 'active' without a
- * manual reconnect. No-op when not connected. */
+ * a clinic that finished onboarding flips from 'pending' to 'active' — and an
+ * account Stripe later RESTRICTED flips off 'active' instead of silently
+ * keeping a stale connected card while checkout fails. No-op when not
+ * connected. */
 export async function refreshConnectStatus(organizationId: string): Promise<void> {
   const [row] = await db
     .select({ accountId: schema.shopConfig.stripeAccountId, status: schema.shopConfig.stripeAccountStatus })
     .from(schema.shopConfig)
     .where(eq(schema.shopConfig.organizationId, organizationId))
     .limit(1)
-  if (!row?.accountId || row.status === 'active') return
+  if (!row?.accountId) return
   try {
     await saveConnectedAccount(organizationId, row.accountId)
   } catch {
     // Stripe unreachable / account deauthorized — leave status as-is.
   }
+}
+
+/** Webhook entry: an `account.updated` event for a connected account —
+ * resolve which clinic it belongs to and refresh its stored status. */
+export async function syncConnectedAccountStatus(accountId: string): Promise<void> {
+  const [row] = await db
+    .select({ organizationId: schema.shopConfig.organizationId })
+    .from(schema.shopConfig)
+    .where(eq(schema.shopConfig.stripeAccountId, accountId))
+    .limit(1)
+  if (!row) return
+  await saveConnectedAccount(row.organizationId, accountId)
 }
 
 export async function disconnectShopStripe(organizationId: string): Promise<void> {

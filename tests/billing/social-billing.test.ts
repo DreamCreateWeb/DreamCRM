@@ -127,10 +127,23 @@ vi.mock('@/lib/stripe-config', () => {
   }
 })
 
+// ── Zernio service mock (cap enforcement disconnects through it) ─────────────
+const zernioSvc = {
+  isDemo: false,
+  disconnected: [] as string[],
+}
+vi.mock('@/lib/services/zernio', () => ({
+  getZernioConnection: vi.fn(async () => ({ isDemo: zernioSvc.isDemo, accounts: [], lastError: null })),
+  disconnectPlatform: vi.fn(async (_org: string, platform: string) => {
+    zernioSvc.disconnected.push(platform)
+  }),
+}))
+
 import {
   addSocialAddon,
   removeSocialAddon,
   canConnectSocialPlatform,
+  enforceSocialConnectionCap,
   seedDemoSocialAddon,
 } from '@/lib/services/social-billing'
 
@@ -153,6 +166,8 @@ beforeEach(() => {
   stripeMock.subRetrieve.mockReset()
   stripeMock.itemCreate.mockReset().mockResolvedValue({ id: 'si_new' })
   stripeMock.itemDel.mockReset().mockResolvedValue({})
+  zernioSvc.isDemo = false
+  zernioSvc.disconnected = []
 })
 
 // monthly plan sub with only the plan item
@@ -365,5 +380,65 @@ describe('seedDemoSocialAddon', () => {
     await seedDemoSocialAddon('org_1')
     expect(state.updates).toHaveLength(0)
     expect(state.profile!.socialAddon).toBe(0)
+  })
+})
+
+describe('enforceSocialConnectionCap', () => {
+  // Rows carry connectedAt so "newest first" is deterministic; the db fake
+  // returns them for the zernio_account read (GBP pre-filtered like prod).
+  function accounts(...rows: Array<{ platform: string; daysAgo: number }>) {
+    state.accounts = rows.map((r, i) => ({
+      id: `za_${i}`,
+      organizationId: 'org_1',
+      platform: r.platform,
+      connectedAt: new Date(Date.now() - r.daysAgo * 864e5),
+    })) as typeof state.accounts
+  }
+
+  it('disconnects the NEWEST over-cap channels, keeps the oldest', async () => {
+    // Pro without the add-on → limit 1. Instagram (older) stays; Facebook goes.
+    setProfile({ planTier: 'pro', socialAddon: 0 })
+    accounts({ platform: 'instagram', daysAgo: 30 }, { platform: 'facebook', daysAgo: 2 })
+    const cut = await enforceSocialConnectionCap('org_1')
+    expect(cut).toEqual(['facebook'])
+    expect(zernioSvc.disconnected).toEqual(['facebook'])
+  })
+
+  it('is a no-op within the cap', async () => {
+    setProfile({ planTier: 'premium', socialAddon: 1 }) // limit 5
+    accounts({ platform: 'instagram', daysAgo: 5 }, { platform: 'facebook', daysAgo: 3 })
+    const cut = await enforceSocialConnectionCap('org_1')
+    expect(cut).toEqual([])
+    expect(zernioSvc.disconnected).toEqual([])
+  })
+
+  it('never touches a demo org (seeded showcase channels stay)', async () => {
+    setProfile({ planTier: 'pro', socialAddon: 0 })
+    accounts({ platform: 'instagram', daysAgo: 30 }, { platform: 'facebook', daysAgo: 2 })
+    zernioSvc.isDemo = true
+    const cut = await enforceSocialConnectionCap('org_1')
+    expect(cut).toEqual([])
+    expect(zernioSvc.disconnected).toEqual([])
+  })
+
+  it('runs after removeSocialAddon (cancel actually frees the Zernio seats)', async () => {
+    setProfile({ planTier: 'pro', socialAddon: 1 })
+    stripeMock.subRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      items: { data: [
+        { id: 'si_plan', price: { id: 'price_pro_m', recurring: { interval: 'month' } } },
+        { id: 'si_addon', price: { id: 'price_social_pro_m' } },
+      ] },
+    })
+    // 3 connected while the add-on allowed 3; after cancel the limit is 1.
+    accounts(
+      { platform: 'instagram', daysAgo: 30 },
+      { platform: 'facebook', daysAgo: 10 },
+      { platform: 'tiktok', daysAgo: 1 },
+    )
+    await removeSocialAddon('org_1')
+    // Newest two go, oldest stays. (The flag flip in the db fake drives the
+    // recomputed limit=1.)
+    expect(zernioSvc.disconnected.sort()).toEqual(['facebook', 'tiktok'])
   })
 })

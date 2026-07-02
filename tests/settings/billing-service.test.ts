@@ -35,7 +35,8 @@ vi.mock('@/lib/stripe', () => ({
   stripe: {
     invoices: {
       list: (...a: unknown[]) => invoicesList(...a),
-      retrieveUpcoming: (...a: unknown[]) => invoicesUpcoming(...a),
+      // retrieveUpcoming was removed from the SDK — createPreview replaced it.
+      createPreview: (...a: unknown[]) => invoicesUpcoming(...a),
     },
     subscriptions: {
       retrieve: (...a: unknown[]) => subRetrieve(...a),

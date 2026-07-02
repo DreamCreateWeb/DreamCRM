@@ -317,11 +317,13 @@ export async function getOrgSubscriptionSummary(
     const customerId = typeof sub.customer === 'string' ? sub.customer : (sub.customer as { id?: string })?.id
     if (!sub.cancel_at_period_end && customerId) {
       try {
-        const upcoming = await (
-          stripe.invoices as unknown as {
-            retrieveUpcoming: (a: Record<string, unknown>) => Promise<{ amount_due?: number; currency?: string }>
-          }
-        ).retrieveUpcoming({ customer: customerId, subscription: subId })
+        // `retrieveUpcoming` was removed from the Stripe SDK (v18+) — the old
+        // call threw into this catch on every load, so "Next charge" silently
+        // never rendered. `createPreview` is its replacement.
+        const upcoming = await stripe.invoices.createPreview({
+          customer: customerId,
+          subscription: subId,
+        })
         if (typeof upcoming?.amount_due === 'number') {
           nextChargeCents = upcoming.amount_due
           nextChargeCurrency = upcoming.currency ?? null
@@ -456,7 +458,10 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
 
   // Only stamp socialAddonSince when flipping ON from OFF; otherwise leave it.
   const [prev] = await db
-    .select({ socialAddon: schema.clinicProfile.socialAddon })
+    .select({
+      socialAddon: schema.clinicProfile.socialAddon,
+      planTier: schema.clinicProfile.planTier,
+    })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, organizationId))
     .limit(1)
@@ -484,6 +489,20 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
+
+  // Entitlement may have SHRUNK (add-on dropped / tier downgraded) — actually
+  // disconnect over-cap social channels; each Zernio connection is billable to
+  // us. Best-effort: cap enforcement must never fail the webhook.
+  const entitlementShrank =
+    (wasOn && !socialAddonActive) || (prev?.planTier != null && prev.planTier !== planTier)
+  if (entitlementShrank) {
+    try {
+      const { enforceSocialConnectionCap } = await import('@/lib/services/social-billing')
+      await enforceSocialConnectionCap(organizationId)
+    } catch (err) {
+      console.warn('[stripe] over-cap social enforcement failed', err)
+    }
+  }
 }
 
 /**

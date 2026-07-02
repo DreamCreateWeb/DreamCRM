@@ -134,6 +134,64 @@ export async function removeSocialAddon(orgId: string): Promise<void> {
     return
   }
   await reconcileSocialAddonItem(orgId, false)
+  // The entitlement just shrank — actually disconnect the over-cap channels.
+  // We pay Zernio per connection, so an over-cap channel isn't just
+  // un-entitled, it costs real money every month.
+  await enforceSocialConnectionCap(orgId)
+}
+
+/**
+ * Disconnect social channels beyond the clinic's CURRENT cap — newest first
+ * (the ones they connected earliest keep working). Runs after anything that
+ * shrinks the entitlement: add-on cancel, plan downgrade (via the webhook
+ * sync). GBP is never touched (free/uncapped on every tier); demo orgs are
+ * never touched (their seeded channels are showcase state, not billable
+ * Zernio connections). Best-effort per platform. Returns what was cut.
+ */
+export async function enforceSocialConnectionCap(orgId: string): Promise<string[]> {
+  const profile = await loadProfile(orgId)
+  if (!profile) return []
+  const limit = socialConnectionLimit(profile.planTier as PlanTier, profile.socialAddon)
+
+  const rows = await db
+    .select({
+      platform: schema.zernioAccount.platform,
+      connectedAt: schema.zernioAccount.connectedAt,
+    })
+    .from(schema.zernioAccount)
+    .where(
+      and(
+        eq(schema.zernioAccount.organizationId, orgId),
+        ne(schema.zernioAccount.platform, 'googlebusiness'),
+      ),
+    )
+  // One platform = one connection for cap purposes (matches the cap counter).
+  const platforms = Array.from(
+    rows
+      .reduce((m, r) => {
+        const prev = m.get(r.platform)
+        if (!prev || r.connectedAt < prev) m.set(r.platform, r.connectedAt)
+        return m
+      }, new Map<string, Date>())
+      .entries(),
+  ).sort((a, b) => a[1].getTime() - b[1].getTime())
+  if (platforms.length <= limit) return []
+
+  // Demo orgs keep their seeded showcase channels.
+  const { getZernioConnection, disconnectPlatform } = await import('@/lib/services/zernio')
+  const view = await getZernioConnection(orgId)
+  if (view.isDemo) return []
+
+  const cut: string[] = []
+  for (const [platform] of platforms.slice(limit)) {
+    try {
+      await disconnectPlatform(orgId, platform as Parameters<typeof disconnectPlatform>[1])
+      cut.push(platform)
+    } catch (err) {
+      console.warn('[social-billing] over-cap disconnect failed', { orgId, platform, err })
+    }
+  }
+  return cut
 }
 
 /**

@@ -62,5 +62,23 @@ export async function GET(req: NextRequest) {
     })
   }
 
+  // GBP: kick the first profile + reviews sync NOW (fire-and-forget) so
+  // /reviews and /seo aren't empty until the next hourly cron tick — the
+  // "connected but nothing happened" first impression.
+  if (platform === GOOGLE_BUSINESS_PLATFORM) {
+    void (async () => {
+      try {
+        const [{ syncGoogleBusinessProfile }, { syncGoogleReviews }] = await Promise.all([
+          import('@/lib/services/gbp-sync'),
+          import('@/lib/services/google-reviews'),
+        ])
+        await syncGoogleBusinessProfile(ctx.organizationId)
+        await syncGoogleReviews(ctx.organizationId)
+      } catch (err) {
+        console.warn('[zernio] post-connect GBP sync failed (cron will retry)', err)
+      }
+    })()
+  }
+
   return backTo(req, { [ZERNIO_CONNECTED_QS]: platform })
 }

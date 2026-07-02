@@ -324,10 +324,17 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     const base =
       process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') ||
       'https://www.dreamcreatestudio.com'
+    const [org] = await db
+      .select({ slug: schema.organization.slug })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, orgId))
+      .limit(1)
+    const siteDomain = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
     await sendTrialWelcomeEmail(session.user.email, {
       firstName: (session.user.name || '').split(' ')[0] || null,
       clinicName: displayName,
       dashboardUrl: `${base}/dashboard`,
+      siteUrl: org?.slug ? `https://${org.slug}.${siteDomain}` : null,
     })
   } catch (err) {
     console.warn('[onboarding] could not send welcome email', err)

@@ -251,36 +251,42 @@ Fixed 2026-07-02 (round 3):
   PICKER is still open, below.)
 - ☑ One more bare-UTC time render on the Overview unconfirmed preview.
 
-Open — judgment calls for the owner:
+Owner decisions (2026-07-02) + what shipped on them (round 4):
 
-- ☐ **Reserved-plan clinics trial at full Premium, then drop to the reserved
-  tier the moment they pay** (feature cliff). Options: trial at the reserved
-  tier, or badge trial-only features.
-- ☐ **The public site is live at {slug} the instant onboarding completes** —
-  starter-floor content makes it read finished, but there's no "your site is
-  now live" moment or way to keep it private while configuring.
-- ☐ **Canceling the social add-on keeps over-cap connections active
-  indefinitely** (only new connects are blocked). Decide: disconnect newest,
-  or flag `needs_attention`.
-- ☐ **Gmail Tier-2 send-as is a hidden capability** — connecting Gmail never
-  offers "send patient email from this address" (it's buried in Settings →
-  Clinic). Surface a post-connect prompt.
-- ☐ /followups-style small edges: Gmail consent-denied shows the raw
-  `access_denied` string; Gmail watch lapse silently degrades to lazy polling
-  with no "real-time paused" signal.
+- ✓ **DECIDED — Reserved-plan Premium trial then tier drop is intentional**:
+  the full-Premium trial deliberately showcases the bigger plans; features
+  not in the chosen plan disappear at payment. No change.
+- ☑ **"Your site is live" moment built** — `/onboarding-complete` now leads
+  with "{Clinic} — your site is live!", a live-URL pill that opens the site,
+  and a "connect your own domain" link deep-linking to
+  `/settings/clinic#custom-domain`. The welcome email includes the live URL.
+- ☑ **Canceling the add-on now DISCONNECTS over-cap channels** (newest first,
+  oldest keep working) — we pay Zernio per connection. Also enforced on plan
+  downgrades via the webhook sync. Demo orgs and GBP never touched. Tests in
+  `tests/billing/social-billing.test.ts`.
+- ☑ **Gmail Tier-2 send-as surfaced** — inbox settings now offers "Send
+  patient email from your own address" to owners/admins after a connect
+  (until a sender is designated), marks the designated account with a
+  "Patient sender" chip, and maps the raw `access_denied` OAuth error to
+  friendly copy.
+
+Fixed 2026-07-02 (round 4, engineering follow-ups):
+
+- ☑ **Stripe Connect status can now leave `active`** — `account.updated` is
+  handled in the Connect webhook, `saveConnectedAccount` writes `restricted`
+  for an onboarded account whose charges Stripe disabled, and
+  `refreshConnectStatus` re-pulls even when currently active.
+- ☑ **GBP "connected but empty"** — the connect callback now kicks a
+  fire-and-forget profile + reviews sync, so /reviews and /seo populate
+  immediately instead of waiting for the next cron tick.
+- ☑ **"Next charge" was silently dead** — `stripe.invoices.retrieveUpcoming`
+  no longer exists in the installed SDK (every call threw into a catch);
+  migrated to `invoices.createPreview`.
 
 Open — engineering follow-ups:
 
-- ☐ **Stripe Connect status never leaves `active`** — handle `account.updated`
-  in the Connect webhook (write `restricted`) + let `refreshConnectStatus`
-  re-pull even when active. A restricted clinic currently keeps a stale
-  "active" card and a checkout that fails.
-- ☐ **GBP "connected but empty"** — kick a best-effort profile+reviews sync
-  from the connect callback (today /reviews stays empty until the next cron).
-- ☐ GBP multi-location: persisted location choice + picker UI.
-- ☐ `stripe.invoices.retrieveUpcoming` is removed in newer Stripe SDKs — the
-  "Next charge" line will silently vanish on upgrade; migrate to
-  `invoices.createPreview`.
+- ☐ GBP multi-location: persisted location choice + picker UI (ordering is
+  stable now; selection is still implicitly the first account).
 - ☐ Drop or re-base the dead `billingActivationPending` flag (managed clinics
   are always 'trialing' pre-payment, so it never fires; TrialBanner covers
   the journey).
@@ -288,6 +294,8 @@ Open — engineering follow-ups:
   diverge (different orderings); no portal org switcher.
 - ☐ Follow-up rule/auto-create due-date stamping still uses the UTC day
   (cron context; needs per-clinic tz threading).
+- ☐ Gmail watch lapse silently degrades to lazy polling with no "real-time
+  paused" signal.
 
 ## How to keep hunting (method)
 

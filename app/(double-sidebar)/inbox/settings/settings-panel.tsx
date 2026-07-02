@@ -8,16 +8,34 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { disconnectMailbox, reclassifyAllAction, syncMailbox } from '../mailbox-actions'
+import { useAsPatientSenderAction } from './actions'
 
 interface Props {
   accounts: EmailAccountSummary[]
   configured: boolean
   flash: { connectedEmail: string | null; error: string | null }
+  /** Tier-2 patient-sender designation — offered to clinic owners/admins right
+   *  here (post-connect) so the capability isn't buried in Settings → Clinic. */
+  patientSender: { accountId: string | null; offerDesignation: boolean }
 }
 
-export default function SettingsPanel({ accounts, configured, flash }: Props) {
+export default function SettingsPanel({ accounts, configured, flash, patientSender }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [senderPending, startSenderTransition] = useTransition()
+  const [senderSet, setSenderSet] = useState(false)
+
+  function handleUseAsSender(accountId: string) {
+    setError(null)
+    startSenderTransition(async () => {
+      const r = await useAsPatientSenderAction(accountId)
+      if (!r.ok) setError(r.error ?? 'Could not update the patient sender.')
+      else {
+        setSenderSet(true)
+        router.refresh()
+      }
+    })
+  }
   const [reclassifying, startReclassify] = useTransition()
   const [reclassifyResult, setReclassifyResult] = useState<{
     reset: number
@@ -100,6 +118,40 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
       {flash.connectedEmail && (
         <div className="mb-4 text-sm bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded" role="status">
           Connected <strong>{flash.connectedEmail}</strong>. We&apos;re pulling in your recent inbox in the background.
+        </div>
+      )}
+      {senderSet && (
+        <div className="mb-4 text-sm bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded" role="status">
+          Done — patient emails now send from your Gmail address. Change it anytime in Settings → Clinic.
+        </div>
+      )}
+
+      {/* Tier-2 sender offer — connecting Gmail unlocks sending patient email
+          AS the clinic's own address, but nothing surfaced that before. Shown
+          until a sender is designated; owner/admin only. */}
+      {patientSender.offerDesignation && !patientSender.accountId && !senderSet && accounts.length > 0 && (
+        <div className="v2-card p-5 mb-6 border-l-2 border-teal-500">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">
+            Send patient email from your own address
+          </h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Right now, booking confirmations and reminders send from our platform address on your
+            clinic&apos;s behalf. Since your Gmail is connected, they can send <em>as you</em> —
+            patients see and reply to your real address.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {accounts.map((a) => (
+              <ActionButton
+                key={a.id}
+                variant="primary"
+                size="sm"
+                onClick={() => handleUseAsSender(a.id)}
+                disabled={senderPending}
+              >
+                {senderPending ? 'Working…' : `Send as ${a.emailAddress}`}
+              </ActionButton>
+            ))}
+          </div>
         </div>
       )}
       {flash.error && (
@@ -193,6 +245,14 @@ export default function SettingsPanel({ accounts, configured, flash }: Props) {
                     <span className="ml-2 text-xs uppercase font-semibold bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
                       {a.provider}
                     </span>
+                    {patientSender.accountId === a.id && (
+                      <span
+                        className="ml-2 text-xs font-semibold bg-teal-500/10 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded"
+                        title="Patient-facing email (confirmations, reminders) sends from this address. Change in Settings → Clinic."
+                      >
+                        Patient sender
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {a.displayName ? `${a.displayName} · ` : ''}

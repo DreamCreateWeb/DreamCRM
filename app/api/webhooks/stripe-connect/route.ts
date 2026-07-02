@@ -3,6 +3,7 @@ import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
 import { finalizeBalancePaymentFromSession } from '@/lib/services/balance-payments'
 import { finalizeMembershipFromSession, handleSubscriptionEvent } from '@/lib/services/membership'
+import { syncConnectedAccountStatus } from '@/lib/services/shop-connect'
 
 /**
  * Webhook for CONNECTED-ACCOUNT events (registered separately in Stripe for
@@ -47,6 +48,12 @@ export async function POST(request: Request) {
       if (orgId && sub.id) {
         await handleSubscriptionEvent(orgId, sub.id as string, sub.status as string, subscriptionPeriodEnd(sub))
       }
+    } else if (event.type === 'account.updated') {
+      // Stripe enabled/disabled capabilities on a connected account — keep our
+      // stored status honest (a restricted account previously kept showing
+      // "active" while its checkout failed).
+      const accountId = (event as { account?: string }).account ?? (event.data.object.id as string | undefined)
+      if (accountId) await syncConnectedAccountStatus(accountId)
     }
   } catch (err) {
     console.error('[stripe-connect webhook] handler error', err)
