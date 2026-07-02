@@ -9,6 +9,7 @@ import { getTagsForPatient, listPatientTags } from '@/lib/services/patient-tags'
 import { listPatientDocuments } from '@/lib/services/patient-documents'
 import { listFollowupsForPatient, listAssignableStaff } from '@/lib/services/patient-followups'
 import { findMergeCandidates } from '@/lib/services/patient-merge'
+import { getReferralContext } from '@/lib/services/patient-referrals'
 import { listFormTemplates } from '@/lib/services/forms'
 import PatientDetail from './patient-detail'
 
@@ -27,7 +28,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family] =
+  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
@@ -40,6 +41,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       listFollowupsForPatient(ctx.organizationId, id),
       listAssignableStaff(ctx.organizationId),
       getFamilyForPatient(ctx.organizationId, id),
+      getReferralContext(ctx.organizationId, id),
     ])
   if (!header) notFound()
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
@@ -68,6 +70,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       canMerge={canMerge}
       mergeCandidates={mergeCandidates}
       family={family}
+      referral={referral}
     />
   )
 }

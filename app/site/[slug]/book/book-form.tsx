@@ -428,6 +428,9 @@ export default function BookForm({
       fd.set('utm_source', params.get('utm_source') || '')
       fd.set('utm_medium', params.get('utm_medium') || '')
       fd.set('utm_campaign', params.get('utm_campaign') || '')
+      // Refer-a-friend share-link token (attributes a NEW patient's booking
+      // to the friend who sent them).
+      fd.set('ref', params.get('ref') || '')
     }
     try {
       const conf = await submitBookingRequest(fd)

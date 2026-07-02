@@ -27,6 +27,7 @@ import type { PatientFollowupView } from '@/lib/types/followups'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
 import SendIntakeInline, { type IntakeFormOption } from '../send-intake-inline'
 import type { FamilyMemberView } from '@/lib/services/patients'
+import type { ReferralContext } from '@/lib/services/patient-referrals'
 import {
   archivePatientAction,
   openPatientThreadAction,
@@ -132,6 +133,7 @@ export default function PatientDetail({
   canMerge = false,
   mergeCandidates = [],
   family = [],
+  referral = null,
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -149,6 +151,7 @@ export default function PatientDetail({
   canMerge?: boolean
   mergeCandidates?: Array<{ id: string; name: string; email: string | null; phone: string | null; reason: string }>
   family?: FamilyMemberView[]
+  referral?: ReferralContext | null
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
   const confirm = useConfirm()
@@ -322,6 +325,9 @@ export default function PatientDetail({
           <TagsPanel patientId={header.id} initialTags={tags} catalog={tagCatalog} />
           <IdentityCard header={header} />
           {family.length > 0 && <FamilyCard family={family} />}
+          {referral && (referral.referredBy || referral.referred.length > 0) && (
+            <ReferralCard referral={referral} />
+          )}
         </aside>
 
         {/* ── Timeline ───────────────────────────────────────────────── */}
@@ -678,6 +684,46 @@ function FamilyCard({ family }: { family: FamilyMemberView[] }) {
       <p className="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
         Linked through portal family access — handy for booking the household together.
       </p>
+    </div>
+  )
+}
+
+/** Refer-a-friend attribution, both directions: who sent this patient to us,
+ *  and which patients they've sent. Word-of-mouth made visible (and thankable)
+ *  instead of buried in "how did you hear about us?". */
+function ReferralCard({ referral }: { referral: ReferralContext }) {
+  return (
+    <div className="v2-card px-4 py-4">
+      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">
+        Referrals
+      </p>
+      {referral.referredBy && (
+        <p className="text-sm text-gray-800 dark:text-gray-100">
+          Referred by{' '}
+          <Link href={`/patients/${referral.referredBy.id}`} className="font-medium text-teal-700 dark:text-teal-400 hover:underline">
+            {referral.referredBy.name}
+          </Link>
+        </p>
+      )}
+      {referral.referred.length > 0 && (
+        <div className={referral.referredBy ? 'mt-2.5' : ''}>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+            Brought {referral.referred.length === 1 ? 'a friend' : `${referral.referred.length} friends`} to the practice:
+          </p>
+          <ul className="space-y-1">
+            {referral.referred.map((r) => (
+              <li key={r.id} className="text-sm truncate">
+                <Link href={`/patients/${r.id}`} className="font-medium text-gray-800 dark:text-gray-100 hover:underline">
+                  {r.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+            Worth a thank-you at their next visit.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

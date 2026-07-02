@@ -13,7 +13,9 @@ import {
   getMyPendingForms,
 } from '@/lib/services/patient-portal'
 import { getPortalPageContext, toVisitCardData, mapsQueryFor } from '../portal-data'
+import { countReferrals } from '@/lib/services/patient-referrals'
 import VisitCard from '@/components/patient-portal/visit-card'
+import ReferCard from '@/components/patient-portal/refer-card'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import {
   PortalCard,
@@ -37,12 +39,13 @@ export default async function PortalHome() {
   const bookLabel = selfBookingEnabled ? 'Book a visit' : 'Request a visit'
   const bookSub = selfBookingEnabled ? 'See real openings' : 'We’ll find you a time'
 
-  const [me, upcoming, past, recall, pendingForms] = await Promise.all([
+  const [me, upcoming, past, recall, pendingForms, referredCount] = await Promise.all([
     getMyPatientRecord(ctx.patientId, ctx.organizationId),
     getUpcomingVisits(pc.allowedPatientIds, ctx.organizationId),
     getPastVisits([ctx.patientId], ctx.organizationId),
     getMyRecallStatus(ctx.patientId, ctx.organizationId),
     settings.features.forms ? getMyPendingForms(ctx.patientId, ctx.organizationId) : Promise.resolve([]),
+    countReferrals(ctx.organizationId, ctx.patientId),
   ])
 
   const firstName = me?.firstName ?? null
@@ -212,6 +215,15 @@ export default async function PortalHome() {
           </div>
         </section>
       )}
+
+      <section className="mt-7">
+        <PortalSectionLabel>Share the love</PortalSectionLabel>
+        <ReferCard
+          brand={brand}
+          clinicName={clinic?.displayName ?? ctx.organizationName}
+          referredCount={referredCount}
+        />
+      </section>
 
       <section className="mt-7 md:hidden">
         <PortalCard>

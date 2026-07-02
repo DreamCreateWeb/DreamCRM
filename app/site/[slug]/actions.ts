@@ -17,6 +17,7 @@ import { createBookingDepositSession } from '@/lib/services/booking-deposits'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
+import { stampReferralAttribution } from '@/lib/services/patient-referrals'
 import { recordInboundMessage } from '@/lib/services/patient-messaging'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
@@ -235,6 +236,15 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
       firstSeenAt: now,
       lastActivityAt: now,
     })
+    // Refer-a-friend: a ?ref= share-link token rides the form. Stamped only on
+    // NEWLY created patients (an existing record keeps its history) and only
+    // best-effort — attribution never blocks the request itself.
+    const refToken = formData.get('ref')?.toString().trim() || ''
+    if (refToken) {
+      await stampReferralAttribution(orgId, patientId, refToken).catch((err) => {
+        console.warn('[clinic-site] referral attribution failed', err)
+      })
+    }
   } else {
     await db.update(patient).set({ lastActivityAt: new Date() }).where(eq(patient.id, patientId))
   }
@@ -534,6 +544,14 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
       firstSeenAt: now,
       lastActivityAt: now,
     })
+    // Refer-a-friend: stamp attribution from the ?ref= share-link token, only
+    // on newly created patients, never blocking the booking (best-effort).
+    const refToken = formData.get('ref')?.toString().trim() || ''
+    if (refToken) {
+      await stampReferralAttribution(orgId, patientId, refToken).catch((err) => {
+        console.warn('[clinic-site] referral attribution failed', err)
+      })
+    }
   } else {
     await db
       .update(patient)

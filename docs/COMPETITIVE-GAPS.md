@@ -121,9 +121,16 @@ birthday/reactivation autos, templates, promote-view-to-audience.
   (unsubscribe, tracking, visible in the campaign list). New audience
   filters `hasInsurance` + `noUpcomingVisit` are reusable by any custom
   audience; new "Use your benefits" system template.
-- ✗ **Referral program** (Solutionreach Refer-a-Friend) — "refer a friend"
-  campaign type + landing + attribution; pairs with a future loyalty program.
-  **P2.**
+- ✅ **Referral program** (Solutionreach Refer-a-Friend) — SHIPPED 2026-07-02:
+  each patient gets one share link (`/book?ref=<token>`, lazily minted from
+  the portal home's "Share the love" card — native share sheet on phones,
+  clipboard elsewhere). A NEW patient booking or requesting through it gets
+  `patient.referred_by_patient_id` stamped once at creation (org-scoped
+  token, self-referral + overwrite guarded, never blocks the booking). The
+  patient record shows both directions in a Referrals card ("Referred by
+  Sophia" / "Brought 2 friends — worth a thank-you"), and the portal card
+  thanks referrers with their count. Later: loyalty-program tie-in, referral
+  leaderboard in analytics.
 - ✅ **Monthly patient newsletter** — SHIPPED 2026-07-02, the unfair-angle
   version: "Draft this month's issue" on /marketing builds the newsletter
   from the clinic's latest published BLOG posts (title + excerpt + read-on-

@@ -2245,7 +2245,7 @@ To-do in the AWS migration session (rough order):
 Working docs/COMPETITIVE-GAPS.md top-to-bottom in one autonomous run — every
 slice a full vertical (schema+migration → service → UI → settings → demo seed
 → tests) pushed to main and verified deploy-green individually. Suite grew
-4,200 → 4,302. Migrations 0101–0108.
+4,200 → 4,313. Migrations 0101–0109.
 
 1. **Fast-pass waitlist auto-fill** (`e2719bf`) — appointment_waitlist +
    offers; cancellation auto-offers freed slots; first-click-wins claim at
@@ -2280,6 +2280,13 @@ slice a full vertical (schema+migration → service → UI → settings → demo
     guardian links, card on the patient record.
 12. **Blog-powered newsletter** (`a40498a`) — one-click draft campaign from
     the latest published blog posts (review-before-send).
+13. **Refer-a-friend program** — patient_referral_link (one share link per
+    patient, migration 0109) minted lazily from the portal home's "Share the
+    love" card (native share sheet / clipboard); /book?ref=<token> stamps
+    referred_by_patient_id once on NEWLY created patients (org-scoped,
+    self-referral + overwrite guarded, best-effort); Referrals card on the
+    patient record shows both directions; Sophia→Emma demo seed + demoref
+    cleanup-sweep entry.
 
 New conventions minted: token-IS-auth public pages live at single-letter
 roots (/r /w /c /b) + middleware PUBLIC_PATHS; new automated emails join the
@@ -2287,6 +2294,5 @@ EMAIL_AUTOMATION_SPECS registry (union + spec + hub renders free); new AI
 surfaces meter via lib/services/ai-usage.ts kinds; demo money/dunning records
 seed persona-anchored with `*_demo`/`demo*` markers + cleanup-sweep entries.
 
-Remaining in COMPETITIVE-GAPS: referral program, family confirmation
-consolidation, payment plans, AR board, broadcast-messaging polish + the
-P3/📵 tail (SMS-gated).
+Remaining in COMPETITIVE-GAPS: family confirmation consolidation, payment
+plans, AR board, broadcast-messaging polish + the P3/📵 tail (SMS-gated).

@@ -2494,6 +2494,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Billing-outreach self-heal: one sent pay-link request on Marcus.
     await seedDemoBalanceOutreach(existing.id, new Date(), existingPatientIds)
 
+    // Refer-a-friend self-heal: Sophia's share link + Emma stamped as her referral.
+    await seedDemoReferral(existing.id, new Date(), existingPatientIds)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -3168,6 +3171,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Billing-outreach showcase: one sent pay-link request on Marcus.
   await seedDemoBalanceOutreach(orgId, now, patientIds)
+
+  // Refer-a-friend showcase: Sophia's share link + Emma stamped as her referral.
+  await seedDemoReferral(orgId, now, patientIds)
 
   return {
     organizationId: orgId,
@@ -4456,7 +4462,19 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
-  // (9) Public-site testimonials linked to a non-persona patient — a seeded
+  // (9) Seeded refer-a-friend links (demoref tokens) on a non-persona
+  // patient — a fabricated share link must never sit on a real person.
+  await db
+    .delete(schema.patientReferralLink)
+    .where(
+      and(
+        eq(schema.patientReferralLink.organizationId, orgId),
+        inArray(schema.patientReferralLink.patientId, strays),
+        like(schema.patientReferralLink.token, 'demoref%'),
+      ),
+    )
+
+  // (10) Public-site testimonials linked to a non-persona patient — a seeded
   // quote must never render under a real person's name.
   const [profileRow] = await db
     .select({ testimonials: schema.clinicProfile.testimonials })
@@ -4696,6 +4714,71 @@ async function seedDemoBalanceOutreach(
     createdAt: sentAt,
     updatedAt: sentAt,
   })
+}
+
+/**
+ * Seed the refer-a-friend showcase: Sophia [4] holds a share link (the row the
+ * portal card mints lazily) and Emma [6] — the widget-booked new patient — is
+ * stamped as referred BY Sophia, so the patient record shows both directions
+ * of the ReferralCard ("Referred by Sophia" on Emma; "Brought a friend" on
+ * Sophia). Persona-anchored both sides; either missing → skip. Stamp is
+ * only-when-null so a real attribution (or a re-run) is never overwritten.
+ * The link token carries the `demoref` marker the cleanup sweep recognizes.
+ */
+async function seedDemoReferral(
+  orgId: string,
+  now: Date,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const sophiaId = patientIds[4]
+  const emmaId = patientIds[6]
+  if (!sophiaId || !emmaId) return
+
+  // Positive anchor: Emma's actual patient row. Missing (partially-seeded org,
+  // or the seeder test's exhausted mock queue) → skip the whole showcase.
+  const [emma] = await db
+    .select({ id: schema.patient.id, referredByPatientId: schema.patient.referredByPatientId })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, emmaId)))
+    .limit(1)
+  if (!emma) return
+
+  // Sophia's share link — respecting the one-link-per-patient unique index:
+  // if she already minted one organically (someone clicked the portal card in
+  // the demo), keep hers and skip ours.
+  const [existingLink] = await db
+    .select({ id: schema.patientReferralLink.id })
+    .from(schema.patientReferralLink)
+    .where(
+      and(
+        eq(schema.patientReferralLink.organizationId, orgId),
+        eq(schema.patientReferralLink.patientId, sophiaId),
+      ),
+    )
+    .limit(1)
+  if (!existingLink) {
+    await db.insert(schema.patientReferralLink).values({
+      id: 'prl_demo_sophia',
+      organizationId: orgId,
+      patientId: sophiaId,
+      token: 'demoref_sophia_showcase',
+      createdAt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+    })
+  }
+
+  // Stamp Emma as Sophia's referral — only when unattributed, never overwriting.
+  if (!emma.referredByPatientId) {
+    await db
+      .update(schema.patient)
+      .set({ referredByPatientId: sophiaId })
+      .where(
+        and(
+          eq(schema.patient.id, emmaId),
+          eq(schema.patient.organizationId, orgId),
+          isNull(schema.patient.referredByPatientId),
+        ),
+      )
+  }
 }
 
 /**

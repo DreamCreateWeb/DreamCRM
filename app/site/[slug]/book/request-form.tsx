@@ -46,6 +46,9 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
     if (typeof window !== 'undefined') {
       fd.set('sourcePage', window.location.pathname)
       fd.set('referrer', document.referrer || '')
+      // Refer-a-friend share-link token (attributes a NEW patient's request
+      // to the friend who sent them).
+      fd.set('ref', new URLSearchParams(window.location.search).get('ref') || '')
     }
     try {
       await submitAppointmentRequest(fd)

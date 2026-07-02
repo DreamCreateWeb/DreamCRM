@@ -425,3 +425,21 @@ export async function sendPortalMessageAction(
   revalidatePath('/patient/messages')
   return { ok: true }
 }
+
+/**
+ * Refer-a-friend: mint (or fetch) the signed-in patient's share link. Called
+ * lazily from the dashboard share card's "Copy my link" button so a link row
+ * only exists for patients who actually went to share.
+ */
+export async function getMyReferralLinkAction(): Promise<
+  { ok: true; shareUrl: string } | { ok: false; error: string }
+> {
+  const ctx = await requirePatient()
+  try {
+    const { getOrCreateReferralLink } = await import('@/lib/services/patient-referrals')
+    const link = await getOrCreateReferralLink(ctx.organizationId, ctx.patientId)
+    return { ok: true, shareUrl: link.shareUrl }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+  }
+}

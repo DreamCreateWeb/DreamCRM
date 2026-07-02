@@ -35,6 +35,11 @@ export const patient = pgTable(
     // service layer enforces same-org integrity on write.
     guardianPatientId: text('guardian_patient_id'),
 
+    // Refer-a-friend attribution: the existing patient whose share link this
+    // patient arrived through (soft self-FK, same rationale as guardian).
+    // Set once at first booking/request; never overwritten.
+    referredByPatientId: text('referred_by_patient_id'),
+
     // Tombstone: when this record was merged INTO another, points at the
     // survivor. Set + the row archived by the merge tool; excluded from the
     // patient list. Null for every live patient. Soft self-FK (no .references).
@@ -1415,6 +1420,25 @@ export const patientBalancePayment = pgTable(
   ],
 )
 export type PatientBalancePayment = typeof patientBalancePayment.$inferSelect
+
+// One share link per patient for refer-a-friend: /site/{slug}/book?ref={token}.
+// The token IS the attribution — a new patient booking through it gets
+// referred_by_patient_id stamped. Minted lazily from the portal's share card.
+export const patientReferralLink = pgTable(
+  'patient_referral_link',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    token: text('token').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('patient_referral_link_token_idx').on(t.token),
+    uniqueIndex('patient_referral_link_patient_idx').on(t.organizationId, t.patientId),
+  ],
+)
+export type PatientReferralLink = typeof patientReferralLink.$inferSelect
 
 // One row per "email-to-pay" pay-link sent to a patient (staff-clicked or the
 // opt-in automated balance-reminder cadence). The token IS the auth for the
