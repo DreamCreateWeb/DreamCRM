@@ -29,6 +29,9 @@ export default async function WebsiteEditorPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/dashboard')
+  // Editing is owner/admin-only (every save action enforces it) — don't hand
+  // a member the full studio where every Save would error.
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/dashboard')
 
   const [profile] = await db
     .select()

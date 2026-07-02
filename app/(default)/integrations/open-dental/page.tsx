@@ -63,7 +63,7 @@ export default async function OpenDentalDetailPage() {
             Dental&apos;s official API, audit-clean. It&apos;s included on the Premium plan.
           </p>
           <div className="mt-5 flex justify-center">
-            <ActionButton variant="primary" size="md" href="/settings/plans?upgrade=integrations" breath>
+            <ActionButton variant="primary" size="md" href="/settings/billing?upgrade=integrations" breath>
               Upgrade to Premium
             </ActionButton>
           </div>

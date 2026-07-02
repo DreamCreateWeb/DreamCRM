@@ -64,15 +64,17 @@ describe('requirePlan', () => {
     expect(redirect).not.toHaveBeenCalled()
   })
 
-  it('redirects a below-tier clinic to the Plans page with the gated module', async () => {
+  it('redirects a below-tier clinic to the billing page with the gated module', async () => {
+    // Straight to /settings/billing — /settings/plans is only a legacy
+    // redirect stub, no reason to hop through it.
     await expect(requirePlan(ctx({ planTier: 'basic' }), 'premium', 'analytics')).rejects.toThrow(
-      'REDIRECT:/settings/plans?upgrade=analytics',
+      'REDIRECT:/settings/billing?upgrade=analytics',
     )
-    expect(redirect).toHaveBeenCalledWith('/settings/plans?upgrade=analytics')
+    expect(redirect).toHaveBeenCalledWith('/settings/billing?upgrade=analytics')
   })
 
-  it('redirects to the bare Plans page when no module is given', async () => {
-    await expect(requirePlan(ctx({ planTier: 'pro' }), 'premium')).rejects.toThrow('REDIRECT:/settings/plans')
+  it('redirects to the bare billing page when no module is given', async () => {
+    await expect(requirePlan(ctx({ planTier: 'pro' }), 'premium')).rejects.toThrow('REDIRECT:/settings/billing')
   })
 
   it('never gates platform tenants (they sell the plans)', async () => {

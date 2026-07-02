@@ -39,17 +39,29 @@ Fixed 2026-07-02:
 - ☑ Inbox quoted-reply header ("On …, X wrote:", patient-visible)
 - ☑ Intake submission "submitted at" (`submissions/[submissionId]/page.tsx`)
 
+Fixed 2026-07-02 (round 2):
+
+- ☑ **Public booking form day strip** — slot labels were already clinic-tz
+  (server-formatted), but the 14-day strip + Today/Tomorrow labels anchored to
+  the BROWSER's calendar. Now built from clinic-calendar date keys
+  (`clinicDayKey`), so an out-of-state patient near midnight sees the clinic's
+  bookable days.
+- ☑ **Portal SlotPicker day strip** (book + reschedule flows) — same fix;
+  clinic `timeZone` threaded from the portal pages/visit card.
+- ☑ **Follow-up "today"/"overdue" boundaries** — `todayYmd()` was the SERVER's
+  UTC day, so a Central clinic's follow-ups flipped to due/overdue at ~6-7 PM
+  local. `listOpenFollowups`/`getFollowupSummary`/`countFollowupsDue`/
+  `getMyDay` now bucket at the clinic's midnight (`clinicTodayYmd`).
+
 Open:
 
-- ☐ **Public booking form slot labels** (`app/site/[slug]/book/book-form.tsx`)
-  — client component formats slot Dates in the PATIENT's browser tz. A patient
-  booking from out of state sees shifted times. Slots should render
-  clinic-local labels (the slot grid itself is already clinic-tz on the
-  server; carry pre-formatted labels or the clinic tz to the client).
 - ☐ **Portal message timestamps** (`patient/messages/messages-view.tsx`) use
   browser tz while portal *visit* times use the clinic-tz helpers — decide one
   way (probably fine as browser tz for the reader's own messages; visit-linked
   times must stay clinic-tz) and document.
+- ☐ **Follow-up rule/auto-create due-date assignment** (`followup-rules.ts`,
+  `autoCreateRebookFollowup`) still stamps due dates from the UTC day — ±1 day
+  near midnight; cron-context, needs per-clinic tz threading.
 - ☐ **Staff dashboard client components** (agenda rows, drawers, thread
   panels, calendar) format in the staff member's browser tz. Correct while
   staff sit in the clinic; wrong for a traveling owner. Low priority — but if
@@ -96,28 +108,86 @@ Open:
   anchoring stops depending on the `@example.com` email convention (also drop
   `notification_prefs.push_everything` in the same migration).
 
-## Class 3 — Numbers/state that should agree across surfaces (next sweep)
+## Class 3 — Numbers/state that should agree across surfaces (audited 2026-07-02)
 
-Candidate hunt list — verify each pair renders from the same source:
+Full-code audit ran 2026-07-02. Verified AGREEING (no action): patient balance
+(every surface reads `patient.pms_balance_cents`), review funnel windows
+(Overview/reviews/Analytics all via `getReviewStats`), last/next-visit
+predicates (list/header/drawer/portal all exclude cancelled+no-show,
+instant-based), trial days (single `Math.ceil` source in `lib/trial.ts`),
+sidebar follow-up badge == Overview card.
 
-- ☐ Patient balance: patients list `$` glyph vs detail header vs Overview
-  outstanding-balances vs portal billing (should all be `pms_balance_cents`;
-  a prior fix unified the glyph — verify the remaining surfaces).
-- ☐ "Needs a text" / unconfirmed counts: agenda day sub-headers vs Overview
-  attention card vs nav badge vs My Day.
-- ☐ Review KPIs: `/reviews` funnel vs Overview reviews card vs Analytics
-  reputation band (30/90 windows must match labels).
-- ☐ Next-visit shown on patient detail header vs timeline vs portal card.
-- ☐ Trial banner day count vs Settings → Billing vs trial reminder emails.
+Fixed 2026-07-02 (round 2):
 
-## Class 4 — Dead/misleading affordances (next sweep)
+- ☑ **Overview "New patients MTD" import inflation** — counted `createdAt`
+  with no source filter, so connecting a PMS / uploading a CSV spiked the tile
+  by the whole roster while Analytics stayed flat. Now uses `firstSeenAt`,
+  excludes `BACKFILL_PATIENT_SOURCES` + archived (same semantics as
+  Analytics).
+- ☑ **New-patient ★ glyph rule** — Overview counted a cancelled/no-show prior
+  visit as "not new"; agenda/list didn't. Overview now excludes them too.
+- ☑ **Private feedback counted as "Reviewed"** — `getReviewStats` completed
+  count included `selectedSite='private_feedback'` rows (headline could exceed
+  the platform-mix bars). Now excluded; private feedback keeps its own inbox.
+- ☑ **My Day "need a text"** counted scheduled slots that had already passed
+  today. Now only future ones.
+- ☑ **Appointment drawer "Lifetime spend"** read the legacy Mosaic `invoices`
+  table (always $0 for real clinics). Now reads paid `shop_order` rows — the
+  same source as the patients list — relabelled "Shop purchases".
+- ☑ **Agenda day totals** — "booked" no longer counts cancelled visits.
+- ☑ **Portal recall nudge** derived last-visit from completed-only visits and
+  ignored the clinic's recall cadence (fell back to the 6/9mo heuristic) — now
+  uses the same predicate + `intervalMonths` as the patients list.
+- ☑ Balance aggregate `::int` cast in Overview → `::bigint` (matches My Day;
+  overflow-proof).
+- ☑ Follow-ups sidebar badge doc claimed it mirrors the board's default list —
+  corrected (the badge counts DUE; the board default lists all open).
 
-- ☐ Sweep for links to routes that redirect (old `/channels`, `/google-posts`,
-  `/settings/plans`, `/settings/reminders` are covered by redirect stubs —
-  make sure nothing user-facing still LINKS to them as primary paths).
-- ☐ Empty states that promise an action the current role/plan can't take
-  (view-only member seeing owner-only CTAs).
-- ☐ Buttons that silently no-op in demo mode instead of explaining.
+Open (judgment calls, not clear bugs):
+
+- ☐ "Unconfirmed" means *next 48h* on Overview/nav-badge but *today* on
+  My Day — different-by-design, but the labels don't say so. Consider explicit
+  copy ("in the next 48 hours" vs "today").
+- ☐ Analytics treats "confirmed" as `confirmedAt || completed`; agenda counts
+  `status='confirmed'` only. A confirmed-then-completed visit counts
+  differently. Decide one definition.
+- ☐ /followups board default shows ALL open while the badge counts due-only —
+  consider defaulting the board to the "Due" filter, or a "N due now" pill at
+  the top of the board.
+- ☐ Guardian portal "next visit" may be a dependent's (family scope) — fine,
+  but the card doesn't name whose visit it is when it's not yours.
+
+## Class 4 — Dead/misleading affordances (audited 2026-07-02)
+
+Audit ran 2026-07-02. Verified CLEAN: demo-mode actions all resolve to visible
+feedback; portal feature toggles HIDE everywhere (nav, home cards, deep links
+all guarded + `requirePortalFeature` server-side); `soon`/coming-soon tiles are
+honest and non-clickable; `requirePlan`'s `?upgrade=` param survives to
+`/settings/billing`.
+
+Fixed 2026-07-02 (round 2):
+
+- ☑ **Members saw Connect/Disconnect on /integrations** — every such action is
+  owner/admin-only server-side (the GBP connect link even landed members on a
+  raw JSON 403 page). The library now takes `canManage`: members get a "ask an
+  owner or admin" note, view-only connected cards, and no add-on billing
+  controls.
+- ☑ **Members got the full Website Studio** where every save/AI action errors.
+  The module is now owner/admin-only in the sidebar registry AND the page
+  redirects members.
+- ☑ **Fresh UI links pointing at redirect stubs** — ⌘K "Plan & billing",
+  settings-search "Reminders", social-posts + integrations upgrade CTAs, and
+  `requirePlan` itself now target `/settings/billing` /
+  `/settings/automations/emails` directly (no double-redirect hop).
+
+Open:
+
+- ☐ Reviews action doc-comments say "owner/admin only" but the code allows
+  members (comment/behavior mismatch — decide which is intended, then fix the
+  other side).
+- ☐ Open Dental detail page: members can view it via the card's Manage/View
+  link — verify its mutating controls (sync now, disconnect, key entry) are
+  role-gated in the UI, not just server-side.
 
 ## How to keep hunting (method)
 

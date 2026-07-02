@@ -200,6 +200,7 @@ export default async function IntegrationsPage({
         atLimit={atLimit}
         routeError={one(sp.zernioError)}
         isDemo={ctx.isDemo}
+        canManage={ctx.role === 'owner' || ctx.role === 'admin'}
       />
     </div>
   )

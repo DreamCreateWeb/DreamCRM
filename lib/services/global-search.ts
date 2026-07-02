@@ -43,7 +43,7 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     { id: 'page-settings-portal', label: 'Patient portal settings', sublabel: 'Settings', href: '/settings/portal', kind: 'page' },
     { id: 'page-settings-team', label: 'Team & invites', sublabel: 'Settings', href: '/settings/team', kind: 'page' },
     { id: 'page-settings-locations', label: 'Locations', sublabel: 'Settings', href: '/settings/locations', kind: 'page' },
-    { id: 'page-settings-plan', label: 'Plan & billing', sublabel: 'Settings', href: '/settings/plans', kind: 'page' },
+    { id: 'page-settings-plan', label: 'Plan & billing', sublabel: 'Settings', href: '/settings/billing', kind: 'page' },
     { id: 'page-settings-apps', label: 'Connected accounts', sublabel: 'Settings', href: '/settings/apps', kind: 'page' },
   ]
   return [...modules, ...settingsPages]

@@ -73,6 +73,7 @@ function props(
     atLimit: null,
     routeError: null,
     isDemo: false,
+    canManage: true,
     ...overrides,
   }
 }
@@ -245,7 +246,7 @@ describe('IntegrationsLibrary — Practice Management bundle', () => {
     render(<IntegrationsLibrary {...props({}, state, 'basic')} />)
     const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
     const upgrade = within(section).getByRole('link', { name: /Upgrade to Premium/i }) as HTMLAnchorElement
-    expect(upgrade.getAttribute('href')).toContain('/settings/plans')
+    expect(upgrade.getAttribute('href')).toContain('/settings/billing')
     // The plan-locked bundle hides its member cards (no Open Dental / roadmap tiles).
     expect(within(section).queryByText('Open Dental')).toBeNull()
     expect(within(section).queryByRole('link', { name: /^Connect$/i })).toBeNull()

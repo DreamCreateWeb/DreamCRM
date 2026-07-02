@@ -78,7 +78,10 @@ export const clinicModules: ModuleRegistry = {
     { id: 'analytics',         path: '/analytics',         label: 'Analytics',        section: 'Growth',   icon: 'chart',    status: 'live', minPlan: 'premium' },
 
     // ── Website (the trunk) ────────────────────────────────────────────
-    { id: 'website',           path: '/website',           label: 'Website Editor',   section: 'Website',  icon: 'globe',    status: 'live' },
+    // Editing the site is owner/admin-only (every studio save action enforces
+    // it) — hide the module from members instead of showing an editor whose
+    // saves all fail.
+    { id: 'website',           path: '/website',           label: 'Website Editor',   section: 'Website',  icon: 'globe',    status: 'live', roles: ['owner', 'admin'] },
     { id: 'blog',              path: '/posts',              label: 'Blog Posts',       section: 'Website',  icon: 'pen',      status: 'live', minPlan: 'pro' },
     { id: 'seo',               path: '/seo',               label: 'SEO',              section: 'Website',  icon: 'search',   status: 'live', minPlan: 'pro' },
     { id: 'careers',           path: '/careers',           label: 'Careers',          section: 'Website',  icon: 'briefcase',status: 'live', minPlan: 'premium' },

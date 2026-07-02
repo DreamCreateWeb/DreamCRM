@@ -33,7 +33,8 @@ describe('settings search-index — shape / drift guard', () => {
   it('every entry has a valid surface, a known page href, and a label', () => {
     for (const e of SETTINGS_SEARCH_INDEX) {
       expect(SURFACES).toContain(e.surface)
-      expect(KNOWN_PAGES.has(e.href), `unknown href: ${e.href}`).toBe(true)
+      // Entries may deep-link with a query (?tab=/?email=) — validate the page.
+      expect(KNOWN_PAGES.has(e.href.split('?')[0]), `unknown href: ${e.href}`).toBe(true)
       expect(e.label.length).toBeGreaterThan(0)
       expect(e.page.length).toBeGreaterThan(0)
       if (e.sub) expect(e.tab, `entry "${e.label}" has a sub but no tab`).toBeTruthy()
@@ -43,13 +44,15 @@ describe('settings search-index — shape / drift guard', () => {
   it('covers every clinic + user nav destination so search never dead-ends', () => {
     // The pages the sidebar nav surfaces must each be reachable via search.
     const clinicPages = new Set(
-      SETTINGS_SEARCH_INDEX.filter((e) => e.surface === 'clinic').map((e) => e.href),
+      SETTINGS_SEARCH_INDEX.filter((e) => e.surface === 'clinic').map((e) => e.href.split('?')[0]),
     )
     for (const p of [
       '/settings/clinic',
       '/settings/practice',
       '/settings/portal',
-      '/settings/reminders',
+      // /settings/reminders merged into /settings/automations/emails
+      // (redirect stub) — search deep-links straight to the reminder email.
+      '/settings/automations/emails',
       '/settings/message-templates',
       '/settings/locations',
       '/settings/apps',

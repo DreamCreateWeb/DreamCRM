@@ -385,5 +385,5 @@ export async function requirePlan(ctx: TenantContext, minPlan: PlanTier, module?
   if (ctx.tenantType !== 'clinic') return
   if (planAllows(ctx.planTier, minPlan)) return
   const { redirect } = await import('next/navigation')
-  redirect(module ? `/settings/plans?upgrade=${encodeURIComponent(module)}` : '/settings/plans')
+  redirect(module ? `/settings/billing?upgrade=${encodeURIComponent(module)}` : '/settings/billing')
 }

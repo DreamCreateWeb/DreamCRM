@@ -321,7 +321,7 @@ function AtCapAction({ handlers }: { handlers: CardHandlers }) {
   }
   // Basic (no add-on) or add-on already maxed → point at plans.
   return (
-    <ActionButton variant="ghost" size="sm" href="/settings/plans" className="mt-1">
+    <ActionButton variant="ghost" size="sm" href="/settings/billing" className="mt-1">
       {addonAvailable ? 'At limit' : 'Upgrade to post'}
     </ActionButton>
   )

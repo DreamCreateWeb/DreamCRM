@@ -83,6 +83,9 @@ export interface IntegrationsLibraryProps {
   routeError: string | null
   /** Viewing the demo clinic — connect is SIMULATED (no real OAuth / new tab). */
   isDemo: boolean
+  /** Owner/admin — connect/disconnect/add-on actions render only when true
+   *  (the server actions reject members; don't show buttons that can only fail). */
+  canManage: boolean
 }
 
 export default function IntegrationsLibrary({
@@ -96,6 +99,7 @@ export default function IntegrationsLibrary({
   atLimit,
   routeError,
   isDemo,
+  canManage,
 }: IntegrationsLibraryProps) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -179,6 +183,7 @@ export default function IntegrationsLibrary({
     onBuyAddon: buyAddon,
     onSimulateConnect: simulateConnect,
     isDemo,
+    canManage,
     oauthConnectHrefs,
     capAllowed: cap.allowed,
     addonAvailable: entitlement.addonAvailable,
@@ -213,12 +218,12 @@ export default function IntegrationsLibrary({
       {atLimit && (
         <p className="text-sm text-amber-800 dark:text-amber-200 bg-amber-500/15 rounded-[var(--r-md)] px-3 py-2">
           You’ve used all your social connections, so {ZERNIO_PLATFORM_LABELS[atLimit]} wasn’t connected.{' '}
-          {entitlement.addonAvailable ? (
+          {entitlement.addonAvailable && canManage ? (
             <button type="button" onClick={buyAddon} className="font-medium underline" disabled={pending}>
               Add more below ↓
             </button>
           ) : (
-            <Link href="/settings/plans" className="font-medium underline">
+            <Link href="/settings/billing" className="font-medium underline">
               Upgrade to Pro →
             </Link>
           )}
@@ -474,7 +479,7 @@ function BundleSection({
           <p className="text-sm text-gray-600 dark:text-gray-300">
             {def.name} comes with the <strong className="font-medium">{bundlePlanLabel(def)}</strong> plan.
           </p>
-          <ActionButton variant="primary" size="sm" href="/settings/plans?upgrade=integrations">
+          <ActionButton variant="primary" size="sm" href="/settings/billing?upgrade=integrations">
             Upgrade to {def.minPlan === 'premium' ? 'Premium' : 'Pro'}
           </ActionButton>
         </div>
@@ -491,8 +496,9 @@ function BundleSection({
             <p className="text-sm text-gray-500 dark:text-gray-400 italic">No matching tools in this bundle.</p>
           )}
 
-          {/* Social bundle — the cap meter + add-on management. */}
-          {def.id === 'social' && !searching && (
+          {/* Social bundle — the cap meter + add-on management (owner/admin:
+              the buy/cancel actions are billing-level). */}
+          {def.id === 'social' && !searching && handlers.canManage && (
             <SocialAddonCard
               planName={planName}
               entitlement={entitlement}
@@ -608,6 +614,8 @@ interface CardHandlers {
   onSimulateConnect: (platform: string) => void
   /** Viewing the demo clinic. */
   isDemo: boolean
+  /** Owner/admin — mutating affordances hide for members. */
+  canManage: boolean
   /** First-party OAuth connect URLs (Gmail / Stripe Connect) keyed by def id. */
   oauthConnectHrefs: Record<string, string>
   capAllowed: boolean
@@ -715,6 +723,15 @@ function ConnectedActions({
   }
 
   if (def.connectKind === 'zernio') {
+    // Members see the connected state (and can view the detail page) but not
+    // refresh/disconnect — those server actions are owner/admin-only.
+    if (!handlers.canManage) {
+      return def.detailHref ? (
+        <ActionButton variant="secondary" size="sm" href={def.detailHref}>
+          View
+        </ActionButton>
+      ) : null
+    }
     return (
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
@@ -758,10 +775,20 @@ function DisconnectedActions({
     return def.note ? <p className="text-xs text-gray-400 dark:text-gray-500">{def.note}</p> : null
   }
 
+  // Members can't connect anything (the server actions reject them) — say so
+  // instead of rendering a Connect button that can only fail.
+  if (!handlers.canManage) {
+    return (
+      <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+        Ask an owner or admin to connect this.
+      </p>
+    )
+  }
+
   // Premium-locked — upgrade CTA.
   if (runtime.status === 'premium_locked') {
     return (
-      <ActionButton variant="primary" size="sm" href="/settings/plans?upgrade=integrations">
+      <ActionButton variant="primary" size="sm" href="/settings/billing?upgrade=integrations">
         Upgrade to Premium
       </ActionButton>
     )
@@ -792,7 +819,7 @@ function DisconnectedActions({
         )
       }
       return (
-        <ActionButton variant="ghost" size="sm" href="/settings/plans">
+        <ActionButton variant="ghost" size="sm" href="/settings/billing">
           Upgrade
         </ActionButton>
       )
@@ -884,7 +911,7 @@ function SocialAddonCard({
             {pending ? 'Working…' : 'Cancel add-on'}
           </ActionButton>
         ) : !entitlement.addonAvailable ? (
-          <ActionButton variant="primary" size="sm" href="/settings/plans">
+          <ActionButton variant="primary" size="sm" href="/settings/billing">
             Upgrade to Pro
           </ActionButton>
         ) : entitlement.managedBilling ? (
