@@ -81,7 +81,9 @@ export default async function MyDayPage() {
           value={data.balances.count}
           sub={data.balances.count > 0 ? `$${Math.round(data.balances.totalCents / 100).toLocaleString('en-US')} owed` : 'all paid up'}
           tone={data.balances.count > 0 ? 'warn' : 'neutral'}
-          href="/patients?balance=1"
+          // The Collections board is the purpose-built landing for this stat —
+          // balances + dunning state + send-pay-link in one place.
+          href="/shop/collections"
         />
         <KpiStat
           label="New leads"

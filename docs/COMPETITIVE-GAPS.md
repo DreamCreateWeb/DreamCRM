@@ -111,7 +111,15 @@ nudge (My Day), balance follow-up rule.
   stand in until an aging source exists.
 - ✗ **Payment plans w/ card-on-file autopay** for balances (DI) — we have
   subscription rails via Connect. **P2.**
-- ✗ Collections/AR board (DI) — AR aging view beyond the payments page. **P2.**
+- ✅ **Collections/AR board** (DI) — SHIPPED 2026-07-02 as an honest
+  WORKBOARD at /shop/collections: every open PMS balance sorted largest
+  first with its dunning state (pay link sent/paid + when, last online
+  payment), send-pay-link per row (same guards as the patient record),
+  header stats (outstanding total, pay-link coverage, collected-online
+  this clinic-local month). My Day's Balances stat + the payments page
+  link here. Deliberately NOT showing 30/60/90 aging — the PMS gives a
+  point-in-time balance only; the page says so (Analytics-style honest
+  deferral) until an aging source exists.
 - ✗ Financing partners (CareCredit/Sunbit/Affirm at 5 vendors). **P3 —
   partnership.**
 - ✗ Treatment-plan presentation w/ financing (Adit/DI). **P3** (edges the

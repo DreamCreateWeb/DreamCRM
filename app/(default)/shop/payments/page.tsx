@@ -45,6 +45,9 @@ export default async function ShopPaymentsPage() {
                 Export CSV
               </ActionButton>
             )}
+            <ActionButton variant="secondary" size="sm" href="/shop/collections">
+              Collections board →
+            </ActionButton>
             <ActionButton variant="secondary" size="sm" href="/shop">
               ← Back to Shop
             </ActionButton>
