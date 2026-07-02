@@ -169,7 +169,12 @@ describe('createDemoClinic', () => {
       { id: 11, name: 'May Birthday wishes' },
       { id: 12, name: 'New patient welcome — week 1 follow-up' },
     ]) // existingCampaignRows
-    state.selectQueue.push([{ id: 'pat_existing_1' }]) // existingPatientRows
+    // Persona-aligned patient lookup (identity-anchored by persona email) —
+    // pat_existing_1 matches persona 0 (Mia Hayes); the other 14 slots are null.
+    state.selectQueue.push([{ id: 'pat_existing_1', email: 'mia.hayes@example.com' }])
+    // cleanupMisattributedDemoArtifacts: every org patient is a persona →
+    // no strays, sweep returns after this one select with zero deletes.
+    state.selectQueue.push([{ id: 'pat_existing_1' }])
     state.selectQueue.push([
       { name: 'Reactivation — come back for a cleaning' },
       { name: 'Birthday — warm monthly check-in' },
