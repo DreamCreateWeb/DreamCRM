@@ -2238,3 +2238,55 @@ To-do in the AWS migration session (rough order):
 7. Wire CloudFront + Route 53 + ACM for the domain
 8. Rotate every webhook signing secret post-cutover (Stripe, Gmail Pub/Sub, new SES, new AWS SMS)
 
+---
+
+## 2026-07-02 (later) — Module-deepening program: all P1 vendor gaps + first P2 wave (13 slices)
+
+Working docs/COMPETITIVE-GAPS.md top-to-bottom in one autonomous run — every
+slice a full vertical (schema+migration → service → UI → settings → demo seed
+→ tests) pushed to main and verified deploy-green individually. Suite grew
+4,200 → 4,302. Migrations 0101–0108.
+
+1. **Fast-pass waitlist auto-fill** (`e2719bf`) — appointment_waitlist +
+   offers; cancellation auto-offers freed slots; first-click-wins claim at
+   /w/[token] via the advisory-lock insert; drawer + panel + persona seed.
+2. **Booking deposits** (`ad66e5a`) — per-visit-type depositCents (default
+   $0), Connect direct charge at public booking (fail-open, book-first),
+   auto-confirm on payment, Shop → Payments reconciliation + CSV, drawer pill.
+3. **Reminder journeys** (`a88483f`) — multi-touch touchOffsets (default
+   72h+24h, per-touch idempotency + 20h min-gap), confirmed-vs-unconfirmed
+   copy variants, one-click email confirm at /c/[token] (confirmedVia
+   'email'), per-visit-type prepInstructions, add-to-calendar save-the-date.
+4. **Billing outreach** (`3c0e817`) — email-to-pay: /b/[token] public pay
+   landing (live PMS balance, partial pay), single + bulk staff sends,
+   balance_pay_link editable copy, opt-in automated cadence
+   (balance_outreach jsonb; threshold/cadence/90-day cap) on the daily cron.
+5. **Tomorrow audit** (`04b0288`) — lib/services/patient-audit.ts live
+   per-patient prep list (unconfirmed/intake/balance/deposit/unreachable/
+   new/lapsed-returning/birthday) on My Day + the morning digest.
+6. **Use-your-benefits automation** (`13b1299`) — third retention automation
+   (Oct–Dec, insured + noUpcomingVisit audience filters, monthly key).
+7. **Website chat bubble** (`5cb0d95`) — 'Message us' on every public clinic
+   page → inbound /messages thread (channel=email), spam-guarded,
+   chat_widget_enabled toggle (default ON) in Settings → Practice.
+8. **Reviews star-gate + AI replies** (`38aa108`) — opt-in star triage on
+   /r/[token] (FTC-clean: same public links for every rating, low ratings
+   lead with private feedback) + metered AI reply drafts for Google reviews.
+9. **No-show rebook note** (`1ebe96e`) — warm patient email on no-show
+   (no_show_rebook key, plan-gated rebook button).
+10. **Intake kiosk mode** (`a7e8020`) — ?kiosk=1 locked tablet fill mode
+    w/ auto-reset; 'Kiosk ↗' launcher on /intake-forms.
+11. **Family/household card** (`d0a2278`) — getFamilyForPatient from portal
+    guardian links, card on the patient record.
+12. **Blog-powered newsletter** (`a40498a`) — one-click draft campaign from
+    the latest published blog posts (review-before-send).
+
+New conventions minted: token-IS-auth public pages live at single-letter
+roots (/r /w /c /b) + middleware PUBLIC_PATHS; new automated emails join the
+EMAIL_AUTOMATION_SPECS registry (union + spec + hub renders free); new AI
+surfaces meter via lib/services/ai-usage.ts kinds; demo money/dunning records
+seed persona-anchored with `*_demo`/`demo*` markers + cleanup-sweep entries.
+
+Remaining in COMPETITIVE-GAPS: referral program, family confirmation
+consolidation, payment plans, AR board, broadcast-messaging polish + the
+P3/📵 tail (SMS-gated).

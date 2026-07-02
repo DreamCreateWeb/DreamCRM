@@ -68,6 +68,9 @@ app/
                      /intake, /shop, /careers, /blog, /team, …). Fraunces via a
                      runtime <link>, NOT next/font (build env can't reach Google)
   r/[token]/         Patient review landing — token IS the auth; Google-first
+                     (+ optional star-gate triage). Siblings on the same
+                     token-IS-auth pattern: w/ (fast-pass claim), c/ (one-click
+                     visit confirm), b/ (email-to-pay balance page)
   api/               auth handler · webhooks (stripe, stripe-connect, gmail OIDC,
                      resend/svix) · 13 CRON_SECRET-gated /api/cron/* routes ·
                      3 /api/admin/* (migrate, seed-platform, resync-demo) ·
@@ -78,7 +81,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0100 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0108 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -302,7 +305,7 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0100**. Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0108**. Workflow: `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime
