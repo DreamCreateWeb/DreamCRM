@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "benefits_auto_send_enabled" integer DEFAULT 0 NOT NULL;

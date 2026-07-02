@@ -36,6 +36,7 @@ import { SYSTEM_TEMPLATES } from './marketing-templates'
 
 const BIRTHDAY_TEMPLATE = SYSTEM_TEMPLATES.find((t) => t.category === 'birthday')!
 const REACTIVATION_TEMPLATE = SYSTEM_TEMPLATES.find((t) => t.category === 'reactivation')!
+const BENEFITS_TEMPLATE = SYSTEM_TEMPLATES.find((t) => t.name.startsWith('Use your benefits'))!
 
 /** "Newly lapsed" window for reactivation: last visit between 9 and 10 months
  *  ago. A patient drifts past 9mo (a missed 6-month recall + a grace period)
@@ -57,6 +58,20 @@ const REACTIVATION_FILTER: PatientAudienceFilterT = {
   requireSmsOptIn: false,
   includeArchived: false,
 }
+
+/** Use-your-benefits: insured, no upcoming visit, and not seen in ~4 months
+ *  (someone in last month already used this year's checkup). Oct–Dec only. */
+const BENEFITS_FILTER: PatientAudienceFilterT = {
+  hasInsurance: true,
+  noUpcomingVisit: true,
+  lastVisitAtLeastDaysAgo: 120,
+  requireEmailOptIn: true,
+  requireSmsOptIn: false,
+  includeArchived: false,
+}
+
+/** UTC months (0-indexed) the benefits automation is live: Oct, Nov, Dec. */
+const BENEFITS_MONTHS = new Set([9, 10, 11])
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -81,8 +96,8 @@ export interface RetentionRunResult {
   alreadyCreated: number
   /** Automations skipped because no patient matched (no empty campaign made). */
   emptyAudience: number
-  details: Array<{ organizationId: string; kind: 'birthday' | 'reactivation'; campaignId: number; recipients: number }>
-  errors: Array<{ organizationId: string; kind: 'birthday' | 'reactivation'; error: string }>
+  details: Array<{ organizationId: string; kind: RetentionKind; campaignId: number; recipients: number }>
+  errors: Array<{ organizationId: string; kind: RetentionKind; error: string }>
 }
 
 /**
@@ -106,6 +121,7 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
       organizationId: schema.clinicProfile.organizationId,
       birthday: schema.clinicProfile.birthdayAutoSendEnabled,
       reactivation: schema.clinicProfile.lapsedReactivationEnabled,
+      benefits: schema.clinicProfile.benefitsAutoSendEnabled,
       isDemo: schema.organization.isDemo,
     })
     .from(schema.clinicProfile)
@@ -119,7 +135,9 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
     if (clinic.isDemo) continue
     const birthdayOn = clinic.birthday === 1
     const reactivationOn = clinic.reactivation === 1
-    if (!birthdayOn && !reactivationOn) continue
+    // Benefits season is Oct–Dec — outside it the toggle stays armed but quiet.
+    const benefitsOn = clinic.benefits === 1 && BENEFITS_MONTHS.has(now.getUTCMonth())
+    if (!birthdayOn && !reactivationOn && !benefitsOn) continue
     result.scanned++
 
     if (birthdayOn) {
@@ -127,6 +145,9 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
     }
     if (reactivationOn) {
       await runOne(result, orgId, 'reactivation', `reactivation:${orgId}:${yearMonth(now)}`, now)
+    }
+    if (benefitsOn) {
+      await runOne(result, orgId, 'benefits', `benefits:${orgId}:${yearMonth(now)}`, now)
     }
   }
 
@@ -136,7 +157,7 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
 async function runOne(
   result: RetentionRunResult,
   organizationId: string,
-  kind: 'birthday' | 'reactivation',
+  kind: RetentionKind,
   automationKey: string,
   now: Date,
 ): Promise<void> {
@@ -157,7 +178,8 @@ async function runOne(
       return
     }
 
-    const filter = kind === 'birthday' ? BIRTHDAY_FILTER : REACTIVATION_FILTER
+    const filter =
+      kind === 'birthday' ? BIRTHDAY_FILTER : kind === 'benefits' ? BENEFITS_FILTER : REACTIVATION_FILTER
     // Resolve once, only to skip an empty send (no birthdays / nobody newly
     // lapsed). The authoritative resolution happens again at send time.
     const recipients = await resolvePatientAudience(organizationId, filter)
@@ -167,11 +189,14 @@ async function runOne(
     }
 
     const audienceId = await findOrCreateAutomationAudience(organizationId, kind)
-    const template = kind === 'birthday' ? BIRTHDAY_TEMPLATE : REACTIVATION_TEMPLATE
+    const template =
+      kind === 'birthday' ? BIRTHDAY_TEMPLATE : kind === 'benefits' ? BENEFITS_TEMPLATE : REACTIVATION_TEMPLATE
     const name =
       kind === 'birthday'
         ? `Birthday greetings · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCDate()}`
-        : `Reactivation · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCFullYear()}`
+        : kind === 'benefits'
+          ? `Use your benefits · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCFullYear()}`
+          : `Reactivation · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCFullYear()}`
 
     let campaignId: number
     try {
@@ -221,17 +246,22 @@ async function runOne(
  */
 async function findOrCreateAutomationAudience(
   organizationId: string,
-  kind: 'birthday' | 'reactivation',
+  kind: RetentionKind,
 ): Promise<number> {
   const name =
     kind === 'birthday'
       ? 'Birthday automation — birthdays today'
-      : 'Reactivation automation — newly lapsed'
+      : kind === 'benefits'
+        ? 'Benefits automation — insured, no upcoming visit'
+        : 'Reactivation automation — newly lapsed'
   const description =
     kind === 'birthday'
       ? 'Auto-managed: patients with a birthday today (email opt-in). Used by the birthday auto-send.'
-      : 'Auto-managed: patients whose last visit was 9–10 months ago (email opt-in). Used by the reactivation auto-send.'
-  const patientFilter = kind === 'birthday' ? BIRTHDAY_FILTER : REACTIVATION_FILTER
+      : kind === 'benefits'
+        ? 'Auto-managed: insured patients with no upcoming visit and 4+ months since the last (email opt-in). Used by the Oct–Dec use-your-benefits auto-send.'
+        : 'Auto-managed: patients whose last visit was 9–10 months ago (email opt-in). Used by the reactivation auto-send.'
+  const patientFilter =
+    kind === 'birthday' ? BIRTHDAY_FILTER : kind === 'benefits' ? BENEFITS_FILTER : REACTIVATION_FILTER
 
   const [existing] = await db
     .select({ id: schema.audiences.id })
@@ -270,11 +300,12 @@ function isUniqueViolation(err: unknown): boolean {
   return !!err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23505'
 }
 
-export type RetentionKind = 'birthday' | 'reactivation'
+export type RetentionKind = 'birthday' | 'reactivation' | 'benefits'
 
 export interface RetentionSettings {
   birthdayAutoSend: boolean
   lapsedReactivation: boolean
+  benefitsAutoSend: boolean
 }
 
 /** Read the two automation toggles for a clinic. */
@@ -283,6 +314,7 @@ export async function getRetentionSettings(organizationId: string): Promise<Rete
     .select({
       birthday: schema.clinicProfile.birthdayAutoSendEnabled,
       reactivation: schema.clinicProfile.lapsedReactivationEnabled,
+      benefits: schema.clinicProfile.benefitsAutoSendEnabled,
     })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -290,6 +322,7 @@ export async function getRetentionSettings(organizationId: string): Promise<Rete
   return {
     birthdayAutoSend: row?.birthday === 1,
     lapsedReactivation: row?.reactivation === 1,
+    benefitsAutoSend: row?.benefits === 1,
   }
 }
 
@@ -303,7 +336,9 @@ export async function setRetentionAutomation(
   const patch =
     kind === 'birthday'
       ? { birthdayAutoSendEnabled: value }
-      : { lapsedReactivationEnabled: value }
+      : kind === 'benefits'
+        ? { benefitsAutoSendEnabled: value }
+        : { lapsedReactivationEnabled: value }
   await db
     .update(schema.clinicProfile)
     .set({ ...patch, updatedAt: new Date() })
@@ -318,8 +353,8 @@ export async function setRetentionAutomation(
  */
 export async function previewRetentionAudiences(
   organizationId: string,
-): Promise<{ birthdaysThisMonth: number; newlyLapsed: number }> {
-  const [birthdayRows, lapsedRows] = await Promise.all([
+): Promise<{ birthdaysThisMonth: number; newlyLapsed: number; benefitsEligible: number }> {
+  const [birthdayRows, lapsedRows, benefitsRows] = await Promise.all([
     resolvePatientAudience(organizationId, {
       birthdayThisMonth: true,
       requireEmailOptIn: true,
@@ -327,6 +362,11 @@ export async function previewRetentionAudiences(
       includeArchived: false,
     }),
     resolvePatientAudience(organizationId, REACTIVATION_FILTER),
+    resolvePatientAudience(organizationId, BENEFITS_FILTER),
   ])
-  return { birthdaysThisMonth: birthdayRows.length, newlyLapsed: lapsedRows.length }
+  return {
+    birthdaysThisMonth: birthdayRows.length,
+    newlyLapsed: lapsedRows.length,
+    benefitsEligible: benefitsRows.length,
+  }
 }

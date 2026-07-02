@@ -23,8 +23,8 @@ export function RetentionAutomationsCard({
   preview,
   canManage,
 }: {
-  initial: { birthdayAutoSend: boolean; lapsedReactivation: boolean }
-  preview: { birthdaysThisMonth: number; newlyLapsed: number }
+  initial: { birthdayAutoSend: boolean; lapsedReactivation: boolean; benefitsAutoSend: boolean }
+  preview: { birthdaysThisMonth: number; newlyLapsed: number; benefitsEligible: number }
   canManage: boolean
 }) {
   return (
@@ -71,6 +71,21 @@ export function RetentionAutomationsCard({
           }
           countHref={preview.newlyLapsed > 0 ? '/marketing/outreach?tier=lapsed' : null}
           initialOn={initial.lapsedReactivation}
+          canManage={canManage}
+        />
+        <AutomationRow
+          kind="benefits"
+          icon="💎"
+          title="Use-your-benefits reminder"
+          description="October through December: insured patients with no visit on the books get a 'your benefits reset January 1' note. The year-end revenue driver."
+          cadence="Sends monthly, Oct–Dec"
+          countLabel={
+            preview.benefitsEligible > 0
+              ? `${preview.benefitsEligible} insured patient${preview.benefitsEligible === 1 ? '' : 's'} eligible now`
+              : 'Nobody eligible right now'
+          }
+          countHref={null}
+          initialOn={initial.benefitsAutoSend}
           canManage={canManage}
         />
       </div>

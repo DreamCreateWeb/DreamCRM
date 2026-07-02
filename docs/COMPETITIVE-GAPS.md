@@ -111,9 +111,13 @@ nudge (My Day), balance follow-up rule.
 Current: audiences, campaigns + funnel attribution, outreach queue,
 birthday/reactivation autos, templates, promote-view-to-audience.
 
-- ✗ **"Use your benefits" / insurance-expiry campaign** (RevenueWell) — the
-  year-end revenue driver; auto-audience = insured patients w/ no visit since
-  N months, auto-send Oct–Dec. **P1.**
+- ✅ **"Use your benefits" / insurance-expiry campaign** — SHIPPED 2026-07-02.
+  Third set-&-forget automation on /marketing (opt-in, default OFF):
+  Oct–Dec monthly sends to insured patients with no upcoming visit + 4
+  months since the last, via the compliant scheduled-campaign rails
+  (unsubscribe, tracking, visible in the campaign list). New audience
+  filters `hasInsurance` + `noUpcomingVisit` are reusable by any custom
+  audience; new "Use your benefits" system template.
 - ✗ **Referral program** (Solutionreach Refer-a-Friend) — "refer a friend"
   campaign type + landing + attribution; pairs with a future loyalty program.
   **P2.**

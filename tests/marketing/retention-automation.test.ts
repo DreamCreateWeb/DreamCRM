@@ -104,12 +104,21 @@ vi.mock('@/lib/services/marketing', () => ({
 vi.mock('@/lib/services/marketing-templates', () => ({
   SYSTEM_TEMPLATES: [
     {
+      name: 'Reactivation — come back for a cleaning',
       category: 'reactivation',
       subject: 'Has it been a minute?',
       previewText: 'A friendly nudge.',
       bodyHtml: '<p>Hi {{firstName}}, come back.</p>',
     },
     {
+      name: 'Use your benefits — they reset January 1',
+      category: 'recall',
+      subject: 'Your benefits reset January 1',
+      previewText: 'Use them before they vanish.',
+      bodyHtml: '<p>Hi {{firstName}}, benefits expire.</p>',
+    },
+    {
+      name: 'Birthday — warm monthly check-in',
       category: 'birthday',
       subject: 'Happy birthday',
       previewText: 'A little note.',
@@ -198,6 +207,22 @@ describe('runRetentionAutomations', () => {
     expect(keys).toContain('reactivation:org_1:2026-06') // monthly granularity
   })
 
+  it('use-your-benefits stays quiet outside Oct–Dec even when enabled', async () => {
+    h.clinics = [{ organizationId: 'org_1', birthday: 0, reactivation: 0, benefits: 1, isDemo: false }]
+    const res = await runRetentionAutomations({ now: NOW }) // June
+    expect(res.scanned).toBe(0)
+    expect(h.inserts).toHaveLength(0)
+  })
+
+  it('use-your-benefits fires in season with a monthly key + the benefits template', async () => {
+    h.clinics = [{ organizationId: 'org_1', birthday: 0, reactivation: 0, benefits: 1, isDemo: false }]
+    const res = await runRetentionAutomations({ now: new Date('2026-11-05T15:00:00.000Z') })
+    expect(res.created).toBe(1)
+    const campaignInsert = h.inserts.find((i) => i.table === 'campaigns')
+    expect(campaignInsert!.values.automationKey).toBe('benefits:org_1:2026-11')
+    expect(campaignInsert!.values.subject).toBe('Your benefits reset January 1')
+  })
+
   it('reuses an existing automation audience instead of creating a new one', async () => {
     h.clinics = [{ organizationId: 'org_1', birthday: 1, reactivation: 0, isDemo: false }]
     h.audienceFind = [{ id: 42 }] // the birthday automation audience already exists
@@ -234,7 +259,8 @@ describe('previewRetentionAudiences', () => {
     h.resolveMock
       .mockResolvedValueOnce(recipients(4)) // birthdaysThisMonth
       .mockResolvedValueOnce(recipients(2)) // newlyLapsed
+      .mockResolvedValueOnce(recipients(3)) // benefitsEligible
     const counts = await previewRetentionAudiences('org_1')
-    expect(counts).toEqual({ birthdaysThisMonth: 4, newlyLapsed: 2 })
+    expect(counts).toEqual({ birthdaysThisMonth: 4, newlyLapsed: 2, benefitsEligible: 3 })
   })
 })

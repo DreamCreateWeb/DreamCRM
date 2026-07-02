@@ -254,6 +254,12 @@ export const PatientAudienceFilter = z.object({
   birthdayToday: z.boolean().optional(),
   /** Has a scheduled (unconfirmed) appointment in the next N hours */
   hasUnconfirmedNextHours: z.number().int().min(0).optional(),
+  /** Insurance on file (insuranceProvider set). true = insured only;
+   *  false = uninsured only. Drives the use-your-benefits automation. */
+  hasInsurance: z.boolean().optional(),
+  /** Keep only patients with NO upcoming (non-cancelled) visit — the "needs
+   *  to book" half of recall/benefits targeting. */
+  noUpcomingVisit: z.boolean().optional(),
   /** Keep only patients carrying ANY of these CRM tag ids (OR semantics). */
   tagIds: z.array(z.string()).optional(),
   /** Require marketing_email_opt_in=1 (default true — always for email sends) */
@@ -452,6 +458,7 @@ export async function resolvePatientAudience(
       marketingSmsOptIn: schema.patient.marketingSmsOptIn,
       pmsRecallDueAt: schema.patient.pmsRecallDueAt,
       pmsBalanceCents: schema.patient.pmsBalanceCents,
+      insuranceProvider: schema.patient.insuranceProvider,
     })
     .from(schema.patient)
     .where(and(...where))
@@ -462,7 +469,8 @@ export async function resolvePatientAudience(
     parsed.lastVisitAtLeastDaysAgo != null ||
     parsed.lastVisitWithinDays != null ||
     parsed.recallStatuses?.length
-  const needUpcoming = parsed.recallStatuses?.length || parsed.hasUnconfirmedNextHours != null
+  const needUpcoming =
+    parsed.recallStatuses?.length || parsed.hasUnconfirmedNextHours != null || parsed.noUpcomingVisit
 
   const ids = patients.map((p) => p.id)
 
@@ -587,6 +595,11 @@ export async function resolvePatientAudience(
         if (parseInt(m[3], 10) !== now.getDate()) return false
       }
       if (parsed.hasUnconfirmedNextHours != null && !unconfirmedSet.has(r.p.id)) return false
+      if (parsed.hasInsurance != null) {
+        const insured = !!r.p.insuranceProvider?.trim()
+        if (parsed.hasInsurance !== insured) return false
+      }
+      if (parsed.noUpcomingVisit && r.upcoming) return false
       if (parsed.tagIds?.length) {
         const have = tagSetByPatient.get(r.p.id)
         if (!have || !parsed.tagIds.some((id) => have.has(id))) return false

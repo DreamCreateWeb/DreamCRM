@@ -9,13 +9,13 @@ import { SYSTEM_TEMPLATES } from '@/lib/services/marketing-templates'
  * seeder; these tests pin the surface area + the body-content invariants.
  */
 describe('SYSTEM_TEMPLATES', () => {
-  it('ships exactly 3 starter templates', () => {
-    expect(SYSTEM_TEMPLATES).toHaveLength(3)
+  it('ships exactly 4 starter templates', () => {
+    expect(SYSTEM_TEMPLATES).toHaveLength(4)
   })
 
-  it('covers reactivation, birthday, and welcome categories', () => {
+  it('covers reactivation, birthday, welcome + the benefits (recall) template', () => {
     const categories = SYSTEM_TEMPLATES.map((t) => t.category).sort()
-    expect(categories).toEqual(['birthday', 'reactivation', 'welcome'])
+    expect(categories).toEqual(['birthday', 'reactivation', 'recall', 'welcome'])
   })
 
   it('each template has a non-empty subject + preview + bodyHtml', () => {

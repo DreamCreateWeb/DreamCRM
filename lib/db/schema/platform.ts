@@ -216,6 +216,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   //     ago (newly lapsed window), inviting them back.
   birthdayAutoSendEnabled: integer('birthday_auto_send_enabled').notNull().default(0),
   lapsedReactivationEnabled: integer('lapsed_reactivation_enabled').notNull().default(0),
+  //   benefitsAutoSendEnabled: the Oct–Dec "use your benefits before they
+  //     reset" send to insured patients with no upcoming visit (monthly key,
+  //     so at most 3 touches a season).
+  benefitsAutoSendEnabled: integer('benefits_auto_send_enabled').notNull().default(0),
 
   // Smart follow-up rules — which auto-create patient follow-ups the clinic has
   // opted into. A jsonb config object `{ balance?, recall?, unconfirmed? }`;

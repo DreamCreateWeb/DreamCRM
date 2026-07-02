@@ -82,6 +82,22 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     defaultAudienceSlug: 'birthday_month',
   },
   {
+    name: 'Use your benefits — they reset January 1',
+    category: 'recall',
+    description:
+      'The year-end revenue driver: insured patients with no upcoming visit, reminded their dental benefits expire Dec 31. Runs Oct–Dec via the automation.',
+    subject: 'Your dental benefits reset January 1 — don\'t leave them behind',
+    previewText: 'Most plans don\'t roll over. A quick visit now uses what you\'ve already paid for.',
+    bodyHtml: `<p>Hi {{firstName}},</p>
+<p>A quick heads-up worth real money: most dental insurance benefits <strong>reset on January 1</strong> — whatever's unused doesn't roll over, it just disappears.</p>
+<p>If you've been putting off a cleaning, a checkup, or that treatment we talked about, the next few weeks are the smart time to come in: your plan helps cover it now, and starts from zero in January.</p>
+<p>Year-end books up fast (everyone has the same idea), so grabbing a time early is the move.</p>
+<p><strong><a href="{{bookingUrl}}">Book before the year ends →</a></strong></p>
+<p>Not sure what your plan still covers? Reply to this email and we'll happily check for you — no obligation.</p>
+<p>See you soon,<br/>The team</p>`,
+    defaultAudienceSlug: 'insured_no_upcoming',
+  },
+  {
     name: 'New-patient welcome',
     category: 'welcome',
     description: 'Sent 1-3 days after a first visit. Sets expectations + invites questions.',

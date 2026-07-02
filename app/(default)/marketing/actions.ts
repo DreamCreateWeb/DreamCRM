@@ -272,7 +272,7 @@ export async function setRetentionAutomationAction(
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
     return { error: 'Only an owner or admin can change automations.' }
   }
-  if (kind !== 'birthday' && kind !== 'reactivation') return { error: 'Unknown automation.' }
+  if (kind !== 'birthday' && kind !== 'reactivation' && kind !== 'benefits') return { error: 'Unknown automation.' }
   await setRetentionAutomation(ctx.organizationId, kind, enabled)
   revalidatePath('/marketing')
   return { ok: true }

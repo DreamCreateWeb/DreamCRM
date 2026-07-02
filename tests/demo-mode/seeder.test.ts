@@ -178,6 +178,7 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([
       { name: 'Reactivation — come back for a cleaning' },
       { name: 'Birthday — warm monthly check-in' },
+      { name: 'Use your benefits — they reset January 1' },
       { name: 'New-patient welcome' },
     ]) // seedSystemTemplates existing names
     state.selectQueue.push([
