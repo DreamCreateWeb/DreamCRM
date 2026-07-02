@@ -168,9 +168,15 @@ Gmail mailbox, templates.
   time-trap + rate limit, silent drops. Default ON with an off switch in
   Settings → Practice → Online booking. Later: SMS channel, known-patient
   portal-thread handoff, office-open presence hint.
-- ◐ **Bulk/broadcast messaging** ("office closed today") — we have bulk email
-  via patients list; make it a first-class /messages action w/ segment pick.
-  **P2.**
+- ✅ **Bulk/broadcast messaging** ("office closed today") — SHIPPED
+  2026-07-02: "📣 Broadcast" in the /messages top bar (owner/admin only).
+  Quick operational segments with live counts — visits today / tomorrow /
+  next 7 days (clinic-local windows, no marketing-opt-in gate: the message
+  is about their visit) + all active patients (opt-in gated). Each recipient
+  gets the email through the normal outbound rails AND the message lands in
+  their conversation thread, so replies come back to the inbox.
+  500-recipient cap nudges bigger sends to the compliant campaign rails.
+  Later: SMS channel, template pick, schedule-for-later.
 - ◐ Inbox urgency categorization (SR) — we triage the Gmail mailbox with AI;
   extend triage to patient threads. **P3.**
 - ✗ AI translations / preferred-language sending (NexHealth). **P3.**

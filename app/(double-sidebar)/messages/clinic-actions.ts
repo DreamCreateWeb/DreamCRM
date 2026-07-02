@@ -14,6 +14,8 @@ import {
   type MessageChannel,
 } from '@/lib/services/patient-messaging'
 import { draftPatientReply } from '@/lib/services/message-ai'
+import { previewBroadcastCounts, sendBroadcast } from '@/lib/services/broadcast'
+import { isBroadcastSegment, type BroadcastSegmentKey } from '@/lib/types/broadcast'
 import {
   scheduleMessage,
   cancelScheduledMessage,
@@ -187,4 +189,50 @@ export async function bulkMarkReadThreadsAction(threadIds: string[]) {
     await markThreadRead(ctx.organizationId, id)
   }
   revalidatePath('/messages')
+}
+
+/** Broadcasts are a megaphone — owner/admin only (a member can still message
+ *  patients one at a time). */
+function ensureBroadcaster(ctx: { tenantType: string; role: string }) {
+  ensureClinic(ctx)
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Only owners and admins can send a broadcast.')
+  }
+}
+
+/** Segment recipient counts for the broadcast modal's picker. */
+export async function broadcastPreviewAction(): Promise<
+  { ok: true; counts: Record<BroadcastSegmentKey, number> } | { ok: false; error: string }
+> {
+  const ctx = await requireTenant()
+  try {
+    ensureBroadcaster(ctx)
+    return { ok: true, counts: await previewBroadcastCounts(ctx.organizationId) }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+  }
+}
+
+export async function sendBroadcastAction(input: {
+  segment: string
+  body: string
+}): Promise<
+  { ok: true; sent: number; failed: number } | { ok: false; error: string }
+> {
+  const ctx = await requireTenant()
+  try {
+    ensureBroadcaster(ctx)
+    if (!isBroadcastSegment(input.segment)) return { ok: false, error: 'Pick who this goes to first.' }
+    const r = await sendBroadcast({
+      organizationId: ctx.organizationId,
+      segment: input.segment,
+      body: input.body,
+      sentByUserId: ctx.userId,
+    })
+    if (!r.ok) return r
+    revalidatePath('/messages')
+    return { ok: true, sent: r.sent, failed: r.failed }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+  }
 }

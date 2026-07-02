@@ -2245,7 +2245,7 @@ To-do in the AWS migration session (rough order):
 Working docs/COMPETITIVE-GAPS.md top-to-bottom in one autonomous run — every
 slice a full vertical (schema+migration → service → UI → settings → demo seed
 → tests) pushed to main and verified deploy-green individually. Suite grew
-4,200 → 4,319. Migrations 0101–0109.
+4,200 → 4,326. Migrations 0101–0109.
 
 1. **Fast-pass waitlist auto-fill** (`e2719bf`) — appointment_waitlist +
    offers; cancellation auto-offers freed slots; first-click-wins claim at
@@ -2287,13 +2287,19 @@ slice a full vertical (schema+migration → service → UI → settings → demo
     self-referral + overwrite guarded, best-effort); Referrals card on the
     patient record shows both directions; Sophia→Emma demo seed + demoref
     cleanup-sweep entry.
-14. **Family reminder consolidation** — runDueReminders buckets due touches
+14. **Family reminder consolidation** (`c8f4af3`) — runDueReminders buckets due touches
     by (recipient inbox, clinic-local day): several same-day family visits →
     ONE household email w/ per-visit inline confirm links (generated copy;
     timing/on-off still reminder_settings); email-less guardian-linked
     dependents now remind via the guardian's inbox (previously silent);
     per-appointment log rows keep touch idempotency; authEmailShell button
     made optional for button-less notices.
+15. **Broadcast messaging** — "📣 Broadcast" in the /messages top bar
+    (owner/admin): quick segments w/ live counts (visits today/tomorrow/7
+    days clinic-local; all active opt-in), each recipient emailed via
+    sendMessageToPatient so the message lands in their thread and replies
+    return to the inbox; 500-recipient cap points bigger sends at the
+    campaign rails (lib/services/broadcast.ts + lib/types/broadcast.ts).
 
 New conventions minted: token-IS-auth public pages live at single-letter
 roots (/r /w /c /b) + middleware PUBLIC_PATHS; new automated emails join the
@@ -2301,5 +2307,5 @@ EMAIL_AUTOMATION_SPECS registry (union + spec + hub renders free); new AI
 surfaces meter via lib/services/ai-usage.ts kinds; demo money/dunning records
 seed persona-anchored with `*_demo`/`demo*` markers + cleanup-sweep entries.
 
-Remaining in COMPETITIVE-GAPS: payment plans, AR board, broadcast-messaging
-polish + the P3/📵 tail (SMS-gated).
+Remaining in COMPETITIVE-GAPS: payment plans, AR board + the P3/📵 tail
+(SMS-gated).

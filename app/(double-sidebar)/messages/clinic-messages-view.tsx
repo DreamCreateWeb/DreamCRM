@@ -24,6 +24,7 @@ import { CHANNEL_LEGEND } from './channel-meta'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
 import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
 import MessagesSurfaceTabs from './surface-tabs'
+import BroadcastButton from './broadcast-button'
 import NavBadgeSync from './nav-badge-sync'
 import InboxAutoRefresh from './inbox-auto-refresh'
 import ThreadSearchInput from './thread-search-input'
@@ -205,7 +206,10 @@ export default async function ClinicMessagesView({
           ★ Starred
         </FilterChip>
         {/* Key affordance — explains the rot border + the channel chips. */}
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto shrink-0 flex items-center gap-2">
+          {/* The megaphone: "office closed today" to a quick segment. Owner/
+              admin only — the action re-checks server-side. */}
+          {(ctx.role === 'owner' || ctx.role === 'admin') && <BroadcastButton />}
           <EncodingLegend
             aging="messages"
             channels={CHANNEL_LEGEND}
