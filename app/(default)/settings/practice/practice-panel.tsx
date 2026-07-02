@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -44,6 +44,13 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
   const [toast, setToast] = useState<string | null>(null)
   const flash = (m: string) => setToast(m)
 
+  // View-only (member) access: lock each tab's inputs by wrapping its CONTENT in a
+  // disabled fieldset — NOT the whole SettingsTabs, because a disabled fieldset also
+  // disables the tab-navigation buttons inside it (which left members stuck on the
+  // first tab). Mutations are re-checked server-side regardless.
+  const gate = (node: ReactNode): ReactNode =>
+    initial.canEdit ? node : <fieldset disabled className="min-w-0 m-0 border-0 p-0 opacity-75">{node}</fieldset>
+
   return (
     <div className="flex-1 p-6">
       {!initial.canEdit && (
@@ -52,22 +59,14 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
           <span>You can view these settings. Only clinic owners and admins can make changes.</span>
         </div>
       )}
-      {/* fieldset[disabled] natively disables every input/select/button inside —
-          one gate for view-only (member) access; mutations are also re-checked
-          server-side. */}
-      <fieldset
-        disabled={!initial.canEdit}
-        className={`min-w-0 m-0 border-0 p-0 ${initial.canEdit ? '' : 'opacity-75'}`}
-      >
-        <SettingsTabs
-          tabs={[
-            { id: 'booking', label: 'Online booking', content: <SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} /> },
-            { id: 'providers', label: 'Providers', content: <ProvidersSection providers={initial.providers} flash={flash} /> },
-            { id: 'visit-types', label: 'Visit types', content: <VisitTypesSection initial={initial.visitTypes} flash={flash} /> },
-            { id: 'recall', label: 'Chairs & recall', content: <OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} lapsedAfterMonths={initial.lapsedAfterMonths} flash={flash} /> },
-          ]}
-        />
-      </fieldset>
+      <SettingsTabs
+        tabs={[
+          { id: 'booking', label: 'Online booking', content: gate(<SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} />) },
+          { id: 'providers', label: 'Providers', content: gate(<ProvidersSection providers={initial.providers} flash={flash} />) },
+          { id: 'visit-types', label: 'Visit types', content: gate(<VisitTypesSection initial={initial.visitTypes} flash={flash} />) },
+          { id: 'recall', label: 'Chairs & recall', content: gate(<OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} lapsedAfterMonths={initial.lapsedAfterMonths} flash={flash} />) },
+        ]}
+      />
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
   )
@@ -611,7 +610,10 @@ function OpsSection({
               min={LAPSED_MIN}
               max={LAPSED_MAX}
               value={lapsedMonths}
-              onChange={(e) => { setLapsedMonths(Math.min(LAPSED_MAX, Math.max(LAPSED_MIN, Number(e.target.value) || 18))); setSaved(false) }}
+              // Clamp only the MAX while typing so a value whose first digit is
+              // below LAPSED_MIN (e.g. "36") stays typeable; clamp the MIN on blur.
+              onChange={(e) => { setLapsedMonths(Math.min(LAPSED_MAX, Number(e.target.value) || 0)); setSaved(false) }}
+              onBlur={() => setLapsedMonths((v) => Math.min(LAPSED_MAX, Math.max(LAPSED_MIN, v || 18)))}
               className="form-input w-20 text-sm font-mono-num tabular-nums"
               aria-label="Flag a patient lapsed after this many months"
             />

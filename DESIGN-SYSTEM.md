@@ -241,8 +241,9 @@ iPad-landscape legibility gap).
 Anatomy top→bottom:
 1. **Logo** — Dream Create liquid-D (`components/brand/dream-create-logo`),
    collapse caret top-right.
-2. **Org switcher block** — clinic name + plan pill + chevron menu
-   (plan/billing); demo mode adds an amber "Demo" pill here.
+2. **Org switcher block** — a STATIC label: clinic name + plan pill (demo mode
+   adds an amber "Demo" pill). No dropdown — the old chevron menu with "Clinic
+   settings" / "Plan & billing" is gone; Settings has one entry point (see Bottom).
 3. **Cockpit zone** (label-less, subtle inset bg): Today `⌘1` ·
    Messages `⌘2` (badge) · Appointments `⌘3`. Driven by
    `ModuleDef.pinned`/`shortcut`; entries also remain in their groups.
@@ -250,16 +251,20 @@ Anatomy top→bottom:
    Growth · Website · Business. **Inbox folds into Messages at nav level**
    — one "Messages" entry; the messages surface exposes a "Mailbox" tab
    linking to /inbox (true data-level merge is future work).
-5. **Bottom:** Settings (pinned slot, not a group) · avatar + name →
-   profile menu.
+5. **Bottom:** Settings (pinned slot, not a group) → the `/settings` card-grid
+   home · avatar + name → profile menu (name + Sign out only; the "Account
+   settings" item was removed — Settings is the single entry point). Focused
+   settings pages carry a "‹ Settings" back-to-home link in their own header
+   (shared `SettingsPage`); there is no cross-page settings rail.
 
 States: active = 2px teal left bar + `teal-500/10` tint + teal icon +
 ink-bold label (+ ambient breath); hover = ink/4% bg. Badges: **amber**
 count pills (warn semantics, not teal); rail shows a dot, the flyout shows
 the number.
 
-**Header (56px):** left = hamburger (<lg) + page title (Settings subpages
-are the one place breadcrumbs are allowed); right = **`+ New ▾`
+**Header (56px):** left = hamburger (<lg) + page title (settings pages instead
+carry a "‹ Settings" back-to-home link in their own header — see nav Bottom);
+right = **`+ New ▾`
 quick-create** (context-aware default: booking on /appointments, patient
 on /patients; `C` opens it; entries plan-gated: Booking / Patient / Lead /
 Campaign / Post) · bell (amber unread) · demo "Exit demo" chip when active

@@ -70,11 +70,9 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     tab: 'website', sub: 'stats', label: 'Stats',
     keywords: ['stats', 'numbers', 'figures', 'trust'],
   },
-  {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'website', sub: 'testimonials', label: 'Testimonials',
-    keywords: ['testimonials', 'reviews', 'quotes', 'patient stories'],
-  },
+  // Testimonials moved to the Reviews module (staff feature them from
+  // /reviews/received), so the Clinic profile no longer has a testimonials
+  // section — no deep-link entry here (it would scroll nowhere).
   {
     surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
     tab: 'website', sub: 'photos', label: 'Office photos',

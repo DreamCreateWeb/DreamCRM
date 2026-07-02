@@ -40,7 +40,16 @@ export async function addLocation(formData: FormData) {
   const name = formData.get('name')?.toString().trim()
   if (!name) throw new Error('Name is required')
 
-  const isPrimary = formData.get('isPrimary') === 'on' ? 1 : 0
+  // The first location an org creates MUST be primary — the public site's address
+  // block, map, and "open today" note need one. Its "primary" checkbox is rendered
+  // checked-but-disabled, and disabled controls are omitted from the submit, so we
+  // can't trust the form here: force primary server-side when no location exists yet.
+  const existing = await db
+    .select({ id: clinicLocation.id })
+    .from(clinicLocation)
+    .where(eq(clinicLocation.organizationId, orgId))
+    .limit(1)
+  const isPrimary = existing.length === 0 || formData.get('isPrimary') === 'on' ? 1 : 0
 
   if (isPrimary) {
     await db
