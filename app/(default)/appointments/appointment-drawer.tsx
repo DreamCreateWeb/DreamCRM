@@ -300,7 +300,7 @@ export default function AppointmentDrawer({
               <div className="grid grid-cols-2 gap-3 v2-well p-3">
                 <Stat label="Last visit" value={fmtRelative(detail.patient.lastVisitAt)} />
                 <Stat label="Balance" value={money(detail.patient.outstandingBalanceCents)} tone={detail.patient.outstandingBalanceCents > 0 ? 'warn' : 'ok'} />
-                <Stat label="Lifetime spend" value={money(detail.patient.lifetimeValueCents)} />
+                <Stat label="Shop purchases" value={money(detail.patient.lifetimeValueCents)} />
                 <Stat label="Total bookings" value={String(detail.patient.totalBookings)} />
               </div>
 

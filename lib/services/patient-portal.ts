@@ -22,6 +22,7 @@ import {
   type ThreadMessage,
 } from '@/lib/services/patient-messaging'
 import { derivePatientRecallStatus, type RecallStatus } from '@/lib/services/recall-status'
+import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import type { MessageAttachment } from '@/lib/types/messaging'
 
 export async function getMyPatientRecord(patientId: string, organizationId: string) {
@@ -625,11 +626,17 @@ export async function getMyRecallStatus(
   organizationId: string,
 ): Promise<RecallStatus> {
   const now = new Date()
-  const [patientRow] = await db
-    .select({ pmsRecallDueAt: patient.pmsRecallDueAt })
-    .from(patient)
-    .where(and(eq(patient.id, patientId), eq(patient.organizationId, organizationId)))
-    .limit(1)
+  const [[patientRow], cadence] = await Promise.all([
+    db
+      .select({
+        pmsRecallDueAt: patient.pmsRecallDueAt,
+        recallIntervalMonths: patient.recallIntervalMonths,
+      })
+      .from(patient)
+      .where(and(eq(patient.id, patientId), eq(patient.organizationId, organizationId)))
+      .limit(1),
+    getClinicCadence(organizationId),
+  ])
   if (!patientRow) return 'na'
 
   const rows = await db
@@ -637,14 +644,18 @@ export async function getMyRecallStatus(
     .from(appointment)
     .where(and(eq(appointment.patientId, patientId), eq(appointment.organizationId, organizationId)))
 
+  // Last visit = any past visit that actually happened (not cancelled/no-show)
+  // — the SAME predicate the patients list uses, so the portal nudge and the
+  // front desk's recall status can't disagree.
   let lastVisitAt: Date | null = null
   let hasAnyFutureAppt = false
   for (const r of rows) {
     const active = r.status !== 'cancelled' && r.status !== 'no_show'
+    if (!active) continue
     if (r.startTime > now) {
-      if (active) hasAnyFutureAppt = true
-    } else if (r.status === 'completed') {
-      if (!lastVisitAt || r.startTime > lastVisitAt) lastVisitAt = r.startTime
+      hasAnyFutureAppt = true
+    } else if (!lastVisitAt || r.startTime > lastVisitAt) {
+      lastVisitAt = r.startTime
     }
   }
 
@@ -654,6 +665,9 @@ export async function getMyRecallStatus(
     hasAnyFutureAppt,
     lastVisitAt,
     now,
+    // Clinic cadence (per-patient override → clinic default) — matches the
+    // patients list instead of silently falling back to the 6/9mo heuristic.
+    intervalMonths: patientRow.recallIntervalMonths ?? cadence.recallMonths,
   })
 }
 

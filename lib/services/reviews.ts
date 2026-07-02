@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { deliver } from '@/lib/email'
@@ -1011,6 +1011,14 @@ export async function getReviewStats(
           eq(schema.reviewRequest.organizationId, organizationId),
           eq(schema.reviewRequest.status, 'completed'),
           gte(schema.reviewRequest.completedAt, since),
+          // Private feedback ("tell us privately") never became a public
+          // review — counting it made the "Reviewed" headline exceed the
+          // platform-mix bars beneath it. It has its own inbox on
+          // /reviews/received.
+          or(
+            isNull(schema.reviewRequest.selectedSite),
+            ne(schema.reviewRequest.selectedSite, 'private_feedback'),
+          ),
         ),
       )
       .then((r) => Number(r[0]?.c ?? 0)),

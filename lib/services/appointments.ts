@@ -496,8 +496,11 @@ export function groupByDay(
         : k === tomorrowKey
           ? 'Tomorrow · ' + group[0].startTime.toLocaleDateString('en-US', dayOpts)
           : group[0].startTime.toLocaleDateString('en-US', { ...dayOpts, year: 'numeric' })
-    const totals = { booked: group.length, confirmed: 0, unconfirmed: 0 }
+    // "Booked" = visits actually on the books that day — cancellations don't
+    // count toward the day's chair load (they still render as rows).
+    const totals = { booked: 0, confirmed: 0, unconfirmed: 0 }
     for (const r of group) {
+      if (r.status !== 'cancelled') totals.booked += 1
       if (r.status === 'confirmed') totals.confirmed += 1
       else if (r.status === 'scheduled') totals.unconfirmed += 1
     }
@@ -594,20 +597,17 @@ export async function getAppointmentDetail(
       )
       .orderBy(desc(schema.formSubmission.submittedAt))
       .limit(1),
+    // Shop spend — paid shop orders, the SAME source as the patients list's
+    // "shop purchases" column (the legacy `invoices` join this replaced was
+    // always $0 for real clinics: no dental flow writes invoices).
     db
-      .select({ totalCents: schema.invoices.totalCents })
-      .from(schema.invoices)
-      .innerJoin(schema.customers, eq(schema.invoices.customerId, schema.customers.id))
+      .select({ totalCents: schema.shopOrder.totalCents })
+      .from(schema.shopOrder)
       .where(
         and(
-          eq(schema.invoices.organizationId, organizationId),
-          eq(schema.invoices.status, 'paid'),
-          base.patientEmail
-            ? or(
-                eq(schema.customers.patientId, base.patientId),
-                eq(schema.customers.email, base.patientEmail),
-              )!
-            : eq(schema.customers.patientId, base.patientId),
+          eq(schema.shopOrder.organizationId, organizationId),
+          eq(schema.shopOrder.patientId, base.patientId),
+          eq(schema.shopOrder.status, 'paid'),
         ),
       ),
     db

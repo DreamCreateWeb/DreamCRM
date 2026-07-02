@@ -60,7 +60,7 @@ describe('groupByDay', () => {
     expect(groups[2].label).not.toMatch(/Today|Tomorrow/)
   })
 
-  it('computes per-day totals correctly', () => {
+  it('computes per-day totals correctly (cancelled not counted as booked)', () => {
     const rows = [
       makeRow({ id: 'a1', status: 'confirmed' }),
       makeRow({ id: 'a2', status: 'scheduled' }),
@@ -69,7 +69,7 @@ describe('groupByDay', () => {
       makeRow({ id: 'a5', status: 'cancelled' }),
     ]
     const groups = groupByDay(rows, 'UTC', today)
-    expect(groups[0].totals).toEqual({ booked: 5, confirmed: 1, unconfirmed: 2 })
+    expect(groups[0].totals).toEqual({ booked: 4, confirmed: 1, unconfirmed: 2 })
   })
 
   it('returns an empty array when there are no rows', () => {

@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, between, count, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, between, count, desc, eq, gte, inArray, isNotNull, lte, ne, notInArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getIntegrationsHealth, type IntegrationsHealth } from '@/lib/services/pms/health'
 import { getReviewStats } from '@/lib/services/reviews'
@@ -8,6 +8,7 @@ import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient
 import { getTagsForPatients } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { isBirthdayThisWeek } from '@/lib/dates'
+import { BACKFILL_PATIENT_SOURCES } from '@/lib/services/analytics'
 import { clinicDayStart, clinicMonthStart } from '@/lib/clinic-timezone'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -190,7 +191,9 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
 
   if (patientIdsToday.length > 0) {
     const [priors, submissions] = await Promise.all([
-      // Patients with no appointment before today → new patient.
+      // Patients with no REAL appointment before today → new patient.
+      // Cancelled/no-show priors don't count as a visit — matches the agenda
+      // + patients-list rule so the ★ glyph agrees across surfaces.
       db
         .select({ patientId: schema.appointment.patientId })
         .from(schema.appointment)
@@ -199,6 +202,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
             eq(schema.appointment.organizationId, organizationId),
             inArray(schema.appointment.patientId, patientIdsToday),
             lte(schema.appointment.startTime, todayStart),
+            notInArray(schema.appointment.status, ['cancelled', 'no_show']),
           ),
         ),
       // Intake submissions on file.
@@ -286,7 +290,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     db
       .select({
         count: count(),
-        totalCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::int`,
+        totalCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::bigint`,
       })
       .from(schema.patient)
       .where(
@@ -354,22 +358,35 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         .from(schema.appointment)
         .where(and(eq(schema.appointment.organizationId, organizationId), gte(schema.appointment.createdAt, todayStart)))
         .then((r) => r[0]),
+      // New patients MTD — same acquisition semantics as Analytics
+      // (lib/services/analytics.ts): firstSeenAt is the honest field, archived
+      // patients don't count, and bulk backfills (PMS/CSV import) are excluded
+      // so connecting a PMS doesn't spike the tile by the whole roster.
       db
-        .select({ count: count() })
-        .from(schema.patient)
-        .where(and(eq(schema.patient.organizationId, organizationId), gte(schema.patient.createdAt, monthStart)))
-        .then((r) => r[0]),
-      db
-        .select({ count: count() })
+        .select({ source: schema.patient.source })
         .from(schema.patient)
         .where(
           and(
             eq(schema.patient.organizationId, organizationId),
-            gte(schema.patient.createdAt, lastMonthStart),
-            lte(schema.patient.createdAt, lastMonthEnd),
+            isNotNull(schema.patient.firstSeenAt),
+            gte(schema.patient.firstSeenAt, monthStart),
+            ne(schema.patient.lifecycle, 'archived'),
           ),
         )
-        .then((r) => r[0]),
+        .then((rows) => ({ count: rows.filter((r) => !BACKFILL_PATIENT_SOURCES.has(r.source ?? '')).length })),
+      db
+        .select({ source: schema.patient.source })
+        .from(schema.patient)
+        .where(
+          and(
+            eq(schema.patient.organizationId, organizationId),
+            isNotNull(schema.patient.firstSeenAt),
+            gte(schema.patient.firstSeenAt, lastMonthStart),
+            lte(schema.patient.firstSeenAt, lastMonthEnd),
+            ne(schema.patient.lifecycle, 'archived'),
+          ),
+        )
+        .then((rows) => ({ count: rows.filter((r) => !BACKFILL_PATIENT_SOURCES.has(r.source ?? '')).length })),
       db
         .select({ count: count() })
         .from(schema.appointment)
