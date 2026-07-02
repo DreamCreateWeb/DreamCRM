@@ -13,14 +13,13 @@ import type { TenantContext } from '@/lib/auth/context'
  * persistent nudge, so a clinic could silently lapse. Amber for past_due (still
  * recoverable on the same card), rose for the harder-failure states.
  *
- * Mounted in DashboardShell right beside BillingActivationBanner. The
+ * Mounted in DashboardShell. The
  * activation banner wins if both somehow apply, so we never double-stack.
  */
 export default function BillingDunningBanner({ ctx }: { ctx: TenantContext }) {
   const [pending, startTransition] = useTransition()
 
   // The managed-clinic activation banner takes precedence — don't double-stack.
-  if (ctx.billingActivationPending) return null
   if (ctx.tenantType !== 'clinic') return null
   if (ctx.role !== 'owner' && ctx.role !== 'admin') return null
   if (!isDunningStatus(ctx.subscriptionStatus)) return null

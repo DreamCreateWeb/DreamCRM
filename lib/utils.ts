@@ -5,6 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// ⚠️ CLIENT-ONLY formatters (formatDate/shortDate/formatTime/relativeTime).
+// They render in the RUNTIME's timezone — fine in 'use client' components
+// (the staff member's browser), WRONG on the server (prod runs UTC: an
+// evening Central time renders as tomorrow). Server code must use the
+// tz-required helpers in lib/format-datetime.ts — see CLAUDE.md's timezone
+// rules.
 export function formatDate(input: string | number): string {
   const date = new Date(input)
   return date.toLocaleDateString("en-US", {

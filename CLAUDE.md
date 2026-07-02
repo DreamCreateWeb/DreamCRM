@@ -81,7 +81,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0110 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0114 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -305,7 +305,7 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0110**. Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0114**. Workflow: `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime
@@ -331,9 +331,9 @@ sitemap/robots/OG.
    `AKIA53LCNZ3YTC3H5M55` (rotate), `AKIA53LCNZ3Y2IP4CWFS` (dead — delete),
    `AKIA53LCNZ3Y66OJGLOI` (rotate); Resend key `re_BZDw…` (mint fresh, swap in
    Secrets Manager, delete dead `re_T8fyc…`).
-2. **The finishing pass** — `docs/FINISHING.md` is the working punch list of
-   seam bugs (timezone class, demo-attribution class, and the rest). This is
-   the current focus until v1 quality is airtight.
+2. **The finishing pass is CLEAR** (2026-07-02) — every item in
+   `docs/FINISHING.md` is fixed, decided, or accepted. Log NEW seam bugs
+   there as they surface (hunting method at the bottom of that doc).
 3. **Inbound email replies → `/messages`** for Tier-1 senders (Gmail Tier 2
    already loops back; a dedicated inbound-parse path is the full fix).
 4. **OD vendor portal approval** (in flight) — unblocks schedule-driven booking

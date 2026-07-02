@@ -595,8 +595,11 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   // Ping the front desk so a new online booking doesn't sit unseen until
   // someone opens the agenda. Best-effort — never blocks the booking.
   try {
+    // Clinic-calendar day — this runs on the UTC server, where a bare
+    // toLocaleDateString labels an evening booking with tomorrow's date.
+    const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
     const dateLabel = startTime.toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric',
+      weekday: 'short', month: 'short', day: 'numeric', timeZone: await getClinicTimeZone(orgId),
     })
     const { notifyOrgMembers } = await import('@/lib/services/notifications')
     await notifyOrgMembers(

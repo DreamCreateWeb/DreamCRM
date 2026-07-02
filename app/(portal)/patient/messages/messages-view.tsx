@@ -36,6 +36,10 @@ const CHANNEL_LABEL: Record<string, string> = {
   sms: 'text',
 }
 
+// DECIDED (finishing pass): message timestamps render in the PATIENT'S OWN
+// browser timezone — these are "when we talked" moments for the reader, like
+// any chat app. Visit-linked times elsewhere in the portal stay clinic-tz
+// (the appointment happens at the clinic).
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
     month: 'short',

@@ -174,6 +174,16 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
         />
         <div className="flex flex-col h-full">
           {showSurfaceTabs && <MessagesSurfaceTabs active="mailbox" />}
+          {/* Gmail push watch lapsed → new mail only arrives when the page
+              syncs (open/refresh). Quiet strip so the degradation is VISIBLE
+              instead of silent; the renew cron usually heals it within a day. */}
+          {accounts.some((a) => !a.watchExpiresAt || new Date(a.watchExpiresAt).getTime() < Date.now()) && (
+            <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-800 dark:text-amber-200">
+              Real-time delivery is paused for {accounts.length === 1 ? 'this mailbox' : 'a connected mailbox'} —
+              new email still arrives each time you open or refresh the inbox, and live updates
+              usually resume on their own within a day.
+            </div>
+          )}
           <div className="relative flex flex-1 min-h-0">
             <MailboxSidebar
               accounts={accounts}

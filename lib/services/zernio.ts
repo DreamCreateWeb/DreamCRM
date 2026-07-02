@@ -280,9 +280,40 @@ export async function getZernioConnection(orgId: string): Promise<ZernioConnecti
     zernioProfileId: conn?.zernioProfileId ?? null,
     lastError: conn?.lastError ?? null,
     isDemo: conn?.isDemo === 1,
+    preferredGbpAccountId: conn?.preferredGbpAccountId ?? null,
     googleBusinessAccounts: accounts.filter((a) => a.platform === GOOGLE_BUSINESS),
     accounts,
   }
+}
+
+/**
+ * Persist which Google location is THE clinic's (multi-location accounts).
+ * Validates the id belongs to this org's GBP accounts; pass null to return
+ * to the single-location default.
+ */
+export async function setPreferredGbpAccount(
+  orgId: string,
+  accountId: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (accountId) {
+    const [row] = await db
+      .select({ id: schema.zernioAccount.id })
+      .from(schema.zernioAccount)
+      .where(
+        and(
+          eq(schema.zernioAccount.organizationId, orgId),
+          eq(schema.zernioAccount.id, accountId),
+          eq(schema.zernioAccount.platform, GOOGLE_BUSINESS),
+        ),
+      )
+      .limit(1)
+    if (!row) return { ok: false, error: 'That location isn’t part of this connection.' }
+  }
+  await db
+    .update(schema.zernioConnection)
+    .set({ preferredGbpAccountId: accountId, updatedAt: new Date() })
+    .where(eq(schema.zernioConnection.organizationId, orgId))
+  return { ok: true }
 }
 
 /**
@@ -298,7 +329,11 @@ export async function resolveGbpAccount(
 ): Promise<{ accountId: string; isDemo: boolean } | null> {
   const conn = await getZernioConnection(orgId)
   if (conn.status !== 'connected') return null
-  const account = conn.googleBusinessAccounts[0]
+  // Multi-location: honor the clinic's persisted pick when it still exists
+  // (a re-connect can shuffle accounts); otherwise the stably-ordered first.
+  const account =
+    conn.googleBusinessAccounts.find((a) => a.id === conn.preferredGbpAccountId) ??
+    conn.googleBusinessAccounts[0]
   if (!account) return null
   return { accountId: account.id, isDemo: conn.isDemo }
 }

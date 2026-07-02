@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 import { BrandLogo } from '@/components/integrations/brand-logos'
 import GbpDetailControls from './gbp-detail-controls'
+import GbpLocationPicker from './location-picker'
 
 export const metadata = {
   title: 'Google Business Profile - Integrations - DreamCRM',
@@ -29,9 +30,15 @@ export default async function GoogleBusinessDetailPage() {
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   const zernio = await getZernioConnection(ctx.organizationId)
-  const account = zernio.googleBusinessAccounts[0] ?? null
+  // Multi-location accounts: the header + everything downstream follow the
+  // clinic's persisted pick (resolveGbpAccount uses the same rule).
+  const account =
+    zernio.googleBusinessAccounts.find((a) => a.id === zernio.preferredGbpAccountId) ??
+    zernio.googleBusinessAccounts[0] ??
+    null
   const connected = zernio.status === 'connected' && !!account
   const errored = zernio.status === 'error'
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
   const backLink = (
     <Link
@@ -86,6 +93,17 @@ export default async function GoogleBusinessDetailPage() {
             )}
           </div>
         </div>
+
+        {connected && zernio.googleBusinessAccounts.length > 1 && account && (
+          <GbpLocationPicker
+            accounts={zernio.googleBusinessAccounts.map((a) => ({
+              id: a.id,
+              label: a.displayName || a.username || a.id,
+            }))}
+            selectedId={account.id}
+            canManage={canManage}
+          />
+        )}
 
         <GbpDetailControls connected={connected} configured={zernioConfigured()} />
       </section>

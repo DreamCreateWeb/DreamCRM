@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   MAX_FOLLOWUP_TITLE_LEN,
+  addDaysYmd,
   todayYmd,
   type FollowupStatus,
   type PatientFollowupView,
@@ -412,8 +413,10 @@ export async function autoCreateRebookFollowup(
       organizationId,
       patientId,
       title: `Rebook ${patientName} after no-show`,
-      // Due tomorrow — give the front desk a day to reach out.
-      dueDate: todayYmd(new Date(Date.now() + 24 * 60 * 60 * 1000)),
+      // Due tomorrow ON THE CLINIC'S CALENDAR — give the front desk a day to
+      // reach out. (todayYmd of now+24h was the server's UTC day: ±1 near
+      // midnight for US clinics.)
+      dueDate: addDaysYmd(await clinicTodayYmd(organizationId, new Date()), 1),
       status: 'open',
       createdBy: null,
       sourceAppointmentId: appointmentId,

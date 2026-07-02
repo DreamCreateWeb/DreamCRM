@@ -2240,6 +2240,52 @@ To-do in the AWS migration session (rough order):
 
 ---
 
+## 2026-07-02 (latest) — Unblocked-P3 sweep + the finishing pass CLEARED
+
+The tail of the competitive program plus the whole FINISHING.md punch list,
+each slice deploy-verified. Migrations 0111–0114. Suite → 4,371.
+
+**P3 slices (COMPETITIVE-GAPS now has NO buildable open items — only
+📵 SMS-blocked, post-OD, and partnership rows remain):**
+1. **Preferred-language sending** (`1b9dced`) — patient.preferred_language
+   ('es'), Edit-modal picker, auto-stamp when intake is filled in Spanish
+   (only-when-null), "Prefers Spanish" chip + one-tap 🌐 Español composer
+   translate (shares the AI-draft allowance).
+2. **Patient-thread urgency triage** (`1b9dced`) — two-stage classifier
+   (EN+ES clinical-distress keyword screen → AI confirm w/ six-word reason;
+   fail-open), urgent threads pin first w/ 🚨 pill + header banner, staff
+   reply clears (lib/services/thread-triage.ts).
+3. **NPS surveys** (`de0d809`) — opt-in (nps_enabled, now real), one-question
+   email 3 days post-visit → public /n/[token] (0–10 + comment, POST-recorded),
+   180-day/per-visit throttles, detractor escalation, "Patient pulse" section
+   on /reviews (lib/services/nps.ts; migration 0112).
+4. **Loyalty program** (`90205a6`) — opt-in points ledger (kept visits /
+   converted referrals / online payments; daily idempotent unique-source
+   sweep, demo-skip), portal rewards card redeems threshold → single-use
+   patient-bound shop coupon (rollback-safe), patient-record panel w/
+   owner/admin adjust (lib/services/loyalty.ts; migration 0113).
+5. **Arrival flow, lean** (`90205a6`) — arrived→seated timestamps on today's
+   live visits (drawer "In office" row; 🚪/🪑 pills on agenda + My Day).
+6. **Documented skips**: team chat (Slack wins), review-site steering (moot,
+   Google-first), competitor benchmarking (no honest data source), virtual
+   check-in (SMS-blocked).
+
+**Finishing pass — punch list CLEARED (migration 0114):**
+- Class 1 done: follow-up rule/rebook due dates + labels now clinic-tz;
+  cancel/no-show + new-booking notification date labels tz'd; global-search
+  visit dates tz'd; lib/utils formatters marked CLIENT-ONLY; portal message
+  timestamps decided (browser tz for chat moments).
+- Class 2 done: patient.is_demo_persona column (seeder writes + self-heals);
+  dead notification_prefs.push_everything dropped w/ its banner code.
+- Class 3 done: window labels verified explicit; confirmed-definition
+  decided + documented; /followups "🔔 N due now" pill (matches the badge);
+  guardian visit naming was already shipped.
+- Class 4 done: reviews staff-wide access decided (ensureClinicStaff); OD
+  detail page member view is now read-only (no sync/disconnect/key-entry).
+- Class 5 done: GBP preferred-location column + picker (resolveGbpAccount
+  honors it); billingActivationPending dropped; membership fallback ordering
+  deterministic; Gmail watch-lapse strip in /inbox.
+
 ## 2026-07-02 (later) — Module-deepening program: all P1 vendor gaps + first P2 wave (13 slices)
 
 Working docs/COMPETITIVE-GAPS.md top-to-bottom in one autonomous run — every

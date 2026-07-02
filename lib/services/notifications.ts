@@ -51,7 +51,6 @@ interface PrefsRow {
   comments: boolean
   candidates: boolean
   offers: boolean
-  pushEverything: boolean
   pushEmail: boolean
   pushNothing: boolean
 }
@@ -60,7 +59,6 @@ const DEFAULT_PREFS: PrefsRow = {
   comments: true,
   candidates: true,
   offers: false,
-  pushEverything: false,
   pushEmail: true,
   pushNothing: false,
 }
@@ -71,7 +69,6 @@ async function getPrefs(userId: string): Promise<PrefsRow> {
       comments: schema.notificationPrefs.comments,
       candidates: schema.notificationPrefs.candidates,
       offers: schema.notificationPrefs.offers,
-      pushEverything: schema.notificationPrefs.pushEverything,
       pushEmail: schema.notificationPrefs.pushEmail,
       pushNothing: schema.notificationPrefs.pushNothing,
     })

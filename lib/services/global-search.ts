@@ -268,8 +268,12 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
       .limit(4),
   ])
 
+  // Visit dates in results follow the CLINIC's calendar (this is a server
+  // service on a UTC box — an evening visit would otherwise show tomorrow).
+  const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
+  const searchTz = await getClinicTimeZone(orgId)
   const fmtWhen = (d: Date) =>
-    d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: searchTz })
 
   const groups: SearchGroup[] = []
   if (patients.length > 0) {

@@ -52,6 +52,9 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 const { queueStatusMock } = vi.hoisted(() => ({ queueStatusMock: vi.fn(async () => undefined) }))
+vi.mock('@/lib/services/clinic-timezone', () => ({
+  getClinicTimeZone: vi.fn(async () => 'America/New_York'),
+}))
 vi.mock('@/lib/services/pms', () => ({
   queueAppointmentWriteBack: vi.fn(async () => undefined),
   queueAppointmentStatusWriteBack: queueStatusMock,

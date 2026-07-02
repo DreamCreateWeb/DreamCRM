@@ -107,6 +107,12 @@ export const patient = pgTable(
     // one-tap translate + the "prefers Spanish" chip.
     preferredLanguage: text('preferred_language'),
 
+    // Demo-org seeded persona marker (1 = one of the 15 deterministic
+    // personas). The persona-anchoring convention keyed off @example.com
+    // emails; this column makes it explicit so anchoring survives an email
+    // edit. Written by the seeder; always 0 outside the demo org.
+    isDemoPersona: integer('is_demo_persona').notNull().default(0),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -1700,6 +1706,10 @@ export const zernioConnection = pgTable('zernio_connection', {
   status: text('status').notNull().default('disconnected'),
   // Last sync/connect error surfaced to the clinic.
   lastError: text('last_error'),
+  // Multi-location Google accounts: the zernio_account id the clinic chose
+  // as THEIR location (reviews/metrics/posting all resolve through it).
+  // Null = single-location default (the stably-ordered first account).
+  preferredGbpAccountId: text('preferred_gbp_account_id'),
   // 1 for the demo (Dream Dental) — demo connections NEVER hit the network.
   isDemo: integer('is_demo').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),

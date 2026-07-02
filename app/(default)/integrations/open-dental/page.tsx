@@ -35,6 +35,10 @@ export default async function OpenDentalDetailPage() {
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   const pmsEligible = planAllows(ctx.planTier, 'premium')
+  // Members can VIEW the sync dashboard (the marketplace card links them
+  // here) but every mutating control — sync now, direction, disconnect,
+  // key entry — is owner/admin, mirroring the marketplace's canManage gate.
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
   const backLink = (
     <Link
@@ -89,17 +93,27 @@ export default async function OpenDentalDetailPage() {
         eyebrow={`Practice management · ${ctx.organizationName}`}
         title="Open Dental"
         subtitle="The relationship layer over your PMS — synced both directions through the official API, so every change lands in your Open Dental Audit Trail. We never touch your database directly."
-        actions={connected ? <SyncNowButton /> : null}
+        actions={connected && canManage ? <SyncNowButton /> : null}
       />
 
       {connected && dashboard ? (
-        <PmsConnectedDashboard dashboard={dashboard} health={health} />
-      ) : (
+        <PmsConnectedDashboard dashboard={dashboard} health={health} canManage={canManage} />
+      ) : canManage ? (
         /* Unconnected (Premium) — the connect form + scope boundary. */
         <section className="space-y-8">
           <ConnectPanel configured={configured} />
           <ScopeSection />
           <p className="text-xs text-gray-500 dark:text-gray-400">{OPEN_DENTAL_API_FEE_NOTE}</p>
+        </section>
+      ) : (
+        /* Member view, unconnected — no key-entry form. */
+        <section className="space-y-8">
+          <div className="v2-panel p-5">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Connecting Open Dental needs an owner or admin — ask them to set it up from this page.
+            </p>
+          </div>
+          <ScopeSection />
         </section>
       )}
     </div>

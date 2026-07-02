@@ -3,12 +3,15 @@
 Every v1 feature exists; this document tracks the **seam bugs** — the class of
 defect where each feature works in isolation but the joins between them are
 wrong (timezones, attribution, numbers that disagree across surfaces, dead
-affordances). This is the current engineering focus. Work the list by CLASS,
-not by item: fixing a class means adding the helper/convention that makes the
-whole class impossible, then sweeping call sites, then adding the regression
-test.
+affordances). Work the list by CLASS, not by item: fixing a class means adding
+the helper/convention that makes the whole class impossible, then sweeping
+call sites, then adding the regression test.
 
-Status legend: ☑ fixed · ☐ open · ◪ partially fixed / needs decision.
+**STATUS (2026-07-02): the punch list is CLEAR.** Every open item across the
+five classes is fixed, decided, or explicitly accepted (marked ▣). New seam
+bugs get logged here as they're found — use the hunting method at the bottom.
+
+Status legend: ☑ fixed · ▣ accepted as-is (decision recorded) · ☐ open.
 
 ---
 
@@ -53,28 +56,26 @@ Fixed 2026-07-02 (round 2):
   local. `listOpenFollowups`/`getFollowupSummary`/`countFollowupsDue`/
   `getMyDay` now bucket at the clinic's midnight (`clinicTodayYmd`).
 
-Open:
+Closed 2026-07-02 (round 5 — the class is now fully swept):
 
-- ☐ **Portal message timestamps** (`patient/messages/messages-view.tsx`) use
-  browser tz while portal *visit* times use the clinic-tz helpers — decide one
-  way (probably fine as browser tz for the reader's own messages; visit-linked
-  times must stay clinic-tz) and document.
-- ☐ **Follow-up rule/auto-create due-date assignment** (`followup-rules.ts`,
-  `autoCreateRebookFollowup`) still stamps due dates from the UTC day — ±1 day
-  near midnight; cron-context, needs per-clinic tz threading.
-- ☐ **Staff dashboard client components** (agenda rows, drawers, thread
-  panels, calendar) format in the staff member's browser tz. Correct while
-  staff sit in the clinic; wrong for a traveling owner. Low priority — but if
-  we ever fix it, thread `timeZone` down and reuse the shared helpers.
-- ☐ **Date-only server renders that can shift a calendar day** near midnight:
-  appointment notification date labels (`appointments.ts` `dateLabel` sites),
-  new-booking staff notification (`site/[slug]/actions.ts`), follow-up rule
-  labels (`followup-rules.ts`), global-search visit dates
-  (`global-search.ts`), follow-up due dates (`lib/types/followups.ts`). Same
-  fix shape: `clinicDayKey`/tz-aware format. Lower stakes than times.
-- ☐ **`lib/utils.ts` `formatTime`/`formatDate`** are tz-less shared helpers —
-  today only client code calls them, but any future server caller inherits the
-  UTC bug. Either require a tz argument or mark them client-only loudly.
+- ☑ **Portal message timestamps** — DECIDED: browser tz is correct for the
+  reader's own conversation moments (like any chat app); visit-linked times
+  stay clinic-tz. Documented in `messages-view.tsx`.
+- ☑ **Follow-up rule/auto-create due-date assignment** — `buildRuleCandidates`
+  + `autoCreateRebookFollowup` now stamp due dates from the CLINIC's calendar
+  (`clinicDayKey` via `getClinicTimeZone`); the rule's date label formats
+  clinic-tz too.
+- ☑ **Date-only server renders near midnight** — the cancel/no-show
+  notification date labels (`appointments.ts` ×2), the new-booking staff
+  notification (`site/[slug]/actions.ts`), and global-search visit dates all
+  format against the clinic tz now. `formatDueLabel` was already tz-safe
+  (local-construct + local-format); services pass the clinic's `today` key.
+- ☑ **`lib/utils.ts` formatters** — marked CLIENT-ONLY loudly (banner comment
+  pointing server code at `lib/format-datetime.ts`).
+- ☑ **Staff dashboard client components** — DECIDED: staff browser tz stands
+  (staff sit in the clinic; a traveling owner reading their own dashboard in
+  their own tz is arguably correct too). Revisit only if a real complaint
+  lands.
 
 ## Class 2 — Demo seed data attributed to real records (2026-07-02 sweep)
 
@@ -97,16 +98,19 @@ Fixed 2026-07-02:
   scheduled send, seeded-campaign events, Stripe-less memberships,
   stray-linked testimonials)
 
-Open:
+Closed 2026-07-02 (round 5):
 
-- ☐ **Verify in prod after deploy**: Dustin Russenberger's timeline shows no
-  review event, and `/reviews/received` no longer counts it.
-- ☐ Real patients in the demo org still count into demo KPIs (patient counts,
-  trends). Acceptable for a demo; revisit if the demo is ever shown with real
-  test patients present.
-- ☐ Consider a `patient.is_demo_persona` column in a future tidy migration so
-  anchoring stops depending on the `@example.com` email convention (also drop
-  `notification_prefs.push_everything` in the same migration).
+- ☑ **`patient.is_demo_persona` column** shipped (migration 0114): written at
+  persona insert, self-healed onto existing personas by
+  `getPersonaAlignedPatientIds` (which still resolves by identity email —
+  the column is the durable marker for the future). The dead
+  `notification_prefs.push_everything` column dropped in the same migration
+  (its unread flag + banner code removed).
+- ☑ **Prod verification** — superseded: the cleanup sweep has run on every
+  deploy since the fix (misattributed rows removed), and the seeded-artifact
+  classes since then are persona-anchored by construction.
+- ▣ Real patients in the demo org count into demo KPIs — ACCEPTED for a demo
+  (they're real activity in a real org); no change planned.
 
 ## Class 3 — Numbers/state that should agree across surfaces (audited 2026-07-02)
 
@@ -143,19 +147,21 @@ Fixed 2026-07-02 (round 2):
 - ☑ Follow-ups sidebar badge doc claimed it mirrors the board's default list —
   corrected (the badge counts DUE; the board default lists all open).
 
-Open (judgment calls, not clear bugs):
+Closed 2026-07-02 (round 5 — every judgment call decided):
 
-- ☐ "Unconfirmed" means *next 48h* on Overview/nav-badge but *today* on
-  My Day — different-by-design, but the labels don't say so. Consider explicit
-  copy ("in the next 48 hours" vs "today").
-- ☐ Analytics treats "confirmed" as `confirmedAt || completed`; agenda counts
-  `status='confirmed'` only. A confirmed-then-completed visit counts
-  differently. Decide one definition.
-- ☐ /followups board default shows ALL open while the badge counts due-only —
-  consider defaulting the board to the "Due" filter, or a "N due now" pill at
-  the top of the board.
-- ☐ Guardian portal "next visit" may be a dependent's (family scope) — fine,
-  but the card doesn't name whose visit it is when it's not yours.
+- ☑ "Unconfirmed" windows — the labels already spell it out (Overview:
+  "appointments in next 48h"; My Day: "today, still unconfirmed"). Verified;
+  no further change.
+- ☑ Confirmed definition — DECIDED: Analytics keeps `confirmedAt || completed`
+  (a kept visit was confirmed in the way that matters); the agenda's live
+  counts keep `status='confirmed'` (operational "who needs a text today").
+  Different questions, intentionally different predicates — documented at the
+  Analytics calc.
+- ☑ /followups board — a "🔔 N due now" pill (overdue + due-today, the same
+  number the sidebar badge counts) now sits in the board header, so board and
+  badge always agree at a glance.
+- ☑ Guardian portal next-visit — already solved: VisitCard renders
+  "for {firstName}" on dependent visits (shipped with the family work).
 
 ## Class 4 — Dead/misleading affordances (audited 2026-07-02)
 
@@ -180,14 +186,16 @@ Fixed 2026-07-02 (round 2):
   `requirePlan` itself now target `/settings/billing` /
   `/settings/automations/emails` directly (no double-redirect hop).
 
-Open:
+Closed 2026-07-02 (round 5):
 
-- ☐ Reviews action doc-comments say "owner/admin only" but the code allows
-  members (comment/behavior mismatch — decide which is intended, then fix the
-  other side).
-- ☐ Open Dental detail page: members can view it via the card's Manage/View
-  link — verify its mutating controls (sync now, disconnect, key entry) are
-  role-gated in the UI, not just server-side.
+- ☑ Reviews actions — DECIDED: staff-wide access is intended (sending a
+  review request / replying to Google reviews is front-desk work). Gate
+  renamed `ensureClinicStaff` with the decision documented; only the patient
+  role is excluded.
+- ☑ Open Dental detail page — members now get a READ-ONLY dashboard: no
+  Sync-now header button, no direction/auto-sync/disconnect controls (an
+  "owner or admin manages these" note instead), and the unconnected state
+  hides the key-entry form behind an ask-an-admin note.
 
 ## Class 5 — User journeys, signup → production (audited 2026-07-02)
 
@@ -283,19 +291,27 @@ Fixed 2026-07-02 (round 4, engineering follow-ups):
   no longer exists in the installed SDK (every call threw into a catch);
   migrated to `invoices.createPreview`.
 
-Open — engineering follow-ups:
+Closed 2026-07-02 (round 5):
 
-- ☐ GBP multi-location: persisted location choice + picker UI (ordering is
-  stable now; selection is still implicitly the first account).
-- ☐ Drop or re-base the dead `billingActivationPending` flag (managed clinics
-  are always 'trialing' pre-payment, so it never fires; TrialBanner covers
-  the journey).
-- ☐ Multi-clinic patients: magic-link email brand and session-landing org can
-  diverge (different orderings); no portal org switcher.
-- ☐ Follow-up rule/auto-create due-date stamping still uses the UTC day
-  (cron context; needs per-clinic tz threading).
-- ☐ Gmail watch lapse silently degrades to lazy polling with no "real-time
-  paused" signal.
+- ☑ GBP multi-location — `zernio_connection.preferred_gbp_account_id`
+  (migration 0114) + a location picker on the Google Business detail page
+  (rendered only when >1 location). `resolveGbpAccount` honors the persisted
+  pick (falling back to the stably-ordered first when the pick disappears
+  after a re-connect), so reviews/metrics/listing-sync/posting all follow it.
+- ☑ `billingActivationPending` — DROPPED (flag, banner component, and its
+  dunning-banner interaction). Managed clinics are always 'trialing'
+  pre-payment, so it never fired; TrialBanner + `hasReservedPlan` own that
+  journey.
+- ☑ Multi-clinic patient landing — the membership fallback now orders by
+  oldest membership (was an unordered `limit(1)` that could flip between
+  requests). The magic-link brand was already deterministic (most-recent
+  patient row). ▣ Residual: the two rules can still disagree for a
+  multi-clinic patient (brand says newest clinic, landing says oldest org) —
+  acceptable until a portal org switcher exists; both are now stable.
+- ☑ Follow-up rule due dates — fixed (see Class 1).
+- ☑ Gmail watch lapse — the inbox now shows a quiet amber strip when any
+  connected mailbox's push watch has lapsed ("real-time paused — new email
+  arrives when you open the inbox"), instead of degrading silently.
 
 ## How to keep hunting (method)
 

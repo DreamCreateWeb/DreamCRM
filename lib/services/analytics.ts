@@ -126,6 +126,11 @@ function scheduleRatesOf(rows: { status: string; confirmedAt: Date | null }[]): 
   const noShow = rows.filter((a) => a.status === 'no_show').length
   const completed = rows.filter((a) => a.status === 'completed').length
   const cancelled = rows.filter((a) => a.status === 'cancelled').length
+  // DECIDED (finishing pass): Analytics' "confirmed" = confirmedAt OR
+  // completed — a kept visit was confirmed in the way that matters, even if
+  // nobody clicked the button. The agenda's live counts use status alone
+  // (operational "who still needs a text TODAY"); different questions,
+  // intentionally different predicates.
   const confirmedOrDone = rows.filter((a) => a.confirmedAt || a.status === 'completed').length
   const attendedDenom = completed + noShow
   const confirmableDenom = rows.length - cancelled

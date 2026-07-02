@@ -80,10 +80,4 @@ describe('BillingDunningBanner — render matrix (status × role × tenant)', ()
     expect(pat).toBeEmptyDOMElement()
   })
 
-  it('yields to the activation banner when both could apply', () => {
-    const { container } = render(
-      <BillingDunningBanner ctx={ctx({ billingActivationPending: true, subscriptionStatus: 'past_due' })} />,
-    )
-    expect(container).toBeEmptyDOMElement()
-  })
 })

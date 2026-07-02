@@ -127,6 +127,9 @@ export interface EmailAccountSummary {
   unreadCount: number
   connectedByUserId: string
   createdAt: Date
+  /** When the Gmail push watch lapses (null = no live watch). Past/absent →
+   *  the inbox shows the "real-time paused" strip; lazy sync still works. */
+  watchExpiresAt: Date | null
 }
 
 export async function listOrgEmailAccounts(organizationId: string): Promise<EmailAccountSummary[]> {
@@ -142,6 +145,7 @@ export async function listOrgEmailAccounts(organizationId: string): Promise<Emai
         lastSyncAt: schema.emailAccount.lastSyncAt,
         connectedByUserId: schema.emailAccount.connectedByUserId,
         createdAt: schema.emailAccount.createdAt,
+        watchExpiresAt: schema.emailAccount.watchExpiresAt,
         unreadCount: sql<number>`(
           select count(*)::int from ${schema.emailMessage} m
           where m.account_id = ${schema.emailAccount.id}

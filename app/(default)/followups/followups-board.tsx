@@ -42,6 +42,7 @@ const DUE_TONE: Record<FollowupDueState, string> = {
 export default function FollowupsBoard({
   rows,
   orgName,
+  dueNowCount = 0,
   filters,
   staff,
   currentUserId,
@@ -51,6 +52,9 @@ export default function FollowupsBoard({
 }: {
   rows: PatientFollowupView[]
   orgName: string
+  /** overdue + due-today (clinic-local) — the same number the sidebar badge
+   *  counts, so the board and the badge always agree at a glance. */
+  dueNowCount?: number
   filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean }
   staff: Array<{ userId: string; name: string }>
   currentUserId: string
@@ -126,6 +130,14 @@ export default function FollowupsBoard({
         eyebrow={`Daily · ${orgName}`}
         title="Follow-ups"
         subtitle="Reminders to call, rebook, or check in — attached to the patient and ticked off when done."
+        actions={
+          dueNowCount > 0 ? (
+            // The sidebar badge's number, spelled out — board and badge agree.
+            <span className="inline-flex items-center gap-1.5 rounded-[var(--r-pill)] bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 tabular-nums">
+              🔔 {dueNowCount} due now
+            </span>
+          ) : undefined
+        }
       />
 
       {/* Filters */}

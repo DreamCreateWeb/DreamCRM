@@ -17,7 +17,12 @@ import {
 } from '@/lib/services/google-reviews'
 import { syncFacebookReviews } from '@/lib/services/facebook-reviews'
 
-function ensureClinicAdmin(ctx: { tenantType: string; role: string }) {
+/** DECIDED (finishing pass): any clinic STAFF role may act here — sending a
+ *  review request or replying to a Google review is everyday front-desk
+ *  work, and members ARE the front desk. Only the patient role is excluded.
+ *  (Doc-comments used to say "owner/admin only" while the code allowed
+ *  members — the code's behavior is what's intended.) */
+function ensureClinicStaff(ctx: { tenantType: string; role: string }) {
   if (ctx.tenantType !== 'clinic') {
     throw new Error('Reviews is only available for clinic tenants.')
   }
@@ -32,7 +37,7 @@ export async function sendReviewRequestAction(input: {
   channel?: ReviewChannel
 }) {
   const ctx = await requireTenant()
-  ensureClinicAdmin(ctx)
+  ensureClinicStaff(ctx)
   const result = await createAndSendReviewRequest({
     organizationId: ctx.organizationId,
     patientId: input.patientId,
@@ -46,14 +51,14 @@ export async function sendReviewRequestAction(input: {
 
 export async function skipReviewAction(requestId: string) {
   const ctx = await requireTenant()
-  ensureClinicAdmin(ctx)
+  ensureClinicStaff(ctx)
   await skipReviewRequest(ctx.organizationId, requestId)
   revalidatePath('/reviews')
 }
 
 export async function updateReviewConfigAction(updates: Partial<Omit<ReviewConfig, 'organizationId'>>) {
   const ctx = await requireTenant()
-  ensureClinicAdmin(ctx)
+  ensureClinicStaff(ctx)
   await updateReviewConfig(ctx.organizationId, updates)
   revalidatePath('/reviews')
 }

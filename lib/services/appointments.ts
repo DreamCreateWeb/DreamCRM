@@ -939,7 +939,11 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
   // flows through here too, so this covers patient-initiated cancellations.
   if (notifyCtx) {
     try {
-      const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      // Clinic-calendar day for the copy — this runs on the UTC server, where
+      // a bare toLocaleDateString can label an evening visit with tomorrow's date.
+      const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', timeZone: await getClinicTimeZone(organizationId),
+      })
       const { notifyOrgMembers } = await import('./notifications')
       await notifyOrgMembers(
         organizationId,
@@ -1145,7 +1149,11 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
   // copy — "we missed you, no judgment", clinic-toggleable).
   if (notifyCtx) {
     try {
-      const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      // Clinic-calendar day for the copy — this runs on the UTC server, where
+      // a bare toLocaleDateString can label an evening visit with tomorrow's date.
+      const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', timeZone: await getClinicTimeZone(organizationId),
+      })
       const { notifyOrgMembers } = await import('./notifications')
       await notifyOrgMembers(
         organizationId,

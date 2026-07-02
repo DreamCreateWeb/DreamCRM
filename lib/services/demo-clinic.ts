@@ -2675,6 +2675,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       // per-patient recall override + the recall pill both have a populated
       // example. Everyone else inherits the clinic default (6 months).
       recallIntervalMonths: i === 2 ? 3 : null,
+      // Explicit persona marker — anchoring prefers this over the
+      // @example.com email convention (survives an email edit).
+      isDemoPersona: 1,
     })
   }
 
@@ -4311,7 +4314,29 @@ export async function getPersonaAlignedPatientIds(
         .where(and(eq(schema.patient.organizationId, orgId), inArray(schema.patient.email, lookup)))
     : []
   const byEmail = new Map(rows.map((r) => [(r.email ?? '').toLowerCase(), r.id]))
-  return emails.map((e) => (e ? (byEmail.get(e.toLowerCase()) ?? null) : null))
+  const ids = emails.map((e) => (e ? (byEmail.get(e.toLowerCase()) ?? null) : null))
+
+  // Self-heal the explicit persona marker (migration 0114) on rows resolved
+  // by the email convention — future anchoring can trust is_demo_persona
+  // even if a persona's email is ever edited. Best-effort + idempotent.
+  const resolved = ids.filter((x): x is string => !!x)
+  if (resolved.length > 0) {
+    try {
+      await db
+        .update(schema.patient)
+        .set({ isDemoPersona: 1 })
+        .where(
+          and(
+            eq(schema.patient.organizationId, orgId),
+            inArray(schema.patient.id, resolved),
+            eq(schema.patient.isDemoPersona, 0),
+          ),
+        )
+    } catch (err) {
+      console.warn('[demo] persona-marker self-heal failed', err)
+    }
+  }
+  return ids
 }
 
 /** First-message body prefixes of the seeded /messages threads (THREAD_SEEDS

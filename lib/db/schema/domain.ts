@@ -577,7 +577,6 @@ export const notificationPrefs = pgTable('notification_prefs', {
   comments: boolean('comments').notNull().default(true),
   candidates: boolean('candidates').notNull().default(true),
   offers: boolean('offers').notNull().default(false),
-  pushEverything: boolean('push_everything').notNull().default(false),
   pushEmail: boolean('push_email').notNull().default(true),
   pushNothing: boolean('push_nothing').notNull().default(false),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

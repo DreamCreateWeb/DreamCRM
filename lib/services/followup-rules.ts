@@ -3,7 +3,9 @@ import { randomBytes } from 'crypto'
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { listPatients } from '@/lib/services/patients'
-import { todayYmd, addDaysYmd } from '@/lib/types/followups'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { addDaysYmd } from '@/lib/types/followups'
 import {
   resolveFollowupRules,
   type FollowupRuleConfig,
@@ -77,6 +79,11 @@ export async function buildRuleCandidates(
 ): Promise<Candidate[]> {
   const candidates: Candidate[] = []
   const period = ym(now)
+  // This runs in cron context (UTC server) — due dates and date labels must
+  // anchor to the CLINIC's calendar, or an evening run stamps "today"/"Wed"
+  // one day off for US clinics.
+  const timeZone = await getClinicTimeZone(organizationId)
+  const todayKey = clinicDayKey(now, timeZone)
 
   if (config.balance || config.recall) {
     const patients = await listPatients(organizationId)
@@ -86,7 +93,7 @@ export async function buildRuleCandidates(
           ruleKey: `balance:${p.id}:${period}`,
           patientId: p.id,
           title: `Collect ${money(p.outstandingBalanceCents!)} balance from ${p.fullName}`,
-          dueDate: addDaysYmd(todayYmd(now), 2),
+          dueDate: addDaysYmd(todayKey, 2),
         })
       }
       if (config.recall && p.recallStatus === 'overdue') {
@@ -94,7 +101,7 @@ export async function buildRuleCandidates(
           ruleKey: `recall:${p.id}:${period}`,
           patientId: p.id,
           title: `Reach out to ${p.fullName} — overdue for a checkup`,
-          dueDate: addDaysYmd(todayYmd(now), 3),
+          dueDate: addDaysYmd(todayKey, 3),
         })
       }
     }
@@ -122,12 +129,14 @@ export async function buildRuleCandidates(
         ),
       )
     for (const a of rows) {
-      const dateLabel = a.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      const dateLabel = a.startTime.toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', timeZone,
+      })
       candidates.push({
         ruleKey: `confirm:${a.id}`,
         patientId: a.patientId,
         title: `Confirm ${a.firstName} ${a.lastName}'s ${a.type.replace(/_/g, ' ')} (${dateLabel})`,
-        dueDate: todayYmd(now),
+        dueDate: todayKey,
       })
     }
   }

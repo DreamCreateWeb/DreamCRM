@@ -35,7 +35,6 @@ vi.mock('@/lib/db', () => {
         comments: 'np.comments',
         candidates: 'np.candidates',
         offers: 'np.offers',
-        pushEverything: 'np.pushEverything',
         pushEmail: 'np.pushEmail',
         pushNothing: 'np.pushNothing',
       },

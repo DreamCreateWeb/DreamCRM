@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import Header from './header'
 import TenantSidebar from './tenant-sidebar'
-import BillingActivationBanner from './billing-activation-banner'
 import BillingDunningBanner from './billing-dunning-banner'
 import TrialBanner from './trial-banner'
 import TrialReminderModal from './trial-reminder-modal'
@@ -113,7 +112,6 @@ export default async function DashboardShell({
           )}
           <Header variant={headerVariant} moduleIds={moduleIds} isDemo={ctx.isDemo} />
           {/* Slim billing chip-row (compact skins of the same banners/logic). */}
-          <BillingActivationBanner ctx={ctx} />
           <BillingDunningBanner ctx={ctx} />
           <TrialBanner ctx={ctx} />
           {trialNudgeDays != null && trialNudgeDays <= 3 && (

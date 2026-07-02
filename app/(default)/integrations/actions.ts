@@ -254,3 +254,25 @@ export async function cancelSocialAddonAction(): Promise<AddonActionResult> {
     return { ok: false, error: (e as Error).message }
   }
 }
+
+/** Multi-location Google accounts: persist which location is THE clinic's.
+ *  Owner/admin, same as every integration mutation. */
+export async function setPreferredGbpAccountAction(
+  accountId: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  try {
+    // GBP is free on every plan — the channels gate (no Premium check).
+    ensureClinicChannelsAdmin(ctx)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Not allowed.' }
+  }
+  const { setPreferredGbpAccount } = await import('@/lib/services/zernio')
+  const r = await setPreferredGbpAccount(ctx.organizationId, accountId)
+  if (r.ok) {
+    revalidatePath('/integrations/google-business')
+    revalidatePath('/reviews')
+    revalidatePath('/seo')
+  }
+  return r
+}

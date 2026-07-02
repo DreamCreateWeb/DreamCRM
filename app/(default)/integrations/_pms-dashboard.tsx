@@ -100,9 +100,13 @@ function summarizeRun(counts: PmsSyncRun['counts']): string {
 export function PmsConnectedDashboard({
   dashboard,
   health,
+  canManage = true,
 }: {
   dashboard: Dashboard
   health: Health
+  /** Owner/admin — false hides the direction/auto-sync/disconnect controls
+   *  (members get the read-only dashboard). */
+  canManage?: boolean
 }) {
   const { connection, counts, totals, pendingWrites, recentRuns, recentWrites } = dashboard
   const isDemo = connection?.provider === 'demo'
@@ -216,11 +220,17 @@ export function PmsConnectedDashboard({
             </div>
           </div>
         </div>
-        <SyncControls
-          syncDirection={connection!.syncDirection as 'import' | 'two_way'}
-          autoSyncEnabled={connection!.autoSyncEnabled === 1}
-          isDemo={!!isDemo}
-        />
+        {canManage ? (
+          <SyncControls
+            syncDirection={connection!.syncDirection as 'import' | 'two_way'}
+            autoSyncEnabled={connection!.autoSyncEnabled === 1}
+            isDemo={!!isDemo}
+          />
+        ) : (
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            Sync settings and disconnect are managed by an owner or admin.
+          </p>
+        )}
         {connection!.lastError && (
           <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">
             Last sync error: {connection!.lastError}

@@ -76,7 +76,6 @@ export const NotificationPrefsInput = z.object({
   comments: z.boolean().optional(),
   candidates: z.boolean().optional(),
   offers: z.boolean().optional(),
-  pushEverything: z.boolean().optional(),
   pushEmail: z.boolean().optional(),
   pushNothing: z.boolean().optional(),
 })
@@ -93,7 +92,6 @@ export async function getNotificationPrefs(userId: string) {
       comments: true,
       candidates: true,
       offers: false,
-      pushEverything: false,
       pushEmail: true,
       pushNothing: false,
       updatedAt: new Date(),

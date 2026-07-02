@@ -163,6 +163,9 @@ export interface ZernioConnectionView {
   zernioProfileId: string | null
   lastError: string | null
   isDemo: boolean
+  /** Multi-location Google accounts: the account id the clinic picked as
+   *  THEIR location. Null = single-location default (first account). */
+  preferredGbpAccountId: string | null
   /** Google Business accounts only (back-compat for the GBP card; equals
    *  `accounts` filtered to `platform === 'googlebusiness'`). */
   googleBusinessAccounts: ZernioAccount[]

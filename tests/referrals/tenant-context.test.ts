@@ -46,6 +46,7 @@ vi.mock('@/lib/db', async () => {
             return chain
           },
           where: () => chain,
+          orderBy: () => chain,
           limit: async () => (tbl && Array.isArray(state[tbl]) ? (state[tbl] as unknown[][]).shift() ?? [] : []),
         }
         return chain

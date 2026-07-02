@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 /**
  * Notification-settings honesty. The "Everything — mobile + desktop pushes"
  * toggle was write-only: the app ships no push notifications (no service worker
- * / FCM / APNs), and `notify()` never reads `pushEverything`. A toggle that
+ * / FCM / APNs) — the dead `push_everything` column was dropped in 0114. A toggle that
  * promises a capability that doesn't exist is exactly the founder's complaint
  * class, so it's gone. The two delivery controls that DO something — Email
  * digest (`pushEmail`) and Pause all (`pushNothing`) — must still render.
@@ -20,7 +20,6 @@ const initial = {
   comments: true,
   candidates: true,
   offers: false,
-  pushEverything: false,
   pushEmail: true,
   pushNothing: false,
 }

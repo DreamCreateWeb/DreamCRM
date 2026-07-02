@@ -6,7 +6,7 @@ import { organization, member } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { patient } from '@/lib/db/schema/clinic'
 import { referralPartner } from '@/lib/db/schema/referrals'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, asc } from 'drizzle-orm'
 import type { TenantType, PlanTier, Role } from '@/lib/modules/types'
 import { planAllows } from '@/lib/modules'
 import { resolveTrialState } from '@/lib/trial'
@@ -24,13 +24,6 @@ export interface TenantContext {
   planTier: PlanTier
   patientId: string | null
   isDemo: boolean
-  /**
-   * True for a platform-provisioned ('managed') clinic whose reserved plan
-   * hasn't been activated yet — drives the "finish billing setup" banner.
-   * Optional: absent/undefined means false (self-serve clinics, platform,
-   * patients, demo contexts).
-   */
-  billingActivationPending?: boolean
   /**
    * Raw Stripe subscription status from the clinic_profile row this request
    * already loads (e.g. 'active' | 'trialing' | 'past_due' | 'unpaid' |
@@ -96,7 +89,6 @@ async function resolvePartnerContext(
     planTier: 'basic',
     patientId: null,
     isDemo: false,
-    billingActivationPending: false,
     subscriptionStatus: null,
   }
 }
@@ -168,7 +160,6 @@ export async function getTenantContext(): Promise<TenantContext | null> {
             planTier,
             patientId: demo.patientId ?? null,
             isDemo: true,
-            billingActivationPending: false,
             subscriptionStatus,
           }
         }
@@ -196,10 +187,15 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     : undefined
 
   if (!memberRow) {
+    // Deterministic "first" — oldest membership wins, so a multi-clinic
+    // patient always lands in the SAME org (and it matches the magic-link
+    // email's brand, which orders the same way). An unordered limit(1) here
+    // let the landing org flip between requests.
     const [firstMembership] = await db
       .select()
       .from(member)
       .where(eq(member.userId, session.user.id))
+      .orderBy(asc(member.createdAt))
       .limit(1)
     if (!firstMembership) {
       // No org membership at all. This may be an external referral partner —
@@ -225,7 +221,6 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   if (!org) return null
 
   let planTier: PlanTier = 'basic'
-  let billingActivationPending = false
   let subscriptionStatus: string | null = null
   let onTrial = false
   let trialExpired = false
@@ -239,11 +234,6 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       .limit(1)
     if (profile?.planTier) planTier = profile.planTier as PlanTier
     subscriptionStatus = profile?.subscriptionStatus ?? null
-    billingActivationPending =
-      profile?.billingMode === 'managed' &&
-      Boolean(profile?.pendingPlanId) &&
-      profile?.subscriptionStatus !== 'active' &&
-      profile?.subscriptionStatus !== 'trialing'
     const trial = resolveTrialState({
       trialEndsAt: profile?.trialEndsAt ?? null,
       subscriptionStatus: profile?.subscriptionStatus ?? null,
@@ -285,7 +275,6 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     planTier,
     patientId,
     isDemo: false,
-    billingActivationPending,
     subscriptionStatus,
     onTrial,
     trialExpired,
