@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getCollectionsBoard } from '@/lib/services/collections'
 import { canTakeBalancePayments } from '@/lib/services/balance-payments'
+import { listPaymentPlans } from '@/lib/services/payment-plans'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { formatClinicDateTime } from '@/lib/format-datetime'
 import { formatCents } from '@/lib/types/shop'
@@ -12,6 +13,8 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import SendLinkCell from './send-link-cell'
+import ProposePlanCell from './propose-plan-cell'
+import PlansCard, { type PlanRowView } from './plans-card'
 
 export const metadata = { title: 'Collections - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -27,14 +30,35 @@ export default async function CollectionsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [board, paymentsReady, tz] = await Promise.all([
+  const [board, paymentsReady, tz, plans] = await Promise.all([
     getCollectionsBoard(ctx.organizationId),
     canTakeBalancePayments(ctx.organizationId),
     getClinicTimeZone(ctx.organizationId),
+    listPaymentPlans(ctx.organizationId),
   ])
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
   const fmtDay = (d: Date | null) =>
     d ? formatClinicDateTime(d, tz).split(',').slice(0, 2).join(',') : '—'
+
+  const planRows: PlanRowView[] = plans.map((p) => ({
+    id: p.id,
+    patientId: p.patientId,
+    patientName: p.patientName,
+    totalCents: p.totalCents,
+    installmentCents: p.installmentCents,
+    installments: p.installments,
+    installmentsPaid: p.installmentsPaid,
+    status: p.status,
+    nextChargeLabel: p.nextChargeAt ? fmtDay(p.nextChargeAt) : null,
+    lastError: p.lastError,
+  }))
+  // Patients with an OPEN plan don't need a second ask from the balance table.
+  const onPlan = new Set(
+    plans
+      .filter((p) => p.status === 'proposed' || p.status === 'active' || p.status === 'past_due')
+      .map((p) => p.patientId),
+  )
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
@@ -84,6 +108,8 @@ export default async function CollectionsPage() {
           )}
         </p>
       </div>
+
+      {planRows.length > 0 && <PlansCard plans={planRows} canManage={canManage} />}
 
       {board.rows.length === 0 ? (
         <EmptyState
@@ -146,15 +172,37 @@ export default async function CollectionsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <SendLinkCell
-                        patientId={r.patientId}
-                        disabled={!paymentsReady || !r.hasEmail}
-                        disabledReason={
-                          !paymentsReady
-                            ? 'Connect Stripe first so patients can pay online'
-                            : 'This patient has no email on file'
-                        }
-                      />
+                      <span className="inline-flex items-center gap-3">
+                        <SendLinkCell
+                          patientId={r.patientId}
+                          disabled={!paymentsReady || !r.hasEmail}
+                          disabledReason={
+                            !paymentsReady
+                              ? 'Connect Stripe first so patients can pay online'
+                              : 'This patient has no email on file'
+                          }
+                        />
+                        {canManage &&
+                          (onPlan.has(r.patientId) ? (
+                            <span className="text-[11px] text-gray-400" title="This patient already has an open payment plan (see above)">
+                              on a plan
+                            </span>
+                          ) : (
+                            <ProposePlanCell
+                              patientId={r.patientId}
+                              patientName={r.name}
+                              balanceCents={r.balanceCents}
+                              disabled={!paymentsReady || !r.hasEmail || r.balanceCents < 10_000}
+                              disabledReason={
+                                !paymentsReady
+                                  ? 'Connect Stripe first so the card can be charged'
+                                  : !r.hasEmail
+                                    ? 'This patient has no email on file'
+                                    : 'Plans start at $100 — a single pay link is kinder below that'
+                              }
+                            />
+                          ))}
+                      </span>
                     </td>
                   </tr>
                 ))}

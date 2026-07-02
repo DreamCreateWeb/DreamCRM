@@ -2245,7 +2245,7 @@ To-do in the AWS migration session (rough order):
 Working docs/COMPETITIVE-GAPS.md top-to-bottom in one autonomous run — every
 slice a full vertical (schema+migration → service → UI → settings → demo seed
 → tests) pushed to main and verified deploy-green individually. Suite grew
-4,200 → 4,328. Migrations 0101–0109.
+4,200 → 4,338. Migrations 0101–0110.
 
 1. **Fast-pass waitlist auto-fill** (`e2719bf`) — appointment_waitlist +
    offers; cancellation auto-offers freed slots; first-click-wins claim at
@@ -2300,12 +2300,21 @@ slice a full vertical (schema+migration → service → UI → settings → demo
     sendMessageToPatient so the message lands in their thread and replies
     return to the inbox; 500-recipient cap points bigger sends at the
     campaign rails (lib/services/broadcast.ts + lib/types/broadcast.ts).
-16. **Collections board** — /shop/collections honest AR workboard: open
+16. **Collections board** (`5461104`) — /shop/collections honest AR workboard: open
     PMS balances desc w/ dunning state (latest pay-link status, last online
     payment), per-row send-pay-link, header stats incl. clinic-local
     month-to-date collected; My Day Balances stat + payments page link
     here; explicit no-fake-aging deferral note
     (lib/services/collections.ts).
+17. **Payment plans w/ card-on-file autopay** — payment_plan (migration
+    0110): propose from the Collections board (2–12 months, $100/$25
+    floors, one open plan per patient) → public /i/[token] accept via
+    Connect Checkout SETUP mode → first installment charges off-session on
+    accept, rest on the daily retention tick (runDuePlanCharges); each
+    charge records a patient_balance_payment row; declines → past_due w/
+    3-day retries ×3 then parked; plans table + cancel on the board; demo
+    plan on Marcus (no Stripe ids, cron-proof) + cleanup entry
+    (lib/services/payment-plans.ts).
 
 New conventions minted: token-IS-auth public pages live at single-letter
 roots (/r /w /c /b) + middleware PUBLIC_PATHS; new automated emails join the
@@ -2313,4 +2322,5 @@ EMAIL_AUTOMATION_SPECS registry (union + spec + hub renders free); new AI
 surfaces meter via lib/services/ai-usage.ts kinds; demo money/dunning records
 seed persona-anchored with `*_demo`/`demo*` markers + cleanup-sweep entries.
 
-Remaining in COMPETITIVE-GAPS: payment plans + the P3/📵 tail (SMS-gated).
+Remaining in COMPETITIVE-GAPS: only the P3/📵 tail (SMS-gated + post-OD +
+partnership items) — every P1 and P2 vendor gap is shipped.

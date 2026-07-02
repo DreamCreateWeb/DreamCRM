@@ -1474,6 +1474,55 @@ export const balancePaymentRequest = pgTable(
 )
 export type BalancePaymentRequest = typeof balancePaymentRequest.$inferSelect
 
+// Payment plans: a balance split into N monthly installments auto-charged to
+// a card on file. Staff PROPOSE (amount + months) → the patient ACCEPTS at
+// the public /i/[token] page (token IS the auth, /b's sibling) via a Stripe
+// Checkout SETUP session on the clinic's connected account (saves the card,
+// charges nothing) → the first installment charges off-session on accept,
+// the rest via the daily cron. Every successful charge records a normal
+// patient_balance_payment row (source of truth for reconciliation — the PMS
+// ledger still rules; we never touch pms_balance_cents). Card declines mark
+// the plan past_due and retry every 3 days up to 3 attempts before parking
+// it for staff follow-up.
+export const paymentPlan = pgTable(
+  'payment_plan',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    token: text('token').notNull(),
+    totalCents: integer('total_cents').notNull(),
+    // Per-installment amount; the LAST installment takes the remainder so the
+    // sum always equals totalCents exactly.
+    installmentCents: integer('installment_cents').notNull(),
+    installments: integer('installments').notNull(),
+    installmentsPaid: integer('installments_paid').notNull().default(0),
+    // 'proposed' | 'active' | 'past_due' | 'completed' | 'canceled'
+    status: text('status').notNull().default('proposed'),
+    // All three live on the clinic's CONNECTED account, not the platform.
+    stripeCustomerId: text('stripe_customer_id'),
+    stripePaymentMethodId: text('stripe_payment_method_id'),
+    stripeSetupSessionId: text('stripe_setup_session_id'),
+    nextChargeAt: timestamp('next_charge_at'),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    lastError: text('last_error'),
+    proposedByUserId: text('proposed_by_user_id'),
+    acceptedAt: timestamp('accepted_at'),
+    completedAt: timestamp('completed_at'),
+    canceledAt: timestamp('canceled_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('payment_plan_token_idx').on(t.token),
+    index('payment_plan_org_status_idx').on(t.organizationId, t.status),
+    index('payment_plan_patient_idx').on(t.patientId, t.createdAt),
+    // The cron's scan: due active/past_due plans across all orgs.
+    index('payment_plan_due_idx').on(t.status, t.nextChargeAt),
+  ],
+)
+export type PaymentPlan = typeof paymentPlan.$inferSelect
+
 // One row per booking deposit collected at PUBLIC online booking (per-visit-
 // type `depositCents` in clinic_profile.visit_type_settings; off by default).
 // Money moves through the clinic's connected Stripe account (direct charge,

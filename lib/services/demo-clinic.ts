@@ -2497,6 +2497,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Refer-a-friend self-heal: Sophia's share link + Emma stamped as her referral.
     await seedDemoReferral(existing.id, new Date(), existingPatientIds)
 
+    // Payment-plan self-heal: Marcus's active 6-month autopay showcase.
+    await seedDemoPaymentPlan(existing.id, new Date(), existingPatientIds)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -3174,6 +3177,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Refer-a-friend showcase: Sophia's share link + Emma stamped as her referral.
   await seedDemoReferral(orgId, now, patientIds)
+
+  // Payment-plan showcase: Marcus's active 6-month autopay plan (2 paid).
+  await seedDemoPaymentPlan(orgId, now, patientIds)
 
   return {
     organizationId: orgId,
@@ -4474,6 +4480,29 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
+  // (9b) Seeded payment plans (ppl_demo ids) + their installment payment rows
+  // (bp_demo_plan ids) on a non-persona patient — fabricated autopay records
+  // must never sit on a real person. Seeded plans carry no Stripe ids, so
+  // even a misattributed one could never charge; this is about display.
+  await db
+    .delete(schema.paymentPlan)
+    .where(
+      and(
+        eq(schema.paymentPlan.organizationId, orgId),
+        inArray(schema.paymentPlan.patientId, strays),
+        like(schema.paymentPlan.id, 'ppl_demo%'),
+      ),
+    )
+  await db
+    .delete(schema.patientBalancePayment)
+    .where(
+      and(
+        eq(schema.patientBalancePayment.organizationId, orgId),
+        inArray(schema.patientBalancePayment.patientId, strays),
+        like(schema.patientBalancePayment.id, 'bp_demo_plan%'),
+      ),
+    )
+
   // (10) Public-site testimonials linked to a non-persona patient — a seeded
   // quote must never render under a real person's name.
   const [profileRow] = await db
@@ -4779,6 +4808,80 @@ async function seedDemoReferral(
         ),
       )
   }
+}
+
+/**
+ * Seed the payment-plan showcase: an ACTIVE 6-month autopay plan on Marcus
+ * (persona 3, the outstanding-balance persona) with 2 installments already
+ * paid, so the Collections board's plans table + the /shop/payments
+ * reconciliation rows demo real states. Anchored on his live PMS balance
+ * (missing/zero → skip); idempotent by the deterministic `ppl_demo…` id. The
+ * row carries NO Stripe ids, so the charge cron can never touch it (it also
+ * skips isDemo orgs — belt and suspenders). Cleanup sweep reaps `ppl_demo%`
+ * plans + `bp_demo_plan%` payments misattributed to non-persona patients.
+ */
+async function seedDemoPaymentPlan(
+  orgId: string,
+  now: Date,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const marcusId = patientIds[3]
+  if (!marcusId) return
+  const PLAN_ID = 'ppl_demo_marcus'
+  const dayMs = 24 * 60 * 60 * 1000
+
+  const [existing] = await db
+    .select({ id: schema.paymentPlan.id })
+    .from(schema.paymentPlan)
+    .where(eq(schema.paymentPlan.id, PLAN_ID))
+    .limit(1)
+  if (existing) return
+
+  // Anchor: Marcus's seeded PMS balance. Missing/zero → skip the showcase.
+  const [p] = await db
+    .select({ balance: schema.patient.pmsBalanceCents })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, marcusId)))
+    .limit(1)
+  if (!p?.balance || p.balance <= 0) return
+
+  const installments = 6
+  const per = Math.floor(p.balance / installments)
+  if (per < 2500) return // matches PLAN_MIN_INSTALLMENT_CENTS — keep the demo realistic
+  const acceptedAt = new Date(now.getTime() - 49 * dayMs)
+
+  await db.insert(schema.paymentPlan).values({
+    id: PLAN_ID,
+    organizationId: orgId,
+    patientId: marcusId,
+    token: 'demopl_marcus_showcase',
+    totalCents: p.balance,
+    installmentCents: per,
+    installments,
+    installmentsPaid: 2,
+    status: 'active',
+    // Deliberately NO stripeCustomerId / stripePaymentMethodId — uncharged
+    // by construction.
+    nextChargeAt: new Date(now.getTime() + 12 * dayMs),
+    proposedByUserId: null,
+    acceptedAt,
+    createdAt: new Date(now.getTime() - 50 * dayMs),
+    updatedAt: new Date(now.getTime() - 19 * dayMs),
+  })
+
+  // The two installments he already paid — real reconciliation rows.
+  await db.insert(schema.patientBalancePayment).values(
+    [1, 2].map((n) => ({
+      id: `bp_demo_plan_${n}`,
+      organizationId: orgId,
+      patientId: marcusId,
+      amountCents: per,
+      status: 'paid',
+      paidAt: new Date(acceptedAt.getTime() + (n - 1) * 30 * dayMs),
+      createdAt: new Date(acceptedAt.getTime() + (n - 1) * 30 * dayMs),
+      note: `Payment plan installment ${n} of ${installments}`,
+    })),
+  )
 }
 
 /**

@@ -23,6 +23,11 @@ const runBalanceReminderCadence = vi.fn(async () => ({ orgsScanned: 0, candidate
 vi.mock('@/lib/services/balance-outreach', () => ({
   runBalanceReminderCadence: () => runBalanceReminderCadence(),
 }))
+// …and the due payment-plan installment charges (best-effort, same tick).
+const runDuePlanCharges = vi.fn(async () => ({ scanned: 0, charged: 0, failed: 0, completed: 0 }))
+vi.mock('@/lib/services/payment-plans', () => ({
+  runDuePlanCharges: () => runDuePlanCharges(),
+}))
 const runFollowupRules = vi.fn(async () => ({ scanned: 0, created: 0, errors: [] }))
 vi.mock('@/lib/services/followup-rules', () => ({
   runFollowupRules: () => runFollowupRules(),
@@ -112,8 +117,10 @@ describe('retention-automations cron — authorized run', () => {
     expect(await res.json()).toEqual({
       ok: true, scanned: 2, created: 1, alreadyCreated: 1, emptyAudience: 0, details: [], errors: [],
       balanceOutreach: { orgsScanned: 0, candidates: 0, sent: 0, skipped: 0 },
+      paymentPlans: { scanned: 0, charged: 0, failed: 0, completed: 0 },
     })
     expect(runRetentionAutomations).toHaveBeenCalledTimes(1)
     expect(runBalanceReminderCadence).toHaveBeenCalledTimes(1)
+    expect(runDuePlanCharges).toHaveBeenCalledTimes(1)
   })
 })

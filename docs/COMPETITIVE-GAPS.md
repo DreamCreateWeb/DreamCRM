@@ -109,8 +109,21 @@ nudge (My Day), balance follow-up rule.
   ways); demo orgs never send; rides the daily retention cron. No aging
   buckets yet (PMS gives a point-in-time balance only) — threshold + cadence
   stand in until an aging source exists.
-- ✗ **Payment plans w/ card-on-file autopay** for balances (DI) — we have
-  subscription rails via Connect. **P2.**
+- ✅ **Payment plans w/ card-on-file autopay** (DI) — SHIPPED 2026-07-02:
+  staff propose from the Collections board (months 2–12, amount = the
+  balance, $100 total / $25-per-installment floors, one open plan per
+  patient) → the patient accepts at the public /i/[token] landing (token-is-
+  auth, /b's sibling) via a Stripe Checkout SETUP session on the clinic's
+  connected account — the card saves, nothing charges until accept. The
+  first installment charges off-session on accept; the daily cron
+  (retention-automations tick) charges the rest; the last installment takes
+  the rounding remainder so the sum is exact. Every charge records a
+  patient_balance_payment row (Online payments + Collections board pick it
+  up for PMS posting). Declines → past_due with 3-day retries, parked after
+  3 strikes for staff follow-up; staff get pinged on every charge/decline/
+  completion. Plans table on the Collections board (progress, next charge,
+  cancel). Later: patient-portal plan visibility, card-update flow, SMS
+  nudges.
 - ✅ **Collections/AR board** (DI) — SHIPPED 2026-07-02 as an honest
   WORKBOARD at /shop/collections: every open PMS balance sorted largest
   first with its dunning state (pay link sent/paid + when, last online

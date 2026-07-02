@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { runRetentionAutomations } from '@/lib/services/retention-automation'
 import { runBalanceReminderCadence } from '@/lib/services/balance-outreach'
+import { runDuePlanCharges } from '@/lib/services/payment-plans'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,14 @@ async function run(request: Request) {
       console.warn('[retention-automations] balance cadence failed', err)
       return null
     })
-    return NextResponse.json({ ok: true, ...result, balanceOutreach: balance })
+    // Due payment-plan installments charge on the same daily tick (each
+    // charge is idempotent-by-state: success advances nextChargeAt a month,
+    // failure pushes the 3-day retry). Best-effort for the same reason.
+    const planCharges = await runDuePlanCharges().catch((err) => {
+      console.warn('[retention-automations] plan charges failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, balanceOutreach: balance, paymentPlans: planCharges })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }
