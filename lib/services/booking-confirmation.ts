@@ -5,7 +5,7 @@ import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
 import { sendBookingConfirmationEmail } from '@/lib/email'
-import { formatClinicDateTime } from '@/lib/format-datetime'
+import { formatClinicDateTime, formatClinicDayTime } from '@/lib/format-datetime'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getBookingIntakeForm } from '@/lib/services/forms'
@@ -106,7 +106,7 @@ export async function sendBookingConfirmation(opts: {
       rendered.override,
     )
     await queueCommLogWriteBack(opts.organizationId, opts.patientId, {
-      note: `Booking confirmation sent for ${opts.appointmentType.replace(/_/g, ' ')} on ${opts.startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+      note: `Booking confirmation sent for ${opts.appointmentType.replace(/_/g, ' ')} on ${formatClinicDayTime(opts.startTime, sender.timeZone)}.`,
       mode: 'Email',
     }).catch(() => {})
   } catch (err) {

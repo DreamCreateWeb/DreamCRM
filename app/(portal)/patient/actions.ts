@@ -21,6 +21,8 @@ import {
 } from '@/lib/services/appointments'
 import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
+import { formatClinicDayTime } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
@@ -183,7 +185,7 @@ export async function rescheduleMyVisitAction(
       bucket: 'comments',
       type: 'portal_reschedule',
       title: 'Visit rescheduled by patient',
-      body: `${reName} moved their visit to ${fmtNotifyDate(newStart)}.`,
+      body: `${reName} moved their visit to ${await fmtNotifyDate(ctx.organizationId, newStart)}.`,
       linkPath: '/appointments',
     },
     { roles: ['owner', 'admin'] },
@@ -292,7 +294,7 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
       bucket: 'comments',
       type: 'portal_booking',
       title: 'Portal booking',
-      body: `${patientName} booked ${label.toLowerCase()} for ${fmtNotifyDate(startTime)}.`,
+      body: `${patientName} booked ${label.toLowerCase()} for ${await fmtNotifyDate(ctx.organizationId, startTime)}.`,
       linkPath: '/appointments',
     },
     { roles: ['owner', 'admin'] },
@@ -384,15 +386,11 @@ export async function requestMyRecordsAction(): Promise<PortalActionResult> {
   return { ok: true }
 }
 
-/** Short "Mon, Jun 15 · 2:00 PM" date for staff notifications (server-local). */
-function fmtNotifyDate(d: Date): string {
-  return d.toLocaleString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+/** Short "Mon, Jun 15, 2:00 PM" for staff notifications — at the CLINIC's
+ *  wall-clock (this runs on the UTC server, so bare toLocaleString would
+ *  print a shifted time). */
+async function fmtNotifyDate(organizationId: string, d: Date): Promise<string> {
+  return formatClinicDayTime(d, await getClinicTimeZone(organizationId))
 }
 
 /** First+last name of a patient in this org, for notification copy. */

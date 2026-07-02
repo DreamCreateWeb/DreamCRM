@@ -167,7 +167,7 @@ export async function rescheduleAppointmentAction(input: {
           body: `Hi ${detail.patient.fullName.split(' ')[0]} — your ${detail.type.replace(/_/g, ' ')} at ${sender.name} has been moved to ${start.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone })}. Reply or call if this doesn't work.`,
         }, sender)
         await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
-          note: `Appointment rescheduled to ${start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} — patient notified by email.`,
+          note: `Appointment rescheduled to ${start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone })} — patient notified by email.`,
           mode: 'Email',
         })
       }

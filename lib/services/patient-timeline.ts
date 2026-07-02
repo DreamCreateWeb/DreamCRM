@@ -1,6 +1,8 @@
 import 'server-only'
 import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { formatClinicDayTime } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 export type TimelineKind =
   | 'appointment'
@@ -202,6 +204,10 @@ export async function getPatientTimeline(
     .limit(1)
   const threadId = threadRow?.id ?? null
   const messagesHref = threadId ? `/messages?thread=${threadId}` : '/messages'
+
+  // Appointment times render at the clinic's wall-clock, never the server's
+  // UTC clock (a 1 PM Central visit is 6 PM UTC).
+  const timeZone = await getClinicTimeZone(organizationId)
 
   const [appts, msgs, subs, invs, notes, pMessages, emailMessages, shopOrders, memberships, balancePayments, reviews, documents, followups, campaignsReceived, tagEvents] = await Promise.all([
     db
@@ -517,13 +523,7 @@ export async function getPatientTimeline(
       title: a.type
         ? `${a.type.replace(/_/g, ' ')}${a.status === 'completed' ? ' (completed)' : ''}`
         : 'Appointment',
-      subtitle: start.toLocaleString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      }),
+      subtitle: formatClinicDayTime(start, timeZone),
       status: a.status,
       direction: null,
       href: `/appointments?appt=${a.id}`,

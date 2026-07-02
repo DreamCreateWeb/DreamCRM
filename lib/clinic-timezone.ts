@@ -25,6 +25,82 @@ export function resolveClinicTimeZone(tz: string | null | undefined): string {
   return tz?.trim() || CLINIC_DEFAULT_TZ
 }
 
+// ---------------------------------------------------------------------------
+// Clinic-local day boundaries. The prod server runs in UTC, so `startOfDay(new
+// Date())` is the UTC day — a 7:30 PM Central visit is already "tomorrow" in
+// UTC and falls out of a UTC-bounded "today" window. Anything that windows or
+// buckets by calendar day for a clinic must use these instead. Pure + DST-aware
+// (same two-pass offset technique as lib/services/pms/datetime.ts).
+// ---------------------------------------------------------------------------
+
+function zonedParts(instant: Date, timeZone: string) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  const map: Record<string, string> = {}
+  for (const p of dtf.formatToParts(instant)) if (p.type !== 'literal') map[p.type] = p.value
+  return {
+    y: +map.year,
+    mo: +map.month,
+    d: +map.day,
+    h: +(map.hour === '24' ? '0' : map.hour),
+    mi: +map.minute,
+    s: +map.second,
+  }
+}
+
+/** Offset (ms) of `timeZone` from UTC at the given instant. */
+function offsetMs(instant: Date, timeZone: string): number {
+  const w = zonedParts(instant, timeZone)
+  const asUTC = Date.UTC(w.y, w.mo - 1, w.d, w.h, w.mi, w.s)
+  return asUTC - instant.getTime()
+}
+
+/** A wall-clock midnight Y/M/D in `timeZone` → the absolute instant. */
+function zonedMidnightToUtc(y: number, mo: number, d: number, timeZone: string): Date {
+  const naiveUTC = Date.UTC(y, mo - 1, d, 0, 0, 0)
+  // Two passes resolve DST boundaries correctly.
+  let off = offsetMs(new Date(naiveUTC), timeZone)
+  off = offsetMs(new Date(naiveUTC - off), timeZone)
+  return new Date(naiveUTC - off)
+}
+
+/**
+ * The absolute instant of the clinic-local midnight `dayOffset` days from the
+ * day containing `now` (0 = today's local midnight, 1 = tomorrow's, -30 = 30
+ * local days back). The clinic-correct replacement for `startOfDay(now)`.
+ */
+export function clinicDayStart(now: Date, timeZone: string | null | undefined, dayOffset = 0): Date {
+  const tz = resolveClinicTimeZone(timeZone)
+  const w = zonedParts(now, tz)
+  // Date.UTC normalizes day overflow/underflow, so offsets cross month/year.
+  const shifted = new Date(Date.UTC(w.y, w.mo - 1, w.d + dayOffset))
+  return zonedMidnightToUtc(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate(), tz)
+}
+
+/** Clinic-local start of the week (Sunday midnight) containing `now`. */
+export function clinicWeekStart(now: Date, timeZone: string | null | undefined): Date {
+  const tz = resolveClinicTimeZone(timeZone)
+  const w = zonedParts(now, tz)
+  const weekday = new Date(Date.UTC(w.y, w.mo - 1, w.d)).getUTCDay() // calendar-date weekday
+  return clinicDayStart(now, tz, -weekday)
+}
+
+/** Clinic-local first-of-month midnight, `monthOffset` months from `now`'s month. */
+export function clinicMonthStart(now: Date, timeZone: string | null | undefined, monthOffset = 0): Date {
+  const tz = resolveClinicTimeZone(timeZone)
+  const w = zonedParts(now, tz)
+  const shifted = new Date(Date.UTC(w.y, w.mo - 1 + monthOffset, 1))
+  return zonedMidnightToUtc(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, 1, tz)
+}
+
 /** Day-of-week (0=Sun … 6=Sat) for a `YYYY-MM-DD` calendar date. Built as a UTC
  *  date so it's timezone-independent — a calendar date has one weekday. */
 export function dayOfWeekForDateKey(dateKey: string): number {

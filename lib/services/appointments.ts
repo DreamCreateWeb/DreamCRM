@@ -6,8 +6,10 @@ import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack } from '@/li
 import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
-import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
-import { startOfDay, startOfWeek, isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
+import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 
 /**
@@ -167,38 +169,33 @@ export function isRebookingCandidate(opts: {
 
 // ----- Date-window resolver -----
 
-function resolveWindow(window: AppointmentListFilters['window'], now: Date): { from: Date; to: Date; isPast: boolean } {
-  const today = startOfDay(now)
+// Windows are bounded at the CLINIC's calendar days, not the server's UTC
+// days — a 7:30 PM Central visit is already "tomorrow" in UTC and would fall
+// out of a UTC-bounded "Today" chip.
+function resolveWindow(
+  window: AppointmentListFilters['window'],
+  now: Date,
+  timeZone: string,
+): { from: Date; to: Date; isPast: boolean } {
   switch (window) {
-    case 'today': {
-      const end = new Date(today); end.setDate(end.getDate() + 1)
-      return { from: today, to: end, isPast: false }
-    }
-    case 'tomorrow': {
-      const start = new Date(today); start.setDate(start.getDate() + 1)
-      const end = new Date(start); end.setDate(end.getDate() + 1)
-      return { from: start, to: end, isPast: false }
-    }
+    case 'today':
+      return { from: clinicDayStart(now, timeZone), to: clinicDayStart(now, timeZone, 1), isPast: false }
+    case 'tomorrow':
+      return { from: clinicDayStart(now, timeZone, 1), to: clinicDayStart(now, timeZone, 2), isPast: false }
     case 'this_week': {
-      const start = startOfWeek(now)
-      const end = new Date(start); end.setDate(end.getDate() + 7)
+      const start = clinicWeekStart(now, timeZone)
+      const end = clinicDayStart(start, timeZone, 7)
       return { from: start, to: end, isPast: false }
     }
-    case 'next_14d': {
-      const end = new Date(today); end.setDate(end.getDate() + 14)
-      return { from: today, to: end, isPast: false }
-    }
-    case 'past_30d': {
-      const start = new Date(today); start.setDate(start.getDate() - 30)
-      return { from: start, to: today, isPast: true }
-    }
+    case 'next_14d':
+      return { from: clinicDayStart(now, timeZone), to: clinicDayStart(now, timeZone, 14), isPast: false }
+    case 'past_30d':
+      return { from: clinicDayStart(now, timeZone, -30), to: clinicDayStart(now, timeZone), isPast: true }
     case 'all_upcoming':
-    default: {
+    default:
       // 90 days forward as a hard ceiling so we don't try to render
       // year-long futures on the agenda.
-      const end = new Date(today); end.setDate(end.getDate() + 90)
-      return { from: today, to: end, isPast: false }
-    }
+      return { from: clinicDayStart(now, timeZone), to: clinicDayStart(now, timeZone, 90), isPast: false }
   }
 }
 
@@ -209,7 +206,8 @@ export async function listAppointments(
   filters: AppointmentListFilters = {},
 ): Promise<AppointmentRow[]> {
   const now = new Date()
-  const win = resolveWindow(filters.window, now)
+  const timeZone = await getClinicTimeZone(organizationId)
+  const win = resolveWindow(filters.window, now, timeZone)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
@@ -471,25 +469,33 @@ export interface AppointmentDayGroup {
   totals: { booked: number; confirmed: number; unconfirmed: number }
 }
 
-export function groupByDay(rows: AppointmentRow[], now: Date = new Date()): AppointmentDayGroup[] {
-  const todayKey = startOfDay(now).toDateString()
-  const tomorrowKey = (() => { const d = startOfDay(now); d.setDate(d.getDate() + 1); return d.toDateString() })()
+export function groupByDay(
+  rows: AppointmentRow[],
+  timeZone: string,
+  now: Date = new Date(),
+): AppointmentDayGroup[] {
+  // Buckets + Today/Tomorrow labels follow the CLINIC's calendar day — a
+  // 7 PM Central visit is already "tomorrow" in UTC and would otherwise land
+  // under the wrong agenda day header (this runs in a server component).
+  const todayKey = clinicDayKey(now, timeZone)
+  const tomorrowKey = clinicDayKey(clinicDayStart(now, timeZone, 1), timeZone)
   const byKey = new Map<string, AppointmentRow[]>()
   for (const r of rows) {
-    const k = startOfDay(r.startTime).toDateString()
+    const k = clinicDayKey(r.startTime, timeZone)
     const arr = byKey.get(k) ?? []
     arr.push(r)
     byKey.set(k, arr)
   }
   const out: AppointmentDayGroup[] = []
   for (const [k, group] of Array.from(byKey.entries())) {
-    const date = new Date(k)
+    const date = clinicDayStart(group[0].startTime, timeZone)
+    const dayOpts = { weekday: 'long', month: 'short', day: 'numeric', timeZone } as const
     const label =
       k === todayKey
-        ? 'Today · ' + date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+        ? 'Today · ' + group[0].startTime.toLocaleDateString('en-US', dayOpts)
         : k === tomorrowKey
-          ? 'Tomorrow · ' + date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-          : date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+          ? 'Tomorrow · ' + group[0].startTime.toLocaleDateString('en-US', dayOpts)
+          : group[0].startTime.toLocaleDateString('en-US', { ...dayOpts, year: 'numeric' })
     const totals = { booked: group.length, confirmed: 0, unconfirmed: 0 }
     for (const r of group) {
       if (r.status === 'confirmed') totals.confirmed += 1
@@ -1305,13 +1311,7 @@ export async function exportAppointmentsCsv(
   filters: AppointmentListFilters = {},
 ): Promise<string> {
   const rows = await listAppointments(organizationId, filters)
-
-  const [tzRow] = await db
-    .select({ tz: schema.clinicProfile.timezone })
-    .from(schema.clinicProfile)
-    .where(eq(schema.clinicProfile.organizationId, organizationId))
-    .limit(1)
-  const timeZone = resolveClinicTimeZone(tzRow?.tz)
+  const timeZone = await getClinicTimeZone(organizationId)
 
   const ids = Array.from(new Set(rows.map((r) => r.patientId)))
   const contacts = ids.length

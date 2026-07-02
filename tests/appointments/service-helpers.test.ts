@@ -42,7 +42,7 @@ describe('groupByDay', () => {
       makeRow({ id: 'a2', startTime: new Date('2026-05-21T11:30:00Z') }),
       makeRow({ id: 'a3', startTime: new Date('2026-05-22T09:00:00Z') }),
     ]
-    const groups = groupByDay(rows, today)
+    const groups = groupByDay(rows, 'UTC', today)
     expect(groups).toHaveLength(2)
     expect(groups[0].rows).toHaveLength(2)
     expect(groups[1].rows).toHaveLength(1)
@@ -54,7 +54,7 @@ describe('groupByDay', () => {
       makeRow({ id: 'a_tomorrow', startTime: new Date('2026-05-21T10:00:00Z') }),
       makeRow({ id: 'a_later', startTime: new Date('2026-05-27T10:00:00Z') }),
     ]
-    const groups = groupByDay(rows, today)
+    const groups = groupByDay(rows, 'UTC', today)
     expect(groups[0].label).toMatch(/^Today · /)
     expect(groups[1].label).toMatch(/^Tomorrow · /)
     expect(groups[2].label).not.toMatch(/Today|Tomorrow/)
@@ -68,12 +68,27 @@ describe('groupByDay', () => {
       makeRow({ id: 'a4', status: 'completed' }),
       makeRow({ id: 'a5', status: 'cancelled' }),
     ]
-    const groups = groupByDay(rows, today)
+    const groups = groupByDay(rows, 'UTC', today)
     expect(groups[0].totals).toEqual({ booked: 5, confirmed: 1, unconfirmed: 2 })
   })
 
   it('returns an empty array when there are no rows', () => {
-    expect(groupByDay([], today)).toEqual([])
+    expect(groupByDay([], 'UTC', today)).toEqual([])
+  })
+
+  it('buckets by the CLINIC calendar day, not the UTC day (evening visit)', () => {
+    // 7:30 PM Central on May 20 = 00:30 UTC on May 21. A UTC-day bucketer
+    // would file this under "tomorrow"; the clinic calendar says today.
+    const noonCentral = new Date('2026-05-20T17:00:00Z') // now: noon Central
+    const rows = [
+      makeRow({ id: 'a_morning', startTime: new Date('2026-05-20T14:00:00Z') }), // 9 AM CDT
+      makeRow({ id: 'a_evening', startTime: new Date('2026-05-21T00:30:00Z') }), // 7:30 PM CDT May 20
+    ]
+    const groups = groupByDay(rows, 'America/Chicago', noonCentral)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].rows.map((r) => r.id)).toEqual(['a_morning', 'a_evening'])
+    expect(groups[0].label).toMatch(/^Today · /)
+    expect(groups[0].label).toContain('May 20')
   })
 })
 

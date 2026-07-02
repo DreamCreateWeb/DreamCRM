@@ -7,7 +7,10 @@ import { getInboxStats } from '@/lib/services/patient-messaging'
 import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient-followups'
 import { getTagsForPatients } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
-import { startOfDay, endOfDay, startOfMonth, isBirthdayThisWeek } from '@/lib/dates'
+import { isBirthdayThisWeek } from '@/lib/dates'
+import { clinicDayStart, clinicMonthStart } from '@/lib/clinic-timezone'
+import { formatClinicDayTime } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -33,6 +36,9 @@ import { startOfDay, endOfDay, startOfMonth, isBirthdayThisWeek } from '@/lib/da
 
 export interface ClinicOverviewData {
   date: Date
+  /** The clinic's IANA timezone — every time rendered from this snapshot must
+   *  format against it (the server clock is UTC). */
+  timeZone: string
   todaysAppointments: TodayAppointmentRow[]
   unconfirmed: {
     count: number
@@ -131,14 +137,18 @@ export interface ActivityRow {
 
 export async function getClinicOverview(organizationId: string): Promise<ClinicOverviewData> {
   const now = new Date()
-  const todayStart = startOfDay(now)
-  const todayEnd = endOfDay(now)
+  // "Today" (and month boundaries) follow the CLINIC's calendar, not the
+  // server's UTC clock — a 7:30 PM Central visit is tomorrow in UTC and would
+  // vanish from a UTC-bounded today's-chair.
+  const timeZone = await getClinicTimeZone(organizationId)
+  const todayStart = clinicDayStart(now, timeZone)
+  const todayEnd = new Date(clinicDayStart(now, timeZone, 1).getTime() - 1)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
   const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const monthStart = startOfMonth(now)
-  const lastMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
-  const lastMonthEnd = startOfMonth(now) // exclusive upper bound
+  const monthStart = clinicMonthStart(now, timeZone)
+  const lastMonthStart = clinicMonthStart(now, timeZone, -1)
+  const lastMonthEnd = monthStart // exclusive upper bound
 
   // ── Today's appointments ────────────────────────────────────────────
   const todaysAppts = await db
@@ -458,7 +468,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       kind: 'appointment_booked',
       occurredAt: a.createdAt,
       title: `${a.firstName} ${a.lastName} booked ${a.type.replace('_', ' ')}`,
-      subtitle: `for ${a.startTime.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
+      subtitle: `for ${formatClinicDayTime(a.startTime, timeZone)}`,
       href: `/appointments?appt=${a.id}`,
     })
   }
@@ -518,6 +528,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
 
   return {
     date: now,
+    timeZone,
     todaysAppointments,
     unconfirmed,
     intakeSubmissions,

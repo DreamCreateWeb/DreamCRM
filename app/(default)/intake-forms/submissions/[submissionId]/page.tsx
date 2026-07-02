@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getSubmissionForReview } from '@/lib/services/forms'
 import { getCachedSummary } from '@/lib/services/intake-summary'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { aiConfigured } from '@/lib/ai'
 import type { FormTemplateSchema, FormSubmissionData, FormFieldValue } from '@/lib/types/forms'
 import { isFileRefArray, sanitizeFileRefs } from '@/lib/types/forms'
@@ -61,9 +62,12 @@ export default async function SubmissionPage({ params }: Props) {
   const schema = template.schema as FormTemplateSchema
   const data = (submission.data ?? {}) as FormSubmissionData
   const cachedSummary = await getCachedSummary(ctx.organizationId, submissionId)
+  // Clinic wall-clock — this is a server component on a UTC server.
+  const timeZone = await getClinicTimeZone(ctx.organizationId)
   const submittedAt = new Date(submission.submittedAt).toLocaleString('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
+    timeZone,
   })
 
   return (

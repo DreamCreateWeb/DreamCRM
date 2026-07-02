@@ -27,6 +27,7 @@ import {
 import { EMAIL_CATEGORIES } from '@/lib/db/schema/email'
 import { draftReply } from '@/lib/services/ai-mailbox'
 import { getInboxPatientContext } from '@/lib/services/patient-context'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import type { InboxActor } from '@/lib/services/inbox-audit'
 
 async function requireOrgUser() {
@@ -272,16 +273,21 @@ function splitAddresses(raw: string): string[] {
     .filter(Boolean)
 }
 
-function buildQuotedBody(original: {
-  fromName: string | null
-  fromEmail: string
-  receivedAt: Date
-  bodyText: string | null
-  snippet: string | null
-}): string {
+function buildQuotedBody(
+  original: {
+    fromName: string | null
+    fromEmail: string
+    receivedAt: Date
+    bodyText: string | null
+    snippet: string | null
+  },
+  timeZone: string,
+): string {
   const sender = original.fromName
     ? `${original.fromName} <${original.fromEmail}>`
     : original.fromEmail
+  // Clinic wall-clock — this runs on the UTC server, and the quoted line
+  // ("On Wed, Jul 1, 1:04 PM, … wrote:") is patient-visible in the reply.
   const when = original.receivedAt.toLocaleString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -289,6 +295,7 @@ function buildQuotedBody(original: {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone,
   })
   const body = (original.bodyText ?? original.snippet ?? '').trim()
   const quoted = body
@@ -329,7 +336,7 @@ export async function sendMailbox(input: unknown) {
         }
       }
       if (!references) references = original.rfcMessageId
-      bodyText = `${data.body}${buildQuotedBody(original)}`
+      bodyText = `${data.body}${buildQuotedBody(original, await getClinicTimeZone(ctx.organizationId))}`
     } else if (original) {
       // No Message-ID on Gmail's side either (shouldn't happen for real
       // mail, but surface it loudly if it ever does so we don't silently

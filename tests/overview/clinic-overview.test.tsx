@@ -50,6 +50,7 @@ function makeCtx(overrides: Partial<TenantContext> = {}): TenantContext {
 function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewData {
   return {
     date: new Date('2026-05-20T08:00:00Z'),
+    timeZone: 'America/New_York',
     todaysAppointments: [],
     unconfirmed: { count: 0, preview: [] },
     intakeSubmissions: { count: 0, preview: [] },

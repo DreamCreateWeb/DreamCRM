@@ -5,6 +5,7 @@ import WelcomeModal from '@/components/onboarding/welcome-modal'
 import GettingStarted from '@/components/onboarding/getting-started'
 import type { TenantContext } from '@/lib/auth/context'
 import { formatRelativeDate } from '@/lib/utils/format'
+import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -75,20 +76,9 @@ function planAtLeast(have: string, need: 'basic' | 'pro' | 'premium'): boolean {
   return (PLAN_RANK[have] ?? 0) >= PLAN_RANK[need]
 }
 
-function fmtTime(d: Date): string {
-  return d.toLocaleString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
-function fmtDayHeader(d: Date): string {
-  return d.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  })
-}
+// Times + day headers render at the CLINIC's wall-clock — this is a server
+// component, so bare toLocale* would print UTC (formatClinicTime /
+// formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
   const [data, onboarding] = await Promise.all([
@@ -110,7 +100,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
 
       {/* ── Header ────────────────────────────────────────────────────── */}
       <PageHeader
-        eyebrow={`Morning huddle · ${fmtDayHeader(data.date)}`}
+        eyebrow={`Morning huddle · ${formatClinicDayHeader(data.date, data.timeZone)}`}
         title={name}
         subtitle="The six things worth your attention this morning — every number opens the list behind it."
         legend={<EncodingLegend glyphs={PAGE_GLYPHS} pills={PILL_LEGEND} />}
@@ -355,7 +345,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
               {data.todaysAppointments.map((a) => (
-                <TodayChairRow key={a.id} appt={a} />
+                <TodayChairRow key={a.id} appt={a} timeZone={data.timeZone} />
               ))}
             </ul>
           )}
@@ -522,7 +512,7 @@ function AttentionCard({
   )
 }
 
-function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
+function TodayChairRow({ appt, timeZone }: { appt: TodayAppointmentRow; timeZone: string }) {
   const statusKey = appt.status
   const tone = STATUS_TONE[statusKey] ?? STATUS_TONE.scheduled
   const statusLabel = STATUS_LABELS[statusKey] ?? statusKey
@@ -541,7 +531,7 @@ function TodayChairRow({ appt }: { appt: TodayAppointmentRow }) {
   return (
     <li className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-900/30">
       <div className="shrink-0 w-16 text-sm font-mono-num font-medium text-gray-600 dark:text-gray-300 tabular-nums">
-        {fmtTime(appt.startTime)}
+        {formatClinicTime(appt.startTime, timeZone)}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">

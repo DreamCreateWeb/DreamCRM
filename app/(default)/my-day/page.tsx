@@ -17,20 +17,19 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
 import MyDayFollowups from './my-day-followups'
 import DigestToggle from './digest-toggle'
-
-function fmtTime(d: Date): string {
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-}
+import { formatClinicTime } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 export default async function MyDayPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/')
 
-  const [data, digestEnabled, digestOptOut] = await Promise.all([
+  const [data, digestEnabled, digestOptOut, timeZone] = await Promise.all([
     getMyDay(ctx.organizationId, ctx.userId),
     getDigestEnabled(ctx.organizationId),
     getDigestOptOut(ctx.organizationId, ctx.userId),
+    getClinicTimeZone(ctx.organizationId),
   ])
   const firstName = (ctx.userName ?? '').split(' ')[0] || 'there'
   const followupsDue = data.followups.overdue + data.followups.today
@@ -159,7 +158,7 @@ export default async function MyDayPage() {
                 {data.todaysAppointments.slice(0, 8).map((a) => (
                   <li key={a.id} className="py-2 flex items-center gap-3">
                     <span className="shrink-0 w-14 text-xs font-mono-num text-gray-500 dark:text-gray-400 tabular-nums">
-                      {fmtTime(a.startTime)}
+                      {formatClinicTime(a.startTime, timeZone)}
                     </span>
                     <Link href={`/patients/${a.patientId}`} className="text-sm text-gray-700 dark:text-gray-200 hover:underline truncate flex-1">
                       {a.patientName}
