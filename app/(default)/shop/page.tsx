@@ -9,6 +9,8 @@ import { getMembershipStats } from '@/lib/services/membership'
 import { listCoupons } from '@/lib/services/coupons'
 import { listRecentBalancePayments } from '@/lib/services/balance-payments'
 import ShopClient from './shop-client'
+import LoyaltyConfigCard from './loyalty-config-card'
+import { getLoyaltySettings } from '@/lib/services/loyalty'
 import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = { title: 'Shop - DreamCRM' }
@@ -23,7 +25,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   // Flip pending → active without a manual reconnect once onboarding finishes.
   await refreshConnectStatus(ctx.organizationId)
 
-  const [config, products, stats, orderStats, topProducts, membershipStats, coupons, payments, orgRow] = await Promise.all([
+  const [config, products, stats, orderStats, topProducts, membershipStats, coupons, payments, orgRow, loyalty] = await Promise.all([
     getShopConfig(ctx.organizationId),
     listProducts(ctx.organizationId),
     getShopStats(ctx.organizationId),
@@ -33,6 +35,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
     listCoupons(ctx.organizationId),
     listRecentBalancePayments(ctx.organizationId),
     db.select({ slug: organization.slug }).from(organization).where(eq(organization.id, ctx.organizationId)).limit(1),
+    getLoyaltySettings(ctx.organizationId),
   ])
 
   const publicBase = orgRow[0] ? `/site/${orgRow[0].slug}/shop` : null
@@ -61,6 +64,13 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       connectBanner={connected ? 'connected' : connectError ? `error:${connectError}` : null}
       orgName={ctx.organizationName}
     />
+    {/* Loyalty rewards — lives here because redemption mints shop coupons. */}
+    <div className="px-4 sm:px-6 lg:px-8 pb-8 w-full max-w-[96rem] mx-auto">
+      <LoyaltyConfigCard
+        settings={loyalty}
+        canManage={ctx.role === 'owner' || ctx.role === 'admin'}
+      />
+    </div>
     </>
   )
 }

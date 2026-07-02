@@ -2509,6 +2509,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // NPS pulse self-heal: four answered surveys across the score bands.
     await seedDemoNpsResponses(existing.id, new Date(), existingPatientIds)
 
+    // Loyalty self-heal: program on + Mia/Noah's persona-anchored ledger.
+    await seedDemoLoyalty(existing.id, new Date(), existingPatientIds)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -3195,6 +3198,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // NPS pulse showcase: four answered surveys across the score bands.
   await seedDemoNpsResponses(orgId, now, patientIds)
+
+  // Loyalty showcase: program on + Mia/Noah's persona-anchored ledger.
+  await seedDemoLoyalty(orgId, now, patientIds)
 
   return {
     organizationId: orgId,
@@ -4495,6 +4501,17 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
+  // (9a0) Seeded loyalty ledger rows (loy_demo ids) on a non-persona patient.
+  await db
+    .delete(schema.loyaltyEvent)
+    .where(
+      and(
+        eq(schema.loyaltyEvent.organizationId, orgId),
+        inArray(schema.loyaltyEvent.patientId, strays),
+        like(schema.loyaltyEvent.id, 'loy_demo%'),
+      ),
+    )
+
   // (9a) Seeded NPS survey responses (demonps tokens) on a non-persona
   // patient — a fabricated survey answer must never sit on a real person.
   await db
@@ -4889,6 +4906,75 @@ async function seedDemoNpsResponses(
       sentAt,
       respondedAt: new Date(sentAt.getTime() + 6 * 60 * 60 * 1000),
       createdAt: sentAt,
+    })
+  }
+}
+
+/**
+ * Seed the loyalty showcase: the program flipped ON (only-when-null so a
+ * staff-tuned config survives) + a small persona-anchored ledger — Mia holds
+ * enough to redeem (the portal card's redeem state), Noah has a partial
+ * balance. Deterministic `loy_demo…` ids; the accrual cron skips demo orgs,
+ * so these seeded rows are the demo's only ledger. Cleanup sweeps strays.
+ */
+async function seedDemoLoyalty(
+  orgId: string,
+  now: Date,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const dayMs = 24 * 60 * 60 * 1000
+  const miaId = patientIds[0]
+  const noahId = patientIds[7]
+  if (!miaId) return
+
+  // Positive anchor: Mia's row must exist (exhausted seeder-test queue → skip).
+  const [mia] = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, miaId)))
+    .limit(1)
+  if (!mia) return
+
+  // Enable the program only when the clinic profile has no loyalty blob yet.
+  const [profile] = await db
+    .select({ loyalty: schema.clinicProfile.loyalty })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, orgId))
+    .limit(1)
+  if (profile && profile.loyalty == null) {
+    await db
+      .update(schema.clinicProfile)
+      .set({
+        loyalty: { enabled: true, pointsPerVisit: 10, pointsPerReferral: 50, pointsPerPayment: 10, redeemPoints: 100, redeemValueCents: 1000 },
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.clinicProfile.organizationId, orgId))
+  }
+
+  const seeds: Array<{ id: string; patientId: string | null; kind: string; points: number; note: string; daysAgo: number }> = [
+    { id: 'loy_demo_mia_v1', patientId: miaId, kind: 'visit', points: 10, note: 'Kept visit', daysAgo: 200 },
+    { id: 'loy_demo_mia_v2', patientId: miaId, kind: 'visit', points: 10, note: 'Kept visit', daysAgo: 25 },
+    { id: 'loy_demo_mia_ref', patientId: miaId, kind: 'referral', points: 50, note: 'Referred a friend — first visit kept', daysAgo: 60 },
+    { id: 'loy_demo_mia_adj', patientId: miaId, kind: 'adjust', points: 40, note: 'Welcome bonus', daysAgo: 300 },
+    { id: 'loy_demo_noah_v1', patientId: noahId, kind: 'visit', points: 10, note: 'Kept visit', daysAgo: 45 },
+    { id: 'loy_demo_noah_pay', patientId: noahId, kind: 'payment', points: 10, note: 'Online payment', daysAgo: 30 },
+  ]
+  const existing = await db
+    .select({ id: schema.loyaltyEvent.id })
+    .from(schema.loyaltyEvent)
+    .where(inArray(schema.loyaltyEvent.id, seeds.map((s) => s.id)))
+  const have = new Set(existing.map((r) => r.id))
+  for (const s of seeds) {
+    if (!s.patientId || have.has(s.id)) continue
+    await db.insert(schema.loyaltyEvent).values({
+      id: s.id,
+      organizationId: orgId,
+      patientId: s.patientId,
+      kind: s.kind,
+      points: s.points,
+      sourceId: s.id,
+      note: s.note,
+      createdAt: new Date(now.getTime() - s.daysAgo * dayMs),
     })
   }
 }

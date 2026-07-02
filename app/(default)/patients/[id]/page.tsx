@@ -10,6 +10,7 @@ import { listPatientDocuments } from '@/lib/services/patient-documents'
 import { listFollowupsForPatient, listAssignableStaff } from '@/lib/services/patient-followups'
 import { findMergeCandidates } from '@/lib/services/patient-merge'
 import { getReferralContext } from '@/lib/services/patient-referrals'
+import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/services/loyalty'
 import { listFormTemplates } from '@/lib/services/forms'
 import PatientDetail from './patient-detail'
 
@@ -50,6 +51,21 @@ export default async function PatientDetailPage({ params }: PageProps) {
   const canMerge = ctx.role === 'owner' || ctx.role === 'admin'
   const mergeCandidates = canMerge ? await findMergeCandidates(ctx.organizationId, id) : []
 
+  // Rewards rail card — only loaded (and rendered) when the program is on.
+  const loyaltySettings = await getLoyaltySettings(ctx.organizationId)
+  const loyalty = loyaltySettings.enabled
+    ? {
+        balance: await getPointsBalance(ctx.organizationId, id),
+        events: (await listLoyaltyEvents(ctx.organizationId, id, 6)).map((e) => ({
+          id: e.id,
+          kind: e.kind,
+          points: e.points,
+          note: e.note,
+          createdAtIso: e.createdAt.toISOString(),
+        })),
+      }
+    : null
+
   const counts = countTimeline(timeline)
   const intakeForms = forms.map((f) => ({ id: f.id, title: f.title }))
 
@@ -71,6 +87,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       mergeCandidates={mergeCandidates}
       family={family}
       referral={referral}
+      loyalty={loyalty}
+      canAdjustLoyalty={canMerge}
     />
   )
 }

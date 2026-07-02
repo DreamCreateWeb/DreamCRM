@@ -165,6 +165,13 @@ export default async function MyDayPage() {
                     <Link href={`/patients/${a.patientId}`} className="text-sm text-gray-700 dark:text-gray-200 hover:underline truncate flex-1">
                       {a.patientName}
                     </Link>
+                    {/* In-office flow breadcrumb (set from the agenda drawer). */}
+                    {(a.status === 'scheduled' || a.status === 'confirmed') &&
+                      (a.seatedAt ? (
+                        <span className="shrink-0 text-xs" title="In the chair">🪑</span>
+                      ) : a.arrivedAt ? (
+                        <span className="shrink-0 text-xs" title="Arrived — in the waiting room">🚪</span>
+                      ) : null)}
                     <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500 capitalize">{a.type.replace(/_/g, ' ')}</span>
                   </li>
                 ))}

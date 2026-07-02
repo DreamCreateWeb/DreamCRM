@@ -138,6 +138,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   // dunning email is strictly opt-in. Engine: lib/services/balance-outreach.ts.
   balanceOutreach: jsonb('balance_outreach'),
 
+  // Loyalty program config (Shop page card). Stored values merge over
+  // defaults via resolveLoyaltySettings(); null = DISABLED — points are
+  // strictly opt-in. Ledger + engine: lib/services/loyalty.ts.
+  loyalty: jsonb('loyalty'),
+
   // Contact
   phone: text('phone'),
   email: text('email'),

@@ -33,6 +33,11 @@ const runDueNpsSurveys = vi.fn(async () => ({ orgsScanned: 0, candidates: 0, sen
 vi.mock('@/lib/services/nps', () => ({
   runDueNpsSurveys: () => runDueNpsSurveys(),
 }))
+// …and the loyalty accrual sweep (best-effort, same tick).
+const runLoyaltyAccrual = vi.fn(async () => ({ orgsScanned: 0, earned: 0 }))
+vi.mock('@/lib/services/loyalty', () => ({
+  runLoyaltyAccrual: () => runLoyaltyAccrual(),
+}))
 const runFollowupRules = vi.fn(async () => ({ scanned: 0, created: 0, errors: [] }))
 vi.mock('@/lib/services/followup-rules', () => ({
   runFollowupRules: () => runFollowupRules(),
@@ -124,6 +129,7 @@ describe('retention-automations cron — authorized run', () => {
       balanceOutreach: { orgsScanned: 0, candidates: 0, sent: 0, skipped: 0 },
       paymentPlans: { scanned: 0, charged: 0, failed: 0, completed: 0 },
       npsSurveys: { orgsScanned: 0, candidates: 0, sent: 0, throttled: 0, skipped: 0, errors: [] },
+      loyalty: { orgsScanned: 0, earned: 0 },
     })
     expect(runRetentionAutomations).toHaveBeenCalledTimes(1)
     expect(runBalanceReminderCadence).toHaveBeenCalledTimes(1)

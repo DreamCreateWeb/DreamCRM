@@ -443,3 +443,20 @@ export async function getMyReferralLinkAction(): Promise<
     return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
   }
 }
+
+/** Loyalty: trade points for a single-use shop discount code (the service
+ *  re-checks the balance + program state — the card is just the messenger). */
+export async function redeemMyPointsAction(): Promise<
+  { ok: true; couponCode: string; valueCents: number } | { ok: false; error: string }
+> {
+  const ctx = await requirePatient()
+  try {
+    const { redeemLoyaltyPoints } = await import('@/lib/services/loyalty')
+    const r = await redeemLoyaltyPoints(ctx.organizationId, ctx.patientId)
+    if (!r.ok) return r
+    revalidatePath('/patient/dashboard')
+    return { ok: true, couponCode: r.couponCode, valueCents: r.valueCents }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+  }
+}

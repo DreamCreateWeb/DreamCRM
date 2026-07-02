@@ -58,6 +58,8 @@ function makeRow(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
     locationName: null,
     confirmedAt: null,
     cancelledAt: null,
+    arrivedAt: null,
+    seatedAt: null,
     reminderLastSentAt: null,
     createdAt: new Date('2026-05-10T12:00:00Z'),
     flags: {

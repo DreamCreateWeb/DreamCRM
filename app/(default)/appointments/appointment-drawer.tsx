@@ -23,6 +23,7 @@ import {
   addToWaitlistAction,
   markNoShowAction,
   markCompletedAction,
+  setArrivalStateAction,
   rescheduleAppointmentAction,
   sendReminderAction,
 } from './actions'
@@ -198,6 +199,22 @@ export default function AppointmentDrawer({
     startTransition(async () => {
       await markCompletedAction(appointmentId)
       flash('Marked completed.')
+      refresh()
+    })
+  }
+
+  function onArrival(state: 'arrived' | 'seated' | 'reset') {
+    startTransition(async () => {
+      const r = await setArrivalStateAction(appointmentId, state)
+      flash(
+        r.ok
+          ? state === 'arrived'
+            ? 'Marked arrived — they’re in the waiting room.'
+            : state === 'seated'
+              ? 'Seated.'
+              : 'Check-in cleared.'
+          : r.error,
+      )
       refresh()
     })
   }
@@ -390,6 +407,44 @@ export default function AppointmentDrawer({
                   </ActionButton>
                 )}
               </div>
+
+              {/* ── In-office flow (today's live visits): arrived → seated ── */}
+              {(detail.status === 'scheduled' || detail.status === 'confirmed') &&
+                new Date(detail.startTime).toDateString() === new Date().toDateString() && (
+                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
+                    <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+                      In office
+                    </span>
+                    {detail.seatedAt ? (
+                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                        🪑 In the chair
+                      </span>
+                    ) : detail.arrivedAt ? (
+                      <>
+                        <span className="text-xs font-medium text-sky-700 dark:text-sky-300">
+                          🚪 In the waiting room
+                        </span>
+                        <ActionButton variant="secondary" size="sm" onClick={() => onArrival('seated')} disabled={pending}>
+                          Seat patient
+                        </ActionButton>
+                      </>
+                    ) : (
+                      <ActionButton variant="secondary" size="sm" onClick={() => onArrival('arrived')} disabled={pending}>
+                        Patient arrived
+                      </ActionButton>
+                    )}
+                    {(detail.arrivedAt || detail.seatedAt) && (
+                      <button
+                        type="button"
+                        onClick={() => onArrival('reset')}
+                        disabled={pending}
+                        className="text-xs text-gray-400 hover:underline disabled:opacity-50"
+                      >
+                        undo
+                      </button>
+                    )}
+                  </div>
+                )}
 
               {/* ── Destructive actions — separated, never beside primary ── */}
               {isOpenState && (

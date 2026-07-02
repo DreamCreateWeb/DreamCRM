@@ -14,8 +14,10 @@ import {
 } from '@/lib/services/patient-portal'
 import { getPortalPageContext, toVisitCardData, mapsQueryFor } from '../portal-data'
 import { countReferrals } from '@/lib/services/patient-referrals'
+import { getLoyaltySettings, getPointsBalance } from '@/lib/services/loyalty'
 import VisitCard from '@/components/patient-portal/visit-card'
 import ReferCard from '@/components/patient-portal/refer-card'
+import LoyaltyCard from '@/components/patient-portal/loyalty-card'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import {
   PortalCard,
@@ -39,14 +41,18 @@ export default async function PortalHome() {
   const bookLabel = selfBookingEnabled ? 'Book a visit' : 'Request a visit'
   const bookSub = selfBookingEnabled ? 'See real openings' : 'We’ll find you a time'
 
-  const [me, upcoming, past, recall, pendingForms, referredCount] = await Promise.all([
+  const [me, upcoming, past, recall, pendingForms, referredCount, loyalty] = await Promise.all([
     getMyPatientRecord(ctx.patientId, ctx.organizationId),
     getUpcomingVisits(pc.allowedPatientIds, ctx.organizationId),
     getPastVisits([ctx.patientId], ctx.organizationId),
     getMyRecallStatus(ctx.patientId, ctx.organizationId),
     settings.features.forms ? getMyPendingForms(ctx.patientId, ctx.organizationId) : Promise.resolve([]),
     countReferrals(ctx.organizationId, ctx.patientId),
+    getLoyaltySettings(ctx.organizationId),
   ])
+  const loyaltyBalance = loyalty.enabled
+    ? await getPointsBalance(ctx.organizationId, ctx.patientId)
+    : 0
 
   const firstName = me?.firstName ?? null
   const headline = settings.copy.welcomeHeadline
@@ -213,6 +219,19 @@ export default async function PortalHome() {
               </Link>
             ))}
           </div>
+        </section>
+      )}
+
+      {loyalty.enabled && (
+        <section className="mt-7">
+          <PortalSectionLabel>Rewards</PortalSectionLabel>
+          <LoyaltyCard
+            brand={brand}
+            balance={loyaltyBalance}
+            redeemPoints={loyalty.redeemPoints}
+            redeemValueCents={loyalty.redeemValueCents}
+            shopHref={settings.features.shopLink ? '/patient/shop' : null}
+          />
         </section>
       )}
 

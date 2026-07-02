@@ -690,6 +690,13 @@ function AppointmentRowCard({
           <StatusPill tone={STATUS_TONE[status]} title={STATUS_TITLE[status]}>
             {STATUS_LABEL[status]}
           </StatusPill>
+          {/* In-office flow breadcrumb — set from the drawer on today's visits. */}
+          {(status === 'scheduled' || status === 'confirmed') &&
+            (row.seatedAt ? (
+              <StatusPill tone="ok" title="In the chair">🪑 Seated</StatusPill>
+            ) : row.arrivedAt ? (
+              <StatusPill tone="info" title="Checked in — in the waiting room">🚪 Arrived</StatusPill>
+            ) : null)}
           {row.needsRebooking && (
             <StatusPill tone="warn" title="Cancelled / no-show with nothing booked ahead — open this row to rebook">
               ↩ Rebook

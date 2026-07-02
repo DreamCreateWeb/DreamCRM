@@ -3,6 +3,7 @@ import { runRetentionAutomations } from '@/lib/services/retention-automation'
 import { runBalanceReminderCadence } from '@/lib/services/balance-outreach'
 import { runDuePlanCharges } from '@/lib/services/payment-plans'
 import { runDueNpsSurveys } from '@/lib/services/nps'
+import { runLoyaltyAccrual } from '@/lib/services/loyalty'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,7 +48,12 @@ async function run(request: Request) {
       console.warn('[retention-automations] NPS surveys failed', err)
       return null
     })
-    return NextResponse.json({ ok: true, ...result, balanceOutreach: balance, paymentPlans: planCharges, npsSurveys: nps })
+    // Loyalty accrual sweep (idempotent by the unique source index).
+    const loyalty = await runLoyaltyAccrual().catch((err) => {
+      console.warn('[retention-automations] loyalty accrual failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, balanceOutreach: balance, paymentPlans: planCharges, npsSurveys: nps, loyalty })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

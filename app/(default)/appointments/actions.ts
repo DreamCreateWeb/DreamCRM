@@ -442,3 +442,19 @@ export async function deleteAppointmentViewAction(
     return { ok: false, error: err instanceof Error ? err.message : 'Could not delete the view' }
   }
 }
+
+/** In-office flow: arrived → seated (reset for mis-taps). Today's agenda +
+ *  the drawer call this; My Day mirrors the chips read-only. */
+export async function setArrivalStateAction(
+  appointmentId: string,
+  state: 'arrived' | 'seated' | 'reset',
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireClinicTenant()
+  const { setArrivalState } = await import('@/lib/services/appointments')
+  const r = await setArrivalState(ctx.organizationId, appointmentId, state)
+  if (r.ok) {
+    revalidatePath('/appointments')
+    revalidatePath('/my-day')
+  }
+  return r
+}

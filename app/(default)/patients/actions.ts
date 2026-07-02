@@ -1004,3 +1004,20 @@ export async function importPatientsAction(
   revalidatePath('/')
   return { ok: true, ...summary }
 }
+
+/** Loyalty: staff point adjustment (comp / correction) with a required note. */
+export async function adjustLoyaltyPointsAction(
+  patientId: string,
+  points: number,
+  note: string,
+): Promise<{ ok: true; newBalance: number } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic staff can adjust points' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, error: 'Only owners and admins can adjust points' }
+  }
+  const { adjustLoyaltyPoints } = await import('@/lib/services/loyalty')
+  const r = await adjustLoyaltyPoints(ctx.organizationId, patientId, points, note, ctx.userId)
+  if (r.ok) revalidatePath(`/patients/${patientId}`)
+  return r
+}

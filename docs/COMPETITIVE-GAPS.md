@@ -238,9 +238,17 @@ We're already ahead of most vendors here EXCEPT:
   Surfaces: "Tomorrow's patients — worth a look" on My Day + a 🔍 section
   in the morning digest. Later: family-member-due consolidation, more
   checks as data sources land (insurance eligibility, procedure prep).
-- ✗ Patient-arrival / in-office flow board (YAPI dashboard, DI LiveOps) —
-  check-in → seated → ready states. **P3** (needs in-office usage patterns).
-- ✗ Team chat (Weave/DI/YAPI/RW). **P3 — big lift, weigh vs Slack.**
+- ✅ **Patient-arrival / in-office flow** (YAPI dashboard, DI LiveOps) —
+  SHIPPED 2026-07-02, deliberately lean until real in-office usage patterns
+  emerge: today's live visits get arrived → seated breadcrumbs (timestamps,
+  never touching the lifecycle status) — set from the appointment drawer's
+  "In office" row, shown as 🚪/🪑 pills on the agenda and My Day's schedule,
+  with an undo for mis-taps. Later: a dedicated wall-board view, wait-time
+  aging, ready-for-doctor state — once a clinic actually runs a day on it.
+- ⏭ **Team chat** (Weave/DI/YAPI/RW) — DECIDED 2026-07-02: skip. The weigh
+  vs Slack came out firmly Slack/Teams — a big build that would ship a worse
+  chat than free incumbents, far from our website/portal/commerce moat.
+  Revisit only if a mobile app ships and in-office pings become natural.
 
 ### 6. Reviews
 Current: Google-first auto-loop, threshold auto-feature, hide, private
@@ -259,9 +267,12 @@ feedback, FB read-only, escalation, sidebar badge.
   clinical detail; low ratings apologize + invite a call). Metered via
   ai_usage_counter kind 'review_reply_draft' (premium 200 / pro 80 / basic
   20 per month).
-- ✗ Review-site steering by patient email domain (Lighthouse Gmail→Google).
-  **P3 — cute, low value for us (already Google-first).**
-- ✗ Competitor benchmarking (SR). **P3.**
+- ⏭ Review-site steering by patient email domain (Lighthouse Gmail→Google) —
+  DECIDED 2026-07-02: skip permanently. Our landing is already Google-first
+  for every patient; domain-based steering changes nothing.
+- ⏭ Competitor benchmarking (SR) — DECIDED 2026-07-02: skip until an honest
+  data source exists (Zernio exposes no competitor GBP data; we don't fake
+  market stats). Revisit if a places-data integration lands.
 
 ### 7. Intake Forms
 Current: v2 overhaul (types, conditional, OCR, AI summary, Spanish,
@@ -274,16 +285,23 @@ packets, auto-send, reminders, OD chart mirror).
   to the patient's phone, front-desk PIN to exit.
 - ✗ **Procedure-code-triggered consent auto-send** (DI/YAPI: consent forms
   auto-attach when procedure codes appear on the schedule) — post-OD. **P2.**
-- ✗ Virtual check-in / arrival-by-text (SR/DI/YAPI). **P3 (📵 for text).**
+- 📵 Virtual check-in / arrival-by-text (SR/DI/YAPI) — blocked on SMS
+  (Phase B); the in-office arrival flow (§5) covers the front-desk half.
 - ✅ Everything else is at or above parity.
 
 ### 8. Patients
 Current: relationship record, tags, docs, merge, saved views, timeline,
 import/export, bulk comms, portal invites.
 
-- ✗ **Loyalty program** (DI's unique feature) — points for kept visits /
-  referrals / on-time payment, redeemed in OUR shop (no vendor can match the
-  redemption side). **P2/P3 — differentiator, pairs with referrals.**
+- ✅ **Loyalty program** (DI's unique feature) — SHIPPED 2026-07-02 with the
+  redemption side no vendor can match: points spend in the clinic's OWN
+  shop. Opt-in (default OFF, config card on /shop): kept visits, referrals
+  that show up, and online payments earn configurable points via a daily
+  idempotent sweep (unique-source ledger — nothing double-earns); the
+  patient's portal shows a rewards card that redeems the threshold for a
+  single-use patient-bound shop coupon; the patient record shows balance +
+  recent ledger with owner/admin adjust (note required). Demo: program on,
+  Mia redeem-ready. Later: earn-on-review, tier levels, points expiry.
 - ✅ Household/family view — SHIPPED 2026-07-02. "Family" card on the
   patient record (guardian / dependents / same-household via the portal's
   guardian links; getFamilyForPatient) — the front desk sees the household

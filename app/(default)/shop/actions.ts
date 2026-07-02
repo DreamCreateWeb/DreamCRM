@@ -65,3 +65,24 @@ export async function setOrderFulfillmentAction(id: string, status: FulfillmentS
   await setOrderFulfillment(ctx.organizationId, id, status, trackingNumber)
   revalidatePath('/shop/orders')
 }
+
+/** Loyalty program config — the points card at the bottom of the Shop hub.
+ *  Owner/admin via the same clinic+plan gate as every shop mutation. */
+export async function saveLoyaltySettingsAction(input: {
+  enabled: boolean
+  pointsPerVisit: number
+  pointsPerReferral: number
+  pointsPerPayment: number
+  redeemPoints: number
+  redeemValueCents: number
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const ctx = await ensureClinicAdmin()
+    const { updateLoyaltySettings } = await import('@/lib/services/loyalty')
+    await updateLoyaltySettings(ctx.organizationId, input)
+    revalidatePath('/shop')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save.' }
+  }
+}

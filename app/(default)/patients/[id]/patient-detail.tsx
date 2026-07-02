@@ -21,6 +21,7 @@ import TagsPanel from './tags-panel'
 import DocumentsPanel from './documents-panel'
 import FollowupsPanel from './followups-panel'
 import MergeDuplicate from './merge-duplicate'
+import LoyaltyPanel, { type LoyaltyPanelData } from './loyalty-panel'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import type { PatientDocumentRow } from '@/lib/types/patient-documents'
 import type { PatientFollowupView } from '@/lib/types/followups'
@@ -134,6 +135,8 @@ export default function PatientDetail({
   mergeCandidates = [],
   family = [],
   referral = null,
+  loyalty = null,
+  canAdjustLoyalty = false,
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -152,6 +155,9 @@ export default function PatientDetail({
   mergeCandidates?: Array<{ id: string; name: string; email: string | null; phone: string | null; reason: string }>
   family?: FamilyMemberView[]
   referral?: ReferralContext | null
+  /** Rewards data when the loyalty program is on; null hides the card. */
+  loyalty?: LoyaltyPanelData | null
+  canAdjustLoyalty?: boolean
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
   const confirm = useConfirm()
@@ -327,6 +333,9 @@ export default function PatientDetail({
           {family.length > 0 && <FamilyCard family={family} />}
           {referral && (referral.referredBy || referral.referred.length > 0) && (
             <ReferralCard referral={referral} />
+          )}
+          {loyalty && (
+            <LoyaltyPanel patientId={header.id} data={loyalty} canAdjust={canAdjustLoyalty} />
           )}
         </aside>
 

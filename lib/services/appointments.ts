@@ -63,6 +63,9 @@ export interface AppointmentRow {
   locationName: string | null
   confirmedAt: Date | null
   cancelledAt: Date | null
+  /** In-office flow breadcrumbs (the lean arrival board) — today's visits only. */
+  arrivedAt: Date | null
+  seatedAt: Date | null
   reminderLastSentAt: Date | null
   createdAt: Date
   flags: AppointmentRowFlags
@@ -264,6 +267,8 @@ export async function listAppointments(
       locationName: schema.clinicLocation.name,
       confirmedAt: schema.appointment.confirmedAt,
       cancelledAt: schema.appointment.cancelledAt,
+      arrivedAt: schema.appointment.arrivedAt,
+      seatedAt: schema.appointment.seatedAt,
       rescheduledFromAppointmentId: schema.appointment.rescheduledFromAppointmentId,
       createdAt: schema.appointment.createdAt,
       pmsBalanceCents: schema.patient.pmsBalanceCents,
@@ -412,6 +417,8 @@ export async function listAppointments(
       locationName: r.locationName,
       confirmedAt: r.confirmedAt,
       cancelledAt: r.cancelledAt,
+      arrivedAt: r.arrivedAt,
+      seatedAt: r.seatedAt,
       reminderLastSentAt: lastReminder,
       createdAt: r.createdAt,
       flags: {
@@ -539,6 +546,8 @@ export async function getAppointmentDetail(
       locationName: schema.clinicLocation.name,
       confirmedAt: schema.appointment.confirmedAt,
       cancelledAt: schema.appointment.cancelledAt,
+      arrivedAt: schema.appointment.arrivedAt,
+      seatedAt: schema.appointment.seatedAt,
       rescheduledFromAppointmentId: schema.appointment.rescheduledFromAppointmentId,
       createdAt: schema.appointment.createdAt,
       pmsBalanceCents: schema.patient.pmsBalanceCents,
@@ -702,6 +711,8 @@ export async function getAppointmentDetail(
     locationName: base.locationName,
     confirmedAt: base.confirmedAt,
     cancelledAt: base.cancelledAt,
+    arrivedAt: base.arrivedAt,
+    seatedAt: base.seatedAt,
     reminderLastSentAt,
     createdAt: base.createdAt,
     flags: {
@@ -765,6 +776,42 @@ async function setAppointmentState(
         eq(schema.appointment.id, appointmentId),
       ),
     )
+}
+
+/**
+ * In-office flow (the lean arrival board): mark today's patient arrived, then
+ * seated; reset clears both (mis-tap). Timestamps only — appointment.status
+ * stays the lifecycle truth (completing/cancelling is separate). Only live
+ * (scheduled/confirmed) visits can move; anything else is a stale drawer.
+ */
+export async function setArrivalState(
+  organizationId: string,
+  appointmentId: string,
+  state: 'arrived' | 'seated' | 'reset',
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [row] = await db
+    .select({ status: schema.appointment.status, arrivedAt: schema.appointment.arrivedAt })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, organizationId),
+        eq(schema.appointment.id, appointmentId),
+      ),
+    )
+    .limit(1)
+  if (!row) return { ok: false, error: 'Appointment not found' }
+  if (row.status !== 'scheduled' && row.status !== 'confirmed') {
+    return { ok: false, error: 'Only a live visit can be checked in.' }
+  }
+  const now = new Date()
+  const patch =
+    state === 'arrived'
+      ? { arrivedAt: now, seatedAt: null }
+      : state === 'seated'
+        ? { arrivedAt: row.arrivedAt ?? now, seatedAt: now }
+        : { arrivedAt: null, seatedAt: null }
+  await setAppointmentState(organizationId, appointmentId, patch)
+  return { ok: true }
 }
 
 /**

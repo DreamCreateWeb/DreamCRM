@@ -305,6 +305,12 @@ export const appointment = pgTable('appointment', {
   cancelledAt: timestamp('cancelled_at'),
   completedAt: timestamp('completed_at'),
   noShowedAt: timestamp('no_showed_at'),
+  // In-office flow (the lean arrival board): front desk marks the patient
+  // arrived, then seated. Timestamps, not a status enum — the visit's real
+  // status field stays the lifecycle truth; these are same-day operational
+  // breadcrumbs shown on today's agenda + My Day.
+  arrivedAt: timestamp('arrived_at'),
+  seatedAt: timestamp('seated_at'),
   // How the confirmation came in: 'sms' | 'email' | 'manual' | 'auto_sms_keyword' | 'portal'
   confirmedVia: text('confirmed_via'),
   // Token-IS-auth for the public one-click confirm landing (/c/[token]) linked
@@ -1486,6 +1492,37 @@ export const balancePaymentRequest = pgTable(
   ],
 )
 export type BalancePaymentRequest = typeof balancePaymentRequest.$inferSelect
+
+// Loyalty ledger (DI's points program, with the redemption moat no vendor
+// can match: points spend in OUR shop). One row per earn/redeem/adjust;
+// balance = sum(points). Earning is a daily idempotent sweep (unique
+// (org, kind, source_id) — a visit/referral/payment earns exactly once);
+// redemption mints a single-use patient-bound shop coupon. Opt-in per clinic
+// (clinic_profile.loyalty jsonb, default OFF).
+export const loyaltyEvent = pgTable(
+  'loyalty_event',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    // 'visit' | 'referral' | 'payment' | 'redeem' | 'adjust'
+    kind: text('kind').notNull(),
+    // Positive = earned; negative = redeemed/adjusted away.
+    points: integer('points').notNull(),
+    // Idempotency anchor: the appointment/referred-patient/payment id that
+    // earned the points ('adjust'/'redeem' rows use their own event id).
+    sourceId: text('source_id').notNull(),
+    note: text('note'),
+    createdByUserId: text('created_by_user_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('loyalty_event_source_idx').on(t.organizationId, t.kind, t.sourceId),
+    index('loyalty_event_patient_idx').on(t.patientId, t.createdAt),
+    index('loyalty_event_org_idx').on(t.organizationId, t.createdAt),
+  ],
+)
+export type LoyaltyEvent = typeof loyaltyEvent.$inferSelect
 
 // Post-visit NPS survey responses ("How likely are you to recommend us?",
 // 0–10 + an optional comment). One row per SENT survey; score null until the
