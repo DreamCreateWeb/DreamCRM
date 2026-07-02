@@ -201,8 +201,11 @@ feedback, FB read-only, escalation, sidebar badge.
 Current: v2 overhaul (types, conditional, OCR, AI summary, Spanish,
 packets, auto-send, reminders, OD chart mirror).
 
-- ✗ **In-office kiosk/tablet mode** (Weave/Adit/YAPI/DI) — locked-down
-  fill-at-the-desk mode + QR handoff. **P2.**
+- ✅ **In-office kiosk/tablet mode** — SHIPPED 2026-07-02. "Kiosk ↗" on
+  each /intake-forms row opens the public form with `?kiosk=1`: chrome
+  locked (no links off the form), post-submit screen says "hand it back"
+  and auto-resets to a blank form for the next patient. Later: QR handoff
+  to the patient's phone, front-desk PIN to exit.
 - ✗ **Procedure-code-triggered consent auto-send** (DI/YAPI: consent forms
   auto-attach when procedure codes appear on the schedule) — post-OD. **P2.**
 - ✗ Virtual check-in / arrival-by-text (SR/DI/YAPI). **P3 (📵 for text).**

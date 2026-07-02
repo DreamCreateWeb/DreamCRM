@@ -13,6 +13,7 @@ import { submitIntakeForm, readInsuranceCardAction } from './actions'
 
 interface Props {
   params: Promise<{ slug: string; formSlug: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -33,12 +34,18 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
-export default async function IntakeFormPage({ params }: Props) {
+export default async function IntakeFormPage({ params, searchParams }: Props) {
   const { slug, formSlug } = await params
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
   const template = await getFormTemplateBySlug(data.orgId, formSlug)
   if (!template) notFound()
+
+  // Kiosk mode (?kiosk=1) — fill-at-the-desk tablet. Locks the chrome (no
+  // links off the form) and auto-resets after each submission so the front
+  // desk can hand the tablet patient-to-patient. Launched from /intake-forms.
+  const sp = searchParams ? await searchParams : {}
+  const kiosk = sp.kiosk === '1'
 
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
@@ -65,7 +72,7 @@ export default async function IntakeFormPage({ params }: Props) {
         style={{ backgroundColor: 'var(--c-bg, #FAF7F2)', borderColor: BORDER }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between gap-4">
-          <a href={basePath} className="flex items-center gap-3 min-w-0">
+          <KioskAwareHome href={basePath} kiosk={kiosk}>
             {data.profile.logoUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -84,7 +91,7 @@ export default async function IntakeFormPage({ params }: Props) {
             <span className="font-semibold text-[17px] leading-tight truncate" style={{ color: INK }}>
               {name}
             </span>
-          </a>
+          </KioskAwareHome>
         </div>
       </header>
 
@@ -133,6 +140,7 @@ export default async function IntakeFormPage({ params }: Props) {
                 action={submitIntakeForm}
                 ocrAction={readInsuranceCardAction}
                 translations={template.translations as FormTranslations | null}
+                kioskMode={kiosk}
               />
             </div>
           </ScrollReveal>
@@ -144,18 +152,42 @@ export default async function IntakeFormPage({ params }: Props) {
           className="max-w-[1240px] mx-auto px-5 sm:px-8 py-8 text-center text-sm"
           style={{ color: INK_MUTED }}
         >
-          © {new Date().getFullYear()} {name} · Powered by{' '}
-          <a
-            href="https://dreamcreateweb.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium hover:underline"
-            style={{ color: INK }}
-          >
-            DreamCreate
-          </a>
+          © {new Date().getFullYear()} {name}
+          {!kiosk && (
+            <>
+              {' '}· Powered by{' '}
+              <a
+                href="https://dreamcreateweb.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium hover:underline"
+                style={{ color: INK }}
+              >
+                DreamCreate
+              </a>
+            </>
+          )}
         </div>
       </footer>
     </div>
+  )
+}
+
+/** The header identity: a home link normally; inert in kiosk mode so a
+ *  patient can't wander off the form on the front-desk tablet. */
+function KioskAwareHome({
+  href,
+  kiosk,
+  children,
+}: {
+  href: string
+  kiosk: boolean
+  children: React.ReactNode
+}) {
+  if (kiosk) return <span className="flex items-center gap-3 min-w-0">{children}</span>
+  return (
+    <a href={href} className="flex items-center gap-3 min-w-0">
+      {children}
+    </a>
   )
 }

@@ -148,6 +148,15 @@ export default async function IntakeFormsListPage() {
                     <ActionButton variant="secondary" size="sm" href={fillUrl} target="_blank">
                       Preview ↗
                     </ActionButton>
+                    <ActionButton
+                      variant="ghost"
+                      size="sm"
+                      href={`${fillUrl}?kiosk=1`}
+                      target="_blank"
+                      title="Fill-at-the-desk tablet mode — locked chrome, auto-resets for the next patient after each submission"
+                    >
+                      Kiosk ↗
+                    </ActionButton>
                     <ActionButton variant="ghost" size="sm" href={`/intake-forms/${t.id}`}>
                       Edit
                     </ActionButton>

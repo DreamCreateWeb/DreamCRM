@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   FormField,
   FormFieldValue,
@@ -92,9 +92,12 @@ interface Props {
   onComplete?: () => void
   /** Optional progress label shown above the form (e.g. "Form 2 of 3"). */
   progressLabel?: string
+  /** Kiosk mode (fill-at-the-desk tablet): the success screen says "hand it
+   *  back" and auto-resets to a blank form for the next patient. */
+  kioskMode?: boolean
 }
 
-export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues, translations, onComplete, progressLabel }: Props) {
+export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues, translations, onComplete, progressLabel, kioskMode }: Props) {
   const [values, setValues] = useState<FormSubmissionData>(() => initialValues ?? {})
   const prefilled = !!initialValues && Object.keys(initialValues).length > 0
   const hasEs = !!translations?.es && Object.keys(translations.es).length > 0
@@ -212,6 +215,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         className="rounded-2xl p-10 text-center"
         style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
       >
+        {kioskMode && <KioskReset />}
         <div
           className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
           style={{ backgroundColor: brand + '22' }}
@@ -231,8 +235,15 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
           {t.allSet}
         </h2>
         <p className="leading-relaxed max-w-sm mx-auto" style={{ color: INK_MUTED }}>
-          {t.received(clinicName)}
+          {kioskMode
+            ? 'You can hand this back to the front desk — thanks!'
+            : t.received(clinicName)}
         </p>
+        {kioskMode && (
+          <p className="mt-4 text-xs" style={{ color: INK_MUTED }}>
+            Getting ready for the next patient…
+          </p>
+        )}
       </div>
     )
   }
@@ -842,4 +853,14 @@ function InsuranceCardInput({
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
     </div>
   )
+}
+
+/** Kiosk-mode reset: after a submission the tablet returns itself to a blank
+ *  form so the front desk never has to touch it between patients. */
+function KioskReset() {
+  useEffect(() => {
+    const id = window.setTimeout(() => window.location.reload(), 8000)
+    return () => window.clearTimeout(id)
+  }, [])
+  return null
 }
