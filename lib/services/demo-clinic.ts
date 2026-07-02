@@ -2500,6 +2500,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Payment-plan self-heal: Marcus's active 6-month autopay showcase.
     await seedDemoPaymentPlan(existing.id, new Date(), existingPatientIds)
 
+    // Preferred-language self-heal: Sophia prefers Spanish (only-when-null).
+    await seedDemoPreferredLanguage(existing.id, existingPatientIds)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -3180,6 +3183,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Payment-plan showcase: Marcus's active 6-month autopay plan (2 paid).
   await seedDemoPaymentPlan(orgId, now, patientIds)
+
+  // Preferred-language showcase: Sophia prefers Spanish (only-when-null).
+  await seedDemoPreferredLanguage(orgId, patientIds)
 
   return {
     organizationId: orgId,
@@ -4808,6 +4814,30 @@ async function seedDemoReferral(
         ),
       )
   }
+}
+
+/**
+ * Preferred-language showcase: Sophia (persona 4 — she has a seeded /messages
+ * thread) prefers Spanish, so the "Prefers Spanish" chip + the composer's
+ * one-tap translate render in the demo. Only-when-null: a staff-set choice
+ * (or a real intake stamp) is never overwritten.
+ */
+async function seedDemoPreferredLanguage(
+  orgId: string,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const sophiaId = patientIds[4]
+  if (!sophiaId) return
+  await db
+    .update(schema.patient)
+    .set({ preferredLanguage: 'es' })
+    .where(
+      and(
+        eq(schema.patient.id, sophiaId),
+        eq(schema.patient.organizationId, orgId),
+        isNull(schema.patient.preferredLanguage),
+      ),
+    )
 }
 
 /**

@@ -74,6 +74,10 @@ export interface ThreadRow {
   lastMessagePreview: string | null
   unreadCount: number
   starred: boolean
+  /** AI triage on the latest inbound message — 'urgent' pins the thread to
+   *  the top of the list with its reason; null = routine/unclassified. */
+  urgency: 'urgent' | null
+  urgencyReason: string | null
   createdAt: Date
 }
 
@@ -251,6 +255,8 @@ export async function listPatientThreads(
       lastMessageChannel: schema.patientThread.lastMessageChannel,
       unreadCount: schema.patientThread.unreadCountForClinic,
       starred: schema.patientThread.starred,
+      urgency: schema.patientThread.urgency,
+      urgencyReason: schema.patientThread.urgencyReason,
       createdAt: schema.patientThread.createdAt,
       lastMessagePreview: sql<string | null>`(
         select body from ${schema.patientMessage} m
@@ -262,7 +268,12 @@ export async function listPatientThreads(
     .innerJoin(schema.patient, eq(schema.patientThread.patientId, schema.patient.id))
     .leftJoin(schema.user, eq(schema.patientThread.assignedUserId, schema.user.id))
     .where(and(...where))
-    .orderBy(desc(schema.patientThread.lastMessageAt))
+    // Urgent threads pin to the top of every view — a patient in pain never
+    // scrolls below yesterday's routine question.
+    .orderBy(
+      sql`case when ${schema.patientThread.urgency} = 'urgent' then 0 else 1 end`,
+      desc(schema.patientThread.lastMessageAt),
+    )
 
   let filtered = rows
   if (filters.search && filters.search.trim().length > 0) {
@@ -298,6 +309,8 @@ export async function listPatientThreads(
     lastMessagePreview: r.lastMessagePreview,
     unreadCount: r.unreadCount,
     starred: r.starred,
+    urgency: r.urgency === 'urgent' ? 'urgent' : null,
+    urgencyReason: r.urgencyReason,
     createdAt: r.createdAt,
   }))
 }
@@ -392,6 +405,9 @@ export interface ThreadPatientContext {
   balanceAsOf: string | null
   /** True when a visit is booked within 7d and no intake form is on file. */
   missingIntake: boolean
+  /** 'es' when the patient prefers Spanish — drives the composer's one-tap
+   *  translate + the "prefers Spanish" chip. Null = English. */
+  preferredLanguage: string | null
 }
 
 export async function getThreadPatientContext(
@@ -411,6 +427,7 @@ export async function getThreadPatientContext(
     outstandingBalanceCents: header.outstandingBalanceCents,
     balanceAsOf: header.balanceAsOf ? header.balanceAsOf.toISOString() : null,
     missingIntake: header.flags.missingIntakeBeforeAppt,
+    preferredLanguage: header.preferredLanguage,
   }
 }
 
@@ -441,6 +458,8 @@ export async function getPatientThreadById(
       lastMessageChannel: schema.patientThread.lastMessageChannel,
       unreadCount: schema.patientThread.unreadCountForClinic,
       starred: schema.patientThread.starred,
+      urgency: schema.patientThread.urgency,
+      urgencyReason: schema.patientThread.urgencyReason,
       createdAt: schema.patientThread.createdAt,
     })
     .from(schema.patientThread)
@@ -471,6 +490,8 @@ export async function getPatientThreadById(
     lastMessagePreview: null,
     unreadCount: row.unreadCount,
     starred: row.starred,
+    urgency: row.urgency === 'urgent' ? 'urgent' : null,
+    urgencyReason: row.urgencyReason,
     createdAt: row.createdAt,
   }
 }
@@ -741,6 +762,9 @@ export async function sendMessageToPatient(input: {
       // If a thread was snoozed, sending implicitly reopens it.
       status: 'open',
       snoozedUntil: null,
+      // A staff reply means the urgent inbound has been handled — unpin.
+      urgency: null,
+      urgencyReason: null,
       updatedAt: now,
     })
     .where(eq(schema.patientThread.id, threadId))
@@ -938,6 +962,14 @@ export async function recordInboundMessage(input: {
   if (input.channel === 'in_app') {
     await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId)
   }
+
+  // Urgency triage — fire-and-forget so the sender's request never waits on
+  // a classifier. Keyword screen first; AI confirm inside (see thread-triage).
+  import('@/lib/services/thread-triage')
+    .then(({ classifyInboundUrgency }) =>
+      classifyInboundUrgency(input.organizationId, threadId, input.body),
+    )
+    .catch((err) => console.warn('[patient-messaging] urgency triage failed', err))
 
   return { threadId, messageId }
 }

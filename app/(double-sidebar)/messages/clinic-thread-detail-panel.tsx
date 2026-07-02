@@ -17,6 +17,7 @@ import {
   assignThreadAction,
   cancelScheduledMessageAction,
   draftReplyAction,
+  translateMessageAction,
   markUnreadAction,
   reopenThreadAction,
   scheduleMessageAction,
@@ -46,6 +47,9 @@ interface ThreadHeader {
   snoozedUntil: string | null
   lastMessageChannel: Channel | null
   starred?: boolean
+  /** AI triage: 'urgent' shows the header banner with its reason. */
+  urgency?: 'urgent' | null
+  urgencyReason?: string | null
 }
 
 interface SerializedMessage {
@@ -84,6 +88,8 @@ interface PatientContext {
   outstandingBalanceCents: number | null
   balanceAsOf: string | null
   missingIntake: boolean
+  /** 'es' when the patient prefers Spanish (chip + one-tap translate). */
+  preferredLanguage?: string | null
 }
 
 interface Props {
@@ -315,6 +321,7 @@ export default function ThreadDetailPanel({
   const [pending, startTransition] = useTransition()
   const [body, setBody] = useState('')
   const [drafting, setDrafting] = useState(false)
+  const [translating, setTranslating] = useState(false)
   const [attachments, setAttachments] = useState<MessageAttachment[]>([])
   const [uploading, setUploading] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -572,6 +579,30 @@ export default function ThreadDetailPanel({
       })
       .catch(() => setToast("Couldn't draft a reply just now. Please try again."))
       .finally(() => setDrafting(false))
+  }
+
+  // Translate the composer draft into the patient's preferred language —
+  // replaces the box contents for review before sending (never auto-sends).
+  function handleTranslate() {
+    if (translating || !body.trim()) return
+    setTranslating(true)
+    void translateMessageAction(body, 'es')
+      .then((res) => {
+        if (res.ok) {
+          setBody(res.translated)
+          setToast('Translated to Spanish — give it a read before sending')
+        } else {
+          setToast(
+            res.reason === 'no_allowance'
+              ? "You've used this month's AI assists — they reset on the 1st."
+              : res.reason === 'not_configured'
+                ? 'Translation isn’t available yet.'
+                : "Couldn't translate just now. Please try again.",
+          )
+        }
+      })
+      .catch(() => setToast("Couldn't translate just now. Please try again."))
+      .finally(() => setTranslating(false))
   }
 
   return (
@@ -856,7 +887,27 @@ export default function ThreadDetailPanel({
                 </span>
               </>
             )}
+            {patientContext.preferredLanguage === 'es' && (
+              <>
+                <StripDivider />
+                <span
+                  className="inline-flex items-center gap-1 rounded-[var(--r-xs)] bg-violet-500/15 px-1.5 py-0.5 font-medium text-violet-700 dark:text-violet-300"
+                  title="This patient prefers Spanish — the composer can translate your reply in one tap"
+                >
+                  🌐 Prefers Spanish
+                </span>
+              </>
+            )}
           </Link>
+        )}
+
+        {/* Urgency banner — the AI triage read on the latest inbound message.
+            Clears automatically when someone replies (handled). */}
+        {thread.urgency === 'urgent' && (
+          <div className="mt-2.5 rounded-[var(--r-sm)] bg-rose-500/10 ring-1 ring-inset ring-rose-500/30 px-3 py-2 text-xs font-medium text-rose-800 dark:text-rose-200">
+            🚨 Reads urgent{thread.urgencyReason ? ` — ${thread.urgencyReason}` : ''}. A reply clears
+            this flag.
+          </div>
         )}
 
         {/* Tags — group this patient (VIP / anxious / recare) right from the
@@ -1103,6 +1154,21 @@ export default function ThreadDetailPanel({
                 >
                   <span aria-hidden="true">✨</span>
                   {drafting ? 'Drafting…' : 'Draft'}
+                </button>
+              )}
+              {aiEnabled && patientContext?.preferredLanguage === 'es' && (
+                // Preferred-language sending: one tap turns the drafted reply
+                // into Spanish for review. Only offered when the patient's
+                // record says they prefer it — no speculative UI for everyone.
+                <button
+                  type="button"
+                  onClick={handleTranslate}
+                  disabled={translating || !body.trim()}
+                  title="Translate your draft to Spanish — this patient prefers it"
+                  className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-violet-300/70 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-500/15 disabled:opacity-50 disabled:pointer-events-none dark:border-violet-400/30 dark:text-violet-300 transition-colors"
+                >
+                  <span aria-hidden="true">🌐</span>
+                  {translating ? 'Translating…' : 'Español'}
                 </button>
               )}
               {/* Attach photos — opens the OS file picker; uploads land in the

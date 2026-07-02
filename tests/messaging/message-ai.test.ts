@@ -44,6 +44,7 @@ import {
   draftPatientReply,
   messageDraftAllowance,
   getMessageDraftUsage,
+  translateMessage,
 } from '@/lib/services/message-ai'
 
 beforeEach(() => {
@@ -134,6 +135,42 @@ describe('draftPatientReply', () => {
   it('degrades to failed when the tool result is malformed', async () => {
     runClaudeJson.mockResolvedValue({ notReply: 123 })
     expect(await draftPatientReply(input)).toEqual({ ok: false, reason: 'failed' })
+    expect(insertCalls).toHaveLength(0)
+  })
+})
+
+describe('translateMessage (preferred-language sending)', () => {
+  it('translates + meters against the shared allowance pool', async () => {
+    runClaudeJson.mockResolvedValue({ translated: 'Hola María — su cita es el jueves a las 2:00 PM.' })
+    const r = await translateMessage({
+      organizationId: 'org_1',
+      text: 'Hi Maria — your visit is Thursday at 2:00 PM.',
+      target: 'es',
+      planTier: 'premium',
+    })
+    expect(r).toMatchObject({ ok: true, translated: expect.stringContaining('Hola María') })
+    expect(insertCalls).toHaveLength(1) // shares the message_draft meter
+    const arg = runClaudeJson.mock.calls[0][0] as { system: string }
+    expect(arg.system).toContain('Spanish')
+  })
+
+  it('guards: empty text, over-cap, unconfigured — never throws', async () => {
+    expect(await translateMessage({ organizationId: 'o', text: '  ', target: 'es', planTier: 'pro' }))
+      .toEqual({ ok: false, reason: 'empty' })
+    selectResult = [{ count: 600 }] // premium cap spent
+    expect(await translateMessage({ organizationId: 'o', text: 'Hi', target: 'es', planTier: 'premium' }))
+      .toEqual({ ok: false, reason: 'no_allowance' })
+    selectResult = []
+    aiConfigured.mockReturnValue(false)
+    expect(await translateMessage({ organizationId: 'o', text: 'Hi', target: 'es', planTier: 'pro' }))
+      .toEqual({ ok: false, reason: 'not_configured' })
+    expect(runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('degrades to failed on a model error (no usage burned)', async () => {
+    runClaudeJson.mockRejectedValue(new Error('boom'))
+    expect(await translateMessage({ organizationId: 'o', text: 'Hi', target: 'es', planTier: 'pro' }))
+      .toEqual({ ok: false, reason: 'failed' })
     expect(insertCalls).toHaveLength(0)
   })
 })

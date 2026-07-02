@@ -48,6 +48,7 @@ function header(overrides: Partial<PatientHeader> = {}): PatientHeader {
     guardianPatientId: null,
     mergedIntoPatientId: null,
     recallIntervalMonths: null,
+    preferredLanguage: null,
     flags: {
       newPatient: false,
       birthdayThisWeek: false,

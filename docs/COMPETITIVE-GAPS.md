@@ -198,9 +198,19 @@ Gmail mailbox, templates.
   their conversation thread, so replies come back to the inbox.
   500-recipient cap nudges bigger sends to the compliant campaign rails.
   Later: SMS channel, template pick, schedule-for-later.
-- ◐ Inbox urgency categorization (SR) — we triage the Gmail mailbox with AI;
-  extend triage to patient threads. **P3.**
-- ✗ AI translations / preferred-language sending (NexHealth). **P3.**
+- ✅ **Inbox urgency categorization** (SR) — SHIPPED 2026-07-02 for patient
+  threads: inbound messages run a two-stage triage (EN+ES clinical-distress
+  keyword screen → AI confirm with a six-word reason; fail-open — a down
+  classifier keeps the keyword verdict). Urgent threads pin to the top of
+  every list view with a 🚨 pill + a header banner; a staff reply clears
+  the flag. Fire-and-forget: triage never delays recording the message.
+- ✅ **AI translations / preferred-language sending** (NexHealth) — SHIPPED
+  2026-07-02: patient.preferred_language ('es'), set in the Edit modal or
+  stamped automatically when a patient fills their intake in Spanish
+  (only-when-null; staff choice wins). The thread context strip shows a
+  "Prefers Spanish" chip and the composer gets a one-tap 🌐 Español button
+  (AI translation, review-before-send, shares the AI-draft allowance).
+  Later: more languages, auto-translate automated emails.
 - 📵 Two-way SMS (the module's biggest unlock), missed-call text-back,
   voicemail drops.
 

@@ -101,6 +101,12 @@ export const patient = pgTable(
     // clinics not yet on a PMS, or patients with no PMS recall row.
     recallIntervalMonths: integer('recall_interval_months'),
 
+    // Preferred language for patient-facing communication ('en' | 'es';
+    // null = English). Set in the Edit modal, or stamped automatically when
+    // the patient fills their intake in Spanish. Drives the composer's
+    // one-tap translate + the "prefers Spanish" chip.
+    preferredLanguage: text('preferred_language'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -628,6 +634,13 @@ export const patientThread = pgTable(
     // Staff "flag for priority" toggle — surfaces a Starred filter + a star
     // marker on the row. Independent of status/unread.
     starred: boolean('starred').notNull().default(false),
+    // AI urgency triage on the LATEST inbound message: 'urgent' when it reads
+    // like same-day clinical need (pain, swelling, bleeding, trauma) — the
+    // list pins urgent threads first + shows the reason. Cleared to null when
+    // staff reply (handled) or the classifier reads it as routine. Always
+    // best-effort: classification never blocks recording the message.
+    urgency: text('urgency'),
+    urgencyReason: text('urgency_reason'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

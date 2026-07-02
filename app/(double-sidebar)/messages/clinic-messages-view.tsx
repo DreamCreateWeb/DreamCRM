@@ -106,6 +106,8 @@ export default async function ClinicMessagesView({
     status: t.status,
     assignedUserName: t.assignedUserName,
     starred: t.starred,
+    urgency: t.urgency,
+    urgencyReason: t.urgencyReason,
   }))
 
   const activeThread = searchParams.thread
@@ -282,6 +284,8 @@ export default async function ClinicMessagesView({
                 snoozedUntil: activeThread.snoozedUntil ? activeThread.snoozedUntil.toISOString() : null,
                 lastMessageChannel: activeThread.lastMessageChannel,
                 starred: activeThread.starred,
+                urgency: activeThread.urgency,
+                urgencyReason: activeThread.urgencyReason,
               }}
               members={members}
               currentUserId={ctx.userId}

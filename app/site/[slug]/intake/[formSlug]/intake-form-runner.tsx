@@ -58,6 +58,8 @@ export interface IntakeSubmitPayload {
   submitterName: string | null
   submitterEmail: string | null
   submitterPhone: string | null
+  /** Language the patient filled the form in ('es' stamps preferred language). */
+  submittedLanguage?: 'en' | 'es'
 }
 
 const INK = 'var(--c-ink, #1C1A17)'
@@ -198,6 +200,9 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         submitterName,
         submitterEmail: typeof values['email'] === 'string' ? (values['email'] as string) : null,
         submitterPhone: typeof values['phone'] === 'string' ? (values['phone'] as string) : null,
+        // Filling in Spanish stamps the patient's preferred language (only
+        // when not already set) — powers preferred-language messaging.
+        submittedLanguage: lang,
       })
       // Packet mode: hand control back so the parent advances to the next form
       // (no single-form success screen between steps).

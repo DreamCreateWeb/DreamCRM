@@ -63,6 +63,9 @@ interface Input {
   submitterName: string | null
   submitterEmail: string | null
   submitterPhone: string | null
+  /** Language the patient filled the form in ('es' stamps their
+   *  preferred-language field when it's still unset). */
+  submittedLanguage?: 'en' | 'es'
 }
 
 /**
@@ -91,4 +94,26 @@ export async function submitIntakeForm(input: Input) {
     submitterEmail: input.submitterEmail,
     submitterPhone: input.submitterPhone,
   })
+
+  // Filling the form in Spanish is the clearest signal we get — stamp the
+  // patient's preferred language, only when still unset (a staff-set choice
+  // always wins). Best-effort: never fails the submission.
+  if (input.submittedLanguage === 'es' && input.submitterEmail) {
+    try {
+      const { and, eq, isNull } = await import('drizzle-orm')
+      const { db, schema } = await import('@/lib/db')
+      await db
+        .update(schema.patient)
+        .set({ preferredLanguage: 'es' })
+        .where(
+          and(
+            eq(schema.patient.organizationId, input.orgId),
+            eq(schema.patient.email, input.submitterEmail),
+            isNull(schema.patient.preferredLanguage),
+          ),
+        )
+    } catch (err) {
+      console.warn('[intake] preferred-language stamp failed', err)
+    }
+  }
 }

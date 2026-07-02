@@ -39,6 +39,10 @@ export interface ThreadListRow {
   status: 'open' | 'snoozed' | 'archived'
   assignedUserName: string | null
   starred?: boolean
+  /** AI triage on the latest inbound message — urgent rows pin to the top
+   *  (server sort) and carry the 🚨 pill with the reason. */
+  urgency?: 'urgent' | null
+  urgencyReason?: string | null
 }
 
 const SNOOZE_OPTIONS = [
@@ -211,6 +215,14 @@ export default function ClinicThreadList({
                       {t.lastMessagePreview ?? <span className="italic">No messages yet</span>}
                     </p>
                     <div className="mt-1.5 flex items-center gap-1.5">
+                      {t.urgency === 'urgent' && (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-rose-500/15 text-rose-700 dark:text-rose-300"
+                          title={t.urgencyReason ? `Reads urgent: ${t.urgencyReason}` : 'Reads urgent'}
+                        >
+                          🚨 Urgent
+                        </span>
+                      )}
                       <span
                         className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
                         title={ch.title}

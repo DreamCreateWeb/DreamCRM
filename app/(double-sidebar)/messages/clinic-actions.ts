@@ -60,6 +60,15 @@ export async function draftReplyAction(threadId: string) {
   return draftPatientReply({ organizationId: ctx.organizationId, threadId, planTier: ctx.planTier })
 }
 
+/** Translate the composer draft into the patient's preferred language —
+ *  review-only, shares the AI-draft allowance pool. */
+export async function translateMessageAction(text: string, target: 'es' | 'en') {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  const { translateMessage } = await import('@/lib/services/message-ai')
+  return translateMessage({ organizationId: ctx.organizationId, text, target, planTier: ctx.planTier })
+}
+
 /** Queue a message to send later. `scheduledForIso` is an ISO instant built
  *  from the staff member's chosen date + time. Returns `{ ok | error }`. */
 export async function scheduleMessageAction(input: {

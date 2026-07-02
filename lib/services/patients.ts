@@ -118,6 +118,8 @@ export interface PatientHeader {
   mergedIntoPatientId: string | null
   /** Per-patient recall cadence override in months (null = use clinic default). */
   recallIntervalMonths: number | null
+  /** Preferred language for patient-facing communication ('es'; null = English). */
+  preferredLanguage: string | null
   flags: PatientRowFlags
   // Aggregates pulled in the same call so the header has no extra round-trip.
   // Balance = PMS sync truth (NULL when none on file → "No PMS balance on
@@ -692,6 +694,7 @@ export async function getPatientHeader(
     guardianPatientId: p.guardianPatientId ?? null,
     mergedIntoPatientId: p.mergedIntoPatientId ?? null,
     recallIntervalMonths: p.recallIntervalMonths ?? null,
+    preferredLanguage: p.preferredLanguage ?? null,
     flags: {
       newPatient,
       birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, now),
@@ -735,6 +738,8 @@ export interface CreatePatientInput {
   guardianPatientId?: string | null
   // Per-patient recall cadence override in months (null = use clinic default).
   recallIntervalMonths?: number | null
+  // Preferred communication language ('es'; null = English).
+  preferredLanguage?: string | null
   /**
    * Skip the email/phone dedupe pre-check and insert regardless. The "Add
    * anyway" escape hatch for legitimate same-contact cases (a child sharing a

@@ -43,6 +43,8 @@ export default function EditPatientModal({
   const [recallInterval, setRecallInterval] = useState(
     header.recallIntervalMonths != null ? String(header.recallIntervalMonths) : '',
   )
+  // '' = English (the default); 'es' = prefers Spanish.
+  const [language, setLanguage] = useState(header.preferredLanguage ?? '')
 
   function save() {
     setError(null)
@@ -70,6 +72,7 @@ export default function EditPatientModal({
         insuranceGroupNumber: insGroup.trim() || null,
         guardianPatientId: guardianId || null,
         recallIntervalMonths: recallInterval ? parseInt(recallInterval, 10) : null,
+        preferredLanguage: language || null,
       })
       if ('ok' in r && r.ok === false) { setError(r.error); return }
       router.refresh()
@@ -126,6 +129,24 @@ export default function EditPatientModal({
                 How often this patient is due for a recall visit. Leave on
                 &ldquo;Clinic default&rdquo; unless they need a different cadence (e.g. a
                 3-month perio recall). A synced PMS recall date still takes priority.
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+                Preferred language
+              </span>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="form-select w-full text-sm mt-1"
+              >
+                <option value="">English</option>
+                <option value="es">Spanish (Español)</option>
+              </select>
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Shows a &ldquo;prefers Spanish&rdquo; chip in Messages and enables one-tap
+                translation in the reply composer. Set automatically when a patient fills
+                their intake in Spanish.
               </span>
             </label>
           </div>
