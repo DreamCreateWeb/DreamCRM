@@ -15,11 +15,13 @@ import {
 } from '@/lib/services/appointments'
 import { listSavedViews } from '@/lib/services/saved-views'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { listWaitlist } from '@/lib/services/appointment-waitlist'
 import {
   normalizeAppointmentViewFilters,
   appointmentViewFiltersToQuery,
 } from '@/lib/types/appointment-views'
 import AgendaView from './agenda-view'
+import WaitlistPanel from './waitlist-panel'
 import ModuleHint from '@/components/onboarding/module-hint'
 
 interface PageProps {
@@ -54,11 +56,12 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
     search: typeof params.q === 'string' ? params.q : undefined,
   }
 
-  const [rows, meta, viewRows, timeZone] = await Promise.all([
+  const [rows, meta, viewRows, timeZone, waitlistRows] = await Promise.all([
     listAppointments(ctx.organizationId, filters),
     getAppointmentFilterMeta(ctx.organizationId),
     listSavedViews(ctx.organizationId, 'appointments'),
     getClinicTimeZone(ctx.organizationId),
+    listWaitlist(ctx.organizationId),
   ])
   const groups = groupByDay(rows, timeZone)
   // Map each stored view to the chip the bar needs (name + reopen query).
@@ -66,11 +69,22 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
     const f = normalizeAppointmentViewFilters(v.filters)
     return { id: v.id, name: v.name, query: appointmentViewFiltersToQuery(f) }
   })
+  // Serialize for the client panel (Dates → ISO strings).
+  const waitlistEntries = waitlistRows.map((w) => ({
+    id: w.id,
+    patientId: w.patientId,
+    patientName: w.patientName,
+    visitTypeLabel: w.visitTypeLabel,
+    providerName: w.providerName,
+    currentVisitAtIso: w.currentVisitAt ? w.currentVisitAt.toISOString() : null,
+    pendingOffers: w.pendingOffers,
+  }))
 
     return (
     <>
       <div className="px-4 sm:px-6 lg:px-8 pt-6 w-full max-w-[96rem] mx-auto -mb-2">
         <ModuleHint id="appointments" />
+        <WaitlistPanel entries={waitlistEntries} />
       </div>
     <AgendaView
       groups={groups}

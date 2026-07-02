@@ -78,6 +78,33 @@ export async function markNoShowAction(appointmentId: string): Promise<{ ok: tru
   return { ok: true }
 }
 
+/** Put the visit's patient on the fast-pass list (wants an earlier time).
+ *  Carries the visit's type + provider as the match criteria and links the
+ *  visit so offers only fire for EARLIER slots. */
+export async function addToWaitlistAction(appointmentId: string): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireClinicTenant()
+  const detail = await getAppointmentDetail(ctx.organizationId, appointmentId)
+  if (!detail) return { ok: false, error: 'Visit not found.' }
+  const { addToWaitlist } = await import('@/lib/services/appointment-waitlist')
+  await addToWaitlist(ctx.organizationId, {
+    patientId: detail.patient.id,
+    visitType: detail.type,
+    providerId: detail.providerId ?? null,
+    appointmentId,
+    source: 'staff',
+  })
+  revalidatePath('/appointments')
+  return { ok: true }
+}
+
+export async function removeFromWaitlistAction(waitlistId: string): Promise<{ ok: true }> {
+  const ctx = await requireClinicTenant()
+  const { removeFromWaitlist } = await import('@/lib/services/appointment-waitlist')
+  await removeFromWaitlist(ctx.organizationId, waitlistId)
+  revalidatePath('/appointments')
+  return { ok: true }
+}
+
 export async function markCompletedAction(
   appointmentId: string,
 ): Promise<{ ok: true; reviewSent: boolean }> {

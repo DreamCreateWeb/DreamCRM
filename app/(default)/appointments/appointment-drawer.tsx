@@ -20,6 +20,7 @@ import BookFromPatientDrawer from './book-from-patient-drawer'
 import {
   confirmAppointmentAction,
   cancelAppointmentAction,
+  addToWaitlistAction,
   markNoShowAction,
   markCompletedAction,
   rescheduleAppointmentAction,
@@ -201,6 +202,18 @@ export default function AppointmentDrawer({
     })
   }
 
+  function onFastPass() {
+    startTransition(async () => {
+      const r = await addToWaitlistAction(appointmentId)
+      flash(
+        r.ok
+          ? 'On the fast-pass list — they’ll get first dibs when an earlier slot frees up.'
+          : (r.error ?? 'Could not add to the fast-pass list.'),
+      )
+      router.refresh()
+    })
+  }
+
   function onRequestReview() {
     if (!detail) return
     const patientId = detail.patient.id
@@ -343,6 +356,15 @@ export default function AppointmentDrawer({
                     Reschedule
                   </ActionButton>
                 )}
+                {/* Fast-pass: patient wants an EARLIER time — put them on the
+                    list; a cancellation matching this visit's type/provider
+                    offers them the slot by one-click email. */}
+                {(detail.status === 'scheduled' || detail.status === 'confirmed') &&
+                  new Date(detail.startTime).getTime() > Date.now() && (
+                    <ActionButton variant="secondary" size="sm" onClick={onFastPass} disabled={pending}>
+                      Wants earlier · fast-pass
+                    </ActionButton>
+                  )}
                 {isPastOpen && (
                   <ActionButton variant="secondary" size="sm" onClick={onComplete} disabled={pending}>
                     Mark completed

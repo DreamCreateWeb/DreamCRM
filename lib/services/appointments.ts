@@ -810,6 +810,8 @@ async function loadAppointmentNotifyContext(organizationId: string, appointmentI
       patientId: schema.appointment.patientId,
       type: schema.appointment.type,
       startTime: schema.appointment.startTime,
+      endTime: schema.appointment.endTime,
+      providerId: schema.appointment.providerId,
     })
     .from(schema.appointment)
     .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, appointmentId)))
@@ -824,6 +826,8 @@ async function loadAppointmentNotifyContext(organizationId: string, appointmentI
     patientId: appt.patientId,
     type: appt.type,
     startTime: appt.startTime as Date,
+    endTime: (appt.endTime as Date | null) ?? null,
+    providerId: appt.providerId ?? null,
     patientName: p ? `${p.firstName} ${p.lastName}`.trim() : 'A patient',
     patientEmail: p?.email ?? null,
   }
@@ -851,6 +855,23 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
   })
   // Two-way PMS: cancel it in the PMS too, so the old slot stops reminding.
   await queueAppointmentStatusWriteBack(organizationId, appointmentId, 'cancelled')
+
+  // Fast-pass: the freed slot goes to the waitlist (fire-and-forget — the
+  // cancellation never waits on offer emails).
+  if (notifyCtx) {
+    import('@/lib/services/appointment-waitlist')
+      .then(({ offerFreedSlot }) =>
+        offerFreedSlot(organizationId, {
+          start: notifyCtx.startTime,
+          end: notifyCtx.endTime,
+          providerId: notifyCtx.providerId,
+          visitType: notifyCtx.type,
+          freedByAppointmentId: appointmentId,
+          excludePatientId: notifyCtx.patientId,
+        }),
+      )
+      .catch((err) => console.warn('[appointments.cancelAppointment] waitlist offer failed', err))
+  }
 
   // Best-effort comms (never block the cancel). The portal self-cancel path
   // flows through here too, so this covers patient-initiated cancellations.

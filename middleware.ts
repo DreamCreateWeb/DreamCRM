@@ -99,6 +99,9 @@ const PUBLIC_PATHS = [
   // Public review-request landing pages — patient lands here from
   // the email link. Token in the URL is the auth.
   '/r',
+  // Public fast-pass claim pages ("an earlier opening") — same token-IS-auth
+  // pattern as /r; patient lands from the offer email.
+  '/w',
   // Subscribable .ics calendar feed (/api/calendar/<token>). Calendar apps
   // (Google/Apple/Outlook) fetch it with no session — the opaque token in the
   // URL is the auth. Must be public or the fetch 302s to /signin.

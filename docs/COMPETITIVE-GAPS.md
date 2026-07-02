@@ -44,11 +44,15 @@ work):**
 Current: agenda + windows + drawer actions + bulk + saved views + CSV + PMS
 write-back + reminders (email, 30m cron) + review-request on complete.
 
-- ✗ **ASAP/waitlist auto-fill** — THE flagship mechanic at five vendors.
-  NexHealth's is best-in-class: waitlist matched by appointment type +
-  preferred provider; on cancellation, blast the matches; first one-click
-  acceptor wins, slot auto-books, others get redirected; double-booking
-  blocked. Ours can launch email/portal-push now, SMS-ready later. **P1.**
+- ✅ **ASAP/waitlist auto-fill** — SHIPPED 2026-07-02 ("fast-pass list").
+  Staff add from the appointment drawer ("Wants earlier · fast-pass"), matched
+  by visit type + preferred provider; cancellation auto-offers the freed slot
+  by email (2h min notice, earlier-than-linked-visit only); first one-click
+  claim wins via the advisory-lock insert (`/w/[token]`, token-is-auth),
+  siblings flip to lost, the claimer's old visit auto-releases + re-offers
+  onward. Panel on /appointments; persona-anchored demo seed. Later: SMS
+  channel, patient self-serve join from the portal, staff manual "offer this
+  slot" picker.
 - ✗ **Booking deposits** (NexHealth Reservations, Weave) — card deposit at
   booking, configurable per visit type, credited to the bill. We already have
   Stripe Connect — this is wiring, not infrastructure. **P1.**

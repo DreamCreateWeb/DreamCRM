@@ -362,6 +362,68 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   replyBody: text('reply_body'),
 }, (t) => [index('appt_reminder_appt_sent_idx').on(t.appointmentId, t.sentAt)])
 
+// ── Fast-pass waitlist (ASAP list) ─────────────────────────────────────────
+// Patients who want an EARLIER opening. When a cancellation frees a slot,
+// matching entries are offered the slot (email now; SMS-ready) — first
+// one-click claim wins, the slot books through the same race-guarded insert
+// the public widget uses, and the claimer's old visit (if linked) is
+// released and re-offered. The mechanic every orbital-layer competitor
+// leads with (NexHealth Waitlist, Lighthouse Fill-in, Weave Quick-Fill).
+export const appointmentWaitlist = pgTable('appointment_waitlist', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+  // The future visit they'd move up FROM (null = no visit yet, wants any
+  // opening). Offers only fire for slots EARLIER than this visit.
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  // Visit type they want (appointment.type values). Null = any type.
+  visitType: text('visit_type'),
+  // Preferred provider. Null = anyone.
+  providerId: text('provider_id').references(() => clinicProvider.id, { onDelete: 'set null' }),
+  // 'active' | 'fulfilled' | 'removed'
+  status: text('status').notNull().default('active'),
+  // Who added it: 'staff' | 'portal'
+  source: text('source').notNull().default('staff'),
+  fulfilledAt: timestamp('fulfilled_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  index('appt_waitlist_org_status_idx').on(t.organizationId, t.status),
+  index('appt_waitlist_patient_idx').on(t.patientId),
+])
+
+// One row per offer sent for a freed slot. The token IS the auth for the
+// public one-click claim page (/w/[token]) — same pattern as the review
+// landing. Sibling offers for the same slot flip to 'lost' when one claims.
+export const appointmentWaitlistOffer = pgTable('appointment_waitlist_offer', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  waitlistId: text('waitlist_id').notNull().references(() => appointmentWaitlist.id, { onDelete: 'cascade' }),
+  patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+  // The freed slot being offered.
+  slotStart: timestamp('slot_start').notNull(),
+  slotEnd: timestamp('slot_end'),
+  providerId: text('provider_id').references(() => clinicProvider.id, { onDelete: 'set null' }),
+  visitType: text('visit_type').notNull(),
+  // The cancelled appointment that freed the slot (soft pointer, audit).
+  freedByAppointmentId: text('freed_by_appointment_id'),
+  token: text('token').notNull(),
+  // 'pending' | 'claimed' | 'lost' | 'expired'
+  status: text('status').notNull().default('pending'),
+  sentAt: timestamp('sent_at'),
+  claimedAt: timestamp('claimed_at'),
+  // The appointment created by a successful claim.
+  claimedAppointmentId: text('claimed_appointment_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('appt_waitlist_offer_token_idx').on(t.token),
+  index('appt_waitlist_offer_org_status_idx').on(t.organizationId, t.status),
+  index('appt_waitlist_offer_waitlist_idx').on(t.waitlistId),
+  // Sibling lookup: all pending offers for the same freed slot.
+  index('appt_waitlist_offer_freedby_idx').on(t.freedByAppointmentId),
+])
+
 // Reusable intake form definition. Sections + fields stored as JSON for
 // the v1 — the structure is rich enough (text / textarea / email / tel /
 // date / select / radio / checkbox / yes_no / signature) that a relational

@@ -708,6 +708,13 @@
       "when": 1782930038964,
       "tag": "0100_secret_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1783005279608,
+      "tag": "0101_secret_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

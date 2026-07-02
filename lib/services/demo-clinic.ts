@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
@@ -2465,6 +2465,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // exhausted seeder-test queue makes it a clean no-op there.
     await seedDemoPacket(existing.id)
 
+    // Fast-pass waitlist self-heal: two persona-anchored entries + a pending
+    // offer showcase. Tail placement for the same queue-position reason.
+    await seedDemoWaitlist(existing.id, new Date(), existingPatientIds)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -3129,6 +3133,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Referral partner program: demo MSP partner + attribution + commission
   // ledger so /partners + the clinic Referral card populate.
   await seedDemoReferralPartner(orgId)
+
+  // Fast-pass waitlist: persona-anchored entries + a pending offer showcase.
+  await seedDemoWaitlist(orgId, now, patientIds)
 
   return {
     organizationId: orgId,
@@ -4370,7 +4377,29 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
-  // (6) Public-site testimonials linked to a non-persona patient — a seeded
+  // (6) Seeded fast-pass waitlist artifacts on a non-persona patient — the
+  // offers carry a demo token, the entries a deterministic `wait_demo…` id.
+  // Real entries staff add in the demo org match neither and survive.
+  await db
+    .delete(schema.appointmentWaitlistOffer)
+    .where(
+      and(
+        eq(schema.appointmentWaitlistOffer.organizationId, orgId),
+        inArray(schema.appointmentWaitlistOffer.patientId, strays),
+        like(schema.appointmentWaitlistOffer.token, 'demo%'),
+      ),
+    )
+  await db
+    .delete(schema.appointmentWaitlist)
+    .where(
+      and(
+        eq(schema.appointmentWaitlist.organizationId, orgId),
+        inArray(schema.appointmentWaitlist.patientId, strays),
+        like(schema.appointmentWaitlist.id, 'wait_demo%'),
+      ),
+    )
+
+  // (7) Public-site testimonials linked to a non-persona patient — a seeded
   // quote must never render under a real person's name.
   const [profileRow] = await db
     .select({ testimonials: schema.clinicProfile.testimonials })
@@ -4385,6 +4414,109 @@ export async function cleanupMisattributedDemoArtifacts(
       .update(schema.clinicProfile)
       .set({ testimonials: kept, updatedAt: new Date() })
       .where(eq(schema.clinicProfile.organizationId, orgId))
+  }
+}
+
+/**
+ * Seed the Appointments fast-pass waitlist showcase. Two persona-anchored
+ * entries: Mia [0] linked to her upcoming cleaning (staff-added, with a
+ * pending offer out so the "offer out" pill + a living /w/[token] claim page
+ * render) and Noah [7] as a flexible any-opening entry added from the portal.
+ * Idempotent by the deterministic `wait_demo…` ids; a missing persona skips
+ * its seed (never falls back to a real patient), and a missing anchor visit
+ * (Mia's future cleaning) skips the whole showcase. The offer token carries
+ * the `demo` marker the cleanup sweep recognizes. The demo org never emails —
+ * offerFreedSlot short-circuits on isDemo, so seeded offers are the only
+ * offers a demo ever holds.
+ */
+async function seedDemoWaitlist(
+  orgId: string,
+  now: Date,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const dayMs = 24 * 60 * 60 * 1000
+  const hourMs = 60 * 60 * 1000
+  const ENTRY_MIA = 'wait_demo_fastpass_mia'
+  const ENTRY_NOAH = 'wait_demo_fastpass_noah'
+
+  const miaId = patientIds[0]
+  const noahId = patientIds[7]
+  if (!miaId) return
+
+  const existingRows = await db
+    .select({ id: schema.appointmentWaitlist.id })
+    .from(schema.appointmentWaitlist)
+    .where(inArray(schema.appointmentWaitlist.id, [ENTRY_MIA, ENTRY_NOAH]))
+  const have = new Set(existingRows.map((r) => r.id))
+  if (have.has(ENTRY_MIA) && (!noahId || have.has(ENTRY_NOAH))) return
+
+  // Anchor: Mia's seeded future cleaning — the visit her fast pass would move
+  // her up FROM. Missing (partially-seeded org, or the seeder test's
+  // exhausted queue) → skip the whole showcase rather than seed half of it.
+  const [appt] = await db
+    .select({ id: schema.appointment.id, providerId: schema.appointment.providerId })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, orgId),
+        eq(schema.appointment.patientId, miaId),
+        eq(schema.appointment.type, 'cleaning'),
+        eq(schema.appointment.status, 'scheduled'),
+        gte(schema.appointment.startTime, now),
+      ),
+    )
+    .orderBy(asc(schema.appointment.startTime))
+    .limit(1)
+  if (!appt) return
+
+  if (!have.has(ENTRY_MIA)) {
+    const addedAt = new Date(now.getTime() - 4 * dayMs)
+    await db.insert(schema.appointmentWaitlist).values({
+      id: ENTRY_MIA,
+      organizationId: orgId,
+      patientId: miaId,
+      appointmentId: appt.id,
+      visitType: 'cleaning',
+      providerId: appt.providerId ?? null,
+      status: 'active',
+      source: 'staff',
+      createdAt: addedAt,
+      updatedAt: addedAt,
+    })
+    const slotStart = snapToHalfHour(new Date(now.getTime() + 2 * dayMs + 10 * hourMs))
+    const sentAt = new Date(now.getTime() - 1 * hourMs)
+    await db.insert(schema.appointmentWaitlistOffer).values({
+      id: 'woff_demo_fastpass_mia',
+      organizationId: orgId,
+      waitlistId: ENTRY_MIA,
+      patientId: miaId,
+      slotStart,
+      slotEnd: new Date(slotStart.getTime() + 45 * 60 * 1000),
+      providerId: appt.providerId ?? null,
+      visitType: 'cleaning',
+      freedByAppointmentId: null,
+      token: `demowl_mia_${Math.random().toString(36).slice(2, 10)}`,
+      status: 'pending',
+      sentAt,
+      createdAt: sentAt,
+      updatedAt: sentAt,
+    })
+  }
+
+  if (noahId && !have.has(ENTRY_NOAH)) {
+    const addedAt = new Date(now.getTime() - 9 * dayMs)
+    await db.insert(schema.appointmentWaitlist).values({
+      id: ENTRY_NOAH,
+      organizationId: orgId,
+      patientId: noahId,
+      appointmentId: null,
+      visitType: null,
+      providerId: null,
+      status: 'active',
+      source: 'portal',
+      createdAt: addedAt,
+      updatedAt: addedAt,
+    })
   }
 }
 
