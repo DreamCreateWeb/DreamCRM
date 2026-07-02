@@ -474,6 +474,86 @@ export async function getPatientListMeta(organizationId: string): Promise<Patien
 
 // ----- Detail header ----------------------------------------------------
 
+// ── Family / household ───────────────────────────────────────────────────
+
+export interface FamilyMemberView {
+  id: string
+  name: string
+  /** 'guardian' = looks after this patient · 'dependent' = this patient looks
+   *  after them · 'household' = shares the same guardian (sibling). */
+  relation: 'guardian' | 'dependent' | 'household'
+  isActive: boolean
+}
+
+/**
+ * The patient's family unit, derived from the portal's guardian links
+ * (patient.guardianPatientId): their guardian, their dependents, and anyone
+ * sharing the same guardian. Clinic-side surface of the family-access model —
+ * the front desk sees the household in one glance ("book them together").
+ */
+export async function getFamilyForPatient(
+  organizationId: string,
+  patientId: string,
+): Promise<FamilyMemberView[]> {
+  const [me] = await db
+    .select({ guardianPatientId: schema.patient.guardianPatientId })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+    .limit(1)
+  if (!me) return []
+
+  const out: FamilyMemberView[] = []
+  const pushRows = (
+    rows: Array<{ id: string; firstName: string; lastName: string; isActive: number }>,
+    relation: FamilyMemberView['relation'],
+  ) => {
+    for (const r of rows) {
+      if (out.some((m) => m.id === r.id)) continue
+      out.push({ id: r.id, name: `${r.firstName} ${r.lastName}`.trim(), relation, isActive: r.isActive === 1 })
+    }
+  }
+
+  if (me.guardianPatientId) {
+    const guardian = await db
+      .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName, isActive: schema.patient.isActive })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, me.guardianPatientId)))
+      .limit(1)
+    pushRows(guardian, 'guardian')
+  }
+
+  const dependents = await db
+    .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName, isActive: schema.patient.isActive })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        eq(schema.patient.guardianPatientId, patientId),
+        isNull(schema.patient.mergedIntoPatientId),
+      ),
+    )
+    .limit(25)
+  pushRows(dependents, 'dependent')
+
+  if (me.guardianPatientId) {
+    const siblings = await db
+      .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName, isActive: schema.patient.isActive })
+      .from(schema.patient)
+      .where(
+        and(
+          eq(schema.patient.organizationId, organizationId),
+          eq(schema.patient.guardianPatientId, me.guardianPatientId),
+          ne(schema.patient.id, patientId),
+          isNull(schema.patient.mergedIntoPatientId),
+        ),
+      )
+      .limit(25)
+    pushRows(siblings, 'household')
+  }
+
+  return out
+}
+
 export async function getPatientHeader(
   organizationId: string,
   patientId: string,

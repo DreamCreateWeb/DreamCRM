@@ -26,6 +26,7 @@ import type { PatientDocumentRow } from '@/lib/types/patient-documents'
 import type { PatientFollowupView } from '@/lib/types/followups'
 import BookFromPatientDrawer from '../../appointments/book-from-patient-drawer'
 import SendIntakeInline, { type IntakeFormOption } from '../send-intake-inline'
+import type { FamilyMemberView } from '@/lib/services/patients'
 import {
   archivePatientAction,
   openPatientThreadAction,
@@ -130,6 +131,7 @@ export default function PatientDetail({
   staff = [],
   canMerge = false,
   mergeCandidates = [],
+  family = [],
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -146,6 +148,7 @@ export default function PatientDetail({
   staff?: Array<{ userId: string; name: string }>
   canMerge?: boolean
   mergeCandidates?: Array<{ id: string; name: string; email: string | null; phone: string | null; reason: string }>
+  family?: FamilyMemberView[]
 }) {
   const [filter, setFilter] = useState<FilterTab>('all')
   const confirm = useConfirm()
@@ -318,6 +321,7 @@ export default function PatientDetail({
           <FollowupsPanel patientId={header.id} initial={followups} staff={staff} />
           <TagsPanel patientId={header.id} initialTags={tags} catalog={tagCatalog} />
           <IdentityCard header={header} />
+          {family.length > 0 && <FamilyCard family={family} />}
         </aside>
 
         {/* ── Timeline ───────────────────────────────────────────────── */}
@@ -642,6 +646,39 @@ function SendPayLinkInline({ patientId }: { patientId: string }) {
         <p className="text-xs text-rose-600 dark:text-rose-400 mt-0.5">{feedback.msg}</p>
       )}
     </>
+  )
+}
+
+/** The household at a glance — guardian links from the portal's family
+ *  access, surfaced clinic-side ("book them together", one call for all). */
+function FamilyCard({ family }: { family: FamilyMemberView[] }) {
+  const label: Record<FamilyMemberView['relation'], string> = {
+    guardian: 'Guardian',
+    dependent: 'Dependent',
+    household: 'Same household',
+  }
+  return (
+    <div className="v2-card px-4 py-4">
+      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">
+        Family
+      </p>
+      <ul className="space-y-1.5">
+        {family.map((m) => (
+          <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
+            <Link
+              href={`/patients/${m.id}`}
+              className={`font-medium hover:underline truncate ${m.isActive ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}
+            >
+              {m.name}
+            </Link>
+            <span className="shrink-0 text-[11px] text-gray-500 dark:text-gray-400">{label[m.relation]}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+        Linked through portal family access — handy for booking the household together.
+      </p>
+    </div>
   )
 }
 

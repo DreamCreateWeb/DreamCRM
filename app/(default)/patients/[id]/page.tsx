@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getPatientHeader, listPatientOptions } from '@/lib/services/patients'
+import { getPatientHeader, listPatientOptions, getFamilyForPatient } from '@/lib/services/patients'
 import { getPatientTimeline, countTimeline } from '@/lib/services/patient-timeline'
 import { listPatientNotes } from '@/lib/services/patient-notes'
 import { getTagsForPatient, listPatientTags } from '@/lib/services/patient-tags'
@@ -27,7 +27,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff] =
+  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
@@ -39,6 +39,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       listPatientDocuments(ctx.organizationId, id),
       listFollowupsForPatient(ctx.organizationId, id),
       listAssignableStaff(ctx.organizationId),
+      getFamilyForPatient(ctx.organizationId, id),
     ])
   if (!header) notFound()
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
@@ -66,6 +67,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       staff={staff}
       canMerge={canMerge}
       mergeCandidates={mergeCandidates}
+      family={family}
     />
   )
 }

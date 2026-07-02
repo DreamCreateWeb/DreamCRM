@@ -218,8 +218,11 @@ import/export, bulk comms, portal invites.
 - ✗ **Loyalty program** (DI's unique feature) — points for kept visits /
   referrals / on-time payment, redeemed in OUR shop (no vendor can match the
   redemption side). **P2/P3 — differentiator, pairs with referrals.**
-- ◐ Household/family view — we have guardian links (portal); surface a
-  family unit on the clinic side (family glyph, one card). **P2.**
+- ✅ Household/family view — SHIPPED 2026-07-02. "Family" card on the
+  patient record (guardian / dependents / same-household via the portal's
+  guardian links; getFamilyForPatient) — the front desk sees the household
+  in one glance and can hop between records. Later: family glyph on the
+  list, family confirmation consolidation (Appointments P2 pairs with it).
 - ✅ Patient Finder-equivalents (saved views + ⌘K) at parity.
 
 ### 9. Analytics · 10. Portal · 11. Website/SEO/Careers/Blog
