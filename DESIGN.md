@@ -369,6 +369,17 @@ Phased by what unlocks the most platform value with the least dependent work.
     the sidebar** so they read as built-in alongside the core surfaces
     (website / appointments / patients). `CLAUDE.md` carries the build spec.
 
+### Platform growth: referral partners (SHIPPED)
+
+Not a clinic module — the platform's own acquisition engine. Partners (e.g.
+MSPs, dental consultants) refer clinics and earn a recurring commission
+(default 10%) on every paid subscription invoice, accrued off the Stripe
+webhook and paid out via Stripe Connect Express. Partners get a minimal
+portal (`/partner`); the platform manages them at `/partners`. A partner is a
+fourth tenant persona resolved directly from `referral_partner.user_id` (a
+user can be platform admin AND partner). `CLAUDE.md` + `docs/HISTORY.md`
+carry the implementation record.
+
 ---
 
 ## PMS integration architecture (Open Dental first; wrap, never replace)
