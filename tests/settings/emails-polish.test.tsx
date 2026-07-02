@@ -66,6 +66,7 @@ describe('EmailsHub polish', () => {
       booking_confirmation: { enabled: false },
       appointment_reminder_confirmed: { enabled: false },
       cancellation: { enabled: false },
+      no_show_rebook: { enabled: false },
       contact_ack: { enabled: false },
     })
     render(
@@ -89,6 +90,7 @@ describe('EmailsHub polish', () => {
       booking_confirmation: { enabled: false },
       appointment_reminder_confirmed: { enabled: false },
       cancellation: { enabled: false },
+      no_show_rebook: { enabled: false },
     })
     // contact_ack still on + reminder off -> not all off yet
     render(<EmailsHub config={off} reminder={{ ...REMINDER_DEFAULTS, enabled: false }} canManage focusKey="contact_ack" />)

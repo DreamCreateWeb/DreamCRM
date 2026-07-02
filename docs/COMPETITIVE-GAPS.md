@@ -74,8 +74,11 @@ write-back + reminders (email, 30m cron) + review-request on complete.
   Later: SMS channel, post-visit instructions, per-type cadence overrides.
 - ✗ **Family messaging consolidation** (Lighthouse) — one confirmation for a
   family with multiple same-day visits (we have guardian links). **P2.**
-- ◐ **No-show follow-up** — we create a staff follow-up; vendors ALSO message
-  the patient to rebook automatically. **P2.**
+- ✅ **No-show follow-up** — SHIPPED 2026-07-02. On no-show the patient now
+  ALSO gets the warm "we missed you — no judgment, find a new time" note
+  (new no_show_rebook Emails-hub key, clinic-editable + toggleable, default
+  ON; "Find a new time" button on pro/premium, call-us copy on basic; PMS
+  comm-log mirror). Staff alert + auto-rebook follow-up unchanged.
 - 📵 Text confirmations w/ sentiment ("any affirmative reply confirms"),
   voice-call reminders.
 - Skip: recurring appointments (PMS territory).

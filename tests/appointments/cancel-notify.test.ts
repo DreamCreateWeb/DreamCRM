@@ -60,12 +60,19 @@ vi.mock('@/lib/services/pms', () => ({
 const { notifyOrgMembersMock } = vi.hoisted(() => ({ notifyOrgMembersMock: vi.fn(async () => undefined) }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyOrgMembersMock }))
 
-const { sendCancellationMock } = vi.hoisted(() => ({
+const { sendCancellationMock, sendNotificationMock, deliverMock } = vi.hoisted(() => ({
   sendCancellationMock: vi.fn<(to: string, data: { rebookUrl: string | null }, sender: unknown) => Promise<void>>(
     async () => undefined,
   ),
+  sendNotificationMock: vi.fn(async () => undefined),
+  deliverMock: vi.fn(async () => undefined),
 }))
-vi.mock('@/lib/email', () => ({ sendCancellationConfirmation: sendCancellationMock }))
+vi.mock('@/lib/email', () => ({
+  sendCancellationConfirmation: sendCancellationMock,
+  sendNotificationEmail: sendNotificationMock,
+  deliver: deliverMock,
+  authEmailShell: vi.fn(() => '<html>rebook</html>'),
+}))
 
 vi.mock('@/lib/services/clinic-sender', () => ({
   getClinicSenderIdentity: vi.fn(async () => ({
@@ -162,10 +169,12 @@ describe('cancelAppointment notifications', () => {
 })
 
 describe('markNoShow notifications', () => {
-  it('pings owners/admins but NEVER emails the patient', async () => {
+  it('pings owners/admins + sends the warm REBOOK note (never the cancellation email)', async () => {
     state.selectQueue.push([{ status: 'scheduled' }]) // mutable
     state.selectQueue.push([{ patientId: 'pat_1', type: 'cleaning', startTime: FUTURE }]) // appt
     state.selectQueue.push([{ firstName: 'Aiden', lastName: 'Brooks', email: 'aiden@example.com' }]) // patient
+    // sendNoShowRebookEmail: profile (basic tier → no /book button) + org, then
+    // renderAutomatedEmail's config read — all off the exhausted queue.
     await markNoShow('org_1', 'appt_2')
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
@@ -177,7 +186,26 @@ describe('markNoShow notifications', () => {
       }),
       { roles: ['owner', 'admin'] },
     )
-    // The whole point: no patient cancellation email on a no-show.
+    // A no-show never sends the "your visit was cancelled" CONFIRMATION…
     expect(sendCancellationMock).not.toHaveBeenCalled()
+    // …but it DOES send the service-recovery rebook note (plain signed email
+    // on basic tier — no online booking, so no button shell).
+    expect(sendNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'aiden@example.com',
+        title: expect.stringContaining('We missed you'),
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('skips the rebook note when the patient has no email (staff ping still fires)', async () => {
+    state.selectQueue.push([{ status: 'scheduled' }])
+    state.selectQueue.push([{ patientId: 'pat_1', type: 'cleaning', startTime: FUTURE }])
+    state.selectQueue.push([{ firstName: 'Aiden', lastName: 'Brooks', email: null }])
+    await markNoShow('org_1', 'appt_2')
+    expect(notifyOrgMembersMock).toHaveBeenCalled()
+    expect(sendNotificationMock).not.toHaveBeenCalled()
+    expect(deliverMock).not.toHaveBeenCalled()
   })
 })

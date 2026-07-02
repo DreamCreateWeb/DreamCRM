@@ -73,7 +73,7 @@ describe('draftGoogleReviewReply', () => {
     expect(r).toMatchObject({ ok: true, draft: expect.stringContaining('Thank you'), remaining: 79 })
     expect(bumpMock).toHaveBeenCalledWith('org_1', 'review_reply_draft')
     // The prompt carries the review content + the public/HIPAA guardrails.
-    const req = runClaudeJsonMock.mock.calls[0]![0] as { system: string; messages: Array<{ content: string }> }
+    const req = (runClaudeJsonMock.mock.calls[0] as unknown[])[0] as { system: string; messages: Array<{ content: string }> }
     expect(req.system).toContain('NEVER confirm the reviewer is a patient')
     expect(req.messages[0]!.content).toContain('Best cleaning')
   })

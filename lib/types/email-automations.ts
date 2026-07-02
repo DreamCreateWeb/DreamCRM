@@ -24,6 +24,7 @@ export type EmailAutomationKey =
   | 'appointment_reminder_confirmed'
   | 'intake_request'
   | 'cancellation'
+  | 'no_show_rebook'
   | 'portal_invite'
   | 'review_request'
   | 'contact_ack'
@@ -233,6 +234,30 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
     includesNote: [
       'The cancelled date and time (crossed out)',
       'A “Find a new time” button (or a “call us” line on the Basic plan)',
+    ],
+  },
+
+  no_show_rebook: {
+    key: 'no_show_rebook',
+    label: 'Missed-visit rebook note',
+    description:
+      'Sent when a visit is marked a no-show — a warm, no-judgment invitation to find a new time (your team still gets its own no-show alert + follow-up task).',
+    category: 'appointments',
+    enableSource: 'email_automations',
+    moduleHref: '/appointments',
+    moduleLabel: 'Appointments',
+    tokens: [T_FIRST, T_CLINIC, T_PHONE, T_TYPE],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'We missed you at {{clinicName}} — let’s find a new time',
+      body: 'Hi {{firstName}} — we missed you for your {{appointmentType}} today. No worries at all, life happens. When you’re ready, grab a new time that works and we’ll pick up right where we left off.',
+    },
+    includesNote: [
+      'A “Find a new time” button when your plan has online booking (a “call us” line otherwise)',
+      'A short greeting and your clinic name signature',
     ],
   },
 

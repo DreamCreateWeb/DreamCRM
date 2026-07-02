@@ -991,6 +991,88 @@ async function sendCancellationEmailToPatient(
   )
 }
 
+/**
+ * Warm service-recovery note after a no-show (vendor parity: they message the
+ * patient to rebook, not just the staff). Distinct from the cancellation
+ * confirmation — "we missed you, no judgment, find a new time" copy, clinic-
+ * editable + toggleable (Emails hub key 'no_show_rebook'). Best-effort.
+ */
+async function sendNoShowRebookEmail(
+  organizationId: string,
+  opts: { to: string; patientName: string; appointmentType: string },
+): Promise<void> {
+  const [profile] = await db
+    .select({
+      phone: schema.clinicProfile.phone,
+      planTier: schema.clinicProfile.planTier,
+      websiteDomain: schema.clinicProfile.websiteDomain,
+    })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const [org] = await db
+    .select({ slug: schema.organization.slug })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, organizationId))
+    .limit(1)
+
+  // Online booking is pro/premium only — offer the button only when it works.
+  let rebookUrl: string | null = null
+  const tier = profile?.planTier ?? 'basic'
+  if (org && (tier === 'pro' || tier === 'premium')) {
+    const { publicSiteUrl } = await import('@/lib/services/clinic-site')
+    const base = publicSiteUrl({
+      slug: org.slug,
+      profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+    })
+    rebookUrl = `${base}/book`
+  }
+
+  const { getClinicSenderIdentity } = await import('@/lib/services/clinic-sender')
+  const { renderAutomatedEmail } = await import('@/lib/services/email-automations')
+  const sender = await getClinicSenderIdentity(organizationId)
+  const rendered = await renderAutomatedEmail(organizationId, 'no_show_rebook', {
+    firstName: opts.patientName.split(' ')[0],
+    clinicName: sender.name,
+    clinicPhone: profile?.phone ?? '',
+    appointmentType: opts.appointmentType.replace(/_/g, ' '),
+  })
+  if (!rendered.enabled) return
+
+  if (rebookUrl) {
+    const { authEmailShell, deliver } = await import('@/lib/email')
+    await deliver({
+      to: opts.to,
+      from: sender.from,
+      replyTo: sender.replyTo,
+      gmail: sender.gmail,
+      subject: rendered.full.subject,
+      html: authEmailShell({
+        heading: 'We missed you — no big deal',
+        introHtml: rendered.full.body
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>'),
+        buttonUrl: rebookUrl,
+        buttonLabel: 'Find a new time',
+        footnoteHtml: profile?.phone
+          ? `Prefer to talk it through? Call us at ${profile.phone}.`
+          : 'Prefer to talk it through? Just reply to this email.',
+      }),
+    })
+  } else {
+    const { sendNotificationEmail } = await import('@/lib/email')
+    await sendNotificationEmail(
+      {
+        to: opts.to,
+        name: opts.patientName,
+        title: rendered.full.subject,
+        body: `${rendered.full.body}${profile?.phone ? `\n\nGive us a call at ${profile.phone} and we'll find a time together.` : ''}`,
+      },
+      sender,
+    )
+  }
+}
+
 export async function markNoShow(organizationId: string, appointmentId: string) {
   await assertAppointmentMutable(organizationId, appointmentId)
   const notifyCtx = await loadAppointmentNotifyContext(organizationId, appointmentId).catch(() => null)
@@ -1011,7 +1093,9 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
     }
   }
 
-  // Staff ping only — deliberately NO patient email on a no-show.
+  // Staff ping — plus a warm patient rebook note (the cancellation
+  // CONFIRMATION deliberately never fires on a no-show; this is different
+  // copy — "we missed you, no judgment", clinic-toggleable).
   if (notifyCtx) {
     try {
       const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -1031,6 +1115,22 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
       )
     } catch (err) {
       console.warn('[appointments.markNoShow] notification failed', err)
+    }
+    if (notifyCtx.patientEmail) {
+      try {
+        await sendNoShowRebookEmail(organizationId, {
+          to: notifyCtx.patientEmail,
+          patientName: notifyCtx.patientName,
+          appointmentType: notifyCtx.type,
+        })
+        const { queueCommLogWriteBack } = await import('@/lib/services/pms/sync')
+        await queueCommLogWriteBack(organizationId, notifyCtx.patientId, {
+          note: `Missed-visit rebook note sent after the ${notifyCtx.type.replace(/_/g, ' ')} no-show.`,
+          mode: 'Email',
+        }).catch(() => {})
+      } catch (err) {
+        console.warn('[appointments.markNoShow] rebook email failed', err)
+      }
     }
   }
 }
