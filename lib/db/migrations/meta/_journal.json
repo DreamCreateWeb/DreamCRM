@@ -715,6 +715,13 @@
       "when": 1783005279608,
       "tag": "0101_secret_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1783007317321,
+      "tag": "0102_typical_vivisector",
+      "breakpoints": true
     }
   ]
 }

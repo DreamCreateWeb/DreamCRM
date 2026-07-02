@@ -25,6 +25,13 @@ export interface VisitType {
   bookablePublic: boolean
   /** Offered in the patient-portal booking form. */
   bookablePortal: boolean
+  /**
+   * Card deposit (cents) collected at PUBLIC online booking, credited toward
+   * the visit. 0 = none. Only takes effect when the clinic's Stripe Connect
+   * account is active — without it booking proceeds deposit-free (fail open;
+   * a payments hiccup must never block a patient from booking).
+   */
+  depositCents: number
 }
 
 export type VisitTypeSettings = VisitType[]
@@ -44,14 +51,14 @@ export const OTHER_VISIT_TYPE_ID = 'other'
  * schedule-buster fix).
  */
 export const DEFAULT_VISIT_TYPES: VisitType[] = [
-  { id: 'checkup', label: 'Checkup', durationMinutes: 30, bookablePublic: true, bookablePortal: true },
-  { id: 'cleaning', label: 'Cleaning', durationMinutes: 30, bookablePublic: true, bookablePortal: true },
-  { id: 'consultation', label: 'Consultation', durationMinutes: 30, bookablePublic: true, bookablePortal: true },
-  { id: 'emergency', label: 'Emergency / tooth pain', durationMinutes: 30, bookablePublic: true, bookablePortal: false },
-  { id: 'filling', label: 'Filling', durationMinutes: 30, bookablePublic: false, bookablePortal: false },
-  { id: 'extraction', label: 'Extraction', durationMinutes: 45, bookablePublic: false, bookablePortal: false },
-  { id: 'root_canal', label: 'Root canal', durationMinutes: 60, bookablePublic: false, bookablePortal: false },
-  { id: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', durationMinutes: 30, bookablePublic: true, bookablePortal: true },
+  { id: 'checkup', label: 'Checkup', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
+  { id: 'cleaning', label: 'Cleaning', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
+  { id: 'consultation', label: 'Consultation', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
+  { id: 'emergency', label: 'Emergency / tooth pain', durationMinutes: 30, bookablePublic: true, bookablePortal: false, depositCents: 0 },
+  { id: 'filling', label: 'Filling', durationMinutes: 30, bookablePublic: false, bookablePortal: false, depositCents: 0 },
+  { id: 'extraction', label: 'Extraction', durationMinutes: 45, bookablePublic: false, bookablePortal: false, depositCents: 0 },
+  { id: 'root_canal', label: 'Root canal', durationMinutes: 60, bookablePublic: false, bookablePortal: false, depositCents: 0 },
+  { id: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
 ]
 
 /** Clamp a duration into a sane booking range (one slot .. a half-day). */
@@ -59,6 +66,14 @@ function cleanDuration(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n)) return 30
   return Math.min(480, Math.max(15, Math.round(n)))
+}
+
+/** Clamp a deposit into 0..$1,000 whole cents. Absent/malformed → 0 (off) —
+ *  most clinics don't charge one, so off is always the safe default. */
+function cleanDeposit(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.min(100_000, Math.round(n))
 }
 
 function cleanId(v: unknown): string | null {
@@ -96,6 +111,7 @@ export function resolveVisitTypes(stored: unknown): VisitType[] {
       // unless they explicitly turn it off in the editor.
       bookablePublic: r.bookablePublic === undefined ? true : !!r.bookablePublic,
       bookablePortal: r.bookablePortal === undefined ? true : !!r.bookablePortal,
+      depositCents: cleanDeposit(r.depositCents),
     })
   }
 
@@ -120,6 +136,15 @@ export function findVisitType(types: VisitType[], id: string | null | undefined)
 export function visitTypeDuration(stored: unknown, id: string | null | undefined): number {
   const found = findVisitType(resolveVisitTypes(stored), id)
   return found?.durationMinutes ?? 30
+}
+
+/**
+ * Deposit (cents) required at public booking for a visit-type id. Unknown id
+ * (incl. the "Other" escape hatch unless explicitly configured) → 0.
+ */
+export function visitTypeDepositCents(stored: unknown, id: string | null | undefined): number {
+  const found = findVisitType(resolveVisitTypes(stored), id)
+  return found?.depositCents ?? 0
 }
 
 /** Public-bookable subset (widget). */

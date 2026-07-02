@@ -24,6 +24,8 @@ function makeConfirmation(overrides: Partial<BookingConfirmation> = {}): Booking
     mapsUrl: 'https://www.google.com/maps/dir/?api=1&destination=123%20Main%20St',
     intakeFormUrl: 'https://acme.test/intake/new-patient',
     emailSent: true,
+    depositUrl: null,
+    depositCents: 0,
     ...overrides,
   }
 }

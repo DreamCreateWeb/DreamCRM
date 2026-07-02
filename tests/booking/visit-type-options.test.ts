@@ -15,8 +15,8 @@ describe('buildVisitTypeOptions', () => {
       { id: 's1', label: 'Cleaning', durationMinutes: 30 },
       { id: 's2', label: 'Cosmetic Whitening', durationMinutes: 60 },
     ])
-    expect(opts[0]).toEqual({ value: 's1', label: 'Cleaning', durationMinutes: 30 })
-    expect(opts[1]).toEqual({ value: 's2', label: 'Cosmetic Whitening', durationMinutes: 60 })
+    expect(opts[0]).toEqual({ value: 's1', label: 'Cleaning', durationMinutes: 30, depositCents: 0 })
+    expect(opts[1]).toEqual({ value: 's2', label: 'Cosmetic Whitening', durationMinutes: 60, depositCents: 0 })
   })
 
   it('defaults a missing duration to 30', () => {

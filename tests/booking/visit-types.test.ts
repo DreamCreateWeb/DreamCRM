@@ -75,7 +75,7 @@ describe('resolveVisitTypes', () => {
 describe('visitTypeDuration', () => {
   it('returns the catalog duration for a known id', () => {
     const stored: VisitType[] = [
-      { id: 'root_canal', label: 'Root canal', durationMinutes: 90, bookablePublic: false, bookablePortal: false },
+      { id: 'root_canal', label: 'Root canal', durationMinutes: 90, bookablePublic: false, bookablePortal: false, depositCents: 0 },
     ]
     expect(visitTypeDuration(stored, 'root_canal')).toBe(90)
   })
@@ -93,8 +93,8 @@ describe('visitTypeDuration', () => {
 describe('publicVisitTypes / portalVisitTypes', () => {
   it('publicVisitTypes filters to bookablePublic', () => {
     const stored: VisitType[] = [
-      { id: 'a', label: 'A', durationMinutes: 30, bookablePublic: true, bookablePortal: false },
-      { id: 'b', label: 'B', durationMinutes: 30, bookablePublic: false, bookablePortal: true },
+      { id: 'a', label: 'A', durationMinutes: 30, bookablePublic: true, bookablePortal: false, depositCents: 0 },
+      { id: 'b', label: 'B', durationMinutes: 30, bookablePublic: false, bookablePortal: true, depositCents: 0 },
     ]
     const got = publicVisitTypes(stored)
     expect(got.map((t) => t.id)).toContain('a')
@@ -103,8 +103,8 @@ describe('publicVisitTypes / portalVisitTypes', () => {
 
   it('portalVisitTypes filters to bookablePortal', () => {
     const stored: VisitType[] = [
-      { id: 'a', label: 'A', durationMinutes: 30, bookablePublic: true, bookablePortal: false },
-      { id: 'b', label: 'B', durationMinutes: 30, bookablePublic: false, bookablePortal: true },
+      { id: 'a', label: 'A', durationMinutes: 30, bookablePublic: true, bookablePortal: false, depositCents: 0 },
+      { id: 'b', label: 'B', durationMinutes: 30, bookablePublic: false, bookablePortal: true, depositCents: 0 },
     ]
     const got = portalVisitTypes(stored)
     expect(got.map((t) => t.id)).toContain('b')

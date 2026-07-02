@@ -12,6 +12,7 @@ import {
   deactivateProvider,
 } from '@/lib/services/providers'
 import { normalizeChairCount } from '@/lib/services/booking'
+import { canTakeBookingDeposits } from '@/lib/services/booking-deposits'
 import { resolveVisitTypes, type VisitType } from '@/lib/types/visit-types'
 
 /** owner/admin gate, clinic tenant only — mirrors updateClinicProfile.
@@ -211,11 +212,13 @@ export interface PracticeSettingsData {
   selfBookingEnabled: boolean
   /** Whether the current user can change these (owner/admin). Members can view. */
   canEdit: boolean
+  /** Clinic's Stripe Connect can charge — deposits only collect when true. */
+  depositsAvailable: boolean
 }
 
 export async function getPracticeSettings(): Promise<PracticeSettingsData> {
   const ctx = await requirePracticeView()
-  const [providers, [profile]] = await Promise.all([
+  const [providers, [profile], depositsAvailable] = await Promise.all([
     listProviders(ctx.organizationId),
     db
       .select({
@@ -228,6 +231,7 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
       .limit(1),
+    canTakeBookingDeposits(ctx.organizationId),
   ])
   return {
     providers,
@@ -238,5 +242,6 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
     // null/undefined → enabled, matching the not-null default(true) column.
     selfBookingEnabled: profile?.selfBookingEnabled !== false,
     canEdit: ctx.role === 'owner' || ctx.role === 'admin',
+    depositsAvailable,
   }
 }

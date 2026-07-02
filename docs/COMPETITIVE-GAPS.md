@@ -53,9 +53,14 @@ write-back + reminders (email, 30m cron) + review-request on complete.
   onward. Panel on /appointments; persona-anchored demo seed. Later: SMS
   channel, patient self-serve join from the portal, staff manual "offer this
   slot" picker.
-- ✗ **Booking deposits** (NexHealth Reservations, Weave) — card deposit at
-  booking, configurable per visit type, credited to the bill. We already have
-  Stripe Connect — this is wiring, not infrastructure. **P1.**
+- ✅ **Booking deposits** — SHIPPED 2026-07-02. Per-visit-type `depositCents`
+  (Settings → Practice → Visit types; $0 default — most clinics charge none),
+  collected at website booking via the clinic's Stripe Connect account
+  (fail-open: the visit books first, a payments hiccup never costs the slot),
+  credited toward the visit; paid deposit auto-confirms the appointment;
+  reconciliation + CSV under Shop → Payments; drawer shows paid/pending pill.
+  Later: portal-booking deposits, auto-release when unpaid after N hours,
+  refund-on-cancel policy control.
 - ◐ **Reminder depth** — competitors: multiple cadenced reminders per visit
   w/ per-visit-type templates, DIFFERENT copy for confirmed vs unconfirmed,
   save-the-date on booking, procedure prep/post instructions attached,

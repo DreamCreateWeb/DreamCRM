@@ -18,6 +18,11 @@ import {
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
 import { hasBookableSlotsInWindow } from '@/lib/services/booking'
+import {
+  canTakeBookingDeposits,
+  finalizeBookingDepositFromSession,
+  type DepositReceipt,
+} from '@/lib/services/booking-deposits'
 import { formatOdDate } from '@/lib/services/pms/datetime'
 import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
 import SiteHeader from '@/components/clinic-site/site-header'
@@ -37,6 +42,7 @@ const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -123,10 +129,27 @@ const RE_ASSURANCES: Array<{
   },
 ]
 
-export default async function BookPage({ params }: Props) {
+export default async function BookPage({ params, searchParams }: Props) {
   const { slug } = await params
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
+
+  // Deposit return trip: Stripe sends the patient back here with the checkout
+  // session id. Finalize idempotently (the Connect webhook also finalizes —
+  // whichever lands first wins) and render the receipt in place of the form.
+  const sp = searchParams ? await searchParams : {}
+  const depositSessionId = typeof sp.deposit_session === 'string' ? sp.deposit_session : null
+  // "deposit=later" = the patient backed out of Stripe Checkout. The visit is
+  // still booked (fail-open by design) — say so instead of showing a blank form.
+  const depositSkipped = sp.deposit === 'later'
+  let depositReceipt: DepositReceipt | null = null
+  if (depositSessionId && depositSessionId.length < 200) {
+    try {
+      depositReceipt = await finalizeBookingDepositFromSession(data.orgId, depositSessionId)
+    } catch (err) {
+      console.warn('[book] deposit finalize failed', err)
+    }
+  }
 
   const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   if (!isPro) notFound()
@@ -149,10 +172,17 @@ export default async function BookPage({ params }: Props) {
     getOpenJobs(data.orgId),
     selfBooking ? hasBookableSlotsInWindow(data.orgId, todayKey, 14) : Promise.resolve(true),
   ])
+  // Deposits only surface when the clinic can actually charge (Connect active)
+  // — otherwise the widget shows no deposit copy and booking stays free-flow.
+  const anyDepositConfigured = publicVisitTypes(data.profile.visitTypeSettings).some(
+    (t) => t.depositCents > 0,
+  )
+  const depositsChargeable = anyDepositConfigured ? await canTakeBookingDeposits(data.orgId) : false
   const publicTypes = publicVisitTypes(data.profile.visitTypeSettings).map((t) => ({
     id: t.id,
     label: t.label,
     durationMinutes: t.durationMinutes,
+    depositCents: depositsChargeable ? t.depositCents : 0,
   }))
   const hasBlog = publishedPosts.length > 0
   const hasDentalPlans = membershipPlans.length > 0
@@ -325,25 +355,41 @@ export default async function BookPage({ params }: Props) {
                   className="rounded-2xl sm:rounded-3xl p-5 sm:p-9 shadow-sm"
                   style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
                 >
-                  {selfBooking ? (
-                    <BookForm
-                      orgId={data.orgId}
-                      timeZone={tz}
-                      slug={data.slug}
-                      brand={brand}
-                      clinicName={name}
-                      clinicPhone={data.profile.phone ?? null}
-                      windowHasAvailability={windowHasAvailability}
-                      visitTypes={publicTypes}
-                    />
+                  {depositReceipt && depositReceipt.status === 'paid' ? (
+                    <DepositReceiptCard receipt={depositReceipt} brand={brand} clinicPhone={data.profile.phone ?? null} />
                   ) : (
-                    <RequestForm
-                      slug={data.slug}
-                      brand={brand}
-                      clinicName={name}
-                      clinicPhone={data.profile.phone ?? null}
-                      visitTypes={publicTypes}
-                    />
+                    <>
+                      {depositSkipped && (
+                        <div
+                          className="rounded-2xl p-4 mb-6 text-sm leading-relaxed"
+                          style={{ backgroundColor: `${brand}12`, border: `1px solid ${brand}40`, color: INK_MUTED }}
+                        >
+                          <strong style={{ color: INK }}>Your visit is booked</strong> — the deposit
+                          didn&rsquo;t go through, so the office may reach out about it. No need to
+                          book again.
+                        </div>
+                      )}
+                      {selfBooking ? (
+                        <BookForm
+                          orgId={data.orgId}
+                          timeZone={tz}
+                          slug={data.slug}
+                          brand={brand}
+                          clinicName={name}
+                          clinicPhone={data.profile.phone ?? null}
+                          windowHasAvailability={windowHasAvailability}
+                          visitTypes={publicTypes}
+                        />
+                      ) : (
+                        <RequestForm
+                          slug={data.slug}
+                          brand={brand}
+                          clinicName={name}
+                          clinicPhone={data.profile.phone ?? null}
+                          visitTypes={publicTypes}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
                 {selfBooking && (
@@ -387,6 +433,53 @@ export default async function BookPage({ params }: Props) {
         bookHref={bookHref}
         bookLabel={bookLabel}
       />
+    </div>
+  )
+}
+
+/** Post-Stripe receipt shown in place of the booking form. The visit itself
+ *  was booked before the redirect; this confirms the money landed. */
+function DepositReceiptCard({
+  receipt,
+  brand,
+  clinicPhone,
+}: {
+  receipt: DepositReceipt
+  brand: string
+  clinicPhone: string | null
+}) {
+  const amount =
+    receipt.amountCents % 100 === 0
+      ? `$${receipt.amountCents / 100}`
+      : `$${(receipt.amountCents / 100).toFixed(2)}`
+  return (
+    <div className="text-center py-10 sm:py-12">
+      <div
+        className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
+        style={{ backgroundColor: brand + '22' }}
+      >
+        <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h2 className="text-3xl font-bold tracking-[-0.02em] mb-2" style={{ color: INK }}>
+        Deposit received — you&rsquo;re all set, {receipt.patientFirstName}.
+      </h2>
+      <p className="leading-relaxed max-w-md mx-auto" style={{ color: INK_MUTED }}>
+        Your {amount} deposit is in and your{' '}
+        {receipt.visitType.replace(/_/g, ' ')} visit is confirmed. The deposit is credited
+        toward your visit, so there&rsquo;s nothing extra to pay for it. A confirmation
+        email with your visit details is on its way.
+      </p>
+      {clinicPhone && (
+        <p className="text-sm mt-7" style={{ color: INK_MUTED }}>
+          Need to change something? Call us at{' '}
+          <a href={`tel:${clinicPhone}`} className="font-semibold hover:underline" style={{ color: INK }}>
+            {clinicPhone}
+          </a>
+          .
+        </p>
+      )}
     </div>
   )
 }

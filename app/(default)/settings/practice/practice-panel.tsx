@@ -63,7 +63,7 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
         tabs={[
           { id: 'booking', label: 'Online booking', content: gate(<SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} />) },
           { id: 'providers', label: 'Providers', content: gate(<ProvidersSection providers={initial.providers} flash={flash} />) },
-          { id: 'visit-types', label: 'Visit types', content: gate(<VisitTypesSection initial={initial.visitTypes} flash={flash} />) },
+          { id: 'visit-types', label: 'Visit types', content: gate(<VisitTypesSection initial={initial.visitTypes} depositsAvailable={initial.depositsAvailable} flash={flash} />) },
           { id: 'recall', label: 'Chairs & recall', content: gate(<OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} lapsedAfterMonths={initial.lapsedAfterMonths} flash={flash} />) },
         ]}
       />
@@ -427,7 +427,15 @@ function ProviderRowEditor({
 
 // ───────────────────────── Visit types ─────────────────────────
 
-function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m: string) => void }) {
+function VisitTypesSection({
+  initial,
+  depositsAvailable,
+  flash,
+}: {
+  initial: VisitType[]
+  depositsAvailable: boolean
+  flash: (m: string) => void
+}) {
   const router = useRouter()
   const [types, setTypes] = useState<VisitType[]>(initial)
   const [pending, start] = useTransition()
@@ -436,6 +444,7 @@ function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m
 
   // The saved baseline; dirty = anything drifted from it (compared by value).
   const dirty = JSON.stringify(types) !== JSON.stringify(initial)
+  const anyDeposit = types.some((t) => (t.depositCents ?? 0) > 0)
 
   function update(i: number, patch: Partial<VisitType>) {
     setSaved(false)
@@ -449,7 +458,7 @@ function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m
     setSaved(false)
     setTypes((cur) => [
       ...cur,
-      { id: `visit_${cur.length + 1}`, label: 'New visit type', durationMinutes: 30, bookablePublic: true, bookablePortal: true },
+      { id: `visit_${cur.length + 1}`, label: 'New visit type', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0 },
     ])
   }
   function save() {
@@ -466,7 +475,7 @@ function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m
     <section>
       <SectionHeading
         title="Visit types"
-        hint="The appointment types the front desk, your website booking widget, and the patient portal offer. Duration (in minutes) drives how long each visit blocks the schedule. Toggle where each type can be booked online."
+        hint="The appointment types the front desk, your website booking widget, and the patient portal offer. Duration (in minutes) drives how long each visit blocks the schedule. Toggle where each type can be booked online. An optional deposit (most clinics charge none) is collected at website booking and credited toward the visit."
       />
       <ul className="mb-3 space-y-2">
         {types.map((t, i) => {
@@ -493,6 +502,22 @@ function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m
                   <span className="text-xs text-gray-500 dark:text-gray-400">min</span>
                 </div>
               </label>
+              <label className="block w-28">
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">Deposit</span>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000}
+                    step={1}
+                    value={Math.round((t.depositCents ?? 0) / 100)}
+                    onChange={(e) => update(i, { depositCents: Math.min(1000, Math.max(0, Math.round(Number(e.target.value) || 0))) * 100 })}
+                    className="form-input w-16 text-sm font-mono-num tabular-nums"
+                    aria-label={`Booking deposit in dollars for ${t.label} (0 = none)`}
+                  />
+                </div>
+              </label>
               <label className="flex items-center gap-1.5 pb-2 text-xs text-gray-600 dark:text-gray-300">
                 <input type="checkbox" checked={t.bookablePublic} onChange={(e) => update(i, { bookablePublic: e.target.checked })} className="form-checkbox" />
                 Website
@@ -513,6 +538,23 @@ function VisitTypesSection({ initial, flash }: { initial: VisitType[]; flash: (m
         })}
       </ul>
       <ActionButton variant="secondary" size="sm" onClick={add} disabled={pending}>+ Add visit type</ActionButton>
+      {anyDeposit && !depositsAvailable && (
+        <div className="mt-3 flex items-start gap-2 rounded-[var(--r-sm)] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <StatusPill tone="warn" label="Stripe needed" />
+          <span>
+            Deposits charge through your connected Stripe account, which isn&rsquo;t active yet —
+            until it is, patients book these types <strong>without</strong> paying a deposit.
+            Connect Stripe under <a href="/shop" className="font-medium underline">Shop</a>.
+          </span>
+        </div>
+      )}
+      {anyDeposit && depositsAvailable && (
+        <p className="mt-3 max-w-prose text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          Deposits are collected at website booking through your connected Stripe account and
+          credited toward the visit — collected deposits appear under Shop → Payments so the
+          front desk can post them to your PMS ledger.
+        </p>
+      )}
       <SaveBar dirty={dirty} saved={saved} pending={pending} onSave={save} saveLabel="Save visit types" />
       {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
     </section>

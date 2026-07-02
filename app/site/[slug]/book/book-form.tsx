@@ -11,17 +11,19 @@ import { clinicDayStart, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 
 /** Public-bookable visit type, shaped for the form (server passes the
- *  resolved, bookablePublic-filtered catalog with each type's duration). */
+ *  resolved, bookablePublic-filtered catalog with each type's duration —
+ *  and its deposit, zeroed when the clinic can't take payments). */
 export interface PublicVisitTypeOption {
   id: string
   label: string
   durationMinutes: number
+  depositCents?: number
 }
 
 /** Final option in every visit-type dropdown so patients who don't see
  *  their reason in the clinic's catalog can still book. Visit-type id
  *  `other` is the discriminated value the server action expects. */
-const OTHER_OPTION = { value: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', durationMinutes: 30 }
+const OTHER_OPTION = { value: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', durationMinutes: 30, depositCents: 0 }
 
 /** Build the visit-type dropdown options from a clinic's public-bookable visit
  *  types. Always guarantees an "Other / not sure" fallback so a patient can
@@ -30,16 +32,22 @@ const OTHER_OPTION = { value: OTHER_VISIT_TYPE_ID, label: 'Other / not sure', du
  *
  *  Exported for unit testing. */
 export function buildVisitTypeOptions(
-  visitTypes: Array<{ id: string; label: string; durationMinutes?: number }>,
-): Array<{ value: string; label: string; durationMinutes: number }> {
+  visitTypes: Array<{ id: string; label: string; durationMinutes?: number; depositCents?: number }>,
+): Array<{ value: string; label: string; durationMinutes: number; depositCents: number }> {
   const opts = visitTypes.map((t) => ({
     value: t.id,
     label: t.label,
     durationMinutes: t.durationMinutes ?? 30,
+    depositCents: t.depositCents ?? 0,
   }))
   // De-dupe if the catalog already carries an `id: 'other'` row.
   if (opts.some((o) => o.value === OTHER_OPTION.value)) return opts
   return [...opts, OTHER_OPTION]
+}
+
+/** "$25" (whole dollars) / "$25.50" — deposit chips + footnotes. */
+export function fmtDeposit(cents: number): string {
+  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`
 }
 
 const BG = 'var(--c-bg, #FAF7F2)'
@@ -332,6 +340,10 @@ export default function BookForm({
     () => apptTypes.find((t) => t.value === selectedType)?.durationMinutes ?? 30,
     [apptTypes, selectedType],
   )
+  const selectedDepositCents = useMemo(
+    () => apptTypes.find((t) => t.value === selectedType)?.depositCents ?? 0,
+    [apptTypes, selectedType],
+  )
   const days = useMemo(() => {
     // Anchor the strip to the CLINIC's today, not the browser's.
     const todayKey = clinicDayKey(new Date(), timeZone)
@@ -346,7 +358,7 @@ export default function BookForm({
   // closed this day". When true, we show a retry hint instead of a closed copy.
   const [slotsError, setSlotsError] = useState(false)
   const [slotsPending, startSlotsTransition] = useTransition()
-  const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
+  const [submitState, setSubmitState] = useState<'idle' | 'pending' | 'redirecting' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null)
 
@@ -419,6 +431,13 @@ export default function BookForm({
     }
     try {
       const conf = await submitBookingRequest(fd)
+      if (conf.depositUrl) {
+        // The visit is booked — the deposit completes it. Hand off to Stripe;
+        // the return trip lands back on this page with ?deposit_session=….
+        setSubmitState('redirecting')
+        window.location.assign(conf.depositUrl)
+        return
+      }
       setConfirmation(conf)
       setSubmitState('success')
     } catch (err) {
@@ -668,9 +687,17 @@ export default function BookForm({
             {apptTypes.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
+                {t.depositCents > 0 ? ` — ${fmtDeposit(t.depositCents)} deposit` : ''}
               </option>
             ))}
           </select>
+          {selectedDepositCents > 0 && (
+            <p className="text-sm leading-relaxed rounded-xl px-4 py-3" style={{ backgroundColor: BG, border: `1px solid ${BORDER}`, color: INK_MUTED }}>
+              This visit takes a <strong style={{ color: INK }}>{fmtDeposit(selectedDepositCents)} deposit</strong> to
+              hold your spot — it&rsquo;s credited toward your visit, so you&rsquo;re not paying extra.
+              You&rsquo;ll pay securely after picking your time.
+            </p>
+          )}
           {/* Two optional front-desk-context questions (NexHealth-style). Both
               default to "" (no answer) and ride the appointment notes — no
               schema. Mobile-friendly: full-width, ≥44px tap height. */}
@@ -724,11 +751,13 @@ export default function BookForm({
       <div className="pt-2">
         <button
           type="submit"
-          disabled={submitState === 'pending' || !selectedSlotIso}
+          disabled={submitState === 'pending' || submitState === 'redirecting' || !selectedSlotIso}
           className="w-full py-4 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: brand }}
         >
-          {submitState === 'pending'
+          {submitState === 'redirecting'
+            ? 'Taking you to secure payment…'
+            : submitState === 'pending'
             ? 'Booking…'
             : selectedSlotIso
               ? // Short form on mobile (day name + time) keeps the button from
@@ -755,8 +784,17 @@ export default function BookForm({
               : 'Pick a time to continue'}
         </button>
         <p className="text-xs text-center mt-3" style={{ color: INK_MUTED }}>
-          We&rsquo;ll send a confirmation and call to verify within 24 hours. No payment required to
-          book.
+          {selectedDepositCents > 0 ? (
+            <>
+              We&rsquo;ll send a confirmation and call to verify within 24 hours. The{' '}
+              {fmtDeposit(selectedDepositCents)} deposit is credited toward your visit.
+            </>
+          ) : (
+            <>
+              We&rsquo;ll send a confirmation and call to verify within 24 hours. No payment
+              required to book.
+            </>
+          )}
         </p>
       </div>
     </form>

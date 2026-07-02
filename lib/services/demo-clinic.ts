@@ -978,7 +978,7 @@ const DEMO_CHAIR_COUNT = 3
 const DEMO_RECALL_DEFAULT_MONTHS = 6
 const DEMO_VISIT_TYPES: VisitType[] = [
   ...DEFAULT_VISIT_TYPES.filter((t) => t.id !== OTHER_VISIT_TYPE_ID),
-  { id: 'implant_consult', label: 'Implant consult', durationMinutes: 60, bookablePublic: true, bookablePortal: false },
+  { id: 'implant_consult', label: 'Implant consult', durationMinutes: 60, bookablePublic: true, bookablePortal: false, depositCents: 0 },
   ...DEFAULT_VISIT_TYPES.filter((t) => t.id === OTHER_VISIT_TYPE_ID),
 ]
 
@@ -2469,6 +2469,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // offer showcase. Tail placement for the same queue-position reason.
     await seedDemoWaitlist(existing.id, new Date(), existingPatientIds)
 
+    // Booking-deposit self-heal: paid deposit on Emma's widget consultation +
+    // a visit-type catalog with a $50 consultation deposit (only when null).
+    await seedDemoBookingDeposit(existing.id, new Date(), existingPatientIds)
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -3136,6 +3140,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Fast-pass waitlist: persona-anchored entries + a pending offer showcase.
   await seedDemoWaitlist(orgId, now, patientIds)
+
+  // Booking-deposit showcase: paid deposit on Emma's widget consultation +
+  // a visit-type catalog carrying a $50 consultation deposit.
+  await seedDemoBookingDeposit(orgId, now, patientIds)
 
   return {
     organizationId: orgId,
@@ -4399,7 +4407,20 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
-  // (7) Public-site testimonials linked to a non-persona patient — a seeded
+  // (7) Seeded booking-deposit records (deterministic `bd_demo…` ids) on a
+  // non-persona patient — a fabricated money record must never sit on a real
+  // person. Real deposits carry `bd_<hex>` ids and survive.
+  await db
+    .delete(schema.bookingDeposit)
+    .where(
+      and(
+        eq(schema.bookingDeposit.organizationId, orgId),
+        inArray(schema.bookingDeposit.patientId, strays),
+        like(schema.bookingDeposit.id, 'bd_demo%'),
+      ),
+    )
+
+  // (8) Public-site testimonials linked to a non-persona patient — a seeded
   // quote must never render under a real person's name.
   const [profileRow] = await db
     .select({ testimonials: schema.clinicProfile.testimonials })
@@ -4517,6 +4538,82 @@ async function seedDemoWaitlist(
       createdAt: addedAt,
       updatedAt: addedAt,
     })
+  }
+}
+
+/**
+ * Seed the booking-deposit showcase: one PAID deposit record on Emma's
+ * widget-booked consultation (persona 6) — populates the Shop → Payments
+ * "Booking deposits" section + the drawer's "deposit paid" pill — and a
+ * visit-type catalog (only when the demo still has none) with a $50
+ * consultation deposit so the Settings editor shows a configured example.
+ * The demo's Stripe stays 'none', so nothing ever actually charges.
+ * Idempotent by the deterministic `bd_demo…` id; anchor missing (partial
+ * org / exhausted seeder-test queue) → skip. Cleanup sweep reaps `bd_demo%`
+ * rows misattributed to non-persona patients.
+ */
+async function seedDemoBookingDeposit(
+  orgId: string,
+  now: Date,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const emmaId = patientIds[6]
+  if (!emmaId) return
+  const DEPOSIT_ID = 'bd_demo_emma_consult'
+
+  const [existing] = await db
+    .select({ id: schema.bookingDeposit.id })
+    .from(schema.bookingDeposit)
+    .where(eq(schema.bookingDeposit.id, DEPOSIT_ID))
+    .limit(1)
+  if (existing) return
+
+  // Anchor: Emma's future widget-booked consultation. Missing → skip.
+  const [appt] = await db
+    .select({ id: schema.appointment.id, createdAt: schema.appointment.createdAt })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, orgId),
+        eq(schema.appointment.patientId, emmaId),
+        eq(schema.appointment.type, 'consultation'),
+        eq(schema.appointment.source, 'booking_widget'),
+        gte(schema.appointment.startTime, now),
+      ),
+    )
+    .limit(1)
+  if (!appt) return
+
+  const paidAt = (appt.createdAt as Date | null) ?? new Date(now.getTime() - 20 * 60 * 1000)
+  await db.insert(schema.bookingDeposit).values({
+    id: DEPOSIT_ID,
+    organizationId: orgId,
+    patientId: emmaId,
+    appointmentId: appt.id,
+    visitType: 'consultation',
+    amountCents: 5000,
+    status: 'paid',
+    note: 'Seeded demo deposit',
+    createdAt: paidAt,
+    paidAt,
+  })
+
+  // Visit-type catalog backfill — ONLY when the demo has never configured one
+  // (never clobbers an existing catalog). Defaults + a $50 consultation
+  // deposit so the Settings → Visit types editor demos the field.
+  const [profile] = await db
+    .select({ visitTypeSettings: schema.clinicProfile.visitTypeSettings })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, orgId))
+    .limit(1)
+  if (profile && profile.visitTypeSettings == null) {
+    const withDeposit = DEFAULT_VISIT_TYPES.map((t) =>
+      t.id === 'consultation' ? { ...t, depositCents: 5000 } : { ...t },
+    )
+    await db
+      .update(schema.clinicProfile)
+      .set({ visitTypeSettings: withDeposit, updatedAt: new Date() })
+      .where(eq(schema.clinicProfile.organizationId, orgId))
   }
 }
 

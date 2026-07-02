@@ -307,6 +307,25 @@ export default function AppointmentDrawer({
                   {detail.providerName && ` · with ${detail.providerName}`}
                   {detail.locationName && ` · at ${detail.locationName}`}
                 </p>
+                {detail.deposit && (
+                  <div className="pt-1">
+                    {detail.deposit.status === 'paid' ? (
+                      <StatusPill
+                        tone="ok"
+                        title="Collected at online booking — credited toward this visit; post it to your PMS ledger (Shop → Payments)."
+                      >
+                        {money(detail.deposit.amountCents)} deposit paid
+                      </StatusPill>
+                    ) : (
+                      <StatusPill
+                        tone="warn"
+                        title="The patient booked but hasn't completed the deposit payment — the visit stands either way."
+                      >
+                        {money(detail.deposit.amountCents)} deposit pending
+                      </StatusPill>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* ── Context stats ────────────────────────────────────── */}

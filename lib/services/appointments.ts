@@ -112,6 +112,8 @@ export interface AppointmentDetail extends AppointmentRow {
     replyBody: string | null
   }>
   intakeAttached: { id: string; formTitle: string; submittedAt: Date } | null
+  /** Booking deposit collected (or awaited) for this visit. Null = none. */
+  deposit: { amountCents: number; status: string } | null
 }
 
 // ----- ID + helpers -----------------------------------------------------
@@ -557,7 +559,7 @@ export async function getAppointmentDetail(
   const now = new Date()
   // Tags fold into the parallel batch (was a separate serial round-trip on
   // every drawer open). Balance reads off the patient join (pms_balance_cents).
-  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence] = await Promise.all([
+  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence, depositRow] = await Promise.all([
     db
       .select({
         id: schema.appointmentReminderLog.id,
@@ -650,6 +652,18 @@ export async function getAppointmentDetail(
       .limit(1),
     getTagsForPatient(organizationId, base.patientId),
     getClinicCadence(organizationId),
+    // Booking deposit on this visit (drawer pill: paid = money already down).
+    db
+      .select({ amountCents: schema.bookingDeposit.amountCents, status: schema.bookingDeposit.status })
+      .from(schema.bookingDeposit)
+      .where(
+        and(
+          eq(schema.bookingDeposit.organizationId, organizationId),
+          eq(schema.bookingDeposit.appointmentId, appointmentId),
+        ),
+      )
+      .orderBy(desc(schema.bookingDeposit.createdAt))
+      .limit(1),
   ])
 
   const outstanding = base.pmsBalanceCents ?? 0
@@ -731,6 +745,7 @@ export async function getAppointmentDetail(
     intakeAttached: intakeRow[0]
       ? { id: intakeRow[0].id, formTitle: intakeRow[0].formTitle, submittedAt: intakeRow[0].submittedAt }
       : null,
+    deposit: depositRow[0] ?? null,
   }
 }
 

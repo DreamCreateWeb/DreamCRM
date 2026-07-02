@@ -12,7 +12,8 @@ import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
-import { visitTypeDuration } from '@/lib/types/visit-types'
+import { visitTypeDuration, visitTypeDepositCents } from '@/lib/types/visit-types'
+import { createBookingDepositSession } from '@/lib/services/booking-deposits'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
 import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
@@ -303,6 +304,15 @@ export interface BookingConfirmation {
   intakeFormUrl: string | null
   /** Whether a confirmation email was sent (false for phone-only bookers). */
   emailSent: boolean
+  /**
+   * Stripe Checkout URL when this visit type requires a booking deposit and
+   * the clinic can take payments — the widget redirects here instead of
+   * rendering the success screen (the return trip lands on /book?deposit_session=…).
+   * Null = no deposit step; the appointment is already booked either way.
+   */
+  depositUrl: string | null
+  /** Deposit amount in cents (0 when no deposit step). */
+  depositCents: number
 }
 
 /** Title-case a visit-type id into a display label ("root_canal" → "Root canal"). */
@@ -373,6 +383,8 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
       mapsUrl: null,
       intakeFormUrl: null,
       emailSent: false,
+      depositUrl: null,
+      depositCents: 0,
     }
   }
 
@@ -550,6 +562,31 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
 
   const sender = await getClinicSenderIdentity(orgId)
 
+  // Booking deposit (per-visit-type, off by default). Fail-open by design:
+  // the appointment above is already booked, so a null session (Connect not
+  // active, Stripe hiccup) just skips the deposit step — it never unwinds
+  // the booking. The widget redirects to `depositUrl` when present.
+  let depositUrl: string | null = null
+  const depositCents = visitTypeDepositCents(vtRow?.visitTypeSettings ?? null, appointmentType)
+  if (depositCents > 0) {
+    const bookUrl = `${publicSiteUrl({
+      slug: slug!,
+      profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+    })}/book`
+    const session = await createBookingDepositSession({
+      organizationId: orgId,
+      appointmentId: apptId,
+      patientId,
+      visitType: appointmentType,
+      visitTypeLabel: visitTypeLabelFromId(appointmentType),
+      amountCents: depositCents,
+      patientEmail: email,
+      clinicName: sender.name,
+      bookUrl,
+    })
+    depositUrl = session?.url ?? null
+  }
+
   let emailSent = false
   if (email) {
     // Editable copy (Settings → Automations → Emails). When the clinic has
@@ -612,5 +649,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
     mapsUrl,
     intakeFormUrl,
     emailSent,
+    depositUrl,
+    depositCents: depositUrl ? depositCents : 0,
   }
 }

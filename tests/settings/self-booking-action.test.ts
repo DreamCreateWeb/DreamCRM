@@ -30,6 +30,12 @@ vi.mock('@/lib/services/providers', () => ({
   deactivateProvider: vi.fn(),
 }))
 
+// getPracticeSettings folds in the Connect-can-charge flag for the deposit
+// editor hint — not what this suite exercises.
+vi.mock('@/lib/services/booking-deposits', () => ({
+  canTakeBookingDeposits: vi.fn(async () => false),
+}))
+
 const ops: Array<{ kind: 'update'; table: string; values: any }> = []
 let selectProfile: Record<string, unknown> | null = null
 

@@ -1405,6 +1405,40 @@ export const patientBalancePayment = pgTable(
 )
 export type PatientBalancePayment = typeof patientBalancePayment.$inferSelect
 
+// One row per booking deposit collected at PUBLIC online booking (per-visit-
+// type `depositCents` in clinic_profile.visit_type_settings; off by default).
+// Money moves through the clinic's connected Stripe account (direct charge,
+// same rails as balance payments) and is credited toward the visit — the
+// front desk posts it to the PMS ledger from the reconciliation list, we
+// never mutate the PMS balance. The appointment books FIRST (deposit-free
+// fail-open); a paid deposit auto-confirms it.
+export const bookingDeposit = pgTable(
+  'booking_deposit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    // The visit the deposit reserves. set null so deleting an appointment
+    // never erases a money record.
+    appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+    visitType: text('visit_type').notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    // 'pending' | 'paid' | 'failed'
+    status: text('status').notNull().default('pending'),
+    stripeCheckoutSessionId: text('stripe_checkout_session_id'),
+    stripePaymentIntentId: text('stripe_payment_intent_id'),
+    note: text('note'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    paidAt: timestamp('paid_at'),
+  },
+  (t) => [
+    index('booking_deposit_org_status_idx').on(t.organizationId, t.status),
+    index('booking_deposit_appt_idx').on(t.appointmentId),
+    index('booking_deposit_session_idx').on(t.stripeCheckoutSessionId),
+  ],
+)
+export type BookingDeposit = typeof bookingDeposit.$inferSelect
+
 // Per-staff-member onboarding state for the clinic dashboard tutorial
 // system: the first-run welcome tour, the Getting-started checklist
 // dismissal, and per-module hint dismissals. One row per (org, user) —
