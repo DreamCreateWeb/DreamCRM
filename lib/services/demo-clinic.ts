@@ -2382,6 +2382,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         showPrivateFeedback: 1,
         // Star-gate showcase: the demo review landing demos the triage ask.
         starGateEnabled: 1,
+        // NPS showcase: the survey toggle reads ON and the pulse section has
+        // data (seedDemoNpsResponses). Demo orgs never actually send.
+        npsEnabled: 1,
         updatedAt: new Date(),
       })
       .where(eq(schema.clinicReviewConfig.organizationId, existing.id))
@@ -2502,6 +2505,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
     // Preferred-language self-heal: Sophia prefers Spanish (only-when-null).
     await seedDemoPreferredLanguage(existing.id, existingPatientIds)
+
+    // NPS pulse self-heal: four answered surveys across the score bands.
+    await seedDemoNpsResponses(existing.id, new Date(), existingPatientIds)
 
     return {
       organizationId: existing.id,
@@ -3186,6 +3192,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Preferred-language showcase: Sophia prefers Spanish (only-when-null).
   await seedDemoPreferredLanguage(orgId, patientIds)
+
+  // NPS pulse showcase: four answered surveys across the score bands.
+  await seedDemoNpsResponses(orgId, now, patientIds)
 
   return {
     organizationId: orgId,
@@ -4486,6 +4495,18 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
+  // (9a) Seeded NPS survey responses (demonps tokens) on a non-persona
+  // patient — a fabricated survey answer must never sit on a real person.
+  await db
+    .delete(schema.npsResponse)
+    .where(
+      and(
+        eq(schema.npsResponse.organizationId, orgId),
+        inArray(schema.npsResponse.patientId, strays),
+        like(schema.npsResponse.token, 'demonps%'),
+      ),
+    )
+
   // (9b) Seeded payment plans (ppl_demo ids) + their installment payment rows
   // (bp_demo_plan ids) on a non-persona patient — fabricated autopay records
   // must never sit on a real person. Seeded plans carry no Stripe ids, so
@@ -4817,6 +4838,62 @@ async function seedDemoReferral(
 }
 
 /**
+ * Seed the NPS pulse showcase: four answered surveys across the score bands
+ * (two promoters w/ comments, one passive, one detractor w/ a comment — the
+ * detractor also demos the "pinged your team" copy honestly since the count
+ * is real). Persona-anchored; deterministic `nps_demo…` ids + `demonps…`
+ * tokens; missing personas skip their rows; cleanup sweep reaps strays.
+ */
+async function seedDemoNpsResponses(
+  orgId: string,
+  now: Date,
+  patientIds: Array<string | null>,
+): Promise<void> {
+  const dayMs = 24 * 60 * 60 * 1000
+  const seeds: Array<{ idx: number; key: string; score: number; comment: string | null; daysAgo: number }> = [
+    { idx: 0, key: 'mia', score: 10, comment: 'Everyone was so gentle — best cleaning I’ve had.', daysAgo: 12 },
+    { idx: 7, key: 'noah', score: 9, comment: null, daysAgo: 20 },
+    { idx: 2, key: 'charlotte', score: 8, comment: 'Great visit, parking was a little tricky.', daysAgo: 33 },
+    { idx: 9, key: 'ethan', score: 4, comment: 'Waited 40 minutes past my appointment time.', daysAgo: 6 },
+  ]
+  // Positive anchor: Mia's actual patient row. Missing (partially-seeded org,
+  // or the seeder test's exhausted mock queue) → skip the whole showcase.
+  const miaId = patientIds[0]
+  if (!miaId) return
+  const [mia] = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, miaId)))
+    .limit(1)
+  if (!mia) return
+
+  const ids = seeds.map((s) => `nps_demo_${s.key}`)
+  const existing = await db
+    .select({ id: schema.npsResponse.id })
+    .from(schema.npsResponse)
+    .where(inArray(schema.npsResponse.id, ids))
+  const have = new Set(existing.map((r) => r.id))
+
+  for (const s of seeds) {
+    const patientId = patientIds[s.idx]
+    if (!patientId || have.has(`nps_demo_${s.key}`)) continue
+    const sentAt = new Date(now.getTime() - s.daysAgo * dayMs)
+    await db.insert(schema.npsResponse).values({
+      id: `nps_demo_${s.key}`,
+      organizationId: orgId,
+      patientId,
+      appointmentId: null,
+      token: `demonps_${s.key}`,
+      score: s.score,
+      comment: s.comment,
+      sentAt,
+      respondedAt: new Date(sentAt.getTime() + 6 * 60 * 60 * 1000),
+      createdAt: sentAt,
+    })
+  }
+}
+
+/**
  * Preferred-language showcase: Sophia (persona 4 — she has a seeded /messages
  * thread) prefers Spanish, so the "Prefers Spanish" chip + the composer's
  * one-tap translate render in the demo. Only-when-null: a staff-set choice
@@ -4944,7 +5021,9 @@ async function seedReviewsForOrg(
       facebookPageId: 'acme-dental-demo',
       yelpBusinessSlug: null, // opt-in only; the demo keeps it off
       minDaysBetweenRequests: 365,
-      npsEnabled: 0,
+      // NPS surveys ON in the demo (the pulse section + toggle showcase);
+      // demo orgs never actually send.
+      npsEnabled: 1,
       // The redesigned Google-first loop: auto-ask immediately on completion,
       // auto-feature 4★+ Google reviews, offer the private-feedback path.
       autoSendEnabled: 1,

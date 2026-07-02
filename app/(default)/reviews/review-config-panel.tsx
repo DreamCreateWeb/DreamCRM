@@ -24,6 +24,7 @@ export default function ReviewConfigPanel({ config }: Props) {
     featureMinStars: config.featureMinStars,
     showPrivateFeedback: config.showPrivateFeedback,
     starGateEnabled: config.starGateEnabled,
+    npsEnabled: config.npsEnabled,
   })
   const [showYelp, setShowYelp] = useState(!!config.yelpBusinessSlug)
   const [showMore, setShowMore] = useState(false)
@@ -52,6 +53,7 @@ export default function ReviewConfigPanel({ config }: Props) {
         featureMinStars: draft.featureMinStars,
         showPrivateFeedback: draft.showPrivateFeedback,
         starGateEnabled: draft.starGateEnabled,
+        npsEnabled: draft.npsEnabled,
       })
       setSaved(true)
       setToast('Review settings saved.')
@@ -188,6 +190,25 @@ export default function ReviewConfigPanel({ config }: Props) {
               Patients tap a star before seeing the links. Everyone gets the same public
               review options (that keeps it FTC-clean) — a 1–3★ tap simply leads with the
               private note to your team, so an unhappy patient reaches a human faster.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.npsEnabled}
+            onChange={(e) => update('npsEnabled', e.target.checked)}
+            className="form-checkbox h-4 w-4 mt-0.5"
+          />
+          <span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              Post-visit satisfaction survey (NPS)
+            </span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400">
+              Three days after a completed visit, patients get a one-question “would you
+              recommend us?” email (0–10 + an optional note — private, never posted). At
+              most one survey per patient every 6 months; low scores ping your team.
             </span>
           </span>
         </label>

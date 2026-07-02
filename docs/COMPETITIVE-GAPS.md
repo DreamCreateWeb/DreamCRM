@@ -171,7 +171,17 @@ birthday/reactivation autos, templates, promote-view-to-audience.
   groupings) — needs PMS procedure codes (OD gives us this). **P2 (post-OD).**
 - ✗ Treatment-plan follow-up campaign (RW/Lighthouse/DI) — unscheduled
   diagnosed treatment nudges. **P2/P3 (needs PMS treatment plans).**
-- ✗ Patient surveys / NPS (SR/Lighthouse; `npsEnabled` stub exists). **P3.**
+- ✅ **Patient surveys / NPS** (SR/Lighthouse) — SHIPPED 2026-07-02: opt-in
+  per clinic (the long-dormant `nps_enabled` toggle, now in Reviews
+  settings, default OFF). Three days after a completed visit the patient
+  gets a one-question email → public /n/[token] landing (token-is-auth,
+  POST-recorded so scanners can't answer): 0–10 tap + optional comment,
+  private by design. One survey per patient per 180 days, one per visit
+  ever; detractors (0–6) ping owners/admins like 1–2★ feedback. "Patient
+  pulse" section on /reviews: rolling-90d NPS, promoter/detractor split,
+  recent comments. Deliberately separate + delayed from review requests so
+  a patient never gets two asks in one afternoon. Later: SMS channel,
+  per-visit-type targeting, trend chart in Analytics.
 - Skip: direct-mail postcards, RevenueWell TV.
 
 ### 4. Messages

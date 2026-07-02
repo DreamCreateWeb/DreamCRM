@@ -28,6 +28,11 @@ const runDuePlanCharges = vi.fn(async () => ({ scanned: 0, charged: 0, failed: 0
 vi.mock('@/lib/services/payment-plans', () => ({
   runDuePlanCharges: () => runDuePlanCharges(),
 }))
+// …and the opt-in post-visit NPS surveys (best-effort, same tick).
+const runDueNpsSurveys = vi.fn(async () => ({ orgsScanned: 0, candidates: 0, sent: 0, throttled: 0, skipped: 0, errors: [] }))
+vi.mock('@/lib/services/nps', () => ({
+  runDueNpsSurveys: () => runDueNpsSurveys(),
+}))
 const runFollowupRules = vi.fn(async () => ({ scanned: 0, created: 0, errors: [] }))
 vi.mock('@/lib/services/followup-rules', () => ({
   runFollowupRules: () => runFollowupRules(),
@@ -118,6 +123,7 @@ describe('retention-automations cron — authorized run', () => {
       ok: true, scanned: 2, created: 1, alreadyCreated: 1, emptyAudience: 0, details: [], errors: [],
       balanceOutreach: { orgsScanned: 0, candidates: 0, sent: 0, skipped: 0 },
       paymentPlans: { scanned: 0, charged: 0, failed: 0, completed: 0 },
+      npsSurveys: { orgsScanned: 0, candidates: 0, sent: 0, throttled: 0, skipped: 0, errors: [] },
     })
     expect(runRetentionAutomations).toHaveBeenCalledTimes(1)
     expect(runBalanceReminderCadence).toHaveBeenCalledTimes(1)

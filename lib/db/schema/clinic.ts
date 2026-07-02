@@ -1487,6 +1487,36 @@ export const balancePaymentRequest = pgTable(
 )
 export type BalancePaymentRequest = typeof balancePaymentRequest.$inferSelect
 
+// Post-visit NPS survey responses ("How likely are you to recommend us?",
+// 0–10 + an optional comment). One row per SENT survey; score null until the
+// patient answers at the public /n/[token] landing (token IS the auth — the
+// /r /w /c /b /i pattern). Sends are opt-in (clinic_review_config.nps_enabled,
+// default OFF), ride the daily retention cron 3 days after a completed visit,
+// and are throttled per patient so surveys never read as spam. Detractor
+// scores (0–6) escalate to staff the same way 1–2★ review feedback does.
+export const npsResponse = pgTable(
+  'nps_response',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
+    appointmentId: text('appointment_id'),
+    token: text('token').notNull(),
+    // 0–10; null = sent but not yet answered.
+    score: integer('score'),
+    comment: text('comment'),
+    sentAt: timestamp('sent_at').notNull().defaultNow(),
+    respondedAt: timestamp('responded_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('nps_response_token_idx').on(t.token),
+    index('nps_response_org_idx').on(t.organizationId, t.sentAt),
+    index('nps_response_patient_idx').on(t.patientId, t.sentAt),
+  ],
+)
+export type NpsResponse = typeof npsResponse.$inferSelect
+
 // Payment plans: a balance split into N monthly installments auto-charged to
 // a card on file. Staff PROPOSE (amount + months) → the patient ACCEPTS at
 // the public /i/[token] page (token IS the auth, /b's sibling) via a Stripe

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { runRetentionAutomations } from '@/lib/services/retention-automation'
 import { runBalanceReminderCadence } from '@/lib/services/balance-outreach'
 import { runDuePlanCharges } from '@/lib/services/payment-plans'
+import { runDueNpsSurveys } from '@/lib/services/nps'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +41,13 @@ async function run(request: Request) {
       console.warn('[retention-automations] plan charges failed', err)
       return null
     })
-    return NextResponse.json({ ok: true, ...result, balanceOutreach: balance, paymentPlans: planCharges })
+    // Opt-in post-visit NPS surveys (3 days after completion) — same daily
+    // tick, same best-effort posture.
+    const nps = await runDueNpsSurveys().catch((err) => {
+      console.warn('[retention-automations] NPS surveys failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, balanceOutreach: balance, paymentPlans: planCharges, npsSurveys: nps })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

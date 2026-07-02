@@ -13,6 +13,7 @@ import {
   type ReviewStatus,
 } from '@/lib/services/reviews'
 import { getGoogleReviewStats, hasGoogleBusinessConnection, listFeaturableGoogleReviews } from '@/lib/services/google-reviews'
+import { getNpsSummary } from '@/lib/services/nps'
 import ReviewConfigPanel from './review-config-panel'
 import EligibleList from './eligible-list'
 import ModuleHint from '@/components/onboarding/module-hint'
@@ -99,7 +100,7 @@ export default async function ReviewsPage() {
 
   // One eligible scan serves both the "Ready to ask" count and the list —
   // getReviewStats skips its own (includeEligible:false) so we don't scan twice.
-  const [config, stats, eligibleAll, recent, featuredIds, googleStats, googleConnected, autoFeatured] = await Promise.all([
+  const [config, stats, eligibleAll, recent, featuredIds, googleStats, googleConnected, autoFeatured, nps] = await Promise.all([
     getReviewConfig(ctx.organizationId),
     getReviewStats(ctx.organizationId, 30, { includeEligible: false }),
     listEligiblePatients(ctx.organizationId, 1000),
@@ -108,6 +109,7 @@ export default async function ReviewsPage() {
     getGoogleReviewStats(ctx.organizationId),
     hasGoogleBusinessConnection(ctx.organizationId),
     listFeaturableGoogleReviews(ctx.organizationId).catch(() => []),
+    getNpsSummary(ctx.organizationId),
   ])
   const eligibleCount = eligibleAll.length
   const eligible = eligibleAll.slice(0, 25)
@@ -249,6 +251,65 @@ export default async function ReviewsPage() {
               <KpiStat key={site} label={PLATFORM_LABEL[site]} value={stats.byPlatform[site]} />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ── Patient pulse (NPS) — shown once surveys are on or data exists. */}
+      {(config.npsEnabled || nps.sent > 0) && (
+        <section className="mb-8">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              Patient pulse · last 90 days
+            </h2>
+            <span className="text-xs text-gray-400">
+              Private post-visit surveys — never posted anywhere public
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KpiStat
+              label="NPS score"
+              value={nps.score != null ? nps.score : '—'}
+              sub={nps.score != null ? 'promoters − detractors' : 'No responses yet'}
+              tone={nps.score != null ? (nps.score >= 50 ? 'ok' : nps.score >= 0 ? 'warn' : 'urgent') : undefined}
+            />
+            <KpiStat
+              label="Responses"
+              value={nps.responses}
+              sub={nps.sent > 0 ? `of ${nps.sent} surveys sent` : 'No surveys sent yet'}
+            />
+            <KpiStat label="Promoters (9–10)" value={nps.promoters} tone={nps.promoters > 0 ? 'ok' : undefined} />
+            <KpiStat
+              label="Detractors (0–6)"
+              value={nps.detractors}
+              sub={nps.detractors > 0 ? 'each one pinged your team' : undefined}
+              tone={nps.detractors > 0 ? 'urgent' : undefined}
+            />
+          </div>
+          {nps.recentComments.length > 0 && (
+            <div className="mt-3 v2-card divide-y divide-[color:var(--color-hairline)]">
+              {nps.recentComments.map((c, i) => (
+                <div key={`${c.patientId}-${i}`} className="px-4 py-3 flex items-start gap-3">
+                  <span
+                    className={`shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                      c.score >= 9
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        : c.score >= 7
+                          ? 'bg-gray-500/15 text-gray-600 dark:text-gray-300'
+                          : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                    }`}
+                  >
+                    {c.score}
+                  </span>
+                  <div className="min-w-0">
+                    <Link href={`/patients/${c.patientId}`} className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:underline">
+                      {c.patientName}
+                    </Link>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{c.comment}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 

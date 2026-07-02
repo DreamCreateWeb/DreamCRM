@@ -111,6 +111,9 @@ const PUBLIC_PATHS = [
   // Public payment-plan (installments) landing — same token-IS-auth pattern;
   // patient lands from the "payment plan" email to accept + save a card.
   '/i',
+  // Public post-visit NPS survey landing — same token-IS-auth pattern;
+  // patient lands from the "one quick question" email.
+  '/n',
   // Subscribable .ics calendar feed (/api/calendar/<token>). Calendar apps
   // (Google/Apple/Outlook) fetch it with no session — the opaque token in the
   // URL is the auth. Must be public or the fetch 302s to /signin.
