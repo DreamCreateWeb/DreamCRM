@@ -136,10 +136,16 @@ Current: unified thread inbox (in_app+email), receipts, attachments, AI
 drafts, quick-book, scheduled send, star/unread, after-hours auto-reply,
 Gmail mailbox, templates.
 
-- ✗ **Website "text us" widget** (Weave Text Connect, RW web chat) — a chat
-  bubble on the clinic's public site that opens a thread in /messages
-  (in_app/email now, SMS later). Distinctive twist: ours can hand off to the
-  portal thread for known patients. **P1.**
+- ✅ **Website "message us" widget** — SHIPPED 2026-07-02 (Weave Text
+  Connect / RW web chat parity, email-reply channel for v1). Brand-colored
+  bubble on every public clinic page (site layout mount, bottom-left, away
+  from the mobile-actions stack); name + email + message → an inbound
+  thread in /messages (channel=email, so the reply composer defaults to
+  the visitor's inbox — no account needed); repeat visitors thread to the
+  same patient record (`source:'website_chat'`, lead lifecycle); honeypot +
+  time-trap + rate limit, silent drops. Default ON with an off switch in
+  Settings → Practice → Online booking. Later: SMS channel, known-patient
+  portal-thread handoff, office-open presence hint.
 - ◐ **Bulk/broadcast messaging** ("office closed today") — we have bulk email
   via patients list; make it a first-class /messages action w/ segment pick.
   **P2.**

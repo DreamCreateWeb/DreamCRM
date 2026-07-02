@@ -259,6 +259,83 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
   })
 }
 
+/**
+ * The public-site "Message us" chat bubble. A visitor's message lands as an
+ * inbound thread in /messages (channel=email — the reply composer defaults to
+ * the address they just gave; no portal account needed). Same spam guards +
+ * patient dedupe as the request path; a repeat visitor threads to the same
+ * patient record. Gated by clinic_profile.chat_widget_enabled.
+ */
+export async function submitChatMessage(formData: FormData): Promise<{ ok: true }> {
+  // Silent spam drop — bots get the normal success shape and no signal.
+  if (looksLikeBot(formData)) return { ok: true }
+  if (!(await rateLimitPublicAction('chat', { limit: 6 }))) return { ok: true }
+
+  const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
+  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+
+  const [prof] = await db
+    .select({ chatWidgetEnabled: clinicProfile.chatWidgetEnabled })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, orgId))
+    .limit(1)
+  // Turned off after the tab loaded (or a replayed submit) — never record.
+  if (prof?.chatWidgetEnabled === false) {
+    throw new Error('Messaging is off right now — please give us a call instead.')
+  }
+
+  const name = formData.get('name')?.toString().trim() || ''
+  const email = formData.get('email')?.toString().trim() || ''
+  const message = formData.get('message')?.toString().trim() || ''
+
+  if (!name) throw new Error('Please tell us your name')
+  if (!email) throw new Error('Please add an email so we can reply')
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    throw new Error('That email doesn’t look right — please double-check it')
+  }
+  if (!message) throw new Error('Type a message first')
+  if (message.length > 2000) throw new Error('That message is a little long — keep it under 2,000 characters')
+
+  const [firstName, ...rest] = name.split(/\s+/)
+  const lastName = rest.join(' ') || '—'
+
+  // Dedupe by email (repeat visitors thread to the same patient record) —
+  // else create a lead-lifecycle patient, mirroring the request path.
+  let patientId = ''
+  const [existing] = await db
+    .select({ id: patient.id })
+    .from(patient)
+    .where(and(eq(patient.organizationId, orgId), eq(patient.email, email)))
+    .limit(1)
+  patientId = existing?.id ?? ''
+  if (!patientId) {
+    patientId = randomUUID()
+    const now = new Date()
+    await db.insert(patient).values({
+      id: patientId,
+      organizationId: orgId,
+      firstName,
+      lastName,
+      email,
+      isActive: 1,
+      source: 'website_chat',
+      lifecycle: 'lead',
+      firstSeenAt: now,
+      lastActivityAt: now,
+    })
+  } else {
+    await db.update(patient).set({ lastActivityAt: new Date() }).where(eq(patient.id, patientId))
+  }
+
+  await recordInboundMessage({
+    organizationId: orgId,
+    patientId,
+    body: `New message via the website chat.\n\n${message}`,
+    channel: 'email',
+  })
+  return { ok: true }
+}
+
 export async function listBookingSlots(
   orgId: string,
   dateIso: string,

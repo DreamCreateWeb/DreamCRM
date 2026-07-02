@@ -750,6 +750,13 @@
       "when": 1783012740095,
       "tag": "0106_boring_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1783013633920,
+      "tag": "0107_sticky_firebrand",
+      "breakpoints": true
     }
   ]
 }

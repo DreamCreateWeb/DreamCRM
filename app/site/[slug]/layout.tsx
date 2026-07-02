@@ -1,8 +1,12 @@
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { clinicProfile } from '@/lib/db/schema/platform'
 import { getClinicThemeBySlug } from '@/lib/services/clinic-site'
 import { canEditClinic } from '@/lib/clinic-site-edit'
 import { clinicPaletteCss } from '@/lib/clinic-site-theme'
 import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
 import SiteViewBeacon from '@/components/clinic-site/site-view-beacon'
+import SiteChatWidget from '@/components/clinic-site/site-chat-widget'
 
 const FRAUNCES_HREF =
   'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap'
@@ -46,6 +50,19 @@ export default async function ClinicSiteLayout({
   const { slug } = await params
   const { orgId, brand } = await getClinicThemeBySlug(slug)
   const canEdit = orgId ? await canEditClinic(orgId) : false
+  // The "Message us" bubble (site-wide, so it lives here, not per-page).
+  // Default ON; Settings → Practice is the off switch.
+  let chatWidget: { enabled: boolean; clinicName: string } | null = null
+  if (orgId) {
+    const [prof] = await db
+      .select({ enabled: clinicProfile.chatWidgetEnabled, displayName: clinicProfile.displayName })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, orgId))
+      .limit(1)
+    if (prof && prof.enabled !== false) {
+      chatWidget = { enabled: true, clinicName: prof.displayName ?? 'our office' }
+    }
+  }
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -91,6 +108,7 @@ export default async function ClinicSiteLayout({
       `}</style>
       {children}
       {orgId && <SiteViewBeacon orgId={orgId} slug={slug} />}
+      {chatWidget && <SiteChatWidget slug={slug} brand={brand || '#9CAF9F'} clinicName={chatWidget.clinicName} />}
       <EditBridgeGate canEdit={canEdit} />
     </>
   )

@@ -241,6 +241,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   // no backfill. Settings → Practice → "Patient self-scheduling".
   selfBookingEnabled: boolean('self_booking_enabled').notNull().default(true),
 
+  // The "Message us" chat bubble on the PUBLIC clinic site. A visitor's
+  // message lands as an inbound thread in /messages (reply goes out by
+  // email). Default ON — it's the site's lowest-friction contact path;
+  // Settings → Practice → "Online booking" is the off switch.
+  chatWidgetEnabled: boolean('chat_widget_enabled').notNull().default(true),
+
   // Operating hours stored as JSON: { mon: { open: '09:00', close: '17:00' }, ... }
   hours: jsonb('hours'),
   // IANA timezone the clinic's hours + appointment times are expressed in

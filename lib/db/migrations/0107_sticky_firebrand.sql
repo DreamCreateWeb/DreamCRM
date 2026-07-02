@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "chat_widget_enabled" boolean DEFAULT true NOT NULL;
