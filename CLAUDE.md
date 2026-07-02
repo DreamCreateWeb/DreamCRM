@@ -15,7 +15,8 @@ system, don't replace it.
 | [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) | The binding dashboard UI system (v2 "Instrument Panel, Liquid Soul") — semantic tones, glyphs, motion, components. Read before touching dashboard UI. |
 | **This file** | Current implementation state: architecture, module map, subsystem reference, conventions, ops. |
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log (moved out of this file 2026-07-02). Per-session implementation detail lives there. |
-| [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. The current focus. |
+| [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. |
+| [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc., prioritized. **The current focus** — working module by module, Appointments first. |
 | `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` | Deep-dive specs for those systems. |
 
 ## Stack
