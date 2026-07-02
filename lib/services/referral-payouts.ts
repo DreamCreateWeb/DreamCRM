@@ -18,7 +18,9 @@ import { PAYOUT_MIN_CENTS } from '@/lib/types/referrals'
  * load (the shop-connect refresh pattern).
  */
 
-const appUrl = () => process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || 'http://localhost:3000'
+// Production-origin fallback — Stripe Express return/refresh URLs must never
+// point at localhost.
+const appUrl = () => process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || 'https://www.dreamcreatestudio.com'
 
 /**
  * Ensure the partner has a Stripe Connect Express account. Creates one on

@@ -63,6 +63,7 @@ vi.mock('@/lib/db', () => {
         table === T_CONN ? Object.values(store.connections) : table === T_PAT ? store.patients : store.accounts
       return rows.filter((r) => filters.every((f) => f(r)))
     }
+    api.orderBy = () => api
     api.limit = async () => run()
     api.then = (resolve: (v: unknown) => void) => resolve(run())
     return api
@@ -153,6 +154,7 @@ vi.mock('@/lib/db', () => {
 
 // drizzle eq/and → predicate builders over our row objects.
 vi.mock('drizzle-orm', () => ({
+  asc: vi.fn((x) => x),
   eq: (colRef: { col: string }, val: unknown) => (r: Record<string, unknown>) => r[colRef.col] === val,
   and: (...preds: Array<(r: Record<string, unknown>) => boolean>) => (r: Record<string, unknown>) =>
     preds.every((p) => p(r)),

@@ -11,6 +11,10 @@ export interface InvitationDetails {
   orgName: string
   role: string
   expired: boolean
+  /** The invite was already USED (status 'accepted') — distinct from a real
+   *  date expiry so the page can route the already-joined invitee home instead
+   *  of telling them their invite "expired". */
+  alreadyAccepted: boolean
   /** 'platform' | 'clinic' — drives whether the page wears the clinic's brand. */
   orgType: string
   /** Clinic branding (only set for clinic orgs) so the invite can match the portal. */
@@ -106,5 +110,6 @@ export async function getInvitationDetails(token: string): Promise<InvitationDet
     // a past expiry. better-auth blocks non-pending accepts server-side; this
     // surfaces it as a clean "expired" state instead of a generic error.
     expired: row.status !== 'pending' || new Date() > row.expiresAt,
+    alreadyAccepted: row.status === 'accepted',
   }
 }

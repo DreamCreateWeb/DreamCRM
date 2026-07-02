@@ -41,6 +41,11 @@ export default function Onboarding04() {
           country: draft.country,
           slug: draft.slug,
           brandColor: draft.brandColor,
+          // The signer-upper is almost always AT the clinic — their browser
+          // timezone is the best default for clinic_profile.timezone (the
+          // whole app's wall-clock; otherwise everyone silently defaults to
+          // Eastern). Adjustable later in Settings → Clinic.
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         })
         clearOnboardingState()
         // Full reload so the freshly-set session.activeOrganizationId is visible

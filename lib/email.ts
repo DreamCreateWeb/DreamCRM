@@ -43,7 +43,7 @@ function htmlToText(html: string): string {
  *     literally what rescued the first onboarding).
  * Inline styles only; user content is escaped.
  */
-function authEmailShell(opts: {
+export function authEmailShell(opts: {
   heading: string
   introHtml: string
   buttonUrl: string
@@ -321,22 +321,21 @@ export async function sendPatientPortalInviteEmail(
     content?.closing != null
       ? slotToHtml(content.closing)
       : "Weren't expecting this? You can ignore this email."
+  // Outlook-safe shell (VML button + copy-paste URL fallback) — the invite
+  // link is the patient's ONLY way in, so it must survive Outlook desktop.
   await deliver({
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
     subject,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
-        <h2 style="margin:0 0 16px;font-size:20px">${headingHtml}</h2>
-        <p style="margin:0 0 20px;line-height:1.55">${bodyHtml}</p>
-        <a href="${data.inviteUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
-          Set up my portal
-        </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#6b635a;line-height:1.55">${closingHtml}</p>
-      </div>
-    `,
+    html: authEmailShell({
+      heading: headingHtml.replace(/<[^>]+>/g, ''),
+      introHtml: bodyHtml,
+      buttonUrl: data.inviteUrl,
+      buttonLabel: 'Set up my portal',
+      footnoteHtml: closingHtml,
+    }),
   })
 }
 
@@ -624,6 +623,35 @@ export async function sendTrialReminderEmail(
       buttonLabel: 'Add payment & choose a plan',
       accent: t.accent,
       footnoteHtml: 'You’re receiving this because your clinic is on a DreamCRM free trial.',
+    }),
+  })
+}
+
+/**
+ * Welcome email the moment a clinic's no-card trial starts (from onboarding).
+ * Platform-identity send. Doubles as an early deliverability check — before
+ * this, the FIRST email an owner ever got was the day-3 trial reminder, so a
+ * typo'd signup address went unnoticed until reminders and password resets
+ * were already going nowhere.
+ */
+export async function sendTrialWelcomeEmail(
+  to: string,
+  data: { firstName: string | null; clinicName: string; dashboardUrl: string },
+) {
+  const hi = data.firstName ? `Hi ${escapeHtml(data.firstName)},` : 'Hi,'
+  await deliver({
+    to,
+    subject: `Welcome to DreamCRM — ${data.clinicName} is live`,
+    html: authEmailShell({
+      heading: 'Your free trial is live',
+      introHtml: `${hi}<br><br>Welcome! <strong>${escapeHtml(
+        data.clinicName,
+      )}</strong> is set up with full access for 7 days — website, bookings, patients, messaging, the lot. No card needed. Build your website, invite your team, and see how it fits your front desk.`,
+      buttonUrl: data.dashboardUrl,
+      buttonLabel: 'Open your dashboard',
+      accent: '#28B3AD',
+      footnoteHtml:
+        'You’re receiving this because you started a DreamCRM free trial. Not you? You can ignore this email.',
     }),
   })
 }

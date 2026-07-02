@@ -143,6 +143,7 @@ describe('getInvitationDetails', () => {
       orgName: 'Acme Dental',
       role: 'admin',
       expired: false,
+      alreadyAccepted: false,
       orgType: 'platform',
       brand: null,
       // No user/account rows match in the mocked db → 'none' (create-account).

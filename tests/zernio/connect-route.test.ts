@@ -20,6 +20,15 @@ const svc = {
   getPlatformConnectUrl: vi.fn(),
   syncConnectedAccounts: vi.fn(),
   simulateDemoConnect: vi.fn(),
+  // Callback verifies the platform actually landed before flashing success —
+  // default: every shortlisted platform present.
+  getZernioConnection: vi.fn(async () => ({
+    status: 'connected',
+    lastError: null,
+    accounts: ['googlebusiness', 'instagram', 'facebook', 'tiktok', 'youtube', 'linkedin'].map(
+      (platform) => ({ platform }),
+    ),
+  })),
 }
 const cap = {
   canConnectSocialPlatform: vi.fn(),
@@ -31,6 +40,7 @@ vi.mock('@/lib/services/zernio', () => ({
   getPlatformConnectUrl: (...a: unknown[]) => svc.getPlatformConnectUrl(...a),
   syncConnectedAccounts: (...a: unknown[]) => svc.syncConnectedAccounts(...a),
   simulateDemoConnect: (...a: unknown[]) => svc.simulateDemoConnect(...a),
+  getZernioConnection: () => svc.getZernioConnection(),
 }))
 vi.mock('@/lib/services/social-billing', () => ({
   canConnectSocialPlatform: (...a: unknown[]) => cap.canConnectSocialPlatform(...a),

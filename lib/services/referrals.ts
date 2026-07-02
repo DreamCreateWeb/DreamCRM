@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto'
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
-import { deliver } from '@/lib/email'
+import { authEmailShell, deliver } from '@/lib/email'
 
 /**
  * Referral partner program — partner CRUD, clinic attribution, and automatic
@@ -45,7 +45,9 @@ import { deliver } from '@/lib/email'
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const appUrl = () => process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || 'http://localhost:3000'
+// Falls back to the PRODUCTION origin — a missing env var must never ship
+// dead localhost links in partner invite emails.
+const appUrl = () => process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || 'https://www.dreamcreatestudio.com'
 
 /** Partner invite token lifetime — 14 days, matching staff/patient invites. */
 const PARTNER_INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000
@@ -1078,33 +1080,20 @@ export async function linkPartnerUser(partnerId: string, userId: string): Promis
 async function sendPartnerInviteEmail(args: { to: string; name: string; token: string }): Promise<void> {
   const url = `${appUrl()}/partner/accept?token=${args.token}`
   const firstName = args.name.split(' ')[0] || args.name
+  // Outlook-safe shell (VML button + copy-paste URL fallback) — partners are
+  // B2B recipients (Outlook-desktop likely) and this link is their only way in.
   await deliver({
     to: args.to,
     subject: 'You’re invited to the Dream Create partner program',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1A2140">
-        <h2 style="margin:0 0 16px;font-size:20px">Hi ${escapeHtml(firstName)},</h2>
-        <p style="margin:0 0 20px;line-height:1.55;color:#444">
-          You've been added as a referral partner for <strong>Dream Create</strong>.
-          Set up your partner account to see the clinics you refer, track your
-          commission as it accrues, and connect a payout method to get paid.
-        </p>
-        <a href="${url}" style="display:inline-block;padding:12px 24px;background:#1F6E7E;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
-          Set up my partner account
-        </a>
-        <p style="margin:24px 0 0;font-size:12px;color:#888;line-height:1.55">
-          If you weren't expecting this, you can safely ignore this email.
-        </p>
-      </div>
-    `,
+    html: authEmailShell({
+      heading: `Hi ${firstName},`,
+      introHtml: `You've been added as a referral partner for <strong>Dream Create</strong>.
+        Set up your partner account to see the clinics you refer, track your
+        commission as it accrues, and connect a payout method to get paid.`,
+      buttonUrl: url,
+      buttonLabel: 'Set up my partner account',
+      accent: '#1F6E7E',
+      footnoteHtml: "If you weren't expecting this, you can safely ignore this email.",
+    }),
   })
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }

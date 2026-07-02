@@ -51,7 +51,7 @@ function dbMethods(): any {
 const mockDeliver = vi.fn()
 
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/email', () => ({ deliver: (...a: unknown[]) => mockDeliver(...a) }))
+vi.mock('@/lib/email', () => ({ deliver: (...a: unknown[]) => mockDeliver(...a), authEmailShell: vi.fn((opts: { buttonUrl: string }) => `<html>${opts.buttonUrl}</html>`) }))
 vi.mock('@/lib/db', () => ({ db: dbMethods(), schema: TABLES }))
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({ _k: 'and' })),

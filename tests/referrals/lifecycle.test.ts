@@ -109,7 +109,7 @@ function dbMethods(): any {
 const mockPayoutPartner = vi.fn()
 
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/email', () => ({ deliver: vi.fn() }))
+vi.mock('@/lib/email', () => ({ deliver: vi.fn(), authEmailShell: vi.fn(() => '<html></html>') }))
 vi.mock('@/lib/db', () => ({ db: dbMethods(), schema: TABLES }))
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...a) => ({ _k: 'and', a })),

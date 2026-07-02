@@ -11,6 +11,7 @@ import type {
   ClinicFinancingPartner,
 } from '@/lib/types/clinic-content'
 import { DEFAULT_PAYMENT_METHODS } from '@/lib/types/clinic-content'
+import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
@@ -266,7 +267,7 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
         <span className="block text-sm font-medium mb-1">Timezone</span>
         <TimezonePicker
           name="timezone"
-          defaultValue={profile?.timezone ?? 'America/New_York'}
+          defaultValue={profile?.timezone ?? CLINIC_DEFAULT_TZ}
         />
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           The hours below and appointment times in patient emails are shown in this timezone.

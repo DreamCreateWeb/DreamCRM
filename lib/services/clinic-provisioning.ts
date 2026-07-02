@@ -205,7 +205,7 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     inviterId: input.inviterUserId,
   })
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
   await sendInvitationEmail(ownerEmail, {
     inviterName: input.inviterName,
     orgName: name,
@@ -244,7 +244,7 @@ export async function resendClinicOwnerInvite(args: {
     .where(eq(schema.organization.id, args.organizationId))
     .limit(1)
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
   await sendInvitationEmail(invite.email, {
     inviterName: args.inviterName,
     orgName: org?.name ?? 'your clinic',
@@ -364,7 +364,7 @@ export async function createActivationCheckout(args: {
     }
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
   const checkout = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,

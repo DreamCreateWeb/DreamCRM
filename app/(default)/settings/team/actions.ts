@@ -3,7 +3,7 @@
 import { randomUUID } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { sendInvitationEmail } from '@/lib/email'
@@ -47,7 +47,14 @@ export async function inviteTeamMember(input: unknown) {
     .select({ userId: schema.member.userId })
     .from(schema.member)
     .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
-    .where(and(eq(schema.member.organizationId, ctx.organizationId), eq(schema.user.email, email)))
+    .where(
+      and(
+        eq(schema.member.organizationId, ctx.organizationId),
+        // Case-insensitive — a member whose stored email differs in casing
+        // must still trip the duplicate guard.
+        sql`lower(${schema.user.email}) = ${email}`,
+      ),
+    )
     .limit(1)
   if (existingMember.length > 0) {
     throw new Error('That email already belongs to a team member.')

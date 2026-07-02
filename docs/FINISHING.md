@@ -189,6 +189,106 @@ Open:
   link — verify its mutating controls (sync now, disconnect, key entry) are
   role-gated in the UI, not just server-side.
 
+## Class 5 — User journeys, signup → production (audited 2026-07-02)
+
+Four end-to-end journey audits ran: self-serve signup→trial→paid, managed
+provisioning + all invite flows, first-time integrations (Gmail/GBP/social/
+Stripe Connect/Open Dental), and first-run configuration + upgrades.
+
+**Verified solid (no action):** no redirect loops anywhere (mid-onboarding
+re-entry, org-less users, pending invites all converge); slug race is atomic;
+AI welcome interview never dead-ends; trial expiry locks only the clinic app
+(public site + portal + booking stay up) and the wall embeds real checkout;
+trial reminder cron is idempotent w/ correct copy; webhook idempotency;
+first-run empty states crash-free; portal toggles hide everywhere; wrong-user
+invite acceptance blocked on every flow; partner payout ledger is double-pay
+safe; Stripe/Gmail OAuth state nonces correct; PMS bad-key + disconnect paths
+clean; add-on purchase for self-serve + comped correct.
+
+Fixed 2026-07-02 (round 3):
+
+- ☑ **Plan change double-billing (HIGH)** — switching plans as an existing
+  subscriber opened a NEW Checkout subscription; the old one kept billing,
+  orphaned. Now an in-place price swap with proration
+  (`updateSubscriptionPlan`); Checkout only for the first purchase. Tests:
+  `tests/billing/update-subscription-plan.test.ts`.
+- ☑ **Checkout return was webhook-blind** — `?checkout=success` was dropped by
+  a redirect stub, no confirmation shown, and an expired-trial owner bounced
+  straight back into the trial wall after paying. The success URL now lands on
+  /settings/billing with the session id, syncs the subscription synchronously,
+  and shows success/cancelled banners.
+- ☑ **Canceled ≠ trial-ended** — a former paying customer was told "your free
+  trial has ended". The wall now says "your subscription has ended" when
+  `subscriptionStatus='canceled'`.
+- ☑ **Zernio connect flashed success on denied consent / swallowed API
+  errors** — the callback now propagates provider errors and verifies the
+  platform actually landed before flashing "connected".
+- ☑ **Trial clinics told "managed billing — contact us"** when buying the
+  social add-on (no-sub trial conflated with comped). Now distinguished:
+  trials get "Start your plan to add more" → /settings/billing.
+- ☑ **Timezone never captured at onboarding** — every clinic silently
+  defaulted to Eastern. Onboarding now records the signer-upper's browser
+  IANA zone (validated server-side); the settings picker default now imports
+  `CLINIC_DEFAULT_TZ` instead of a re-typed literal.
+- ☑ **Onboarding re-submit wiped clinic name/address** (browser Back to
+  step 4 with a cleared draft) — the conflict-update now conditionally
+  spreads every field.
+- ☑ **No email at all on signup** — a welcome email now sends when the trial
+  starts (once, on org creation; also the earliest deliverability check on
+  the owner's address).
+- ☑ **Partner + patient-portal invite emails bypassed the Outlook-safe
+  shell** (no VML button, no copy-paste URL — the exact defect that bit the
+  first real clinic). Both now render through `authEmailShell`.
+- ☑ **localhost link fallbacks** in managed-provisioning invites, partner
+  invites, and Stripe Express return URLs — now fall back to the production
+  origin.
+- ☑ Re-clicking an already-accepted invite as the joined user routed to a red
+  "Invitation expired" screen — now routes home (and the unauthenticated copy
+  says "already used", not "expired").
+- ☑ Team-invite duplicate-member guard was case-sensitive on stored email.
+- ☑ GBP multi-location accounts flipped nondeterministically between
+  locations (unordered select + `[0]`) — now stably ordered. (A real location
+  PICKER is still open, below.)
+- ☑ One more bare-UTC time render on the Overview unconfirmed preview.
+
+Open — judgment calls for the owner:
+
+- ☐ **Reserved-plan clinics trial at full Premium, then drop to the reserved
+  tier the moment they pay** (feature cliff). Options: trial at the reserved
+  tier, or badge trial-only features.
+- ☐ **The public site is live at {slug} the instant onboarding completes** —
+  starter-floor content makes it read finished, but there's no "your site is
+  now live" moment or way to keep it private while configuring.
+- ☐ **Canceling the social add-on keeps over-cap connections active
+  indefinitely** (only new connects are blocked). Decide: disconnect newest,
+  or flag `needs_attention`.
+- ☐ **Gmail Tier-2 send-as is a hidden capability** — connecting Gmail never
+  offers "send patient email from this address" (it's buried in Settings →
+  Clinic). Surface a post-connect prompt.
+- ☐ /followups-style small edges: Gmail consent-denied shows the raw
+  `access_denied` string; Gmail watch lapse silently degrades to lazy polling
+  with no "real-time paused" signal.
+
+Open — engineering follow-ups:
+
+- ☐ **Stripe Connect status never leaves `active`** — handle `account.updated`
+  in the Connect webhook (write `restricted`) + let `refreshConnectStatus`
+  re-pull even when active. A restricted clinic currently keeps a stale
+  "active" card and a checkout that fails.
+- ☐ **GBP "connected but empty"** — kick a best-effort profile+reviews sync
+  from the connect callback (today /reviews stays empty until the next cron).
+- ☐ GBP multi-location: persisted location choice + picker UI.
+- ☐ `stripe.invoices.retrieveUpcoming` is removed in newer Stripe SDKs — the
+  "Next charge" line will silently vanish on upgrade; migrate to
+  `invoices.createPreview`.
+- ☐ Drop or re-base the dead `billingActivationPending` flag (managed clinics
+  are always 'trialing' pre-payment, so it never fires; TrialBanner covers
+  the journey).
+- ☐ Multi-clinic patients: magic-link email brand and session-landing org can
+  diverge (different orderings); no portal org switcher.
+- ☐ Follow-up rule/auto-create due-date stamping still uses the UTC day
+  (cron context; needs per-clinic tz threading).
+
 ## How to keep hunting (method)
 
 1. Pick a surface a real clinic hits daily (patient detail, agenda, Overview,

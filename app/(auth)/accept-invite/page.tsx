@@ -66,10 +66,23 @@ function AcceptInviteInner() {
           return
         }
         if (details.expired) {
+          // Re-clicking an ALREADY-ACCEPTED invite as the person who joined
+          // isn't an error — take them to their dashboard.
+          const clickedBy = sessionResult.data?.user?.email ?? null
+          if (
+            details.alreadyAccepted &&
+            clickedBy &&
+            clickedBy.trim().toLowerCase() === details.email.trim().toLowerCase()
+          ) {
+            window.location.assign('/')
+            return
+          }
           setStep({
             type: 'error',
             expired: true,
-            message: 'This invitation has expired. Ask your clinic to send a new one.',
+            message: details.alreadyAccepted
+              ? 'This invitation was already used. Sign in with your account to continue.'
+              : 'This invitation has expired. Ask your clinic to send a new one.',
           })
           return
         }

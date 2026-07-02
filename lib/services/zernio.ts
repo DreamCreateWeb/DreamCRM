@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   listProfiles,
@@ -256,10 +256,14 @@ export async function syncConnectedAccounts(orgId: string): Promise<void> {
  */
 export async function getZernioConnection(orgId: string): Promise<ZernioConnectionView> {
   const conn = await getConnectionRow(orgId)
+  // Stable ordering: resolveGbpAccount + the UI take `accounts[0]` per
+  // platform, and an unordered select made a multi-location Google account
+  // flip nondeterministically between its locations across requests.
   const rows = await db
     .select()
     .from(schema.zernioAccount)
     .where(eq(schema.zernioAccount.organizationId, orgId))
+    .orderBy(asc(schema.zernioAccount.id))
 
   const accounts: ZernioAccount[] = rows.map((r) => ({
     id: r.id,

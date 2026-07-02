@@ -196,6 +196,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                     weekday: 'short',
                     hour: 'numeric',
                     minute: '2-digit',
+                    timeZone: data.timeZone,
                   })}
                 </span>
               </li>

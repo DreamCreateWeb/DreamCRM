@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantContext } from '@/lib/auth/context'
-import { syncConnectedAccounts } from '@/lib/services/zernio'
+import { getZernioConnection, syncConnectedAccounts } from '@/lib/services/zernio'
 import { ZERNIO_CONNECTED_QS, isConnectablePlatform, GOOGLE_BUSINESS_PLATFORM } from '@/lib/types/zernio'
 
 /**
@@ -36,10 +36,30 @@ export async function GET(req: NextRequest) {
   const requested = req.nextUrl.searchParams.get('platform') ?? ''
   const platform = isConnectablePlatform(requested) ? requested : GOOGLE_BUSINESS_PLATFORM
 
+  // Denied consent / provider-side failure — never flash success for it.
+  const providerError =
+    req.nextUrl.searchParams.get('error_description') ?? req.nextUrl.searchParams.get('error')
+  if (providerError) {
+    return backTo(req, { zernioError: providerError.slice(0, 200) })
+  }
+
   try {
     await syncConnectedAccounts(ctx.organizationId)
   } catch (e) {
     return backTo(req, { zernioError: (e as Error).message.slice(0, 200) })
+  }
+
+  // Verify the platform actually landed before flashing "connected" —
+  // syncConnectedAccounts swallows API failures into connection.status/
+  // lastError rather than throwing, so the catch above alone can't tell a
+  // denied/failed connect from a successful one.
+  const view = await getZernioConnection(ctx.organizationId)
+  if (!view.accounts.some((a) => a.platform === platform)) {
+    return backTo(req, {
+      zernioError:
+        view.lastError?.slice(0, 200) ??
+        "The connection didn't finish — no account came back. Please try again.",
+    })
   }
 
   return backTo(req, { [ZERNIO_CONNECTED_QS]: platform })

@@ -119,6 +119,9 @@ const SubmitInput = z.object({
   country: z.string().trim().max(100).optional(),
   slug: z.string().trim().toLowerCase().max(40).optional(),
   brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  /** The signer-upper's browser IANA timezone — the clinic's wall-clock
+   *  default (validated server-side; falls back to the app default if bogus). */
+  timeZone: z.string().trim().max(64).optional(),
   // Plan choice moved OUT of onboarding — every clinic starts a full-Premium,
   // no-card 7-day trial and picks a plan when they set up billing. Kept optional
   // for back-compat with any in-flight client; ignored by the trial start.
@@ -170,6 +173,10 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     if (pending) redirect(`/accept-invite?token=${pending.id}`)
   }
 
+  // Set when this submit CREATES the org — the welcome email sends once, not
+  // on conflict-path re-submits.
+  let isNewOrg = false
+
   if (!orgId) {
     const orgName = data.practiceName?.trim() || `${session.user.name || 'My'} Clinic`
     // Prefer the slug they picked in step 3 (validated + availability-checked
@@ -209,9 +216,23 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     }
     if (!created) throw new Error('We couldn’t reserve that web address — please pick a different one.')
     orgId = newOrgId
+    isNewOrg = true
   }
 
   const displayName = data.practiceName?.trim() || session.user.name || 'My Clinic'
+
+  // Validate the client-supplied IANA zone — a bogus value must never poison
+  // every wall-clock render. Invalid → null (the app-wide Eastern default).
+  const timeZone = (() => {
+    const tz = data.timeZone?.trim()
+    if (!tz) return null
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: tz })
+      return tz
+    } catch {
+      return null
+    }
+  })()
 
   await db
     .insert(schema.clinicProfile)
@@ -226,6 +247,7 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
       postalCode: data.postalCode?.trim() || null,
       country: data.country?.trim() || 'US',
       brandColor: data.brandColor || null,
+      timezone: timeZone,
       // Start the no-card 7-day trial: full Premium access, no Stripe. The paid
       // tier + subscription are set later by the webhook on conversion, and a
       // real paid sub then overrides these (see lib/trial.ts). On CONFLICT we
@@ -239,15 +261,19 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     .onConflictDoUpdate({
       target: schema.clinicProfile.organizationId,
       set: {
-        legalName: displayName,
-        displayName,
+        // EVERY field is conditionally spread: a re-submit with an empty
+        // draft (browser Back to /onboarding-04 after completion cleared
+        // sessionStorage) must be a no-op, never a wipe of the real clinic
+        // name/address to nulls.
+        ...(data.practiceName?.trim() ? { legalName: displayName, displayName } : {}),
         ...(data.phone?.trim() ? { phone: data.phone.trim() } : {}),
-        addressLine1: data.street?.trim() || null,
-        city: data.city?.trim() || null,
+        ...(data.street?.trim() ? { addressLine1: data.street.trim() } : {}),
+        ...(data.city?.trim() ? { city: data.city.trim() } : {}),
         ...(data.state?.trim() ? { state: data.state.trim() } : {}),
-        postalCode: data.postalCode?.trim() || null,
-        country: data.country?.trim() || 'US',
+        ...(data.postalCode?.trim() ? { postalCode: data.postalCode.trim() } : {}),
+        ...(data.country?.trim() ? { country: data.country.trim() } : {}),
         ...(data.brandColor ? { brandColor: data.brandColor } : {}),
+        ...(timeZone ? { timezone: timeZone } : {}),
         // planTier / billingMode / subscriptionStatus / trialEndsAt are
         // intentionally NOT updated on conflict — set once at creation, then
         // owned by the trial + the Stripe webhook.
@@ -287,6 +313,24 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     })
   } catch (err) {
     console.warn('[onboarding] could not apply starter floor', err)
+  }
+
+  // Welcome email — the trial is live. Best-effort (a mail hiccup must never
+  // block onboarding); also our earliest deliverability check on the owner's
+  // address (before this, their first-ever email was the day-3 trial reminder).
+  // Once per clinic: only on the submit that actually created the org.
+  if (isNewOrg) try {
+    const { sendTrialWelcomeEmail } = await import('@/lib/email')
+    const base =
+      process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') ||
+      'https://www.dreamcreatestudio.com'
+    await sendTrialWelcomeEmail(session.user.email, {
+      firstName: (session.user.name || '').split(' ')[0] || null,
+      clinicName: displayName,
+      dashboardUrl: `${base}/dashboard`,
+    })
+  } catch (err) {
+    console.warn('[onboarding] could not send welcome email', err)
   }
 
   // No Stripe here — the trial is live the moment the profile is written. The
