@@ -11,6 +11,7 @@ import { getMyPatientRecord } from '@/lib/services/patient-portal'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import { PortalHeading, PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { portalVisitTypes } from '@/lib/types/visit-types'
+import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
 import PortalBookForm from './book-form'
 import PortalRequestForm from './request-form'
 
@@ -22,11 +23,12 @@ export default async function PortalBookPage() {
   const [me, profileRows] = await Promise.all([
     getMyPatientRecord(ctx.patientId, ctx.organizationId),
     db
-      .select({ visitTypeSettings: clinicProfile.visitTypeSettings })
+      .select({ visitTypeSettings: clinicProfile.visitTypeSettings, timezone: clinicProfile.timezone })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
       .limit(1),
   ])
+  const timeZone = resolveClinicTimeZone(profileRows[0]?.timezone)
 
   // Bookable types = the clinic's portal-bookable catalog ∩ the portal
   // settings' allowed list. The settings list stays the patient-facing gate
@@ -56,6 +58,7 @@ export default async function PortalBookPage() {
         {selfBookingEnabled ? (
           <PortalBookForm
             brand={brand}
+            timeZone={timeZone}
             allowedTypes={allowedTypes}
             typeLabels={typeLabels}
             minNoticeHours={settings.booking.minNoticeHours}

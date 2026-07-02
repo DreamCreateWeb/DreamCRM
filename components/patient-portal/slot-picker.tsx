@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import type { BookingSlot, SlotsClosedReason, SlotsForDay } from '@/lib/services/booking'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 
 /**
  * 14-day date strip + slot grid for the portal's book and reschedule flows.
  * Slots load through the server action passed in as `loadSlots` (the portal
  * action re-checks auth + scoping server-side). Mirrors the public widget's
  * picker but tuned for the signed-in, single-column portal context.
+ *
+ * The strip works on 'YYYY-MM-DD' CALENDAR-DATE keys in the CLINIC's timezone
+ * (the shape `loadSlots` consumes) — never on browser-local Dates, since a
+ * traveling patient's midnight is not the clinic's midnight.
  */
 
 const BORDER = '#E8E2D9'
@@ -15,23 +21,18 @@ const INK = '#1C1A17'
 const MUTED = '#6B635A'
 
 const DAY_WINDOW = 14
+const DAY_NAME_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTH_NAME_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function startOfDay(d: Date): Date {
-  const r = new Date(d)
-  r.setHours(0, 0, 0, 0)
-  return r
+function keyParts(key: string): { y: number; m: number; d: number } {
+  const [y, m, d] = key.split('-').map(Number)
+  return { y, m, d }
 }
 
-/** The patient's selected CALENDAR day — the server interprets it in the clinic's zone. */
-function isoDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function sameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+function addDaysToKey(key: string, days: number): string {
+  const { y, m, d } = keyParts(key)
+  // Date.UTC normalizes overflow, so this crosses month/year boundaries.
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
 }
 
 export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedReason | null): string {
@@ -45,6 +46,7 @@ export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedRe
 export default function SlotPicker({
   loadSlots,
   brand,
+  timeZone,
   selectedIso,
   onSelect,
   /** Hide slots sooner than this many hours from now (booking minNotice). */
@@ -52,20 +54,19 @@ export default function SlotPicker({
 }: {
   loadSlots: (dateKey: string) => Promise<SlotsForDay>
   brand: string
+  /** The clinic's IANA timezone — anchors the day strip to the CLINIC's calendar. */
+  timeZone: string
   selectedIso: string | null
   onSelect: (iso: string | null) => void
   minNoticeHours?: number
 }) {
   const days = useMemo(() => {
-    const today = startOfDay(new Date())
-    return Array.from({ length: DAY_WINDOW }, (_, i) => {
-      const d = new Date(today)
-      d.setDate(d.getDate() + i)
-      return d
-    })
-  }, [])
+    // Anchor the strip to the CLINIC's today, not the browser's.
+    const todayKey = clinicDayKey(new Date(), timeZone)
+    return Array.from({ length: DAY_WINDOW }, (_, i) => addDaysToKey(todayKey, i))
+  }, [timeZone])
 
-  const [selectedDate, setSelectedDate] = useState<Date>(days[0])
+  const [selectedDate, setSelectedDate] = useState<string>(days[0])
   const [slots, setSlots] = useState<BookingSlot[]>([])
   const [closedReason, setClosedReason] = useState<SlotsClosedReason | null>(null)
   const [pending, startTransition] = useTransition()
@@ -74,11 +75,11 @@ export default function SlotPicker({
   const cutoffMs = Date.now() + minNoticeHours * 3_600_000
 
   const fetchSlots = useCallback(
-    (date: Date) => {
+    (dateKey: string) => {
       const seq = ++requestSeq.current
       startTransition(async () => {
         try {
-          const res = await loadSlots(isoDate(date))
+          const res = await loadSlots(dateKey)
           if (seq !== requestSeq.current) return
           setSlots(res.slots)
           setClosedReason(res.closedReason)
@@ -97,7 +98,7 @@ export default function SlotPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const pickDay = (d: Date) => {
+  const pickDay = (d: string) => {
     setSelectedDate(d)
     onSelect(null)
     fetchSlots(d)
@@ -115,11 +116,11 @@ export default function SlotPicker({
       <div className="relative">
         <div ref={stripRef} className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
           {days.map((d) => {
-            const active = sameDay(d, selectedDate)
-            const today = sameDay(d, new Date())
+            const active = d === selectedDate
+            const today = d === clinicDayKey(new Date(), timeZone)
             return (
               <button
-                key={d.toISOString()}
+                key={d}
                 type="button"
                 onClick={() => pickDay(d)}
                 className="flex min-w-[4.4rem] flex-col items-center rounded-2xl px-3 py-2.5"
@@ -130,11 +131,11 @@ export default function SlotPicker({
                 }
               >
                 <span className="text-[0.68rem] font-semibold uppercase tracking-wide" style={{ opacity: active ? 0.9 : 0.55 }}>
-                  {today ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' })}
+                  {today ? 'Today' : DAY_NAME_SHORT[dayOfWeekForDateKey(d)]}
                 </span>
-                <span className="text-[1.05rem] font-bold leading-tight">{d.getDate()}</span>
+                <span className="text-[1.05rem] font-bold leading-tight">{keyParts(d).d}</span>
                 <span className="text-[0.68rem]" style={{ opacity: active ? 0.9 : 0.55 }}>
-                  {d.toLocaleDateString('en-US', { month: 'short' })}
+                  {MONTH_NAME_SHORT[keyParts(d).m - 1]}
                 </span>
               </button>
             )

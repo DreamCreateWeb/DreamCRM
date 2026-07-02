@@ -328,6 +328,7 @@ export default async function BookPage({ params }: Props) {
                   {selfBooking ? (
                     <BookForm
                       orgId={data.orgId}
+                      timeZone={tz}
                       slug={data.slug}
                       brand={brand}
                       clinicName={name}

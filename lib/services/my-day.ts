@@ -4,7 +4,9 @@ import { db, schema } from '@/lib/db'
 import { listOpenFollowups, type PatientFollowupView } from '@/lib/services/patient-followups'
 import { listPatientThreads, type ThreadRow } from '@/lib/services/patient-messaging'
 import { listAppointments, type AppointmentRow } from '@/lib/services/appointments'
-import { followupDueState, todayYmd } from '@/lib/types/followups'
+import { followupDueState } from '@/lib/types/followups'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 /**
  * "My day" — a per-staff-member cockpit. Pulls the things actually assignable to
@@ -34,7 +36,9 @@ export interface MyDayData {
 }
 
 export async function getMyDay(organizationId: string, userId: string): Promise<MyDayData> {
-  const today = todayYmd()
+  const now = new Date()
+  // Clinic-local day for due-date bucketing (server clock is UTC).
+  const today = clinicDayKey(now, await getClinicTimeZone(organizationId))
 
   const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow] = await Promise.all([
     listOpenFollowups(organizationId, { assignedTo: userId }),
@@ -74,7 +78,11 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
     else if (s === 'today') dueToday++
   }
 
-  const unconfirmedTodayCount = todaysAppointments.filter((a) => a.status === 'scheduled').length
+  // Only visits still AHEAD of us need a confirmation text — a scheduled slot
+  // that already passed this morning isn't confirmable anymore.
+  const unconfirmedTodayCount = todaysAppointments.filter(
+    (a) => a.status === 'scheduled' && a.startTime.getTime() >= now.getTime(),
+  ).length
 
   return {
     followups: { overdue, today: dueToday, items: items.slice(0, 30) },

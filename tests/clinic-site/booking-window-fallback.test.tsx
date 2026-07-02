@@ -31,6 +31,7 @@ describe('BookForm — closed-window fallback', () => {
     render(
       <BookForm
         orgId="org_1"
+        timeZone="America/Chicago"
         slug="acme"
         brand="#9CAF9F"
         clinicName="Acme Dental"
@@ -48,6 +49,7 @@ describe('BookForm — closed-window fallback', () => {
     render(
       <BookForm
         orgId="org_1"
+        timeZone="America/Chicago"
         slug="acme"
         brand="#9CAF9F"
         clinicName="Acme Dental"
@@ -63,6 +65,7 @@ describe('BookForm — closed-window fallback', () => {
     render(
       <BookForm
         orgId="org_1"
+        timeZone="America/Chicago"
         slug="acme"
         brand="#9CAF9F"
         clinicName="Acme Dental"
@@ -78,6 +81,7 @@ describe('BookForm — closed-window fallback', () => {
     render(
       <BookForm
         orgId="org_1"
+        timeZone="America/Chicago"
         slug="acme"
         brand="#9CAF9F"
         clinicName="Acme Dental"
@@ -93,6 +97,7 @@ describe('BookForm — closed-window fallback', () => {
     render(
       <BookForm
         orgId="org_1"
+        timeZone="America/Chicago"
         slug="acme"
         brand="#9CAF9F"
         clinicName="Acme Dental"

@@ -8,6 +8,16 @@ import {
   type FollowupStatus,
   type PatientFollowupView,
 } from '@/lib/types/followups'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+
+/** The clinic-local "today" key for due-date bucketing. `todayYmd(now)` is the
+ *  SERVER's calendar day (UTC in prod) — a Central clinic's follow-ups would
+ *  flip to "due today"/"overdue" at 6-7 PM local. Follow-up due dates bucket at
+ *  the clinic's midnight, same as the appointment day windows. */
+async function clinicTodayYmd(organizationId: string, now: Date): Promise<string> {
+  return clinicDayKey(now, await getClinicTimeZone(organizationId))
+}
 
 export type { PatientFollowupView }
 
@@ -124,7 +134,7 @@ export async function listOpenFollowups(
   filters: OpenFollowupFilters = {},
   now: Date = new Date(),
 ): Promise<PatientFollowupView[]> {
-  const today = todayYmd(now)
+  const today = await clinicTodayYmd(organizationId, now)
   const where = [eq(schema.patientFollowup.organizationId, organizationId)]
   if (!filters.includeDone) where.push(eq(schema.patientFollowup.status, 'open'))
   if (filters.assignedTo === 'unassigned') {
@@ -168,7 +178,7 @@ export async function getFollowupSummary(
   organizationId: string,
   now: Date = new Date(),
 ): Promise<FollowupSummary> {
-  const today = todayYmd(now)
+  const today = await clinicTodayYmd(organizationId, now)
   const [counts] = await db
     .select({
       openTotal: sql<number>`count(*)::int`,
@@ -207,15 +217,17 @@ export async function getFollowupSummary(
 
 /**
  * Count of open follow-ups that are actionable *now* — overdue or due today,
- * org-wide. Drives the sidebar "Follow-ups" badge, which mirrors what you see
- * when you click it (the board's default "Everyone" view). A lean single-row
- * count (no joins/preview), so it's cheap to poll alongside the other badges.
+ * org-wide. Drives the sidebar "Follow-ups" badge. NOTE: the board's default
+ * view lists ALL open follow-ups (future + no-due-date included), so the badge
+ * number is a subset of the default list — it matches the board's
+ * "Due" filter, not the list length. A lean single-row count (no joins/
+ * preview), so it's cheap to poll alongside the other badges.
  */
 export async function countFollowupsDue(
   organizationId: string,
   now: Date = new Date(),
 ): Promise<number> {
-  const today = todayYmd(now)
+  const today = await clinicTodayYmd(organizationId, now)
   const [row] = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(schema.patientFollowup)

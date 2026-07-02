@@ -6,6 +6,8 @@ import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
 import { OTHER_VISIT_TYPE_ID } from '@/lib/types/visit-types'
 import { buildIcs, icsDataUrl } from '@/lib/ics'
 import { readableInk } from '@/lib/clinic-site-theme'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { clinicDayStart, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 
 /** Public-bookable visit type, shaped for the form (server passes the
@@ -52,6 +54,11 @@ const DAY_NAME_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 interface Props {
   /** Used only for the read-only slot-availability lookup. */
   orgId: string
+  /** The clinic's IANA timezone — the day strip + Today/Tomorrow labels follow
+   *  the CLINIC's calendar, not the visitor's browser date (a patient browsing
+   *  from another timezone around midnight would otherwise see a day strip
+   *  shifted off the clinic's bookable days). */
+  timeZone: string
   /** Public slug — the booking write resolves the org from it server-side
    *  (never the client-posted orgId). */
   slug: string
@@ -72,37 +79,38 @@ interface Props {
   visitTypes: PublicVisitTypeOption[]
 }
 
-function startOfDay(d: Date): Date {
-  const r = new Date(d)
-  r.setHours(0, 0, 0, 0)
-  return r
+// The day strip works on 'YYYY-MM-DD' CALENDAR-DATE keys in the clinic's
+// timezone (the same shape the slot lookup consumes), never on browser-local
+// Dates — a visitor's midnight is not the clinic's midnight.
+
+function keyParts(key: string): { y: number; m: number; d: number } {
+  const [y, m, d] = key.split('-').map(Number)
+  return { y, m, d }
 }
 
-function isoDate(d: Date): string {
-  // Send the selected CALENDAR day (YYYY-MM-DD), not an instant — the server
-  // interprets it in the clinic's timezone. Sending an instant (toISOString)
-  // shifts the day across timezones for non-local patients.
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+function addDaysToKey(key: string, days: number): string {
+  const { y, m, d } = keyParts(key)
+  // Date.UTC normalizes overflow, so this crosses month/year boundaries.
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
 }
 
-function sameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
+/** "Monday, January 15" for a calendar-date key (timezone-independent — a
+ *  calendar date has one weekday). */
+function fmtKeyDate(key: string): string {
+  const { y, m, d } = keyParts(key)
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
-function fmtDayLabel(d: Date): string {
-  const today = new Date()
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  if (sameDay(d, today)) return 'Today'
-  if (sameDay(d, tomorrow)) return 'Tomorrow'
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+function fmtDayLabel(key: string, timeZone: string): string {
+  const now = new Date()
+  if (key === clinicDayKey(now, timeZone)) return 'Today'
+  if (key === clinicDayKey(clinicDayStart(now, timeZone, 1), timeZone)) return 'Tomorrow'
+  return fmtKeyDate(key)
 }
 
 /**
@@ -306,6 +314,7 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
 
 export default function BookForm({
   orgId,
+  timeZone,
   slug,
   brand,
   clinicName,
@@ -324,15 +333,12 @@ export default function BookForm({
     [apptTypes, selectedType],
   )
   const days = useMemo(() => {
-    const today = startOfDay(new Date())
-    return Array.from({ length: DAY_WINDOW }, (_, i) => {
-      const d = new Date(today)
-      d.setDate(d.getDate() + i)
-      return d
-    })
-  }, [])
+    // Anchor the strip to the CLINIC's today, not the browser's.
+    const todayKey = clinicDayKey(new Date(), timeZone)
+    return Array.from({ length: DAY_WINDOW }, (_, i) => addDaysToKey(todayKey, i))
+  }, [timeZone])
 
-  const [selectedDate, setSelectedDate] = useState<Date>(days[0])
+  const [selectedDate, setSelectedDate] = useState<string>(days[0])
   const [selectedSlotIso, setSelectedSlotIso] = useState<string | null>(null)
   const [slots, setSlots] = useState<BookingSlot[]>([])
   const [closedReason, setClosedReason] = useState<SlotsClosedReason | null>(null)
@@ -363,7 +369,7 @@ export default function BookForm({
     startSlotsTransition(() => {
       // Pass the selected visit's duration so a longer appointment only shows
       // start times where the whole window is free across the clinic's chairs.
-      listBookingSlots(orgId, isoDate(selectedDate), selectedDuration)
+      listBookingSlots(orgId, selectedDate, selectedDuration)
         .then(({ slots: next, closedReason: reason }) => {
           setSlots(next)
           setClosedReason(reason)
@@ -490,10 +496,10 @@ export default function BookForm({
             style={{ scrollbarWidth: 'none' }}
           >
             {days.map((d) => {
-              const isSelected = sameDay(d, selectedDate)
+              const isSelected = d === selectedDate
               return (
                 <button
-                  key={d.toISOString()}
+                  key={d}
                   type="button"
                   onClick={() => setSelectedDate(d)}
                   className="shrink-0 snap-start rounded-2xl px-4 py-3 text-center transition border min-w-[68px]"
@@ -508,9 +514,9 @@ export default function BookForm({
                     className="text-[11px] font-medium uppercase tracking-wider"
                     style={{ color: isSelected ? 'rgba(255,255,255,0.85)' : INK_MUTED }}
                   >
-                    {DAY_NAME_SHORT[d.getDay()]}
+                    {DAY_NAME_SHORT[dayOfWeekForDateKey(d)]}
                   </div>
-                  <div className="text-xl font-bold leading-none mt-1">{d.getDate()}</div>
+                  <div className="text-xl font-bold leading-none mt-1">{keyParts(d).d}</div>
                 </button>
               )
             })}
@@ -536,7 +542,7 @@ export default function BookForm({
           className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
           style={{ color: brandInk }}
         >
-          02 · Pick a time · {fmtDayLabel(selectedDate)}
+          02 · Pick a time · {fmtDayLabel(selectedDate, timeZone)}
         </p>
         {slotsPending ? (
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -730,11 +736,11 @@ export default function BookForm({
                 // there's room.
                 (() => {
                   const slot = slots.find((s) => s.startIso === selectedSlotIso)
-                  const dayLabel = fmtDayLabel(selectedDate)
+                  const dayLabel = fmtDayLabel(selectedDate, timeZone)
                   const shortDay =
                     dayLabel === 'Today' || dayLabel === 'Tomorrow'
                       ? dayLabel
-                      : DAY_NAME_SHORT[selectedDate.getDay()]
+                      : DAY_NAME_SHORT[dayOfWeekForDateKey(selectedDate)]
                   return (
                     <>
                       <span className="sm:hidden">

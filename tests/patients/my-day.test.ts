@@ -80,7 +80,14 @@ describe('getMyDay', () => {
   })
 
   it('counts today\'s unconfirmed visits + outstanding balances', async () => {
-    h.appts = [{ status: 'scheduled' }, { status: 'confirmed' }, { status: 'scheduled' }]
+    // Future startTimes — a scheduled slot that already PASSED today no longer
+    // counts as "needs a confirmation text" (see getMyDay).
+    const soon = new Date(Date.now() + 60 * 60 * 1000)
+    h.appts = [
+      { status: 'scheduled', startTime: soon },
+      { status: 'confirmed', startTime: soon },
+      { status: 'scheduled', startTime: soon },
+    ]
     h.balanceCount = 3
     h.balanceTotal = 45000
     const d = await getMyDay('org_1', 'u1')

@@ -24,6 +24,7 @@ interface PersonOpt {
 
 export default function PortalBookForm({
   brand,
+  timeZone,
   allowedTypes,
   typeLabels,
   minNoticeHours,
@@ -32,6 +33,8 @@ export default function PortalBookForm({
   clinicPhone,
 }: {
   brand: string
+  /** Clinic IANA timezone — anchors the slot picker's day strip. */
+  timeZone: string
   allowedTypes: string[]
   /** Optional id→label map from the clinic's visit-type catalog. Preferred over
    *  the built-in PORTAL_VISIT_LABELS so custom clinic types render with a real
@@ -173,6 +176,7 @@ export default function PortalBookForm({
         <SlotPicker
           loadSlots={getPortalSlotsAction}
           brand={brand}
+          timeZone={timeZone}
           selectedIso={slotIso}
           onSelect={setSlotIso}
           minNoticeHours={minNoticeHours}

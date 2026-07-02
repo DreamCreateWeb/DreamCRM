@@ -224,6 +224,7 @@ export default function VisitCard({
           <SlotPicker
             loadSlots={getPortalSlotsAction}
             brand={brand}
+            timeZone={timeZone}
             selectedIso={newSlotIso}
             onSelect={setNewSlotIso}
             minNoticeHours={minNoticeHours}
