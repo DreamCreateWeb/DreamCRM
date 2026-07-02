@@ -54,7 +54,9 @@ export function buildDigestContent(data: MyDayData, clinicName: string): DigestC
   const conversations = data.conversations.length
   const leads = data.newLeadsCount
   const balanceCount = data.balances.count
-  const hasContent = followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0
+  const auditItems = data.tomorrow?.items ?? []
+  const hasContent =
+    followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0 || auditItems.length > 0
 
   const parts: string[] = []
   parts.push(`Here's what's waiting on you at ${clinicName} today.`)
@@ -81,6 +83,16 @@ export function buildDigestContent(data: MyDayData, clinicName: string): DigestC
   if (balanceCount > 0) {
     const dollars = Math.round(data.balances.totalCents / 100).toLocaleString('en-US')
     parts.push(`💰 ${balanceCount} patient${balanceCount === 1 ? '' : 's'} owe a balance ($${dollars} total).`)
+  }
+  if (auditItems.length > 0) {
+    parts.push('')
+    parts.push(
+      `🔍 Tomorrow: ${auditItems.length} of ${data.tomorrow.visitCount} visit${data.tomorrow.visitCount === 1 ? '' : 's'} need${auditItems.length === 1 ? 's' : ''} prep:`,
+    )
+    for (const it of auditItems.slice(0, 6)) {
+      parts.push(`   • ${it.patientName} — ${it.flags.map((f) => f.label).join(' · ')}`)
+    }
+    if (auditItems.length > 6) parts.push(`   …and ${auditItems.length - 6} more on My Day`)
   }
   if (!hasContent) {
     parts.push("You're all caught up — nothing needs you this morning. Have a great day.")

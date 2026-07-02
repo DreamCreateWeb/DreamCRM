@@ -17,7 +17,7 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
 import MyDayFollowups from './my-day-followups'
 import DigestToggle from './digest-toggle'
-import { formatClinicTime } from '@/lib/format-datetime'
+import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 export default async function MyDayPage() {
@@ -171,6 +171,59 @@ export default async function MyDayPage() {
           </section>
         </div>
       </div>
+
+      {/* ── Tomorrow's patients — the per-patient audit ─────────────────
+          Every visit on tomorrow's schedule checked against the front-desk
+          list (confirmation, intake, balance, deposit, reachability, first
+          visits, birthdays). Live — never a stale overnight snapshot. */}
+      <section className="v2-card p-5 mt-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Tomorrow&rsquo;s patients — worth a look
+            {data.tomorrow.visitCount > 0 && (
+              <span className="ml-2 font-normal text-xs text-gray-500 dark:text-gray-400">
+                {formatClinicDayHeader(new Date(`${data.tomorrow.dayKey}T12:00:00`), timeZone)} · {data.tomorrow.items.length} of {data.tomorrow.visitCount} visits need prep
+              </span>
+            )}
+          </h2>
+          <Link href="/appointments?window=tomorrow" className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400">
+            Tomorrow&rsquo;s agenda →
+          </Link>
+        </div>
+        {data.tomorrow.visitCount === 0 ? (
+          <EmptyState icon="🌤️" title="Nothing on tomorrow's schedule yet" body="When visits are booked, each patient gets checked here the day before." />
+        ) : data.tomorrow.items.length === 0 ? (
+          <EmptyState icon="✅" title={`All ${data.tomorrow.visitCount} of tomorrow's visits are prepped`} body="Confirmed, forms in, nothing owed — a clean morning ahead." />
+        ) : (
+          <ul className="divide-y divide-[color:var(--color-hairline)]">
+            {data.tomorrow.items.map((it) => (
+              <li key={it.appointmentId} className="py-2.5 flex items-start gap-3">
+                <span className="shrink-0 w-14 pt-0.5 text-xs font-mono-num text-gray-500 dark:text-gray-400 tabular-nums">
+                  {formatClinicTime(it.startTime, timeZone)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link href={`/patients/${it.patientId}`} className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:underline">
+                      {it.patientName}
+                    </Link>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                      {it.type.replace(/_/g, ' ')}
+                      {it.providerName ? ` · ${it.providerName}` : ''}
+                    </span>
+                  </div>
+                  <ul className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    {it.flags.map((f) => (
+                      <li key={f.key} className="text-xs text-amber-700 dark:text-amber-300">
+                        {f.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Personal morning-email switch — only when the clinic sends the digest. */}
       {digestEnabled && <DigestToggle initialOptedOut={digestOptOut} />}

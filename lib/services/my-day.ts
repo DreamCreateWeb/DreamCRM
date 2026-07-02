@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { listOpenFollowups, type PatientFollowupView } from '@/lib/services/patient-followups'
 import { listPatientThreads, type ThreadRow } from '@/lib/services/patient-messaging'
 import { listAppointments, type AppointmentRow } from '@/lib/services/appointments'
+import { auditUpcomingDay, type DayAudit } from '@/lib/services/patient-audit'
 import { followupDueState } from '@/lib/types/followups'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -33,6 +34,8 @@ export interface MyDayData {
   newLeadsCount: number
   /** Patients carrying an outstanding PMS balance (shared collections nudge). */
   balances: { count: number; totalCents: number }
+  /** The per-patient audit of TOMORROW's schedule — who needs prep and why. */
+  tomorrow: DayAudit
 }
 
 export async function getMyDay(organizationId: string, userId: string): Promise<MyDayData> {
@@ -40,7 +43,7 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
   // Clinic-local day for due-date bucketing (server clock is UTC).
   const today = clinicDayKey(now, await getClinicTimeZone(organizationId))
 
-  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow] = await Promise.all([
+  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow, tomorrow] = await Promise.all([
     listOpenFollowups(organizationId, { assignedTo: userId }),
     listOpenFollowups(organizationId, { assignedTo: 'unassigned' }),
     listPatientThreads(organizationId, userId, { status: 'open', assignedTo: 'me' }),
@@ -62,6 +65,7 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
           gt(schema.patient.pmsBalanceCents, 0),
         ),
       ),
+    auditUpcomingDay(organizationId, { now }),
   ])
 
   // Merge my + unclaimed follow-ups (disjoint sets), soonest-due first.
@@ -94,5 +98,6 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
       count: Number(balanceRow[0]?.n ?? 0),
       totalCents: Number(balanceRow[0]?.total ?? 0),
     },
+    tomorrow,
   }
 }

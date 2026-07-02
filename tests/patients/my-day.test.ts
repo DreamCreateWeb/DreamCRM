@@ -14,6 +14,10 @@ const h = vi.hoisted(() => ({
 vi.mock('@/lib/services/patient-followups', () => ({ listOpenFollowups: h.listOpenFollowups }))
 vi.mock('@/lib/services/patient-messaging', () => ({ listPatientThreads: vi.fn(async () => h.threads) }))
 vi.mock('@/lib/services/appointments', () => ({ listAppointments: vi.fn(async () => h.appts) }))
+// The tomorrow-audit has its own suite (tests/dashboard/patient-audit.test.ts).
+vi.mock('@/lib/services/patient-audit', () => ({
+  auditUpcomingDay: vi.fn(async () => ({ dayKey: '2026-06-16', visitCount: 0, items: [] })),
+}))
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const o: Record<string, unknown> = {}

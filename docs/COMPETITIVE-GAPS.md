@@ -150,11 +150,15 @@ Current: follow-ups board + smart rules (balance/recall/unconfirmed) +
 auto-rebook, My Day cockpit, morning-huddle Overview, daily digest email.
 We're already ahead of most vendors here EXCEPT:
 
-- ✗ **Nightly per-patient audit → task list** (Lighthouse's signature: every
-  night, audit each of tomorrow's patients against 20+ issues — missing
-  info, unconfirmed, balance, due family members — and emit an actionable
-  morning list w/ per-patient reasons). Ours = extend followup-rules into a
-  "tomorrow's patients" audit feeding My Day + digest. **P1.**
+- ✅ **Per-patient audit of tomorrow's schedule** — SHIPPED 2026-07-02, one
+  better than Lighthouse's nightly batch: computed LIVE at render/send
+  (lib/services/patient-audit.ts). Every visit checked for: unconfirmed,
+  pending booking deposit, no intake on file, balance to settle,
+  unreachable (no email/phone), first visit, first-visit-back-after-lapse,
+  birthday this week — plain-language reasons, clean visits stay quiet.
+  Surfaces: "Tomorrow's patients — worth a look" on My Day + a 🔍 section
+  in the morning digest. Later: family-member-due consolidation, more
+  checks as data sources land (insurance eligibility, procedure prep).
 - ✗ Patient-arrival / in-office flow board (YAPI dashboard, DI LiveOps) —
   check-in → seated → ready states. **P3** (needs in-office usage patterns).
 - ✗ Team chat (Weave/DI/YAPI/RW). **P3 — big lift, weigh vs Slack.**

@@ -18,6 +18,7 @@ function data(over: Partial<MyDayData> = {}): MyDayData {
     unconfirmedTodayCount: 0,
     newLeadsCount: 0,
     balances: { count: 0, totalCents: 0 },
+    tomorrow: { dayKey: '2026-06-16', visitCount: 0, items: [] },
     ...over,
   }
 }
