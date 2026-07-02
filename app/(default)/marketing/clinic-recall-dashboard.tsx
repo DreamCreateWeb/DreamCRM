@@ -4,6 +4,8 @@ import { getRecallStats, type RecallActivityKind } from '@/lib/services/recall-s
 import { listAudiences } from '@/lib/services/marketing'
 import { getRetentionSettings, previewRetentionAudiences } from '@/lib/services/retention-automation'
 import { RetentionAutomationsCard } from './retention-automations-card'
+import { NewsletterCard } from './newsletter-card'
+import { listPublishedPosts } from '@/lib/services/blog'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -61,12 +63,14 @@ const ACTIVITY_ICON: Record<RecallActivityKind, string> = {
 }
 
 export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContext }) {
-  const [stats, audiences, retentionSettings, retentionPreview] = await Promise.all([
+  const [stats, audiences, retentionSettings, retentionPreview, publishedPosts] = await Promise.all([
     getRecallStats(ctx.organizationId),
     listAudiences(ctx.organizationId),
     getRetentionSettings(ctx.organizationId),
     previewRetentionAudiences(ctx.organizationId),
+    listPublishedPosts(ctx.organizationId, { limit: 3 }),
   ])
+  const publishedPostCount = publishedPosts.length
 
   const now = new Date()
   const orgName = ctx.organizationName ?? 'Your clinic'
@@ -243,12 +247,13 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
       </section>
 
       {/* ── Automations — set & forget recall sends ────────────────────── */}
-      <section className="mb-8">
+      <section className="mb-8 space-y-4">
         <RetentionAutomationsCard
           initial={retentionSettings}
           preview={retentionPreview}
           canManage={canManageAutomations}
         />
+        <NewsletterCard publishedPostCount={publishedPostCount} />
       </section>
 
       {/* ── Row 3 — Audiences + Activity ───────────────────────────────── */}

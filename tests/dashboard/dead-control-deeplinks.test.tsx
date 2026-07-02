@@ -21,6 +21,9 @@ vi.mock('@/lib/services/recall-stats', () => ({
 vi.mock('@/lib/services/marketing', () => ({
   listAudiences: mockListAudiences,
 }))
+// The newsletter card counts published posts — not what this suite tests.
+vi.mock('@/lib/services/blog', () => ({ listPublishedPosts: vi.fn(async () => []) }))
+
 vi.mock('@/lib/services/retention-automation', () => ({
   getRetentionSettings: vi.fn(async () => ({ birthdayAutoSend: false, lapsedReactivation: false })),
   previewRetentionAudiences: vi.fn(async () => ({ birthdaysThisMonth: 0, newlyLapsed: 0 })),

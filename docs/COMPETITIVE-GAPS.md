@@ -124,9 +124,13 @@ birthday/reactivation autos, templates, promote-view-to-audience.
 - ✗ **Referral program** (Solutionreach Refer-a-Friend) — "refer a friend"
   campaign type + landing + attribution; pairs with a future loyalty program.
   **P2.**
-- ✗ **Monthly patient newsletter** (RW/SR strength) — templated,
-  oral-health-content newsletter w/ our blog posts as the content source
-  (unique angle: we HAVE their content engine). **P2.**
+- ✅ **Monthly patient newsletter** — SHIPPED 2026-07-02, the unfair-angle
+  version: "Draft this month's issue" on /marketing builds the newsletter
+  from the clinic's latest published BLOG posts (title + excerpt + read-on-
+  site links, {{firstName}}/{{bookingUrl}} merge) as a DRAFT campaign in
+  the normal composer — review before send, compliant campaign rails,
+  auto-managed all-patients opt-in audience. Lights up once a post is
+  published. Later: auto-monthly cadence option, section curation.
 - ✗ **Post-op follow-up campaigns** cadenced by procedure type (RW via CDT
   groupings) — needs PMS procedure codes (OD gives us this). **P2 (post-OD).**
 - ✗ Treatment-plan follow-up campaign (RW/Lighthouse/DI) — unscheduled

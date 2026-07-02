@@ -196,6 +196,17 @@ export async function cancelScheduledCampaignAction(id: number): Promise<Schedul
   return result
 }
 
+/** One-click newsletter: draft a campaign from the latest published blog
+ *  posts and open it in the composer. Always a DRAFT — review before send. */
+export async function createNewsletterDraftAction(): Promise<{ ok: false; error: string } | never> {
+  const ctx = await requireClinicStaff()
+  const { buildNewsletterDraft } = await import('@/lib/services/newsletter')
+  const r = await buildNewsletterDraft(ctx.organizationId, ctx.userId)
+  if (!r.ok) return r
+  revalidatePath('/marketing/campaigns')
+  redirect(`/marketing/campaigns/${r.campaignId}`)
+}
+
 // ---------- AI ----------
 
 export async function draftCampaignAction(brief: string) {
