@@ -10,6 +10,7 @@ import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   syncGoogleReviewsAction,
   replyToGoogleReviewAction,
+  draftGoogleReviewReplyAction,
   deleteGoogleReviewReplyAction,
   setGoogleReviewHiddenAction,
 } from '../actions'
@@ -106,6 +107,26 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
   const [toast, setToast] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(row.replyComment ?? '')
+  const [drafting, setDrafting] = useState(false)
+
+  // AI draft → lands in the editor for review; never auto-posts.
+  function aiDraft() {
+    setError(null)
+    setDrafting(true)
+    void (async () => {
+      try {
+        const r = await draftGoogleReviewReplyAction(row.externalReviewId)
+        if (r.ok) {
+          setDraft(r.draft)
+          setEditing(true)
+        } else setError(r.error)
+      } catch {
+        setError('Could not draft a reply — try again in a moment.')
+      } finally {
+        setDrafting(false)
+      }
+    })()
+  }
 
   // A review auto-features on the public site when its rating meets the clinic's
   // threshold AND it has a written comment — unless staff hid it here.
@@ -208,6 +229,9 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                 <ActionButton variant="primary" size="sm" onClick={saveReply} disabled={pending || !draft.trim()}>
                   {pending ? 'Posting…' : 'Post reply'}
                 </ActionButton>
+                <ActionButton variant="secondary" size="sm" onClick={aiDraft} disabled={pending || drafting}>
+                  {drafting ? 'Drafting…' : '✨ Draft with AI'}
+                </ActionButton>
                 <ActionButton
                   variant="ghost"
                   size="sm"
@@ -222,9 +246,14 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
               </div>
             </div>
           ) : (
-            <ActionButton variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>
-              Reply
-            </ActionButton>
+            <div className="flex items-center gap-2">
+              <ActionButton variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>
+                Reply
+              </ActionButton>
+              <ActionButton variant="ghost" size="sm" onClick={aiDraft} disabled={pending || drafting}>
+                {drafting ? 'Drafting…' : '✨ Draft with AI'}
+              </ActionButton>
+            </div>
           )}
         </div>
 

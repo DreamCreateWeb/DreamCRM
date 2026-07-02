@@ -64,6 +64,10 @@ export interface ReviewConfig {
   /** Whether the /r/<token> landing shows the optional "tell us privately"
    *  path (feedback routed to staff, never public). Shown to everyone. */
   showPrivateFeedback: boolean
+  /** Optional "How was your visit?" ask before the platform links. Every
+   *  rating sees the SAME public links (FTC-clean) — a low rating just
+   *  LEADS with the private-feedback form. Off by default. */
+  starGateEnabled: boolean
   privateFeedbackEmail: string | null
 }
 
@@ -147,6 +151,8 @@ const DEFAULT_CONFIG: Omit<ReviewConfig, 'organizationId'> = {
   featureMinStars: 4,
   // Offer the optional private-feedback path on the review landing by default.
   showPrivateFeedback: true,
+  // The star ask is opt-in — clinics choose the triage flow deliberately.
+  starGateEnabled: false,
   privateFeedbackEmail: null,
 }
 
@@ -169,6 +175,7 @@ export async function getReviewConfig(organizationId: string): Promise<ReviewCon
     autoSendDelayHours: row.autoSendDelayHours,
     featureMinStars: row.featureMinStars,
     showPrivateFeedback: row.showPrivateFeedback === 1,
+    starGateEnabled: row.starGateEnabled === 1,
     privateFeedbackEmail: row.privateFeedbackEmail,
   }
 }
@@ -195,6 +202,7 @@ export async function updateReviewConfig(
   if (updates.autoSendDelayHours !== undefined) patch.autoSendDelayHours = updates.autoSendDelayHours
   if (updates.featureMinStars !== undefined) patch.featureMinStars = updates.featureMinStars
   if (updates.showPrivateFeedback !== undefined) patch.showPrivateFeedback = updates.showPrivateFeedback ? 1 : 0
+  if (updates.starGateEnabled !== undefined) patch.starGateEnabled = updates.starGateEnabled ? 1 : 0
   if (updates.privateFeedbackEmail !== undefined) patch.privateFeedbackEmail = updates.privateFeedbackEmail
 
   if (existing[0]) {
@@ -218,6 +226,7 @@ export async function updateReviewConfig(
       autoSendDelayHours: DEFAULT_CONFIG.autoSendDelayHours,
       featureMinStars: DEFAULT_CONFIG.featureMinStars,
       showPrivateFeedback: DEFAULT_CONFIG.showPrivateFeedback ? 1 : 0,
+      starGateEnabled: DEFAULT_CONFIG.starGateEnabled ? 1 : 0,
       privateFeedbackEmail: DEFAULT_CONFIG.privateFeedbackEmail,
       ...patch,
     })
@@ -629,6 +638,8 @@ export interface PublicReviewContext {
   googleUrl: string | null
   /** Whether to show the optional "rather tell us privately?" path. */
   showPrivateFeedback: boolean
+  /** The opt-in "How was your visit?" star ask (see ReviewConfig). */
+  starGateEnabled: boolean
   patientFirstName: string
   /** Legacy first-party review text (pre-redesign). Kept so an old completed
    *  request still shows the patient their words back. Null otherwise. */
@@ -691,6 +702,7 @@ export async function getPublicReviewContext(token: string): Promise<PublicRevie
     sites: availableSites(config),
     googleUrl: reviewPlatformUrl('google', config),
     showPrivateFeedback: config.showPrivateFeedback,
+    starGateEnabled: config.starGateEnabled,
     patientFirstName: row.patientFirstName,
     existingReviewText: row.reviewText,
     existingRating: row.rating,
@@ -718,6 +730,27 @@ export async function recordReviewClick(token: string): Promise<void> {
       updatedAt: now,
     })
     .where(eq(schema.reviewRequest.token, token))
+}
+
+/**
+ * Record the star-gate rating the patient picked on the landing (the opt-in
+ * "How was your visit?" ask). Rating only — the patient hasn't chosen a
+ * destination yet; a later platform tap / private note completes the funnel.
+ * Never downgrades: an existing rating (e.g. from private feedback) wins.
+ */
+export async function recordGateRating(
+  token: string,
+  rating: number,
+): Promise<{ ok: boolean }> {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return { ok: false }
+  await db
+    .update(schema.reviewRequest)
+    .set({
+      rating: sql`COALESCE(${schema.reviewRequest.rating}, ${rating})`,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.reviewRequest.token, token))
+  return { ok: true }
 }
 
 /**

@@ -757,6 +757,13 @@
       "when": 1783013633920,
       "tag": "0107_sticky_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1783014738747,
+      "tag": "0108_awesome_beast",
+      "breakpoints": true
     }
   ]
 }

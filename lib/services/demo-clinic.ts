@@ -2380,6 +2380,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         autoSendDelayHours: 0,
         featureMinStars: 4,
         showPrivateFeedback: 1,
+        // Star-gate showcase: the demo review landing demos the triage ask.
+        starGateEnabled: 1,
         updatedAt: new Date(),
       })
       .where(eq(schema.clinicReviewConfig.organizationId, existing.id))
@@ -4732,6 +4734,7 @@ async function seedReviewsForOrg(
       autoSendEnabled: 1,
       autoSendDelayHours: 0,
       featureMinStars: 4,
+      starGateEnabled: 1,
       showPrivateFeedback: 1,
     })
     configAdded = true

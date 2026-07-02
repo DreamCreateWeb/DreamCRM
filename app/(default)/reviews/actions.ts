@@ -92,6 +92,22 @@ export async function replyToGoogleReviewAction(input: {
   return r
 }
 
+/** Draft a reply to a Google review with AI (metered per org/month). The
+ *  draft lands in the editor for the clinic to read + edit — never auto-posts. */
+export async function draftGoogleReviewReplyAction(
+  externalReviewId: string,
+): Promise<{ ok: true; draft: string; remaining: number } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
+  if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot reply to reviews.' }
+  const { draftGoogleReviewReply } = await import('@/lib/services/review-reply-ai')
+  return draftGoogleReviewReply({
+    organizationId: ctx.organizationId,
+    externalReviewId,
+    planTier: ctx.planTier,
+  })
+}
+
 /** Remove the clinic's reply from a Google review. Owner/admin only. */
 export async function deleteGoogleReviewReplyAction(
   externalReviewId: string,

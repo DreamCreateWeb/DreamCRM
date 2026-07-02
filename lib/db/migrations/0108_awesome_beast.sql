@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_review_config" ADD COLUMN "star_gate_enabled" integer DEFAULT 0 NOT NULL;

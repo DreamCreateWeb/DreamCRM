@@ -757,6 +757,11 @@ export const clinicReviewConfig = pgTable('clinic_review_config', {
   // privately?" path (routes feedback to staff, never public). Shown to
   // EVERY patient equally when on (FTC-clean — not rating gating). Default on.
   showPrivateFeedback: integer('show_private_feedback').notNull().default(1),
+  // Optional "How was your visit?" star ask BEFORE the platform links.
+  // FTC-clean by construction: every rating sees the SAME public platform
+  // links — a low rating merely LEADS with the private-feedback form (the
+  // public path stays one tap away, never hidden). Off by default.
+  starGateEnabled: integer('star_gate_enabled').notNull().default(0),
   // Where private feedback lands. Falls back to clinicProfile.email when unset.
   privateFeedbackEmail: text('private_feedback_email'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

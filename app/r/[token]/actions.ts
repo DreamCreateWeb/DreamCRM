@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import {
   getPublicReviewContext,
+  recordGateRating,
   recordReviewCompleted,
   reviewPlatformUrl,
   submitPrivateFeedback,
@@ -24,6 +25,18 @@ export async function pickPlatformAction(token: string, site: ReviewSite): Promi
   if (!url) redirect(`/r/${token}`)
   await recordReviewCompleted(token, site)
   redirect(url)
+}
+
+/**
+ * STAR-GATE ask — the patient tapped a star on the opt-in "How was your
+ * visit?" step. Records the rating for the funnel; the page then shows the
+ * SAME public platform links to every rating (a low rating just LEADS with
+ * the private-feedback form) — FTC-clean, never gated.
+ */
+export async function recordGateRatingAction(token: string, rating: number): Promise<{ ok: boolean }> {
+  if (typeof token !== 'string' || token.length > 200) return { ok: false }
+  if (!(await rateLimitPublicAction('review'))) return { ok: false }
+  return recordGateRating(token, rating)
 }
 
 /**

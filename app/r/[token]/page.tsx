@@ -85,6 +85,7 @@ export default async function ReviewLandingPage({
               googleUrl={ctx.googleUrl}
               sites={ctx.sites}
               showPrivateFeedback={ctx.showPrivateFeedback}
+              starGate={ctx.starGateEnabled}
               existingPrivateFeedback={ctx.existingPrivateFeedback}
               existingReviewText={ctx.existingReviewText}
             />

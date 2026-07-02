@@ -43,6 +43,7 @@ function makeConfig(overrides: Partial<ReviewConfig>): ReviewConfig {
     yelpBusinessSlug: null,
     minDaysBetweenRequests: 365,
     npsEnabled: false,
+    starGateEnabled: false,
     autoSendEnabled: false,
     autoSendDelayHours: 24,
     featureMinStars: 4,

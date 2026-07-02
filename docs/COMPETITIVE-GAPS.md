@@ -177,11 +177,19 @@ We're already ahead of most vendors here EXCEPT:
 Current: Google-first auto-loop, threshold auto-feature, hide, private
 feedback, FB read-only, escalation, sidebar badge.
 
-- ◐ **Star-gate before routing** (NexHealth: ≤3★ → private feedback flow,
-  4–5★ → Google) — our /r/[token] offers both paths but doesn't ASK the
-  rating first. Add optional "how was it?" gate (keep FTC-clean: never
-  suppress, just route the unhappy to a human faster). **P2.**
-- ✗ **AI reply drafts** for Google reviews (Weave). We have the AI rails. **P2.**
+- ✅ **Star-gate before routing** — SHIPPED 2026-07-02. Opt-in
+  `starGateEnabled` (Reviews settings, default OFF; demo ON): /r/[token]
+  asks "how was your visit?" first; every rating sees the SAME public
+  links (FTC-clean by construction), a 1–3★ answer just LEADS with the
+  private-feedback form (public path one tap below, never hidden) and
+  pre-fills the rating. Gate rating recorded on review_request.rating.
+- ✅ **AI reply drafts** for Google reviews — SHIPPED 2026-07-02. "✨ Draft
+  with AI" on /reviews/received drops a draft into the reply editor (never
+  auto-posts; posts through the existing Zernio GBP reply rail). Prompt
+  bakes in the public/HIPAA guardrails (never confirm patienthood or
+  clinical detail; low ratings apologize + invite a call). Metered via
+  ai_usage_counter kind 'review_reply_draft' (premium 200 / pro 80 / basic
+  20 per month).
 - ✗ Review-site steering by patient email domain (Lighthouse Gmail→Google).
   **P3 — cute, low value for us (already Google-first).**
 - ✗ Competitor benchmarking (SR). **P3.**

@@ -23,6 +23,7 @@ export default function ReviewConfigPanel({ config }: Props) {
     autoSendEnabled: config.autoSendEnabled,
     featureMinStars: config.featureMinStars,
     showPrivateFeedback: config.showPrivateFeedback,
+    starGateEnabled: config.starGateEnabled,
   })
   const [showYelp, setShowYelp] = useState(!!config.yelpBusinessSlug)
   const [showMore, setShowMore] = useState(false)
@@ -50,6 +51,7 @@ export default function ReviewConfigPanel({ config }: Props) {
         autoSendEnabled: draft.autoSendEnabled,
         featureMinStars: draft.featureMinStars,
         showPrivateFeedback: draft.showPrivateFeedback,
+        starGateEnabled: draft.starGateEnabled,
       })
       setSaved(true)
       setToast('Review settings saved.')
@@ -167,6 +169,25 @@ export default function ReviewConfigPanel({ config }: Props) {
             <span className="block text-xs text-gray-500 dark:text-gray-400">
               Gives an unhappy patient a way to reach you directly instead of posting a
               public review. Their note lands in your private feedback inbox.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.starGateEnabled}
+            onChange={(e) => update('starGateEnabled', e.target.checked)}
+            className="form-checkbox h-4 w-4 mt-0.5"
+          />
+          <span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              Ask “how was your visit?” first (star triage)
+            </span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400">
+              Patients tap a star before seeing the links. Everyone gets the same public
+              review options (that keeps it FTC-clean) — a 1–3★ tap simply leads with the
+              private note to your team, so an unhappy patient reaches a human faster.
             </span>
           </span>
         </label>
