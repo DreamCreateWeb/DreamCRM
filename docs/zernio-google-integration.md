@@ -54,8 +54,8 @@ entirely defensively + is best-effort).**
 | Plan | GBP | Free social | Social add-on | Social limit (base → with add-on) |
 |---|---|---|---|---|
 | Basic ($99) | ✓ all plans | 0 | **not available** (upgrade to Pro) | 0 |
-| Pro ($149) | ✓ | 1 | **$30/mo** | 1 → **3** |
-| Premium ($199) | ✓ | 2 | **$20/mo** | 2 → **5** |
+| Pro ($250) | ✓ | 1 | **$30/mo** | 1 → **3** |
+| Premium ($500) | ✓ | 2 | **$20/mo** | 2 → **5** |
 
 - **Google Business is FREE + SEPARATE on every tier** — it does NOT count
   toward the social limit and is never blocked (owner/admin role still required).

@@ -26,6 +26,17 @@ export function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+/**
+ * Connect application fee for a charge (shop_config.platform_fee_bps —
+ * default 100 = 1%). One helper so every money path (shop, balance payments,
+ * booking deposits, payment-plan installments) computes it identically.
+ * Returns 0 for zero/negative inputs; never exceeds the amount.
+ */
+export function platformFeeCents(amountCents: number, feeBps: number): number {
+  if (!Number.isFinite(amountCents) || amountCents <= 0 || !Number.isFinite(feeBps) || feeBps <= 0) return 0
+  return Math.min(amountCents, Math.round((amountCents * feeBps) / 10000))
+}
+
 export interface ProductVariantRow {
   id: string
   name: string

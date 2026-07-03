@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic'
 export const metadata = {
   title: 'DreamCRM — the front-office platform for dental practices',
   description:
-    'Website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. $99–199/mo, month-to-month.',
+    'Website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. $150–500/mo, month-to-month.',
   openGraph: {
     title: 'DreamCRM — the front-office platform for dental practices',
     description:
@@ -91,7 +91,7 @@ const PILLARS: Array<{ title: string; body: string; href: string; glyph: React.R
 const TENETS: Array<{ title: string; body: string }> = [
   {
     title: 'The price is on the page',
-    body: '$99–199/mo, published. No discovery call, no custom quote, no per-feature add-ons appearing on invoice three.',
+    body: '$150–500/mo, published. No discovery call, no custom quote, no per-feature add-ons appearing on invoice three.',
   },
   {
     title: 'Our gaps are marked',
@@ -149,7 +149,7 @@ export default async function MarketingHome() {
               <GhostCta href="/product">Tour the platform</GhostCta>
             </div>
             <div className="mkt-enter mkt-d4 mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
-              {['$99–199/mo flat', 'Month-to-month', '10-minute setup', 'Official PMS APIs only'].map((t) => (
+              {['$150–500/mo flat', 'Month-to-month', '10-minute setup', 'Official PMS APIs only'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
                   <CheckIcon className="h-3.5 w-3.5 text-teal-700" />
                   {t}
@@ -218,7 +218,7 @@ export default async function MarketingHome() {
                 ))}
                 <tr className="border-t-2 border-teal-200 bg-teal-50/60">
                   <td className="px-3 py-3 font-bold text-gray-950">DreamCRM — all of it</td>
-                  <td className="px-3 py-3 text-right font-bold text-teal-700">$99–199/mo</td>
+                  <td className="px-3 py-3 text-right font-bold text-teal-700">$150–500/mo</td>
                 </tr>
               </tbody>
             </table>

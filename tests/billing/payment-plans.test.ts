@@ -192,13 +192,20 @@ describe('runDuePlanCharges', () => {
   it('charges a due installment: payment row + counter + next month', async () => {
     state.selectQueue.push([DUE_PLAN]) // due plans
     state.selectQueue.push([{ isDemo: false }]) // org
-    state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd' }]) // shop config
+    state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd', platformFeeBps: 100 }]) // shop config
     state.selectQueue.push([]) // notify: clinic email lookup
 
     const r = await runDuePlanCharges({ now: NOW })
     expect(r).toMatchObject({ scanned: 1, charged: 1, failed: 0 })
     expect(paymentIntentCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 10_000, off_session: true, confirm: true, customer: 'cus_1' }),
+      expect.objectContaining({
+        amount: 10_000,
+        off_session: true,
+        confirm: true,
+        customer: 'cus_1',
+        // 1% platform fee rides every installment.
+        application_fee_amount: 100,
+      }),
       { stripeAccount: 'acct_1' },
     )
     const payment = state.inserts.find((i) => i.table === 'patient_balance_payment')

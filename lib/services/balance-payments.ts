@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe'
 import { notifyOrgMembers } from './notifications'
 import { sendNotificationEmail } from '@/lib/email'
 import { toCsv, csvDollars } from '@/lib/csv'
+import { platformFeeCents } from '@/lib/types/shop'
 
 /**
  * Online balance payments from the patient portal. Money moves through the
@@ -32,6 +33,7 @@ async function connectedAccount(organizationId: string) {
       status: schema.shopConfig.stripeAccountStatus,
       charges: schema.shopConfig.chargesEnabled,
       currency: schema.shopConfig.currency,
+      platformFeeBps: schema.shopConfig.platformFeeBps,
     })
     .from(schema.shopConfig)
     .where(eq(schema.shopConfig.organizationId, organizationId))
@@ -117,6 +119,11 @@ export async function createBalancePaymentSession(input: {
       metadata: { kind: 'balance_payment', paymentId, organizationId: input.organizationId },
       payment_intent_data: {
         metadata: { kind: 'balance_payment', paymentId, organizationId: input.organizationId },
+        // 1% platform fee (shop_config.platform_fee_bps) — same rule on every
+        // Connect money path.
+        ...(platformFeeCents(input.amountCents, cfg.platformFeeBps) > 0
+          ? { application_fee_amount: platformFeeCents(input.amountCents, cfg.platformFeeBps) }
+          : {}),
       },
     } as never,
     { stripeAccount: cfg.accountId },

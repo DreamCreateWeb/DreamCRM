@@ -1068,8 +1068,12 @@ export const shopConfig = pgTable('shop_config', {
   flatShippingCents: integer('flat_shipping_cents'),
   freeShippingThresholdCents: integer('free_shipping_threshold_cents'),
   taxEnabled: integer('tax_enabled').notNull().default(0),
-  // Optional platform fee (basis points) skimmed via Connect application fee.
-  platformFeeBps: integer('platform_fee_bps').notNull().default(0),
+  // Platform fee (basis points) taken via Connect application fee on EVERY
+  // money path through the clinic's account — shop, balance payments, booking
+  // deposits, payment-plan installments, memberships. Default 100 (1%),
+  // decided 2026-07-02; per-org override for negotiated deals. The demo org
+  // never charges, so its value is moot.
+  platformFeeBps: integer('platform_fee_bps').notNull().default(100),
   currency: text('currency').notNull().default('usd'),
   storefrontEnabled: integer('storefront_enabled').notNull().default(0),
   membershipEnabled: integer('membership_enabled').notNull().default(0),

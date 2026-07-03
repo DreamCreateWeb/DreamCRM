@@ -315,6 +315,16 @@ export async function createMembershipCheckout(
     status: 'pending',
   })
 
+  // 1% platform fee on recurring membership revenue — same rule as every
+  // other Connect money path (shop_config.platform_fee_bps, percent form
+  // because subscriptions take a percent, not an amount).
+  const [feeRow] = await db
+    .select({ platformFeeBps: schema.shopConfig.platformFeeBps })
+    .from(schema.shopConfig)
+    .where(eq(schema.shopConfig.organizationId, organizationId))
+    .limit(1)
+  const feePercent = (feeRow?.platformFeeBps ?? 0) / 100
+
   const session = await stripe.checkout.sessions.create(
     {
       mode: 'subscription',
@@ -323,7 +333,10 @@ export async function createMembershipCheckout(
       success_url: `${baseUrl}/membership/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/membership`,
       metadata: { membershipId, organizationId },
-      subscription_data: { metadata: { membershipId, organizationId } },
+      subscription_data: {
+        metadata: { membershipId, organizationId },
+        ...(feePercent > 0 ? { application_fee_percent: feePercent } : {}),
+      },
     } as never,
     { stripeAccount: accountId },
   )

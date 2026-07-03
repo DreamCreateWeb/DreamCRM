@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe'
 import { notifyOrgMembers } from './notifications'
 import { queueCommLogWriteBack } from './pms'
 import { toCsv, csvDollars } from '@/lib/csv'
+import { platformFeeCents } from '@/lib/types/shop'
 
 /**
  * Booking deposits — a card deposit collected at PUBLIC online booking,
@@ -35,6 +36,7 @@ async function connectedAccount(organizationId: string) {
       status: schema.shopConfig.stripeAccountStatus,
       charges: schema.shopConfig.chargesEnabled,
       currency: schema.shopConfig.currency,
+      platformFeeBps: schema.shopConfig.platformFeeBps,
     })
     .from(schema.shopConfig)
     .where(eq(schema.shopConfig.organizationId, organizationId))
@@ -105,6 +107,10 @@ export async function createBookingDepositSession(input: {
         metadata: { kind: 'booking_deposit', depositId, organizationId: input.organizationId },
         payment_intent_data: {
           metadata: { kind: 'booking_deposit', depositId, organizationId: input.organizationId },
+          // 1% platform fee — same rule on every Connect money path.
+          ...(platformFeeCents(input.amountCents, cfg.platformFeeBps) > 0
+            ? { application_fee_amount: platformFeeCents(input.amountCents, cfg.platformFeeBps) }
+            : {}),
         },
       } as never,
       { stripeAccount: cfg.accountId },

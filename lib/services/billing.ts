@@ -81,6 +81,14 @@ export async function createCheckoutSession(args: {
     success_url: publicUrl('/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}'),
     cancel_url: publicUrl('/settings/billing?checkout=cancelled'),
     allow_promotion_codes: true,
+    // Stripe Tax: collect the billing address and let Stripe decide, state by
+    // state, whether SaaS is taxable there (we only collect where the platform
+    // holds a registration — managed in the Stripe dashboard). The saved
+    // address keeps renewals + plan changes taxable too.
+    automatic_tax: { enabled: true },
+    billing_address_collection: 'required',
+    customer_update: { address: 'auto', name: 'auto' },
+    tax_id_collection: { enabled: true },
     metadata: {
       organizationId: args.organizationId,
       planId: plan.id,
@@ -135,15 +143,25 @@ export async function updateSubscriptionPlan(args: {
   if (!planItem) return false
 
   if (planItem.price?.id !== priceId) {
-    await stripe.subscriptions.update(sub.id, {
+    // Turn Stripe Tax on for the swapped subscription too — an older sub
+    // (pre-tax rollout) may lack a customer address, which makes the update
+    // reject; retry without so a plan change NEVER fails on tax plumbing
+    // (the customer gets taxed from their next Checkout-borne address).
+    const baseUpdate = {
       items: [{ id: planItem.id, price: priceId }],
-      proration_behavior: 'create_prorations',
+      proration_behavior: 'create_prorations' as const,
       metadata: {
         organizationId: args.organizationId,
         planId: plan.id,
         interval: args.interval,
       },
-    })
+    }
+    try {
+      await stripe.subscriptions.update(sub.id, { ...baseUpdate, automatic_tax: { enabled: true } })
+    } catch (err) {
+      console.warn('[billing] plan swap with automatic_tax failed; retrying without', err)
+      await stripe.subscriptions.update(sub.id, baseUpdate)
+    }
     // The social add-on item is priced per (tier, interval) — swap it to the
     // matching price so the add-on follows the plan change. Best-effort; the
     // webhook's sync keeps the flag correct regardless.

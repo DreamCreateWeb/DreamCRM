@@ -6051,9 +6051,9 @@ async function seedDemoReferralPartner(orgId: string) {
   }
 
   // 3 commission rows — deterministic invoice ids so re-seeding is idempotent.
-  // Premium plan = $199/mo = 19900 cents → 10% = 1990 cents each.
-  const invoiceCents = 19900
-  const amountCents = Math.floor((invoiceCents * DEMO_PERCENT_BPS) / 10000) // 1990
+  // Premium plan = $500/mo = 50000 cents → 10% = 5000 cents each.
+  const invoiceCents = 50000
+  const amountCents = Math.floor((invoiceCents * DEMO_PERCENT_BPS) / 10000) // 5000
   const dayMs = 24 * 60 * 60 * 1000
   const rows: Array<{ inv: string; status: 'accrued' | 'paid'; ageDays: number }> = [
     { inv: `demo_inv_${orgId}_1`, status: 'paid', ageDays: 75 },

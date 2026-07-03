@@ -218,8 +218,12 @@ sitemap/robots/OG.
 
 ## Key subsystem reference
 
-- **Stripe (platform billing)**: `lib/stripe-config.ts` PLANS (Basic $99 / Pro
-  $149 / Premium $199 mo; annual = 2 months free — live) + the social add-on
+- **Stripe (platform billing)**: `lib/stripe-config.ts` PLANS (Basic $150 /
+  Pro $250 / Premium $500 mo; annual = 2 months free — repriced 2026-07-02,
+  new Stripe Prices must be created + env ids swapped; beta users lock in via
+  coupons) + Stripe Tax (automatic_tax on every platform checkout + plan
+  swap; activate Tax + registrations in the Stripe dashboard) + the social
+  add-on
   prices (Pro $30/mo · Premium $20/mo, live). Webhook
   `/api/webhooks/stripe` (idempotency ledger `stripe_webhook_event`) syncs
   `clinic_profile` plan/subscription state + accrues partner commissions.

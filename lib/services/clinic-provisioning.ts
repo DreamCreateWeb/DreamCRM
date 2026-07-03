@@ -372,6 +372,11 @@ export async function createActivationCheckout(args: {
     // The negotiated price rides a pre-applied coupon; otherwise let them
     // type a promo code like any self-serve checkout.
     ...(coupon ? { discounts: [{ coupon }] } : { allow_promotion_codes: true as const }),
+    // Stripe Tax — same posture as the self-serve checkout (billing.ts).
+    automatic_tax: { enabled: true },
+    billing_address_collection: 'required',
+    customer_update: { address: 'auto', name: 'auto' },
+    tax_id_collection: { enabled: true },
     // Route the post-activation owner/admin into the AI website interview when
     // their site still needs personalization (the billing cohort's seam into
     // every-cohort routing); the route falls through to the dashboard otherwise.

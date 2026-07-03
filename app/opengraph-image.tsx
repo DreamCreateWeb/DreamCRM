@@ -66,7 +66,7 @@ export default function OpengraphImage() {
           <div style={{ color: '#9ca3af', fontSize: 26 }}>
             Website · Booking · Portal · Reviews · Recall · Shop — keep your PMS
           </div>
-          <div style={{ color: '#e5e7eb', fontSize: 26, fontWeight: 700 }}>$99–199/mo</div>
+          <div style={{ color: '#e5e7eb', fontSize: 26, fontWeight: 700 }}>$150–500/mo</div>
         </div>
       </div>
     ),

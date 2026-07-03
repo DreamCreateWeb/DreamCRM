@@ -288,8 +288,8 @@ describe('getActivationDetails', () => {
     const details = await getActivationDetails('org1')
     expect(details).toMatchObject({
       planName: 'Pro',
-      basePrice: 149,
-      discountedPrice: 104.3,
+      basePrice: 250,
+      discountedPrice: 175,
     })
     expect(details!.discountLabel).toMatch(/30% off/)
   })

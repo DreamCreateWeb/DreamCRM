@@ -63,7 +63,7 @@ function baseMatrix(vendor: {
     { feature: 'PMS sync', dreamcrm: 'yes', dreamcrmNote: 'Open Dental two-way via the official API only', vendor: vendor.pms[0], vendorNote: vendor.pms[1] },
     { feature: 'VoIP phones', dreamcrm: 'no', dreamcrmNote: 'Keep your existing phone system', vendor: vendor.phones[0], vendorNote: vendor.phones[1] },
     { feature: 'Two-way SMS texting', dreamcrm: 'no', dreamcrmNote: 'On the roadmap — not available yet', vendor: vendor.sms[0], vendorNote: vendor.sms[1] },
-    { feature: 'Month-to-month, no contract', dreamcrm: 'yes', dreamcrmNote: '$99–199/mo flat', vendor: vendor.contract[0], vendorNote: vendor.contract[1] },
+    { feature: 'Month-to-month, no contract', dreamcrm: 'yes', dreamcrmNote: '$150–500/mo flat', vendor: vendor.contract[0], vendorNote: vendor.contract[1] },
   ]
 }
 
@@ -83,7 +83,7 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { title: 'The website is included', body: 'Weave assumes you already have a website vendor. DreamCRM ships one — with an edit-in-place studio, SEO plumbing, and AI copy help — replacing that retainer entirely.' },
       { title: 'A real patient portal', body: 'Confirm, self-reschedule, forms, balances, online payment — in your branding, with per-feature toggles. Weave has no patient portal.' },
-      { title: 'Everything in the base price', body: 'Weave gates online scheduling and digital forms to its Elite tier per its published pricing. In DreamCRM, booking and forms arrive at Pro ($149/mo) with no per-location phone hardware.' },
+      { title: 'Everything in the base price', body: 'Weave gates online scheduling and digital forms to its Elite tier per its published pricing. In DreamCRM, booking and forms arrive at Pro ($250/mo) with no per-location phone hardware.' },
       { title: 'Shop & memberships', body: 'Whitening kits and in-house membership plans sold from your own site — no equivalent in Weave.' },
     ],
     matrix: baseMatrix({
@@ -120,7 +120,7 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Official-API sync only', body: 'Open Dental publicly warns customers about third parties inserting data directly into its database. Every DreamCRM write goes through OD’s sanctioned API and shows up in your audit trail — nothing touches the database behind its back.' },
       { title: 'The storefront comes with it', body: 'Website, blog, SEO dashboard, careers page, shop — NexHealth assumes you have vendors for all of that. We replace them.' },
       { title: 'A portal patients recognize', body: 'NexHealth’s patient pages run under its own brand. DreamCRM’s portal wears your logo, your colors, your voice — with clinic-controlled feature toggles.' },
-      { title: 'Published flat pricing', body: '$99–199/mo on the pricing page, month-to-month. No discovery call required to learn the number.' },
+      { title: 'Published flat pricing', body: '$150–500/mo on the pricing page, month-to-month. No discovery call required to learn the number.' },
     ],
     matrix: baseMatrix({
       website: ['no'],
@@ -156,7 +156,7 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Toggles that actually hide', body: 'RevenueWell’s own help docs note disabling portal payments leaves the payments link visible to patients. In DreamCRM, off means gone — no dead links in front of patients.' },
       { title: 'Preview as a patient', body: 'One click shows you the portal exactly as a patient sees it with your saved settings. No competitor we surveyed documents this.' },
       { title: 'The website is the product, not an add-on', body: 'Edit-in-place studio, blog, SEO dashboard, careers, and shop are in the subscription — not a separately-sold service.' },
-      { title: 'One flat price', body: '$99–199/mo total versus a platform fee plus per-feature add-ons.' },
+      { title: 'One flat price', body: '$150–500/mo total versus a platform fee plus per-feature add-ons.' },
     ],
     matrix: baseMatrix({
       website: ['partial', 'Offered as an add-on service'],
@@ -228,7 +228,7 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'The patient-facing half', body: 'A real website product with edit-in-place studio, a clinic-branded portal, online store, memberships, careers — none of which Adit ships as product.' },
       { title: 'Self-serve everything', body: 'Sign up, your site and dashboard exist in minutes, and every word of your site is yours to edit — no agency queue.' },
       { title: 'Official-API Open Dental sync', body: 'Two-way through OD’s sanctioned API with every write in your audit trail.' },
-      { title: 'Lower flat price', body: '$99–199/mo versus reported ~$399 bundles — because we don’t carry a phone network.' },
+      { title: 'Lower flat price', body: '$150–500/mo versus reported ~$399 bundles — because we don’t carry a phone network.' },
     ],
     matrix: baseMatrix({
       website: ['partial', 'Agency-built sites as a service'],

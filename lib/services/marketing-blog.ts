@@ -47,7 +47,7 @@ const LAUNCH_POSTS: LaunchPost[] = [
       'Website, online booking, patient portal, messages, reviews, recall, and a shop — one system at one flat price, wrapped around the PMS you already run.',
     category: 'Announcements',
     bodyHtml: `
-<p>Today we're opening DreamCRM to every dental practice. The pitch fits in a sentence: the five or six patient-facing subscriptions a typical practice juggles — website agency, booking widget, reminder service, review tool, recall vendor — replaced by one system, for $99–199 a month, month-to-month.</p>
+<p>Today we're opening DreamCRM to every dental practice. The pitch fits in a sentence: the five or six patient-facing subscriptions a typical practice juggles — website agency, booking widget, reminder service, review tool, recall vendor — replaced by one system, for $150–500 a month, month-to-month.</p>
 <h2>What's in the box</h2>
 <p>A practice website you edit by clicking the page itself. Online booking from your live availability, with visit-type rules so the schedule stays sane. A patient portal in your branding where patients confirm, self-reschedule, fill forms, and pay their balance. One inbox where portal messages and patient email merge per patient. Review collection that turns into website testimonials with one click. Recall campaigns measured in booked visits, not opens. An online store and membership plans paying out to your own bank. And a two-way Open Dental sync that goes through the official API only.</p>
 <h2>What we deliberately don't do</h2>

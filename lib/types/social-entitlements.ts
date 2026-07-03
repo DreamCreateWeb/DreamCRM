@@ -8,9 +8,9 @@
  *
  *   Plan          | GBP | Free social | Social add-on | Social limit (base → +addon)
  *   --------------|-----|-------------|---------------|----------------------------
- *   Basic ($99)   |  ✓  |     0       | not available |  0
- *   Pro ($149)    |  ✓  |     1       |   $30/mo      |  1 → 3
- *   Premium ($199)|  ✓  |     2       |   $20/mo      |  2 → 5
+ *   Basic ($150)  |  ✓  |     0       | not available |  0
+ *   Pro ($250)    |  ✓  |     1       |   $30/mo      |  1 → 3
+ *   Premium ($500)|  ✓  |     2       |   $20/mo      |  2 → 5
  *
  * GBP is FREE + SEPARATE on every tier — it does NOT count toward the social
  * limit and is never blocked (see {@link GBP_ALLOWED_ALL_PLANS}). "Total

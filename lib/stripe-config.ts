@@ -11,12 +11,18 @@ export interface Plan {
   priceIds: Record<BillingInterval, string>
 }
 
+// Pricing (2026-07-02 reprice): Basic $150 / Pro $250 / Premium $500 monthly;
+// annual = 2 months free. ⚠️ The Stripe Price ids come from env — after a
+// reprice, create the NEW prices in the Stripe dashboard and swap the six
+// STRIPE_PRICE_* values in `dreamcrm/app-secrets`, then redeploy. Existing
+// subscriptions keep their old price (Stripe never retro-changes a sub);
+// beta users are locked in via coupons on the new prices.
 export const PLANS: Plan[] = [
   {
     id: 'basic',
     name: 'Basic',
-    price: 99,
-    annualPrice: 990,
+    price: 150,
+    annualPrice: 1500,
     color: 'green',
     features: [
       'Beautiful clinic website on your own address',
@@ -33,8 +39,8 @@ export const PLANS: Plan[] = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 149,
-    annualPrice: 1490,
+    price: 250,
+    annualPrice: 2500,
     color: 'sky',
     features: [
       'Everything in Basic',
@@ -54,8 +60,8 @@ export const PLANS: Plan[] = [
   {
     id: 'premium',
     name: 'Premium',
-    price: 199,
-    annualPrice: 1990,
+    price: 500,
+    annualPrice: 5000,
     color: 'violet',
     features: [
       'Everything in Pro',

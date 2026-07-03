@@ -9,6 +9,7 @@ import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 import { newId } from '@/lib/utils'
+import { platformFeeCents } from '@/lib/types/shop'
 
 /**
  * Payment plans with card-on-file autopay (Dental Intelligence parity, on our
@@ -66,6 +67,7 @@ async function connectedAccount(organizationId: string) {
       status: schema.shopConfig.stripeAccountStatus,
       charges: schema.shopConfig.chargesEnabled,
       currency: schema.shopConfig.currency,
+      platformFeeBps: schema.shopConfig.platformFeeBps,
     })
     .from(schema.shopConfig)
     .where(eq(schema.shopConfig.organizationId, organizationId))
@@ -399,7 +401,7 @@ export async function finalizePlanSetup(
  */
 async function chargePlanInstallment(
   plan: typeof schema.paymentPlan.$inferSelect,
-  cfg: { accountId: string | null; currency: string | null },
+  cfg: { accountId: string | null; currency: string | null; platformFeeBps?: number | null },
 ): Promise<boolean> {
   if (!cfg.accountId || !plan.stripeCustomerId || !plan.stripePaymentMethodId) return false
   const index = plan.installmentsPaid
@@ -415,6 +417,10 @@ async function chargePlanInstallment(
         payment_method: plan.stripePaymentMethodId,
         off_session: true,
         confirm: true,
+        // 1% platform fee — same rule on every Connect money path.
+        ...(platformFeeCents(amount, cfg.platformFeeBps ?? 0) > 0
+          ? { application_fee_amount: platformFeeCents(amount, cfg.platformFeeBps ?? 0) }
+          : {}),
         description: `Payment plan installment ${index + 1} of ${plan.installments}`,
         metadata: { kind: 'payment_plan', planId: plan.id, organizationId: plan.organizationId },
       } as never,

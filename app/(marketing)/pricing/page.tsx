@@ -8,7 +8,7 @@ export const metadata = {
   title: 'Pricing — DreamCRM',
   alternates: { canonical: '/pricing' },
   description:
-    'Flat, published pricing: Basic $99/mo (website tier), Pro $149/mo (front office), Premium $199/mo (growth + PMS sync). Month-to-month, no contract — or annual with 2 months free.',
+    'Flat, published pricing: Basic $150/mo (website tier), Pro $250/mo (front office), Premium $500/mo (growth + PMS sync). Month-to-month, no contract — or annual with 2 months free.',
 }
 
 /** Tier matrix — mirrors the real module gating in lib/modules/clinic.ts. */
@@ -64,7 +64,7 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Is there a contract or setup fee?',
-    a: 'No. Every plan is month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Prefer annual? Pay for 10 months, get 12: Basic $990, Pro $1,490, Premium $1,990 per year \u2014 two months free.',
+    a: 'No. Every plan is month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Prefer annual? Pay for 10 months, get 12: Basic $1,500, Pro $2,500, Premium $5,000 per year \u2014 two months free.',
   },
   {
     q: 'Can I switch tiers later?',

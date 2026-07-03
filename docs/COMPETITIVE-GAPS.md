@@ -333,5 +333,5 @@ import/export, bulk comms, portal invites.
 7. **Intake Forms** — kiosk mode (+ procedure consents once OD approves).
 8. **Patients** — household view + loyalty/referrals build-out.
 
-Re-run pricing/packaging comparison after SMS lands (our $99–199 vs their
+Re-run pricing/packaging comparison after SMS lands (our $150–500 vs their
 $249–499/location is a weapon — every parity feature widens it).

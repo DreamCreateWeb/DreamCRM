@@ -1,3 +1,4 @@
+import { getPlanById } from '@/lib/stripe-config'
 import {
   getClinicGrowth,
   getMrrSnapshot,
@@ -123,9 +124,9 @@ export default async function PlatformMetrics() {
           </div>
         )}
         <div className="grid grid-cols-3 gap-3 text-sm">
-          <PlanCell tier="Basic" count={mrr.byTier.basic} price="$99" color="bg-gray-400" />
-          <PlanCell tier="Pro" count={mrr.byTier.pro} price="$149" color="bg-sky-500" />
-          <PlanCell tier="Premium" count={mrr.byTier.premium} price="$199" color="bg-violet-500" />
+          <PlanCell tier="Basic" count={mrr.byTier.basic} price={`$${getPlanById('basic')!.price}`} color="bg-gray-400" />
+          <PlanCell tier="Pro" count={mrr.byTier.pro} price={`$${getPlanById('pro')!.price}`} color="bg-sky-500" />
+          <PlanCell tier="Premium" count={mrr.byTier.premium} price={`$${getPlanById('premium')!.price}`} color="bg-violet-500" />
         </div>
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
           Based on clinic plan assignments (synced from Stripe via webhook). For

@@ -355,7 +355,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'Basic ($99/mo) is the website tier: the site, the edit-in-place studio, AI copy help, and lead capture. Pro ($149/mo) adds the daily front office: patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO. Premium ($199/mo) adds recall campaigns, analytics, the shop and memberships, careers, and the Open Dental sync. Annual billing gives you two months free.',
+          'Basic ($150/mo) is the website tier: the site, the edit-in-place studio, AI copy help, and lead capture. Pro ($250/mo) adds the daily front office: patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO. Premium ($500/mo) adds recall campaigns, analytics, the shop and memberships, careers, and the Open Dental sync. Annual billing gives you two months free.',
           'Switch tiers any time under Settings → Plan; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
         ],
       },

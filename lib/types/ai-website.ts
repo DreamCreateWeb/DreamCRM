@@ -15,7 +15,7 @@ export type AiWebsiteSection = (typeof AI_WEBSITE_SECTIONS)[number]
  * Tier-baked monthly allowance for metered AI generations. Manual editing and
  * the one-time onboarding draft are ALWAYS free and never count against this —
  * only an on-demand "Rewrite with AI" does. Deliberately generous: the token
- * cost is trivial against a $99–$199/mo subscription, so this is an
+ * cost is trivial against a $150–$500/mo subscription, so this is an
  * anti-abuse guardrail + a gentle upgrade lever, NOT a cost-recovery meter.
  * Resets monthly, fails safe (we gate, never auto-charge). No credit currency —
  * the research is clear that "customers don't know what a credit does."

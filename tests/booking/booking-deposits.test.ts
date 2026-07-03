@@ -142,7 +142,7 @@ describe('createBookingDepositSession', () => {
   }
 
   it('creates a pending row + Checkout session with the booking_deposit kind', async () => {
-    state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd' }])
+    state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd', platformFeeBps: 100 }])
     const r = await createBookingDepositSession(input)
     expect(r?.url).toContain('checkout.stripe.com')
     expect(state.inserts).toHaveLength(1)
@@ -156,6 +156,8 @@ describe('createBookingDepositSession', () => {
     expect(opts.stripeAccount).toBe('acct_1')
     expect(params.metadata.kind).toBe('booking_deposit')
     expect(params.metadata.organizationId).toBe('org_1')
+    // 1% platform fee rides the deposit (100 bps of $50.00 = 50¢).
+    expect(params.payment_intent_data.application_fee_amount).toBe(50)
     expect(params.success_url).toContain('/book?deposit_session=')
     expect(params.cancel_url).toContain('/book?deposit=later')
     // Session id stored back on the row for the finalize lookup.

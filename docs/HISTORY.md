@@ -2240,7 +2240,39 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-02 (latest) — Unblocked-P3 sweep + the finishing pass CLEARED
+## 2026-07-03 (latest) — Billing adjustments: Stripe Tax + 1% platform fee + reprice
+
+Three user-directed billing changes in one slice (migration 0115):
+
+1. **Stripe Tax on platform subscriptions** — both platform checkouts
+   (`createCheckoutSession` in lib/services/billing.ts + the managed-clinic
+   activation checkout in lib/services/clinic-provisioning.ts) now send
+   `automatic_tax: { enabled: true }` + `billing_address_collection:
+   'required'` + `customer_update: { address: 'auto', name: 'auto' }` +
+   `tax_id_collection`. In-place plan swaps try the update WITH
+   `automatic_tax` and retry without when the older subscription's customer
+   lacks a tax address (never blocks a plan change). **Ops prerequisite:**
+   activate Stripe Tax in the dashboard, add state registrations, set the
+   SaaS tax code on the products — until then `automatic_tax` computes $0.
+2. **1% platform fee on every Connect money path** —
+   `shop_config.platform_fee_bps` default 0 → 100 (+ backfill UPDATE for
+   existing rows, migration 0115). One shared helper `platformFeeCents()`
+   (lib/types/shop.ts — clamps, never exceeds the amount). Wired as
+   `application_fee_amount` into balance payments, booking deposits, and
+   payment-plan installment charges; membership subscriptions use
+   `application_fee_percent`. Shop checkout already honored the column.
+   Per-org override stays possible by editing the row.
+3. **Reprice: $150 / $250 / $500 (annual $1,500 / $2,500 / $5,000)** —
+   PLANS in lib/stripe-config.ts + every display site (marketing pricing/
+   home/compare/docs/blog CTA, OG image, comparisons registry, launch blog
+   post, demo partner-commission seed, platform-metrics tiles now derive
+   from getPlanById). **Ops prerequisite:** create six NEW Stripe Prices and
+   swap the `STRIPE_PRICE_{STARTER,PROFESSIONAL,ENTERPRISE}_{MONTHLY,ANNUAL}`
+   values in `dreamcrm/app-secrets`, then redeploy — existing subscriptions
+   keep their old price (beta lock-in via coupons on top). DSO/multi-location
+   pricing intentionally deferred to the future DSO portal.
+
+## 2026-07-02 — Unblocked-P3 sweep + the finishing pass CLEARED
 
 The tail of the competitive program plus the whole FINISHING.md punch list,
 each slice deploy-verified. Migrations 0111–0114. Suite → 4,371.
